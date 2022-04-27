@@ -579,7 +579,7 @@ inline auto var(std::string s)
         [=, s = std::move(s)](const matcher_context& ctx,
                               instruction_ref) -> optional<instruction_ref> {
             auto it = ctx.instructions.find(s);
-            if (it == ctx.instructions.end())
+            if(it == ctx.instructions.end())
                 return nullopt;
             return it->second;
         });

@@ -83,17 +83,25 @@ struct shape
         }
     }
 
+    /// Convert single index into a multi-index
     constexpr index_array multi(index_int idx) const
     {
         index_array result;
         index_int tidx = idx;
-        for(std::ptrdiff_t is = result.size() - 1; is > 0; is--)
+        for(diff_int is = result.size() - 1; is > 0; is--)
         {
             result[is] = tidx % lens[is];
             tidx       = tidx / lens[is];
         }
         result[0] = tidx;
         return result;
+    }
+    /// Convert multi-index into a single index
+    constexpr index_int single(index_array idx) const
+    {
+        if(idx.empty())
+            return 0;
+        return inner_product(lens.begin() + 1, lens.end(), idx.begin(), idx.back());
     }
 
     constexpr shape get_shape() const { return *this; }

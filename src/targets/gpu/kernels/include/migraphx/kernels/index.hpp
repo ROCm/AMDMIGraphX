@@ -3,6 +3,7 @@
 
 #include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
 
 namespace migraphx {
 
@@ -12,23 +13,23 @@ struct index
     index_int local  = 0;
     index_int group  = 0;
 
+#ifdef MIGRAPHX_NGLOBAL
+    constexpr index_constant<MIGRAPHX_NGLOBAL> nglobal() const { return {}; }
+#else
     __device__ index_int nglobal() const
     {
-#ifdef MIGRAPHX_NGLOBAL
-        return MIGRAPHX_NGLOBAL;
-#else
         return blockDim.x * gridDim.x; // NOLINT
-#endif
     }
+#endif
 
+#ifdef MIGRAPHX_NLOCAL
+    constexpr index_constant<MIGRAPHX_NLOCAL> nlocal() const { return {}; }
+#else
     __device__ index_int nlocal() const
     {
-#ifdef MIGRAPHX_NLOCAL
-        return MIGRAPHX_NLOCAL;
-#else
-        return blockDim.x;             // NOLINT
-#endif
+        return blockDim.x; // NOLINT
     }
+#endif
 
     template <class F>
     __device__ void global_stride(index_int n, F f) const

@@ -578,9 +578,10 @@ inline auto var(std::string s)
     return make_basic_fun_matcher(
         [=, s = std::move(s)](const matcher_context& ctx,
                               instruction_ref) -> optional<instruction_ref> {
-            if(ctx.instructions.count(s) == 0)
+            auto it = ctx.instructions.find(s);
+            if (it == ctx.instructions.end())
                 return nullopt;
-            return ctx.instructions.at(s);
+            return it->second;
         });
 }
 

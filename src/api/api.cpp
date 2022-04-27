@@ -401,7 +401,8 @@ extern "C" struct migraphx_instruction;
 struct migraphx_instruction
 {
     template <class... Ts>
-    migraphx_instruction(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_instruction(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::instruction_ref object;
@@ -411,7 +412,8 @@ extern "C" struct migraphx_instructions;
 struct migraphx_instructions
 {
     template <class... Ts>
-    migraphx_instructions(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_instructions(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::instruction_ref> object;
@@ -421,7 +423,8 @@ extern "C" struct migraphx_modules;
 struct migraphx_modules
 {
     template <class... Ts>
-    migraphx_modules(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_modules(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::module*> object;
@@ -1687,6 +1690,16 @@ extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t cont
         if(context == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter context: Null pointer");
         (context->object).finish();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_context_get_queue(void** out, migraphx_context_t context)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(context == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter context: Null pointer");
+        *out = (context->object).get_queue().unsafe_get();
     });
     return api_error_result;
 }

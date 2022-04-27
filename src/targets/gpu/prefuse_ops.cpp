@@ -67,7 +67,7 @@ struct find_triaddlayernorm
         m.replace_instruction(ins, make_op("gpu::triadd_layernorm"), x_ins, y_ins, z_ins, a);
     }
 };
-}
+} // namespace
 
 void prefuse_ops::apply(module& m) const
 {

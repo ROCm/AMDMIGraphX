@@ -6,13 +6,13 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+namespace {
 struct find_layernorm
 {
     auto matcher() const { return match::layernorm(); }
 
     void apply(module& m, match::matcher_result r) const
     {
-        std::cout << "find_layernorm: " << std::endl;
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
 
@@ -26,8 +26,6 @@ struct find_layernorm
 
         auto a = m.insert_instruction(
             ins, make_op("hip::allocate", {{"shape", to_value(x_ins->get_shape())}}));
-        m.debug_print(a);
-        m.debug_print();
         m.replace_instruction(ins, make_op("gpu::layernorm"), x_ins, a);
     }
 };
@@ -42,13 +40,12 @@ struct find_triaddlayernorm
             match::name("add")(match::none_of(match::is_constant()),
                                match::args(match::any().bind("z1"), match::any().bind("z2")));
         auto add2 = match::name("add")(match::either_arg(0, 1)(add1, match::any().bind("z3")));
-        // return match::layernorm()(match::var("x")(add2));
-        return match::layernorm()(add2);
+        return match::layernorm()(match::var("x")(add2));
+        // return match::layernorm()(add2);
     }
 
     void apply(module& m, match::matcher_result r) const
     {
-        std::cout << "find_triaddlayernorm: " << std::endl;
         auto ins   = r.result;
         auto x_ins = r.instructions["z1"];
         auto y_ins = r.instructions["z2"];
@@ -67,17 +64,19 @@ struct find_triaddlayernorm
 
         auto a = m.insert_instruction(
             ins, make_op("hip::allocate", {{"shape", to_value(x_ins->get_shape())}}));
-        m.debug_print(a);
-        m.debug_print();
         m.replace_instruction(ins, make_op("gpu::triadd_layernorm"), x_ins, y_ins, z_ins, a);
     }
 };
+}
 
 void prefuse_ops::apply(module& m) const
 {
     std::cout << "****************************** prefuse_ops: " << std::endl;
-    // match::find_matches(m, find_triaddlayernorm{}, find_layernorm{});
-    match::find_matches(m, find_layernorm{});
+    m.debug_print();
+    std::cout << "******************************" << std::endl;
+    match::find_matches(m, find_triaddlayernorm{}, find_layernorm{});
+    // match::find_matches(m, find_layernorm{});
+    m.debug_print();
     std::cout << "******************************" << std::endl;
 }
 

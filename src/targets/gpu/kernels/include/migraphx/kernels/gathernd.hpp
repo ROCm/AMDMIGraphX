@@ -59,7 +59,7 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
         {
             int64_t index                   = slice_indices[idx];
             const std::size_t input_dim_idx = batch_dims + idx;
-            const auto input_dim = data_shape_lens[input_dim_idx];
+            const auto input_dim            = data_shape_lens[input_dim_idx];
             assert(index >= -static_cast<int64_t>(input_dim) and
                    index < static_cast<int64_t>(input_dim));
             if(index < 0)

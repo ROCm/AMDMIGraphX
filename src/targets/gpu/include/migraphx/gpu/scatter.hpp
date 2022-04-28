@@ -3,7 +3,7 @@
 
 #include <migraphx/argument.hpp>
 #include <migraphx/reflect.hpp>
-#include <migraphx/op/scatter.hpp>
+#include <migraphx/op/scatter_none.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {
@@ -14,7 +14,9 @@ struct context;
 
 struct hip_scatter
 {
-    op::scatter op;
+    // scatter_none is an exact replacement for previous op::scatter,
+    // renamed to match an Onnx option.  Don't use base class op::scatter
+    op::scatter_none op;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -22,7 +24,7 @@ struct hip_scatter
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "gpu::scatter"; }
+    std::string name() const { return "gpu::scatter_none"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

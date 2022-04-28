@@ -10,6 +10,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
 {
     std::vector<op_desc> operators() const
     {
+        // clang-format off
         return {{"Abs", "abs"},
                 {"Acos", "acos"},
                 {"Acosh", "acosh"},
@@ -38,8 +39,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Reciprocal", "recip"},
                 {"Relu", "relu"},
                 {"Round", "round"},
-                {"Scatter", "scatter"},
-                {"ScatterElements", "scatter"},
                 {"Sigmoid", "sigmoid"},
                 {"Sign", "sign"},
                 {"Sin", "sin"},
@@ -48,6 +47,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Tan", "tan"},
                 {"Tanh", "tanh"},
                 {"Not", "not"}};
+        // clang-format on
     }
 
     bool needs_contiguous(const std::string& op_name) const

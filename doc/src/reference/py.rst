@@ -12,31 +12,31 @@ shape
 
 .. py:method:: type()
 
-    An integer that represents the type
+    An integer that represents the type.
 
     :rtype: int
 
 .. py:method:: lens()
 
-    A list of the lengths of the shape
+    A list of the lengths of the shape.
 
     :rtype: list[int]
 
 .. py:method:: strides()
 
-    A list of the strides of the shape
+    A list of the strides of the shape.
 
     :rtype: list[int]
 
 .. py:method:: elements()
 
-    The number of elements in the shape
+    The number of elements in the shape.
 
     :rtype: int
 
 .. py:method:: bytes()
 
-    The number of bytes the shape uses
+    The number of bytes the shape uses.
 
     :rtype: int
 
@@ -102,28 +102,64 @@ argument
     Generate an argument with random data.
 
     :param shape s: Shape of argument to generate.
-    :param int seed: The seed used for random number generation
+    :param int seed: The seed used for random number generation.
 
     :rtype: argument
 
+.. py:function:: fill_argument(s, value)
 
+    Fill argument of shape s with value.
 
+    :param shape s: Shape of argument to fill.
+    :param int value: Value to fill in the argument.
 
+    :rtype argument
 
 target
 ------
 
 .. py:class:: target()
 
-    This represents the compiliation target.
+    This represents the compilation target.
 
 .. py:function:: get_target(name)
 
     Constructs the target.
 
-    :param str name: The name of the target to construct. This can either be 'cpu' or 'gpu'.
+    :param str name: The name of the target to construct. This can either be 'gpu' or 'ref'.
 
     :rtype: target
+
+
+module
+------
+.. py:method:: print()
+
+    Prints the contents of the module as list of instructions.
+
+.. py:method:: add_instruction(op, args, mod_args=[])
+    
+    Adds instruction into the module.
+
+    :param operation op: 'migraphx.op' to be added as instruction.
+    :param list[instruction] args: list of inputs to the op.
+    :param list[module] mod_args: optional list of module arguments to the operator.
+    :rtype instruction
+
+.. py:method:: add_parameter(name, shape)
+    
+    Adds a parameter to the module with provided name and shape.
+
+    :param str name: name of the parameter.
+    :param shape shape: shape of the parameter.
+    :rtype instruction
+
+.. py:method:: add_return(args)
+
+    Adds a return instruction into the module.
+
+    :param list[instruction] args: instruction arguments which need to be returned from the module.
+    :rtype instruction
 
 
 program
@@ -135,9 +171,15 @@ program
 
 .. py:method:: clone()
 
-    Make a copy of the program
+    Make a copy of the program.
 
     :rtype: program
+
+.. py:method:: get_parameter_names()
+ 
+    Get all the input arguments' or parameters' names to the program as a list.
+
+    :rtype list[str]
 
 .. py:method:: get_parameter_shapes()
 
@@ -145,11 +187,11 @@ program
 
     :rtype: dict[str, shape]
 
-.. py:method:: get_shape()
+.. py:method:: get_output_shapes()
 
-    Get the shape of the final output of the program.
+    Get the shapes of the final outputs of the program.
 
-    :rtype: shape
+    :rtype: list[shape]
 
 .. py:method:: compile(t, offload_copy=True, fast_math=True)
 
@@ -159,6 +201,19 @@ program
     :param bool offload_copy: For targets with offloaded memory(such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.
     :param bool fast_math: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled.
 
+.. py:method:: get_main_module()
+    
+    Get main module of the program.
+
+    :rtype module
+
+.. py:method:: create_module(name)
+    
+    Create and add a module of provided name into the program.
+
+    :param str name : name of the new module.
+    :rtype module
+
 .. py:method:: run(params)
 
     Run the program.
@@ -167,7 +222,11 @@ program
     :type params: dict[str, argument]
 
     :return: The result of the last instruction.
-    :rtype: argument
+    :rtype: list[argument]
+
+.. py:method:: sort()
+
+    Sort the modules of the program such that instructions appear in topologically sorted order.
 
 .. py:function:: quantize_fp16(prog, ins_names=["all"])
 
@@ -190,10 +249,22 @@ program
     :type ins_names: list[str]
 
 
+op
+--
+.. py::class:: op(name, kwargs)
+
+    Construct an operation with name and arguments.
+    
+    :param str name : name of the operation, must be supported by MIGraphX.
+    :param dict[str, any] kwargs: arguments to the operation.
+    :rtype operation
+
+
+
 parse_onnx
 ----------
 
-.. py:function:: parse_onnx(filename, default_dim_value=1, map_input_dims={}, skip_unknown_operators=false, print_program_on_error=false)
+.. py:function:: parse_onnx(filename, default_dim_value=1, map_input_dims={}, skip_unknown_operators=false, print_program_on_error=false, max_loop_iterations=10)
 
     Load and parse an onnx file.
 
@@ -202,20 +273,21 @@ parse_onnx
     :param str map_input_dims: Explicitly specify the dims of an input.
     :param str skip_unknown_operators: Continue parsing onnx file if an unknown operator is found.
     :param str print_program_on_error: Print program if an error occurs.
-
+    :param int max_loop_iterations: Maximum iteration number for the loop operator.
     :rtype: program
 
 parse_tf
 --------
 
-.. py:function:: parse_tf(filename, is_nhwc=True, batch_size=1)
+.. py:function:: parse_tf(filename, is_nhwc=True, batch_size=1, map_input_dims=dict(), output_names=[])
 
     Load and parse an tensorflow protobuf file file.
 
     :param str filename: Path to file.
     :param bool is_nhwc: Use nhwc as default format.
     :param str batch_size: default batch size to use (if not specified in protobuf).
-
+    :param dict[str, list[int]] map_input_dims: Optional arg to explictly specify dimensions of the inputs.
+    :param list[str] output_names:  Optional argument specify names of the output nodes.
     :rtype: program
 
 load
@@ -223,7 +295,7 @@ load
 
 .. py:function:: load(filename, format='msgpack')
 
-    Load a MIGraphX program
+    Load a MIGraphX program.
 
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
@@ -235,7 +307,7 @@ save
 
 .. py:function:: save(p, filename, format='msgpack')
 
-    Save a MIGraphX program
+    Save a MIGraphX program.
 
     :param program p: Program to save.
     :param str filename: Path to file.

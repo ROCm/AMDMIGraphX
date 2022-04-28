@@ -28,13 +28,20 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         {
             params += " " + src.path.filename().string();
             if(out.empty())
-                out = src.path.stem().string() + ".o";
+                out = src.path.stem().string() + out_ext;
         }
     }
 
     params += " -o " + out;
 
-    td.execute(compiler, params);
+    if(not launcher.empty())
+    {
+        td.execute(launcher, compiler + " " + params);
+    }
+    else
+    {
+        td.execute(compiler, params);
+    }
 
     auto out_path = td.path / out;
     if(not fs::exists(out_path))

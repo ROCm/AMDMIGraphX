@@ -74,6 +74,7 @@ struct array
     constexpr const T* data() const { return d; }
 
     constexpr index_constant<N> size() const { return {}; }
+    constexpr auto empty() const { return size() == _c<0>; }
 
     constexpr T* begin() { return d; }
     constexpr const T* begin() const { return d; }

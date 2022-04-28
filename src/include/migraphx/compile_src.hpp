@@ -23,6 +23,8 @@ struct src_compiler
     std::string compiler                      = "c++";
     std::string flags                         = "";
     std::string output                        = "";
+    std::string launcher                      = "";
+    std::string out_ext                       = ".o";
     std::function<fs::path(fs::path)> process = nullptr;
     std::vector<char> compile(const std::vector<src_file>& srcs) const;
 };

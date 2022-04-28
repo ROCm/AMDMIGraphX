@@ -45,7 +45,11 @@ struct gelu_tanh_matcher
     auto matcher() const
     {
         // clang-format off
-        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3)))) 
+        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
+        //      but we only match the subexpression without the 0.5 factor:
+        //      x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
+        //      because that's how it appears in common bert models.
+        //
         // matcher grammar:
         // used_once() means only match an instruction whose output is used only once (otherwise, substituting 
         //   it may not improve performance).
@@ -64,14 +68,12 @@ struct gelu_tanh_matcher
         //
         // Each function matches a step in the algebraic gelu formula.
 
+        // the subfunction returned by tanh_sub_fn() matches the inner part of the formula, then
         // add 1
         auto add_one_fn = f("add")(either_arg(0, 1)(tanh_sub_fn(), has_value(1.0F, 1e-3)));
         // multiply by x
         auto mul_x_fn = f("mul")(used_once(), either_arg(0, 1)(add_one_fn, any().bind("x")));
-
-        // multiply by 0.5
-        auto mul_point_5_fn = f("mul")(either_arg(0, 1)(mul_x_fn, has_value(0.5F, 1e-3)));
-        return mul_point_5_fn;
+        return mul_x_fn;
     }
 };
 } // namespace detail

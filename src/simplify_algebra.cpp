@@ -189,6 +189,7 @@ struct find_mul_add
 
 // find gelu (a multi-step formula), using the tanh implementation. Replace it with the gelu_erf
 // formula
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 struct find_gelu
 {
     // compile option fast_math controls whether to use math shortcuts like this
@@ -196,13 +197,20 @@ struct find_gelu
 
     auto matcher() const { return match::gelu_tanh(); }
 
-    // apply the gelu_erf formula: return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
-    //  = x * (0.5 + 0.5 * ::erf(x * M_SQRT1_2)) after match/transform
+    // apply the gelu_erf formula: return x * (1 + ::erf(x * M_SQRT1_2));
+    // this does not have the 0.5 factor that the original formula has
     void apply(module& m, match::matcher_result r) const
     {
         if(!fast_math)
             return;
         auto ins   = r.result;
+        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
+
+        if(trace){
+            std::cout << "module before gelu_tanh substitution:\n";
+            m.debug_print();
+            std::cout << "---end\n";
+        }
         auto x_ins = r.instructions["x"];
 
         auto x_type = x_ins->get_shape().type();
@@ -216,11 +224,16 @@ struct find_gelu
         auto xsq_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
         auto erf_ins = m.insert_instruction(ins, make_op("erf"), xsq_ins);
 
-        auto point_5    = m.add_literal(migraphx::literal(scalar_shape, {0.5}));
-        auto mul_p5_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {point_5, erf_ins});
-        auto add_p5_ins = insert_common_op(m, ins, migraphx::make_op("add"), {point_5, mul_p5_ins});
+        auto one    = m.add_literal(migraphx::literal(scalar_shape, {1.0}));
+        auto add_one_ins = insert_common_op(m, ins, migraphx::make_op("add"), {one, erf_ins});
 
-        m.replace_instruction(ins, make_op("mul"), add_p5_ins, x_ins);
+        m.replace_instruction(ins, make_op("mul"), add_one_ins, x_ins);
+
+        if(trace){
+            std::cout << "module after gelu_tanh substitution:\n";
+            m.debug_print();
+            std::cout << "---end\n";
+        }
     }
 };
 
@@ -1063,9 +1076,10 @@ void simplify_algebra::apply(module& p) const
                             find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
                             find_mul_slice_conv{},
-                            find_mul_add{},
-                            // gelu replacement only if fast_math flag is set
+                            // gelu replacement only if fast_math flag is set.  The gelu matcher is brittle
+                            // and will not match the usual formula if find_mul_add is used first.
                             find_gelu{fast_math},
+                            find_mul_add{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

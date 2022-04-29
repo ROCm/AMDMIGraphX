@@ -268,6 +268,21 @@ struct matcher_result
             return it->second;
         }
 
+        auto find(const std::string& name) const
+        {
+            return ins_map.find(name);
+        }
+
+        auto begin() const
+        {
+            return ins_map.cbegin();
+        }
+
+        auto end() const
+        {
+            return ins_map.cend();
+        }
+
         bool has_instructions_in(const module& mod) const
         {
             return std::all_of(ins_map.begin(), ins_map.end(), [&](auto&& p) {

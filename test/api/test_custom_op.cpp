@@ -5,7 +5,9 @@
 struct simple_custom_op final : migraphx::experimental_custom_op_base
 {
     virtual std::string name() const override { return "simple_custom_op"; }
-    virtual migraphx::argument compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override {
+    virtual migraphx::argument
+    compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override
+    {
         return inputs[0];
     }
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override

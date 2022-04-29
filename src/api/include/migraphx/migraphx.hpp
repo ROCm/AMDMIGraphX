@@ -787,11 +787,10 @@ struct module
 
 struct context : MIGRAPHX_HANDLE_BASE(context)
 {
-    context() {this->make_handle(&migraphx_context_create);}
+    context() { this->make_handle(&migraphx_context_create); }
     context(migraphx_context* p, own) { this->set_handle(p, own{}); }
 
     context(migraphx_context* p, borrow) { this->set_handle(p, borrow{}); }
-
 
     void finish() const { call(&migraphx_context_finish, this->get_handle_ptr()); }
 
@@ -1153,10 +1152,10 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
 
 struct experimental_custom_op_base
 {
-    virtual std::string name() const                 = 0;
+    virtual std::string name() const                                            = 0;
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
-    virtual shape compute_shape(shapes inputs) const = 0;
-    virtual ~experimental_custom_op_base()           = default;
+    virtual shape compute_shape(shapes inputs) const                            = 0;
+    virtual ~experimental_custom_op_base()                                      = default;
 };
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>

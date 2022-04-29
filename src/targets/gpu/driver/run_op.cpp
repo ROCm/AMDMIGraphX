@@ -17,8 +17,10 @@ struct run_op : action<run_op>
         auto name   = v.at("name").to<std::string>();
         if(not contains(name, "::"))
             name = "gpu::" + name;
-        auto op  = make_op(name);
-        double t = time_op(ctx, op, inputs);
+        auto op = make_op(name);
+        if(v.contains("fields"))
+            op.from_value(v.at("fields"));
+        double t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << t << "ms" << std::endl;
     }
 };

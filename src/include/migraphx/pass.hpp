@@ -58,17 +58,20 @@ void module_pass_manager_apply(const T& x, module_pass_manager& mpm)
 
 } // namespace detail
 
-/*
- * Type-erased interface for:
- *
- * struct pass
- * {
- *      std::string name() const;
- *      void apply(module_pass_manager & mpm) const;
- *      void apply(program & p) const;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct pass
+{
+    //
+    std::string name() const;
+    // (optional)
+    void apply(module_pass_manager& mpm) const;
+    // (optional)
+    void apply(program& p) const;
+};
+
+#else
 
 struct pass
 {
@@ -303,6 +306,7 @@ inline const ValueType& any_cast(const pass& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

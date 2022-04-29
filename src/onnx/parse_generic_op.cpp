@@ -27,6 +27,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Flatten", "flatten"},
                 {"Floor", "floor"},
                 {"Gather", "gather"},
+                {"GatherND", "gathernd"},
                 {"Gelu", "gelu"},
                 {"Identity", "identity"},
                 {"IsNaN", "isnan"},

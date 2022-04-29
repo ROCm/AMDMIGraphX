@@ -206,7 +206,8 @@ struct find_gelu
         auto ins   = r.result;
         bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
 
-        if(trace){
+        if(trace)
+        {
             std::cout << "module before gelu_tanh substitution:\n";
             m.debug_print();
             std::cout << "---end\n";
@@ -224,12 +225,13 @@ struct find_gelu
         auto xsq_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
         auto erf_ins = m.insert_instruction(ins, make_op("erf"), xsq_ins);
 
-        auto one    = m.add_literal(migraphx::literal(scalar_shape, {1.0}));
+        auto one         = m.add_literal(migraphx::literal(scalar_shape, {1.0}));
         auto add_one_ins = insert_common_op(m, ins, migraphx::make_op("add"), {one, erf_ins});
 
         m.replace_instruction(ins, make_op("mul"), add_one_ins, x_ins);
 
-        if(trace){
+        if(trace)
+        {
             std::cout << "module after gelu_tanh substitution:\n";
             m.debug_print();
             std::cout << "---end\n";
@@ -1068,26 +1070,27 @@ void simplify_algebra::apply(module& p) const
     // Run simplifications multiple times
     for(int i = 0; i < 8; i++)
     {
-        match::find_matches(p,
-                            find_inner_broadcast{},
-                            find_double_add_lit_broadcast{},
-                            find_add_lit_broadcast{},
-                            find_add_convs{},
-                            find_conv_dot_horiz_fusion{},
-                            find_mul_conv{},
-                            find_mul_slice_conv{},
-                            // gelu replacement only if fast_math flag is set.  The gelu matcher is brittle
-                            // and will not match the usual formula if find_mul_add is used first.
-                            find_gelu{fast_math},
-                            find_mul_add{},
-                            find_div_const{},
-                            find_sub_const{},
-                            find_rsqrt{},
-                            find_concat_op{},
-                            find_split_concat{},
-                            find_splits{},
-                            find_split_reshape{},
-                            find_split_transpose{});
+        match::find_matches(
+            p,
+            find_inner_broadcast{},
+            find_double_add_lit_broadcast{},
+            find_add_lit_broadcast{},
+            find_add_convs{},
+            find_conv_dot_horiz_fusion{},
+            find_mul_conv{},
+            find_mul_slice_conv{},
+            // gelu replacement only if fast_math flag is set.  The gelu matcher is brittle
+            // and will not match the usual formula if find_mul_add is used first.
+            find_gelu{fast_math},
+            find_mul_add{},
+            find_div_const{},
+            find_sub_const{},
+            find_rsqrt{},
+            find_concat_op{},
+            find_split_concat{},
+            find_splits{},
+            find_split_reshape{},
+            find_split_transpose{});
         dead_code_elimination{}.apply(p);
     }
 }

@@ -52,7 +52,7 @@ void insert_if_allocations(instruction_ref ins, module& mod, const allocation_mo
         instruction_ref output{};
         if(s == ins->get_shape() and not ins_output_allocated)
         {
-            output = mod.insert_instruction(ins, model.allocate(s));
+            output               = mod.insert_instruction(ins, model.allocate(s));
             ins_output_allocated = true;
         }
         else
@@ -87,8 +87,7 @@ void replace_allocate::apply(module& p) const
 
         if(model_name == "cpu::allocate")
         {
-            p.replace_instruction(
-                ins, p.insert_instruction(ins, model.allocate(s)));
+            p.replace_instruction(ins, p.insert_instruction(ins, model.allocate(s)));
             continue;
         }
 

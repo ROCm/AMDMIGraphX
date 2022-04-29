@@ -1,6 +1,8 @@
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
+#include "migraphx.h"
+#include <initializer_list>
 #include <migraphx/migraphx.h>
 #include <memory>
 #include <exception>
@@ -12,6 +14,16 @@ namespace migraphx {
 #ifndef DOXYGEN
 inline namespace api { // NOLINT
 #endif
+
+template <int N>
+struct rank : rank<N - 1>
+{
+};
+
+template <>
+struct rank<0>
+{
+};
 
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
@@ -228,6 +240,138 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     protected:
     std::shared_ptr<T> m_handle;
 };
+
+template <class Base>
+struct interface_base : Base
+{
+    interface_base() : Base() {}
+
+    protected:
+    template <class F>
+    static migraphx_status try_(F f) // NOLINT
+    {
+        try
+        {
+            f();
+            return migraphx_status_success;
+        }
+        catch(...)
+        {
+            return migraphx_status_unknown_error;
+        }
+    }
+
+    template <class F, class T, class... Ts>
+    void make_interface(F f, T& obj, Ts&&... xs)
+    {
+        auto copy = [](void** out, void* input) {
+            return try_([&] {
+                T** y = reinterpret_cast<T**>(out);
+                T* x  = reinterpret_cast<T*>(input);
+                assert(x != nullptr and y != nullptr and *y == nullptr);
+                *y = new T(*x); // NOLINT
+            });
+        };
+        auto del = [](void* input) {
+            return try_([&] {
+                T* x = reinterpret_cast<T*>(input);
+                delete x; // NOLINT
+            });
+        };
+        this->make_handle(f, &obj, copy, del, std::forward<Ts>(xs)...);
+    }
+
+    template <class T, class Setter, class F>
+    void set_fp(Setter setter, F pf)
+    {
+        static F f = pf;
+        (void)f; // avoid warning on gcc
+        call(setter, this->get_handle_ptr(), [](auto... xs) -> migraphx_status {
+            return try_([&] { call_cast_arg<T>(rank<1>{}, f, xs...); });
+        });
+    }
+
+    template <class T, class Setter, class F>
+    void set_auto_fp(Setter setter, F f)
+    {
+        return set_fp<T>(setter, [=](T& obj, auto out, auto... xs) {
+            auto_invoke(f, out, obj, auto_convert_param(rank<2>{}, xs)...);
+        });
+    }
+
+    struct no_out_arg
+    {
+    };
+
+    template <class T, class F, class X, class... Xs, class = std::enable_if_t<std::is_void<X>{}>>
+    static void call_cast_arg(rank<0>, F f, X* obj, Xs... xs)
+    {
+        f(reinterpret_cast<T*>(obj), no_out_arg{}, xs...);
+    }
+
+    template <class T,
+              class F,
+              class R,
+              class X,
+              class... Xs,
+              class = std::enable_if_t<std::is_void<X>{}>>
+    static void call_cast_arg(rank<1>, F f, R result, X* obj, Xs... xs)
+    {
+        f(*reinterpret_cast<T*>(obj), result, xs...);
+    }
+
+    template <class F, class T, class... Ts>
+    void auto_invoke(F f, T* out, Ts&&... xs)
+    {
+        auto_assign(rank<2>{}, out, f(std::forward<Ts>(xs)...));
+    }
+
+    template <class F, class T, class... Ts>
+    void auto_invoke(F f, no_out_arg, Ts&&... xs)
+    {
+        f(std::forward<Ts>(xs)...);
+    }
+
+    template <class T, class = std::enable_if_t<std::is_fundamental<T>{} or std::is_enum<T>{}>>
+    T auto_convert_param(rank<0>, T x)
+    {
+        return x;
+    }
+
+    template <class T>
+    auto auto_convert_param(rank<1>, T x) -> decltype(as_handle<T>{x})
+    {
+        return as_handle<T>{x};
+    }
+
+    template <class T>
+    auto auto_convert_param(rank<2>, T x) -> decltype(as_handle<T>{x, borrow{}})
+    {
+        return as_handle<T>{x, borrow{}};
+    }
+
+    template <class T, class U>
+    void auto_assign(rank<0>, T* out, U x)
+    {
+        return *out = x;
+    }
+
+    template <class T, class U>
+    auto auto_assign(rank<1>, T* out, U x) -> decltype(x.assign_to_handle(out))
+    {
+        x.assign_to_handle(out);
+    }
+};
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_INTERFACE_LIFT(T, prefix, name)          \
+    this->set_auto_fp<T>(&migraphx_##prefix##_set_##name, \
+                         [](T& x, auto... xs) { return x.name(xs...); })
+
+template <class Base, class T>
+using require_interface =
+    std::enable_if_t<std::is_base_of<Base, T>{} and not std::is_same<T, Base>{} and
+                     std::is_copy_constructible<T>{} and std::is_final<T>{}>;
 
 #ifdef DOXYGEN
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
@@ -523,12 +667,109 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     };
 };
 
+struct operation : MIGRAPHX_HANDLE_BASE(operation)
+{
+    operation(migraphx_operation* p, own) { this->set_handle(p, own{}); }
+
+    operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
+
+    template <class... Ts>
+    operation(const char* name, const char* attributes = nullptr, Ts... xs)
+    {
+        this->make_handle(&migraphx_operation_create, name, attributes, xs...);
+    }
+
+    std::string name()
+    {
+        std::array<char, 1024> out_name;
+        call(&migraphx_operation_name, out_name.data(), 1024, this->get_handle_ptr());
+        return {out_name.data()};
+    }
+};
+
+struct instruction : MIGRAPHX_CONST_HANDLE_BASE(instruction)
+{
+    instruction(migraphx_instruction* p, own) { this->set_handle(p, own{}); }
+};
+
+struct instructions : MIGRAPHX_HANDLE_BASE(instructions)
+{
+
+    instructions(migraphx_instructions* p, own) { this->set_handle(p, own{}); }
+
+    instructions(migraphx_instructions* p, borrow) { this->set_handle(p, borrow{}); }
+
+    template <class... Ts>
+    instructions(Ts... xs)
+    {
+        std::array<const_migraphx_instruction_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_instructions_create, a.data(), a.size());
+    }
+};
+
+struct module;
+
+struct modules : MIGRAPHX_HANDLE_BASE(modules)
+{
+
+    modules(migraphx_modules* p, own) { this->set_handle(p, own{}); }
+
+    modules(migraphx_modules* p, borrow) { this->set_handle(p, borrow{}); }
+
+    template <class... Ts>
+    modules(Ts... xs)
+    {
+        std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.mm...};
+        this->make_handle(&migraphx_modules_create, a.data(), a.size());
+    }
+};
+
 struct module
 {
     migraphx_module_t mm;
+
     module(const migraphx_module_t& m) : mm(m) {}
 
     void print() const { call(&migraphx_module_print, mm); }
+
+    instruction add_instruction(const migraphx::operation& op, const migraphx::instructions& args)
+    {
+        migraphx_instruction_t op_ins;
+        call(&migraphx_module_add_instruction,
+             &op_ins,
+             mm,
+             op.get_handle_ptr(),
+             args.get_handle_ptr());
+        return instruction(op_ins, own{});
+    }
+
+    instruction add_instruction(const migraphx::operation& op,
+                                const migraphx::instructions& args,
+                                const migraphx::modules& module_args)
+    {
+        migraphx_instruction_t op_ins;
+        call(&migraphx_module_add_instruction_with_mod_args,
+             &op_ins,
+             mm,
+             op.get_handle_ptr(),
+             args.get_handle_ptr(),
+             module_args.get_handle_ptr());
+        return instruction(op_ins, own{});
+    }
+
+    instruction add_parameter(const std::string& name, shape s)
+    {
+        migraphx_instruction_t param_ins;
+        call(&migraphx_module_add_parameter, &param_ins, mm, name.c_str(), s.get_handle_ptr());
+        return instruction(param_ins, own{});
+    }
+
+    instruction add_return(const migraphx::instructions& args)
+    {
+        migraphx_instruction_t ret_ins;
+        call(&migraphx_module_add_return, &ret_ins, mm, args.get_handle_ptr());
+        return instruction(ret_ins, own{});
+    }
 };
 
 struct context
@@ -536,6 +777,15 @@ struct context
     migraphx_context_t ctx;
 
     void finish() const { call(&migraphx_context_finish, ctx); }
+
+    template <class T>
+    T get_queue()
+    {
+        void* out;
+        call(&migraphx_context_get_queue, &out, ctx);
+        // TODO: check type here
+        return reinterpret_cast<T>(out);
+    }
 };
 
 struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
@@ -564,7 +814,7 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 /// A program represents the all computation graphs to be compiled and executed
 struct program : MIGRAPHX_HANDLE_BASE(program)
 {
-    program() {}
+    program() { this->make_handle(&migraphx_program_create); }
 
     program(migraphx_program* p, own) { this->set_handle(p, own{}); }
 
@@ -634,34 +884,21 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return module{p_modu};
     }
 
-    context get_context()
+    context experimental_get_context()
     {
         migraphx_context_t ctx;
-        call(&migraphx_program_get_context, &ctx, this->get_handle_ptr());
+        call(&migraphx_program_experimental_get_context, &ctx, this->get_handle_ptr());
         return context{ctx};
     }
 
+    module create_module(const std::string& name)
+    {
+        migraphx_module_t p_modu;
+        call(&migraphx_program_create_module, &p_modu, this->get_handle_ptr(), name.data());
+        return module{p_modu};
+    }
+
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }
-};
-
-struct operation : MIGRAPHX_HANDLE_BASE(operation)
-{
-    operation(migraphx_operation* p, own) { this->set_handle(p, own{}); }
-
-    operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
-
-    template <class... Ts>
-    operation(const char* name, const char* attributes = nullptr, Ts... xs)
-    {
-        this->make_handle(&migraphx_operation_create, name, attributes, xs...);
-    }
-
-    std::string name()
-    {
-        std::array<char, 1024> out_name;
-        call(&migraphx_operation_name, out_name.data(), 1024, this->get_handle_ptr());
-        return {out_name.data()};
-    }
 };
 
 // options for migraphx file format options
@@ -900,6 +1137,32 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
          prog.get_handle_ptr(),
          ptarget.get_handle_ptr(),
          options.get_handle_ptr());
+}
+
+struct experimental_custom_op_base
+{
+    virtual std::string name() const                 = 0;
+    virtual shape compute_shape(shapes inputs) const = 0;
+    virtual ~experimental_custom_op_base()           = default;
+};
+
+struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
+{
+    template <class T>
+    experimental_custom_op(T& obj)
+    {
+        this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
+        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
+    }
+
+    void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }
+};
+
+template <class T, class = require_interface<experimental_custom_op_base, T>>
+void register_experimental_custom_op(T& obj)
+{
+    experimental_custom_op op{obj};
+    op.register_op();
 }
 
 #ifndef DOXYGEN

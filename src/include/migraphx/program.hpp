@@ -81,6 +81,9 @@ struct program
                const std::function<void(instruction_ref,
                                         std::unordered_map<instruction_ref, std::string>)>&
                    print_func) const;
+    void print(const std::function<void(instruction_ref ins,
+                                        std::unordered_map<instruction_ref, std::string>)>&
+                   print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;

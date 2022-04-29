@@ -109,6 +109,7 @@ register_migraphx_ops(
     flatten
     floor
     gather
+    gathernd
     get_tuple_elem
     greater
     gru
@@ -162,10 +163,12 @@ register_migraphx_ops(
     round
     rsqrt
     scalar
-    scatter
-    scatternd_none
+    scatter_add
+    scatter_mul
+    scatter_none
     scatternd_add
     scatternd_mul
+    scatternd_none
     sigmoid
     sign
     sinh

@@ -33,7 +33,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(module& mod
     return prog_output_names;
 }
 
-void insert_if_allocations(instruction_ref ins, module& mod, const std::string& model_name)
+void insert_if_allocations(instruction_ref ins, module& mod, const allocation_model& model)
 {
     std::vector<instruction_ref> inputs = ins->inputs();
     std::vector<module_ref> mod_args    = ins->module_inputs();
@@ -52,12 +52,12 @@ void insert_if_allocations(instruction_ref ins, module& mod, const std::string& 
         instruction_ref output{};
         if(s == ins->get_shape() and not ins_output_allocated)
         {
-            output = mod.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}}));
+            output = mod.insert_instruction(ins, model.allocate(s));
             ins_output_allocated = true;
         }
         else
         {
-            output = mod.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}}));
+            output = mod.insert_instruction(ins, model.allocate(s));
         }
         inputs.push_back(output);
     }
@@ -74,7 +74,7 @@ void replace_allocate::apply(module& p) const
     {
         if(ins->get_operator().name() == "if")
         {
-            insert_if_allocations(ins, p, model_name);
+            insert_if_allocations(ins, p, model);
             continue;
         }
         if(ins->get_operator().name() != "allocate")
@@ -88,7 +88,7 @@ void replace_allocate::apply(module& p) const
         if(model_name == "cpu::allocate")
         {
             p.replace_instruction(
-                ins, p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}})));
+                ins, p.insert_instruction(ins, model.allocate(s)));
             continue;
         }
 

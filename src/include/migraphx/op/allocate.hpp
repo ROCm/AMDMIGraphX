@@ -18,7 +18,7 @@ namespace op {
 
 struct allocate
 {
-    shape s;
+    shape s{};
     std::string tag = "";
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -26,7 +26,10 @@ struct allocate
         return pack(f(self.s, "shape"), f(self.tag, "tag"));
     }
     std::string name() const { return "allocate"; }
-    shape compute_shape(const std::vector<shape>&) const { return s; }
+    shape compute_shape(const std::vector<shape>& inputs) const {
+         migraphx::check_shapes{inputs, *this}.has(0);
+         return s; 
+    }
     argument compute(const shape& output_shape, const std::vector<argument>&) const
     {
         return {output_shape};

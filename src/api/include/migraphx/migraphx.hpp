@@ -785,22 +785,21 @@ struct module
     std::shared_ptr<migraphx_module> mm;
 };
 
-struct context
+struct context : MIGRAPHX_HANDLE_BASE(context)
 {
-    context(migraphx_context* p, borrow) : ctx(std::shared_ptr<migraphx_context*>(), p) {}
+    context() {this->make_handle(&migraphx_context_create);}
+    context(migraphx_context* p, own) { this->set_handle(p, own{}); }
 
-    template <class T>
-    context(migraphx_context* p, share<T> b) : ctx(b.alias(p))
-    {
-    }
+    context(migraphx_context* p, borrow) { this->set_handle(p, borrow{}); }
 
-    void finish() const { call(&migraphx_context_finish, ctx.get()); }
+
+    void finish() const { call(&migraphx_context_finish, this->get_handle_ptr()); }
 
     template <class T>
     T get_queue()
     {
         void* out;
-        call(&migraphx_context_get_queue, &out, ctx.get());
+        call(&migraphx_context_get_queue, &out, this->get_handle_ptr());
         // TODO: check type here
         return reinterpret_cast<T>(out);
     }
@@ -1155,6 +1154,7 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
 struct experimental_custom_op_base
 {
     virtual std::string name() const                 = 0;
+    virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
     virtual shape compute_shape(shapes inputs) const = 0;
     virtual ~experimental_custom_op_base()           = default;
 };
@@ -1166,6 +1166,7 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     {
         this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
         MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
+        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute);
     }
 
     void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }

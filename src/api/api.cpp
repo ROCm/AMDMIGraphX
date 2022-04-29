@@ -554,6 +554,24 @@ struct migraphx_experimental_custom_op
     manage_generic_ptr<migraphx_experimental_custom_op_copy, migraphx_experimental_custom_op_delete>
         object_ptr = nullptr;
     migraphx::experimental_custom_op xobject;
+    migraphx_experimental_custom_op_compute compute_f = nullptr;
+    migraphx::argument compute(migraphx::context ctx,
+                               migraphx::shape output,
+                               std::vector<migraphx::argument> inputs) const
+    {
+        std::remove_pointer_t<migraphx_argument_t> out;
+        if(compute_f == nullptr)
+            throw std::runtime_error("compute function is missing.");
+        auto api_error_result = compute_f(&out,
+                                          object_ptr.data,
+                                          object_cast<migraphx_context_t>(&(ctx)),
+                                          object_cast<migraphx_shape_t>(&(output)),
+                                          object_cast<migraphx_arguments_t>(&(inputs)));
+        if(api_error_result != migraphx_status_success)
+            throw std::runtime_error("Error in compute.");
+        return (&out)->object;
+    }
+
     migraphx_experimental_custom_op_compute_shape compute_shape_f = nullptr;
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
@@ -1700,6 +1718,26 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_context_destroy(migraphx_context_t context)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((context)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_context_assign_to(migraphx_context_t output,
+                                                      const_migraphx_context_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_context_create(migraphx_context_t* context)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *context = object_cast<migraphx_context_t>(allocate<migraphx::context>()); });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t context)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -1746,6 +1784,14 @@ migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experi
         *experimental_custom_op =
             allocate<migraphx_experimental_custom_op_t>((obj), (c), (d), (name));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_experimental_custom_op_set_compute(migraphx_experimental_custom_op_t obj,
+                                            migraphx_experimental_custom_op_compute input)
+{
+    auto api_error_result = migraphx::try_([&] { (obj)->compute_f = (input); });
     return api_error_result;
 }
 

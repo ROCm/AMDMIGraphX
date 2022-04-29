@@ -381,6 +381,7 @@ api.add_function('migraphx_quantize_fp16',
                  fname='migraphx::quantize_fp16')
 
 
+
 @auto_handle()
 def quantize_int8_options(h):
     h.constructor('create')
@@ -402,9 +403,9 @@ api.add_function('migraphx_quantize_int8',
                             options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')
 
-
-@auto_handle(ref=True)
+@auto_handle()
 def context(h):
+    h.constructor('create')
     h.method('finish', const=True)
     h.method('get_queue', returns='void*', fname='get_queue().unsafe_get')
 
@@ -413,6 +414,8 @@ def context(h):
                'migraphx::experimental_custom_op')
 def experimental_custom_op(h):
     h.constructor('create', api.params(name='const char*'))
+    h.virtual('compute', api.params(ctx='migraphx::context', output='migraphx::shape', inputs='std::vector<migraphx::argument>'), 
+                returns='migraphx::argument')
     h.virtual('compute_shape',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')

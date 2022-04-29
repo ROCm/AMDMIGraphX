@@ -84,8 +84,9 @@ struct gpu_allocation_model
 
 void run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
 {
-    migraphx::run_passes(
-        m, {migraphx::replace_allocate{std::move(model), offload_copy}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m,
+                         {migraphx::replace_allocate{std::move(model), offload_copy},
+                          migraphx::dead_code_elimination{}});
 }
 
 migraphx::module create_simple_program()

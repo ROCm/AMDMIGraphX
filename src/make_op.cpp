@@ -16,7 +16,7 @@ operation make_op(const std::string& name,
     for(auto&& [key, x] : v)
     {
         if(not w.contains(key))
-            MIGRAPHX_THROW("No key '" + key + "' in " + name);
+            MIGRAPHX_THROW("No key '" + key + "' in " + name); // NOLINT(performance-inefficient-string-concatenation)
         w.at(key) = x;
     }
     op.from_value(w);

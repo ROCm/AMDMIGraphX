@@ -829,9 +829,9 @@ struct find_conv_bias
             match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
-        apply_conv_bias<miopen_conv_bias>(*ctx, p, std::move(r));
+        apply_conv_bias<miopen_conv_bias>(*ctx, p, r);
     }
 };
 
@@ -840,9 +840,9 @@ struct find_conv_bias_relu
     context* ctx = nullptr;
     auto matcher() const { return match::name("gpu::relu")(match::arg(0)(conv_bias())); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
-        apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, std::move(r));
+        apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, r);
     }
 };
 

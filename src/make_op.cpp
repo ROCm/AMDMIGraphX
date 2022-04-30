@@ -6,9 +6,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 operation make_op(const std::string& name) { return load_op(name); }
 
-template<class F>
-operation make_op_generic(const std::string& name,
-                  F for_each)
+template <class F>
+operation make_op_generic(const std::string& name, F for_each)
 {
     auto op = load_op(name);
     // Merge values
@@ -23,13 +22,12 @@ operation make_op_generic(const std::string& name,
     return op;
 }
 
-
 operation make_op(const std::string& name,
                   const std::initializer_list<std::pair<std::string, value>>& v)
 {
     return make_op_generic(name, [&](auto f) {
-        for(auto&& [key, x] : v) 
-            f(key, x); 
+        for(auto&& [key, x] : v)
+            f(key, x);
     });
 }
 

@@ -11,7 +11,7 @@ struct find_layernorm
 {
     auto matcher() const { return match::layernorm(); }
 
-    void apply(module& m, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -41,7 +41,7 @@ struct find_triaddlayernorm
         return match::layernorm()(match::var("x")(add2));
     }
 
-    void apply(module& m, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["z1"];

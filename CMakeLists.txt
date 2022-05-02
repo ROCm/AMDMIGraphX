@@ -216,6 +216,7 @@ rocm_enable_cppcheck(
         CPPCHECK=1
         __device__=
         __host__=
+        __global__=
 )
 
 enable_testing()

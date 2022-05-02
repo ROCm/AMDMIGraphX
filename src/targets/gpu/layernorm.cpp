@@ -15,7 +15,7 @@ shape hip_layernorm::compute_shape(std::vector<shape> inputs) const
 argument hip_layernorm::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::layernorm(ctx.get_stream().get(), args.back(), args[0]);
-    
+
     return args.back();
 }
 

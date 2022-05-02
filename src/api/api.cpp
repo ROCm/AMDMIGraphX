@@ -1313,16 +1313,22 @@ extern "C" migraphx_status migraphx_value_get_float(double* out, const_migraphx_
 
 extern "C" migraphx_status migraphx_value_create_string(migraphx_value_t* value, const char* i)
 {
-    auto api_error_result = migraphx::try_(
-        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((i))); });
+    auto api_error_result = migraphx::try_([&] {
+        if(i == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter i: Null pointer");
+        *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((std::string(i))));
+    });
     return api_error_result;
 }
 
 extern "C" migraphx_status
 migraphx_value_create_string_with_key(migraphx_value_t* value, const char* pkey, const char* i)
 {
-    auto api_error_result = migraphx::try_(
-        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((pkey), (i))); });
+    auto api_error_result = migraphx::try_([&] {
+        if(i == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter i: Null pointer");
+        *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((pkey), (std::string(i))));
+    });
     return api_error_result;
 }
 

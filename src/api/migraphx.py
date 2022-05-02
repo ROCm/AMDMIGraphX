@@ -231,17 +231,12 @@ def value(h):
     cpp_types = ['int64_t', 'uint64_t', 'double', 'std::string', 'bool']
     vt = ['int64', 'uint64', 'float', 'string', 'bool']
     for vt, cpp_type in zip(vt, cpp_types):
-        if (vt == 'string'):
-            h.constructor('create_' + vt, api.params(i='const char*'))
-            h.constructor('create_' + vt + '_with_key',
-                          api.params(pkey='const char*', i='const char*'))
-        else:
-            h.constructor('create_' + vt, api.params(i=cpp_type))
-            h.constructor('create_' + vt + '_with_key',
+        h.constructor('create_{}'.format(vt), api.params(i=cpp_type))
+        h.constructor('create_{}_with_key'.format(vt),
                           api.params(pkey='const char*', i=cpp_type))
-        h.method('if_' + vt, returns='const ' + cpp_type + '*', const=True)
-        h.method('is_' + vt, returns='bool', const=True)
-        h.method('get_' + vt, returns=cpp_type, const=True)
+        h.method('if_{}'.format(vt), returns='const ' + cpp_type + '*', const=True)
+        h.method('is_{}'.format(vt), returns='bool', const=True)
+        h.method('get_{}'.format(vt), returns=cpp_type, const=True)
 
 
 @auto_handle()

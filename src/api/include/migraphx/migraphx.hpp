@@ -869,6 +869,9 @@ struct value : MIGRAPHX_HANDLE_BASE(value)
         return result;
     }
 
+    // TODO(umang): need to return pointer to make it consistent across all data types, or make all
+    // data type return value instead of pointers
+    // TODO(umang): need to check if size of 1024 holds for serialization
     std::string get_string() const
     {
         std::array<char, 1024> str_array;
@@ -876,14 +879,9 @@ struct value : MIGRAPHX_HANDLE_BASE(value)
         return {str_array.data()};
     }
 
-    // TODO(umang): need to return pointer to make it consistent across all data types, or make all
-    // data type return value instead of pointers
-    // TODO(umang): need to check if size of 1024 holds for serialization
     std::string if_string() const
     {
-        std::array<char, 1024> str_array;
-        call(&migraphx_value_if_string, str_array.data(), 1024, this->get_handle_ptr());
-        return {str_array.data()};
+        return this->is_string() ? this->get_string() : "";
     }
 
 #define MIGRAPHX_VISIT_VALUE_TYPES(m) \
@@ -909,9 +907,7 @@ struct value : MIGRAPHX_HANDLE_BASE(value)
     }                                                                              \
     const cpp_type* if_##vt() const                                                \
     {                                                                              \
-        const cpp_type* ret_value = nullptr;                                       \
-        call(&migraphx_value_if_##vt, &ret_value, this->get_handle_ptr());         \
-        return ret_value;                                                          \
+        return this->is_##vt() ? &(this->get_##vt()) : nullptr;                    \
     }
 
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)

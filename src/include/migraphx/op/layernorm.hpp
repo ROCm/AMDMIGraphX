@@ -87,8 +87,7 @@ struct layernorm
                     mean_square = sqrt(mean_square / norm_size - mean * mean + epsilon);
                     for(std::size_t i = 0; i < norm_size; ++i)
                     {
-                        output[offset + i] =
-                                (data[offset + i] - mean) / mean_square;
+                        output[offset + i] = (data[offset + i] - mean) / mean_square;
                         /* if(args.size() == 3)
                             output[offset + i] =
                                 (data[offset + i] - mean) / mean_square * weights[i] + bias[i];

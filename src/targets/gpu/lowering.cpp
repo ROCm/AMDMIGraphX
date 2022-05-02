@@ -389,7 +389,7 @@ struct miopen_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
-            if (op_name == "layernorm")
+            if(op_name == "layernorm")
             {
                 std::cout << "layernorm op" << std::endl;
             }

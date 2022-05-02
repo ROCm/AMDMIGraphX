@@ -12,7 +12,8 @@ namespace device {
 
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1);
 
-//void layernorm(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3, const int64_t axis);
+// void layernorm(hipStream_t stream, const argument& result, const argument& arg1, const argument&
+// arg2, const argument& arg3, const int64_t axis);
 
 void triadd_layernorm(hipStream_t stream,
                       const argument& result,

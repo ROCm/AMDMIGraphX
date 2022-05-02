@@ -233,8 +233,10 @@ def value(h):
     for vt, cpp_type in zip(vt, cpp_types):
         h.constructor('create_{}'.format(vt), api.params(i=cpp_type))
         h.constructor('create_{}_with_key'.format(vt),
-                          api.params(pkey='const char*', i=cpp_type))
-        h.method('if_{}'.format(vt), returns='const ' + cpp_type + '*', const=True)
+                      api.params(pkey='const char*', i=cpp_type))
+        h.method('if_{}'.format(vt),
+                 returns='const ' + cpp_type + '*',
+                 const=True)
         h.method('is_{}'.format(vt), returns='bool', const=True)
         h.method('get_{}'.format(vt), returns=cpp_type, const=True)
 

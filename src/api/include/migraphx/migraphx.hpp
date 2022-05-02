@@ -879,10 +879,7 @@ struct value : MIGRAPHX_HANDLE_BASE(value)
         return {str_array.data()};
     }
 
-    std::string if_string() const
-    {
-        return this->is_string() ? this->get_string() : "";
-    }
+    std::string if_string() const { return this->is_string() ? this->get_string() : ""; }
 
 #define MIGRAPHX_VISIT_VALUE_TYPES(m) \
     m(int64, std::int64_t) m(uint64, std::uint64_t) m(float, double) m(bool, bool)
@@ -905,10 +902,7 @@ struct value : MIGRAPHX_HANDLE_BASE(value)
         call(&migraphx_value_get_##vt, &get_value, this->get_handle_ptr());        \
         return get_value;                                                          \
     }                                                                              \
-    const cpp_type* if_##vt() const                                                \
-    {                                                                              \
-        return this->is_##vt() ? &(this->get_##vt()) : nullptr;                    \
-    }
+    const cpp_type* if_##vt() const { return this->is_##vt() ? &(this->get_##vt()) : nullptr; }
 
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
 };

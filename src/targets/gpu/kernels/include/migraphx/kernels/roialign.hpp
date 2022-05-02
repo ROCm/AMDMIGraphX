@@ -175,24 +175,24 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         if constexpr(s.is_avg_pooling)
         {
             y_t[i] = calc_pooling(offset_x,
-                                      roi_starts,
-                                      bin_size,
-                                      {ph, pw},
-                                      bin_grid_size,
-                                      in_dims,
-                                      s.roi_offset,
-                                      avg_pool{});
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  avg_pool{});
         }
         else
         {
             y_t[i] = calc_pooling(offset_x,
-                                      roi_starts,
-                                      bin_size,
-                                      {ph, pw},
-                                      bin_grid_size,
-                                      in_dims,
-                                      s.roi_offset,
-                                      max_pool{});
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  max_pool{});
         }
     }
 }

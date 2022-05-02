@@ -147,6 +147,7 @@ add_library(migraphx_gpu
     int8_conv_pack.cpp
     int8_gemm_pack.cpp
     kernel.cpp
+    layernorm.cpp
     lowering.cpp
     logsoftmax.cpp
     loop.cpp
@@ -202,6 +203,7 @@ register_migraphx_gpu_ops(hip_
     floor
     gather
     greater
+    layernorm
     less
     log
     logsoftmax

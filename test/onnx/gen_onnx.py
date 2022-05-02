@@ -2540,6 +2540,22 @@ def layernorm_test():
 
 
 @onnx_test
+def layernorm_op_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [3])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 2, 3])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'w', 'b'],
+                                 outputs=["output"],
+                                 epsilon=1e-5)
+
+    return ([node], [x, w, b], [output])
+
+    
+@onnx_test
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

@@ -423,6 +423,7 @@ layernorm_half(void* in1, void* data_out, index_int batch_item_num, index_int bl
 
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
+    std::cout << "void layernorm" << std::endl;
     auto in_s           = arg1.get_shape();
     auto type           = in_s.type();
     auto batch_item_num = in_s.lens().back();

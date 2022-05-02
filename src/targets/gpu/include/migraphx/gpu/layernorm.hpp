@@ -4,6 +4,7 @@
 #include <migraphx/op/layernorm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

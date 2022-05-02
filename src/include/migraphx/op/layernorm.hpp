@@ -72,7 +72,9 @@ struct layernorm
                 mean_inv_std_dev_dim.at(i) = 1;
 
         } */
-        visit_all(result, args[0], args[1], args[2])(
+        if (args.size() == 3)
+        {
+            visit_all(result, args[0], args[1], args[2])(
             [&](auto output, auto data, auto weights, auto bias) {
                 par_for(norm_count, [&](auto idx) {
                     auto offset        = idx * norm_size;
@@ -87,17 +89,39 @@ struct layernorm
                     mean_square = sqrt(mean_square / norm_size - mean * mean + epsilon);
                     for(std::size_t i = 0; i < norm_size; ++i)
                     {
-                        output[offset + i] = (data[offset + i] - mean) / mean_square;
-                        /* if(args.size() == 3)
+                        if(args.size() == 3)
                             output[offset + i] =
                                 (data[offset + i] - mean) / mean_square * weights[i] + bias[i];
                         else
                             output[offset + i] =
-                                (data[offset + i] - mean) / mean_square * weights[i]; */
-                        // scale and bias handled by onnx parser
+                                (data[offset + i] - mean) / mean_square * weights[i];
                     }
                 });
             });
+        }
+        else
+        {
+            visit_all(result, args[0])(
+                [&](auto output, auto data) {
+                    par_for(norm_count, [&](auto idx) {
+                        auto offset        = idx * norm_size;
+                        double mean        = 0;
+                        double mean_square = 0;
+                        for(std::size_t i = 0; i < norm_size; ++i)
+                        {
+                            mean += data[offset + i];
+                            mean_square += data[offset + i] * data[offset + i];
+                        }
+                        mean /= norm_size;
+                        mean_square = sqrt(mean_square / norm_size - mean * mean + epsilon);
+                        for(std::size_t i = 0; i < norm_size; ++i)
+                        {
+                            output[offset + i] = (data[offset + i] - mean) / mean_square;
+                            // scale and bias handled by onnx parser
+                        }
+                    });
+                });
+        }
 
         return result;
     }

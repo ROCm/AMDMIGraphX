@@ -30,11 +30,11 @@ struct parse_layernorm : op_parser<parse_layernorm>
         auto layernorm = info.add_instruction(
             make_op("layernorm", {{"epsilon", epsilon}, {"axis", axis}}), args.front());
 
-        if(args.size() == 3)
-        {
+        if(args.size() >= 2)
             layernorm = info.add_instruction(make_op("mul"), layernorm, args.at(1));
+        if (args.size() == 3)
             layernorm = info.add_instruction(make_op("add"), layernorm, args.at(2));
-        }
+            
         return layernorm;
     }
 };

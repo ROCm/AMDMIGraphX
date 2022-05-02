@@ -148,9 +148,9 @@ module
 
 .. py:method:: add_literal(data)
 
-    Adds constant or literal data of provided shape into the module from python array or numpy array.    
+    Adds constant or literal data of provided shape into the module from python buffer which includes numpy array.    
 
-    :param py::buffer data: Python array or numpy array 
+    :param py::buffer data: Python buffer or numpy array 
     :rtype instruction 
 
 .. py:method:: add_parameter(name, shape)

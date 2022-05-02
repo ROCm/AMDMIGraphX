@@ -394,10 +394,6 @@ struct miopen_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
-            if(op_name == "layernorm")
-            {
-                std::cout << "layernorm op" << std::endl;
-            }
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name), refs);

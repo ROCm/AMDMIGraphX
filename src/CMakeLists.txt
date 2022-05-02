@@ -116,6 +116,7 @@ register_migraphx_ops(
     if_op
     im2col
     isnan
+    layernorm
     leaky_relu
     less
     load

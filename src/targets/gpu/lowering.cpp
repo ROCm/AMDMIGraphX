@@ -11,6 +11,7 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/if_op.hpp>
+#include <migraphx/op/layernorm.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/pooling.hpp>
@@ -29,6 +30,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/greater.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
+#include <migraphx/gpu/layernorm.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/less.hpp>
 #include <migraphx/gpu/logical_and.hpp>
@@ -139,6 +141,7 @@ struct miopen_apply
         add_generic_op("exp");
         add_generic_op("floor");
         add_generic_op("greater");
+        add_generic_op("layernorm");
         add_generic_op("less");
         add_generic_op("log");
         add_generic_op("logical_and");
@@ -386,6 +389,10 @@ struct miopen_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
+            if (op_name == "layernorm")
+            {
+                std::cout << "layernorm op" << std::endl;
+            }
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name), refs);

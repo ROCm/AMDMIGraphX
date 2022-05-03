@@ -25,14 +25,11 @@ struct parse_mean : op_parser<parse_mean>
             migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {num_data}});
 
         return std::accumulate(
-            args.begin(), args.end(), args[0], [&](const auto& mean, auto data_i) {
+            args.begin()+1, args.end(), info.add_broadcastable_binary_op("div", args[0], divisor), [&](auto mean, auto data_i) {
                 // Pre-divide each tensor element-wise by n to reduce risk of overflow during
                 // summation
-                data_i = info.add_broadcastable_binary_op("div", data_i, divisor);
-
-                if(data_i != args[0])
-                    return info.add_broadcastable_binary_op("add", mean, data_i);
-                return data_i;
+                auto div = info.add_broadcastable_binary_op("div", data_i, divisor);
+                return info.add_broadcastable_binary_op("add", mean, div);
             });
     }
 };

@@ -191,13 +191,12 @@ struct block
                 f();
         }
 
-        template <class T, class... Ts>
-        __device__ auto inner(T x, Ts... xs) const
+        template <class F>
+        __device__ auto inner(F f) const
         {
-            return [=](auto f) {
-                // TODO: Assert same elements
+            return sliced(slicer, [=](auto x, auto... xs) {
                 idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
-            };
+            });
         }
     };
 
@@ -246,15 +245,15 @@ struct lane
             f();
         }
 
-        template <class T, class... Ts>
-        __device__ auto inner(T x, Ts... xs) const
+        template <class F>
+        __device__ auto inner(F f) const
         {
-            return [=](auto f) {
+            return sliced(slicer, [=](auto x, auto... xs) {
                 for(index_int j = 0; j < x.get_shape().elements(); j++)
                 {
                     f(x[j], xs[j]...);
                 }
-            };
+            });
         }
     };
 

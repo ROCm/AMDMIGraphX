@@ -194,9 +194,8 @@ constexpr auto transform(integral_const_array<T, Xs...>, F f)
 template <class T, T... Xs, class F>
 constexpr auto transform_i(integral_const_array<T, Xs...>, F f)
 {
-    return sequence_c<sizeof...(Xs)>([=](auto... is) {
-        return integral_const_array<T, f(Xs, is)...>{};
-    });
+    return sequence_c<sizeof...(Xs)>(
+        [=](auto... is) { return integral_const_array<T, f(Xs, is)...>{}; });
 }
 
 template <class T, T... Xs, class U, U... Ys, class F>

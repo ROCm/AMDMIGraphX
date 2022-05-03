@@ -51,10 +51,11 @@ struct softmax_compiler : compiler<softmax_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto axis = v.at("axis").to<int64_t>();
+        auto axis       = v.at("axis").to<int64_t>();
         auto block_size = compute_block_size(inputs[0].lens()[axis], 256);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), block_size), 256);
+        options.set_launch_params(
+            v, compute_global_for(ctx, inputs.back().elements(), block_size), 256);
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = "softmax_kernel";
@@ -69,7 +70,6 @@ struct softmax_compiler : compiler<softmax_compiler>
         return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
     }
 };
-
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

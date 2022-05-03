@@ -12,18 +12,18 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
                                        migraphx::shape output_shape,
                                        migraphx::arguments inputs) const override
     {
-        // sets first half size_bytes of the input 0, and rest of the half bytes are copied. 
+        // sets first half size_bytes of the input 0, and rest of the half bytes are copied.
         float* d_output;
         float* h_output{new float[12]};
-        auto input_bytes  = inputs[0].get_shape().bytes();
-        auto copy_bytes   = input_bytes / 2;
+        auto input_bytes = inputs[0].get_shape().bytes();
+        auto copy_bytes  = input_bytes / 2;
         HIP_ASSERT(hipSetDevice(0));
         HIP_ASSERT(hipMalloc(&d_output, input_bytes));
         HIP_ASSERT(hipMemcpyAsync(d_output,
-                             inputs[0].data(),
-                             input_bytes,
-                             hipMemcpyHostToDevice,
-                             ctx.get_queue<hipStream_t>()));
+                                  inputs[0].data(),
+                                  input_bytes,
+                                  hipMemcpyHostToDevice,
+                                  ctx.get_queue<hipStream_t>()));
         HIP_ASSERT(hipMemset(d_output, 0, copy_bytes));
         HIP_ASSERT(hipMemcpy(h_output, d_output, input_bytes, hipMemcpyDeviceToHost));
         HIP_ASSERT(hipFree(d_output));
@@ -53,7 +53,7 @@ TEST_CASE(run_simple_custom_op)
     auto results = p.eval(pp);
     auto result  = results[0];
     std::vector<float> expected_result(12, 0);
-    std::fill(expected_result.begin()+6, expected_result.end(), 1);
+    std::fill(expected_result.begin() + 6, expected_result.end(), 1);
     EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
 }
 

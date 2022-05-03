@@ -77,6 +77,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && vega";
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
+    } else if(name == "rocm-framework-19.amd.com") {
+        node_name = "${rocmtest_name} && rocm-framework-19.amd.com";
     } else if(name == "nogpu") {
         return rocmtest_name;
     }

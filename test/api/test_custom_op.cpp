@@ -7,19 +7,24 @@
 struct simple_custom_op final : migraphx::experimental_custom_op_base
 {
     virtual std::string name() const override { return "simple_custom_op"; }
-    virtual migraphx::argument
-    compute(migraphx::context ctx, migraphx::shape output_shape, migraphx::arguments inputs) const override
+    virtual migraphx::argument compute(migraphx::context ctx,
+                                       migraphx::shape output_shape,
+                                       migraphx::arguments inputs) const override
     {
         float* d_output;
         float* h_output{new float[9]};
-        auto input_bytes = inputs[0].get_shape().bytes();
-        auto copy_bytes = input_bytes/2;
+        auto input_bytes  = inputs[0].get_shape().bytes();
+        auto copy_bytes   = input_bytes / 2;
         auto memset_bytes = input_bytes - copy_bytes;
-        auto res = hipSetDevice(0);
+        auto res          = hipSetDevice(0);
         EXPECT(res == hipSuccess);
-        res = hipMalloc(&d_output, input_bytes);              
+        res = hipMalloc(&d_output, input_bytes);
         EXPECT(res == hipSuccess);
-        res = hipMemcpyAsync(d_output, inputs[0].data(), input_bytes, hipMemcpyHostToDevice, ctx.get_queue<hipStream_t>());
+        res = hipMemcpyAsync(d_output,
+                             inputs[0].data(),
+                             input_bytes,
+                             hipMemcpyHostToDevice,
+                             ctx.get_queue<hipStream_t>());
         EXPECT(res == hipSuccess);
         res = hipMemset(d_output, 0, memset_bytes);
         EXPECT(res == hipSuccess);
@@ -60,7 +65,8 @@ TEST_CASE(run_simple_custom_op)
     auto results = p.eval(pp);
     auto result  = results[0];
     std::vector<float> expected_result(9, 0);
-    for(size_t i = 4; i < 9; i++) {
+    for(size_t i = 4; i < 9; i++)
+    {
         expected_result[i] = 1;
     }
     EXPECT(bool{result == migraphx::argument(s, expected_result.data())});

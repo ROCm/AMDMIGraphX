@@ -237,7 +237,9 @@ struct custom_operation
         return op.compute_shape(std::move(inputs));
     }
     // TODO: Compute method with module_args
-    argument compute(migraphx::context ctx, migraphx::shape output_shape, std::vector<argument> inputs) const { 
+    argument
+    compute(migraphx::context ctx, migraphx::shape output_shape, std::vector<argument> inputs) const
+    {
         return op.compute(ctx, output_shape, inputs);
     }
 };

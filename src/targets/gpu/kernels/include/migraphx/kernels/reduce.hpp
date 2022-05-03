@@ -196,7 +196,7 @@ struct block
         {
             return [=](auto f) {
                 // TODO: Assert same elements
-                idx.local_stride(x.elements(), [&](auto j) { f(x[j], xs[j]...); });
+                idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
             };
         }
     };

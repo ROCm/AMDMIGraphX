@@ -152,6 +152,21 @@ constexpr auto sliced(Slicer slicer, F f)
     };
 }
 
+template<class Input, index_int Axis>
+constexpr auto compute_reduce_axis()
+{
+    constexpr auto lens = transform_i(get_shape_c<Input>{}.lens,
+                                    [](index_int x, index_int i) -> index_int {
+                                        if(i == Axis)
+                                            return 1;
+                                        return x;
+                                    });
+    return make_shape(lens, get_shape_c<Input>{}.strides);
+}
+
+template<class Input, index_int Axis>
+using with_axis = decltype(compute_reduce_axis<Input, Axis>());
+
 struct block
 {
     template <class Slicer>
@@ -174,6 +189,17 @@ struct block
         {
             if(idx.local == 0)
                 f();
+        }
+
+        template <class T, class... Ts>
+        __device__ auto inner(T x, Ts... xs) const
+        {
+            return [=](auto f) {
+                // TODO: Assert same elements
+                idx.local_stride(x.elements(), [&](auto j) {
+                    f(x[j], xs[j]...);
+                });
+            };
         }
     };
 
@@ -220,6 +246,17 @@ struct lane
         __device__ void outer(F f) const
         {
             f();
+        }
+
+        template <class T, class... Ts>
+        __device__ auto inner(T x, Ts... xs) const
+        {
+            return [=](auto f) {
+                for(index_int j = 0; j < x.get_shape().elements(); j++)
+                {
+                    f(x[j], xs[j]...);
+                }
+            };
         }
     };
 

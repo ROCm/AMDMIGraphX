@@ -64,17 +64,17 @@ void insert_if_allocations(instruction_ref ins, module& mod, const allocation_mo
     mod.replace_instruction(ins, ins->get_operator(), inputs, mod_args);
 }
 
-void replace_allocate::apply(module& p) const
+void replace_allocate::apply(module& m) const
 {
-    auto prog_output_names = create_output_names(p);
-    auto last              = instruction::get_output_alias(std::prev(p.end()));
-    bool main_offload_copy = p.name() == "main" ? this->offload_copy : false;
+    auto prog_output_names = create_output_names(m);
+    auto last              = instruction::get_output_alias(std::prev(m.end()));
+    bool main_offload_copy = m.name() == "main" ? this->offload_copy : false;
     std::string model_name = model.name();
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->get_operator().name() == "if")
         {
-            insert_if_allocations(ins, p, model);
+            insert_if_allocations(ins, m, model);
             continue;
         }
         if(ins->get_operator().name() != "allocate")
@@ -87,7 +87,7 @@ void replace_allocate::apply(module& p) const
 
         if(model_name == "cpu::allocate")
         {
-            p.replace_instruction(ins, p.insert_instruction(ins, model.allocate(s)));
+            m.replace_instruction(ins, m.insert_instruction(ins, model.allocate(s)));
             continue;
         }
 
@@ -96,19 +96,19 @@ void replace_allocate::apply(module& p) const
         if(not main_offload_copy and last->name() == "@return" and tag.empty() and
            prog_output_names.count(ins_alias) > 0)
         {
-            out_param = p.add_parameter(prog_output_names[ins_alias], s);
-            p.replace_instruction(ins, out_param);
+            out_param = m.add_parameter(prog_output_names[ins_alias], s);
+            m.replace_instruction(ins, out_param);
             continue;
         }
         else if(not main_offload_copy and ins_alias == last and tag.empty())
         {
-            out_param = p.add_parameter("output", s);
-            p.replace_instruction(ins, out_param);
+            out_param = m.add_parameter("output", s);
+            m.replace_instruction(ins, out_param);
             continue;
         }
-        p.replace_instruction(
+        m.replace_instruction(
             ins,
-            p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")})));
+            m.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")})));
     }
 }
 

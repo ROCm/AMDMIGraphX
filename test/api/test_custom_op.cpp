@@ -21,10 +21,10 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
         MIGRAPHX_HIP_ASSERT(hipMalloc(&d_output, input_bytes));
         MIGRAPHX_HIP_ASSERT(hipMemcpyAsync(d_output,
-                                  inputs[0].data(),
-                                  input_bytes,
-                                  hipMemcpyHostToDevice,
-                                  ctx.get_queue<hipStream_t>()));
+                                           inputs[0].data(),
+                                           input_bytes,
+                                           hipMemcpyHostToDevice,
+                                           ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipMemset(d_output, 0, copy_bytes));
         MIGRAPHX_HIP_ASSERT(hipMemcpy(h_output, d_output, input_bytes, hipMemcpyDeviceToHost));
         MIGRAPHX_HIP_ASSERT(hipFree(d_output));

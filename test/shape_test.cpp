@@ -42,6 +42,39 @@ TEST_CASE(test_shape_standard)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_dynamic_fixed)
+{
+    std::vector<migraphx::shape::dynamic_dimension> dims = {};
+    dims.emplace_back(migraphx::shape::dynamic_dimension{2, 2, 0});
+    dims.emplace_back(migraphx::shape::dynamic_dimension{2, 2, 0});
+    dims.emplace_back(migraphx::shape::dynamic_dimension{3, 3, 0});
+    migraphx::shape s{migraphx::shape::float_type, dims};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims().size() == 3);
+    EXPECT(s.dyn_dims().at(0).is_fixed());
+    EXPECT(not s.dyn_dims().at(0).has_optimal());
+}
+
+TEST_CASE(test_shape_dynamic_not_fixed)
+{
+    std::vector<migraphx::shape::dynamic_dimension> dims = {};
+    dims.emplace_back(migraphx::shape::dynamic_dimension{2, 5, 2});
+    dims.emplace_back(migraphx::shape::dynamic_dimension{2, 8, 0});
+    migraphx::shape s{migraphx::shape::float_type, dims};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims().size() == 2);
+    EXPECT(not s.dyn_dims().at(0).is_fixed());
+    EXPECT(s.dyn_dims().at(0).has_optimal());
+}
+
 TEST_CASE(test_shape_packed)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {2, 1}};

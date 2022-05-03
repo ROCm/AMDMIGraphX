@@ -59,6 +59,15 @@ struct shape
     {
     };
 
+    struct dynamic_dimension
+    {
+        std::size_t min = 0;
+        std::size_t max = 0;
+        std::size_t opt = 0;
+        bool is_fixed() const { return min == max; };
+        bool has_optimal() const { return opt != 0; };
+    };
+
     static const std::vector<type_t>& types();
 
     static std::string name(type_t t);
@@ -68,6 +77,8 @@ struct shape
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);
     shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s);
+
+    shape(type_t t, std::vector<dynamic_dimension> dims);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
@@ -93,6 +104,8 @@ struct shape
     std::size_t bytes() const;
     std::size_t type_size() const;
 
+    const std::vector<dynamic_dimension>& dyn_dims() const;
+
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;
     /// Map multiple indices to space index
@@ -115,16 +128,23 @@ struct shape
 
     /// Returns true if the shape is packed with no padding
     bool packed() const;
+
     /// Returns true is the shape has been transposed. That is the strides are not in descending
     /// order
     bool transposed() const;
+
     /// Returns true if the shape is broadcasting a dimension. That is, one of the strides are zero
     bool broadcasted() const;
+
     /// Returns true if the shape is in its standard format. That is, the shape is both packed and
     /// not transposed.
     bool standard() const;
+
     /// Returns true if all strides are equal to 0 (scalar tensor)
     bool scalar() const;
+
+    /// Return true if the shape is dynamic
+    bool dynamic() const;
 
     shape normalize_standard() const;
 
@@ -225,6 +245,7 @@ struct shape
 
     const std::vector<shape>& sub_shapes() const;
 
+    /// size of the data buffer
     std::size_t element_space() const;
 
     private:

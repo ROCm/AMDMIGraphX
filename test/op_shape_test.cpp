@@ -958,7 +958,7 @@ TEST_CASE(multibroadcast)
     }
     {
         std::vector<std::size_t> lens{4, 1, 3};
-        migraphx::shape input{migraphx::shape::float_type, {}};
+        migraphx::shape input{migraphx::shape::float_type};
         throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
     {

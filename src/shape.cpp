@@ -3,6 +3,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include <numeric>
 #include <algorithm>
 #include <functional>
@@ -45,11 +46,20 @@ struct shape_impl
     }
 
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
+
+    shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
+        : m_type(t), m_dynamic(true), m_dyn_dims(std::move(dims))
+    {
+    }
+
     shape::type_t m_type;
     std::vector<std::size_t> m_lens    = {};
     std::vector<std::size_t> m_strides = {};
     std::vector<shape> m_shapes        = {};
     bool m_standard                    = false;
+    bool m_dynamic                     = false;
+
+    std::vector<shape::dynamic_dimension> m_dyn_dims = {};
 
     void calculate_strides()
     {
@@ -66,6 +76,11 @@ struct shape_impl
 
     std::size_t element_space() const
     {
+        if(m_dynamic)
+        {
+            MIGRAPHX_THROW("SHAPE: element_space() called on dynamic shape");
+        }
+
         assert(m_lens.size() == m_strides.size());
         if(m_lens.empty())
             return 0;
@@ -80,6 +95,11 @@ struct shape_impl
 
     std::size_t elements() const
     {
+        if(m_dynamic)
+        {
+            MIGRAPHX_THROW("SHAPE: elements() called on dynamic shape");
+        }
+
         assert(m_lens.size() == m_strides.size());
         if(m_lens.empty())
             return 0;
@@ -137,6 +157,11 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 
 shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
+shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
+    : impl(std::make_shared<shape_impl>(t, std::move(dims)))
+{
+}
+
 shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
 
 shape shape::from_permutation(type_t t,
@@ -150,9 +175,13 @@ shape shape::from_permutation(type_t t,
 }
 
 shape::type_t shape::type() const { return impl->m_type; }
+
 const std::vector<std::size_t>& shape::lens() const { return impl->m_lens; }
+
 const std::vector<std::size_t>& shape::strides() const { return impl->m_strides; }
+
 std::size_t shape::elements() const { return impl->elements(); }
+
 std::size_t shape::bytes() const
 {
     if(this->sub_shapes().empty())
@@ -176,6 +205,9 @@ std::size_t shape::type_size() const
         this->visit_type([&](auto as) { n = as.size(); });
     return n;
 }
+
+const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
+
 std::size_t shape::index(std::initializer_list<std::size_t> l) const
 {
     assert(l.size() <= this->lens().size());
@@ -235,13 +267,23 @@ void shape::multi_copy(std::size_t i, std::size_t* start, const std::size_t* end
                    });
 }
 
+bool shape::dynamic() const { return (impl->m_dynamic); }
+
 bool shape::packed() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     return this->sub_shapes().empty() and this->elements() == this->element_space();
 }
 
 bool shape::transposed() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     if(this->broadcasted())
     {
         // TODO: Use a filter_iterator instead
@@ -261,6 +303,10 @@ bool shape::transposed() const
 
 bool shape::broadcasted() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     assert(this->lens().size() == this->strides().size());
     return std::accumulate(this->strides().begin(),
                            this->strides().end(),
@@ -270,6 +316,10 @@ bool shape::broadcasted() const
 
 bool shape::scalar() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     assert(this->lens().size() == this->strides().size());
     // if any stride > 0, then accumulate will return false
     return this->sub_shapes().empty() and

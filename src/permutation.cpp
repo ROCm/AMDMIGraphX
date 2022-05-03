@@ -13,11 +13,18 @@ shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation)
     return {s.type(), reorder_dims(s.lens(), permutation), reorder_dims(s.strides(), permutation)};
 }
 
+/*!
+ * Inverts the permutation using the less_than operator
+ */
 std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
 {
     return sort_permutation(permutation, std::less<>{});
 }
 
+/*!
+ * Computes a permutation for the lengths based on decesending stride order.
+ * Compares the lengths if the strides are the same.
+ */
 std::vector<int64_t> find_permutation(const shape& s)
 {
     std::vector<std::int64_t> result(s.lens().size());

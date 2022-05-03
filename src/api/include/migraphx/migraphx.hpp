@@ -787,7 +787,7 @@ struct module
 
 struct context : MIGRAPHX_HANDLE_BASE(context)
 {
-    context() {this->make_handle(&migraphx_context_create);}
+    context() { this->make_handle(&migraphx_context_create); }
 
     MIGRAPHX_HANDLE_CONSTRUCTOR(context);
 

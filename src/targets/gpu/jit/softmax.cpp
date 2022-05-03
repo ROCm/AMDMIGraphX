@@ -52,8 +52,8 @@ struct softmax_compiler : compiler<softmax_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto axis       = v.at("axis").to<int64_t>();
-        auto relements = inputs[0].lens()[axis];
-        auto nelements = inputs.back().elements() / relements;
+        auto relements  = inputs[0].lens()[axis];
+        auto nelements  = inputs.back().elements() / relements;
         auto block_size = compute_block_size(relements, 256);
         hip_compile_options options;
         options.set_launch_params(

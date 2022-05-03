@@ -14,7 +14,7 @@ __device__ void softmax(Input input, Output output)
         auto batch_sum =
             r.reduce(op::sum{}, 0, [&](auto x) { return migraphx::exp(x - batch_max); })(input);
         r.inner([&](auto& y, auto x) { y = migraphx::exp(x - batch_max) / batch_sum; })(output,
-                input);
+                                                                                        input);
     });
 }
 

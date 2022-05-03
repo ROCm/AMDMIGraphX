@@ -24,6 +24,7 @@ struct parse_mean : op_parser<parse_mean>
         auto divisor = info.add_literal(
             migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {num_data}});
 
+        // TODO: Only divide when using floating-point
         return std::accumulate(args.begin() + 1,
                                args.end(),
                                info.add_broadcastable_binary_op("div", args[0], divisor),

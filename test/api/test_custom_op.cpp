@@ -4,7 +4,7 @@
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
 
-#define HIP_ASSERT(x) (EXPECT((x) == hipSuccess))
+#define MIGRAPHX_HIP_ASSERT(x) (EXPECT((x) == hipSuccess))
 struct simple_custom_op final : migraphx::experimental_custom_op_base
 {
     virtual std::string name() const override { return "simple_custom_op"; }
@@ -18,16 +18,16 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
         float* h_output{new float[12]};
         auto input_bytes = inputs[0].get_shape().bytes();
         auto copy_bytes  = input_bytes / 2;
-        HIP_ASSERT(hipSetDevice(0));
-        HIP_ASSERT(hipMalloc(&d_output, input_bytes));
-        HIP_ASSERT(hipMemcpyAsync(d_output,
+        MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
+        MIGRAPHX_HIP_ASSERT(hipMalloc(&d_output, input_bytes));
+        MIGRAPHX_HIP_ASSERT(hipMemcpyAsync(d_output,
                                   inputs[0].data(),
                                   input_bytes,
                                   hipMemcpyHostToDevice,
                                   ctx.get_queue<hipStream_t>()));
-        HIP_ASSERT(hipMemset(d_output, 0, copy_bytes));
-        HIP_ASSERT(hipMemcpy(h_output, d_output, input_bytes, hipMemcpyDeviceToHost));
-        HIP_ASSERT(hipFree(d_output));
+        MIGRAPHX_HIP_ASSERT(hipMemset(d_output, 0, copy_bytes));
+        MIGRAPHX_HIP_ASSERT(hipMemcpy(h_output, d_output, input_bytes, hipMemcpyDeviceToHost));
+        MIGRAPHX_HIP_ASSERT(hipFree(d_output));
         return {output_shape, h_output};
     }
 

@@ -1,3 +1,4 @@
+
 function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
     set(NAME test_api_${TEST_NAME})
     add_executable(${NAME} EXCLUDE_FROM_ALL ${TEST_SRC})
@@ -22,5 +23,6 @@ add_api_test(tf_parser test_tf_parser.cpp ${TEST_TF_DIR})
 # GPU-based tests
 if(MIGRAPHX_ENABLE_GPU)
 add_api_test(gpu test_gpu.cpp ${TEST_ONNX_DIR})
+target_link_libraries(test_api_custom_op migraphx_gpu)
 target_link_libraries(test_api_gpu migraphx_gpu)
 endif()

@@ -26,7 +26,7 @@ TEST_CASE(reduce_mean_with_format)
     EXPECT(rm.name() == "reduce_mean");
 }
 
-// TODO: Enable this after Khalique's PR is merged. 
+// TODO: Enable this after Khalique's PR is merged.
 // TEST_CASE(allocate_with_nested_json_str)
 // {
 //     auto alloc = migraphx::operation(

@@ -14,6 +14,7 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
     {
         // sets first half size_bytes of the input 0, and rest of the half bytes are copied.
         float* d_output;
+        // cppcheck-suppress useSmartPointer
         float* h_output{new float[12]};
         auto input_bytes = inputs[0].get_shape().bytes();
         auto copy_bytes  = input_bytes / 2;

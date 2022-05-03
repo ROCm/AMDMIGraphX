@@ -100,13 +100,13 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
-}, mlir_debug: rocmnode('vega') { cmake_build ->
+}, mlir_debug: rocmnode('rocm-framework-19.amd.com') { cmake_build ->
     stage('MLIR Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
-}, clang_asan: rocmnode('nogpu') { cmake_build ->
+}, clang_asan: rocmnode('rocm-framework-19.amd.com') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"

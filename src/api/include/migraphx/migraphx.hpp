@@ -438,9 +438,6 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {
     shape() {}
 
-    MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
-    shape(const migraphx_shape* p) { this->set_handle(p, borrow{}); }
-
     MIGRAPHX_HANDLE_CONSTRUCTOR(shape);
 
     /// Construct a scalar shape

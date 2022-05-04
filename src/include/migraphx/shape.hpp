@@ -133,9 +133,9 @@ struct shape
 
     const std::vector<dynamic_dimension>& dyn_dims() const;
 
-    const std::vector<std::size_t> min_dyn_dims() const;
-    const std::vector<std::size_t> max_dyn_dims() const;
-    const std::vector<std::size_t> opt_dyn_dims() const;
+    std::vector<std::size_t> min_dyn_dims() const;
+    std::vector<std::size_t> max_dyn_dims() const;
+    std::vector<std::size_t> opt_dyn_dims() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;

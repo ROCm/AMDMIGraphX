@@ -383,7 +383,7 @@ bool shape::dynamic() const { return impl->m_dynamic; }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
-const std::vector<std::size_t> shape::min_dyn_dims() const
+std::vector<std::size_t> shape::min_dyn_dims() const
 {
     auto num_dims = dyn_dims().size();
     std::vector<std::size_t> ret{num_dims};
@@ -394,7 +394,7 @@ const std::vector<std::size_t> shape::min_dyn_dims() const
     return ret;
 }
 
-const std::vector<std::size_t> shape::max_dyn_dims() const
+std::vector<std::size_t> shape::max_dyn_dims() const
 {
     auto num_dims = dyn_dims().size();
     std::vector<std::size_t> ret{num_dims};
@@ -405,7 +405,7 @@ const std::vector<std::size_t> shape::max_dyn_dims() const
     return ret;
 }
 
-const std::vector<std::size_t> shape::opt_dyn_dims() const
+std::vector<std::size_t> shape::opt_dyn_dims() const
 {
     auto num_dims = dyn_dims().size();
     std::vector<std::size_t> ret{num_dims};

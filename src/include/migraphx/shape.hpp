@@ -64,8 +64,21 @@ struct shape
         std::size_t min = 0;
         std::size_t max = 0;
         std::size_t opt = 0;
-        bool is_fixed() const { return min == max; };
-        bool has_optimal() const { return opt != 0; };
+        bool is_fixed() const { return min == max; }
+        bool has_optimal() const { return opt != 0; }
+        friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y)
+        {
+            return (x.min == y.min and x.max == y.max and x.opt == y.opt);
+        }
+        friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y)
+        {
+            return !(x == y);
+        }
+        friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x)
+        {
+            os << "[" << x.min << ", " << x.max << ", " << x.opt << "]";
+            return os;
+        }
     };
 
     static const std::vector<type_t>& types();
@@ -100,11 +113,28 @@ struct shape
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
+
+    /*!
+     * Return the number of elements in the tensor. Multiply the lengths.
+     */
     std::size_t elements() const;
+
+    /*!
+     * Return the number of total bytes used for storage of the tensor data.
+     * Includes subshapes.
+     */
     std::size_t bytes() const;
+
+    /*!
+     * Return the size of the type of the main shape.
+     * Returns 0 if there are subshapes.
+     */
     std::size_t type_size() const;
 
     const std::vector<dynamic_dimension>& dyn_dims() const;
+    const std::vector<std::size_t>& min_dyn_dims() const;
+    const std::vector<std::size_t>& max_dyn_dims() const;
+    const std::vector<std::size_t>& opt_dyn_dims() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;

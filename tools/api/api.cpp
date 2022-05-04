@@ -241,7 +241,7 @@ struct custom_operation
     argument
     compute(migraphx::context ctx, migraphx::shape output_shape, std::vector<argument> inputs) const
     {
-        return op.compute(ctx, output_shape, inputs);
+        return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 };
 

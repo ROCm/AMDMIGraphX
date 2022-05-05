@@ -9,6 +9,7 @@ function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
     add_dependencies(check ${NAME})
 endfunction()
 
+add_api_test(array_base test_array_base.cpp ${TEST_ONNX_DIR})
 add_api_test(assign test_assign.cpp ${TEST_ONNX_DIR})
 add_api_test(custom_op test_custom_op.cpp ${TEST_ONNX_DIR})
 add_api_test(compile_options test_compile_options.cpp ${TEST_ONNX_DIR})

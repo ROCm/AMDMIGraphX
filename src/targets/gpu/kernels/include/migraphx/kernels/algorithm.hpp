@@ -21,6 +21,16 @@ struct greater
     }
 };
 
+template <class InputIt, class T, class BinaryOperation>
+constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
+{
+    for(; first != last; ++first)
+    {
+        init = op(std::move(init), *first);
+    }
+    return init;
+}
+
 template <class InputIt, class OutputIt>
 constexpr OutputIt copy(InputIt first, InputIt last, OutputIt d_first)
 {

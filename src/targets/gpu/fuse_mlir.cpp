@@ -67,7 +67,7 @@ struct find_conv_pointwise
         m.replace_instruction(ins, mlir);
     }
 };
-}
+} // namespace
 
 void fuse_mlir::apply(module& m) const { match::find_matches(m, find_conv_pointwise{}); }
 

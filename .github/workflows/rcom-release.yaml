@@ -11,8 +11,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+      - name: Checkout submodules
+        uses: textbook/git-checkout-submodule-action@master
         with:
-          submodules: recursive
+          remote: true
       - name: Docker build
         run: |
           cd ./rocm-migraphx/scripts

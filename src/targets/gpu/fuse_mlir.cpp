@@ -29,9 +29,10 @@ struct find_conv_pointwise
         auto pm       = ins->module_inputs().front();
         auto names    = pm->get_parameter_names();
         // Whitelist pointwise operators
-        if (std::any_of(pm->begin(), pm->end(), [](const auto& i) {
-            return not contains({"@literal", "@param", "@return", "convolution", "add", "relu"}, i.name());
-        }))
+        if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
+               return not contains({"@literal", "@param", "@return", "convolution", "add", "relu"},
+                                   i.name());
+           }))
             return;
         std::sort(names.begin(), names.end());
         module mm{};

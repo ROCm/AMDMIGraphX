@@ -11,6 +11,7 @@ struct module;
 
 namespace gpu {
 
+namespace {
 struct find_conv_pointwise
 {
     // Find a convolution followed by a pointwise operation.
@@ -66,6 +67,7 @@ struct find_conv_pointwise
         m.replace_instruction(ins, mlir);
     }
 };
+}
 
 void fuse_mlir::apply(module& m) const { match::find_matches(m, find_conv_pointwise{}); }
 

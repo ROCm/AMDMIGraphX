@@ -1,60 +1,56 @@
-#include <hip/hip_runtime_api.h>
+#include <algorithm>
+#include <cmath>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
 
-#define MIGRAPHX_HIP_ASSERT(x) (EXPECT((x) == hipSuccess))
-struct simple_custom_op final : migraphx::experimental_custom_op_base
+struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
 {
-    virtual std::string name() const override { return "simple_custom_op"; }
-    virtual migraphx::argument compute(migraphx::context ctx,
-                                       migraphx::shape output_shape,
-                                       migraphx::arguments inputs) const override
+    virtual std::string name() const override { return "sigmoid_custom_op"; }
+    virtual migraphx::argument
+    compute(migraphx::context, migraphx::shape output_shape, migraphx::arguments inputs) const override
     {
-        // sets first half size_bytes of the input 0, and rest of the half bytes are copied.
-        float* d_output;
-        // cppcheck-suppress useSmartPointer
-        float* h_output{new float[12]};
-        auto input_bytes = inputs[0].get_shape().bytes();
-        auto copy_bytes  = input_bytes / 2;
-        MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
-        MIGRAPHX_HIP_ASSERT(hipMalloc(&d_output, input_bytes));
-        MIGRAPHX_HIP_ASSERT(hipMemcpyAsync(d_output,
-                                           inputs[0].data(),
-                                           input_bytes,
-                                           hipMemcpyHostToDevice,
-                                           ctx.get_queue<hipStream_t>()));
-        MIGRAPHX_HIP_ASSERT(hipMemset(d_output, 0, copy_bytes));
-        MIGRAPHX_HIP_ASSERT(hipMemcpy(h_output, d_output, input_bytes, hipMemcpyDeviceToHost));
-        MIGRAPHX_HIP_ASSERT(hipFree(d_output));
-        return {output_shape, h_output};
+        size_t input_len = inputs[0].get_shape().lengths()[0];
+        std::vector<float> output(input_len);        
+        auto input_vec = inputs[0].as_vector<float>();
+        std::transform(input_vec.begin(), input_vec.end(), output.begin(), [](auto x) { return 1.f / (1.f + std::exp(-x)); });
+        return {output_shape, output.data()};
     }
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
+        CHECK(inputs.size() == 1);
+        CHECK(inputs[0].lengths().size() == 1);
+        CHECK(inputs[0].type() == migraphx_shape_float_type);
         return inputs.front();
     }
 };
 
-TEST_CASE(run_simple_custom_op)
+TEST_CASE(register_custom_op)
 {
-    simple_custom_op simple_op;
-    migraphx::register_experimental_custom_op(simple_op);
+    sigmoid_custom_op sigmoid_op;
+    migraphx::register_experimental_custom_op(sigmoid_op);
+    auto op = migraphx::operation("sigmoid_custom_op");
+    EXPECT(op.name() == "sigmoid_custom_op");
+}
+
+TEST_CASE(run_sigmoid_custom_op) {
     migraphx::program p;
-    migraphx::shape s{migraphx_shape_float_type, {4, 3}};
+    migraphx::shape s{migraphx_shape_float_type, {12}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
-    auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {x});
-    m.add_return({custom_kernel});
-    p.compile(migraphx::target("gpu"));
+    auto custom_kernel = m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x});
+    p.compile(migraphx::target("ref"));
+    // run program
     migraphx::program_parameters pp;
-    std::vector<float> x_data(12, 1);
-    pp.add("x", migraphx::argument(s, x_data.data()));
+    auto param_shapes = p.get_parameter_shapes();
+    migraphx::argument input_arg = migraphx::argument::generate(param_shapes["x"]);
+    pp.add("x", input_arg);
     auto results = p.eval(pp);
     auto result  = results[0];
-    std::vector<float> expected_result(12, 0);
-    std::fill(expected_result.begin() + 6, expected_result.end(), 1);
-    EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+    auto input_vec = input_arg.as_vector<float>();
+    std::transform(input_vec.begin(), input_vec.end(), input_vec.begin(), [](auto y) { return 1.f / (1.f + std::exp(-y)); });
+    EXPECT(bool{result == migraphx::argument(s, input_vec.data())});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

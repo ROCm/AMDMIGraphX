@@ -10,7 +10,6 @@ export LANG=C.UTF-8
 
 # Need pip3 and Python headers to build dependencies
 apt update && apt install -y python3-pip python3-dev cmake
-#apt update && apt install -y python3-pip python3-dev cmake
 
 # Needed for cmake to build various pip packages
 pip3 install setuptools wheel

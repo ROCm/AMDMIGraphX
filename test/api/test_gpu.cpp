@@ -112,11 +112,11 @@ TEST_CASE(loop_test)
 
         auto outputs = p.eval(pp);
         auto output  = outputs[0];
-        auto ret     = output.as_vector<float>();
+        std::vector<std::vector<float>> ret;
+        ret.push_back(output.as_vector<float>());
 
-        output     = outputs[1];
-        auto ret_1 = output.as_vector<float>();
-        ret.insert(ret.end(), ret_1.begin(), ret_1.end());
+        output   = outputs[1];
+        ret.push_back(output.as_vector<float>());
 
         return ret;
     };

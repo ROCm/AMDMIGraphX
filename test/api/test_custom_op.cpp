@@ -17,7 +17,8 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
         std::transform(input_vec.begin(), input_vec.end(), output.begin(), [](auto x) {
             return 1.f / (1.f + std::exp(-x));
         });
-        return {output_shape, output.data()};
+        auto ret = migraphx::argument(output_shape, output.data());
+        return ret;
     }
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override

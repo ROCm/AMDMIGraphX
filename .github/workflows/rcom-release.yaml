@@ -17,4 +17,4 @@ jobs:
       - name: Docker build
         run: |
           cd ./rocm-migraphx/scripts
-          env ROCM_RELEASE=“5.1” ./build_migraphx_docker.sh
+          env ROCM_RELEASE=5.1 ./build_migraphx_docker.sh

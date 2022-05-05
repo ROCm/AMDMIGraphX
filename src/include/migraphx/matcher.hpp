@@ -286,16 +286,18 @@ void find_matches(module& mod, instruction_ref ins, Ms&&... ms)
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif
-        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
+        int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
     bool match     = false;
     each_args(
         [&](auto&& m) {
             if(match)
                 return;
+            if(trace > 1)
+                std::cout << "Match: " << get_type_name(m) << std::endl;
             auto r = match_instruction(mod, ins, m.matcher());
             if(r.result == mod.end())
                 return;
-            if(trace)
+            if(trace > 0)
             {
                 std::cout << "Matched by " << get_type_name(m) << std::endl;
                 mod.debug_print(ins);

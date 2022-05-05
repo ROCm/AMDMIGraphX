@@ -308,7 +308,7 @@ TEST_CASE(compile_math)
             continue;
         auto name = migraphx::shape::cpp_type(t);
         if(t == migraphx::shape::half_type)
-            name = "migraphx::" + name;
+            name.insert(0, "migraphx::");
         data_types.push_back(name);
         migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
             return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";

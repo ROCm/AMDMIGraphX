@@ -96,15 +96,13 @@ else()
                 -Wno-gnu-zero-variadic-macro-arguments
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types
-		-Wno-option-ignored
+                -Wno-option-ignored
                 -Wno-padded
                 -Wno-shorten-64-to-32
                 -Wno-sign-conversion
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
                 -Wno-c99-extensions
-                -Wno-reserved-macro-identifier
-                -Wno-reserved-identifier
                 # -Wno-c++2a-designator
             )
         else()

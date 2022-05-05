@@ -1,4 +1,3 @@
-
 function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
     set(NAME test_api_${TEST_NAME})
     add_executable(${NAME} EXCLUDE_FROM_ALL ${TEST_SRC})

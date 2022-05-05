@@ -287,7 +287,7 @@ void find_matches(module& mod, instruction_ref ins, Ms&&... ms)
     const
 #endif
         int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
-    bool match     = false;
+    bool match    = false;
     each_args(
         [&](auto&& m) {
             if(match)

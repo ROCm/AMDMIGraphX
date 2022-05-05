@@ -1,6 +1,7 @@
 google/protobuf@v3.11.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
 nlohmann/json@v3.8.0
-blaze,https://bitbucket.org/blaze-lib/blaze/get/f0755dea0e03.tar.gz -X header -DHEADER_DIR=blaze
+live-clones/blaze@v3.8 -X header -DHEADER_DIR=blaze
+#half,1.12.0.tar.gz
 half,https://github.com/pfultz2/half/archive/1.12.0.tar.gz -X header -H sha256:0a08660b68abb176ebc2a0cdf8de46e3182a7f46c66443bb80dbfaaec98cf969
 pybind/pybind11@d159a563383d10c821ba7b2a71905d1207db6de4 --build
 msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off

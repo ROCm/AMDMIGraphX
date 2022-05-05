@@ -7,17 +7,13 @@ set -e
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
-
 # Need pip3 and Python headers to build dependencies
-apt update && apt install -y python3-pip python3-dev cmake
+apt update && apt install -y python3-pip python3-dev cmake rocm-cmake rocblas miopen-hip openmp-extras
 
 # Needed for cmake to build various pip packages
 pip3 install setuptools wheel
 
-#install rocm-cmake, rocblas and miopen
-apt install -y rocm-cmake rocblas miopen-hip openmp-extras
-
-# install rbuild to build dependencies
+# Install rbuild
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
 

@@ -112,9 +112,9 @@ TEST_CASE(loop_test)
 
         auto outputs = p.eval(pp);
         auto output  = outputs[0];
-        auto ret = output.as_vector<float>();
+        auto ret     = output.as_vector<float>();
 
-        output   = outputs[1];
+        output     = outputs[1];
         auto ret_1 = output.as_vector<float>();
         ret.insert(ret.end(), ret_1.begin(), ret_1.end());
 

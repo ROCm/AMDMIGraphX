@@ -539,11 +539,12 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return pout;
     }
 
-    template<typename T>
-    std::vector<T> as_vector() const {
-       size_t vector_len = this->get_shape().bytes() / sizeof(T);
-       T* buffer_ptr = reinterpret_cast<T*>(this->data());
-       return {buffer_ptr, buffer_ptr+vector_len};
+    template <typename T>
+    std::vector<T> as_vector() const
+    {
+        size_t vector_len = this->get_shape().bytes() / sizeof(T);
+        T* buffer_ptr     = reinterpret_cast<T*>(this->data());
+        return {buffer_ptr, buffer_ptr + vector_len};
     }
 
     /// Generate an argument using random data

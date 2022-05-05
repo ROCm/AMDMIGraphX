@@ -312,6 +312,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
 
 auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
+namespace {
 struct find_layernorm
 {
     auto matcher() const { return match::layernorm(&gpu_name); }
@@ -947,6 +948,7 @@ struct find_commutative_broadcast
         p.replace_instruction(ins, ins->get_operator(), args);
     }
 };
+}
 
 void fuse_ops::apply(module& p) const
 {

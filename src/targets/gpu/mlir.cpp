@@ -5,7 +5,6 @@
 #include <mlir-c/BuiltinAttributes.h>
 #include <mlir-c/BuiltinTypes.h>
 #include <mlir-c/Diagnostics.h>
-#include <mlir-c/Dialect/Standard.h>
 #include <mlir-c/Dialect/MIGraphX.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Pass.h>
@@ -396,7 +395,7 @@ struct mlir_program
 
         auto body_inputs   = make_tensors(inputs);
         mlir_region region = mlirRegionCreate();
-        mlir_block fbody   = mlirBlockCreate(body_inputs.size(), body_inputs.data());
+        mlir_block fbody   = mlirBlockCreate(body_inputs.size(), body_inputs.data(), &location);
         MlirBlock result   = fbody.get();
         mlirRegionAppendOwnedBlock(region.get(), fbody.release());
 
@@ -466,7 +465,7 @@ struct mlir_program
         std::string tname = get_device_name();
         // HACK: Since MLIR can't handle the full target name
         auto hacked_tname = tname.substr(0, tname.find(":"));
-        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str());
+        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str(), nullptr, nullptr);
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op;
@@ -478,7 +477,7 @@ struct mlir_program
 
     std::pair<std::size_t, std::size_t> get_launch_params()
     {
-        int attrs[2];
+        uint32_t attrs[2];
         // returns block and grid sizes
         mlirGetKernelAttrs(mmodule.get(), attrs);
         std::size_t local  = attrs[0];
@@ -488,8 +487,10 @@ struct mlir_program
 
     value::binary get_binary()
     {
-        value::binary result(mlirGetBinarySize(mmodule.get()));
-        if(mlirGetBinary(mmodule.get(), reinterpret_cast<char*>(result.data())))
+        int size = 0;
+        mlirGetBinary(mmodule.get(), &size, nullptr);
+        value::binary result(size);
+        if(mlirGetBinary(mmodule.get(), &size, reinterpret_cast<char*>(result.data())))
             return result;
         MIGRAPHX_THROW("Failed to compile mlir program");
     }

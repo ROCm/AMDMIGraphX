@@ -948,7 +948,7 @@ struct find_commutative_broadcast
         p.replace_instruction(ins, ins->get_operator(), args);
     }
 };
-}
+} // namespace
 
 void fuse_ops::apply(module& p) const
 {

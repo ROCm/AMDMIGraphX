@@ -97,9 +97,12 @@ MlirStringRef make_mlir_string_ref(const std::string_view& s)
 template <class F, class T, class Printer>
 void mlir_print(F f, T x, Printer printer)
 {
-    f(x,
-      +[](MlirStringRef s, void* data) { (*reinterpret_cast<Printer*>(data))(to_string_view(s)); },
-      &printer);
+    f(
+        x,
+        +[](MlirStringRef s, void* data) {
+            (*reinterpret_cast<Printer*>(data))(to_string_view(s));
+        },
+        &printer);
 }
 
 template <class F, class T>

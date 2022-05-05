@@ -30,7 +30,7 @@ __global__ void kernel(void* input_p, void* output_p)
 {
     make_tensors()(input_p, output_p)([](auto input, auto output) {
 
-        simple_reduce(${reduction}, ${init}, input, output, ${read}, ${write});
+        simple_reduce<reduce::${algo}>(${reduction}, ${init}, input, output, ${read}, ${write});
     });
 }
     
@@ -57,6 +57,40 @@ static std::size_t get_reduce_elements(const std::vector<instruction_ref>& input
     return get_reduce_elements(to_shapes(inputs));
 }
 
+static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& input_lens,
+                                                const std::vector<std::size_t>& output_lens)
+{
+    std::vector<std::size_t> reduce_lens;
+    std::transform(output_lens.begin(),
+                   output_lens.end(),
+                   input_lens.begin(),
+                   std::back_inserter(reduce_lens),
+                   [](auto x, auto y) -> std::size_t {
+                       if(x == y)
+                           return 1;
+                       else
+                           return y;
+                   });
+    return reduce_lens;
+}
+
+static std::string get_reduce_algo(const std::vector<shape>& inputs)
+{
+    auto rlens      = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
+    const auto init = std::numeric_limits<std::size_t>::max();
+    // The minimum stride
+    auto min_stride = std::inner_product(
+        rlens.begin(),
+        rlens.end(),
+        inputs.front().strides().begin(),
+        init,
+        [](auto x, auto y) { return std::min(x, y); },
+        [](auto len, auto stride) { return len == 1 ? init : stride; });
+    if(min_stride > 2)
+        return "lane";
+    return "block";
+}
+
 struct reduce_compiler : compiler<reduce_compiler>
 {
     std::vector<std::string> names() const
@@ -68,20 +102,33 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         hip_compile_options options;
         auto reduce_elements = get_reduce_elements(inputs);
-        auto block_size      = compute_block_size(reduce_elements, 256);
-        options.set_launch_params(
-            v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
+        auto algo            = v.get("algo", get_reduce_algo(inputs));
+        if(algo == "block")
+        {
+            auto block_size = compute_block_size(reduce_elements, 256);
+            options.set_launch_params(
+                v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
+        }
+        else if(algo == "lane")
+        {
+            options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 256));
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unknown reduce algo: " + algo);
+        }
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
-        options.params         = "-Wno-float-equal";
         std::string identity   = "[](auto x) { return x; }";
         auto src               = interpolate_string(simple_reduce_kernel,
                                       {{"reduction", v.at("reduction").to<std::string>()},
                                        {"init", v.get("init", std::string{"0"})},
                                        {"read", v.get("read", identity)},
                                        {"write", v.get("write", identity)},
+                                       {"algo", algo},
                                        {"preamble", v.get("preamble", std::string{})}});
+        options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }
 

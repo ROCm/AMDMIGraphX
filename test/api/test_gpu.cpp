@@ -115,7 +115,7 @@ TEST_CASE(loop_test)
         std::vector<std::vector<float>> ret;
         ret.push_back(output.as_vector<float>());
 
-        output   = outputs[1];
+        output = outputs[1];
         ret.push_back(output.as_vector<float>());
 
         return ret;

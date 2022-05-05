@@ -11,9 +11,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        with:
-          submodules: true
-          token: ${{ secrets.GH_SUB_TOKEN }}
+      - name: Checkout submodules
+        run: |
+          git submodule update --init --recursive
       - name: Docker build
         run: |
           cd ./rocm-migraphx/scripts

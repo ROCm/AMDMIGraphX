@@ -1,0 +1,17 @@
+on:
+  push:
+    branches: [develop]
+
+name: RCOM release
+
+jobs: 
+  build_image:
+    name: Build New Image
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Docker build
+        run: |
+          cd ./utilities/rocm-migraphx/scripts
+          env ROCM_RELEASE=“5.1” ./build_migraphx_docker.sh

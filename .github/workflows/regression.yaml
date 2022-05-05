@@ -1,0 +1,28 @@
+# on:
+#   push:
+#     branches: [develop]
+# env:
+#   TEST: false
+
+# name: MIGraphX Regression test
+
+# jobs: 
+#   check_image_version:
+#     name: Check Image Version
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Check new image
+#         id: chk_img
+#         if: ${{ env.TEST == true }}
+#         run: exit 1
+#   build_image:
+#     name: Build New Image
+#     runs-on: self-hosted
+#     needs: check_image_version
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v2
+#       - name: Docker build
+#         run: |
+#           cd ./utilities/rocm-migraphx/dockerfiles
+#           docker build -t migraphx-benchmark:main-${GITHUB_SHA::7} -f dockerfile-ort .

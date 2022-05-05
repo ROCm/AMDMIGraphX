@@ -10,6 +10,7 @@ export LANG=C.UTF-8
 
 # Need pip3 and Python headers to build dependencies
 apt update && apt install -y python3-pip python3-dev cmake
+#apt update && apt install -y python3-pip python3-dev cmake
 
 # Needed for cmake to build various pip packages
 pip3 install setuptools wheel
@@ -33,7 +34,7 @@ fi
 echo "Dependencies are install at $PREFIX"
 
 # Install deps with rbuild
-rbuild prepare -d $PREFIX
+rbuild prepare -d $PREFIX -s develop
 
 # install onnx package for unit tests
 pip3 install onnx==1.8.1 numpy==1.18.5 typing==3.7.4 pytest==6.0.1 packaging==16.8

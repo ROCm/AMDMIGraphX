@@ -10,11 +10,9 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Checkout submodules
-        run: |
-          ls -laht rocm-migraphx/
-          git submodule update --init --recursive
+        uses: actions/checkout@v1
+        with:
+          submodules: recursive
       - name: Docker build
         run: |
           cd ./rocm-migraphx/scripts

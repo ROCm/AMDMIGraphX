@@ -468,7 +468,8 @@ struct mlir_program
         std::string tname = get_device_name();
         // HACK: Since MLIR can't handle the full target name
         auto hacked_tname = tname.substr(0, tname.find(":"));
-        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str(), nullptr, nullptr);
+        auto hacked_features = tname.substr(tname.find(":"));
+        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str(), "", hacked_features.c_str());
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op;

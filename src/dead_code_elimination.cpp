@@ -4,6 +4,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -46,8 +47,7 @@ void dead_code_elimination::apply(module& m) const
             break;
         // Skip instruction with empty shape as output unless its a builtin, undefined, identity, or
         // allocate
-        if(i->get_shape().elements() == 0 and i->name().front() != '@' and
-           i->name() != "undefined" and i->name() != "identity" and i->name() != "allocate")
+        if(i->get_shape().elements() == 0 and i->name().front() != '@' and not contains({"undefined", "identity", "allocate"}, i->name()))
             continue;
         assert(bidistance(m, i, last) > 0);
         fix([&](auto self, auto leaf) {

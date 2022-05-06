@@ -314,6 +314,7 @@ struct interface_base : Base
                 T** y = reinterpret_cast<T**>(out);
                 T* x  = reinterpret_cast<T*>(input);
                 assert(x != nullptr and y != nullptr and *y == nullptr);
+                // cppcheck-suppress useSmartPointer
                 *y = new T(*x); // NOLINT
             });
         };
@@ -339,6 +340,7 @@ struct interface_base : Base
     template <class T, class Setter, class F>
     void set_auto_fp(Setter setter, F f)
     {
+        // cppcheck-suppress constParameter
         return set_fp<T>(setter, [=](T& obj, auto out, auto... xs) {
             auto_invoke(f, out, obj, auto_convert_param(rank<2>{}, xs)...);
         });

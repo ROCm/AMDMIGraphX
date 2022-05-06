@@ -63,7 +63,13 @@ struct shape
     {
         std::size_t min = 0;
         std::size_t max = 0;
-        std::size_t opt = 0;
+        std::size_t opt = 1;
+
+        dynamic_dimension(std::size_t i_min, std::size_t i_max, std::size_t i_opt)
+            : min(i_min), max(i_max), opt(i_opt)
+        {
+        }
+
         bool is_fixed() const { return min == max; }
         bool has_optimal() const { return opt != 0; }
         friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y)

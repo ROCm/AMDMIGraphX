@@ -388,7 +388,7 @@ const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return im
 std::vector<std::size_t> shape::min_dyn_dims() const
 {
     auto num_dims = dyn_dims().size();
-    std::vector<std::size_t> ret{num_dims};
+    std::vector<std::size_t> ret(num_dims);
     for(int i = 0; i < num_dims; ++i)
     {
         ret.at(i) = dyn_dims().at(i).min;
@@ -399,7 +399,7 @@ std::vector<std::size_t> shape::min_dyn_dims() const
 std::vector<std::size_t> shape::max_dyn_dims() const
 {
     auto num_dims = dyn_dims().size();
-    std::vector<std::size_t> ret{num_dims};
+    std::vector<std::size_t> ret(num_dims);
     for(int i = 0; i < num_dims; ++i)
     {
         ret.at(i) = dyn_dims().at(i).max;
@@ -410,7 +410,7 @@ std::vector<std::size_t> shape::max_dyn_dims() const
 std::vector<std::size_t> shape::opt_dyn_dims() const
 {
     auto num_dims = dyn_dims().size();
-    std::vector<std::size_t> ret{num_dims};
+    std::vector<std::size_t> ret(num_dims);
     for(int i = 0; i < num_dims; ++i)
     {
         ret.at(i) = dyn_dims().at(i).opt;
@@ -503,12 +503,11 @@ void migraphx_from_value(const value& v, shape& s)
             auto mins  = v.at("min_dyn_dims").to_vector<std::size_t>();
             auto maxes = v.at("max_dyn_dims").to_vector<std::size_t>();
             auto opts  = v.at("opt_dyn_dims").to_vector<std::size_t>();
-            assert(mins.size() == maxes.size() == opts.size());
-            auto num_dims = mins.size();
-            std::vector<shape::dynamic_dimension> dyn_dims{num_dims};
+            assert(mins.size() == maxes.size() and maxes.size() == opts.size());
+            std::vector<shape::dynamic_dimension> dyn_dims;
             for(int i = 0; i < mins.size(); ++i)
             {
-                dyn_dims.at(i) = {mins[i], maxes[i], opts[i]};
+                dyn_dims.emplace_back(mins[i], maxes[i], opts[i]);
             }
             s = shape{shape::parse_type(t), dyn_dims};
         }

@@ -96,7 +96,7 @@ else()
                 -Wno-gnu-zero-variadic-macro-arguments
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types
-		-Wno-option-ignored
+                -Wno-option-ignored
                 -Wno-padded
                 -Wno-shorten-64-to-32
                 -Wno-sign-conversion

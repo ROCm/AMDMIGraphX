@@ -469,7 +469,8 @@ struct mlir_program
         // HACK: Since MLIR can't handle the full target name
         auto hacked_tname    = tname.substr(0, tname.find(":"));
         auto hacked_features = tname.substr(tname.find(":"));
-        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str(), "amdgcn-amd-amdhsa", hacked_features.c_str());
+        mlirMIGraphXAddBackendPipeline(
+            pm.get(), hacked_tname.c_str(), "amdgcn-amd-amdhsa", hacked_features.c_str());
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op;

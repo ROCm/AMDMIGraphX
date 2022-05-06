@@ -11,7 +11,7 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
     compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override
     {
         auto* output_ptr = reinterpret_cast<float*>(inputs[1].data());
-        auto input_vec  = inputs[0].as_vector<float>();
+        auto input_vec   = inputs[0].as_vector<float>();
         std::transform(input_vec.begin(), input_vec.end(), output_ptr, [](auto x) {
             return 1.f / (1.f + std::exp(-x));
         });
@@ -44,7 +44,7 @@ TEST_CASE(run_sigmoid_custom_op)
     auto x             = m.add_parameter("x", s);
     auto alloc         = m.add_instruction(
         migraphx::operation("allocate",
-                             R"({"shape":{"type":"float_type","lens":[12], "strides":[1]}})"),
+                            R"({"shape":{"type":"float_type","lens":[12], "strides":[1]}})"),
         {});
     auto custom_kernel = m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x, alloc});
     p.compile(migraphx::target("ref"));

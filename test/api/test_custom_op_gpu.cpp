@@ -12,7 +12,7 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
     {
         // sets first half size_bytes of the input 0, and rest of the half bytes are copied.
         float* d_output;
-        auto* h_output    = reinterpret_cast<float*>(inputs[1].data());
+        auto* h_output   = reinterpret_cast<float*>(inputs[1].data());
         auto input_bytes = inputs[0].get_shape().bytes();
         auto copy_bytes  = input_bytes / 2;
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
@@ -45,9 +45,8 @@ TEST_CASE(run_simple_custom_op)
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     auto alloc         = m.add_instruction(
-        migraphx::operation(
-            "allocate",
-             R"({"shape":{"type":"float_type","lens":[4, 3], "strides":[3, 1]}})"),
+        migraphx::operation("allocate",
+                            R"({"shape":{"type":"float_type","lens":[4, 3], "strides":[3, 1]}})"),
         {});
     auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {x, alloc});
     m.add_return({custom_kernel});

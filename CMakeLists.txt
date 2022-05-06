@@ -42,7 +42,7 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.2)
+rocm_setup_version(VERSION 2.3)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -216,6 +216,7 @@ rocm_enable_cppcheck(
         CPPCHECK=1
         __device__=
         __host__=
+        __global__=
 )
 
 enable_testing()

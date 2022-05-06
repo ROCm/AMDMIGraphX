@@ -16,7 +16,7 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
         auto bstride = s.strides()[n + 1];
         auto blen    = s.lens()[n + 1];
 
-        if(astride == bstride * blen)
+        if(astride == bstride * blen or alen == 1)
         {
             new_lens.push_back(alen * blen);
         }

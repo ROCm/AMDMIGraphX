@@ -18,6 +18,8 @@ namespace gpu {
 
 struct context;
 
+void blas_shape(const shape& s);
+
 template <class Op>
 struct rocblas_gemm
 {
@@ -50,13 +52,14 @@ struct rocblas_gemm
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
         check_shapes{in_shapes, *this}.not_broadcasted();
-        batch_not_transposed(inputs[0].strides());
-        batch_not_transposed(inputs[1].strides());
+        blas_shape(inputs[0]);
+        blas_shape(inputs[1]);
         // if gemm and add are fused
-        if(not float_equal(beta, 0))
+        if(in_shapes.size() > 2)
         {
             auto cmat_shape = in_shapes.back();
             in_shapes.pop_back();
+            blas_shape(cmat_shape);
             auto op_out_shape = op.compute_shape(in_shapes);
             if(cmat_shape.lens() != op_out_shape.lens())
             {
@@ -71,6 +74,7 @@ struct rocblas_gemm
                                to_string(cmat_shape.type()) +
                                ", it must be: " + to_string(op_out_shape.type()));
             }
+            return op_out_shape;
         }
 
         return op.compute_shape(in_shapes);
@@ -94,28 +98,6 @@ struct rocblas_gemm
                  compute_fp32);
         }
         return args.back();
-    }
-
-    void batch_not_transposed(const std::vector<std::size_t>& strides) const
-    {
-        if(strides.size() <= 2)
-            return;
-        auto dim_0       = strides.size() - 2;
-        auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
-        std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
-        if(std::all_of(batch.begin(), batch.end(), [&](auto i) { return (i < matrix_size); }))
-        {
-            MIGRAPHX_THROW("GPU_GEMM: matrix size and batch size {" + to_string_range(strides) +
-                           "} are transposed!");
-        }
-
-        if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
-               return (i < j or i < matrix_size or j < matrix_size);
-           }) != batch.end())
-        {
-            MIGRAPHX_THROW("GPU_GEMM: batch size {" + to_string_range(strides) +
-                           "} is transposed!");
-        }
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const

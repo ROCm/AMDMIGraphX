@@ -30,17 +30,17 @@ rocblas_datatype get_type(shape::type_t type)
 
 void blas_shape(const shape& s)
 {
-    if (s.lens().size() < 2)
+    if(s.lens().size() < 2)
         return;
-    if (std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) {
-        return i == 1;
-    }))
+    if(std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
-    if (s.lens().size() < 3)
+    if(s.lens().size() < 3)
         return;
-    shape batch_shape{s.type(), {s.lens().begin(), s.lens().end() - 2}, {s.strides().begin(), s.strides().end() - 2}};
+    shape batch_shape{s.type(),
+                      {s.lens().begin(), s.lens().end() - 2},
+                      {s.strides().begin(), s.strides().end() - 2}};
     auto batch_shapes = reduce_dims({batch_shape});
-    if (batch_shapes.front().lens().size() != 1)
+    if(batch_shapes.front().lens().size() != 1)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
 }
 
@@ -55,7 +55,7 @@ R rocblas_invoke(R (*f)(Ts...), Us... xs)
 
 static bool is_transposed(const shape& s)
 {
-    if (not s.transposed())
+    if(not s.transposed())
         return false;
     return s.strides().back() != 1;
 }

@@ -134,6 +134,7 @@ struct hiprtc_program
         std::vector<char> buffer(n);
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
         assert(buffer.back() == 0);
+        // cppcheck-suppress returnDanglingLifetime
         return {buffer.begin(), buffer.end() - 1};
     }
 

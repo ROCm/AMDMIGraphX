@@ -3,7 +3,10 @@
 
 #include <migraphx/config.hpp>
 
-#if defined(__has_include) && !defined(CPPCHECK)
+#if defined(CPPCHECK)
+#define MIGRAPHX_HAS_FILESYSTEM 1
+#define MIGRAPHX_HAS_FILESYSTEM_TS 1
+#elif defined(__has_include)
 #if __has_include(<filesystem>) && __cplusplus >= 201703L
 #define MIGRAPHX_HAS_FILESYSTEM 1
 #else

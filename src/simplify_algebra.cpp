@@ -995,7 +995,7 @@ struct find_split_transpose
         auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
         auto it   = std::find(perm.begin(), perm.end(), axis);
         assert(it != perm.end());
-        auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
+        int64_t axis_new = std::distance(perm.begin(), it);
 
         for(auto in : split_outputs)
         {

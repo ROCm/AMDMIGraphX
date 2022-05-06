@@ -17,7 +17,7 @@ class marker_roctx
     std::function<int(const char*)> sym_roctx_range_push;
     std::function<int()> sym_roctx_range_pop;
 
-    uint64_t range_id;
+    uint64_t range_id = 0;
 
     public:
     marker_roctx()

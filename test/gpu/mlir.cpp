@@ -116,7 +116,7 @@ module  {
     if(s.empty())
         return;
     std::cout << s << std::endl;
-    EXPECT(encode(s) == encode(mlir_output));
+    CHECK(encode(s) == encode(mlir_output));
     EXPECT(verify_mlir(m));
 }
 
@@ -145,7 +145,7 @@ module  {
     if(s.empty())
         return;
     std::cout << s << std::endl;
-    EXPECT(encode(s) == encode(mlir_output));
+    CHECK(encode(s) == encode(mlir_output));
     EXPECT(verify_mlir(m));
 }
 

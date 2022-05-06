@@ -8,25 +8,24 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
 {
     virtual std::string name() const override { return "sigmoid_custom_op"; }
     virtual migraphx::argument compute(migraphx::context,
-                                       migraphx::shape output_shape,
+                                       migraphx::shape,
                                        migraphx::arguments inputs) const override
     {
-        size_t input_len = inputs[0].get_shape().lengths()[0];
-        std::vector<float> output(input_len);
+        auto output_ptr = reinterpret_cast<float*>(inputs[1].data());
         auto input_vec = inputs[0].as_vector<float>();
-        std::transform(input_vec.begin(), input_vec.end(), output.begin(), [](auto x) {
+        std::transform(input_vec.begin(), input_vec.end(), output_ptr, [](auto x) {
             return 1.f / (1.f + std::exp(-x));
         });
-        auto ret = migraphx::argument(output_shape, output.data());
-        return ret;
+        return inputs[1];
     }
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        CHECK(inputs.size() == 1);
+        CHECK(inputs.size() == 2);
         CHECK(inputs[0].lengths().size() == 1);
         CHECK(inputs[0].type() == migraphx_shape_float_type);
-        return inputs.front();
+        CHECK(bool{inputs[0] == inputs[1]});
+        return inputs.back();
     }
 };
 
@@ -44,7 +43,9 @@ TEST_CASE(run_sigmoid_custom_op)
     migraphx::shape s{migraphx_shape_float_type, {12}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
-    auto custom_kernel = m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x});
+    auto alloc = m.add_instruction(migraphx::operation(
+        "allocate", "{\"shape\":{\"type\":\"float_type\",\"lens\":[12], \"strides\":[1]}}"), {});
+    auto custom_kernel = m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x, alloc});
     p.compile(migraphx::target("ref"));
     // run program
     migraphx::program_parameters pp;

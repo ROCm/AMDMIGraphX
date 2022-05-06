@@ -9,12 +9,12 @@
 #else
 
 #ifdef __clang__
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Wreserved-identifier"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreserved-identifier"
 #endif
 #include <omp.h>
 #ifdef __clang__
-  #pragma clang diagnostic pop
+#pragma clang diagnostic pop
 #endif
 
 #endif

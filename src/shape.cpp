@@ -220,6 +220,7 @@ std::size_t shape::index(std::initializer_list<std::size_t> l) const
     assert(this->lens().size() == this->strides().size());
     return std::inner_product(l.begin(), l.end(), this->strides().begin(), std::size_t{0});
 }
+
 std::size_t shape::index(const std::vector<std::size_t>& l) const
 {
     if(this->dynamic())
@@ -230,6 +231,7 @@ std::size_t shape::index(const std::vector<std::size_t>& l) const
     assert(this->lens().size() == this->strides().size());
     return std::inner_product(l.begin(), l.end(), this->strides().begin(), std::size_t{0});
 }
+
 std::size_t shape::index(std::size_t i) const
 {
     if(this->dynamic())

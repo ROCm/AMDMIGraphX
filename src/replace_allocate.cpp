@@ -10,7 +10,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::unordered_map<instruction_ref, std::string> create_output_names(module& mod)
+std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
     auto last = instruction::get_output_alias(std::prev(mod.end()));

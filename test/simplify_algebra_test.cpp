@@ -758,12 +758,12 @@ TEST_CASE(simplify_rsqrt)
 }
 
 /**
- * @brief Construct a new test case object.  The simplify_algebra matcher in struct find_gelu, distinct from the
- * one in struct gelu_tanh_matcher.  The find_gelu finds and matches a subexpression of the full gelu
- * formula.  Unit testing of the gelu_tanh_matcher matcher can't be done here because simlify_algebra's matching pass
- * invokes the full list of matchers, which may rearrange the add and mul instructions found in the outer portion
- * of the expression.
- * 
+ * @brief Construct a new test case object.  The simplify_algebra matcher in struct find_gelu,
+ * distinct from the one in struct gelu_tanh_matcher.  The find_gelu finds and matches a
+ * subexpression of the full gelu formula.  Unit testing of the gelu_tanh_matcher matcher can't be
+ * done here because simlify_algebra's matching pass invokes the full list of matchers, which may
+ * rearrange the add and mul instructions found in the outer portion of the expression.
+ *
  */
 TEST_CASE(simplify_gelu_fast_math)
 {
@@ -797,7 +797,8 @@ TEST_CASE(simplify_gelu_fast_math)
 
         // multiply 0.5
         auto point_5 = m1.add_literal(0.5F);
-        auto mul_p5_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {add2_ins, point_5});
+        auto mul_p5_ins =
+            migraphx::add_common_op(m1, migraphx::make_op("mul"), {add2_ins, point_5});
 
         // multiply x
         auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, mul_p5_ins);
@@ -843,7 +844,8 @@ TEST_CASE(simplify_gelu_no_fast_math)
 
         // multiply 0.5
         auto point_5 = m1.add_literal(0.5F);
-        auto mul_p5_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {add2_ins, point_5});
+        auto mul_p5_ins =
+            migraphx::add_common_op(m1, migraphx::make_op("mul"), {add2_ins, point_5});
 
         // multiply x
         auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, mul_p5_ins);

@@ -196,8 +196,11 @@ struct find_gelu
     bool fast_math = false;
 
     // helper function matches "pow" operator and 3.0
-    auto pow_fn() const { return match::name("pow")(match::used_once(), 
-        match::arg(0).bind("x"), match::arg(1)(match::has_value(3.0f))); }
+    auto pow_fn() const
+    {
+        return match::name("pow")(
+            match::used_once(), match::arg(0).bind("x"), match::arg(1)(match::has_value(3.0f)));
+    }
 
     // clang-format off
     // Matches the subexpression of the gelu formula:
@@ -207,31 +210,34 @@ struct find_gelu
     // Also binds the name "x" to the first appearance of the x argument.
     // Note that there is no checking that the "x" here matches the two other appearances
     // of x in the gelu formula.
- 
+
     auto matcher() const
     {
-        // This matcher is separate from the similar matcher in matcher::gelu_tanh.  It only looks for and substitutes the
-        // inner portion of the full gelu formula involving the tanh function.
-        // Matching of the full expression is unpredictable since the expression contains add and mul instructions that may
-        // be rearranged by other matchers here within simplify_algebra.
+        // This matcher is separate from the similar matcher in matcher::gelu_tanh.  It only looks
+        // for and substitutes the inner portion of the full gelu formula involving the tanh
+        // function. Matching of the full expression is unpredictable since the expression contains
+        // add and mul instructions that may be rearranged by other matchers here within
+        // simplify_algebra.
 
         // magic number * x**3
-        auto const_times_pow_fn = match::name("mul")(match::either_arg(0, 1)(match::has_value(0.044715f), pow_fn()));
-        
+        auto const_times_pow_fn =
+            match::name("mul")(match::either_arg(0, 1)(match::has_value(0.044715f), pow_fn()));
+
         // add x to result of const_times_pow_fn
         // The instruction matched by any() here should be the same x that was bound in pow_fn(),
         // but matcher does not ensure they're the same.  Do not bind to label "x" a second
         // time as it leads to undefined results.
-        auto add_x_fn = match::name("add")(match::either_arg(0, 1)(match::any(), const_times_pow_fn));
+        auto add_x_fn =
+            match::name("add")(match::either_arg(0, 1)(match::any(), const_times_pow_fn));
 
         // multiply by sqrt(2 / pi)
-        auto mul_sqrt_2_over_pi =
-            match::name("mul")(match::either_arg(0, 1)(add_x_fn, match::has_value(sqrt(M_2_PI), 1e-3)));
+        auto mul_sqrt_2_over_pi = match::name("mul")(
+            match::either_arg(0, 1)(add_x_fn, match::has_value(sqrt(M_2_PI), 1e-3)));
 
         // tanh
         auto tanh_fn = match::name("tanh")(match::used_once(), match::arg(0)(mul_sqrt_2_over_pi));
         return tanh_fn;
-    }    
+    }
 
     // apply the gelu_erf approximation: return ::erf(x * M_SQRT1_2);
     void apply(module& m, match::matcher_result r) const
@@ -249,7 +255,7 @@ struct find_gelu
         }
         // "x", in effect, means the earlier instruction result that was an input
         // to the first step of the matched sequence.
-        auto x_ins = r.instructions["x"];
+        auto x_ins  = r.instructions["x"];
         auto x_type = x_ins->get_shape().type();
         migraphx::shape scalar_shape{x_type};
 
@@ -1103,27 +1109,25 @@ void simplify_algebra::apply(module& p) const
     // Run simplifications multiple times
     for(int i = 0; i < 8; i++)
     {
-        match::find_matches(
-            p,
-            find_inner_broadcast{},
-            find_double_add_lit_broadcast{},
-            find_add_lit_broadcast{},
-            find_add_convs{},
-            find_conv_dot_horiz_fusion{},
-            find_mul_conv{},
-            find_mul_slice_conv{},
-            // gelu replacement only if fast_math flag is set.
-            find_gelu{fast_math},
-            find_mul_add{},
-            find_div_const{},
-            find_sub_const{},
-            find_rsqrt{},
-            find_concat_op{},
-            find_split_concat{},
-            find_splits{},
-            find_split_reshape{},
-            find_split_transpose{}
-            );
+        match::find_matches(p,
+                            find_inner_broadcast{},
+                            find_double_add_lit_broadcast{},
+                            find_add_lit_broadcast{},
+                            find_add_convs{},
+                            find_conv_dot_horiz_fusion{},
+                            find_mul_conv{},
+                            find_mul_slice_conv{},
+                            // gelu replacement only if fast_math flag is set.
+                            find_gelu{fast_math},
+                            find_mul_add{},
+                            find_div_const{},
+                            find_sub_const{},
+                            find_rsqrt{},
+                            find_concat_op{},
+                            find_split_concat{},
+                            find_splits{},
+                            find_split_reshape{},
+                            find_split_transpose{});
         dead_code_elimination{}.apply(p);
     }
 }

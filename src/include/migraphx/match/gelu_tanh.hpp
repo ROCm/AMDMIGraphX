@@ -79,7 +79,7 @@ struct gelu_tanh_matcher
 
         // multiply by x.
         auto mul_x_fn = f("mul")(either_arg(0, 1)(mul_point_5_fn, any()));
-        return mul_x_fn;        
+        return mul_x_fn;
     }
 };
 } // namespace detail

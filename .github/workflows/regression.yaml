@@ -27,4 +27,4 @@ jobs:
       - name: Docker build
         run: |
           cd ./rocm-migraphx/dockerfiles
-          docker build -t "rocm-migraphx:$(date +%Y%m%d)" --no-cache --build-arg BRANCH=${{ GITHUB_REF_NAME }} --build-arg DOCKERBASE=${{ env.DOCKERBASE }} --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }} -f dockerfile-daily .
+          docker build -t "rocm-migraphx:$(date +%Y%m%d)" --no-cache --build-arg BRANCH=$GITHUB_REF_NAME --build-arg DOCKERBASE=${{ env.DOCKERBASE }} --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }} -f dockerfile-daily .

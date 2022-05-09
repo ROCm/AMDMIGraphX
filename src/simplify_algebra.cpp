@@ -200,22 +200,27 @@ struct find_gelu
         match::arg(0).bind("x"), match::arg(1)(match::has_value(3.0f))); }
 
     // clang-format off
-    // helper function matches the subexpression of the gelu formula:
+    // Matches the subexpression of the gelu formula:
     // tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3)))
     // clang-format on
-    // This is the expression that is actually simplified to the erf function
-    // and can be used as a matcher predicate by itself.
+    // This is the expression that is actually simplified to the erf function.
     // Also binds the name "x" to the first appearance of the x argument.
     // Note that there is no checking that the "x" here matches the two other appearances
     // of x in the gelu formula.
  
     auto matcher() const
     {
+        // This matcher is separate from the similar matcher in matcher::gelu_tanh.  It only looks for and substitutes the
+        // inner portion of the full gelu formula involving the tanh function.
+        // Matching of the full expression is unpredictable since the expression contains add and mul instructions that may
+        // be rearranged by other matchers here within simplify_algebra.
+
         // magic number * x**3
         auto const_times_pow_fn = match::name("mul")(match::either_arg(0, 1)(match::has_value(0.044715f), pow_fn()));
+        
         // add x to result of const_times_pow_fn
         // The instruction matched by any() here should be the same x that was bound in pow_fn(),
-        // but matcher has no way to ensure they're the same.  Do not bind to label "x" a second
+        // but matcher does not ensure they're the same.  Do not bind to label "x" a second
         // time as it leads to undefined results.
         auto add_x_fn = match::name("add")(match::either_arg(0, 1)(match::any(), const_times_pow_fn));
 
@@ -228,9 +233,7 @@ struct find_gelu
         return tanh_fn;
     }    
 
-    // auto matcher() const { return match::gelu_tanh(); }
-
-    // apply the gelu_erf formula: return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
+    // apply the gelu_erf approximation: return ::erf(x * M_SQRT1_2);
     void apply(module& m, match::matcher_result r) const
     {
         if(!fast_math)
@@ -259,19 +262,7 @@ struct find_gelu
         auto xsq_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
 
         //     erf(x* sqrt (1/2))
-        // auto erf_ins = m.insert_instruction(ins, make_op("erf"), xsq_ins);
-
-        // auto one         = m.add_literal(migraphx::literal(scalar_shape, {1.0}));
-        //   1 + erf(x* sqrt (1/2)) 
-        // auto add_one_ins = insert_common_op(m, ins, migraphx::make_op("add"), {one, erf_ins});
-
-        // auto point_5         = m.add_literal(migraphx::literal(scalar_shape, {0.5}));
-        // 0.5 * (1 + erf(x* sqrt (1/2)))
-        // auto mul_p5_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {point_5, add_one_ins});
-
-        // x * 0.5 * (1 + erf(x * sqrt (1/2)))
-        // m.replace_instruction(ins, make_op("mul"), mul_p5_ins, x_ins);
-m.replace_instruction(ins, make_op("erf"), xsq_ins);
+        m.replace_instruction(ins, make_op("erf"), xsq_ins);
         if(trace)
         {
             std::cout << "module after gelu_tanh substitution:\n";
@@ -1121,8 +1112,7 @@ void simplify_algebra::apply(module& p) const
             find_conv_dot_horiz_fusion{},
             find_mul_conv{},
             find_mul_slice_conv{},
-            // gelu replacement only if fast_math flag is set.  The gelu matcher is brittle
-            // and will not match the usual formula if find_mul_add is used first.
+            // gelu replacement only if fast_math flag is set.
             find_gelu{fast_math},
             find_mul_add{},
             find_div_const{},

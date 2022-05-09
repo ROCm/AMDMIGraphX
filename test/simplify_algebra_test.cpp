@@ -757,12 +757,21 @@ TEST_CASE(simplify_rsqrt)
     EXPECT(m1 == m2);
 }
 
+/**
+ * @brief Construct a new test case object.  The simplify_algebra matcher in struct find_gelu, distinct from the
+ * one in struct gelu_tanh_matcher.  The find_gelu finds and matches a subexpression of the full gelu
+ * formula.  Unit testing of the gelu_tanh_matcher matcher can't be done here because simlify_algebra's matching pass
+ * invokes the full list of matchers, which may rearrange the add and mul instructions found in the outer portion
+ * of the expression.
+ * 
+ */
 TEST_CASE(simplify_gelu_fast_math)
 {
     migraphx::module m1;
     {
-        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x,
+        // The full gelu formula:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x,
         // 3))))
+        // Formula to be matched:  tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3)))
         std::vector<size_t> input_lens = {1};
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
 
@@ -789,13 +798,10 @@ TEST_CASE(simplify_gelu_fast_math)
         // multiply 0.5
         auto point_5 = m1.add_literal(0.5F);
         auto mul_p5_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {add2_ins, point_5});
-// mul_p5_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {mul_p5_ins, point_5});
 
         // multiply x
         auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, mul_p5_ins);
         m1.add_return({mulx_ins});
-std::cout << "!!!!!!!!!!!!!!!!here's the module:  ";        
-m1.debug_print();        
         run_pass(m1, true);
 
         // In case simplify_algebra pass chain ever changes, we don't
@@ -812,8 +818,6 @@ TEST_CASE(simplify_gelu_no_fast_math)
     // When fast_math set false, matcher does not replace the formula
     migraphx::module m1;
     {
-        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x,
-        // 3))))
         std::vector<size_t> input_lens = {1};
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
 
@@ -837,12 +841,13 @@ TEST_CASE(simplify_gelu_no_fast_math)
         // second addition
         auto add2_ins = migraphx::add_common_op(m1, migraphx::make_op("add"), {tanh_ins, one});
 
-        // multiply x
-        auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, add2_ins);
-
         // multiply 0.5
         auto point_5 = m1.add_literal(0.5F);
-        migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
+        auto mul_p5_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {add2_ins, point_5});
+
+        // multiply x
+        auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, mul_p5_ins);
+        m1.add_return({mulx_ins});
         run_pass(m1, false);
 
         // In case simplify_algebra pass chain ever changes, we don't
@@ -859,8 +864,6 @@ TEST_CASE(simplify_gelu_def_fast_math)
     // Tests that fast_math defaults to false when not given
     migraphx::module m1;
     {
-        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x,
-        // 3))))
         std::vector<size_t> input_lens = {1};
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
 

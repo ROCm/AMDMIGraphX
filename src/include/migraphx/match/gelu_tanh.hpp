@@ -21,8 +21,7 @@ struct gelu_tanh_matcher
     // helper function matches the subexpression of the gelu formula:
     // tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3)))
     // clang-format on
-    // This is the expression that is actually simplified to the erf function
-    // and can be used as a matcher predicate by itself.
+    // This is the expression that is actually simplified to the erf function.
     // Also binds the name "x" to the first appearance of the x argument.
     // Note that there is no checking that the "x" here matches the two other appearances
     // of x in the gelu formula.
@@ -75,17 +74,11 @@ struct gelu_tanh_matcher
         // add 1
         auto add_one_fn = f("add")(either_arg(0, 1)(tanh_sub_fn(), has_value(1.0F, 1e-3)));
 
-                    // latest: we tried removing factor of .5 from expression to be matched
-                    // auto mul_x_fn = f("mul")(used_once(), either_arg(0, 1)(add_one_fn, any()));
-                    // return mul_x_fn;
         // multiply by 0.5
         auto mul_point_5_fn = f("mul")(either_arg(0, 1)(add_one_fn, has_value(0.5F, 1e-3)));
 
-        // multiply by x.  The last two steps have to appear in this order to match the instructions
-        // used in real-world bert models.
+        // multiply by x.
         auto mul_x_fn = f("mul")(either_arg(0, 1)(mul_point_5_fn, any()));
-// auto test_fn=f("mul")(either_arg(0, 1)(mul_point_5_fn, has_value(1.0F, 1e-3)));;
-// return test_fn;
         return mul_x_fn;        
     }
 };

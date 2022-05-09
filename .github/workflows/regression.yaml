@@ -50,4 +50,4 @@ jobs:
     steps:
       - name: Execute perf script
         run: |
-          docker exec "rocm-migraphx:$(date +%Y%m%d)" ./rocm-migraphx/scripts/run_perf_mev.sh
+          docker exec performance-test-${GITHUB_SHA::7} ./rocm-migraphx/scripts/run_perf_mev.sh

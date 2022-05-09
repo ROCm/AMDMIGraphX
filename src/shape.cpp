@@ -47,8 +47,8 @@ struct shape_impl
 
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
 
-    shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
-        : m_type(t), m_dynamic(true), m_dyn_dims(std::move(dims))
+    explicit shape_impl(shape::dyn_data data)
+        : m_type(data.t), m_dynamic(true), m_dyn_dims(data.dims)
     {
     }
 
@@ -157,10 +157,7 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 
 shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
-shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
-    : impl(std::make_shared<shape_impl>(t, std::move(dims)))
-{
-}
+shape::shape(dyn_data data) : impl(std::make_shared<shape_impl>(std::move(data))) {}
 
 shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
 
@@ -509,7 +506,7 @@ void migraphx_from_value(const value& v, shape& s)
             {
                 dyn_dims.emplace_back(mins[i], maxes[i], opts[i]);
             }
-            s = shape{shape::parse_type(t), dyn_dims};
+            s = shape{migraphx::shape::dyn_data{shape::parse_type(t), dyn_dims}};
         }
         else
         {

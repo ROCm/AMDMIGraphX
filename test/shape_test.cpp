@@ -43,11 +43,7 @@ TEST_CASE(test_shape_standard)
 
 TEST_CASE(test_shape_dynamic_fixed)
 {
-    std::vector<migraphx::shape::dynamic_dimension> dims = {};
-    dims.emplace_back(2, 2, 0);
-    dims.emplace_back(2, 2, 0);
-    dims.emplace_back(3, 3, 0);
-    migraphx::shape s{migraphx::shape::float_type, dims};
+    migraphx::shape s{{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}, {3, 3, 0}}}};
     EXPECT(not s.standard());
     EXPECT(not s.packed());
     EXPECT(not s.transposed());
@@ -63,7 +59,7 @@ TEST_CASE(test_shape_dynamic_not_fixed)
     std::vector<migraphx::shape::dynamic_dimension> dims = {};
     dims.emplace_back(2, 5, 2);
     dims.emplace_back(2, 8, 0);
-    migraphx::shape s{migraphx::shape::float_type, dims};
+    migraphx::shape s{migraphx::shape::dyn_data{migraphx::shape::float_type, dims}};
     EXPECT(not s.standard());
     EXPECT(not s.packed());
     EXPECT(not s.transposed());
@@ -84,10 +80,10 @@ TEST_CASE(test_shape_dynamic_compares)
     EXPECT(a == c);
     EXPECT(a != d);
 
-    migraphx::shape s0{migraphx::shape::float_type, {a, d}};
+    migraphx::shape s0{migraphx::shape::dyn_data{migraphx::shape::float_type, {a, d}}};
     migraphx::shape s1 = s0;
-    migraphx::shape s2{migraphx::shape::float_type, {a, d}};
-    migraphx::shape s3{migraphx::shape::int32_type, {a}};
+    migraphx::shape s2{migraphx::shape::dyn_data{migraphx::shape::float_type, {a, d}}};
+    migraphx::shape s3{{migraphx::shape::int32_type, {a}}};
     EXPECT(s0 == s1);
     EXPECT(s0 == s2);
     EXPECT(s0 != s3);
@@ -98,7 +94,7 @@ TEST_CASE(test_shape_dynamic_errors)
     std::vector<migraphx::shape::dynamic_dimension> dims = {};
     dims.emplace_back(2, 5, 2);
     dims.emplace_back(2, 8, 0);
-    migraphx::shape s{migraphx::shape::float_type, dims};
+    migraphx::shape s{migraphx::shape::dyn_data{migraphx::shape::float_type, dims}};
     EXPECT(test::throws([&] { s.element_space(); }));
     EXPECT(test::throws([&] { s.elements(); }));
     EXPECT(test::throws([&] { s.bytes(); }));
@@ -113,12 +109,12 @@ TEST_CASE(test_shape_dynamic_serialize)
     std::vector<migraphx::shape::dynamic_dimension> dims1 = {};
     dims1.emplace_back(2, 5, 2);
     dims1.emplace_back(2, 8, 0);
-    migraphx::shape s1{migraphx::shape::float_type, dims1};
+    migraphx::shape s1{migraphx::shape::dyn_data{migraphx::shape::float_type, dims1}};
     auto v1 = migraphx::to_value(s1);
 
     std::vector<migraphx::shape::dynamic_dimension> dims2 = {};
     dims2.emplace_back(2, 5, 2);
-    migraphx::shape s2{migraphx::shape::uint64_type, dims2};
+    migraphx::shape s2{migraphx::shape::dyn_data{migraphx::shape::uint64_type, dims2}};
     auto v2 = migraphx::to_value(s2);
     EXPECT(v1 != v2);
 

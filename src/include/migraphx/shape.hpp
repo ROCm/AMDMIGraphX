@@ -87,6 +87,13 @@ struct shape
         }
     };
 
+    // Avoid ambiguous constructor
+    struct dyn_data
+    {
+        type_t t;
+        std::vector<dynamic_dimension> dims;
+    };
+
     static const std::vector<type_t>& types();
 
     static std::string name(type_t t);
@@ -97,7 +104,7 @@ struct shape
     shape(type_t t, std::vector<std::size_t> l);
     shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s);
 
-    shape(type_t t, std::vector<dynamic_dimension> dims);
+    explicit shape(dyn_data data);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))

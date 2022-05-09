@@ -767,7 +767,7 @@ struct module
     {
         migraphx_instruction_t literal_ins;
         const auto* buffer_ptr = reinterpret_cast<const char*>(buffer);
-        call(&migraphx_module_add_literal, &literal_ins, mm, s.get_handle_ptr(), buffer_ptr);
+        call(&migraphx_module_add_literal, &literal_ins, mm.get(), s.get_handle_ptr(), buffer_ptr);
         return instruction(literal_ins, own{});
     }
 

@@ -501,10 +501,11 @@ void migraphx_from_value(const value& v, shape& s)
             auto maxes = v.at("max_dyn_dims").to_vector<std::size_t>();
             auto opts  = v.at("opt_dyn_dims").to_vector<std::size_t>();
             assert(mins.size() == maxes.size() and maxes.size() == opts.size());
-            std::vector<shape::dynamic_dimension> dyn_dims;
-            for(int i = 0; i < mins.size(); ++i)
+            auto num_dims = mins.size();
+            std::vector<shape::dynamic_dimension> dyn_dims(num_dims);
+            for(int i = 0; i < num_dims; ++i)
             {
-                dyn_dims.emplace_back(mins[i], maxes[i], opts[i]);
+                dyn_dims.at(i) = shape::dynamic_dimension{mins[i], maxes[i], opts[i]};
             }
             s = shape{migraphx::shape::dyn_data{shape::parse_type(t), dyn_dims}};
         }

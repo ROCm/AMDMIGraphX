@@ -65,6 +65,8 @@ struct shape
         std::size_t max = 0;
         std::size_t opt = 1;
 
+        dynamic_dimension() = default;
+
         dynamic_dimension(std::size_t i_min, std::size_t i_max, std::size_t i_opt)
             : min(i_min), max(i_max), opt(i_opt)
         {

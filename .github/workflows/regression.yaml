@@ -39,7 +39,6 @@ jobs:
   run_docker_image:
     name: Run image
     runs-on: self-hosted
-    needs: build_image
     steps:
       - name: Run docker image
         run: |

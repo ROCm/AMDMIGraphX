@@ -286,7 +286,7 @@ void find_matches(module& mod, instruction_ref ins, Ms&&... ms)
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif
-        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
+    bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
     bool match     = false;
     each_args(
         [&](auto&& m) {

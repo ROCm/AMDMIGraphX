@@ -195,10 +195,42 @@ struct find_gelu
     // compile option fast_math controls whether to use math shortcuts like this
     bool fast_math = false;
 
-    auto matcher() const { return match::gelu_tanh(); }
+    // helper function matches "pow" operator and 3.0
+    auto pow_fn() const { return match::name("pow")(match::used_once(), 
+        match::arg(0).bind("x"), match::arg(1)(match::has_value(3.0f))); }
 
-    // apply the gelu_erf formula: return x * (1 + ::erf(x * M_SQRT1_2));
-    // this does not have the 0.5 factor that the original formula has
+    // clang-format off
+    // helper function matches the subexpression of the gelu formula:
+    // tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3)))
+    // clang-format on
+    // This is the expression that is actually simplified to the erf function
+    // and can be used as a matcher predicate by itself.
+    // Also binds the name "x" to the first appearance of the x argument.
+    // Note that there is no checking that the "x" here matches the two other appearances
+    // of x in the gelu formula.
+ 
+    auto matcher() const
+    {
+        // magic number * x**3
+        auto const_times_pow_fn = match::name("mul")(match::either_arg(0, 1)(match::has_value(0.044715f), pow_fn()));
+        // add x to result of const_times_pow_fn
+        // The instruction matched by any() here should be the same x that was bound in pow_fn(),
+        // but matcher has no way to ensure they're the same.  Do not bind to label "x" a second
+        // time as it leads to undefined results.
+        auto add_x_fn = match::name("add")(match::either_arg(0, 1)(match::any(), const_times_pow_fn));
+
+        // multiply by sqrt(2 / pi)
+        auto mul_sqrt_2_over_pi =
+            match::name("mul")(match::either_arg(0, 1)(add_x_fn, match::has_value(sqrt(M_2_PI), 1e-3)));
+
+        // tanh
+        auto tanh_fn = match::name("tanh")(match::used_once(), match::arg(0)(mul_sqrt_2_over_pi));
+        return tanh_fn;
+    }    
+
+    // auto matcher() const { return match::gelu_tanh(); }
+
+    // apply the gelu_erf formula: return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
     void apply(module& m, match::matcher_result r) const
     {
         if(!fast_math)
@@ -212,8 +244,9 @@ struct find_gelu
             m.debug_print();
             std::cout << "---end\n";
         }
+        // "x", in effect, means the earlier instruction result that was an input
+        // to the first step of the matched sequence.
         auto x_ins = r.instructions["x"];
-
         auto x_type = x_ins->get_shape().type();
         migraphx::shape scalar_shape{x_type};
 
@@ -222,14 +255,23 @@ struct find_gelu
 
         // use insert_common_op() instead of insert_instruction() to automatically match sizes
         // (broadcast) between tensor x and the literal scalar v2
+        //     x* sqrt (1/2)
         auto xsq_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
-        auto erf_ins = m.insert_instruction(ins, make_op("erf"), xsq_ins);
 
-        auto one         = m.add_literal(migraphx::literal(scalar_shape, {1.0}));
-        auto add_one_ins = insert_common_op(m, ins, migraphx::make_op("add"), {one, erf_ins});
+        //     erf(x* sqrt (1/2))
+        // auto erf_ins = m.insert_instruction(ins, make_op("erf"), xsq_ins);
 
-        m.replace_instruction(ins, make_op("mul"), add_one_ins, x_ins);
+        // auto one         = m.add_literal(migraphx::literal(scalar_shape, {1.0}));
+        //   1 + erf(x* sqrt (1/2)) 
+        // auto add_one_ins = insert_common_op(m, ins, migraphx::make_op("add"), {one, erf_ins});
 
+        // auto point_5         = m.add_literal(migraphx::literal(scalar_shape, {0.5}));
+        // 0.5 * (1 + erf(x* sqrt (1/2)))
+        // auto mul_p5_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {point_5, add_one_ins});
+
+        // x * 0.5 * (1 + erf(x * sqrt (1/2)))
+        // m.replace_instruction(ins, make_op("mul"), mul_p5_ins, x_ins);
+m.replace_instruction(ins, make_op("erf"), xsq_ins);
         if(trace)
         {
             std::cout << "module after gelu_tanh substitution:\n";
@@ -1090,7 +1132,8 @@ void simplify_algebra::apply(module& p) const
             find_split_concat{},
             find_splits{},
             find_split_reshape{},
-            find_split_transpose{});
+            find_split_transpose{}
+            );
         dead_code_elimination{}.apply(p);
     }
 }

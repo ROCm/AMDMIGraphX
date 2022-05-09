@@ -31,7 +31,10 @@ struct gelu_tanh_matcher
         // magic number * x**3
         auto const_times_pow_fn = f("mul")(either_arg(0, 1)(has_value(0.044715f), pow_fn()));
         // add x to result of const_times_pow_fn
-        auto add_x_fn = f("add")(either_arg(0, 1)(any().bind("x"), const_times_pow_fn));
+        // The instruction matched by any() here should be the same x that was bound in pow_fn(),
+        // but matcher has no way to ensure they're the same.  Do not bind to label "x" a second
+        // time as it leads to undefined results.
+        auto add_x_fn = f("add")(either_arg(0, 1)(any(), const_times_pow_fn));
 
         // multiply by sqrt(2 / pi)
         auto mul_sqrt_2_over_pi =
@@ -71,9 +74,19 @@ struct gelu_tanh_matcher
         // the subfunction returned by tanh_sub_fn() matches the inner part of the formula, then
         // add 1
         auto add_one_fn = f("add")(either_arg(0, 1)(tanh_sub_fn(), has_value(1.0F, 1e-3)));
-        // multiply by x
-        auto mul_x_fn = f("mul")(used_once(), either_arg(0, 1)(add_one_fn, any().bind("x")));
-        return mul_x_fn;
+
+                    // latest: we tried removing factor of .5 from expression to be matched
+                    // auto mul_x_fn = f("mul")(used_once(), either_arg(0, 1)(add_one_fn, any()));
+                    // return mul_x_fn;
+        // multiply by 0.5
+        auto mul_point_5_fn = f("mul")(either_arg(0, 1)(add_one_fn, has_value(0.5F, 1e-3)));
+
+        // multiply by x.  The last two steps have to appear in this order to match the instructions
+        // used in real-world bert models.
+        auto mul_x_fn = f("mul")(either_arg(0, 1)(mul_point_5_fn, any()));
+// auto test_fn=f("mul")(either_arg(0, 1)(mul_point_5_fn, has_value(1.0F, 1e-3)));;
+// return test_fn;
+        return mul_x_fn;        
     }
 };
 } // namespace detail

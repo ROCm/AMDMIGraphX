@@ -207,7 +207,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
-    return result;
+   return result;
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,

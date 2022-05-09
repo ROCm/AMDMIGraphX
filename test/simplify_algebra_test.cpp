@@ -786,12 +786,16 @@ TEST_CASE(simplify_gelu_fast_math)
         // second addition
         auto add2_ins = migraphx::add_common_op(m1, migraphx::make_op("add"), {tanh_ins, one});
 
-        // multiply x
-        auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, add2_ins);
-
         // multiply 0.5
         auto point_5 = m1.add_literal(0.5F);
-        migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
+        auto mul_p5_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {add2_ins, point_5});
+// mul_p5_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {mul_p5_ins, point_5});
+
+        // multiply x
+        auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, mul_p5_ins);
+        m1.add_return({mulx_ins});
+std::cout << "!!!!!!!!!!!!!!!!here's the module:  ";        
+m1.debug_print();        
         run_pass(m1, true);
 
         // In case simplify_algebra pass chain ever changes, we don't

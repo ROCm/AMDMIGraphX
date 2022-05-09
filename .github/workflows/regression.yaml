@@ -31,3 +31,17 @@ jobs:
         run: |
           cd ./rocm-migraphx/dockerfiles
           docker build -t "rocm-migraphx:$(date +%Y%m%d)" --no-cache --build-arg BRANCH=$GITHUB_REF_NAME --build-arg DOCKERBASE=${{ env.DOCKERBASE }} --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }} -f dockerfile-daily .
+  run_docker_image:
+    name: Run image
+    runs-on: self-hosted
+    steps:
+      - name: Run docker image
+        run: |
+          docker run -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video --name performance-test "rocm-migraphx:$(date +%Y%m%d)" /bin/bash
+  execute_scripts:
+    name: Execute scripts
+    runs-on: self-hosted
+    steps:
+      - name: Execute perf script
+        run: |
+          docker exec performance-test ./rocm-migraphx/scripts/run_perf_mev.sh

@@ -29,7 +29,8 @@ TEST_CASE(reduce_mean_with_format)
 TEST_CASE(allocate_with_nested_json_str)
 {
     auto alloc = migraphx::operation(
-        "allocate", "{\"shape\":{\"type\":\"float_type\",\"lens\":[3, 3], \"strides\":[3, 1]}}");
+        "allocate", R"({"shape":{"type":"float_type","lens":[3, 3], "strides":[3, 1]}})"
+);
     EXPECT(alloc.name() == "allocate");
 }
 

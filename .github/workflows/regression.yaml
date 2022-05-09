@@ -42,7 +42,7 @@ jobs:
     steps:
       - name: Run docker image
         run: |
-          docker run -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video --name performance-test-${GITHUB_SHA::7} "rocm-migraphx:$(date +%Y%m%d)" /bin/bash
+          docker run --rm -it -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video --name performance-test-${GITHUB_SHA::7} "rocm-migraphx:$(date +%Y%m%d)" /bin/bash
   execute_scripts:
     name: Execute scripts
     runs-on: self-hosted
@@ -50,4 +50,4 @@ jobs:
     steps:
       - name: Execute perf script
         run: |
-          docker exec performance-test ./rocm-migraphx/scripts/run_perf_mev.sh
+          docker exec "rocm-migraphx:$(date +%Y%m%d)" ./rocm-migraphx/scripts/run_perf_mev.sh

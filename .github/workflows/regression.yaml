@@ -48,6 +48,7 @@ jobs:
   execute_scripts:
     name: Execute scripts
     runs-on: self-hosted
+    if: ${{ always() }}
     needs: run_docker_image
     steps:
       - name: Execute perf script

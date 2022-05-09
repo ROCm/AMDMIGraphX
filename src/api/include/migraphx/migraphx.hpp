@@ -902,7 +902,11 @@ struct value : MIGRAPHX_HANDLE_BASE(value)
         call(&migraphx_value_get_##vt, &get_value, this->get_handle_ptr());        \
         return get_value;                                                          \
     }                                                                              \
-    const cpp_type* if_##vt() const { return this->is_##vt() ? &(this->get_##vt()) : nullptr; }
+    const cpp_type* if_##vt() const {                                              \
+        const cpp_type* ret_value = nullptr;                                       \
+        call(&migraphx_value_if_##vt, &ret_value, this->get_handle_ptr());         \
+        return ret_value;                                                          \
+    }
 
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
 };

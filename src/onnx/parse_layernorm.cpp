@@ -31,9 +31,9 @@ struct parse_layernorm : op_parser<parse_layernorm>
             make_op("layernorm", {{"epsilon", epsilon}, {"axis", axis}}), args.front());
 
         if(args.size() >= 2)
-            layernorm = info.add_instruction(make_op("mul"), layernorm, args.at(1));
+            layernorm = info.add_broadcastable_binary_op("mul", layernorm, args.at(1)); 
         if(args.size() == 3)
-            layernorm = info.add_instruction(make_op("add"), layernorm, args.at(2));
+            layernorm = info.add_broadcastable_binary_op("add", layernorm, args.at(2));
 
         return layernorm;
     }

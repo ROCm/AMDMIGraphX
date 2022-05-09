@@ -18,3 +18,6 @@ jobs:
         run: |
           cd ./rocm-migraphx/scripts
           env ROCM_RELEASE=5.1 ./build_migraphx_docker.sh
+      # - name: Run Docker script
+      #   run: |
+      #     docker run -it -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video rocm-migraphx:5.1 /bin/bash

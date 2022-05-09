@@ -44,11 +44,4 @@ jobs:
     steps:
       - name: Execute perf script
         run: |
-          docker run --rm \\
-          -e TZ=America/Chicago \\
-          -e SAVED_MODELS=/src/rocm-migraphx/saved-models \\
-          -e TEST_RESULTDIR=/src/rocm-migraphx/test-results \\
-          -e TARGET=gpu \\
-          --device=/dev/dri --device=/dev/kfd --network=host --group-add=video \\
-          --name performance-test-${GITHUB_SHA::7} "rocm-migraphx:$(date +%Y%m%d)" \\
-          /src/rocm-migraphx/scripts/run_perf_mev.sh
+          docker run --rm -e TZ=America/Chicago -e SAVED_MODELS=/src/rocm-migraphx/saved-models -e TEST_RESULTDIR=/src/rocm-migraphx/test-results -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video --name performance-test-${GITHUB_SHA::7} "rocm-migraphx:$(date +%Y%m%d)" /src/rocm-migraphx/scripts/run_perf_mev.sh

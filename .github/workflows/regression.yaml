@@ -25,7 +25,7 @@ jobs:
     name: Build New Image
     runs-on: self-hosted
     needs: check_image_version
-    if: ${{ steps.check_image.outputs.image == 'true' }}
+    if: ${{ needs.check_image.outputs.image == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v1

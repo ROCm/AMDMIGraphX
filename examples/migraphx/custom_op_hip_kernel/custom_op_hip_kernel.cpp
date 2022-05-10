@@ -63,7 +63,7 @@ int main(int argc, const char* argv[])
     auto x             = m.add_parameter("x", s);
     auto neg_ins       = m.add_instruction(migraphx::operation("neg"), x);
     // do allocation for the output buffer for the custom_kernel
-    auto alloc = m.add_allocation(s);  
+    auto alloc = m.add_allocation(s);
     auto custom_kernel =
         m.add_instruction(migraphx::operation("square_custom_op"), {neg_ins, alloc});
     auto relu_ins = m.add_instruction(migraphx::operation("relu"), {custom_kernel});

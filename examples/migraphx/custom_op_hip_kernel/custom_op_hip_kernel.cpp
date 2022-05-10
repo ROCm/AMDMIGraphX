@@ -3,7 +3,8 @@
 #include <hip/hip_runtime.h>
 #include <migraphx/migraphx.hpp>
 #include <numeric>
-#define SIZE 3 * 3
+
+#define TENSOR_SIZE 3 * 3
 #define MIGRAPHX_HIP_ASSERT(x) (assert((x) == hipSuccess))
 /*
  * Square each element in the array A and write to array C.
@@ -26,6 +27,10 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
     virtual migraphx::argument
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
+        // if compile options has offload_copy = true then, parameters and outputs will be automatically copied 
+        // to and from GPUs' memory. Here assume that `inputs` arguments are already in the GPU, so no need to 
+        // do Malloc, Free or Memcpy
+        // last element in the `inputs` is output argument, so it should be returned from compute method. 
         float* input_buffer = reinterpret_cast<float*>(inputs[0].data());
         auto* output_buffer = reinterpret_cast<float*>(inputs[1].data());
         auto input_bytes    = inputs[0].get_shape().bytes();
@@ -39,7 +44,7 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
                            ctx.get_queue<hipStream_t>(),
                            output_buffer,
                            input_buffer,
-                           SIZE);
+                           TENSOR_SIZE);
         return inputs[1];
     }
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
@@ -59,6 +64,7 @@ int main(int argc, const char* argv[])
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     auto neg_ins       = m.add_instruction(migraphx::operation("neg"), x);
+    // do allocation for the output buffer for the custom_kernel
     auto alloc         = m.add_instruction(
         migraphx::operation("allocate",
                             R"({"shape":{"type":"float_type","lens":[3, 3], "strides":[3, 1]}})"),
@@ -72,7 +78,7 @@ int main(int argc, const char* argv[])
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
     migraphx::program_parameters pp;
-    std::vector<float> x_data(SIZE);
+    std::vector<float> x_data(TENSOR_SIZE);
     std::iota(x_data.begin(), x_data.end(), 0);
     pp.add("x", migraphx::argument(s, x_data.data()));
     auto results                       = p.eval(pp);

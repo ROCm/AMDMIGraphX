@@ -3,7 +3,7 @@
 #include <hip/hip_runtime.h>
 #include <migraphx/migraphx.hpp>
 #include <numeric>
-
+#define SIZE 3*3
 #define MIGRAPHX_HIP_ASSERT(x) (assert((x) == hipSuccess))
 /*
  * Square each element in the array A and write to array C.
@@ -26,22 +26,14 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
     virtual migraphx::argument
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
-        float* d_output;
-        auto* h_output   = reinterpret_cast<float*>(inputs[1].data());
+        float* input_buffer = reinterpret_cast<float*>(inputs[0].data());
+        auto* output_buffer   = reinterpret_cast<float*>(inputs[1].data());
         auto input_bytes = inputs[0].get_shape().bytes();
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
-        MIGRAPHX_HIP_ASSERT(hipMalloc(&d_output, input_bytes));
-        MIGRAPHX_HIP_ASSERT(hipMemcpyAsync(d_output,
-                                           inputs[0].data(),
-                                           input_bytes,
-                                           hipMemcpyHostToDevice,
-                                           ctx.get_queue<hipStream_t>()));
         const unsigned blocks          = 512;
         const unsigned threadsPerBlock = 256;
         hipLaunchKernelGGL(
-            vector_square, dim3(blocks), dim3(threadsPerBlock), 0, 0, d_output, d_output, 8192);
-        MIGRAPHX_HIP_ASSERT(hipMemcpy(h_output, d_output, input_bytes, hipMemcpyDeviceToHost));
-        MIGRAPHX_HIP_ASSERT(hipFree(d_output));
+            vector_square, dim3(blocks), dim3(threadsPerBlock), 0, ctx.get_queue<hipStream_t>(), output_buffer, input_buffer, SIZE);
         return inputs[1];
     }
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
@@ -57,22 +49,25 @@ int main(int argc, const char* argv[])
     square_custom_op square_op;
     migraphx::register_experimental_custom_op(square_op);
     migraphx::program p;
-    migraphx::shape s{migraphx_shape_float_type, {32, 256}};
+    migraphx::shape s{migraphx_shape_float_type, {3, 3}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
+    auto neg_ins = m.add_instruction(migraphx::operation("neg"), x);
     auto alloc         = m.add_instruction(
         migraphx::operation(
-            "allocate", R"({"shape":{"type":"float_type","lens":[32, 256], "strides":[256, 1]}})"),
+            "allocate", R"({"shape":{"type":"float_type","lens":[3, 3], "strides":[3, 1]}})"),
         {});
-    auto custom_kernel = m.add_instruction(migraphx::operation("square_custom_op"), {x, alloc});
-    m.add_return({custom_kernel});
-    p.compile(migraphx::target("gpu"));
+    auto custom_kernel = m.add_instruction(migraphx::operation("square_custom_op"), {neg_ins, alloc});
+    auto relu_ins = m.add_instruction(migraphx::operation("relu"), {custom_kernel});
+    m.add_return({relu_ins});
+    migraphx::compile_options options;
+    // set offload copy to true for GPUs
+    options.set_offload_copy();
+    p.compile(migraphx::target("gpu"), options);
     migraphx::program_parameters pp;
-    std::vector<float> x_data(32 * 256);
+    std::vector<float> x_data(SIZE);
     std::iota(x_data.begin(), x_data.end(), 0);
-    std::vector<float> ret_data(32 * 256, -1);
     pp.add("x", migraphx::argument(s, x_data.data()));
-    pp.add("main:#output_0", migraphx::argument(s, ret_data.data()));
     auto results                       = p.eval(pp);
     auto result                        = results[0];
     std::vector<float> expected_result = x_data;
@@ -81,8 +76,5 @@ int main(int argc, const char* argv[])
                    expected_result.begin(),
                    [](auto i) { return std::pow(i, 2); });
     assert(bool{result == migraphx::argument(s, expected_result.data())});
-    auto* result_ptr = reinterpret_cast<float*>(result.data());
-    std::vector<float> result_vec(result_ptr, result_ptr + 8192);
-    assert(std::equal(ret_data.begin(), ret_data.end(), result_vec.begin(), result_vec.end()));
     return 0;
 }

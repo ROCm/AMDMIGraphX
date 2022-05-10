@@ -48,7 +48,7 @@ struct shape_impl
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
 
     explicit shape_impl(shape::dyn_data data)
-        : m_type(data.t), m_dynamic(true), m_dyn_dims(data.dims)
+        : m_type(data.t), m_dynamic(true), m_dyn_dims(std::move(data.dims))
     {
     }
 

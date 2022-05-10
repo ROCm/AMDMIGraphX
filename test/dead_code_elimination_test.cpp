@@ -180,6 +180,40 @@ TEST_CASE(duplicate_args3)
     EXPECT(result == migraphx::literal{0});
 }
 
+TEST_CASE(reused_twice)
+{
+    migraphx::program p;
+    auto* mm                 = p.get_main_module();
+    std::vector<size_t> dims = {1, 2, 2};
+    auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+    auto y    = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});
+    auto z    = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, dims});
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
+    auto epsilon  = mm->add_literal(1e-12f);
+    auto exponent = mm->add_literal(2.0f);
+
+    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), add2);
+    auto mean_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
+    auto sub = mm->add_instruction(migraphx::make_op("sub"), add2, mean_mbcast);
+    auto exponent_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), exponent);
+    auto pow            = mm->add_instruction(migraphx::make_op("pow"), sub, exponent_mbcast);
+    auto var            = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), pow);
+    auto epsilon_mbcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, dims.at(1), 1}}}), epsilon);
+    auto add_epsilon = mm->add_instruction(migraphx::make_op("add"), var, epsilon_mbcast);
+    mm->add_instruction(migraphx::make_op("sqrt"), add_epsilon);
+    mm->add_instruction(migraphx::make_op("add"), x, y);
+
+    auto count = std::distance(mm->begin(), mm->end());
+    run_pass(p);
+    p.debug_print();
+    EXPECT(std::distance(mm->begin(), mm->end()) != count);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 4);
+}
+
 TEST_CASE(unused_module)
 {
     migraphx::program p;

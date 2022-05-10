@@ -26,7 +26,6 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
     virtual migraphx::argument
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
-        // sets first half size_bytes of the input 0, and rest of the half bytes are copied.
         float* d_output;
         auto* h_output   = reinterpret_cast<float*>(inputs[1].data());
         auto input_bytes = inputs[0].get_shape().bytes();

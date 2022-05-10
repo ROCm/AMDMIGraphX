@@ -213,7 +213,8 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
-migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s) {
+migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
+{
     return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
 }
 

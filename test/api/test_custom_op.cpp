@@ -42,7 +42,7 @@ TEST_CASE(run_sigmoid_custom_op)
     migraphx::shape s{migraphx_shape_float_type, {12}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
-    auto alloc = m.add_allocation(s);
+    auto alloc         = m.add_allocation(s);
     auto custom_kernel = m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x, alloc});
     p.compile(migraphx::target("ref"));
     // run program

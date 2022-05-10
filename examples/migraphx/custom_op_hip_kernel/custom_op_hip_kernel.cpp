@@ -3,7 +3,7 @@
 #include <hip/hip_runtime.h>
 #include <migraphx/migraphx.hpp>
 #include <numeric>
-#define SIZE 3*3
+#define SIZE 3 * 3
 #define MIGRAPHX_HIP_ASSERT(x) (assert((x) == hipSuccess))
 /*
  * Square each element in the array A and write to array C.
@@ -27,13 +27,19 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
         float* input_buffer = reinterpret_cast<float*>(inputs[0].data());
-        auto* output_buffer   = reinterpret_cast<float*>(inputs[1].data());
-        auto input_bytes = inputs[0].get_shape().bytes();
+        auto* output_buffer = reinterpret_cast<float*>(inputs[1].data());
+        auto input_bytes    = inputs[0].get_shape().bytes();
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
         const unsigned blocks          = 512;
         const unsigned threadsPerBlock = 256;
-        hipLaunchKernelGGL(
-            vector_square, dim3(blocks), dim3(threadsPerBlock), 0, ctx.get_queue<hipStream_t>(), output_buffer, input_buffer, SIZE);
+        hipLaunchKernelGGL(vector_square,
+                           dim3(blocks),
+                           dim3(threadsPerBlock),
+                           0,
+                           ctx.get_queue<hipStream_t>(),
+                           output_buffer,
+                           input_buffer,
+                           SIZE);
         return inputs[1];
     }
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
@@ -52,12 +58,13 @@ int main(int argc, const char* argv[])
     migraphx::shape s{migraphx_shape_float_type, {3, 3}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
-    auto neg_ins = m.add_instruction(migraphx::operation("neg"), x);
+    auto neg_ins       = m.add_instruction(migraphx::operation("neg"), x);
     auto alloc         = m.add_instruction(
-        migraphx::operation(
-            "allocate", R"({"shape":{"type":"float_type","lens":[3, 3], "strides":[3, 1]}})"),
+        migraphx::operation("allocate",
+                            R"({"shape":{"type":"float_type","lens":[3, 3], "strides":[3, 1]}})"),
         {});
-    auto custom_kernel = m.add_instruction(migraphx::operation("square_custom_op"), {neg_ins, alloc});
+    auto custom_kernel =
+        m.add_instruction(migraphx::operation("square_custom_op"), {neg_ins, alloc});
     auto relu_ins = m.add_instruction(migraphx::operation("relu"), {custom_kernel});
     m.add_return({relu_ins});
     migraphx::compile_options options;

@@ -29,8 +29,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Floor", "floor"},
                 {"Gather", "gather"},
                 {"GatherND", "gathernd"},
-                {"Gelu", "gelu"},
-                {"GatherND", "gathernd"},
                 {"Identity", "identity"},
                 {"IsNaN", "isnan"},
                 {"LeakyRelu", "leaky_relu"},

@@ -239,21 +239,13 @@ struct find_gelu
         return tanh_fn;
     }
 
-    // apply the gelu_erf approximation: return ::erf(x * M_SQRT1_2);
+    // apply the gelu_erf approximation:  substitute  ::erf(x * M_SQRT1_2);
     void apply(module& m, match::matcher_result r) const
     {
         if(!fast_math)
             return;
-        auto ins   = r.result;
-        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
-
-        if(trace)
-        {
-            std::cout << "module before gelu_tanh substitution:\n";
-            m.debug_print();
-            std::cout << "---end\n";
-        }
-        // "x", in effect, means the earlier instruction result that was an input
+        auto ins = r.result;
+        // "x" was bound by the  matcher to the earlier instruction result that was an input
         // to the first step of the matched sequence.
         auto x_ins  = r.instructions["x"];
         auto x_type = x_ins->get_shape().type();
@@ -269,12 +261,10 @@ struct find_gelu
 
         //     erf(x* sqrt (1/2))
         m.replace_instruction(ins, make_op("erf"), xsq_ins);
-        if(trace)
-        {
-            std::cout << "module after gelu_tanh substitution:\n";
-            m.debug_print();
-            std::cout << "---end\n";
-        }
+
+        // Note: after this apply() method, the replaced instructions remain in the list but do
+        // not have any dependent instructions, so they'll be removed later on by dead code
+        // elimination.
     }
 };
 

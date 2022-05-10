@@ -3,7 +3,6 @@
 #include <migraphx/migraphx.hpp> // MIGraphX's C++ API
 #include <numeric>
 
-#define TENSOR_SIZE 3 * 3
 #define MIGRAPHX_HIP_ASSERT(x) (assert((x) == hipSuccess))
 /*
  * Square each element in the array A and write to array C.
@@ -32,17 +31,18 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
         // is output argument, so it should be returned from compute method.
         auto* input_buffer  = reinterpret_cast<float*>(inputs[0].data());
         auto* output_buffer = reinterpret_cast<float*>(inputs[1].data());
+        size_t n_elements = inputs[0].get_shape().bytes() / sizeof(inputs[0].get_shape().type());
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
         const unsigned blocks          = 512;
-        const unsigned threadsPerBlock = 256;
+        const unsigned threads_per_block = 256;
         hipLaunchKernelGGL(vector_square,
                            dim3(blocks),
-                           dim3(threadsPerBlock),
+                           dim3(threads_per_block),
                            0,
                            ctx.get_queue<hipStream_t>(),
                            output_buffer,
                            input_buffer,
-                           TENSOR_SIZE);
+                           n_elements);
         return inputs[1];
     }
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
@@ -58,14 +58,14 @@ int main(int argc, const char* argv[])
     square_custom_op square_op;
     migraphx::register_experimental_custom_op(square_op);
     migraphx::program p;
-    migraphx::shape s{migraphx_shape_float_type, {3, 3}};
+    migraphx::shape s{migraphx_shape_float_type, {32, 256}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     auto neg_ins       = m.add_instruction(migraphx::operation("neg"), x);
     // do allocation for the output buffer for the custom_kernel
     auto alloc = m.add_instruction(
         migraphx::operation("allocate",
-                            R"({"shape":{"type":"float_type","lens":[3, 3], "strides":[3, 1]}})"),
+                            R"({"shape":{"type":"float_type","lens":[32, 256], "strides":[256, 1]}})"),
         {});
     auto custom_kernel =
         m.add_instruction(migraphx::operation("square_custom_op"), {neg_ins, alloc});
@@ -76,7 +76,7 @@ int main(int argc, const char* argv[])
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
     migraphx::program_parameters pp;
-    std::vector<float> x_data(TENSOR_SIZE);
+    std::vector<float> x_data(s.bytes()/sizeof(s.type()));
     std::iota(x_data.begin(), x_data.end(), 0);
     pp.add("x", migraphx::argument(s, x_data.data()));
     auto results                       = p.eval(pp);

@@ -89,13 +89,6 @@ struct shape
         }
     };
 
-    // Avoid ambiguous constructor
-    struct dyn_data
-    {
-        type_t t;
-        std::vector<dynamic_dimension> dims;
-    };
-
     static const std::vector<type_t>& types();
 
     static std::string name(type_t t);
@@ -106,7 +99,12 @@ struct shape
     shape(type_t t, std::vector<std::size_t> l);
     shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s);
 
-    explicit shape(dyn_data data);
+    // Force all calls of the format `shape( type_t, { size_t compatibles } )` to map to
+    // shape(type_t, std::vector<std::size_t> l)
+    shape(type_t t, std::initializer_list<std::size_t> d);
+
+    typedef std::vector<dynamic_dimension> dynamic_dimensions;
+    shape(type_t t, dynamic_dimensions dims);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
@@ -130,7 +128,7 @@ struct shape
     const std::vector<std::size_t>& strides() const;
 
     /*!
-     * Return the number of elements in the tensor. Multiply the lengths.
+     * Return the number of elements in the tensor.
      */
     std::size_t elements() const;
 

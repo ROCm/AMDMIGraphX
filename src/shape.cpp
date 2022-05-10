@@ -45,19 +45,18 @@ struct shape_impl
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
 
-    shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
-
-    explicit shape_impl(shape::dyn_data data)
-        : m_type(data.t), m_dynamic(true), m_dyn_dims(std::move(data.dims))
+    shape_impl(shape::type_t t, shape::dynamic_dimensions dims)
+        : m_type(t), m_dyn_dims(std::move(dims))
     {
     }
+
+    shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
 
     shape::type_t m_type;
     std::vector<std::size_t> m_lens    = {};
     std::vector<std::size_t> m_strides = {};
     std::vector<shape> m_shapes        = {};
     bool m_standard                    = false;
-    bool m_dynamic                     = false;
 
     std::vector<shape::dynamic_dimension> m_dyn_dims = {};
 
@@ -76,7 +75,7 @@ struct shape_impl
 
     std::size_t element_space() const
     {
-        if(m_dynamic)
+        if(not m_dyn_dims.empty())
         {
             MIGRAPHX_THROW("SHAPE: element_space() called on dynamic shape");
         }
@@ -95,7 +94,7 @@ struct shape_impl
 
     std::size_t elements() const
     {
-        if(m_dynamic)
+        if(not m_dyn_dims.empty())
         {
             MIGRAPHX_THROW("SHAPE: elements() called on dynamic shape");
         }
@@ -155,9 +154,17 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 {
 }
 
-shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
+shape::shape(type_t t, std::initializer_list<std::size_t> d)
+    : shape::shape(t, std::vector<std::size_t>{d.begin(), d.end()})
+{
+}
 
-shape::shape(dyn_data data) : impl(std::make_shared<shape_impl>(std::move(data))) {}
+shape::shape(type_t t, dynamic_dimensions dims)
+    : impl(std::make_shared<shape_impl>(t, std::move(dims)))
+{
+}
+
+shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
 shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
 
@@ -199,6 +206,7 @@ std::size_t shape::bytes() const
                                [&](auto x, auto y) { return x + y.bytes(); });
     }
 }
+
 std::size_t shape::type_size() const
 {
     std::size_t n = 0;
@@ -378,7 +386,7 @@ std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }
 
-bool shape::dynamic() const { return impl->m_dynamic; }
+bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
@@ -502,12 +510,12 @@ void migraphx_from_value(const value& v, shape& s)
             auto opts  = v.at("opt_dyn_dims").to_vector<std::size_t>();
             assert(mins.size() == maxes.size() and maxes.size() == opts.size());
             auto num_dims = mins.size();
-            std::vector<shape::dynamic_dimension> dyn_dims(num_dims);
+            shape::dynamic_dimensions dyn_dims(num_dims);
             for(int i = 0; i < num_dims; ++i)
             {
                 dyn_dims.at(i) = shape::dynamic_dimension{mins[i], maxes[i], opts[i]};
             }
-            s = shape{migraphx::shape::dyn_data{shape::parse_type(t), dyn_dims}};
+            s = shape{shape::parse_type(t), dyn_dims};
         }
         else
         {

@@ -131,6 +131,7 @@ add_library(migraphx_gpu
     clip.cpp
     code_object_op.cpp
     compile_ops.cpp
+    compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
     compiler.cpp

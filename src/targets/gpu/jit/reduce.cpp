@@ -40,14 +40,6 @@ __global__ void kernel(void* input_p, void* output_p)
 
 )__migraphx__";
 
-constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024)
-{
-    size_t block_size = 128;
-    while(block_size <= max_block_size and block_size <= n)
-        block_size *= 2;
-    return block_size / 2;
-}
-
 static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
 {
     return inputs.front().elements() / inputs.back().elements();

@@ -20,7 +20,8 @@
  * since the compiler is not exposed in this program.  Tests involving compiling belong in
  * verify_onnx.cpp
  *
- * @copyright Copyright (c) 2022
+ * @copyright Modifications Copyright (C)[2022] Advanced Micro
+Devices, Inc. All rights reserved.
  *
  */
 

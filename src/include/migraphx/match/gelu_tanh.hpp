@@ -89,11 +89,6 @@ auto gelu_tanh(F f)
 {
     return detail::gelu_tanh_matcher<F>{f}.matcher();
 }
-template <class F>
-auto gelu_tanh_inner(F f)
-{
-    return detail::gelu_tanh_matcher<F>{f}.matcher_inner();
-}
 
 inline auto gelu_tanh()
 {

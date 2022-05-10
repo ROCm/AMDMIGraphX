@@ -278,6 +278,10 @@ migraphx_status migraphx_module_add_return(migraphx_instruction_t* out,
                                            migraphx_module_t module,
                                            migraphx_instructions_t args);
 
+migraphx_status migraphx_module_add_allocation(migraphx_instruction_t* out,
+                                               migraphx_module_t module,
+                                               const_migraphx_shape_t s);
+
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
 
 migraphx_status migraphx_program_assign_to(migraphx_program_t output,

@@ -221,6 +221,10 @@ def module(h):
     h.method('add_return',
              api.params(args='std::vector<migraphx::instruction_ref>'),
              returns='migraphx::instruction_ref')
+    h.method('add_allocation', 
+            api.params(s='const migraphx::shape&'), 
+            invoke='migraphx::add_allocation($@)',
+            returns='migraphx::instruction_ref')
 
 
 @auto_handle()

@@ -44,10 +44,7 @@ TEST_CASE(run_simple_custom_op)
     migraphx::shape s{migraphx_shape_float_type, {4, 3}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
-    auto alloc         = m.add_instruction(
-        migraphx::operation("allocate",
-                            R"({"shape":{"type":"float_type","lens":[4, 3], "strides":[3, 1]}})"),
-        {});
+    auto alloc = m.add_allocation(s);
     auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {x, alloc});
     m.add_return({custom_kernel});
     p.compile(migraphx::target("gpu"));

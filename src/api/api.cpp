@@ -213,6 +213,11 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
+{
+    return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
+}
+
 struct experimental_custom_op
 {
     std::string name;
@@ -1137,6 +1142,21 @@ extern "C" migraphx_status migraphx_module_add_return(migraphx_instruction_t* ou
         if(args == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter args: Null pointer");
         *out = allocate<migraphx_instruction_t>((module->object).add_return((args->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_module_add_allocation(migraphx_instruction_t* out,
+                                                          migraphx_module_t module,
+                                                          const_migraphx_shape_t s)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(module == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter module: Null pointer");
+        if(s == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter s: Null pointer");
+        *out = allocate<migraphx_instruction_t>(
+            migraphx::add_allocation((module->object), (s->object)));
     });
     return api_error_result;
 }

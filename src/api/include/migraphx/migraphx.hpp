@@ -784,6 +784,13 @@ struct module
         return instruction(ret_ins, own{});
     }
 
+    instruction add_allocation(const migraphx::shape& s)
+    {
+        migraphx_instruction_t ret_ins;
+        call(&migraphx_module_add_allocation, &ret_ins, mm.get(), s.get_handle_ptr());
+        return instruction(ret_ins, own{});
+    }
+
     migraphx_module_t get_handle_ptr() const { return mm.get(); }
 
     private:

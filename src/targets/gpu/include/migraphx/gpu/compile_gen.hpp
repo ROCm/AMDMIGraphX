@@ -33,7 +33,7 @@ std::size_t find_fast_axis(const std::vector<shape>& inputs);
 
 std::string make_transformer_args(std::vector<std::string> transformers);
 
-template<class... Ts>
+template <class... Ts>
 std::string make_transformer_args(Ts... xs)
 {
     return make_transformer_args({xs.str()...});

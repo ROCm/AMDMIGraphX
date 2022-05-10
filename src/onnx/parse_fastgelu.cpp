@@ -17,18 +17,17 @@ struct parse_fastgelu : op_parser<parse_fastgelu>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-        if (args.size() != 1)
-            MIGRAPHX_THROW("FastGelu: too many arguments. Expected 1; got " + std::to_string(args.size()));
-        
+        if(args.size() != 1)
+            MIGRAPHX_THROW("FastGelu: too many arguments. Expected 1; got " +
+                           std::to_string(args.size()));
 
         // silu approximation
-        auto x = args.front();
-        auto x_type = x->get_shape().type();
-        auto lit = info.add_literal(literal{shape{x_type, {1}}, {1.702f}});
+        auto x       = args.front();
+        auto x_type  = x->get_shape().type();
+        auto lit     = info.add_literal(literal{shape{x_type, {1}}, {1.702f}});
         auto sigmoid = info.add_broadcastable_binary_op("mul", lit, x);
-        sigmoid = info.add_instruction(make_op("sigmoid"), sigmoid);
+        sigmoid      = info.add_instruction(make_op("sigmoid"), sigmoid);
         return info.add_instruction(make_op("mul"), sigmoid, x);
-
 
         // tanh approximation
         /* auto x = args.front();
@@ -48,13 +47,12 @@ struct parse_fastgelu : op_parser<parse_fastgelu>
 
         return info.add_instruction(make_op("mul"), x, tanh); */
 
-
         // tanh approximation with pow
         /* auto x = args.front();
         auto x_type = x->get_shape().type();
         auto three = info.add_literal(literal{shape{x_type, {1}}, {3}});
-        three = info.add_instruction(make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), three);
-        auto x3 = info.add_instruction(make_op("pow"), x, three);
+        three = info.add_instruction(make_op("multibroadcast", {{"out_lens",
+        x->get_shape().lens()}}), three); auto x3 = info.add_instruction(make_op("pow"), x, three);
         auto magic_number = info.add_literal(literal{shape{x_type, {1}}, {0.044715f}});
         x3 = info.add_broadcastable_binary_op("mul", magic_number, x3);
         auto product = info.add_instruction(make_op("add"), x, x3);

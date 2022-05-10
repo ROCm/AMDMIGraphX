@@ -37,7 +37,7 @@ void dead_code_elimination::apply(module& m) const
             if(leaf->outputs().empty())
             {
                 // Dont visit inputs twice
-                if (not visited.insert(leaf).second)
+                if(not visited.insert(leaf).second)
                     return;
                 std::unordered_set<instruction_ref> args(leaf->inputs().begin(),
                                                          leaf->inputs().end());

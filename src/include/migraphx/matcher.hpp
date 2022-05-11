@@ -280,6 +280,20 @@ match::matcher_result find_match(module& modl, M&& m)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 
 /// Find matches for an instruction in the module
+//
+// matcher grammar:
+// used_once() means only match an instruction whose output is used only once (otherwise,
+// substituting
+//   it may not improve performance).
+// bind("x") makes an instruction "x" findable by substitution code such as x_ins =
+// r.instructions["x"];
+//   Behavior is undefined if you bind a name to more than 1 instruction..
+// any() matches anything; the only purpose is to get a handle for
+//   another instruction such as bind()
+// any_arg() finds a match in any argument position
+// either_arg() must match both arguments but in either order is OK
+// name() and name_contains() match if name matches
+
 template <class... Ms>
 void find_matches(module& mod, instruction_ref ins, Ms&&... ms)
 {

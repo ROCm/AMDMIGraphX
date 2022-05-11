@@ -51,17 +51,6 @@ struct gelu_tanh_matcher
         //      but we only match the subexpression without the 0.5 factor:
         //      x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
         //      because that's how it appears in common bert models.
-        //
-        // matcher grammar:
-        // used_once() means only match an instruction whose output is used only once (otherwise, substituting 
-        //   it may not improve performance).
-        // bind("x") makes an instruction "x" findable by substitution code such as x_ins = r.instructions["x"]; 
-        //   This code assumes that the multiple bindings of x refer to the same value; not checked.
-        // any() matches anything; the only purpose is to get a handle for
-        //   another instruction such as bind() 
-        // any_arg() finds a match in any argument position
-        // either_arg() must match both arguments but in either order is OK
-        // name() and name_contains() match if name matches
         // clang-format on
 
         // Each of these calls returns a matcher predicate function which we compose

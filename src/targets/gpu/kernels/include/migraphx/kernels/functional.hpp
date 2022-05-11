@@ -3,6 +3,14 @@
 
 #include <migraphx/kernels/integral_constant.hpp>
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_RETURNS(...) \
+    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_LIFT(...) \
+    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
+
 namespace migraphx {
 
 struct swallow
@@ -161,6 +169,18 @@ constexpr auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
+template <class G, class F>
+constexpr auto join(G g, F f)
+{
+    return f([=](auto... xs) { return g(xs...); });
+}
+
+template <class G, class F, class... Fs>
+constexpr auto join(G g, F f, Fs... fs)
+{
+    return f([=](auto... xs) { return join([=](auto... ys) { return g(xs..., ys...); }, fs...); });
+}
+
 template <class Compare, class P1, class P2>
 constexpr auto pack_compare(Compare compare, P1 p1, P2 p2)
 {
@@ -191,39 +211,45 @@ constexpr auto arg(IntegralConstant ic)
     return arg_c<ic>();
 }
 
-inline constexpr auto rotate_last()
+template <class F>
+constexpr auto make_transform(F f)
 {
-    return [](auto... xs) {
-        return [=](auto&& f) {
-            return sequence_c<sizeof...(xs)>([&](auto... is) {
-                constexpr auto size = sizeof...(is);
-                return f(arg_c<(is + size - 1) % size>()(xs...)...);
-            });
-        };
-    };
+    return [=](auto... xs) { return [=](auto g) { return f(g, xs...); }; };
 }
 
+// An arg transformation takes the arguments and then a function to take the new arguments:
+//     transform(xs...)([](auto... ys) { ... })
+// The transform_args function takes a list of transformations and continually applies them
 template <class F>
 constexpr auto transform_args(F f)
 {
-    return [=](auto... xs) {
-        return [=](auto g) { return f(xs...)([&](auto... ys) { return g(ys...); }); };
-    };
+    return f;
 }
 
 template <class F, class... Fs>
 constexpr auto transform_args(F f, Fs... fs)
 {
-    return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
+    return make_transform([=](auto g, auto... xs) {
+        return f(xs...)([=](auto... ys) { return transform_args(fs...)(ys...)(g); });
+    });
 }
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_RETURNS(...) \
-    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+// identity transform
+inline constexpr auto transform_args()
+{
+    return make_transform([](auto f, auto... xs) { return f(xs...); });
+}
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_LIFT(...) \
-    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
+// Rotate the first argument to the last argument
+inline constexpr auto rotate_last()
+{
+    return make_transform([](auto f, auto... xs) {
+        return sequence_c<sizeof...(xs)>([&](auto... is) {
+            constexpr auto size = sizeof...(is);
+            return f(arg_c<(is + size - 1) % size>()(xs...)...);
+        });
+    });
+}
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

@@ -91,10 +91,7 @@ TEST_CASE(test_shape_dynamic_compares)
     EXPECT(s0 != s3);
 }
 
-TEST_CASE(test_shape_dynamic_bytes)
-{
-
-}
+TEST_CASE(test_shape_dynamic_bytes) {}
 
 TEST_CASE(test_shape_dynamic_errors)
 {

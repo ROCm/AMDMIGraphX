@@ -65,21 +65,15 @@ struct shape
         std::size_t max = 0;
         std::size_t opt = 0;
 
-        bool is_fixed() const { return min == max; }
-        bool has_optimal() const { return opt != 0; }
-        friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y)
-        {
-            return (x.min == y.min and x.max == y.max and x.opt == y.opt);
-        }
-        friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y)
-        {
-            return !(x == y);
-        }
-        friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x)
-        {
-            os << "[" << x.min << ", " << x.max << ", " << x.opt << "]";
-            return os;
-        }
+        template <class Self, class F>
+        static auto reflect(Self& self, F f);
+
+        bool is_fixed() const;
+        bool has_optimal() const;
+        
+        friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y);
+        friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y);
+        friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x);
     };
 
     static const std::vector<type_t>& types();

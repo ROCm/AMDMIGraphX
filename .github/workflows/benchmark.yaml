@@ -49,5 +49,5 @@ jobs:
           --device=/dev/dri --device=/dev/kfd --network=host --group-add=video \
           --name performance-test-${GITHUB_SHA::7} "rocm-migraphx:20220510" \
           sed -i 's@"/home/mev/source/rocm-migraphx/saved-models"@"/home/mev/source/saved-models"@g' \
-          /src/rocm-migraphx/scripts/run_perf_mev.sh \
+          /src/rocm-migraphx/scripts/run_perf_mev.sh &&
           /src/rocm-migraphx/scripts/run_perf_mev.sh

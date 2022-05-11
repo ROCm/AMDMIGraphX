@@ -48,4 +48,4 @@ jobs:
           -e TEST_RESULTDIR=/src/rocm-migraphx/test-results -e TARGET=gpu \
           --device=/dev/dri --device=/dev/kfd --network=host --group-add=video \
           --name performance-test-${GITHUB_SHA::7} "rocm-migraphx:20220510" \
-          -c "cd /home/mev/source/saved-models && pwd && /src/rocm-migraphx/scripts/run_perf_mev.sh"
+          /bin/bash -c "cd /home/mev/source/saved-models && pwd && /src/rocm-migraphx/scripts/run_perf_mev.sh"

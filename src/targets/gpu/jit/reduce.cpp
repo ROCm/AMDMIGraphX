@@ -2,6 +2,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/ranges.hpp>
@@ -16,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+using namespace migraphx::gpu::gen;
+
 static const char* const simple_reduce_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -26,9 +30,10 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void kernel(void* input_p, void* output_p) 
+__global__ void reduce_kernel(void* input_p, void* output_p) 
 {
-    make_tensors()(input_p, output_p)([](auto input, auto output) {
+    
+    transform_args(make_tensors(), ${transformers})(input_p, output_p)([](auto input, auto output) {
 
         simple_reduce<reduce::${algo}>(${reduction}, ${init}, input, output, ${read}, ${write});
     });
@@ -93,17 +98,24 @@ struct reduce_compiler : compiler<reduce_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto reduce_elements = get_reduce_elements(inputs);
+        auto faxis = find_fast_axis({inputs.front()});
+        vectorize vec{};
+        // Vectorize if the axis is a reduction axis
+        if (inputs.back().lens()[faxis] == 1)
+        {
+            vec = vectorize::elements(faxis, inputs);
+        }
+        auto reduce_elements = get_reduce_elements(inputs) / vec.size;
         auto algo            = v.get("algo", get_reduce_algo(inputs));
         if(algo == "block")
         {
             auto block_size = compute_block_size(reduce_elements, 256);
             options.set_launch_params(
-                v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
+                v, compute_global_for(ctx, inputs.back().elements() * block_size / vec.size, 256), block_size);
         }
         else if(algo == "lane")
         {
-            options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 256));
+            options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements() / vec.size, 256));
         }
         else
         {
@@ -112,6 +124,7 @@ struct reduce_compiler : compiler<reduce_compiler>
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
+        options.kernel_name = "reduce_kernel";
         std::string identity   = "[](auto x) { return x; }";
         auto src               = interpolate_string(simple_reduce_kernel,
                                       {{"reduction", v.at("reduction").to<std::string>()},
@@ -119,6 +132,7 @@ struct reduce_compiler : compiler<reduce_compiler>
                                        {"read", v.get("read", identity)},
                                        {"write", v.get("write", identity)},
                                        {"algo", algo},
+                                       {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})}});
         options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);

@@ -16,14 +16,14 @@ namespace gen {
 
 struct vectorize
 {
-    std::size_t size;
-    std::size_t axis;
+    std::size_t size = 0;
+    std::size_t axis = 0;
     static vectorize elements(std::size_t axis, const std::vector<shape>& inputs);
     std::string str() const;
 };
 struct preload
 {
-    std::vector<bool> args;
+    std::vector<bool> args = {};
     static preload broadcasts(std::size_t axis, const std::vector<shape>& inputs);
     bool is_preloading() const;
     std::string str() const;

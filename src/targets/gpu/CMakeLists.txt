@@ -159,6 +159,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp
+    prefuse_ops.cpp
     pad.cpp
     pooling.cpp
     quant_convolution.cpp

@@ -42,7 +42,18 @@ jobs:
     if: ${{ always() }}
 #     needs: build_image
     steps:
+# Docker runs the performance script inside `rocm-migraphx` docker.
+# Attached volume provides access to the compiled version of `saved-modules` adn MRPC datasets. (Currently inside `/home/htec/jz` dir, but that should be changed)
+# `workdir` parameter sets root context for execution of run_perf_mev.sh script. That's not necessary, but removing that parameter requires changes how the script imports the MRPC data
       - name: Execute perf script
         run: |
-          docker run -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video -v /home/htec/jz:/data --workdir /data/source/rocm-migraphx/scripts/ rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
+          docker run -e TZ=America/Chicago \
+          -e TARGET=gpu \
+          --device=/dev/dri \
+          --device=/dev/kfd \
+          --network=host \
+          --group-add=video \  
+          -v /home/htec/jz:/data \
+          --workdir /data/source/rocm-migraphx/scripts/ \
+          rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
            

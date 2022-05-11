@@ -58,7 +58,7 @@ struct shape_impl
     std::vector<shape> m_shapes        = {};
     bool m_standard                    = false;
 
-    std::vector<shape::shape::dynamic_dimension> m_dyn_dims = {};
+    std::vector<shape::dynamic_dimension> m_dyn_dims = {};
 
     void calculate_strides()
     {
@@ -77,7 +77,13 @@ struct shape_impl
     {
         if(not m_dyn_dims.empty())
         {
-            MIGRAPHX_THROW("SHAPE: element_space() called on dynamic shape");
+            auto maxes = max_lens();
+            return std::accumulate(
+                maxes.begin(),
+                maxes.end(),
+                std::size_t{1},
+                std::multiplies<>()
+            );
         }
 
         assert(m_lens.size() == m_strides.size());
@@ -104,6 +110,51 @@ struct shape_impl
             return 0;
         return std::accumulate(
             m_lens.begin(), m_lens.end(), std::size_t{1}, std::multiplies<std::size_t>());
+    }
+
+    std::vector<std::size_t> min_lens() const
+    {
+        std::vector<std::size_t> ret(m_dyn_dims.size());
+        std::transform(
+            m_dyn_dims.cbegin(),
+            m_dyn_dims.cend(),
+            ret.begin(),
+            [](shape::dynamic_dimension x)
+            {
+                return x.min;
+            }
+        );
+        return ret;
+    }
+
+    std::vector<std::size_t> max_lens() const
+    {
+        std::vector<std::size_t> ret(m_dyn_dims.size());
+        std::transform(
+            m_dyn_dims.cbegin(),
+            m_dyn_dims.cend(),
+            ret.begin(),
+            [](shape::dynamic_dimension x)
+            {
+                return x.max;
+            }
+        );
+        return ret;
+    }
+
+    std::vector<std::size_t> opt_lens() const
+    {
+        std::vector<std::size_t> ret(m_dyn_dims.size());
+        std::transform(
+            m_dyn_dims.cbegin(),
+            m_dyn_dims.cend(),
+            ret.begin(),
+            [](shape::dynamic_dimension x)
+            {
+                return x.opt;
+            }
+        );
+        return ret;
     }
 
     std::shared_ptr<shape_impl> copy() const { return std::make_shared<shape_impl>(*this); }
@@ -188,10 +239,6 @@ std::size_t shape::elements() const { return impl->elements(); }
 
 std::size_t shape::bytes() const
 {
-    if(this->dynamic())
-    {
-        MIGRAPHX_THROW("SHAPE: bytes() called on dynamic shape");
-    }
     if(this->sub_shapes().empty())
     {
         std::size_t n = 0;
@@ -390,37 +437,31 @@ bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
-std::vector<std::size_t> shape::min_dyn_dims() const
+std::vector<std::size_t> shape::min_lens() const
 {
-    auto num_dims = dyn_dims().size();
-    std::vector<std::size_t> ret(num_dims);
-    for(int i = 0; i < num_dims; ++i)
+    if (not this->dynamic())
     {
-        ret.at(i) = dyn_dims().at(i).min;
+        return this->lens();
     }
-    return ret;
+    return impl->min_lens();;
 }
 
-std::vector<std::size_t> shape::max_dyn_dims() const
+std::vector<std::size_t> shape::max_lens() const
 {
-    auto num_dims = dyn_dims().size();
-    std::vector<std::size_t> ret(num_dims);
-    for(int i = 0; i < num_dims; ++i)
+    if (not this->dynamic())
     {
-        ret.at(i) = dyn_dims().at(i).max;
+        return this->lens();
     }
-    return ret;
+    return impl->max_lens();;
 }
 
-std::vector<std::size_t> shape::opt_dyn_dims() const
+std::vector<std::size_t> shape::opt_lens() const
 {
-    auto num_dims = dyn_dims().size();
-    std::vector<std::size_t> ret(num_dims);
-    for(int i = 0; i < num_dims; ++i)
+    if (not this->dynamic())
     {
-        ret.at(i) = dyn_dims().at(i).opt;
+        return this->lens();
     }
-    return ret;
+    return impl->opt_lens();;
 }
 
 bool operator==(const shape& x, const shape& y)
@@ -480,9 +521,9 @@ void migraphx_to_value(value& v, const shape& s)
     if(s.dynamic())
     {
         result["dynamic"]      = migraphx::to_value(s.dynamic());
-        result["min_dyn_dims"] = migraphx::to_value(s.min_dyn_dims());
-        result["max_dyn_dims"] = migraphx::to_value(s.max_dyn_dims());
-        result["opt_dyn_dims"] = migraphx::to_value(s.opt_dyn_dims());
+        result["min_lens"] = migraphx::to_value(s.min_lens());
+        result["max_lens"] = migraphx::to_value(s.max_lens());
+        result["opt_lens"] = migraphx::to_value(s.opt_lens());
         result["sub_shapes"]   = migraphx::to_value(s.sub_shapes());
     }
     else
@@ -505,9 +546,9 @@ void migraphx_from_value(const value& v, shape& s)
     {
         if(v.contains("dynamic"))
         {
-            auto mins  = v.at("min_dyn_dims").to_vector<std::size_t>();
-            auto maxes = v.at("max_dyn_dims").to_vector<std::size_t>();
-            auto opts  = v.at("opt_dyn_dims").to_vector<std::size_t>();
+            auto mins  = v.at("min_lens").to_vector<std::size_t>();
+            auto maxes = v.at("max_lens").to_vector<std::size_t>();
+            auto opts  = v.at("opt_lens").to_vector<std::size_t>();
             assert(mins.size() == maxes.size() and maxes.size() == opts.size());
             auto num_dims = mins.size();
             std::vector<shape::dynamic_dimension> dyn_dims(num_dims);

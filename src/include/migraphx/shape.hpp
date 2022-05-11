@@ -65,13 +65,6 @@ struct shape
         std::size_t max = 0;
         std::size_t opt = 0;
 
-        dynamic_dimension() = default;
-
-        dynamic_dimension(std::size_t i_min, std::size_t i_max, std::size_t i_opt)
-            : min(i_min), max(i_max), opt(i_opt)
-        {
-        }
-
         bool is_fixed() const { return min == max; }
         bool has_optimal() const { return opt != 0; }
         friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y)
@@ -132,8 +125,8 @@ struct shape
     std::size_t elements() const;
 
     /*!
-     * Return the number of total bytes used for storage of the tensor data.
-     * Includes subshapes.
+     * Return the number of total bytes used for storage of the tensor data; includes subshapes.
+     * For dynamic shape, returns the maximum number of bytes presuming a packed shape.
      */
     std::size_t bytes() const;
 
@@ -145,9 +138,23 @@ struct shape
 
     const std::vector<dynamic_dimension>& dyn_dims() const;
 
-    std::vector<std::size_t> min_dyn_dims() const;
-    std::vector<std::size_t> max_dyn_dims() const;
-    std::vector<std::size_t> opt_dyn_dims() const;
+    /*!
+     * Minimum lengths for dynamic shape.
+     * lens() for fixed shape.
+     */
+    std::vector<std::size_t> min_lens() const;
+
+    /*!
+     * Maximum lengths for dynamic shape.
+     * lens() for fixed shape.
+     */
+    std::vector<std::size_t> max_lens() const;
+
+    /*!
+     * Optimum lengths for dynamic shape.
+     * lens() for fixed shape.
+     */
+    std::vector<std::size_t> opt_lens() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;
@@ -169,7 +176,7 @@ struct shape
     std::vector<std::size_t> multi(std::size_t i) const;
     void multi_copy(std::size_t i, std::size_t* start, const std::size_t* end) const;
 
-    /// Returns true if the shape is packed with no padding
+    /// Returns true if the shape is packed (number of elements and buffer size the same) with no padding
     bool packed() const;
 
     /// Returns true is the shape has been transposed. That is the strides are not in descending
@@ -288,7 +295,10 @@ struct shape
 
     const std::vector<shape>& sub_shapes() const;
 
-    /// size of the data buffer
+    /*!
+     * Returns size of the data buffer.
+     * Assuming a packed shape, returns maximum size of the data buffer for dynamic shape.
+     */
     std::size_t element_space() const;
 
     private:

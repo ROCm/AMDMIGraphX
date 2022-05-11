@@ -52,6 +52,7 @@ TEST_CASE(test_shape_dynamic_fixed)
     EXPECT(s.dyn_dims().size() == 3);
     EXPECT(s.dyn_dims().at(0).is_fixed());
     EXPECT(not s.dyn_dims().at(0).has_optimal());
+    EXPECT(s.bytes() == 2 * 2 * 3 * sizeof(float));
 }
 
 TEST_CASE(test_shape_dynamic_not_fixed)
@@ -69,6 +70,7 @@ TEST_CASE(test_shape_dynamic_not_fixed)
     EXPECT(s.dyn_dims().size() == 2);
     EXPECT(not s.dyn_dims().at(0).is_fixed());
     EXPECT(s.dyn_dims().at(0).has_optimal());
+    EXPECT(s.bytes() == 5 * 8 * sizeof(float));
 }
 
 TEST_CASE(test_shape_dynamic_compares)
@@ -90,8 +92,6 @@ TEST_CASE(test_shape_dynamic_compares)
     EXPECT(s0 == s2);
     EXPECT(s0 != s3);
 }
-
-TEST_CASE(test_shape_dynamic_bytes) {}
 
 TEST_CASE(test_shape_dynamic_errors)
 {

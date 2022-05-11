@@ -45,7 +45,7 @@ struct shape_impl
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
 
-    shape_impl(shape::type_t t, shape::dynamic_dimensions dims)
+    shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
         : m_type(t), m_dyn_dims(std::move(dims))
     {
     }
@@ -58,7 +58,7 @@ struct shape_impl
     std::vector<shape> m_shapes        = {};
     bool m_standard                    = false;
 
-    std::vector<shape::dynamic_dimension> m_dyn_dims = {};
+    std::vector<shape::shape::dynamic_dimension> m_dyn_dims = {};
 
     void calculate_strides()
     {
@@ -159,7 +159,7 @@ shape::shape(type_t t, std::initializer_list<std::size_t> d)
 {
 }
 
-shape::shape(type_t t, dynamic_dimensions dims)
+shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
     : impl(std::make_shared<shape_impl>(t, std::move(dims)))
 {
 }
@@ -510,7 +510,7 @@ void migraphx_from_value(const value& v, shape& s)
             auto opts  = v.at("opt_dyn_dims").to_vector<std::size_t>();
             assert(mins.size() == maxes.size() and maxes.size() == opts.size());
             auto num_dims = mins.size();
-            shape::dynamic_dimensions dyn_dims(num_dims);
+            std::vector<shape::dynamic_dimension> dyn_dims(num_dims);
             for(int i = 0; i < num_dims; ++i)
             {
                 dyn_dims.at(i) = shape::dynamic_dimension{mins[i], maxes[i], opts[i]};

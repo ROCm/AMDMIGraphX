@@ -103,8 +103,7 @@ struct shape
     // shape(type_t, std::vector<std::size_t> l)
     shape(type_t t, std::initializer_list<std::size_t> d);
 
-    typedef std::vector<dynamic_dimension> dynamic_dimensions;
-    shape(type_t t, dynamic_dimensions dims);
+    shape(type_t t, std::vector<dynamic_dimension> dims);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))

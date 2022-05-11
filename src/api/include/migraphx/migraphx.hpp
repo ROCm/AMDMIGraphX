@@ -762,6 +762,15 @@ struct module
         return instruction(op_ins, own{});
     }
 
+    template <typename T>
+    instruction add_literal(const migraphx::shape& s, T* buffer)
+    {
+        migraphx_instruction_t literal_ins;
+        const auto* buffer_ptr = reinterpret_cast<const char*>(buffer);
+        call(&migraphx_module_add_literal, &literal_ins, mm.get(), s.get_handle_ptr(), buffer_ptr);
+        return instruction(literal_ins, own{});
+    }
+
     instruction add_parameter(const std::string& name, shape s)
     {
         migraphx_instruction_t param_ins;

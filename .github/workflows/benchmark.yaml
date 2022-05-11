@@ -1,0 +1,51 @@
+on:
+  push:
+    branches: [develop]
+env:
+  TEST: false
+  DOCKERBASE: rocm-migraphx:5.1
+  MIOPENTUNE: miopen-rocm51
+
+name: MIGraphX benchmarks
+
+jobs: 
+  # check_image_version:
+  #   name: Check Image Version
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     image: ${{ steps.check_image.outputs.image }}
+  #   steps:
+  #     - name: Check new image
+  #       id: check_image
+  #       run: |
+  #         if [ "$(docker images -q rocm-migraphx:`date +%Y%m%d` 2> /dev/null)" != "" ]]; then
+  #           echo "::set-output name=image::true"
+  #         fi
+  # build_image:
+  #   name: Build New Image
+  #   runs-on: self-hosted
+  #   needs: check_image_version
+  #   if: ${{ needs.check_image.outputs.image == 'true' }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v1
+  #       with:
+  #         submodules: recursive
+  #         token: ${{ secrets.GH_SUB_TOKEN }}
+  #     - name: Docker build
+  #       run: |
+  #         cd ./rocm-migraphx/dockerfiles
+  #         docker build -t "rocm-migraphx:$(date +%Y%m%d)" --no-cache --build-arg BRANCH=$GITHUB_REF_NAME --build-arg DOCKERBASE=${{ env.DOCKERBASE }} --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }} -f dockerfile-daily .
+  execute_scripts:
+    name: Execute scripts
+    runs-on: self-hosted
+    if: ${{ always() }}
+    #needs: build_image
+    steps:
+      - name: Execute benchmark script
+        run: |
+          docker run --rm -e TZ=America/Chicago -e SAVED_MODELS=/src/saved-models \
+          -e TEST_RESULTDIR=/src/rocm-migraphx/test-results -e TARGET=gpu \
+          --device=/dev/dri --device=/dev/kfd --network=host --group-add=video \
+          --name performance-test-${GITHUB_SHA::7} "rocm-migraphx:$(date +%Y%m%d)" \
+          /src/rocm-migraphx/scripts/run_perf_mev.sh

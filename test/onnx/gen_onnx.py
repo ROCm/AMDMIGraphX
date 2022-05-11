@@ -1686,6 +1686,34 @@ def fastgelu_test():
     return ([node], [x], [y])
 
 
+def gathernd_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node('GatherND',
+                                 inputs=['data', 'indices'],
+                                 outputs=['y'])
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test
+def gathernd_batch_dims_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node(
+        'GatherND',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        batch_dims=1,
+    )
+
+    return ([node], [x, i], [y])
+
+
 @onnx_test
 def gemm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 7])

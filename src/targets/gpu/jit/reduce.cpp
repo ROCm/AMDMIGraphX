@@ -98,35 +98,36 @@ struct reduce_compiler : compiler<reduce_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto faxis = find_fast_axis({inputs.front()});
+        options.inputs         = inputs;
+        options.output         = inputs.back();
+        options.virtual_inputs = reduce_dims(inputs);
+        auto faxis = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
         // Vectorize if the axis is a reduction axis
-        if(inputs.back().lens()[faxis] == 1)
+        if(options.virtual_inputs.back().lens()[faxis] == 1)
         {
-            vec = vectorize::elements(faxis, inputs);
+            vec = vectorize::elements(faxis, options.virtual_inputs);
         }
-        auto reduce_elements = get_reduce_elements(inputs) / vec.size;
-        auto algo            = v.get("algo", get_reduce_algo(inputs));
+        auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
+        auto nelements = options.virtual_inputs.back().elements();
+        auto algo            = v.get("algo", get_reduce_algo(options.virtual_inputs));
         if(algo == "block")
         {
-            auto block_size = compute_block_size(reduce_elements, 256);
+            auto block_size = compute_block_size(relements, 256);
             options.set_launch_params(
                 v,
-                compute_global_for(ctx, inputs.back().elements() * block_size / vec.size, 256),
+                compute_global_for(ctx, nelements * block_size, 256),
                 block_size);
         }
         else if(algo == "lane")
         {
             options.set_launch_params(
-                v, compute_global_for(ctx, inputs.back().elements() / vec.size, 256));
+                v, compute_global_for(ctx, nelements, 256));
         }
         else
         {
             MIGRAPHX_THROW("Unknown reduce algo: " + algo);
         }
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(inputs);
         options.kernel_name    = "reduce_kernel";
         std::string identity   = "[](auto x) { return x; }";
         auto src               = interpolate_string(simple_reduce_kernel,

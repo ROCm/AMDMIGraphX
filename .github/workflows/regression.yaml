@@ -44,5 +44,5 @@ jobs:
     steps:
       - name: Execute perf script
         run: |
-          docker run -it -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video -v /home/htec/jz:/data --workdir /data/source/rocm-migraphx/scripts/ rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
+          docker run -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video -v /home/htec/jz:/data --workdir /data/source/rocm-migraphx/scripts/ rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
            

@@ -146,7 +146,7 @@ constexpr auto vec_packed_transform(Ts... xs)
     };
 }
 
-template<class T, class Op>
+template <class T, class Op>
 constexpr auto vec_reduce(T x, Op op)
 {
     if constexpr(vec_size<T>() < 2)
@@ -155,7 +155,7 @@ constexpr auto vec_reduce(T x, Op op)
     {
         vec_type<T> result;
         for(int i = 1; i < vec_size<T>(); i++)
-            result = op(result[i-1], result[i]);
+            result = op(result[i - 1], result[i]);
         return result;
     }
 }

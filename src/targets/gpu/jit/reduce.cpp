@@ -101,7 +101,7 @@ struct reduce_compiler : compiler<reduce_compiler>
         auto faxis = find_fast_axis({inputs.front()});
         vectorize vec{};
         // Vectorize if the axis is a reduction axis
-        if (inputs.back().lens()[faxis] == 1)
+        if(inputs.back().lens()[faxis] == 1)
         {
             vec = vectorize::elements(faxis, inputs);
         }
@@ -111,11 +111,14 @@ struct reduce_compiler : compiler<reduce_compiler>
         {
             auto block_size = compute_block_size(reduce_elements, 256);
             options.set_launch_params(
-                v, compute_global_for(ctx, inputs.back().elements() * block_size / vec.size, 256), block_size);
+                v,
+                compute_global_for(ctx, inputs.back().elements() * block_size / vec.size, 256),
+                block_size);
         }
         else if(algo == "lane")
         {
-            options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements() / vec.size, 256));
+            options.set_launch_params(
+                v, compute_global_for(ctx, inputs.back().elements() / vec.size, 256));
         }
         else
         {
@@ -124,7 +127,7 @@ struct reduce_compiler : compiler<reduce_compiler>
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
-        options.kernel_name = "reduce_kernel";
+        options.kernel_name    = "reduce_kernel";
         std::string identity   = "[](auto x) { return x; }";
         auto src               = interpolate_string(simple_reduce_kernel,
                                       {{"reduction", v.at("reduction").to<std::string>()},

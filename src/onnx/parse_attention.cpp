@@ -155,12 +155,7 @@ struct parse_attention : op_parser<parse_attention>
             info.add_instruction(migraphx::make_op("mul"), gemm3, info.make_contiguous(alpha_lit));
 
         // apply softmax and store result P to scratch2: BxNxSxS*
-        std::vector<float> mask(batch_size * num_heads * sequence_length * all_sequence_length, 0);
-        if(false and mask_index_lens.size() >= 2) {}
-        else if(false and mask_index_lens.size() == 1)
-        {
-        }
-        // else => no mask
+        // Inference mask is all 1s => masking can be skipped
         auto softmax = info.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), gemm3);
 
         // compute P*V (as V*P), and store in scratch3: BxNxSxH

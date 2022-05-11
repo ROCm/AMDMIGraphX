@@ -70,7 +70,7 @@ struct shape
 
         bool is_fixed() const;
         bool has_optimal() const;
-        
+
         friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y);
         friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y);
         friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x);

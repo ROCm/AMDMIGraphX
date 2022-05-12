@@ -127,9 +127,9 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
             // Set tracer for module passes, if tracer is set to output to file stream then set name
             // of the dump directory. For file dumps, tracer object internally sets the counter for
             // the individual passes' file dumps.
-            // cppcheck-suppress stlFindInsert
             if(module_tracer_map.find(mod->name()) == module_tracer_map.end())
             {
+                // cppcheck-suppress stlFindInsert
                 module_tracer_map[mod->name()] =
                     trace.fs_enabled() ? tracer{trace.dump_dir + "/" + mod->name()} : trace;
             }

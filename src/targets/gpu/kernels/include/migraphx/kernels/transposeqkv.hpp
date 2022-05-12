@@ -26,33 +26,37 @@ __device__ void transposeqkv(const T& input_t, const U& output_t, Settings st)
     // Output: KxBxNxSxH
     // K is the number of identical matrix
 
-    auto H = st.head_size;
+    auto H           = st.head_size;
     auto reversed_bs = st.reversed_bs;
 
     int n = threadIdx.y;
     int s = blockIdx.x;
     int b = blockIdx.y;
-    int m = blockIdx.z;  // matrix id
+    int m = blockIdx.z; // matrix id
 
     const int num_heads = blockDim.y;
 
     const int sequence_length = gridDim.x;
-    const int batch_size = gridDim.y;
-    const int chunk_num = gridDim.z;
-    const int NH = num_heads * H;
-    const int NHS = NH * sequence_length;
+    const int batch_size      = gridDim.y;
+    const int chunk_num       = gridDim.z;
+    const int NH              = num_heads * H;
+    const int NHS             = NH * sequence_length;
 
     int in_offset = 0;
-    if (reversed_bs) {
+    if(reversed_bs)
+    {
         const int BNH = NH * batch_size;
-        in_offset = n * H + (m + b * chunk_num) * NH + s * BNH * chunk_num;
-    } else {
+        in_offset     = n * H + (m + b * chunk_num) * NH + s * BNH * chunk_num;
+    }
+    else
+    {
         in_offset = n * H + (m + s * chunk_num) * NH + b * NHS * chunk_num;
     }
     const int out_offset = s * H + n * sequence_length * H + b * NHS + m * NHS * batch_size;
 
     const int i = threadIdx.x;
-    if (i < H) {
+    if(i < H)
+    {
         output_t[out_offset + i] = input_t[in_offset + i];
     }
 }

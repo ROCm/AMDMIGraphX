@@ -9,7 +9,8 @@ struct test_transposeqkv : verify_program<test_transposeqkv>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 12, 64}});
+        auto x =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 12, 64}});
         mm->add_instruction(migraphx::make_op("transposeqkv", {{"head_size", 64}}), x);
         p.debug_print();
         return p;

@@ -20,7 +20,7 @@ namespace op {
 
 struct transposectx
 {
-    int head_size = 64;
+    int head_size    = 64;
     bool reversed_bs = false;
 
     template <class Self, class F>
@@ -46,9 +46,9 @@ struct transposectx
         // Output: BxSxNxH
         argument result{output_shape};
         visit_all(result, args.front())([&](auto output, const auto input) {
-            par_for(output_shape.elements(), [&](auto i) { 
+            par_for(output_shape.elements(), [&](auto i) {
                 // TODO: calculate in_offet and out_offset
-                output[i] = input[i]; 
+                output[i] = input[i];
             });
         });
 

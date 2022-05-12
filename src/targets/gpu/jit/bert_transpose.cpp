@@ -89,7 +89,6 @@ __global__ void transposeqkv_kernel(void* input_p, void* output_p)
 } // namespace migraphx
 )__migraphx__";
 
-
 struct transposeqkv_compiler : compiler<transposeqkv_compiler>
 {
     std::vector<std::string> names() const { return {"transposeqkv"}; }
@@ -120,7 +119,6 @@ struct transposeqkv_compiler : compiler<transposeqkv_compiler>
         return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
     }
 };
-
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

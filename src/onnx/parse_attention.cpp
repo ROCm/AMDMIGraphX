@@ -162,8 +162,8 @@ struct parse_attention : op_parser<parse_attention>
         auto gemm4 = info.add_instruction(migraphx::make_op("dot"), softmax, v_t);
 
         // scratch3 is BxNxSxH, transpose to output BxSxNxH
-        gemm4 = info.add_instruction(
-            migraphx::make_op("transposectx", {{"head_size", head_size}}), gemm4);
+        gemm4 = info.add_instruction(migraphx::make_op("transposectx", {{"head_size", head_size}}),
+                                     gemm4);
         gemm4 = info.add_instruction(
             make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
             info.make_contiguous(gemm4));

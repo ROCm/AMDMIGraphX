@@ -18,7 +18,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-using namespace migraphx::gpu::gen;
+using namespace migraphx::gpu::gen; // NOLINT
 
 static const char* const pointwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>

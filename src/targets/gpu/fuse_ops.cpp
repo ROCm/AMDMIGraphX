@@ -316,7 +316,7 @@ struct find_layernorm
 {
     auto matcher() const { return match::layernorm(&gpu_name); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -355,7 +355,7 @@ struct find_gelu
 {
     auto matcher() const { return match::gelu_erf(&gpu_name); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -372,7 +372,7 @@ struct find_add_gelu
         return match::name("gpu::gelu")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -391,7 +391,7 @@ struct find_gelu_new
 
     auto matcher() const { return match::gelu_tanh(&gpu_name); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -411,7 +411,7 @@ struct find_add_gelu_new
         return match::name("gpu::gelu_new")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -435,7 +435,7 @@ struct find_add_clip
                               .bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto add_ins  = r.instructions["add"];
         auto ins      = r.result;
@@ -470,7 +470,7 @@ struct find_add_unary
                 .bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -498,7 +498,7 @@ struct find_triadd
                 .bind("input")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto add_ins   = r.instructions["add"];
         auto input_ins = r.instructions["input"];
@@ -525,7 +525,7 @@ struct find_mul_add
             match::name("gpu::mul")(match::used_once()).bind("mul"), match::any().bind("b")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto mul_ins = r.instructions["mul"];
         auto b_ins   = r.instructions["b"];
@@ -550,7 +550,7 @@ struct find_mul_add_relu
             match::arg(0)(match::name("gpu::mul_add")(match::used_once()).bind("mul_add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto mul_add_ins = r.instructions["mul_add"];
         auto ins         = r.result;
@@ -783,7 +783,7 @@ auto conv_bias(Ms... ms)
 }
 
 template <class Op>
-void apply_conv_bias(context& ctx, module& p, match::matcher_result r)
+void apply_conv_bias(context& ctx, module& p, const match::matcher_result& r)
 {
     auto conv_ins    = r.instructions["conv"];
     auto bias_ins    = r.instructions["bias"];
@@ -829,9 +829,9 @@ struct find_conv_bias
             match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
-        apply_conv_bias<miopen_conv_bias>(*ctx, p, std::move(r));
+        apply_conv_bias<miopen_conv_bias>(*ctx, p, r);
     }
 };
 
@@ -840,9 +840,9 @@ struct find_conv_bias_relu
     context* ctx = nullptr;
     auto matcher() const { return match::name("gpu::relu")(match::arg(0)(conv_bias())); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
-        apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, std::move(r));
+        apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, r);
     }
 };
 
@@ -857,7 +857,7 @@ struct find_conv_pointwise
                                     fusable_conv(match::used_once()).bind("conv")));
     }
 
-    void apply(module& m, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto conv_ins    = r.instructions["conv"];
         auto bias_ins    = r.instructions["bias"];
@@ -896,7 +896,7 @@ struct find_gemm_add
                                     match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];

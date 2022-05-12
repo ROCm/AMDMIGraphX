@@ -258,6 +258,11 @@ migraphx_status migraphx_module_add_instruction_with_mod_args(migraphx_instructi
                                                               migraphx_instructions_t args,
                                                               migraphx_modules_t module_refs);
 
+migraphx_status migraphx_module_add_literal(migraphx_instruction_t* out,
+                                            migraphx_module_t module,
+                                            const_migraphx_shape_t shape,
+                                            const char* buffer);
+
 migraphx_status migraphx_module_add_parameter(migraphx_instruction_t* out,
                                               migraphx_module_t module,
                                               const char* name,

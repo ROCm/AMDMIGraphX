@@ -3,6 +3,8 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/vec.hpp>
 
 namespace migraphx {
 
@@ -73,7 +75,7 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
             {
                 if constexpr(decltype(tensor_vec_size(x)){} == 0)
                 {
-                    auto v = vectorize(x);
+                    auto v = auto_vectorize(x);
                     auto b = as_vec(tensor_vec_size(v), buffer + offset);
                     idx.local_stride(v.get_shape().element_space(),
                                      [&](auto i) { b[i] = v.data()[i]; });
@@ -124,6 +126,48 @@ __device__ auto preload(index idx, Ts... xs)
             f(xs...);
         }
     };
+}
+
+inline __device__ auto auto_preload(index idx)
+{
+    return make_transform([=](auto f, auto out, auto... xs) {
+        preload<typename decltype(out)::type>(idx, xs...)([&](auto... ys) { f(out, ys...); });
+    });
+}
+
+template <bool B, class T>
+__device__ auto preload_copy(index idx, T x)
+{
+    return [=](auto f) {
+        if constexpr(B)
+        {
+            using type          = typename T::type;
+            constexpr auto size = get_shape_c<T>{}.element_space();
+            __shared__ type buffer[size];
+            // TODO: Always vecotrize when size > 4, and then use a second loop for remainder
+            constexpr auto n = find_vectorize_size([&](auto i) { return (size % i) == 0; });
+            auto input       = as_vec<n>(remove_bool(x.data()));
+            auto b           = as_vec<n>(remove_bool(buffer));
+            idx.local_stride(size / n, [&](auto i) { b[i] = input[i]; });
+            return f(x.with(buffer));
+        }
+        else
+        {
+            return f(x);
+        }
+    };
+}
+
+template <bool... Bs>
+__device__ auto auto_preload(index idx)
+{
+    return make_transform([=](auto f, auto... xs) {
+        auto invoke = [=](auto... ys) {
+            __syncthreads();
+            f(ys...);
+        };
+        join(invoke, preload_copy<Bs>(idx, xs)...);
+    });
 }
 
 } // namespace migraphx

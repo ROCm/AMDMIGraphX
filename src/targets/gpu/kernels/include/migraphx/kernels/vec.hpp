@@ -153,9 +153,9 @@ constexpr auto vec_reduce(T x, Op op)
         return x;
     else
     {
-        vec_type<T> result = 0;
+        vec_type<T> result = x[0];
         for(int i = 1; i < vec_size<T>(); i++)
-            result = op(x[i - 1], x[i]);
+            result = op(result, x[i]);
         return result;
     }
 }

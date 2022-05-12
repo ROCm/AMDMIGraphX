@@ -145,7 +145,7 @@ void program::compile(const target& t, compile_options options, const std::strin
     this->impl->ctx         = t.get_context();
     if(enabled(MIGRAPHX_DUMP_PASSES_TO_FILE{}))
         options.trace = tracer{t.name() + "_" + ir_dump_path};
-    else if(enabled(MIGRAPHX_TRACE_COMPILE{})) 
+    else if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
 
     options.trace("input_program", *this);

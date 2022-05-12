@@ -26,23 +26,21 @@ struct tracer
         }
         fs::create_directories(dir_path);
     }
-    // file_stream 
+    // file_stream
     bool fs_enabled() const { return !dump_dir.empty() && !os_enabled(); }
-    // output_stream 
-    bool os_enabled() const { return os && !fs_enabled();}
-    bool enabled() const {return fs_enabled() or os_enabled();};
+    // output_stream
+    bool os_enabled() const { return os && !fs_enabled(); }
+    bool enabled() const { return fs_enabled() or os_enabled(); };
 
     /*
-    Dump any string to ostream, used for debug build or debugging purposes. 
+    Dump any string to ostream, used for debug build or debugging purposes.
     */
-    void operator()(const std::string& s="") const {
-        std::cout << s << std::endl; 
-    }
+    void operator()(const std::string& s = "") const { std::cout << s << std::endl; }
 
     /*
-    Based on user's envrionment flags, either dump IR passes' output to a file or ostream i.e. cout or cerr, 
-    :param pass_file_name : file_name to be used when dumping IR pass to a file, this param is not used when IR is 
-                            dumped to ostream. 
+    Based on user's envrionment flags, either dump IR passes' output to a file or ostream i.e. cout
+    or cerr, :param pass_file_name : file_name to be used when dumping IR pass to a file, this param
+    is not used when IR is dumped to ostream.
     */
     template <class... Ts, MIGRAPHX_REQUIRES((sizeof...(Ts) > 0))>
     void operator()(const std::string& pass_file_name, const Ts&... xs)
@@ -55,7 +53,9 @@ struct tracer
             swallow{ofs << xs...};
             ofs << std::endl;
             ofs.close();
-        } else if (os_enabled()) {
+        }
+        else if(os_enabled())
+        {
             swallow{*os << xs...};
             *os << std::endl;
         }
@@ -64,8 +64,8 @@ struct tracer
     std::string dump_dir = "";
 
     private:
-    uint counter = 0;
-    std::ostream* os = nullptr;
+    uint counter      = 0;
+    std::ostream* os  = nullptr;
     fs::path dir_path = "";
 };
 

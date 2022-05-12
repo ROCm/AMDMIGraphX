@@ -18,12 +18,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
 
-void validate_pass(module& mod, const pass& p)
+void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;
     (void)p;
 #ifndef NDEBUG
-    std::cout << "Validate..." << std::endl;
+    trace("Validate...");
     auto invalid = mod.validate();
     if(invalid != mod.end())
     {
@@ -31,13 +31,17 @@ void validate_pass(module& mod, const pass& p)
         MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
                        std::to_string(index) + ": " + invalid->name());
     }
+    trace();
 #endif
 }
 
 void run_pass(program& prog, const pass& p, tracer& trace)
 {
+    auto t_start = std::chrono::high_resolution_clock::now();
     p.apply(prog);
-    trace(p.name(), prog);
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    trace(p.name(), "Pass: ", p.name(), "\n", prog, "Elapsed Wall Time (ms): ", elapsed_time_ms, "\n");
 }
 
 struct module_pm : module_pass_manager
@@ -72,9 +76,12 @@ struct module_pm : module_pass_manager
     {
         assert(mod);
         assert(mod->validate() == mod->end());
+        auto t_start = std::chrono::high_resolution_clock::now();
         p.apply(*this);
-        trace(p.name(), *mod);
-        validate_pass(*mod, p);
+        auto t_end = std::chrono::high_resolution_clock::now();
+        double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+        trace(p.name(), "Module: ", mod->name(), ", Pass: ", p.name(), "\n", *mod, "Elapsed Wall Time (ms): ", elapsed_time_ms);
+        validate_pass(*mod, p, *t);
     }
 };
 
@@ -83,7 +90,7 @@ module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}) and not trace.enabled())
-        trace = tracer{mod.name() + "_passes"};
+        trace = tracer{std::cout};
     for(const auto& p : passes)
     {
         module_pm{&mod, nullptr, &trace}.run_pass(p);
@@ -93,17 +100,18 @@ void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}) and not trace.enabled())
-        trace = tracer{"passes"};
+        trace = tracer{std::cout};
+    
     std::unordered_map<std::string, tracer> module_tracer_map;
     for(const auto& p : passes)
     {
         auto mods = prog.get_modules();
         for(const auto& mod : reverse(mods))
         {
-            if(module_tracer_map.find(mod->name()) == module_tracer_map.end())
-            {
-                module_tracer_map[mod->name()] =
-                    tracer{trace.enabled() ? trace.dump_dir + "/" + mod->name() : ""};
+            // Set tracer for module passes, if tracer is set to output to file stream then set name of the dump directory.
+            // For file dumps, tracer object internally sets the counter for the individual passes' file dumps. 
+            if(module_tracer_map.find(mod->name()) == module_tracer_map.end()) {
+                module_tracer_map[mod->name()] = trace.fs_enabled() ? tracer{trace.dump_dir + "/" + mod->name()}  : trace;
             }
             if(mod->bypass())
                 continue;

@@ -8,9 +8,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void sync_device::apply(module& p) const
+void sync_device::apply(module& m) const
 {
-    auto last = std::prev(p.end());
+    auto last = std::prev(m.end());
     if(last->name() == "@return")
     {
         auto inputs = last->inputs();
@@ -18,10 +18,10 @@ void sync_device::apply(module& p) const
                return (i->name() == "hip::copy_from_gpu");
            }))
         {
-            auto sync_in = p.insert_instruction(last, make_op("hip::sync_stream"), inputs);
+            auto sync_in = m.insert_instruction(last, make_op("hip::sync_stream"), inputs);
             if(not inputs.empty())
             {
-                p.replace_instruction(inputs.front(), sync_in);
+                m.replace_instruction(inputs.front(), sync_in);
             }
         }
     }

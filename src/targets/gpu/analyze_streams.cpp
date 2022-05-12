@@ -28,30 +28,30 @@ struct hip_stream_model
     bool is_wait(migraphx::instruction_ref ins) const { return ins->name() == "gpu::wait_event"; }
 };
 
-stream_model make_stream_model(const module& p)
+stream_model make_stream_model(const module& m)
 {
-    hip_stream_model m;
+    hip_stream_model hsm;
     std::size_t stream = 0;
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() == "gpu::set_stream")
         {
             auto v       = ins->get_operator().to_value();
             stream       = v["stream"].to<std::size_t>();
-            m.max_stream = std::max(stream, m.max_stream);
+            hsm.max_stream = std::max(stream, hsm.max_stream);
         }
         if(ins->get_operator().is_context_free())
             continue;
         if(contains({"hip::hip_allocate_memory", "hip::hip_copy_literal", "@param"}, ins->name()))
             continue;
-        m.ins2stream[ins] = stream;
+        hsm.ins2stream[ins] = stream;
     }
-    return m;
+    return hsm;
 }
 
-std::vector<stream_race> analyze_streams(const module& p)
+std::vector<stream_race> analyze_streams(const module& m)
 {
-    return migraphx::analyze_streams(p, make_stream_model(p));
+    return migraphx::analyze_streams(m, make_stream_model(m));
 }
 
 } // namespace gpu

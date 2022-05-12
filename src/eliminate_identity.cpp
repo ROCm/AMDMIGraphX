@@ -8,21 +8,21 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_identity::apply(module& p) const
+void eliminate_identity::apply(module& m) const
 {
-    auto last = std::prev(p.end());
-    for(auto ins : iterator_for(p))
+    auto last = std::prev(m.end());
+    for(auto ins : iterator_for(m))
     {
         // Skip the first instruction, since we always process the previous
         // instruction
-        if(ins == p.begin())
+        if(ins == m.begin())
             continue;
         const auto i = std::prev(ins);
 
         if(i->name() == "identity")
         {
-            p.replace_instruction(i, i->inputs().front());
-            p.move_instruction(i, p.end());
+            m.replace_instruction(i, i->inputs().front());
+            m.move_instruction(i, m.end());
         }
         if(ins == last)
         {
@@ -31,7 +31,7 @@ void eliminate_identity::apply(module& p) const
                 const instruction_ref& identity_input = ins->inputs().front();
                 if(identity_input->outputs().size() == 1)
                 {
-                    p.move_instruction(identity_input, i);
+                    m.move_instruction(identity_input, i);
                     // since this is the last instruction, removing it only
                     // requires changing "last" and calling remove below
                     last = std::prev(last);
@@ -40,7 +40,7 @@ void eliminate_identity::apply(module& p) const
             break;
         }
     }
-    p.remove_instructions(std::next(last), p.end());
+    m.remove_instructions(std::next(last), m.end());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

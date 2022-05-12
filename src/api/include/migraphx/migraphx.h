@@ -258,6 +258,11 @@ migraphx_status migraphx_module_add_instruction_with_mod_args(migraphx_instructi
                                                               migraphx_instructions_t args,
                                                               migraphx_modules_t module_refs);
 
+migraphx_status migraphx_module_add_literal(migraphx_instruction_t* out,
+                                            migraphx_module_t module,
+                                            const_migraphx_shape_t shape,
+                                            const char* buffer);
+
 migraphx_status migraphx_module_add_parameter(migraphx_instruction_t* out,
                                               migraphx_module_t module,
                                               const char* name,
@@ -432,6 +437,8 @@ migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                        migraphx_quantize_int8_options_t options);
 
 migraphx_status migraphx_context_finish(const_migraphx_context_t context);
+
+migraphx_status migraphx_context_get_queue(void** out, migraphx_context_t context);
 
 migraphx_status
 migraphx_experimental_custom_op_destroy(migraphx_experimental_custom_op_t experimental_custom_op);

@@ -119,14 +119,12 @@ constexpr roalign_settings<Ts...> make_roalign_settings(Ts... xs)
 }
 
 template <class T, class U, class V, class W, class Settings>
-__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s)
+__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, Settings s)
 {
     auto index      = make_index();
     const auto x    = x_t.begin();
     const auto rois = rois_t.begin();
     const auto ind  = ind_t.begin();
-
-    auto out_ptr = y_t.begin();
 
     // input shape
     auto x_lens      = x_t.get_shape().lens;
@@ -178,25 +176,25 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
         if constexpr(s.is_avg_pooling)
         {
-            out_ptr[i] = calc_pooling(offset_x,
-                                      roi_starts,
-                                      bin_size,
-                                      {ph, pw},
-                                      bin_grid_size,
-                                      in_dims,
-                                      s.roi_offset,
-                                      avg_pool{});
+            y_t[i] = calc_pooling(offset_x,
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  avg_pool{});
         }
         else
         {
-            out_ptr[i] = calc_pooling(offset_x,
-                                      roi_starts,
-                                      bin_size,
-                                      {ph, pw},
-                                      bin_grid_size,
-                                      in_dims,
-                                      s.roi_offset,
-                                      max_pool{});
+            y_t[i] = calc_pooling(offset_x,
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  max_pool{});
         }
     }
 }

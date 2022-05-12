@@ -42,7 +42,7 @@ struct find_mul_conv
                                                           match::name("broadcast").bind("a")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto conv_ins = r.instructions["conv"];
@@ -80,7 +80,7 @@ struct find_mul_slice_conv
             match::name("broadcast")(match::is_constant()).bind("a")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins       = r.result;
         auto slice_ins = r.instructions["slice"];
@@ -171,7 +171,7 @@ struct find_mul_add
             match::is_constant().bind("a")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
@@ -193,7 +193,7 @@ struct find_add_lit_broadcast
             match::either_arg(0, 1)(op_lit_broadcast("add", "a", "x"), lit_broadcast().bind("b")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -213,7 +213,7 @@ struct find_double_add_lit_broadcast
             match::args(op_lit_broadcast("add", "a", "x"), op_lit_broadcast("add", "b", "y")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -251,7 +251,7 @@ struct find_inner_broadcast
             match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -664,7 +664,7 @@ struct find_add_convs
         return x.stride[0] / y.stride[0];
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins       = r.result;
         auto a_conv    = r.instructions["a"];
@@ -815,7 +815,7 @@ struct find_div_const
         return match::name("div")(match::arg(1)(match::is_constant().bind("c")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
@@ -835,7 +835,7 @@ struct find_sub_const
         return match::name("sub")(match::arg(1)(match::is_constant().bind("c")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
@@ -856,7 +856,7 @@ struct find_rsqrt
             match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -881,7 +881,7 @@ struct find_split_reshape
             .bind("reshape");
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto slc = r.instructions["slice"];
         auto rsp = r.instructions["reshape"];
@@ -962,7 +962,7 @@ struct find_split_transpose
             .bind("trans");
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto slc   = r.instructions["slice"];
         auto trans = r.instructions["trans"];
@@ -995,7 +995,7 @@ struct find_split_transpose
         auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
         auto it   = std::find(perm.begin(), perm.end(), axis);
         assert(it != perm.end());
-        auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
+        int64_t axis_new = std::distance(perm.begin(), it);
 
         for(auto in : split_outputs)
         {

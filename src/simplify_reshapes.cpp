@@ -329,7 +329,7 @@ struct find_resize
             match::args(match::name("reshape").bind("data"), match::is_constant().bind("ind")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto ins_rsp = r.instructions["data"];
@@ -436,7 +436,7 @@ struct find_where_op
                         match::is_constant().bind("ind")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto concat  = r.instructions["data"];
@@ -496,7 +496,7 @@ struct find_reshape_cont
                 match::any()));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto ins_cont = r.instructions["cont"];
@@ -564,7 +564,7 @@ struct find_transpose_contiguous_reshaper_unary
                          match::args(match_transpose_contiguous_reshaper()));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins           = r.result;
         auto reshaper_ins  = r.instructions["reshaper_ins"];

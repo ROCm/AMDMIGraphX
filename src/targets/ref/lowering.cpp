@@ -505,7 +505,7 @@ struct ref_unary : auto_register_op<ref_unary<Op>>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s = inputs.at(0);
+        const auto& s = inputs.at(0);
         return {s.type(), s.lens()};
     }
 

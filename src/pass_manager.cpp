@@ -22,6 +22,7 @@ void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;
     (void)p;
+    (void)trace;
 #ifndef NDEBUG
     trace("Validate...");
     auto invalid = mod.validate();
@@ -126,6 +127,7 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
             // Set tracer for module passes, if tracer is set to output to file stream then set name
             // of the dump directory. For file dumps, tracer object internally sets the counter for
             // the individual passes' file dumps.
+            // cppcheck-suppress stlFindInsert
             if(module_tracer_map.find(mod->name()) == module_tracer_map.end())
             {
                 module_tracer_map[mod->name()] =

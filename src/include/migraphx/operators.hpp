@@ -109,6 +109,8 @@
 #include <migraphx/op/tan.hpp>
 #include <migraphx/op/topk.hpp>
 #include <migraphx/op/transpose.hpp>
+#include <migraphx/op/transposectx.hpp>
+#include <migraphx/op/transposeqkv.hpp>
 #include <migraphx/op/unary.hpp>
 #include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>

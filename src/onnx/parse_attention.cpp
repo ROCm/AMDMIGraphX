@@ -103,7 +103,7 @@ struct parse_attention : op_parser<parse_attention>
             add_gemms);
         std::vector<std::size_t> qkv_perm{2, 0, 3, 1, 4};
         auto transqkv = info.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", qkv_perm}}), add_gemms);
+            migraphx::make_op("transposeqkv", {{"head_size", head_size}}), add_gemms);
 
         // now scratch3 has Q, K, V: each has size BxNxSxH
         // => transqkv has shape 3xBxNxSxH
@@ -163,7 +163,7 @@ struct parse_attention : op_parser<parse_attention>
 
         // scratch3 is BxNxSxH, transpose to output BxSxNxH
         gemm4 = info.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm4);
+            migraphx::make_op("transposectx", {{"head_size", head_size}}), gemm4);
         gemm4 = info.add_instruction(
             make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
             info.make_contiguous(gemm4));

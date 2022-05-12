@@ -185,6 +185,8 @@ register_migraphx_ops(
     tan
     topk
     transpose
+    transposectx
+    transposeqkv
     unary_not
     undefined
     unknown

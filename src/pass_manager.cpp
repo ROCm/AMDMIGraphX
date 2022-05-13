@@ -131,7 +131,7 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
             {
                 module_tracer_map[mod->name()] =
                     // cppcheck-suppress stlFindInsert
-                    trace.fs_enabled() ? tracer{trace.dump_dir + "/" + mod->name()} : trace; 
+                    trace.fs_enabled() ? tracer{trace.dump_dir + "/" + mod->name()} : trace;
             }
             if(mod->bypass())
                 continue;

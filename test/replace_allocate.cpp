@@ -181,9 +181,7 @@ TEST_CASE(if_allocate)
     auto a2 = else_mod->add_instruction(pass_op{}, y, alloc1);
     else_mod->add_return({a2});
 
-    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
-    mm->add_return({r});
+    mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
 
     run_pass(p, gpu_allocation_model{});
     EXPECT(std::any_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {

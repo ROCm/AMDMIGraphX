@@ -799,8 +799,6 @@ struct module
 
 struct context : MIGRAPHX_HANDLE_BASE(context)
 {
-    context() { this->make_handle(&migraphx_context_create); }
-
     MIGRAPHX_HANDLE_CONSTRUCTOR(context);
 
     void finish() const { call(&migraphx_context_finish, this->get_handle_ptr()); }

@@ -89,6 +89,13 @@ void run_pass(migraphx::module& m, migraphx::allocation_model model, bool offloa
                           migraphx::dead_code_elimination{}});
 }
 
+void run_pass(migraphx::program& p, migraphx::allocation_model model, bool offload_copy = false)
+{
+    migraphx::run_passes(p,
+                         {migraphx::replace_allocate{std::move(model), offload_copy},
+                          migraphx::dead_code_elimination{}});
+}
+
 migraphx::module create_simple_program()
 {
     migraphx::module m;
@@ -148,6 +155,38 @@ TEST_CASE(hip_allocate)
     run_pass(m, gpu_allocation_model{});
 
     EXPECT(std::any_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
+        return migraphx::contains(ins.name(), "hip::allocate");
+    }));
+}
+
+TEST_CASE(if_allocate)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    auto cond = mm->add_parameter("cond", cond_s);
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+
+    auto* then_mod           = p.create_module("If_0_if");
+    auto alloc =
+        then_mod->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto a1                  = then_mod->add_instruction(pass_op{}, x, alloc);
+    then_mod->add_return({a1});
+
+    auto* else_mod           = p.create_module("If_0_else");
+    auto alloc1 =
+        else_mod->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto a2                  = else_mod->add_instruction(pass_op{}, y, alloc1);
+    else_mod->add_return({a2});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    run_pass(p, gpu_allocation_model{});
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return migraphx::contains(ins.name(), "hip::allocate");
     }));
 }

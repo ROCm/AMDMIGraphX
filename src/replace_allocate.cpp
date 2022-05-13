@@ -108,7 +108,7 @@ void replace_allocate::apply(module& m) const
         }
         m.replace_instruction(
             ins,
-            m.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")})));
+            m.insert_instruction(ins, make_op(model_name, migraphx::value{{"shape", to_value(s)}, v.at("tag")})));
     }
 }
 

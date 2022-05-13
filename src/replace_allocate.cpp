@@ -45,20 +45,11 @@ void insert_if_allocations(instruction_ref ins, module& mod, const allocation_mo
         name_shapes.insert(ps.begin(), ps.end());
     }
 
-    bool ins_output_allocated = false;
     for(auto& pn : name_shapes)
     {
         const auto& s = pn.second;
         instruction_ref output{};
-        if(s == ins->get_shape() and not ins_output_allocated)
-        {
-            output               = mod.insert_instruction(ins, model.allocate(s));
-            ins_output_allocated = true;
-        }
-        else
-        {
-            output = mod.insert_instruction(ins, model.allocate(s));
-        }
+        output = mod.insert_instruction(ins, model.allocate(s));
         inputs.push_back(output);
     }
     mod.replace_instruction(ins, ins->get_operator(), inputs, mod_args);

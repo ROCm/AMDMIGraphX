@@ -18,7 +18,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
 
-void validate_pass(module& mod, const pass& p, tracer trace)
+void validate_pass(module& mod, const pass& p, const tracer& trace)
 {
     (void)mod;
     (void)p;
@@ -129,9 +129,9 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
             // the individual passes' file dumps.
             if(module_tracer_map.find(mod->name()) == module_tracer_map.end())
             {
-                // cppcheck-suppress stlFindInsert
                 module_tracer_map[mod->name()] =
-                    trace.fs_enabled() ? tracer{trace.dump_dir + "/" + mod->name()} : trace;
+                    // cppcheck-suppress stlFindInsert
+                    trace.fs_enabled() ? tracer{trace.dump_dir + "/" + mod->name()} : trace; 
             }
             if(mod->bypass())
                 continue;

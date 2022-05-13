@@ -12,7 +12,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
-    std::unordered_map<instruction_ref, std::string> prog_output_names{};
+    std::unordered_map<instruction_ref, std::string> mod_output_names{};
     auto last = instruction::get_output_alias(std::prev(mod.end()));
     if(last->name() == "@return")
     {
@@ -27,10 +27,10 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         std::size_t index = 0;
         for(auto ins : outputs_alias)
         {
-            prog_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
+            mod_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
         }
     }
-    return prog_output_names;
+    return mod_output_names;
 }
 
 void insert_if_allocations(instruction_ref ins, module& mod, const allocation_model& model)
@@ -66,7 +66,7 @@ void insert_if_allocations(instruction_ref ins, module& mod, const allocation_mo
 
 void replace_allocate::apply(module& m) const
 {
-    auto prog_output_names = create_output_names(m);
+    auto mod_output_names = create_output_names(m);
     auto last              = instruction::get_output_alias(std::prev(m.end()));
     bool main_offload_copy = m.name() == "main" ? this->offload_copy : false;
     std::string model_name = model.name();
@@ -94,9 +94,9 @@ void replace_allocate::apply(module& m) const
         auto ins_alias = instruction::get_output_alias(ins->outputs().front());
         instruction_ref out_param;
         if(not main_offload_copy and last->name() == "@return" and tag.empty() and
-           prog_output_names.count(ins_alias) > 0)
+           mod_output_names.count(ins_alias) > 0)
         {
-            out_param = m.add_parameter(prog_output_names[ins_alias], s);
+            out_param = m.add_parameter(mod_output_names[ins_alias], s);
             m.replace_instruction(ins, out_param);
             continue;
         }

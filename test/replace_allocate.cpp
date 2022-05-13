@@ -169,16 +169,16 @@ TEST_CASE(if_allocate)
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
 
-    auto* then_mod           = p.create_module("If_0_if");
-    auto alloc =
-        then_mod->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    auto a1                  = then_mod->add_instruction(pass_op{}, x, alloc);
+    auto* then_mod = p.create_module("If_0_if");
+    auto alloc     = then_mod->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto a1 = then_mod->add_instruction(pass_op{}, x, alloc);
     then_mod->add_return({a1});
 
-    auto* else_mod           = p.create_module("If_0_else");
-    auto alloc1 =
-        else_mod->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    auto a2                  = else_mod->add_instruction(pass_op{}, y, alloc1);
+    auto* else_mod = p.create_module("If_0_else");
+    auto alloc1    = else_mod->add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+    auto a2 = else_mod->add_instruction(pass_op{}, y, alloc1);
     else_mod->add_return({a2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});

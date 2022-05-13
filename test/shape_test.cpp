@@ -52,6 +52,9 @@ TEST_CASE(test_shape_dynamic_fixed)
     EXPECT(s.dyn_dims().size() == 3);
     EXPECT(s.dyn_dims().at(0).is_fixed());
     EXPECT(not s.dyn_dims().at(0).has_optimal());
+    EXPECT(s.min_lens() == std::vector<std::size_t>{2, 2, 3});
+    EXPECT(s.max_lens() == std::vector<std::size_t>{2, 2, 3});
+    EXPECT(s.opt_lens() == std::vector<std::size_t>{0, 0, 0});
     EXPECT(s.bytes() == 2 * 2 * 3 * sizeof(float));
 }
 
@@ -70,6 +73,9 @@ TEST_CASE(test_shape_dynamic_not_fixed)
     EXPECT(s.dyn_dims().size() == 2);
     EXPECT(not s.dyn_dims().at(0).is_fixed());
     EXPECT(s.dyn_dims().at(0).has_optimal());
+    EXPECT(s.min_lens() == std::vector<std::size_t>{2, 2});
+    EXPECT(s.max_lens() == std::vector<std::size_t>{5, 8});
+    EXPECT(s.opt_lens() == std::vector<std::size_t>{2, 0});
     EXPECT(s.bytes() == 5 * 8 * sizeof(float));
 }
 

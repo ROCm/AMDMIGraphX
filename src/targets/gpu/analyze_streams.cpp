@@ -36,8 +36,8 @@ stream_model make_stream_model(const module& m)
     {
         if(ins->name() == "gpu::set_stream")
         {
-            auto v       = ins->get_operator().to_value();
-            stream       = v["stream"].to<std::size_t>();
+            auto v         = ins->get_operator().to_value();
+            stream         = v["stream"].to<std::size_t>();
             hsm.max_stream = std::max(stream, hsm.max_stream);
         }
         if(ins->get_operator().is_context_free())

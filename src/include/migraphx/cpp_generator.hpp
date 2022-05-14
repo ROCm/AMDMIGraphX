@@ -74,8 +74,6 @@ struct cpp_generator
 
     std::string generate_point_op(const operation& op, const std::vector<std::string>& args);
 
-    std::vector<std::string> op_names() const;
-
     std::string str() const;
 
     function generate_module(const module& m, const generate_module_callback& g);

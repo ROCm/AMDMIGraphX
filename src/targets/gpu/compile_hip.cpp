@@ -21,6 +21,8 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
 #if MIGRAPHX_USE_HIPRTC
 
@@ -132,6 +134,7 @@ struct hiprtc_program
         std::vector<char> buffer(n);
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
         assert(buffer.back() == 0);
+        // cppcheck-suppress returnDanglingLifetime
         return {buffer.begin(), buffer.end() - 1};
     }
 
@@ -182,6 +185,13 @@ bool has_compiler_launcher()
 {
     static const auto result = fs::exists(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER));
     return result;
+}
+
+src_compiler assemble(src_compiler compiler)
+{
+    compiler.out_ext = ".S";
+    compiler.flags   = replace_string(compiler.flags, " -c", " -S");
+    return compiler;
 }
 
 std::vector<std::vector<char>>
@@ -238,6 +248,22 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             MIGRAPHX_THROW("Missing hsaco");
         };
 
+    if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
+    {
+        for(const auto& src : srcs)
+        {
+            if(src.path.extension() != ".cpp")
+                continue;
+            std::cout << std::string(src.content.first, src.len()) << std::endl;
+        }
+    }
+
+    if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
+    {
+
+        std::cout << assemble(compiler).compile(srcs).data() << std::endl;
+    }
+
     return {compiler.compile(srcs)};
 }
 
@@ -246,14 +272,6 @@ std::string enum_params(std::size_t count, std::string param)
     std::vector<std::string> items(count);
     transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
     return join_strings(items, ",");
-}
-
-std::size_t compute_global(std::size_t n, std::size_t local)
-{
-    std::size_t groups = (n + local - 1) / local;
-    // max possible number of blocks is set to 1B (1,073,741,824)
-    std::size_t nglobal = std::min<std::size_t>(1073741824, groups) * local;
-    return nglobal;
 }
 
 #endif // MIGRAPHX_USE_HIPRTC

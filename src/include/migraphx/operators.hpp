@@ -35,6 +35,7 @@
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/floor.hpp>
 #include <migraphx/op/gather.hpp>
+#include <migraphx/op/gathernd.hpp>
 #include <migraphx/op/get_tuple_elem.hpp>
 #include <migraphx/op/greater.hpp>
 #include <migraphx/op/gru.hpp>
@@ -86,7 +87,9 @@
 #include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
-#include <migraphx/op/scatter.hpp>
+#include <migraphx/op/scatter_add.hpp>
+#include <migraphx/op/scatter_mul.hpp>
+#include <migraphx/op/scatter_none.hpp>
 #include <migraphx/op/scatternd_add.hpp>
 #include <migraphx/op/scatternd_none.hpp>
 #include <migraphx/op/scatternd_mul.hpp>

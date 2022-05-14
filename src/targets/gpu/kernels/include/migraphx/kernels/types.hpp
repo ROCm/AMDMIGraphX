@@ -13,7 +13,8 @@ using diff_int  = std::int32_t;
 template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 
-using half = _Float16;
+using half  = _Float16;
+using half2 = migraphx::vec<half, 2>;
 
 } // namespace migraphx
 

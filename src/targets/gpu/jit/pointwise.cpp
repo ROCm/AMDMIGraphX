@@ -42,9 +42,9 @@ __global__ void ${op_names}(${params})
 static std::vector<std::string> get_op_names(const module& m)
 {
     std::vector<std::string> result;
-    for(auto& ins:m)
+    for(auto& ins : m)
     {
-        if (starts_with(ins.name(), "@"))
+        if(starts_with(ins.name(), "@"))
             continue;
         result.push_back(ins.name());
     }
@@ -143,13 +143,13 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto preloads          = preload(axis, options.virtual_inputs);
         auto is_preloading =
             std::accumulate(preloads.begin(), preloads.end(), false, std::logical_or<>{});
-        auto op_names = v.at("op_names").to_vector<std::string>();
+        auto op_names              = v.at("op_names").to_vector<std::string>();
         std::string op_name_string = join_strings(op_names, "_");
         if(op_name_string.empty())
             op_name_string = "kernel";
         else
             op_name_string += "_kernel";
-        options.kernel_name    = op_name_string;
+        options.kernel_name = op_name_string;
         options.set_launch_params(v,
                                   compute_global_for(ctx,
                                                      options.output.elements() / vec_size,
@@ -187,9 +187,11 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto name = g.create_function(
             g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
         std::string lambda = "MIGRAPHX_LIFT(" + name + ")";
-        auto op_names = get_op_names(*pm);
+        auto op_names      = get_op_names(*pm);
         return replace(
-            compile_op(ctx, to_shapes(ins->inputs()), {{"lambda", lambda}, {"preamble", g.str()}, {"op_names", op_names}}));
+            compile_op(ctx,
+                       to_shapes(ins->inputs()),
+                       {{"lambda", lambda}, {"preamble", g.str()}, {"op_names", op_names}}));
     }
 };
 } // namespace gpu

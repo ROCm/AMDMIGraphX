@@ -20,6 +20,8 @@ jobs:
           if [ "$(docker images -q rocm-migraphx:5.1 2> /dev/null)" != "" ]; then
             echo "::set-output name=image::true"
           fi
+      - name: test step
+        run: echo "Value of image is ${{ steps.check_image.outputs.image }}"
   check_database:
     name: Check database path
     runs-on: ubuntu-latest
@@ -32,6 +34,8 @@ jobs:
           if [ ! -d "/data/database" ]; then
             echo "::set-output name=database::true"
           fi
+      - name: test step
+        run: echo "Value of database is ${{ steps.check_database.outputs.database }}"
   create_database:
     name: Create MIOpen Database
     runs-on: self-hosted

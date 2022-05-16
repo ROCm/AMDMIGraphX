@@ -2,7 +2,7 @@ on:
   push:
     branches: [develop]
 
-name: RCOM release
+name: ROCM release
 
 jobs:
   check_image_version:
@@ -14,7 +14,7 @@ jobs:
       - name: Check new image
         id: check_image
         run: |
-          if [ "$(docker images -q rocm-migraphx:`date +%Y%m%d` 2> /dev/null)" != "" ]]; then
+          if [ "$(docker images -q rocm-migraphx:`date +%Y%m%d` 2> /dev/null)" != "" ]; then
             echo "::set-output name=image::true"
           fi
   build_image:

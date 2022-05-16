@@ -1,0 +1,58 @@
+on:
+  push:
+    branches: [develop]
+
+name: MIOPEN Generate database
+
+env:
+  ROCM_VERSION: rocm51
+  
+jobs:
+  check_image_version:
+    name: Check Image Version
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.check_image.outputs.image }}
+    steps:
+      - name: Check new image
+        id: check_image
+        run: |
+          if [ "$(docker images -q rocm-migraphx:`date +%Y%m%d` 2> /dev/null)" != "" ]; then
+            echo "::set-output name=image::true"
+          fi
+  check_database:
+    name: Check database path
+    runs-on: ubuntu-latest
+    outputs:
+      database: ${{ steps.check_database.outputs.database }}
+    steps:
+      - name: Check db
+        id: check_database
+        run: |
+          if [ ! -d "/src/miopen-databases/$HOSTNAME/miopen-${ROCM_VERSION}" ]; then
+            echo "::set-output name=databases::true"
+          fi
+  create_database:
+    name: Create MIOpen Database
+    runs-on: self-hosted
+    needs: check_image_version
+    if: ${{ needs.check_image.outputs.image == 'true' && needs.check_database.output.database == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+        with:
+          submodules: recursive
+          token: ${{ secrets.GH_SUB_TOKEN }}
+      - name: Perform tuning database
+        env:
+          MIOPEN_FIND_ENFORCE: 3
+        run: >
+          docker run -e TZ=America/Chicago
+          -e TARGET=gpu
+          --device=/dev/dri
+          --device=/dev/kfd
+          --network=host
+          --group-add=video 
+          -v /home/htec/jz:/data
+          --workdir /data/source/rocm-migraphx/scripts/
+          rocm-migraphx:5.1 /bin/bash run_perf_mev.sh && cp -r /root/.config/miopen /data/database

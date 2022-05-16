@@ -17,7 +17,7 @@ jobs:
       - name: Check new image
         id: check_image
         run: |
-          if [ "$(docker images -q rocm-migraphx:`date +%Y%m%d` 2> /dev/null)" != "" ]; then
+          if [ "$(docker images -q rocm-migraphx:5.1 2> /dev/null)" != "" ]; then
             echo "::set-output name=image::true"
           fi
   check_database:
@@ -35,8 +35,8 @@ jobs:
   create_database:
     name: Create MIOpen Database
     runs-on: self-hosted
-    needs: check_image_version
-    if: ${{ needs.check_image.outputs.image == 'true' && needs.check_database.output.database == 'true' }}
+    needs: [check_image_version, check_database]
+    if: needs.check_image.outputs.image == 'true' && needs.check_database.output.database == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v1
@@ -56,3 +56,12 @@ jobs:
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
           rocm-migraphx:5.1 /bin/bash run_perf_mev.sh && cp -r /root/.config/miopen /data/database
+      - name: Clone database repo
+        uses: actions/checkout@v1
+        with:
+          name:  migraphx-benchmark/miopen-databases
+          token: ${{ secrets.GH_SUB_TOKEN }}
+          path: /home/htec/jz/source
+
+
+        

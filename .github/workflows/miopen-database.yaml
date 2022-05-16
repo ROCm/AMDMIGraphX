@@ -29,8 +29,8 @@ jobs:
       - name: Check db
         id: check_database
         run: |
-          if [ ! -d "/src/miopen-databases/$HOSTNAME/miopen-${ROCM_VERSION}" ]; then
-            echo "::set-output name=databases::true"
+          if [ ! -d "/data/database" ]; then
+            echo "::set-output name=database::true"
           fi
   create_database:
     name: Create MIOpen Database
@@ -62,6 +62,5 @@ jobs:
           name:  migraphx-benchmark/miopen-databases
           token: ${{ secrets.GH_SUB_TOKEN }}
           path: /home/htec/jz/source
-
 
         

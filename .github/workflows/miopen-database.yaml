@@ -17,7 +17,7 @@ jobs:
       - name: Check new image
         id: check_image
         run: |
-          if [[ "$(docker images -q rocm-migraphx:5.1 2> /dev/null)" != "" ]]; then
+          if [[ "$(docker image inspect rocm-migraphx:5.1 2> /dev/null)" != "" ]]; then
             echo "::set-output name=image::true"
           fi
       - name: test step

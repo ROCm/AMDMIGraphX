@@ -156,6 +156,7 @@ void pack_int8_args::apply(module& m) const
         }
         else if(ins->name() == "gpu::quant_convolution")
         {
+            // TODO: Check for int8_x4_format
             auto inputs   = ins->inputs();
             auto packed_x = m.insert_instruction(
                 ins,

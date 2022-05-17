@@ -24,8 +24,7 @@ struct miopen_quant_convolution
     {
         // TODO: Add algo
         // return op::quant_convolution::reflect(self.op, f);
-        return pack(f(self.op, "op"),
-                    f(self.int8_x4_format, "int8_x4_format"));
+        return pack(f(self.op, "op"), f(self.int8_x4_format, "int8_x4_format"));
     }
 
     std::string name() const { return "gpu::quant_convolution"; }

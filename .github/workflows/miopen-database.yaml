@@ -33,7 +33,7 @@ jobs:
         run: echo "Value of image is ${{ steps.check_image.outputs.image }}"
   check_database:
     name: Check database path
-    runs-on: self-hosted
+    runs-on: r3
     needs: checkout_miopen
     outputs:
       database: ${{ steps.check_database.outputs.database }}

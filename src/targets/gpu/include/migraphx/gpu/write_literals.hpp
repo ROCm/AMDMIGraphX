@@ -14,7 +14,7 @@ struct write_literals
     context* ctx = nullptr;
     std::string name() const { return "gpu::write_literals"; }
 
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace gpu

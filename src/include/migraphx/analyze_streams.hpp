@@ -16,7 +16,7 @@ struct stream_race
     instruction_ref before;
 };
 
-std::vector<stream_race> analyze_streams(const module& p, const stream_model& m);
+std::vector<stream_race> analyze_streams(const module& m, const stream_model& strmm);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

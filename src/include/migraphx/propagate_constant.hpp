@@ -15,7 +15,7 @@ struct module;
 struct propagate_constant
 {
     std::string name() const { return "propagate_constant"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

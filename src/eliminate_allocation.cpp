@@ -13,13 +13,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_allocation::apply(module& p) const
+void eliminate_allocation::apply(module& m) const
 {
     assert(alignment > 0);
 
     std::size_t n = 0;
     std::vector<std::pair<instruction_ref, std::size_t>> allocs;
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() != allocation_op)
             continue;
@@ -30,13 +30,13 @@ void eliminate_allocation::apply(module& p) const
     }
     if(n > 0)
     {
-        auto mem = p.add_parameter("memory", shape{shape::int8_type, {n}});
+        auto mem = m.add_parameter("memory", shape{shape::int8_type, {n}});
         for(auto&& pp : allocs)
         {
             auto ins    = pp.first;
             auto s      = ins->get_shape();
             auto offset = pp.second;
-            p.replace_instruction(
+            m.replace_instruction(
                 ins, make_op("load", {{"shape", to_value(s)}, {"offset", offset}}), mem);
         }
     }

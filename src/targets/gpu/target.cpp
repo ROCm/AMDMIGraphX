@@ -31,6 +31,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/eliminate_workspace.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
@@ -96,6 +97,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_algebra{options.fast_math},
         simplify_reshapes{},
         simplify_algebra{options.fast_math},
+        prefuse_ops{},
+        dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
         propagate_constant{},

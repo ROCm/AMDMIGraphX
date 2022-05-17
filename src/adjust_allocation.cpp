@@ -8,9 +8,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void adjust_allocation::apply(module& p) const
+void adjust_allocation::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         // skip instruction with no input
         if(ins->inputs().empty())
@@ -27,13 +27,13 @@ void adjust_allocation::apply(module& p) const
         // of the instruction, reallocate and replace the previous one
         if(alias_ins->get_shape() == ins->get_shape())
             continue;
-        auto alloc_ins = p.insert_instruction(ins, model.allocate(ins->get_shape()));
-        p.replace_instruction(alias_ins, alloc_ins);
+        auto alloc_ins = m.insert_instruction(ins, model.allocate(ins->get_shape()));
+        m.replace_instruction(alias_ins, alloc_ins);
         // If the memory is an output parameter then copy the memory to the parameter
         if(alias_ins->name() == "@param")
         {
-            auto copy = p.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
-            auto tail = range(std::next(copy), p.end());
+            auto copy = m.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
+            auto tail = range(std::next(copy), m.end());
             for(auto i : iterator_for(tail))
             {
                 if(contains(i->inputs(), ins))

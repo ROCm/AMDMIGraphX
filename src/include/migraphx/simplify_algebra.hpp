@@ -17,7 +17,7 @@ struct simplify_algebra
     // flag to use shortcuts for some math functions
     bool fast_math = false;
     std::string name() const { return "simplify_algebra"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

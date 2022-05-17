@@ -156,6 +156,19 @@ struct id_matcher
     }
 };
 
+// Forward declare class and constructors
+template <class M>
+struct basic_matcher;
+
+template <class M>
+basic_matcher<M> make_basic_matcher(M m);
+
+template <class F>
+basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f);
+
+template <class P>
+basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p);
+
 /// The basic matcher provides the all_of composability of the matcher
 template <class M>
 struct basic_matcher
@@ -167,8 +180,8 @@ struct basic_matcher
     {
         // Copy m because we cant capture `this` by value
         auto mm = m;
-        return make_bf_matcher([=](matcher_context& ctx,
-                                   instruction_ref ins) -> optional<instruction_ref> {
+        return make_basic_fun_matcher([=](matcher_context& ctx,
+                                          instruction_ref ins) -> optional<instruction_ref> {
             auto result = mm.match(ctx, ins);
             if(result)
             {
@@ -239,7 +252,39 @@ struct any_matcher : any_matcher_base
 
 struct matcher_result
 {
-    std::unordered_map<std::string, instruction_ref> instructions;
+    struct instruction_container
+    {
+        instruction_container() = default;
+        instruction_container(std::unordered_map<std::string, instruction_ref> x)
+            : ins_map(std::move(x))
+        {
+        }
+
+        instruction_ref operator[](const std::string& name) const
+        {
+            auto it = ins_map.find(name);
+            if(it == ins_map.end())
+                MIGRAPHX_THROW("Accessing name that wasn't bound in matcher: " + name);
+            return it->second;
+        }
+
+        auto find(const std::string& name) const { return ins_map.find(name); }
+
+        auto begin() const { return ins_map.cbegin(); }
+
+        auto end() const { return ins_map.cend(); }
+
+        bool has_instructions_in(const module& mod) const
+        {
+            return std::all_of(ins_map.begin(), ins_map.end(), [&](auto&& p) {
+                return mod.has_instruction(p.second);
+            });
+        }
+
+        private:
+        std::unordered_map<std::string, instruction_ref> ins_map;
+    };
+    instruction_container instructions;
     instruction_ref result;
 };
 
@@ -255,6 +300,7 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
     {
         result.result       = ins;
         result.instructions = ctx.instructions;
+        assert(result.instructions.has_instructions_in(mod));
     }
     else
     {
@@ -545,6 +591,18 @@ auto skip_output(Ms... ms)
                 return nullopt;
             })(start);
     });
+}
+
+inline auto var(std::string s)
+{
+    return make_basic_fun_matcher(
+        [=, s = std::move(s)](const matcher_context& ctx,
+                              instruction_ref) -> optional<instruction_ref> {
+            auto it = ctx.instructions.find(s);
+            if(it == ctx.instructions.end())
+                return nullopt;
+            return it->second;
+        });
 }
 
 inline auto name(std::string s)

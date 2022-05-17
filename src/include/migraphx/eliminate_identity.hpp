@@ -18,7 +18,7 @@ struct module;
 struct eliminate_identity
 {
     std::string name() const { return "eliminate_identity"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

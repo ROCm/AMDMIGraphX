@@ -15,7 +15,7 @@ namespace gpu {
 struct sync_device
 {
     std::string name() const { return "sync_device"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

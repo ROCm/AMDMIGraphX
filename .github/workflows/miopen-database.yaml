@@ -69,7 +69,8 @@ jobs:
       - name: Push database to git
         run: |
           cd miopen-database
-          cp -r /home/htec/jz/database .
+          mkdir -p ${{env.ROCM_VERSION}}
+          cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}
           git add .
           git config --local user.email github-actions
           git config --local user.name github-actions@github.com

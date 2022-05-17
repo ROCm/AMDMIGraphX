@@ -15,10 +15,9 @@ jobs:
       - name: Clone & Push database to git
         run: |
           git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git ${{ env.MIOPEN_PATH }}
-          pwd
   check_image_version:
     name: Check Image Version
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: checkout_miopen
     outputs:
       image: ${{ steps.check_image.outputs.image }}
@@ -33,7 +32,7 @@ jobs:
         run: echo "Value of image is ${{ steps.check_image.outputs.image }}"
   check_database:
     name: Check database path
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: checkout_miopen
     outputs:
       database: ${{ steps.check_database.outputs.database }}

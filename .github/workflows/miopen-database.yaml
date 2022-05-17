@@ -65,9 +65,9 @@ jobs:
         run: mkdir $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
         shell: bash
       - name: Checkout database repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v1
         with:
-          repository:  migraphx-benchmark/miopen-databases
+          repository: migraphx-benchmark/miopen-databases
           token: ${{ secrets.GH_SUB_TOKEN }}
           path: ${{ env.MIOPEN_PATH }}
           ref: main

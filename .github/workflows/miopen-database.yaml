@@ -59,7 +59,7 @@ jobs:
           --group-add=video 
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
-          rocm-migraphx:5.1 /bin/bash -c "run_perf_mev.sh && cp -r /root/.config/miopen /data/database"
+          rocm-migraphx:5.1 /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
       - name: Clone database repo
         uses: actions/checkout@v1
         with:

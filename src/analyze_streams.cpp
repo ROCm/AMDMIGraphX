@@ -14,31 +14,31 @@ bool happens_before(const std::vector<std::size_t>& e1, const std::vector<std::s
            not std::equal(e1.begin(), e1.end(), e2.begin(), e2.end(), std::greater_equal<>{});
 }
 
-std::vector<stream_race> analyze_streams(const module& p, const stream_model& m)
+std::vector<stream_race> analyze_streams(const module& m, const stream_model& strmm)
 {
     using vector_clock = std::vector<std::size_t>;
     std::vector<stream_race> races;
-    auto nstream = m.get_nstream();
+    auto nstream = strmm.get_nstream();
     std::vector<vector_clock> vclock(nstream, vector_clock(nstream));
     std::unordered_map<instruction_ref, vector_clock> timestamp;
     std::unordered_map<std::size_t, vector_clock> events;
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
-        if(not m.has_stream(ins))
+        if(not strmm.has_stream(ins))
             continue;
-        std::size_t s = m.get_stream(ins);
+        std::size_t s = strmm.get_stream(ins);
         assert(s < nstream);
         assert(vclock.size() == nstream);
         assert(vclock[s].size() == nstream);
-        if(m.is_record(ins))
+        if(strmm.is_record(ins))
         {
             vclock[s][s]++;
-            auto event    = m.get_event_id(ins);
+            auto event    = strmm.get_event_id(ins);
             events[event] = vclock[s];
         }
-        else if(m.is_wait(ins))
+        else if(strmm.is_wait(ins))
         {
-            auto event = m.get_event_id(ins);
+            auto event = strmm.get_event_id(ins);
             if(not contains(events, event))
                 MIGRAPHX_THROW("Event is waited on before being recorded: " +
                                std::to_string(event));
@@ -57,21 +57,21 @@ std::vector<stream_race> analyze_streams(const module& p, const stream_model& m)
         }
         timestamp[ins] = vclock[s];
     }
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
-        if(not m.has_stream(ins))
+        if(not strmm.has_stream(ins))
             continue;
         if(ins->inputs().empty())
             continue;
-        std::size_t s = m.get_stream(ins);
+        std::size_t s = strmm.get_stream(ins);
         // Find inputs from different streams
         std::vector<instruction_ref> inputs;
         fix([&](auto self, auto start) {
             for(auto input : start->inputs())
             {
-                if(not m.has_stream(input))
+                if(not strmm.has_stream(input))
                     self(input);
-                else if(m.get_stream(input) != s)
+                else if(strmm.get_stream(input) != s)
                     inputs.push_back(input);
             }
         })(ins);

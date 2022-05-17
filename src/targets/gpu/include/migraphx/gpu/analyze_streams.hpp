@@ -11,7 +11,7 @@ struct module;
 
 namespace gpu {
 
-std::vector<stream_race> analyze_streams(const module& p);
+std::vector<stream_race> analyze_streams(const module& m);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

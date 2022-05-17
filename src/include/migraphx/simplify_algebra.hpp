@@ -15,7 +15,7 @@ struct module;
 struct simplify_algebra
 {
     std::string name() const { return "simplify_algebra"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -130,7 +130,7 @@ struct miopen_apply
         add_generic_op("atan");
         add_generic_op("atanh");
         add_generic_op("ceil");
-        // add_generic_op("contiguous");
+        add_generic_op("contiguous");
         add_generic_op("cos");
         add_generic_op("cosh");
         add_generic_op("div");

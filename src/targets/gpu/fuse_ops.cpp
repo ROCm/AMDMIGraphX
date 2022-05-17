@@ -25,6 +25,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
 #include <set>
@@ -948,6 +949,22 @@ struct find_commutative_broadcast
     }
 };
 
+struct find_contiguous
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous");
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto args = ins->inputs();
+
+        m.replace_instruction(ins, make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}), ins->inputs());
+    }
+};
+
 void fuse_ops::apply(module& m) const
 {
     match::find_matches(m, find_gelu{}, find_gelu_new{fast_math});
@@ -968,6 +985,7 @@ void fuse_ops::apply(module& m) const
                         find_add_clip{});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_triadd_layernorm{}, find_gemm_add{}, find_commutative_broadcast{});
+    match::find_matches(m, find_contiguous{});
 }
 
 } // namespace gpu

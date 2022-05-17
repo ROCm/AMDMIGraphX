@@ -951,17 +951,17 @@ struct find_commutative_broadcast
 
 struct find_contiguous
 {
-    auto matcher() const
-    {
-        return match::name("gpu::contiguous");
-    }
+    auto matcher() const { return match::name("gpu::contiguous"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto args = ins->inputs();
 
-        m.replace_instruction(ins, make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}), ins->inputs());
+        m.replace_instruction(
+            ins,
+            make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}),
+            ins->inputs());
     }
 };
 

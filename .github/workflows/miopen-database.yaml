@@ -65,7 +65,16 @@ jobs:
         with:
           repository:  migraphx-benchmark/miopen-databases
           token: ${{ secrets.GH_SUB_TOKEN }}
-          path: /home/htec/
+          path: miopen-database
+      - name: Push database to git
+        run: |
+          cd miopen-database
+          cp -r /home/htec/jz/database .
+          git add .
+          git config --local user.email github-actions
+          git config --local user.name github-actions@github.com
+          git commit -m "Push databases" -a
+          git push
 
 
 

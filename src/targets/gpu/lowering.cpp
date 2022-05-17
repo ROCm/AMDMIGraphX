@@ -365,7 +365,7 @@ struct miopen_apply
     {
         apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
-            auto conv = miopen_quant_convolution{op, make_conv(op)};
+            auto conv = miopen_quant_convolution{op, int8_x4_format, make_conv(op)};
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto args      = ins->inputs();

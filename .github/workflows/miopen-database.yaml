@@ -61,10 +61,12 @@ jobs:
           --workdir /data/source/rocm-migraphx/scripts/
           rocm-migraphx:5.1 /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
       - name: Clone database repo
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
         with:
-          name:  migraphx-benchmark/miopen-databases
+          repository:  migraphx-benchmark/miopen-databases
           token: ${{ secrets.GH_SUB_TOKEN }}
-          path: /home/htec/jz/source
+          path: /home/htec/
+
+
 
         

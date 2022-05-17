@@ -11,6 +11,7 @@ env:
 jobs:
   checkout_miopen:
     runs-on: r3
+    name: Checkout MIOPEN Databases
     steps:
       - name: Checkout miopen-databases
         run: |
@@ -41,7 +42,6 @@ jobs:
         id: check_database
         run: |
           if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}" ]; then
-            ls $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}
             echo "::set-output name=database::true"
           fi
       - name: test step
@@ -50,7 +50,7 @@ jobs:
     name: Create MIOpen Database
     runs-on: r3
     needs: [check_image_version, check_database]
-    if: ${{ needs.check_image.outputs.image == 'true' }} && ${{needs.check_database.outputs.database == 'true' }}
+    if: ${{ needs.check_image.outputs.image == true }} && ${{needs.check_database.outputs.database == true }}
     steps:
       # - name: Checkout code
       #   uses: actions/checkout@v1
@@ -73,10 +73,7 @@ jobs:
 
       - name: Clone & Push database to git
         run: |
-          echo $GITHUB_WORKSPACE
-          ls $GITHUB_WORKSPACE/
-          cd ${{ env.MIOPEN_PATH }}/
-          ls
+          cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
           mkdir -p ${{env.ROCM_VERSION}}
           cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}
           git add .
@@ -84,4 +81,7 @@ jobs:
           git config --local user.name github-actions@github.com
           git commit -m "Push databases" -a
           git push
+      - name: Remove MIOPEN DB locally
+        if: ${{ always() }}
+        run: |
           rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/

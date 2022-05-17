@@ -41,7 +41,7 @@ jobs:
       - name: Check db
         id: check_database
         run: |
-          if [ -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}" ]; then
+          if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}" ]; then
             echo "::set-output name=database::true"
           fi
       - name: test step
@@ -49,10 +49,10 @@ jobs:
           ls $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
           echo "Value of database is ${{ steps.check_database.outputs.database }}"
   create_database:
-    name: Create MIOpen Database
+    name: Create MIOPEN Database
     runs-on: r3
     needs: [check_image_version, check_database]
-    if: ${{ needs.check_image.outputs.image == true }} && ${{needs.check_database.outputs.database == true }}
+    if: ${{ needs.check_image.outputs.image == true }} && ${{ needs.check_database.outputs.database == true }}
     steps:
       # - name: Checkout code
       #   uses: actions/checkout@v1
@@ -73,11 +73,11 @@ jobs:
       #     --workdir /data/source/rocm-migraphx/scripts/
       #     rocm-migraphx:5.1 /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
 
-      - name: Clone & Push database to git
+      - name: Push database to git
         run: |
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
           mkdir -p ${{env.ROCM_VERSION}}
-          cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}
+          cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}/MI-100
           git add .
           git config --local user.email github-actions
           git config --local user.name github-actions@github.com
@@ -87,3 +87,4 @@ jobs:
         if: ${{ always() }}
         run: |
           rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
+          

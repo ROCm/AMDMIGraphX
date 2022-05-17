@@ -18,8 +18,15 @@ struct implicit_conversion_op
     template <index_int N, class U>
     constexpr operator vec<U, N>() const
     {
-        static_assert(vec_size<T>() == N, "Vector mismatch size");
-        return __builtin_convertvector(x, vec<U, N>);
+        if constexpr(vec_size<T>() == 0)
+        {
+            return x;
+        }
+        else
+        {
+            static_assert(vec_size<T>() == N, "Vector mismatch size");
+            return __builtin_convertvector(x, vec<U, N>);
+        }
     }
 
     template <class U>

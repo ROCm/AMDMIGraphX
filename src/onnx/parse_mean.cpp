@@ -43,6 +43,7 @@ struct parse_mean : op_parser<parse_mean>
         }
         else
         {
+            // Compute sum before division for integral types
             auto sum = std::accumulate(
                 args.begin() + 1, args.end(), args[0], [&](auto accum, auto data_i) {
                     return info.add_broadcastable_binary_op("add", accum, data_i);

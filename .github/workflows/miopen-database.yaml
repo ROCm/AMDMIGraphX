@@ -16,7 +16,7 @@ jobs:
         with:
           repository: migraphx-benchmark/miopen-databases
           token: ${{ secrets.GH_SUB_TOKEN }}
-          path: $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
+          path: ${{ env.MIOPEN_PATH }}
   check_image_version:
     name: Check Image Version
     runs-on: self-hosted
@@ -74,7 +74,7 @@ jobs:
 
       - name: Clone & Push database to git
         run: |
-          cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
+          cd ${{ env.MIOPEN_PATH }}/
           mkdir -p ${{env.ROCM_VERSION}}
           cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}
           git add .
@@ -83,6 +83,3 @@ jobs:
           git commit -m "Push databases" -a
           git push
           rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-
-
-        

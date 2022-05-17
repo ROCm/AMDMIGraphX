@@ -76,6 +76,7 @@ jobs:
           echo $GITHUB_WORKSPACE
           ls $GITHUB_WORKSPACE/
           cd ${{ env.MIOPEN_PATH }}/
+          ls
           mkdir -p ${{env.ROCM_VERSION}}
           cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}
           git add .

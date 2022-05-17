@@ -85,5 +85,4 @@ jobs:
           rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
 
 
-
         

@@ -240,7 +240,7 @@ struct find_gelu
     }
 
     // apply the gelu_erf approximation:  substitute  ::erf(x * M_SQRT1_2);
-    void apply(module& m, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         if(!fast_math)
             return;

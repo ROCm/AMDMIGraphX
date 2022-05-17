@@ -40,7 +40,8 @@ struct transposectx_compiler : compiler<transposectx_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), inputs.front().lens().back());
+        options.set_launch_params(
+            v, compute_global_for(ctx, inputs.back().elements()), inputs.front().lens().back());
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = "transposectx_kernel";
@@ -78,7 +79,8 @@ struct transposeqkv_compiler : compiler<transposeqkv_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), inputs.front().lens().back());
+        options.set_launch_params(
+            v, compute_global_for(ctx, inputs.back().elements()), inputs.front().lens().back());
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = "transposeqkv_kernel";

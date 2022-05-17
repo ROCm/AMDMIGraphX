@@ -79,14 +79,11 @@ struct parse_attention : op_parser<parse_attention>
         auto ones =
             info.add_literal(migraphx::literal{migraphx::shape{bias_type, ones_lens}, ones_vec});
         bias        = info.add_instruction(migraphx::make_op("reshape", {{"dims", {n, 1}}}), bias);
-        auto gemm_1 = info.add_instruction(
-            migraphx::make_op("dot"),
-            bias,
-            ones);
+        auto gemm_1 = info.add_instruction(migraphx::make_op("dot"), bias, ones);
         gemm_1 =
             info.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), gemm_1);
 
-        /// Use row-major => results(N, M) = 1 * input x weights + 1 x B 
+        /// Use row-major => results(N, M) = 1 * input x weights + 1 x B
         auto input_sq = info.add_instruction(
             migraphx::make_op("reshape", {{"dims", {batch_size * sequence_length, hidden_size}}}),
             input);
@@ -99,8 +96,7 @@ struct parse_attention : op_parser<parse_attention>
             migraphx::make_op("reshape",
                               {{"dims", {batch_size, sequence_length, 3, num_heads, head_size}}}),
             add_gemms);
-        auto transqkv = info.add_instruction(
-            migraphx::make_op("transposeqkv"), add_gemms);
+        auto transqkv = info.add_instruction(migraphx::make_op("transposeqkv"), add_gemms);
 
         // transqkv has shape 3xBxNxSxH
         // => Q, K, V: each has size BxNxSxH
@@ -155,7 +151,7 @@ struct parse_attention : op_parser<parse_attention>
         // Inference mask is all 1s => masking can be skipped
         auto softmax = info.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), gemm3);
 
-        // compute P*V 
+        // compute P*V
         auto gemm4 = info.add_instruction(migraphx::make_op("dot"), softmax, v_t);
 
         // result is BxNxSxH, transpose to BxSxNxH and reshape to BxSxN*H

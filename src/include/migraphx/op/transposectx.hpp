@@ -48,15 +48,15 @@ struct transposectx
 
                 int num_heads       = lens.at(1);
                 int sequence_length = lens.at(2);
-                int head_size = lens.back();
+                int head_size       = lens.back();
 
-                const int NH        = num_heads * head_size;
-                const int NHS       = NH * sequence_length;
-                //const int in_offset = s * head_size + n * sequence_length * head_size + b * NHS;
+                const int NH  = num_heads * head_size;
+                const int NHS = NH * sequence_length;
+                // const int in_offset = s * head_size + n * sequence_length * head_size + b * NHS;
 
                 const int out_offset = n * head_size + s * NH + b * NHS;
 
-                const int j = idx.back();
+                const int j            = idx.back();
                 output[out_offset + j] = input[i];
             });
         });

@@ -11,12 +11,12 @@ __device__ void transposectx(const T& input_t, const U& output_t)
 {
     // Input:  BxNxSxH
     // Output: BxSxNxH
-    auto index = make_index();
-    auto input_shape = input_t.get_shape();
-    auto lens = input_shape.lens;
-    const int num_heads = lens[1];
+    auto index                = make_index();
+    auto input_shape          = input_t.get_shape();
+    auto lens                 = input_shape.lens;
+    const int num_heads       = lens[1];
     const int sequence_length = lens[2];
-    int head_size   = lens[3];
+    int head_size             = lens[3];
 
     auto idx = input_shape.multi(index.global);
 
@@ -24,11 +24,11 @@ __device__ void transposectx(const T& input_t, const U& output_t)
     int s = idx[2];
     int b = idx[0];
 
-    const int NH        = num_heads * head_size;
-    const int NHS       = NH * sequence_length;
+    const int NH         = num_heads * head_size;
+    const int NHS        = NH * sequence_length;
     const int out_offset = n * head_size + s * NH + b * NHS;
 
-    if (index.local < 1024)
+    if(index.local < 1024)
         output_t[out_offset + idx[3]] = input_t[index.global];
 }
 

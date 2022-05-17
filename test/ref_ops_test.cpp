@@ -671,12 +671,12 @@ TEST_CASE(bert_transpose_ops_test)
     {
         // transposeQKV
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm    = p.get_main_module();
         const int k = 3, b = 1, n = 2, s = 2, h = 1;
         migraphx::shape sh{migraphx::shape::float_type, {b, s, k, n, h}};
         std::vector<float> data(b * s * k * n * h);
         std::iota(data.begin(), data.end(), 0);
-        auto l1       = mm->add_literal(migraphx::literal{sh, data});
+        auto l1 = mm->add_literal(migraphx::literal{sh, data});
         mm->add_instruction(migraphx::make_op("transposeqkv"), l1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -686,14 +686,15 @@ TEST_CASE(bert_transpose_ops_test)
 
         migraphx::program p2;
         auto* mm2 = p2.get_main_module();
-        auto l2       = mm2->add_literal(migraphx::literal{sh, data});
-        mm2->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}), l2);
+        auto l2   = mm2->add_literal(migraphx::literal{sh, data});
+        mm2->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}),
+                             l2);
         p2.compile(migraphx::ref::target{});
         auto result2 = p2.eval({}).back();
         std::vector<float> result_vector2(k * b * n * s * h);
         result2.visit([&](auto output) { result_vector2.assign(output.begin(), output.end()); });
 
-        for (auto& i : result_vector2)
+        for(auto& i : result_vector2)
             std::cout << i << ", ";
         std::cout << std::endl;
 
@@ -706,7 +707,7 @@ TEST_CASE(bert_transpose_ops_test)
         migraphx::shape s{migraphx::shape::float_type, {2, 2, 2, 2}};
         std::vector<float> data(2 * 2 * 2 * 2);
         std::iota(data.begin(), data.end(), 0);
-        auto l1       = mm->add_literal(migraphx::literal{s, data});
+        auto l1 = mm->add_literal(migraphx::literal{s, data});
         mm->add_instruction(migraphx::make_op("transposectx"), l1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -719,18 +720,20 @@ TEST_CASE(bert_transpose_ops_test)
     {
         // transposeCtx
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm    = p.get_main_module();
         const int b = 2, n = 2, s = 3, h = 4;
         migraphx::shape sh{migraphx::shape::float_type, {b, n, s, h}};
         std::vector<float> data(b * n * s * h);
         std::iota(data.begin(), data.end(), 0);
-        auto l1       = mm->add_literal(migraphx::literal{sh, data});
+        auto l1 = mm->add_literal(migraphx::literal{sh, data});
         mm->add_instruction(migraphx::make_op("transposectx"), l1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> result_vector(b * n * s * h);
         result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{0,  1,  2,  3, 12, 13, 14, 15,  4,  5,  6,  7, 16, 17, 18, 19,  8,  9, 10, 11, 20, 21, 22, 23, 24, 25, 26, 27, 36, 37, 38, 39, 28, 29, 30, 31, 40, 41, 42, 43, 32, 33, 34, 35, 44, 45, 46, 47};
+        std::vector<float> gold{0,  1,  2,  3,  12, 13, 14, 15, 4,  5,  6,  7,  16, 17, 18, 19,
+                                8,  9,  10, 11, 20, 21, 22, 23, 24, 25, 26, 27, 36, 37, 38, 39,
+                                28, 29, 30, 31, 40, 41, 42, 43, 32, 33, 34, 35, 44, 45, 46, 47};
 
         EXPECT(migraphx::verify_range(result_vector, gold));
     }

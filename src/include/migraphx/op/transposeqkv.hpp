@@ -33,7 +33,7 @@ struct transposeqkv
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        // Input:  BxSxKxNxH 
+        // Input:  BxSxKxNxH
         // Output: KxBxNxSxH
         // K is the number of identical matrix
 
@@ -53,12 +53,13 @@ struct transposeqkv
                 const int num_heads = lens[3];
 
                 const int sequence_length = lens[1];
-                const int batch_size = lens[0];
-                const int H = lens.back();
-                const int NH = num_heads * H;
-                const int NHS = NH * sequence_length;
+                const int batch_size      = lens[0];
+                const int H               = lens.back();
+                const int NH              = num_heads * H;
+                const int NHS             = NH * sequence_length;
 
-                const int out_offset = s * H + n * sequence_length * H + b * NHS + m * NHS * batch_size;
+                const int out_offset =
+                    s * H + n * sequence_length * H + b * NHS + m * NHS * batch_size;
 
                 output[out_offset + j] = input[i];
             });

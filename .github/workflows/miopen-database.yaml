@@ -61,18 +61,10 @@ jobs:
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
           rocm-migraphx:5.1 /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
-      - name: Create miopen-database dir
-        run: mkdir $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
-        shell: bash
-      - name: Checkout database repo
-        uses: actions/checkout@v1
-        with:
-          repository: migraphx-benchmark/miopen-databases
-          token: ${{ secrets.GH_SUB_TOKEN }}
-          path: ${{ env.MIOPEN_PATH }}
-          ref: main
-      - name: Push database to git
+
+      - name: Clone & Push database to git
         run: |
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git ${{ env.MIOPEN_PATH }}
           cd ${{ env.MIOPEN_PATH }}
           mkdir -p ${{env.ROCM_VERSION}}
           cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}

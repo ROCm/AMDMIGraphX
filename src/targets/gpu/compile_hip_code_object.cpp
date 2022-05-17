@@ -132,7 +132,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     assert(options.global > 0);
     assert(options.local > 0);
     assert(options.inputs.size() > 0);
-    assert(options.inputs.size() == options.virtual_inputs.size() or options.virtual_inputs.empty());
+    assert(options.inputs.size() == options.virtual_inputs.size() or
+           options.virtual_inputs.empty());
     std::vector<src_file> srcs;
     std::transform(migraphx_kernels().begin(),
                    migraphx_kernels().end(),

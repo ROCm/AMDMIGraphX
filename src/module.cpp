@@ -558,7 +558,7 @@ void module::finalize(context& ctx)
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {
-        if (trace)
+        if(trace)
         {
             std::cout << "Finalize: ";
             this->debug_print(ins);

@@ -15,6 +15,7 @@ jobs:
     steps:
       - name: Checkout miopen-databases
         run: |
+          rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
           git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
   check_image_version:
     name: Check Image Version
@@ -52,7 +53,7 @@ jobs:
     name: Create MIOPEN Database
     runs-on: r3
     needs: [check_image_version, check_database]
-    if: ${{ needs.check_database.outputs.database == true }}
+    if: ( needs.check_database.outputs.database == true && needs.check_image.outputs.image == true )
     steps:
       # - name: Checkout code
       #   uses: actions/checkout@v1
@@ -83,8 +84,5 @@ jobs:
           git config --local user.name github-actions@github.com
           git commit -m "Push databases" -a
           git push
-      - name: Remove MIOPEN DB locally
-        if: ${{ always() }}
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
+
           

@@ -41,7 +41,7 @@ jobs:
       - name: Check db
         id: check_database
         run: |
-          if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}" ]; then
+          if [ -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}" ]; then
             echo "::set-output name=database::true"
           fi
       - name: test step

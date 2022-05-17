@@ -965,9 +965,29 @@ struct find_contiguous
     }
 };
 
+
+struct find_contiguous_pointwise
+{
+    auto matcher() const { 
+        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise"))); 
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto pw = ins->inputs().front();
+        auto alloc = ins->inputs().back();
+        auto args = pw->inputs();
+        args.back() = alloc;
+
+        m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
+    }
+};
+
+
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_gelu{}, find_gelu_new{fast_math});
+    match::find_matches(m, find_contiguous_pointwise{}, find_gelu{}, find_gelu_new{fast_math});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_triadd{});
     match::find_matches(m,

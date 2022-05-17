@@ -52,7 +52,7 @@ jobs:
     name: Create MIOPEN Database
     runs-on: r3
     needs: [check_image_version, check_database]
-    if: ${{ needs.check_image.outputs.image == true }} && ${{ needs.check_database.outputs.database == true }}
+    if: ${{ needs.check_database.outputs.database == true }}
     steps:
       # - name: Checkout code
       #   uses: actions/checkout@v1

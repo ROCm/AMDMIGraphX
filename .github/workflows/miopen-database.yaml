@@ -10,13 +10,11 @@ env:
   
 jobs:
   checkout_miopen:
-    runs-on: ubuntu-latest
+    runs-on: r3
     steps:
-      - uses: actions/checkout@master
-        with:
-          repository: migraphx-benchmark/miopen-databases
-          token: ${{ secrets.GH_SUB_TOKEN }}
-          path: ${{ env.MIOPEN_PATH }}
+      - name: Checkout miopen-databases
+        run: |
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
   check_image_version:
     name: Check Image Version
     runs-on: self-hosted

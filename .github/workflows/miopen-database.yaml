@@ -81,7 +81,8 @@ jobs:
           git config --local user.name github-actions@github.com
           git commit -m "Push databases" -a
           git push
-          cd .. && rm -rf ${{ env.MIOPEN_PATH }}
+          cd ..
+          rm -rf ${{ env.MIOPEN_PATH }}
 
 
 

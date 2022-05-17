@@ -965,25 +965,24 @@ struct find_contiguous
     }
 };
 
-
 struct find_contiguous_pointwise
 {
-    auto matcher() const { 
-        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise"))); 
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins  = r.result;
-        auto pw = ins->inputs().front();
-        auto alloc = ins->inputs().back();
-        auto args = pw->inputs();
+        auto ins    = r.result;
+        auto pw     = ins->inputs().front();
+        auto alloc  = ins->inputs().back();
+        auto args   = pw->inputs();
         args.back() = alloc;
 
         m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
     }
 };
-
 
 void fuse_ops::apply(module& m) const
 {

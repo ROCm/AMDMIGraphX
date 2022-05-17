@@ -15,6 +15,7 @@ jobs:
       - name: Clone & Push database to git
         run: |
           git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git ${{ env.MIOPEN_PATH }}
+          pwd
   check_image_version:
     name: Check Image Version
     runs-on: ubuntu-latest
@@ -51,27 +52,28 @@ jobs:
     needs: [check_image_version, check_database]
     if: ${{ needs.check_image.outputs.image == 'true' }} && ${{needs.check_database.outputs.database == 'true' }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v1
-        with:
-          submodules: recursive
-          token: ${{ secrets.GH_SUB_TOKEN }}
-      - name: Perform tuning database
-        env:
-          MIOPEN_FIND_ENFORCE: 3
-        run: >
-          docker run -e TZ=America/Chicago
-          -e TARGET=gpu
-          --device=/dev/dri
-          --device=/dev/kfd
-          --network=host
-          --group-add=video 
-          -v /home/htec/jz:/data
-          --workdir /data/source/rocm-migraphx/scripts/
-          rocm-migraphx:5.1 /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
+      # - name: Checkout code
+      #   uses: actions/checkout@v1
+      #   with:
+      #     submodules: recursive
+      #     token: ${{ secrets.GH_SUB_TOKEN }}
+      # - name: Perform tuning database
+      #   env:
+      #     MIOPEN_FIND_ENFORCE: 3
+      #   run: >
+      #     docker run -e TZ=America/Chicago
+      #     -e TARGET=gpu
+      #     --device=/dev/dri
+      #     --device=/dev/kfd
+      #     --network=host
+      #     --group-add=video 
+      #     -v /home/htec/jz:/data
+      #     --workdir /data/source/rocm-migraphx/scripts/
+      #     rocm-migraphx:5.1 /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
 
       - name: Clone & Push database to git
         run: |
+          pwd
           cd ${{ env.MIOPEN_PATH }}
           mkdir -p ${{env.ROCM_VERSION}}
           cp -r /home/htec/jz/database ${{env.ROCM_VERSION}}

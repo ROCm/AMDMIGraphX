@@ -7,55 +7,29 @@
 namespace migraphx {
 
 template <class T, class U>
-struct transposectx_settings
-{
-    T head_size{};
-    U reversed_bs{};
-};
-
-template <class... Ts>
-constexpr transposectx_settings<Ts...> make_transposectx_settings(Ts... xs)
-{
-    return {xs...};
-}
-
-template <class T, class U, class Settings>
-__device__ void transposectx(const T& input_t, const U& output_t, Settings st)
+__device__ void transposectx(const T& input_t, const U& output_t)
 {
     // Input:  BxNxSxH
     // Output: BxSxNxH
+    auto index = make_index();
+    auto input_shape = input_t.get_shape();
+    auto lens = input_shape.lens;
+    const int num_heads = lens[1];
+    const int sequence_length = lens[2];
+    int head_size   = lens[3];
 
-    auto head_size   = st.head_size;
-    auto reversed_bs = st.reversed_bs;
+    auto idx = input_shape.multi(index.global);
 
-    int n = threadIdx.y;
-    int s = blockIdx.x;
-    int b = blockIdx.y;
-
-    int num_heads       = blockDim.y;
-    int sequence_length = gridDim.x;
+    int n = idx[1];
+    int s = idx[2];
+    int b = idx[0];
 
     const int NH        = num_heads * head_size;
     const int NHS       = NH * sequence_length;
-    const int in_offset = s * head_size + n * sequence_length * head_size + b * NHS;
+    const int out_offset = n * head_size + s * NH + b * NHS;
 
-    int out_offset = 0;
-    if(reversed_bs)
-    {
-        const int batch_size = gridDim.y;
-        const int BNH        = NH * batch_size;
-        out_offset           = n * head_size + b * NH + s * BNH;
-    }
-    else
-    {
-        out_offset = n * head_size + s * NH + b * NHS;
-    }
-
-    const int i = threadIdx.x;
-    if(i < head_size)
-    {
-        output_t[out_offset + i] = input_t[in_offset + i];
-    }
+    if (index.local < 1024)
+        output_t[out_offset + idx[3]] = input_t[index.global];
 }
 
 } // namespace migraphx

@@ -20,15 +20,6 @@ namespace op {
 
 struct transposeqkv
 {
-    int head_size    = 64;
-    bool reversed_bs = false;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.head_size, "head_size"), f(self.reversed_bs, "reversed_bs"));
-    }
-
     std::string name() const { return "transposeqkv"; }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -42,14 +33,34 @@ struct transposeqkv
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        // Input:  BxSxKxNxH or SxBxKxNxH
+        // Input:  BxSxKxNxH 
         // Output: KxBxNxSxH
         // K is the number of identical matrix
+
+        auto in_s = args.front().get_shape();
+        auto lens = in_s.lens();
         argument result{output_shape};
         visit_all(result, args.front())([&](auto output, const auto input) {
             par_for(output_shape.elements(), [&](auto i) {
-                // TODO: calculate in_offet and out_offset
-                output[i] = input[i];
+                auto idx = in_s.multi(i);
+
+                const int b = idx.front();
+                const int s = idx.at(1);
+                const int m = idx.at(2);
+                const int n = idx.at(3);
+                const int j = idx.back();
+
+                const int num_heads = lens[3];
+
+                const int sequence_length = lens[1];
+                const int batch_size = lens[0];
+                const int H = lens.back();
+                const int NH = num_heads * H;
+                const int NHS = NH * sequence_length;
+
+                const int out_offset = s * H + n * sequence_length * H + b * NHS + m * NHS * batch_size;
+
+                output[out_offset + j] = input[i];
             });
         });
 

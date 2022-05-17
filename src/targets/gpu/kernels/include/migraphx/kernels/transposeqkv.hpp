@@ -7,57 +7,36 @@
 namespace migraphx {
 
 template <class T, class U>
-struct transposeqkv_settings
-{
-    T head_size{};
-    U reversed_bs{};
-};
-
-template <class... Ts>
-constexpr transposeqkv_settings<Ts...> make_transposeqkv_settings(Ts... xs)
-{
-    return {xs...};
-}
-
-template <class T, class U, class Settings>
-__device__ void transposeqkv(const T& input_t, const U& output_t, Settings st)
+__device__ void transposeqkv(const T& input_t, const U& output_t)
 {
     // Input:  BxSxKxNxH or SxBxKxNxH
     // Output: KxBxNxSxH
     // K is the number of identical matrix
 
-    auto H           = st.head_size;
-    auto reversed_bs = st.reversed_bs;
+    auto index = make_index();
+    auto input_shape = input_t.get_shape();
+    auto lens = input_shape.lens;
 
-    int n = threadIdx.y;
-    int s = blockIdx.x;
-    int b = blockIdx.y;
-    int m = blockIdx.z; // matrix id
+    auto idx = input_shape.multi(index.global);
 
-    const int num_heads = blockDim.y;
+    const int b = idx[0];
+    const int s = idx[1];
+    const int m = idx[2];
+    const int n = idx[3];
+    //const int j = idx[4];
 
-    const int sequence_length = gridDim.x;
-    const int batch_size      = gridDim.y;
-    const int chunk_num       = gridDim.z;
-    const int NH              = num_heads * H;
-    const int NHS             = NH * sequence_length;
+    const int num_heads = lens[3];
+    const int sequence_length = lens[1];
+    const int batch_size = lens[0];
+    const int H = lens[4];
+    const int NH = num_heads * H;
+    const int NHS = NH * sequence_length;
 
-    int in_offset = 0;
-    if(reversed_bs)
-    {
-        const int BNH = NH * batch_size;
-        in_offset     = n * H + (m + b * chunk_num) * NH + s * BNH * chunk_num;
-    }
-    else
-    {
-        in_offset = n * H + (m + s * chunk_num) * NH + b * NHS * chunk_num;
-    }
     const int out_offset = s * H + n * sequence_length * H + b * NHS + m * NHS * batch_size;
 
-    const int i = threadIdx.x;
-    if(i < H)
+    if(index.global < input_shape.elements())
     {
-        output_t[out_offset + i] = input_t[in_offset + i];
+        output_t[out_offset + idx[4]] = input_t[index.global];
     }
 }
 

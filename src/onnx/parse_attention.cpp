@@ -82,31 +82,28 @@ struct parse_attention : op_parser<parse_attention>
         auto gemm_1 = info.add_instruction(
             migraphx::make_op("dot"),
             bias,
-            ones /* info.make_contiguous(mb_bias), info.make_contiguous(ones) */);
+            ones);
         gemm_1 =
             info.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), gemm_1);
 
-        /// ORT: Gemm, note that ROCM assumes col-major, so result(N, M) = 1 * weights x input + 1 x
-        /// B. Assume row-major => results(N, M) = 1 * input x weights + 1 x B ?
+        /// Use row-major => results(N, M) = 1 * input x weights + 1 x B 
         auto input_sq = info.add_instruction(
             migraphx::make_op("reshape", {{"dims", {batch_size * sequence_length, hidden_size}}}),
             input);
         auto gemm_2    = info.add_instruction(migraphx::make_op("dot"), input_sq, weights);
         auto add_gemms = info.add_instruction(migraphx::make_op("add"), gemm_1, gemm_2);
 
-        // LaunchAttentionKernel:
-        //   LaunchTransQkv
+        // LaunchTransQkv
         // input should be BxSx3xNxH => scratch3: 3xBxNxSxH
         add_gemms = info.add_instruction(
             migraphx::make_op("reshape",
                               {{"dims", {batch_size, sequence_length, 3, num_heads, head_size}}}),
             add_gemms);
-        std::vector<std::size_t> qkv_perm{2, 0, 3, 1, 4};
         auto transqkv = info.add_instruction(
-            migraphx::make_op("transposeqkv", {{"head_size", head_size}}), add_gemms);
+            migraphx::make_op("transposeqkv"), add_gemms);
 
-        // now scratch3 has Q, K, V: each has size BxNxSxH
-        // => transqkv has shape 3xBxNxSxH
+        // transqkv has shape 3xBxNxSxH
+        // => Q, K, V: each has size BxNxSxH
         auto batches        = batch_size * num_heads;
         auto size_per_batch = sequence_length * head_size;
         auto total_size     = batches * size_per_batch;
@@ -158,12 +155,11 @@ struct parse_attention : op_parser<parse_attention>
         // Inference mask is all 1s => masking can be skipped
         auto softmax = info.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), gemm3);
 
-        // compute P*V (as V*P), and store in scratch3: BxNxSxH
+        // compute P*V 
         auto gemm4 = info.add_instruction(migraphx::make_op("dot"), softmax, v_t);
 
-        // scratch3 is BxNxSxH, transpose to output BxSxNxH
-        gemm4 = info.add_instruction(migraphx::make_op("transposectx", {{"head_size", head_size}}),
-                                     gemm4);
+        // result is BxNxSxH, transpose to BxSxNxH and reshape to BxSxN*H
+        gemm4 = info.add_instruction(migraphx::make_op("transposectx"), gemm4);
         gemm4 = info.add_instruction(
             make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
             info.make_contiguous(gemm4));

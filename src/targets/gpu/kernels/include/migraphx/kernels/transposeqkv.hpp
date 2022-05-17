@@ -23,7 +23,6 @@ __device__ void transposeqkv(const T& input_t, const U& output_t)
     const int s = idx[1];
     const int m = idx[2];
     const int n = idx[3];
-    // const int j = idx[4];
 
     const int num_heads       = lens[3];
     const int sequence_length = lens[1];

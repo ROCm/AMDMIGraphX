@@ -28,7 +28,7 @@ __device__ void transposectx(const T& input_t, const U& output_t)
     const int NHS        = NH * sequence_length;
     const int out_offset = n * head_size + s * NH + b * NHS;
 
-    if(index.local < 1024)
+    if(index.global < input_shape.elements())
         output_t[out_offset + idx[3]] = input_t[index.global];
 }
 

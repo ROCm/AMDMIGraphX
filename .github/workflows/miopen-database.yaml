@@ -45,7 +45,9 @@ jobs:
             echo "::set-output name=database::true"
           fi
       - name: test step
-        run: echo "Value of database is ${{ steps.check_database.outputs.database }}"
+        run: |
+          ls $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
+          echo "Value of database is ${{ steps.check_database.outputs.database }}"
   create_database:
     name: Create MIOpen Database
     runs-on: r3

@@ -10,7 +10,7 @@ env:
   
 jobs:
   checkout_miopen:
-    runs-on: self-hosted
+    runs-on: r1
     steps:
       - name: Clone & Push database to git
         run: |
@@ -47,7 +47,7 @@ jobs:
         run: echo "Value of database is ${{ steps.check_database.outputs.database }}"
   create_database:
     name: Create MIOpen Database
-    runs-on: self-hosted
+    runs-on: r1
     needs: [check_image_version, check_database]
     if: ${{ needs.check_image.outputs.image == 'true' }} && ${{needs.check_database.outputs.database == 'true' }}
     steps:

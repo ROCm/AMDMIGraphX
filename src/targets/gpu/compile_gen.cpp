@@ -30,7 +30,7 @@ vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs
                        auto len    = input.lens()[axis];
                        if(stride != 0 and stride != 1)
                            return 1;
-                       if(len == 1)
+                       if(len == 1 and input.elements() > sizes.front())
                            return sizes.front();
                        auto it = std::find_if(
                            sizes.begin(), sizes.end(), [&](auto i) { return (len % i) == 0; });

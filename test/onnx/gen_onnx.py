@@ -8,6 +8,7 @@ from onnx import TensorProto
 
 
 def onnx_test(op_test):
+
     def run_test():
         op_info = op_test()
         if len(op_info) > 3:
@@ -5441,7 +5442,7 @@ def sum_type_test():
              node], [], [y], [
                  t_bool, t_int8, t_uint8, t_uint16, t_uint32, t_uint64,
                  t_double, t_raw
-    ])
+             ])
 
 
 @onnx_test

@@ -19,7 +19,7 @@ rocblas_handle create_rocblas_handle_ptr(migraphx::context& ctx)
 {
     MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
     rocblas_handle rb = create_rocblas_handle_ptr();
-    auto* stream = ctx.get_queue<hipStream_t>();
+    auto* stream      = ctx.get_queue<hipStream_t>();
     MIGRAPHX_ROCBLAS_ASSERT(rocblas_set_stream(rb, stream));
     return rb;
 }
@@ -33,9 +33,9 @@ struct sscal_custom_op final : migraphx::experimental_custom_op_base
     {
         // create MIOpen stream handle
         auto rocblas_handle = create_rocblas_handle_ptr(ctx);
-        rocblas_int n = args[1].get_shape().lengths()[0];
-        float* alpha = reinterpret_cast<float*>(args[0].data());
-        float* vec_ptr = reinterpret_cast<float*>(args[1].data());
+        rocblas_int n       = args[1].get_shape().lengths()[0];
+        float* alpha        = reinterpret_cast<float*>(args[0].data());
+        float* vec_ptr      = reinterpret_cast<float*>(args[1].data());
         // make miopen activation descriptor
         MIGRAPHX_ROCBLAS_ASSERT(rocblas_sscal(rocblas_handle, n, alpha, vec_ptr, 1));
         return args[1];
@@ -61,11 +61,12 @@ int main(int argc, const char* argv[])
     migraphx::shape scale_shape{migraphx_shape_float_type, {1}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", x_shape);
-    auto scale = m.add_parameter("scale", scale_shape);
+    auto scale         = m.add_parameter("scale", scale_shape);
     auto neg_ins       = m.add_instruction(migraphx::operation("neg"), {x});
     // do allocation for the output buffer for the custom_kernel
-    auto custom_kernel = m.add_instruction(migraphx::operation("sscal_custom_op"), {scale, neg_ins});
-    auto relu_ins      = m.add_instruction(migraphx::operation("relu"), {custom_kernel});
+    auto custom_kernel =
+        m.add_instruction(migraphx::operation("sscal_custom_op"), {scale, neg_ins});
+    auto relu_ins = m.add_instruction(migraphx::operation("relu"), {custom_kernel});
     m.add_return({relu_ins});
 
     migraphx::compile_options options;

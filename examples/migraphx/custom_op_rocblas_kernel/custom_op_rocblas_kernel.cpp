@@ -31,12 +31,11 @@ struct sscal_custom_op final : migraphx::experimental_custom_op_base
                                        migraphx::shape output_shape,
                                        migraphx::arguments args) const override
     {
-        // create MIOpen stream handle
+        // create rocblas stream handle
         auto rocblas_handle = create_rocblas_handle_ptr(ctx);
         rocblas_int n       = args[1].get_shape().lengths()[0];
         float* alpha        = reinterpret_cast<float*>(args[0].data());
         float* vec_ptr      = reinterpret_cast<float*>(args[1].data());
-        // make miopen activation descriptor
         MIGRAPHX_ROCBLAS_ASSERT(rocblas_sscal(rocblas_handle, n, alpha, vec_ptr, 1));
         return args[1];
     }
@@ -63,7 +62,6 @@ int main(int argc, const char* argv[])
     auto x             = m.add_parameter("x", x_shape);
     auto scale         = m.add_parameter("scale", scale_shape);
     auto neg_ins       = m.add_instruction(migraphx::operation("neg"), {x});
-    // do allocation for the output buffer for the custom_kernel
     auto custom_kernel =
         m.add_instruction(migraphx::operation("sscal_custom_op"), {scale, neg_ins});
     auto relu_ins = m.add_instruction(migraphx::operation("relu"), {custom_kernel});

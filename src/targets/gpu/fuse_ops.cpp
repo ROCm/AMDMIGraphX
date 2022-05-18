@@ -975,15 +975,8 @@ struct find_gemm_pointwise
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
 
-        auto copy_ins = c_ins;
-
-        // Insert copy
-        if(ins == m.end() or c_ins->outputs().size() > 1 or c_ins->inputs().empty())
-        {
-            copy_ins = m.insert_instruction(ins, hip_copy{}, c_ins, ins->inputs().back());
-        }
-        inputs.push_back(copy_ins);
-        inputs.push_back(copy_ins);
+        inputs.push_back(c_ins);
+        inputs.push_back(gemm_ins->inputs().back());
 
         gemm.beta = 1;
         m.replace_instruction(ins, gemm, inputs);

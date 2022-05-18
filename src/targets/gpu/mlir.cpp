@@ -403,8 +403,9 @@ struct mlir_program
         mlirRegionAppendOwnedBlock(region.get(), fbody.release());
 
         auto ops = create_operation_state("func.func");
-        ops.add_attributes(
-            {{"function_type", make_function_type(inputs, outputs)}, {"sym_name", std::string("main")}, {"kernel", std::string("mixr")}});
+        ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
+                            {"sym_name", std::string("main")},
+                            {"kernel", std::string("mixr")}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 

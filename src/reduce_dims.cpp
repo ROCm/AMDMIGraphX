@@ -37,8 +37,9 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
 
 void reduce_dim1(std::vector<shape>& shapes)
 {
-    if(std::any_of(
-           shapes.begin(), shapes.end(), [&](const auto& s) { return s.lens().size() < 2 or s.lens().back() != 1; }))
+    if(std::any_of(shapes.begin(), shapes.end(), [&](const auto& s) {
+           return s.lens().size() < 2 or s.lens().back() != 1;
+       }))
         return;
     for(auto& s : shapes)
     {

@@ -125,6 +125,13 @@ TEST_CASE(non_packed_empty2)
     EXPECT(eshapes == rshapes);
 }
 
+TEST_CASE(single_dim)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({1}, {1})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
+}
+
 TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});

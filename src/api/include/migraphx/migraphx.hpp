@@ -314,6 +314,7 @@ struct interface_base : Base
                 T** y = reinterpret_cast<T**>(out);
                 T* x  = reinterpret_cast<T*>(input);
                 assert(x != nullptr and y != nullptr and *y == nullptr);
+                // cppcheck-suppress useSmartPointer
                 *y = new T(*x); // NOLINT
             });
         };
@@ -339,6 +340,7 @@ struct interface_base : Base
     template <class T, class Setter, class F>
     void set_auto_fp(Setter setter, F f)
     {
+        // cppcheck-suppress constParameter
         return set_fp<T>(setter, [=](T& obj, auto out, auto... xs) {
             auto_invoke(f, out, obj, auto_convert_param(rank<2>{}, xs)...);
         });
@@ -758,6 +760,15 @@ struct module
              args.get_handle_ptr(),
              module_args.get_handle_ptr());
         return instruction(op_ins, own{});
+    }
+
+    template <typename T>
+    instruction add_literal(const migraphx::shape& s, T* buffer)
+    {
+        migraphx_instruction_t literal_ins;
+        const auto* buffer_ptr = reinterpret_cast<const char*>(buffer);
+        call(&migraphx_module_add_literal, &literal_ins, mm.get(), s.get_handle_ptr(), buffer_ptr);
+        return instruction(literal_ins, own{});
     }
 
     instruction add_parameter(const std::string& name, shape s)

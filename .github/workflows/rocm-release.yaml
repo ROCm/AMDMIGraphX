@@ -1,6 +1,9 @@
 on:
-  push:
-    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      git-ref:
+        description: Git Ref (Mandatory)
+        required: true
 
 name: ROCM release
 

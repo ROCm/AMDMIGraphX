@@ -417,7 +417,7 @@ struct mlir_program
     static std::string get_name(instruction_ref ins)
     {
         if(ins->name() == "@return")
-            return "std.return";
+            return "func.return";
         return "migraphx." + ins->name();
     }
 

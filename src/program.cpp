@@ -907,19 +907,16 @@ void program::perf_report(std::ostream& os,
     print_title(os, max_ins_len);
 
     this->print(names, [&](auto ins, auto ins_names) {
-        std::stringstream ss;
-        instruction::print(ss, ins, ins_names);
-        os << ss.str();
+        instruction::print(std::cout, ins, ins_names);
 
         // skip return instruction
         if(ins->name() == "@return")
             return;
 
-        // insert space to align
-        print_space(os, max_ins_len - ss.str().length());
-        os << "\t";
-        double avg = common_average(ins_vec[ins]);
-        print_ins_perf(os, titles, ins, avg, total_instruction_time);
+        double avg     = common_average(ins_vec[ins]);
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        os << ": " << avg << "ms, " << percent << "%";
+        os << std::endl;
     });
 
     os << std::endl;

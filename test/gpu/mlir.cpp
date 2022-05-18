@@ -12,6 +12,8 @@
 
 using migraphx::trim;
 
+// m test_gpu_mlir && ./bin/test_gpu_mlir
+
 std::string encode(std::string s)
 {
     std::stringstream ss;

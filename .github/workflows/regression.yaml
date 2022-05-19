@@ -58,5 +58,4 @@ jobs:
           rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
       - name: Execute report script
         run: >
-            --workdir /data/source/rocm-migraphx/scripts/
-            /bin/bash python3 report.py -t "/home/htec/jz/source/rocm-migraphx/test-results/" -r "/home/htec/jz/source/rocm-migraphx/reports/" 
+            /bin/bash python3 /data/source/rocm-migraphx/scripts/report.py -t "/home/htec/jz/source/rocm-migraphx/test-results/" -r "/home/htec/jz/source/rocm-migraphx/reports/" 

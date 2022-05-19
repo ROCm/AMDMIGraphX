@@ -60,4 +60,12 @@ jobs:
         run: >
             python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py 
             -t "/home/htec/jz/source/rocm-migraphx/test-results/" 
-            -r "/home/htec/jz/source/rocm-migraphx/reports/" 
+            -r "/home/htec/jz/source/rocm-migraphx/reports/"
+      - name: Push report
+        run: | 
+            cd "/home/htec/jz/source/rocm-migraphx/reports/"
+            git add .
+            git config --local user.email github-actions
+            git config --local user.name github-actions@github.com
+            git commit -m "Push report" -a
+            git push

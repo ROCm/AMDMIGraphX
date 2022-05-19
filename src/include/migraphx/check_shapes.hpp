@@ -100,7 +100,7 @@ struct check_shapes
         assert(end != nullptr);
         if(begin != end)
         {
-            if(begin->lens().size() < n)
+            if(begin->max_lens().size() < n)
                 MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
                                " dimensions");
         }
@@ -123,14 +123,14 @@ struct check_shapes
 
     const check_shapes& same_dims() const
     {
-        if(!this->same([](const shape& s) { return s.lens(); }))
+        if(!this->same([](const shape& s) { return s.max_lens(); }))
             MIGRAPHX_THROW(prefix() + "Dimensions do not match");
         return *this;
     }
 
     const check_shapes& same_ndims() const
     {
-        if(!this->same([](const shape& s) { return s.lens().size(); }))
+        if(!this->same([](const shape& s) { return s.max_lens().size(); }))
             MIGRAPHX_THROW(prefix() + "Number of dimensions do not match");
         return *this;
     }

@@ -127,21 +127,22 @@ auto tune_pad_attribute(const value& val)
     return result;
 }
 
-bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
+bool normalize_attributes(operation& op, const shape& s)
 {
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
+        auto num_dims = s.max_lens().size();
         auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
         auto padding_size = padding.size();
         // for now, assume the dimensions to pad start at dim 2
         auto padding_start = 2;
 
-        if(padding_size == 2 * (lens.size() - padding_start))
+        if(padding_size == 2 * (num_dims - padding_start))
             tuned = true;
-        else if(padding_size != (lens.size() - padding_start))
+        else if(padding_size != (num_dims - padding_start))
             MIGRAPHX_THROW("inconsistent padding size");
         else
         {
@@ -171,7 +172,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
                     axes = val.at("axes").without_key().to_vector<int64_t>();
                 }
                 auto vec    = vv.to_vector<int64_t>();
-                auto result = tune_attribute(vec, axes, rv.without_key(), lens);
+                auto result = tune_attribute(vec, axes, rv.without_key(),s.lens());
                 val[key]    = result;
                 op.from_value(val);
                 val   = op.to_value();
@@ -180,7 +181,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             else
             {
                 auto num    = vv.to<int64_t>();
-                auto result = tune_attribute({num}, {num}, rv.without_key(), lens);
+                auto result = tune_attribute({num}, {num}, rv.without_key(), s.lens());
                 val[key]    = result.front();
                 op.from_value(val);
                 val   = op.to_value();

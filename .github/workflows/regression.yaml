@@ -65,7 +65,5 @@ jobs:
         run: | 
             cd "/home/htec/jz/source/rocm-migraphx/reports/"
             git add .
-            git config --local user.email github-actions
-            git config --local user.name github-actions@github.com
             git commit -m "Push report" -a
             git push

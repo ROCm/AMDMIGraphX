@@ -967,11 +967,6 @@ struct find_gemm_pointwise
         if(not float_equal(gemm.beta, 0))
             return;
 
-        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-               return not i->get_shape().standard();
-           }))
-            return;
-
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
 

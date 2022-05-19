@@ -62,7 +62,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.params         = "-Wno-float-equal";
         auto axis              = find_fast_axis(options.virtual_inputs);
         auto vec               = vectorize::elements(axis, options.virtual_inputs);
-        auto preloads          = preload::broadcasts(axis, inputs);
+        auto preloads          = preload::broadcasts(axis, options.virtual_inputs);
         options.set_launch_params(
             v,
             compute_global_for(ctx,

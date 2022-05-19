@@ -69,9 +69,9 @@ static bool try_compute_shape(instruction_ref ins,
     return try_compute_shape(ins, inputs, mods);
 }
 
-void eliminate_contiguous::apply(module& p) const
+void eliminate_contiguous::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         // return instruction should have inputs with standard shape
         if(ins->name() == "@return")
@@ -96,8 +96,8 @@ void eliminate_contiguous::apply(module& p) const
                     auto c = op::contiguous{};
                     auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
 
-                    auto l = p.add_literal(r.get_shape(), r.data());
-                    p.replace_instruction(arg, l);
+                    auto l = m.add_literal(r.get_shape(), r.data());
+                    m.replace_instruction(arg, l);
                 }
             }
         }

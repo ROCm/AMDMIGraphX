@@ -253,7 +253,7 @@ TEST_CASE(compile_pointwise)
         "pointwise",
         ctx,
         {input, input},
-        {{"lambda", "[](auto x) { return x + 1; }"}, {"op_names", {"add"}}});
+        {{"lambda", "[](auto x) { return x + 1; }"}});
 
     migraphx::program p;
     auto* mm            = p.get_main_module();

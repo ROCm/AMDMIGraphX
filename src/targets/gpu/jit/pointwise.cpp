@@ -27,7 +27,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void ${op_names}(${params}) 
+__global__ void ${kernel}(${params}) 
 {
     auto idx = make_index();
     pointwise(idx, auto_preload<${preloads}>(idx), vectorize<${vec_size}, ${axis}>())(${lambda}, ${args});
@@ -143,19 +143,13 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto preloads          = preload(axis, options.virtual_inputs);
         auto is_preloading =
             std::accumulate(preloads.begin(), preloads.end(), false, std::logical_or<>{});
-        auto op_names              = v.at("op_names").to_vector<std::string>();
-        std::string op_name_string = join_strings(op_names, "_");
-        if(op_name_string.empty())
-            op_name_string = "kernel";
-        else
-            op_name_string += "_kernel";
-        options.kernel_name = op_name_string;
+        options.kernel_name = v.get("kernel", "kernel");
         options.set_launch_params(v,
                                   compute_global_for(ctx,
                                                      options.output.elements() / vec_size,
                                                      oversubscribe_if(not is_preloading)));
         auto src = interpolate_string(pointwise_kernel,
-                                      {{"op_names", op_name_string},
+                                      {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"lambda", v.at("lambda").to<std::string>()},
@@ -188,10 +182,12 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
         std::string lambda = "MIGRAPHX_LIFT(" + name + ")";
         auto op_names      = get_op_names(*pm);
+        op_names.push_back("kernel");
+        auto op_name_string = join_strings(op_names, "_");
         return replace(
             compile_op(ctx,
                        to_shapes(ins->inputs()),
-                       {{"lambda", lambda}, {"preamble", g.str()}, {"op_names", op_names}}));
+                       {{"lambda", lambda}, {"preamble", g.str()}, {"kernel", op_name_string}}));
     }
 };
 } // namespace gpu

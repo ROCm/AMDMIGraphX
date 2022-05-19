@@ -311,7 +311,7 @@ TEST_CASE(insert_instructions_range)
 
     m1.add_instructions(sqrt2, m2.end(), {{x2, x1}});
     EXPECT(std::any_of(
-        m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
+        m1.begin(), m1.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
 
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
            2);
@@ -334,7 +334,7 @@ TEST_CASE(insert_instructions_vector)
 
     m1.add_instructions({sqrt2}, {{x2, x1}});
     EXPECT(std::any_of(
-        m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
+        m1.begin(), m1.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
 
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
            2);

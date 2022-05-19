@@ -20,7 +20,7 @@ void normalize_ops::apply(module& m) const
         if(inputs.empty())
             continue;
 
-        auto s                    = inputs[0]->get_shape();
+        auto s                       = inputs[0]->get_shape();
         migraphx::operation tuned_op = ins->get_operator();
         if(normalize_attributes(tuned_op, s))
         {

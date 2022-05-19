@@ -855,7 +855,8 @@ TEST_CASE(conv_dynamic_batch_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape input_shape{migraphx::shape::float_type, {{1, 100, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}};
+    migraphx::shape input_shape{migraphx::shape::float_type,
+                                {{1, 100, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}};
     migraphx::shape weights_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
 
     auto input   = mm->add_parameter("X", input_shape);

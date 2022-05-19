@@ -134,7 +134,7 @@ bool normalize_attributes(operation& op, const shape& s)
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
-        auto num_dims = s.max_lens().size();
+        auto num_dims     = s.max_lens().size();
         auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
         auto padding_size = padding.size();
         // for now, assume the dimensions to pad start at dim 2
@@ -172,7 +172,7 @@ bool normalize_attributes(operation& op, const shape& s)
                     axes = val.at("axes").without_key().to_vector<int64_t>();
                 }
                 auto vec    = vv.to_vector<int64_t>();
-                auto result = tune_attribute(vec, axes, rv.without_key(),s.lens());
+                auto result = tune_attribute(vec, axes, rv.without_key(), s.lens());
                 val[key]    = result;
                 op.from_value(val);
                 val   = op.to_value();

@@ -68,7 +68,7 @@ struct convolution
         {
             MIGRAPHX_THROW("CONVOLUTION: dynamic weights not supported");
         }
-        const size_t num_spatial_dims         = input_size - 2;
+        const size_t num_spatial_dims = input_size - 2;
         if(num_spatial_dims != this->kdims())
         {
             MIGRAPHX_THROW("CONVOLUTION: input k-dims does not match attribute size");
@@ -76,40 +76,40 @@ struct convolution
 
         if(!input.dynamic() and input.lens().at(1) != (weights.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
-        
-        auto calc_output_lens = [this, &weights, &num_spatial_dims, &padding_size](std::vector<std::size_t> lens)
-        {
-            std::vector<size_t> ret = {};
-            // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
-            for(size_t i = 0; i < num_spatial_dims; i++)
-            {
-                auto padding_factor = 2 * padding[i];
-                if(padding_size == 2 * num_spatial_dims)
+
+        auto calc_output_lens =
+            [this, &weights, &num_spatial_dims, &padding_size](std::vector<std::size_t> lens) {
+                std::vector<size_t> ret = {};
+                // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
+                for(size_t i = 0; i < num_spatial_dims; i++)
                 {
-                    // when padding is {x0_begin, x1_begin, ... x0_end , x1_end, ...}
-                    padding_factor = padding[i] + padding[i + num_spatial_dims];
+                    auto padding_factor = 2 * padding[i];
+                    if(padding_size == 2 * num_spatial_dims)
+                    {
+                        // when padding is {x0_begin, x1_begin, ... x0_end , x1_end, ...}
+                        padding_factor = padding[i] + padding[i + num_spatial_dims];
+                    }
+                    ret.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        (lens[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                         padding_factor) /
+                                stride[i] +
+                            1)));
                 }
-                ret.push_back(
-                    std::size_t(
-                        std::max<std::ptrdiff_t>(
-                            1,
-                            (lens[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) + padding_factor) / stride[i] + 1
-                        )
-                    )
-                );
-            }
-            return ret;
-        };
+                return ret;
+            };
 
         if(input.dynamic())
         {
-            std::vector<shape::dynamic_dimension> output_dyn_dims = {input.dyn_dims().at(0), input.dyn_dims().at(1)};
+            std::vector<shape::dynamic_dimension> output_dyn_dims = {input.dyn_dims().at(0),
+                                                                     input.dyn_dims().at(1)};
             auto min_spatial_dims = calc_output_lens(input.min_lens());
             auto max_spatial_dims = calc_output_lens(input.max_lens());
             auto opt_spatial_dims = calc_output_lens(input.opt_lens());
-            for (size_t i = 0; i < num_spatial_dims; ++i)
+            for(size_t i = 0; i < num_spatial_dims; ++i)
             {
-                output_dyn_dims.push_back(shape::dynamic_dimension{min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
+                output_dyn_dims.push_back(shape::dynamic_dimension{
+                    min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
             }
             return shape{input.type(), output_dyn_dims};
         }
@@ -117,7 +117,9 @@ struct convolution
         {
             std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
             auto spatial_lens = calc_output_lens(input.lens());
-            std::for_each(spatial_lens.begin(), spatial_lens.end(), [&output_lens](auto x){ output_lens.push_back(x); });
+            std::for_each(spatial_lens.begin(), spatial_lens.end(), [&output_lens](auto x) {
+                output_lens.push_back(x);
+            });
             return inputs[0].with_lens(output_lens);
         }
     }

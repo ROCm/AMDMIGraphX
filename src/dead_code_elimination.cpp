@@ -45,8 +45,8 @@ void dead_code_elimination::apply(module& m) const
         if(i == last)
             break;
         // Skip instruction with empty shape as output unless its a builtin or undefined or identity
-        if((not i->get_shape().dynamic() and i->get_shape().elements() == 0) and i->name().front() != '@' and
-           i->name() != "undefined" and i->name() != "identity")
+        if((not i->get_shape().dynamic() and i->get_shape().elements() == 0) and
+           i->name().front() != '@' and i->name() != "undefined" and i->name() != "identity")
             continue;
         assert(bidistance(m, i, last) > 0);
         fix([&](auto self, auto leaf) {

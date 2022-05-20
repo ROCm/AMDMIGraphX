@@ -100,11 +100,12 @@ struct parse_attention : op_parser<parse_attention>
         auto gemm4 = info.add_instruction(migraphx::make_op("dot"), softmax, v_t);
 
         // result is BxNxSxH, transpose to BxSxNxH and reshape to BxSxHiddenSize
+        // transposeCtx
         gemm4 = info.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm4);
         return info.add_instruction(
             make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
-            gemm4);
+            info.make_contiguous(gemm4));
     }
 };
 

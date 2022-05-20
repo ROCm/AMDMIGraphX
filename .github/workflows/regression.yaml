@@ -61,6 +61,24 @@ jobs:
             python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py 
             -t "/home/htec/jz/source/rocm-migraphx/test-results/" 
             -r "/home/htec/jz/source/rocm-migraphx/reports/"
+      - name: Run comment script
+        run: |
+            python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/" | tee comment.txt
+      - name: Get comment from file
+        id: comment
+        run: |
+          body="$(cat comment.txt)"
+          body="${body//'%'/'%25'}"
+          body="${body//$'\n'/'%0A'}"
+          body="${body//$'\r'/'%0D'}"
+          echo "::set-output name=body::$body"
+      - name: Create comment
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: 1
+          body: ${{ steps.comment.outputs.body}}
+
+            
       #- name: Push report
       #  run: | 
       #      cd "/home/htec/jz/source/rocm-migraphx/reports/"

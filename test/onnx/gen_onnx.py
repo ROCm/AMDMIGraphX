@@ -204,7 +204,6 @@ def attention_test():
                             inputs=['input', 'weights', 'bias', 'mask_index'],
                             outputs=['result'],
                             num_heads=12,
-                            
                             name="Attention_0")
 
     return ([node], [input, weights, bias, mask_index], [result])

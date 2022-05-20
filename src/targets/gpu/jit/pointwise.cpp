@@ -30,7 +30,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void kernel(${params}) 
+__global__ void ${kernel}(${params}) 
 {
     auto idx = make_index();
     pointwise(idx, ${transformers})(${lambda}, ${args});
@@ -41,6 +41,18 @@ __global__ void kernel(${params})
 } // namespace migraphx
 
 )__migraphx__";
+
+static std::vector<std::string> get_op_names(const module& m)
+{
+    std::vector<std::string> result;
+    for(auto& ins : m)
+    {
+        if(starts_with(ins.name(), "@"))
+            continue;
+        result.push_back(ins.name());
+    }
+    return result;
+}
 
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
@@ -53,17 +65,6 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         else
             return 1;
     }
-    static std::size_t compute_local(gen::vectorize v, const std::vector<shape>& inputs)
-    {
-        const std::size_t max_local = 1024;
-        if(std::none_of(inputs.begin(), inputs.end(), [&](auto s) { return s.transposed(); }))
-            return max_local;
-        if(std::any_of(inputs.begin(), inputs.end(), [&](auto s) {
-               return s.broadcasted() or s.strides()[v.axis] != 1;
-           }))
-            return max_local;
-        return inputs.front().lens()[v.axis] / v.size;
-    }
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
@@ -72,16 +73,18 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.virtual_inputs = reduce_dims(inputs);
         options.params         = "-Wno-float-equal";
         auto axis              = find_fast_axis(options.virtual_inputs);
-        auto vec               = vectorize::elements(axis, options.virtual_inputs);
-        auto preloads          = preload::broadcasts(axis, options.virtual_inputs);
-        options.set_launch_params(
-            v,
-            compute_global_for(ctx,
-                               options.output.elements() / vec.size,
-                               oversubscribe_if(not preloads.is_preloading())),
-            compute_local(vec, options.virtual_inputs));
+        auto vec_size          = vectorize_elements(axis, options.virtual_inputs);
+        auto preloads          = preload(axis, options.virtual_inputs);
+        auto is_preloading =
+            std::accumulate(preloads.begin(), preloads.end(), false, std::logical_or<>{});
+        options.kernel_name = v.get("kernel", "kernel");
+        options.set_launch_params(v,
+                                  compute_global_for(ctx,
+                                                     options.output.elements() / vec_size,
+                                                     oversubscribe_if(not is_preloading)));
         auto src = interpolate_string(pointwise_kernel,
-                                      {{"params", enum_params(inputs.size(), "void * private_p")},
+                                      {{"kernel", options.kernel_name},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"lambda", v.at("lambda").to<std::string>()},
                                        {"transformers", make_transformer_args(preloads, vec)},
@@ -94,7 +97,9 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         if(op.name() == "contiguous")
         {
             return replace(compile_op(
-                ctx, to_shapes(ins->inputs()), {{"lambda", "[](auto x) { return x; }"}}));
+                ctx,
+                to_shapes(ins->inputs()),
+                {{"lambda", "[](auto x) { return x; }"}, {"kernel", "contiguous_kernel"}}));
         }
         else
         {
@@ -118,8 +123,13 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             auto name = g.create_function(
                 g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
             std::string lambda = "MIGRAPHX_LIFT(" + name + ")";
+            auto op_names      = get_op_names(*pm);
+            op_names.push_back("kernel");
+            auto op_name_string = join_strings(op_names, "_");
             return replace(compile_op(
-                ctx, to_shapes(ins->inputs()), {{"lambda", lambda}, {"preamble", g.str()}}));
+                ctx,
+                to_shapes(ins->inputs()),
+                {{"lambda", lambda}, {"preamble", g.str()}, {"kernel", op_name_string}}));
         }
     }
 };

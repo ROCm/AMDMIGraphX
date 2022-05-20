@@ -190,12 +190,16 @@ def atanh_test():
 
 @onnx_test
 def attention_test():
-    input = helper.make_tensor_value_info('input', TensorProto.FLOAT, [2, 384, 768])
-    weights = helper.make_tensor_value_info('weights', TensorProto.FLOAT, [768, 2304])
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT,
+                                          [2, 384, 768])
+    weights = helper.make_tensor_value_info('weights', TensorProto.FLOAT,
+                                            [768, 2304])
     bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2304])
-    mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT64, [2, 384])
-    result = helper.make_tensor_value_info('result', TensorProto.FLOAT, [2, 384, 768])
-    
+    mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT64,
+                                               [2, 384])
+    result = helper.make_tensor_value_info('result', TensorProto.FLOAT,
+                                           [2, 384, 768])
+
     node = helper.make_node('Attention',
                             inputs=['input', 'weights', 'bias', 'mask_index'],
                             outputs=['result'],

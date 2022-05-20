@@ -22,9 +22,9 @@ TEST_CASE(attention_test)
     std::vector<float> bias_v(2304, 1);
     std::vector<int64_t> mask_index_v(2 * 384, 1);
     migraphx::parameter_map pp;
-    pp["input"] = migraphx::argument(s_i, input_v.data());
-    pp["weights"] = migraphx::argument(s_w, weights_v.data());
-    pp["bias"] = migraphx::argument(s_b, bias_v.data());
+    pp["input"]      = migraphx::argument(s_i, input_v.data());
+    pp["weights"]    = migraphx::argument(s_w, weights_v.data());
+    pp["bias"]       = migraphx::argument(s_b, bias_v.data());
     pp["mask_index"] = migraphx::argument(s_m, mask_index_v.data());
 
     auto result = p.eval(pp).back();

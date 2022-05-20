@@ -1,6 +1,7 @@
 # This script generates onnx files for MIGraphX onnx operator tests.
 # To generate an individual onnx file, you can use the following
 # command: python -c "import gen_onnx; gen_onnx.{test_name}_test()"
+from audioop import bias
 import numpy as np
 import onnx
 from onnx import helper
@@ -185,6 +186,22 @@ def atanh_test():
     )
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def attention_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT, [2, 384, 768])
+    weights = helper.make_tensor_value_info('weights', TensorProto.FLOAT, [768, 2304])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2304])
+    mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT64, [2, 384])
+    result = helper.make_tensor_value_info('result', TensorProto.FLOAT, [2, 384, 768])
+    
+    node = helper.make_node('Attention',
+                            inputs=['input', 'weights', 'bias', 'mask_index'],
+                            outputs=['result'],
+                            name="Attention_0")
+
+    return ([node], [input, weights, bias, mask_index], [result])
 
 
 @onnx_test

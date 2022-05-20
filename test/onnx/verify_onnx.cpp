@@ -9,6 +9,32 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
+TEST_CASE(attention_test)
+{
+    auto p = migraphx::parse_onnx("attention_test.onnx");
+    p.compile(migraphx::ref::target{});
+    migraphx::shape s_i{migraphx::shape::float_type, {2, 384, 768}};
+    migraphx::shape s_w{migraphx::shape::float_type, {768, 2304}};
+    migraphx::shape s_b{migraphx::shape::float_type, {2304}};
+    migraphx::shape s_m{migraphx::shape::int64_type, {2, 384}};
+    std::vector<float> input_v(2 * 384 * 768, 1);
+    std::vector<float> weights_v(768 * 2304, 1);
+    std::vector<float> bias_v(2304, 1);
+    std::vector<int64_t> mask_index_v(2 * 384, 1);
+    migraphx::parameter_map pp;
+    pp["input"] = migraphx::argument(s_i, input_v.data());
+    pp["weights"] = migraphx::argument(s_w, weights_v.data());
+    pp["bias"] = migraphx::argument(s_b, bias_v.data());
+    pp["mask_index"] = migraphx::argument(s_m, mask_index_v.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold(2 * 384 * 768, 769);
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(averagepool_notset_test)
 {
     auto p = migraphx::parse_onnx("averagepool_notset_test.onnx");

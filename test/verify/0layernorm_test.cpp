@@ -11,7 +11,7 @@ struct test_layernorm : verify_program<test_layernorm>
         auto* mm = p.get_main_module();
         auto x =
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 384, 768}});
-        mm->add_instruction(migraphx::make_op("layernorm", {{"axis", -1}}), x);
+        mm->add_instruction(migraphx::make_op("layernorm", {{"axis", -1}, {"epsilon", 1e-12}}), x);
 
         return p;
     }

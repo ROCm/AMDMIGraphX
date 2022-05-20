@@ -27,7 +27,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void kernel(${params}) 
+__global__ void ${kernel}(${params}) 
 {
     auto idx = make_index();
     pointwise(idx, auto_preload<${preloads}>(idx), vectorize<${vec_size}, ${axis}>())(${lambda}, ${args});
@@ -38,6 +38,18 @@ __global__ void kernel(${params})
 } // namespace migraphx
 
 )__migraphx__";
+
+static std::vector<std::string> get_op_names(const module& m)
+{
+    std::vector<std::string> result;
+    for(auto& ins : m)
+    {
+        if(starts_with(ins.name(), "@"))
+            continue;
+        result.push_back(ins.name());
+    }
+    return result;
+}
 
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
@@ -131,12 +143,14 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto preloads          = preload(axis, options.virtual_inputs);
         auto is_preloading =
             std::accumulate(preloads.begin(), preloads.end(), false, std::logical_or<>{});
+        options.kernel_name = v.get("kernel", "kernel");
         options.set_launch_params(v,
                                   compute_global_for(ctx,
                                                      options.output.elements() / vec_size,
                                                      oversubscribe_if(not is_preloading)));
         auto src = interpolate_string(pointwise_kernel,
-                                      {{"params", enum_params(inputs.size(), "void * private_p")},
+                                      {{"kernel", options.kernel_name},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"lambda", v.at("lambda").to<std::string>()},
                                        {"vec_size", std::to_string(vec_size)},
@@ -167,8 +181,13 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto name = g.create_function(
             g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
         std::string lambda = "MIGRAPHX_LIFT(" + name + ")";
+        auto op_names      = get_op_names(*pm);
+        op_names.push_back("kernel");
+        auto op_name_string = join_strings(op_names, "_");
         return replace(
-            compile_op(ctx, to_shapes(ins->inputs()), {{"lambda", lambda}, {"preamble", g.str()}}));
+            compile_op(ctx,
+                       to_shapes(ins->inputs()),
+                       {{"lambda", lambda}, {"preamble", g.str()}, {"kernel", op_name_string}}));
     }
 };
 } // namespace gpu

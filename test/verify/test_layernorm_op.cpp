@@ -3,15 +3,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_transposectx : verify_program<test_transposectx>
+struct test_layernorm_op : verify_program<test_layernorm_op>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 12, 128, 64}});
-        mm->add_instruction(migraphx::make_op("transposectx"), x);
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 384, 768}});
+        mm->add_instruction(migraphx::make_op("layernorm", {{"axis", -1}, {"epsilon", 1e-12}}), x);
 
         return p;
     }

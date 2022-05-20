@@ -65,7 +65,7 @@ struct parse_attention : op_parser<parse_attention>
             migraphx::make_op("reshape",
                               {{"dims", {batch_size, sequence_length, 3, num_heads, head_size}}}),
             add_gemms);
-        auto transqkv = info.add_instruction(migraphx::make_op("transposeqkv"), add_gemms);
+        auto transqkv = info.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}), add_gemms);
 
         // Q, K, V: each has size BxNxSxH
         auto q_t = info.add_instruction(
@@ -99,7 +99,7 @@ struct parse_attention : op_parser<parse_attention>
         auto gemm4 = info.add_instruction(migraphx::make_op("dot"), softmax, v_t);
 
         // result is BxNxSxH, transpose to BxSxNxH and reshape to BxSxHiddenSize
-        gemm4 = info.add_instruction(migraphx::make_op("transposectx"), gemm4);
+        gemm4 = info.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm4);
         return info.add_instruction(
             make_op("reshape", {{"dims", {batch_size, sequence_length, num_heads * head_size}}}),
             gemm4);

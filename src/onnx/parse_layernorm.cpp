@@ -19,7 +19,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
                           const std::vector<instruction_ref>& args) const
     {
         float epsilon = 1e-3f;
-        int64_t axis = -1;
+        int64_t axis  = -1;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
@@ -29,14 +29,15 @@ struct parse_layernorm : op_parser<parse_layernorm>
             epsilon = parser.parse_value(info.attributes.at("axis")).at<int64_t>();
         }
 
-        auto layernorm = info.add_instruction(make_op("layernorm", {{"epsilon", epsilon}, {"axis", axis}}), args.front());
+        auto layernorm = info.add_instruction(
+            make_op("layernorm", {{"epsilon", epsilon}, {"axis", axis}}), args.front());
 
-        if (args.size() == 3)
+        if(args.size() == 3)
         {
             layernorm = info.add_broadcastable_binary_op("mul", layernorm, args.at(1));
             layernorm = info.add_broadcastable_binary_op("add", layernorm, args.at(2));
         }
-        
+
         return layernorm;
     }
 };

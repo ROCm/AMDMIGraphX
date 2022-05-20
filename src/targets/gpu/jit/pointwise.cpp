@@ -165,7 +165,9 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         if(op.name() == "contiguous")
         {
             return replace(compile_op(
-                ctx, to_shapes(ins->inputs()), {{"lambda", "[](auto x) { return x; }"}, {"kernel", "contiguous_kernel"}}));
+                ctx,
+                to_shapes(ins->inputs()),
+                {{"lambda", "[](auto x) { return x; }"}, {"kernel", "contiguous_kernel"}}));
         }
         else
         {
@@ -183,18 +185,19 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
             g.add_point_op("not", "migraphx::abs(not ${0})");
             // Add explict conversions
-            g.fresult(
-                [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
+            g.fresult([](const shape& s) {
+                return "migraphx::convert<" + shape::cpp_type(s.type()) + ">";
+            });
             auto name = g.create_function(
                 g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
             std::string lambda = "MIGRAPHX_LIFT(" + name + ")";
             auto op_names      = get_op_names(*pm);
             op_names.push_back("kernel");
             auto op_name_string = join_strings(op_names, "_");
-            return replace(
-                compile_op(ctx,
-                           to_shapes(ins->inputs()),
-                           {{"lambda", lambda}, {"preamble", g.str()}, {"kernel", op_name_string}}));
+            return replace(compile_op(
+                ctx,
+                to_shapes(ins->inputs()),
+                {{"lambda", lambda}, {"preamble", g.str()}, {"kernel", op_name_string}}));
         }
     }
 };

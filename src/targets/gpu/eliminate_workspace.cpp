@@ -11,11 +11,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void eliminate_workspace::apply(module& p) const
+void eliminate_workspace::apply(module& m) const
 {
     std::size_t n = 0;
     std::vector<instruction_ref> allocs;
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->outputs().size() != 1)
             continue;
@@ -30,11 +30,11 @@ void eliminate_workspace::apply(module& p) const
     }
     if(n > 0)
     {
-        auto ws = p.add_parameter("workspace", shape{shape::int8_type, {n}});
+        auto ws = m.add_parameter("workspace", shape{shape::int8_type, {n}});
         for(auto&& a : allocs)
         {
-            p.replace_instruction(a, ws);
-            p.remove_instruction(a);
+            m.replace_instruction(a, ws);
+            m.remove_instruction(a);
         }
     }
 }

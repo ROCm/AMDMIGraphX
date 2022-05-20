@@ -17,7 +17,7 @@ struct eliminate_contiguous
 {
     std::string op_name;
     std::string name() const { return "eliminate_contiguous"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

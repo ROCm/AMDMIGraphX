@@ -69,7 +69,7 @@ static bool try_compute_shape(instruction_ref ins,
     return try_compute_shape(ins, inputs, mods);
 }
 
-template<class F>
+template <class F>
 static void remove_contiguous(const std::string& op_name, module& m, F f)
 {
     auto last = std::prev(m.end());
@@ -79,10 +79,10 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
         if(ins->name() == "@return")
             continue;
 
-        if (ins != last and ins->outputs().empty())
+        if(ins != last and ins->outputs().empty())
             continue;
 
-        if (not f(ins))
+        if(not f(ins))
             continue;
 
         // Make a copy so we can modify it while we iterate
@@ -114,8 +114,8 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
 void eliminate_contiguous::apply(module& m) const
 {
     // Skip contiguous from splits first
-    remove_contiguous(op_name, m, [](auto ins) { 
-        if (ins->name() != "slice")
+    remove_contiguous(op_name, m, [](auto ins) {
+        if(ins->name() != "slice")
             return true;
         return (ins->inputs().front()->outputs().size() == 1);
     });

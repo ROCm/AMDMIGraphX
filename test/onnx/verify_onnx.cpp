@@ -446,6 +446,31 @@ TEST_CASE(instance_norm_3d_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(layernorm_op_test)
+{
+    migraphx::program p = migraphx::parse_onnx("layernorm_op_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape swb{migraphx::shape::float_type, {3}};
+    std::vector<float> x_vec{1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    std::vector<float> w_vec{1.0, 1.0, 1.0};
+    std::vector<float> b_vec{0.0, 0.0, 0.0};
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(sx, x_vec.data());
+    pp["w"] = migraphx::argument(swb, w_vec.data());
+    pp["b"] = migraphx::argument(swb, b_vec.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector(6);
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{-1.22474f, 0.0f, 1.22474f, -1.22474f, 0.0f, 1.22474f};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(lessorequal_test)
 {
     migraphx::program p = migraphx::parse_onnx("lessorequal_test.onnx");

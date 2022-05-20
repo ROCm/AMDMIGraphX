@@ -43,6 +43,7 @@
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/isnan.hpp>
+#include <migraphx/op/layernorm.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
@@ -108,6 +109,8 @@
 #include <migraphx/op/tan.hpp>
 #include <migraphx/op/topk.hpp>
 #include <migraphx/op/transpose.hpp>
+#include <migraphx/op/transposectx.hpp>
+#include <migraphx/op/transposeqkv.hpp>
 #include <migraphx/op/unary.hpp>
 #include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>

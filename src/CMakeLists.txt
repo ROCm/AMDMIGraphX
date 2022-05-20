@@ -117,6 +117,7 @@ register_migraphx_ops(
     if_op
     im2col
     isnan
+    layernorm
     leaky_relu
     less
     load
@@ -184,6 +185,8 @@ register_migraphx_ops(
     tan
     topk
     transpose
+    transposectx
+    transposeqkv
     unary_not
     undefined
     unknown

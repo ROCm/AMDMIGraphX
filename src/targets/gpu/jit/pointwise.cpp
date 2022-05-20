@@ -73,15 +73,14 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.virtual_inputs = reduce_dims(inputs);
         options.params         = "-Wno-float-equal";
         auto axis              = find_fast_axis(options.virtual_inputs);
-        auto vec_size          = vectorize_elements(axis, options.virtual_inputs);
-        auto preloads          = preload(axis, options.virtual_inputs);
-        auto is_preloading =
-            std::accumulate(preloads.begin(), preloads.end(), false, std::logical_or<>{});
+        auto vec               = vectorize::elements(axis, options.virtual_inputs);
+        auto preloads          = preload::broadcasts(axis, options.virtual_inputs);
         options.kernel_name = v.get("kernel", "kernel");
-        options.set_launch_params(v,
-                                  compute_global_for(ctx,
-                                                     options.output.elements() / vec_size,
-                                                     oversubscribe_if(not is_preloading)));
+        options.set_launch_params(
+            v,
+            compute_global_for(ctx,
+                               options.output.elements() / vec.size,
+                               oversubscribe_if(not preloads.is_preloading())));
         auto src = interpolate_string(pointwise_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},

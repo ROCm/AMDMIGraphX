@@ -69,12 +69,20 @@ static bool try_compute_shape(instruction_ref ins,
     return try_compute_shape(ins, inputs, mods);
 }
 
-void eliminate_contiguous::apply(module& m) const
+template <class F>
+static void remove_contiguous(const std::string& op_name, module& m, F f)
 {
+    auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
         // return instruction should have inputs with standard shape
         if(ins->name() == "@return")
+            continue;
+
+        if(ins != last and ins->outputs().empty())
+            continue;
+
+        if(not f(ins))
             continue;
 
         // Make a copy so we can modify it while we iterate
@@ -83,25 +91,35 @@ void eliminate_contiguous::apply(module& m) const
         auto mod_args = ins->module_inputs();
         for(auto arg : ins->inputs())
         {
-            if(arg->name() == op_name)
+            if(arg->name() != op_name)
+                continue;
+            auto prev = arg->inputs().front();
+            replace(new_args, arg, prev);
+            if(try_compute_shape(ins, new_args, mod_args))
             {
-                auto prev = arg->inputs().front();
-                replace(new_args, arg, prev);
-                if(try_compute_shape(ins, new_args, mod_args))
-                {
-                    instruction::replace_argument(ins, arg, prev);
-                }
-                else if(prev->can_eval())
-                {
-                    auto c = op::contiguous{};
-                    auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
+                instruction::replace_argument(ins, arg, prev);
+            }
+            else if(prev->can_eval())
+            {
+                auto c = op::contiguous{};
+                auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
 
-                    auto l = m.add_literal(r.get_shape(), r.data());
-                    m.replace_instruction(arg, l);
-                }
+                auto l = m.add_literal(r.get_shape(), r.data());
+                m.replace_instruction(arg, l);
             }
         }
     }
+}
+
+void eliminate_contiguous::apply(module& m) const
+{
+    // Skip contiguous from splits first
+    remove_contiguous(op_name, m, [](auto ins) {
+        if(ins->name() != "slice")
+            return true;
+        return (ins->inputs().front()->outputs().size() == 1);
+    });
+    remove_contiguous(op_name, m, [](auto) { return true; });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

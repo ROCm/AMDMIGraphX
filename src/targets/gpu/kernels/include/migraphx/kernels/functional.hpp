@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP
 #define MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP
 
-#include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_RETURNS(...) \

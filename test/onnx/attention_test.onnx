@@ -1,10 +1,11 @@
-attention_test:ä
-B
+attention_test:ö
+T
 input
 weights
 bias
 
-mask_indexresultAttention_0"	Attentionattention_testZ
+mask_indexresultAttention_0"	Attention*
+	num_heads attention_testZ
 input
 
 

@@ -62,7 +62,6 @@ jobs:
             -t "/home/htec/jz/source/rocm-migraphx/test-results/" 
             -r "/home/htec/igor/rocm-migraphx/reports/" 
       - name: Push report
-        uses: actions/checkout@v1
         with:
           token: ${{ secrets.GH_SUB_TOKEN }}
         run: | 

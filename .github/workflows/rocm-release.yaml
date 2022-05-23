@@ -32,9 +32,13 @@ jobs:
           submodules: recursive
           token: ${{ secrets.GH_SUB_TOKEN }}
       - name: Docker build
+        env:
+          ROCM_RELEASE: 5.1
+          ROCM_BASE: rocm/dev-ubuntu-18.04:$ROCM_RELEASE
+          BUILD_NAVI: "0"
+          DOCKERIMAGE: rocm-migraphx:$ROCM_RELEASE
+          DOCKERFILE: dockerfile.`date '+%Y-%m-%d'`
         run: |
-          cd ./rocm-migraphx/scripts
-          env ROCM_RELEASE=5.1 ./build_migraphx_docker.sh
-      # - name: Run Docker script
-      #   run: |
-      #     docker run -it -e TZ=America/Chicago -e TARGET=gpu --device=/dev/dri --device=/dev/kfd --network=host --group-add=video rocm-migraphx:5.1 /bin/bash
+          sed -e "s?ROCM_RELEASE?$ROCM_RELEASE?g" dockerfile > $DOCKERFILE
+          docker build --build-arg build_navi=$BUILD_NAVI --build-arg base_image=$ROCM_BASE --no-cache -t $DOCKERIMAGE -f $DOCKERFILE .
+          # env ROCM_RELEASE=5.1 ./build_migraphx_docker.sh

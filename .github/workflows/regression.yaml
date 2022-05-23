@@ -62,10 +62,8 @@ jobs:
             -t "/home/htec/jz/source/rocm-migraphx/test-results/" 
             -r "/home/htec/igor/rocm-migraphx/reports/" 
       - name: Push report
-        with:
-          token: ${{ secrets.GH_SUB_TOKEN }}
         run: | 
-            cd "/home/htec/igor/rocm-migraphx/reports/"
+            cd "/home/htec/igor/rocm-migraphx"
             git add .
             git config --local user.email github-actions
             git config --local user.name github-actions@github.com

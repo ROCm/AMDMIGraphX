@@ -13,7 +13,7 @@ name: ROCM release
 jobs:
   check_image_version:
     name: Check Image Version
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       image: ${{ steps.check_image.outputs.image }}
     steps:

@@ -1,6 +1,9 @@
 on:
   workflow_dispatch:
     inputs:
+      release:
+        description: ROCm release version
+        required: true
       git-ref:
         description: Git Ref (Mandatory)
         required: false
@@ -17,7 +20,7 @@ jobs:
       - name: Check new image
         id: check_image
         run: |
-          if [[ "$(docker images -q rocm-migraphx:`date +%Y%m%d` 2> /dev/null)" != "" ]]; then
+          if [[ "$(docker images -q rocm-migraphx:${{ github.events.inputs.release }} 2> /dev/null)" != "" ]]; then
             echo "::set-output name=image::true"
           fi
   build_image:

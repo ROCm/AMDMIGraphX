@@ -83,7 +83,7 @@ jobs:
           # The full name of the repository in which to create or update a comment.
           #repository: # optional
           # The number of the issue or pull request in which to create a comment.
-          #issue-number: # optional
+          issue-number: 1
           # The id of the comment to update.
           #comment-id: # optional
           # The comment body.

@@ -65,6 +65,8 @@ jobs:
         run: | 
             cd "/home/htec/igor/rocm-migraphx/reports/"
             git add .
+            git config --local user.email github-actions
+            git config --local user.name github-actions@github.com
             git commit -m "Push report" -a
             git push
       - name: Run comment script

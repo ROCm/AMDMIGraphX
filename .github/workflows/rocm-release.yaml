@@ -21,6 +21,7 @@ jobs:
         id: check_image
         run: |
           if [[ "$(docker images -q rocm-migraphx:${{ github.event.inputs.release }} 2> /dev/null)" != " " ]]; then
+            docker images -q rocm-migraphx:5.1
             echo "::set-output name=image::true"
           fi
   build_image:

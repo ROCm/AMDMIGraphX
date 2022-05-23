@@ -2,6 +2,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/ranges.hpp>
@@ -16,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+using namespace migraphx::gpu::gen; // NOLINT
+
 static const char* const softmax_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/softmax.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -26,7 +30,7 @@ namespace migraphx {
 extern "C" {
 __global__ void softmax_kernel(void* input_p, void* output_p) 
 {
-    make_tensors()(input_p, output_p)([](auto input, auto output) {
+    transform_args(make_tensors(), ${transformers})(input_p, output_p)([](auto input, auto output) {
         softmax<${axis}>(input, output);
     });
 }
@@ -37,22 +41,22 @@ __global__ void softmax_kernel(void* input_p, void* output_p)
 
 )__migraphx__";
 
-constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024)
-{
-    size_t block_size = 128;
-    while(block_size <= max_block_size and block_size <= n)
-        block_size *= 2;
-    return block_size / 2;
-}
-
 struct softmax_compiler : compiler<softmax_compiler>
 {
     std::vector<std::string> names() const { return {"softmax"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        // TODO: Use reduce_dims
         auto axis       = v.at("axis").to<int64_t>();
-        auto relements  = inputs[0].lens()[axis];
+        auto faxis             = find_fast_axis({inputs.front()});
+        vectorize vec{};
+        // Vectorize if the axis is a reduction axis
+        if(inputs.back().lens()[faxis] == 1)
+        {
+            vec = vectorize::elements(faxis, inputs);
+        }
+        auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = inputs.back().elements() / relements;
         auto block_size = compute_block_size(relements, 256);
         hip_compile_options options;
@@ -62,7 +66,7 @@ struct softmax_compiler : compiler<softmax_compiler>
         options.inputs      = inputs;
         options.kernel_name = "softmax_kernel";
 
-        auto src = interpolate_string(softmax_kernel, {{"axis", to_string(axis)}});
+        auto src = interpolate_string(softmax_kernel, {{"transformers", make_transformer_args(vec)}, {"axis", to_string(axis)}});
 
         return compile_hip_code_object(src, options);
     }

@@ -5,6 +5,7 @@ env:
   TEST: false
   DOCKERBASE: rocm-migraphx:5.1
   MIOPENTUNE: miopen-rocm51
+  REPORTS_DIR: migraphx-reports
 
 name: MIGraphX Regression test
 
@@ -60,15 +61,23 @@ jobs:
         run: >
             python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py 
             -t "/home/htec/jz/source/rocm-migraphx/test-results/" 
-            -r "/home/htec/igor/rocm-migraphx/reports/" 
+            -r "/home/htec/igor/rocm-migraphx/reports/"
+
+      - name: Checkout reports repo
+        run: |
+          rm -rf $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/migraphx-reports.git $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}
+          
       - name: Push report
-        run: | 
-            cd "/home/htec/igor/rocm-migraphx"
-            git add .
-            git config --local user.email github-actions
-            git config --local user.name github-actions@github.com
-            git commit -m "Push report" -a
-            git push
+        run: |
+          cd $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
+          cp "/home/htec/igor/rocm-migraphx/reports/" $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
+          git add .
+          git config --local user.email github-actions
+          git config --local user.name github-actions@github.com
+          git commit -m "Push report" -a
+          git push
+
       - name: Run comment script
         run: |
             python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/" | tee /home/htec/jz/source/rocm-migraphx/scripts/comment.txt

@@ -3,7 +3,7 @@ on:
     inputs:
       git-ref:
         description: Git Ref (Mandatory)
-        required: true
+        required: false
 
 name: ROCM release
 

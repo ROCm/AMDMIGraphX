@@ -20,9 +20,9 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-void propagate_constant::apply(module& p) const
+void propagate_constant::apply(module& m) const
 {
-    for(auto i : iterator_for(p))
+    for(auto i : iterator_for(m))
     {
         if(i->name() != "@literal")
             continue;
@@ -42,8 +42,8 @@ void propagate_constant::apply(module& p) const
                 if(not r.empty())
                 {
                     assert(r.get_shape() == child->get_shape());
-                    auto l = p.add_literal(r.get_shape(), r.data());
-                    self(p.replace_instruction(child, l));
+                    auto l = m.add_literal(r.get_shape(), r.data());
+                    self(m.replace_instruction(child, l));
                 }
             }
         })(i);

@@ -65,19 +65,35 @@ jobs:
         run: |
             python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/" | tee /home/htec/jz/source/rocm-migraphx/scripts/comment.txt
       - name: Get comment from file
-        id: comment
+        id: auto_comment
         run: |
           body="$(cat /home/htec/jz/source/rocm-migraphx/scripts/comment.txt)"
           body="${body//'%'/'%25'}"
           body="${body//$'\n'/'%0A'}"
           body="${body//$'\r'/'%0D'}"
           echo "::set-output name=body::$body"
-      - name: Create comment
+
+      - name: Create or Update Comment
+        # You may pin to the exact commit or the version.
+        # uses: peter-evans/create-or-update-comment@c9fcb64660bc90ec1cc535646af190c992007c32
         uses: peter-evans/create-or-update-comment@v2.0.0
         with:
-          issue-number: 1
-          body: ${{ steps.comment.outputs.body}}
-
+          # GITHUB_TOKEN or a repo scoped PAT.
+          token: ${{ secrets.GH_SUB_TOKEN }}
+          # The full name of the repository in which to create or update a comment.
+          #repository: # optional
+          # The number of the issue or pull request in which to create a comment.
+          #issue-number: # optional
+          # The id of the comment to update.
+          #comment-id: # optional
+          # The comment body.
+          body: ${{ steps.auto_comment.outputs.body}}
+          # The mode when updating a comment, "replace" or "append".
+          #edit-mode: # optional
+          # Deprecated in favour of `reactions`
+          #reaction-type: # optional
+          # A comma separated list of reactions to add to the comment.
+          #reactions: # optional
             
       #- name: Push report
       #  run: | 

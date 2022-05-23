@@ -20,14 +20,14 @@ jobs:
       - name: Check new image
         id: check_image
         run: |
-          if [[ "$(docker image inspect rocm-migraphx:${{ github.event.inputs.release }} 2> /dev/null)" != " " ]]; then
+          if [[ "$(docker image inspect rocm-migraphx:${{ github.event.inputs.release }} 2> /dev/null)" == " " ]]; then
             echo "::set-output name=image::true"
           fi
   build_image:
     name: Build New Image
     runs-on: self-hosted
     needs: check_image_version
-    if: ${{ needs.check_image.outputs.image == 'false' }}
+    if: ${{ needs.check_image.outputs.image == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v1

@@ -63,9 +63,6 @@ jobs:
             -r "/home/htec/jz/source/rocm-migraphx/reports/"
       - name: Run comment script
         run: |
-            python3 --version
-            which python3
-            pip3 list
             python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/" | tee /home/htec/jz/source/rocm-migraphx/scripts/comment.txt
       - name: Get comment from file
         id: comment

@@ -19,7 +19,7 @@ struct schedule
     schedule_model model{};
     bool enable = true;
     std::string name() const { return "schedule"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

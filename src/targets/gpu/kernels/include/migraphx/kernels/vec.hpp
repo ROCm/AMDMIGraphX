@@ -147,5 +147,19 @@ constexpr auto vec_packed_transform(Ts... xs)
     };
 }
 
+template <class T, class Op>
+constexpr auto vec_reduce(T x, Op op)
+{
+    if constexpr(vec_size<T>() < 2)
+        return x;
+    else
+    {
+        vec_type<T> result = x[0];
+        for(int i = 1; i < vec_size<T>(); i++)
+            result = op(result, x[i]);
+        return result;
+    }
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_VEC_HPP

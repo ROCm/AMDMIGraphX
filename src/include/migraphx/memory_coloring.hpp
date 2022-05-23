@@ -17,7 +17,7 @@ struct memory_coloring
     std::string allocation_op{};
     bool verify = false;
     std::string name() const { return "memory coloring"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

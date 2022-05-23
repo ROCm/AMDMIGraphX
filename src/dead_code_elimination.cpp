@@ -9,26 +9,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class Range, class Iterator>
-std::ptrdiff_t bidistance(const Range& r, Iterator start, Iterator last)
-{
-    auto start_forward   = start;
-    auto start_backwards = start;
-    std::size_t n        = 0;
-    while(start_forward != last and start_backwards != last)
-    {
-        n++;
-        if(start_forward != r.end())
-            start_forward++;
-        if(start_backwards != r.begin())
-            start_backwards--;
-    }
-    if(start_forward == last)
-        return n;
-    else
-        return -n;
-}
-
 void dead_code_elimination::apply(program& p) const { p.remove_unused_modules(); }
 
 void dead_code_elimination::apply(module& m) const
@@ -48,17 +28,21 @@ void dead_code_elimination::apply(module& m) const
         if(i->get_shape().elements() == 0 and i->name().front() != '@' and
            i->name() != "undefined" and i->name() != "identity")
             continue;
-        assert(bidistance(m, i, last) > 0);
+        assert(std::distance(m.begin(), i) <= std::distance(m.begin(), last));
+        std::unordered_set<instruction_ref> visited;
         fix([&](auto self, auto leaf) {
             if(not m.has_instruction(leaf))
                 return;
 
             if(leaf->outputs().empty())
             {
+                // Dont visit inputs twice
+                if(not visited.insert(leaf).second)
+                    return;
                 std::unordered_set<instruction_ref> args(leaf->inputs().begin(),
                                                          leaf->inputs().end());
                 leaf->clear_arguments();
-                assert(bidistance(m, last, leaf) < 0);
+                assert(std::distance(m.begin(), leaf) < std::distance(m.begin(), last));
                 assert(leaf != ins);
                 if(leaf->name() != "@param")
                     m.move_instruction(leaf, m.end());

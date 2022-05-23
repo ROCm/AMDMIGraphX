@@ -20,7 +20,7 @@ jobs:
       - name: Check new image
         id: check_image
         run: |
-          if [[ "$(docker image inspect rocm-migraphx:${{ github.event.inputs.release }} 2> /dev/null)" == " " ]]; then
+          if [[ "$(docker image inspect rocm-migraphx:${{ github.event.inputs.release }} )" == " " ]]; then
             echo "::set-output name=image::true"
           fi
   build_image:

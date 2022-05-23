@@ -71,7 +71,7 @@ jobs:
       - name: Push report
         run: |
           cd $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
-          cp "/home/htec/igor/rocm-migraphx/reports/" $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
+          cp -r /home/htec/igor/rocm-migraphx/reports/ $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
           git add .
           git config --local user.email github-actions
           git config --local user.name github-actions@github.com

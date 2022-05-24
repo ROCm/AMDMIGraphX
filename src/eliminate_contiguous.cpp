@@ -6,6 +6,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/par_for.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -71,6 +72,9 @@ static bool try_compute_shape(instruction_ref ins,
 
 void eliminate_contiguous::apply(module& m) const
 {
+    std::vector<instruction_ref> inputs;
+    std::vector<instruction_ref> prevs;
+
     for(auto ins : iterator_for(m))
     {
         // return instruction should have inputs with standard shape
@@ -81,6 +85,7 @@ void eliminate_contiguous::apply(module& m) const
         auto args     = ins->inputs();
         auto new_args = args;
         auto mod_args = ins->module_inputs();
+
         for(auto arg : ins->inputs())
         {
             if(arg->name() == op_name)
@@ -93,14 +98,24 @@ void eliminate_contiguous::apply(module& m) const
                 }
                 else if(prev->can_eval())
                 {
-                    auto c = op::contiguous{};
-                    auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
-
-                    auto l = m.add_literal(r.get_shape(), r.data());
-                    m.replace_instruction(arg, l);
+                    inputs.push_back(arg);
+                    prevs.push_back(prev);
                 }
             }
         }
+    }
+
+    //Perform evaluations in parallel
+    std::vector<argument> literals(prevs.size());
+    par_for(inputs.size(), 1, [&](const auto i){
+        auto c = op::contiguous{};
+        literals[i] = c.compute(c.compute_shape({prevs[i]->get_shape()}), {prevs[i]->eval()});
+    });
+
+    for (size_t i = 0; i < prevs.size(); i++)
+    {
+        auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+        m.replace_instruction(inputs[i], l);
     }
 }
 

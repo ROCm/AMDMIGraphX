@@ -41,6 +41,14 @@ TEST_CASE(test_shape_standard)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_min_max_opt)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
+    EXPECT(s.min_lens() == s.lens());
+    EXPECT(s.max_lens() == s.lens());
+    EXPECT(s.opt_lens() == s.lens());
+}
+
 TEST_CASE(test_shape_dynamic_fixed)
 {
     migraphx::shape s{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}, {3, 3, 0}}};
@@ -118,6 +126,7 @@ TEST_CASE(test_shape_dynamic_errors)
     EXPECT(test::throws([&] { s.elements(); }));
     EXPECT(test::throws([&] { s.index({0, 1}); }));
     EXPECT(test::throws([&] { s.index(1); }));
+    EXPECT(test::throws([&] { s.index(std::vector<std::size_t>{0, 1}); }));
     EXPECT(test::throws([&] { s.with_lens({3, 5}); }));
     EXPECT(test::throws([&] { s.with_lens(shape::float_type, {3, 5}); }));
 }

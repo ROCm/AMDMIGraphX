@@ -855,11 +855,11 @@ TEST_CASE(conv_dynamic_batch_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape input_shape{migraphx::shape::float_type,
-                                {{1, 100, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}};
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type,
+                                    {{1, 100, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}};
     migraphx::shape weights_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
 
-    auto input   = mm->add_parameter("X", input_shape);
+    auto input   = mm->add_parameter("X", input_dyn_shape);
     auto weights = mm->add_parameter("W", weights_shape);
     mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
                         input,
@@ -910,8 +910,10 @@ TEST_CASE(conv_dynamic_batch_test)
                               -0.16138598,
                               0.79344082};
 
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 3, 4, 4}};
+
     migraphx::parameter_map params;
-    params["X"] = migraphx::argument(input_shape, a.data());
+    params["X"] = migraphx::argument(input_fixed_shape, a.data());
     params["W"] = migraphx::argument(weights_shape, c.data());
 
     auto result = p.eval(params).back();

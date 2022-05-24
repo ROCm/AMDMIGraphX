@@ -264,8 +264,10 @@ std::vector<argument> generic_eval(const module* mod,
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
+
                     auto param = params[param_name];
-                    if(param.get_shape() != ins->get_shape())
+                    // TODO: may want to check correct number of dimensions and/or was within bounds
+                    if(not ins->get_shape().dynamic() and param.get_shape() != ins->get_shape())
                         MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
                                        "} for parameter: " + param_name);
                     return param;
@@ -297,6 +299,25 @@ std::vector<argument> generic_eval(const module* mod,
                     return results[i];
                 });
 
+            shape output_shape;
+            auto ins_shape = ins->get_shape();
+            if(ins_shape.dynamic())
+            {
+                // Make into a std::vector<instruction_ref> of inputs
+                auto to_shapes = [](std::vector<argument> args) {
+                    std::vector<shape> shapes(args.size());
+                    std::transform(args.begin(), args.end(), shapes.begin(), [](argument i) {
+                        return i.get_shape();
+                    });
+                    return shapes;
+                };
+                output_shape = ins->get_operator().compute_shape(to_shapes(values));
+            }
+            else
+            {
+                output_shape = ins_shape;
+            }
+
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
@@ -306,11 +327,12 @@ std::vector<argument> generic_eval(const module* mod,
 
             results.emplace(ins, trace(ins, [&] {
                                 return ins->normalized_operator().compute(
-                                    ctx, ins->get_shape(), values, mod_args, module_eval);
+                                    ctx, output_shape, values, mod_args, module_eval);
                             }));
         }
         assert(results.find(ins) != results.end());
-        assert(results.at(ins).get_shape() == ins->get_shape());
+        // TODO: update this assert for dynamic shapes
+        // assert(results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }

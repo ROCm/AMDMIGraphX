@@ -111,9 +111,7 @@ module  {
     migraphx::module m;
     auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
     auto w = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
-    auto conv =
-        m.add_instruction(migraphx::make_op("convolution", {{"padding", {0, 0, 0, 0}}}), x, w);
-    // auto conv = m.add_instruction(migraphx::make_op("convolution"), x, w);
+    auto conv = m.add_instruction(migraphx::make_op("convolution"), x, w);
     m.add_return({conv});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled

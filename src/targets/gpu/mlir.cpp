@@ -421,6 +421,21 @@ struct mlir_program
         return "migraphx." + ins->name();
     }
 
+    static value get_operator_value(const operation& op)
+    {
+        auto v = op.to_value();
+        if (op.name() == "convolution")
+        {
+            // Adjust symetrical padding
+            if (v.at("padding").size() == v.at("stride").size())
+            {
+                auto padding = v.at("padding");
+                std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
+            }
+        }
+        return v;
+    }
+
     static shape get_shape(instruction_ref ins)
     {
         if(ins->name() == "@return")
@@ -442,7 +457,7 @@ struct mlir_program
                 continue;
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
-            ops.add_attribute_value(ins->get_operator().to_value());
+            ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
 

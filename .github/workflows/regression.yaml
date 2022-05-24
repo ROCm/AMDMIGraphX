@@ -86,7 +86,7 @@ jobs:
       - name: Get comment from file
         id: auto_comment
         run: |
-          body="$(cat /home/htec/jz/source/rocm-migraphx/scripts/comment.txt)"
+          body="$(cat /home/htec/jz/source/rocm-migraphx/scripts/temp.md)"
           body="${body//'%'/'%25'}"
           body="${body//$'\n'/'%0A'}"
           body="${body//$'\r'/'%0D'}"

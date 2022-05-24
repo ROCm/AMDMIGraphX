@@ -2,7 +2,7 @@ on:
   push:
     branches: [develop]
   schedule:
-    - cron '0 1 * * *'
+    - cron: "0 1 * * *""
 env:
   TEST: false
   DOCKERBASE: rocm-migraphx:5.1
@@ -14,7 +14,7 @@ name: MIGraphX Regression test
 jobs: 
   check_image_version:
     name: Check Image Version
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       image: ${{ steps.check_image.outputs.image }}
     steps:

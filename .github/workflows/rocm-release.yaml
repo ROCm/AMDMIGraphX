@@ -43,4 +43,5 @@ jobs:
           BUILD_NAVI: "0"
           DOCKERIMAGE: rocm-migraphx:${{ github.event.inputs.release }}
         run: |
+          cd $GITHUB_WORKSPACE/rocm-migraphx/scripts
           ./build_migraphx_docker.sh

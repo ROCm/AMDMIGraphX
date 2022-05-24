@@ -57,17 +57,10 @@ jobs:
       #     -v /home/htec/jz:/data
       #     --workdir /data/source/rocm-migraphx/scripts/
       #     rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
-      - name: Get pyhon info
-        run: |
-          python3 --version
-          which python3
-          printenv
-          export PATH=$PATH:/home/htec/anaconda3/bin:/home/htec/anaconda3/condabin
-          printenv
       
       - name: Execute report script
         run: >
-            python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py 
+            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py 
             -t "/home/htec/jz/source/rocm-migraphx/test-results/" 
             -r "/home/htec/igor/rocm-migraphx/reports/"
 
@@ -88,7 +81,7 @@ jobs:
 
       - name: Run comment script
         run: |
-            python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/"
+            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/"
       
       - name: Get comment from file
         id: auto_comment

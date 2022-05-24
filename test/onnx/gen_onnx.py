@@ -3179,6 +3179,20 @@ def mean_test():
 
 
 @onnx_test
+def mean_integral_test():
+    data = [
+        helper.make_tensor_value_info(str(i), TensorProto.INT32, [2, 2, 2])
+        for i in range(10)
+    ]
+    data_names = [str(i) for i in range(10)]
+    mean = helper.make_tensor_value_info('mean', TensorProto.INT32, [2, 2, 2])
+
+    node = onnx.helper.make_node("Mean", inputs=data_names, outputs=["mean"])
+
+    return ([node], data, [mean])
+
+
+@onnx_test
 def min_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

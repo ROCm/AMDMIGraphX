@@ -38,11 +38,9 @@ jobs:
           token: ${{ secrets.GH_SUB_TOKEN }}
       - name: Docker build
         env:
-          ROCM_RELEASE: 5.1
-          ROCM_BASE: rocm/dev-ubuntu-18.04:$ROCM_RELEASE
+          ROCM_RELEASE: ${{ github.event.inputs.release }}
+          ROCM_BASE: rocm/dev-ubuntu-18.04:${{ github.event.inputs.release }}
           BUILD_NAVI: "0"
-          DOCKERIMAGE: rocm-migraphx:$ROCM_RELEASE
+          DOCKERIMAGE: rocm-migraphx:${{ github.event.inputs.release }}
         run: |
-          sed -e "s?ROCM_RELEASE?$ROCM_RELEASE?g" dockerfile > dockerfile.`date '+%Y-%m-%d'`
-          docker build --build-arg build_navi=$BUILD_NAVI --build-arg base_image=$ROCM_BASE --no-cache -t $DOCKERIMAGE -f dockerfile.`date '+%Y-%m-%d'` .
-          # env ROCM_RELEASE=5.1 ./build_migraphx_docker.sh
+          ./build_migraphx_docker.sh

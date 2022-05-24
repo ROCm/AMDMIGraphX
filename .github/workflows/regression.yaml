@@ -61,7 +61,7 @@ jobs:
           rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
       
       - name: Execute report script
-        if: ${{ github.event_name = 'schedule' }}
+        if: ${{ github.event_name == 'schedule' }}
         run: |
             /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py \
             -t "/home/htec/jz/source/rocm-migraphx/test-results/" \

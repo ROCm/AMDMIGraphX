@@ -59,57 +59,33 @@ jobs:
       #     rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
       
       - name: Execute report script
-        run: >
-            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py 
-            -t "/home/htec/jz/source/rocm-migraphx/test-results/" 
+        run: |
+            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py \
+            -t "/home/htec/jz/source/rocm-migraphx/test-results/" \
             -r "/home/htec/igor/rocm-migraphx/reports/"
-
-      - name: Checkout reports repo
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/migraphx-reports.git $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}
+            rm -rf $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
+            git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/migraphx-reports.git $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}
+            cd $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
+            cp -r /home/htec/igor/rocm-migraphx/reports/* $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
+            git add .
+            git config --local user.email github-actions
+            git config --local user.name github-actions@github.com
+            git commit -m "Push report" -a
+            git push
           
-      - name: Push report
-        run: |
-          cd $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
-          cp -r /home/htec/igor/rocm-migraphx/reports/* $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
-          git add .
-          git config --local user.email github-actions
-          git config --local user.name github-actions@github.com
-          git commit -m "Push report" -a
-          git push
-
-      - name: Run comment script
-        run: |
-            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/"
-      
-      - name: Get comment from file
+      - name: Execute comment script
         id: auto_comment
         run: |
-          body="$(cat /home/htec/jz/source/rocm-migraphx/scripts/temp.md)"
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "::set-output name=body::$body"
+            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/"
+            body="$(cat /home/htec/jz/source/rocm-migraphx/scripts/temp.md)"
+            body="${body//'%'/'%25'}"
+            body="${body//$'\n'/'%0A'}"
+            body="${body//$'\r'/'%0D'}"
+            echo "::set-output name=body::$body"
 
-      - name: Create or Update Comment
-        # You may pin to the exact commit or the version.
-        # uses: peter-evans/create-or-update-comment@c9fcb64660bc90ec1cc535646af190c992007c32
+      - name: Create Comment
         uses: peter-evans/create-or-update-comment@v2.0.0
         with:
-          # GITHUB_TOKEN or a repo scoped PAT.
           token: ${{ secrets.GH_SUB_TOKEN }}
-          # The full name of the repository in which to create or update a comment.
-          #repository: # optional
-          # The number of the issue or pull request in which to create a comment.
           issue-number: 1
-          # The id of the comment to update.
-          #comment-id: # optional
-          # The comment body.
           body: ${{ steps.auto_comment.outputs.body}}
-          # The mode when updating a comment, "replace" or "append".
-          #edit-mode: # optional
-          # Deprecated in favour of `reactions`
-          #reaction-type: # optional
-          # A comma separated list of reactions to add to the comment.
-          #reactions: # optional

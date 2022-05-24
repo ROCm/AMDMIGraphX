@@ -62,6 +62,8 @@ jobs:
           python3 --version
           which python3
           printenv
+          export PATH=$PATH:/home/htec/anaconda3/bin:/home/htec/anaconda3/condabin
+          printenv
       
       - name: Execute report script
         run: >

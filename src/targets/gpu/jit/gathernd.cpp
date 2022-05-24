@@ -19,7 +19,7 @@ namespace gpu {
 // NOLINTNEXTLINE
 static const char* const gathernd_kernel = R"__migraphx__(
 #include <migraphx/kernels/gathernd.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
+#include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>

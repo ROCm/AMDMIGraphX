@@ -3,14 +3,15 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/array.hpp>
 
 namespace migraphx {
 
 struct max_pool
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return lowest(); }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return lowest{}; }
 
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T operator()(T x, T y)
@@ -55,7 +56,7 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
             return 0;
         }
 
-        xy[ii]   = max(xy[ii], 0.0f);
+        xy[ii]   = migraphx::max(xy[ii], 0.0f);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
@@ -164,11 +165,12 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         for(index_int ii = 0; ii < roi_size.size(); ++ii)
         {
             roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-            roi_size[ii] = max(roi_size[ii], 1.0f);
+            roi_size[ii] = migraphx::max(roi_size[ii], 1.0f);
 
-            bin_size[ii] = roi_size[ii] / out_dims[ii];
-            bin_grid_size[ii] =
-                (s.sampling_ratio > 0) ? s.sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
+            bin_size[ii]      = roi_size[ii] / out_dims[ii];
+            bin_grid_size[ii] = (s.sampling_ratio > 0)
+                                    ? s.sampling_ratio
+                                    : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
 
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);

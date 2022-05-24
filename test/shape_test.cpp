@@ -97,6 +97,15 @@ TEST_CASE(test_shape_dynamic_compares)
     EXPECT(s0 == s1);
     EXPECT(s0 == s2);
     EXPECT(s0 != s3);
+
+    std::stringstream ss0;
+    std::stringstream ss1;
+    std::stringstream ss3;
+    ss0 << s0;
+    ss1 << s1;
+    ss3 << s3;
+    EXPECT(ss0.str() == ss1.str());
+    EXPECT(ss0.str() != ss3.str());
 }
 
 TEST_CASE(test_shape_dynamic_errors)

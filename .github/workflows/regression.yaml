@@ -81,6 +81,7 @@ jobs:
       - name: Run comment script
         run: |
             python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/" | tee /home/htec/jz/source/rocm-migraphx/scripts/comment.txt
+      
       - name: Get comment from file
         id: auto_comment
         run: |

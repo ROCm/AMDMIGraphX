@@ -424,10 +424,10 @@ struct mlir_program
     static value get_operator_value(const operation& op)
     {
         auto v = op.to_value();
-        if (op.name() == "convolution")
+        if(op.name() == "convolution")
         {
             // Adjust symetrical padding
-            if (v.at("padding").size() == v.at("stride").size())
+            if(v.at("padding").size() == v.at("stride").size())
             {
                 auto padding = v.at("padding");
                 std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));

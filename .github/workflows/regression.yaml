@@ -14,7 +14,7 @@ name: MIGraphX Regression test
 jobs: 
   check_image_version:
     name: Check Image Version
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.check_image.outputs.image }}
     steps:

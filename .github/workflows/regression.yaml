@@ -57,6 +57,12 @@ jobs:
       #     -v /home/htec/jz:/data
       #     --workdir /data/source/rocm-migraphx/scripts/
       #     rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
+      - name: Get pyhon info
+        run: |
+          python3 --version
+          which python3
+          printenv
+      
       - name: Execute report script
         run: >
             python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py 

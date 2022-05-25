@@ -21,12 +21,11 @@ using migraphx::trim;
 struct mlir_gpu_target : migraphx::gpu::target
 {
     std::string name() const { return "mlir"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context& gctx, const migraphx::compile_options&) const
+    std::vector<migraphx::pass> get_passes(migraphx::context& gctx,
+                                           const migraphx::compile_options&) const
     {
         auto& ctx = migraphx::any_cast<migraphx::gpu::context>(gctx);
-        return {
-            migraphx::gpu::write_literals{&ctx}
-        };
+        return {migraphx::gpu::write_literals{&ctx}};
     }
 };
 
@@ -60,7 +59,9 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     std::transform(names.begin(), names.end(), std::back_inserter(inputs), [&](const auto& name) {
         return mm->add_parameter(name, mmlir.get_parameter_shape(name));
     });
-    std::sort(inputs.begin(), inputs.end(), migraphx::by(std::less<>{}, [](auto ins) { return to_string(ins->get_operator()); }));
+    std::sort(inputs.begin(), inputs.end(), migraphx::by(std::less<>{}, [](auto ins) {
+                  return to_string(ins->get_operator());
+              }));
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
 
     migraphx::gpu::insert_mlir(*mm, mm->end(), mmlir, inputs);

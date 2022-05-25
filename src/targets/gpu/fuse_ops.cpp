@@ -955,7 +955,7 @@ struct find_contiguous
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins  = r.result;
+        auto ins = r.result;
 
         m.replace_instruction(
             ins,

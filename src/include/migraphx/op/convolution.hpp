@@ -98,8 +98,27 @@ struct convolution
 
         if(input.dynamic() or weights.dynamic())
         {
-            std::vector<shape::dynamic_dimension> output_dyn_dims = {input.dyn_dims().at(0),
-                                                                     input.dyn_dims().at(1)};
+            std::vector<shape::dynamic_dimension> output_dyn_dims = {};
+            if(input.dynamic())
+            {
+                output_dyn_dims.push_back(input.dyn_dims().at(0));
+            }
+            else
+            {
+                auto l = input.lens().at(0);
+                output_dyn_dims.push_back({l, l, 0});
+            }
+
+            if(weights.dynamic())
+            {
+                output_dyn_dims.push_back(weights.dyn_dims().at(0));
+            }
+            else
+            {
+                auto l = weights.lens().at(0);
+                output_dyn_dims.push_back({l, l, 0});
+            }
+
             auto min_spatial_dims = calc_output_lens(input.min_lens(), weights.min_lens());
             auto max_spatial_dims = calc_output_lens(input.max_lens(), weights.max_lens());
             auto opt_spatial_dims = calc_output_lens(input.opt_lens(), weights.opt_lens());

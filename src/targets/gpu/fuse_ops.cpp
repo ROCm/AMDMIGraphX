@@ -681,7 +681,7 @@ struct miopen_fusion
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion fp          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
 
@@ -710,7 +710,7 @@ struct miopen_conv_bias
 
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        fp    = fusion(inputs[0]);
+        fp   = fusion(inputs[0]);
         conv = fp.create_conv(op, inputs[1]);
         bias = fp.create_bias(inputs[3]);
         if(not fp.compile(ctx))
@@ -728,7 +728,7 @@ MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion fp          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
     fusion::op_t relu = {};
@@ -758,7 +758,7 @@ struct miopen_conv_bias_relu
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        fp    = fusion(inputs[0]);
+        fp   = fusion(inputs[0]);
         conv = fp.create_conv(op, inputs[1]);
         bias = fp.create_bias(inputs[3]);
         relu = fp.create_relu();

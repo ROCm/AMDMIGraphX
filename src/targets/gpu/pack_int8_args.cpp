@@ -22,7 +22,7 @@ static instruction_ref pad_ins(module& m, instruction_ref ins, int offset)
     auto pad_k                     = (k + 3) / 4 * 4;
     auto pad_lens                  = lens;
     pad_lens[lens.size() + offset] = pad_k;
-    auto ret_ins = ins;
+    auto ret_ins                   = ins;
     if(pad_k != k)
     {
         std::vector<int64_t> pad_dims(lens.size() * 2, 0);

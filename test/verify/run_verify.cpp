@@ -144,7 +144,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     }
     if(not target_names.empty())
     {
-    std::vector<std::pair<std::string, result_future>> results;
+        std::vector<std::pair<std::string, result_future>> results;
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {

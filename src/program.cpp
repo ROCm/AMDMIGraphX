@@ -313,8 +313,7 @@ std::vector<argument> generic_eval(const module* mod,
                 };
                 // TODO: Consider how this will be handled when memoized.
                 // Could memoize these output shapes into a map so not recalculating
-                // TODO: Issue with incompatible input tensor to kernel and needing to set
-                // padding/strides
+                // TODO: Issue with possibly wanting to use new padding/strides/dilation
                 output_shape = ins->get_operator().compute_shape(to_shapes(values));
             }
             else

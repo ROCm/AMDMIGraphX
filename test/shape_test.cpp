@@ -41,6 +41,14 @@ TEST_CASE(test_shape_standard)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_min_max_opt)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
+    EXPECT(s.min_lens() == s.lens());
+    EXPECT(s.max_lens() == s.lens());
+    EXPECT(s.opt_lens() == s.lens());
+}
+
 TEST_CASE(test_shape_dynamic_fixed)
 {
     migraphx::shape s{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}, {3, 3, 0}}};
@@ -52,6 +60,9 @@ TEST_CASE(test_shape_dynamic_fixed)
     EXPECT(s.dyn_dims().size() == 3);
     EXPECT(s.dyn_dims().at(0).is_fixed());
     EXPECT(not s.dyn_dims().at(0).has_optimal());
+    EXPECT(s.min_lens() == std::vector<std::size_t>{2, 2, 3});
+    EXPECT(s.max_lens() == std::vector<std::size_t>{2, 2, 3});
+    EXPECT(s.opt_lens() == std::vector<std::size_t>{0, 0, 0});
     EXPECT(s.bytes() == 2 * 2 * 3 * sizeof(float));
 }
 
@@ -70,6 +81,9 @@ TEST_CASE(test_shape_dynamic_not_fixed)
     EXPECT(s.dyn_dims().size() == 2);
     EXPECT(not s.dyn_dims().at(0).is_fixed());
     EXPECT(s.dyn_dims().at(0).has_optimal());
+    EXPECT(s.min_lens() == std::vector<std::size_t>{2, 2});
+    EXPECT(s.max_lens() == std::vector<std::size_t>{5, 8});
+    EXPECT(s.opt_lens() == std::vector<std::size_t>{2, 0});
     EXPECT(s.bytes() == 5 * 8 * sizeof(float));
 }
 
@@ -91,6 +105,15 @@ TEST_CASE(test_shape_dynamic_compares)
     EXPECT(s0 == s1);
     EXPECT(s0 == s2);
     EXPECT(s0 != s3);
+
+    std::stringstream ss0;
+    std::stringstream ss1;
+    std::stringstream ss3;
+    ss0 << s0;
+    ss1 << s1;
+    ss3 << s3;
+    EXPECT(ss0.str() == ss1.str());
+    EXPECT(ss0.str() != ss3.str());
 }
 
 TEST_CASE(test_shape_dynamic_errors)
@@ -103,6 +126,7 @@ TEST_CASE(test_shape_dynamic_errors)
     EXPECT(test::throws([&] { s.elements(); }));
     EXPECT(test::throws([&] { s.index({0, 1}); }));
     EXPECT(test::throws([&] { s.index(1); }));
+    EXPECT(test::throws([&] { s.index(std::vector<std::size_t>{0, 1}); }));
     EXPECT(test::throws([&] { s.with_lens({3, 5}); }));
     EXPECT(test::throws([&] { s.with_lens(shape::float_type, {3, 5}); }));
 }

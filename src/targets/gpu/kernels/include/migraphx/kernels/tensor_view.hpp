@@ -11,7 +11,7 @@ template <class T>
 struct tensor_view_iterator_read
 {
     T* view;
-    constexpr auto& operator()(std::size_t n) const
+    constexpr auto& operator()(index_int n) const
     {
         MIGRAPHX_ASSERT(view != nullptr);
         return (*view)[n];

@@ -6,7 +6,7 @@ on:
         required: true
       git-ref:
         description: Git Ref (Mandatory)
-        required: true
+        required: false
 
 name: MIOPEN Generate database
 

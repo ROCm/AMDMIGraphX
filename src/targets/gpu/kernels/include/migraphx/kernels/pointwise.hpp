@@ -38,20 +38,17 @@ constexpr implicit_conversion_op<T> implicit_conversion(T x)
 template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {
-    preload<typename T::type>(idx, xs...)([&](auto... ps) {
-        idx.global_stride(out.get_shape().elements(),
-                          [&](auto i) { out[i] = implicit_conversion(f(ps[i]...)); });
-    });
+    idx.global_stride(out.get_shape().elements(),
+                      [&](auto i) { out[i] = implicit_conversion(f(xs[i]...)); });
 }
 
-template <class F, class... Ts>
-__device__ void pointwise(F f, Ts*... ps)
+template <class... Transforms>
+__device__ auto pointwise(index idx, Transforms... transforms)
 {
-    auto t = transform_args(make_tensors(), rotate_last(), auto_vectorize());
-    t(ps...)([&](auto... xs) {
-        auto idx = make_index();
-        pointwise_tensor(idx, f, xs...);
-    });
+    return [=](auto f, auto*... ps) {
+        auto t = transform_args(make_tensors(), rotate_last(), transforms...);
+        t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
+    };
 }
 
 } // namespace migraphx

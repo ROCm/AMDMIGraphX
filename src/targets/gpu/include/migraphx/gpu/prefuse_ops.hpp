@@ -1,19 +1,19 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
+#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
+#include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
 struct module;
 
 namespace gpu {
 
-struct write_literals
+struct prefuse_ops
 {
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::write_literals"; }
-
+    std::string name() const { return "gpu::prefuse_ops"; }
     void apply(module& m) const;
 };
 
@@ -21,4 +21,4 @@ struct write_literals
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP

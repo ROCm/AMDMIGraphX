@@ -60,17 +60,26 @@ constexpr auto common_vec_size()
     })(vec_size<Ts>()...);
 }
 
+// Bools can not be used as a vector type so convert it to uint8
+template <class T>
+__device__ __host__ T* remove_bool(T* x)
+{
+    return x;
+}
+
+inline __device__ __host__ uint8_t* remove_bool(bool* x) { return reinterpret_cast<uint8_t*>(x); }
+
 template <index_int N, class T>
 __device__ __host__ auto as_vec(T* x)
 {
-    if constexpr(N == 0)
+    if constexpr(N < 2)
         return x;
     else
         return reinterpret_cast<vec<T, N>*>(x);
 }
 
 template <class T, index_int N>
-using safe_vec = vec<std::conditional_t<std::is_same<T, bool>{}, uint8_t, T>, N>;
+using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
 
 template <class... Ts>
 constexpr auto vec_transform(Ts... xs)

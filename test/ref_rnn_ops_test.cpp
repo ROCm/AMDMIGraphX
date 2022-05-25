@@ -1173,11 +1173,6 @@ TEST_CASE(gru_forward_args)
         0.3852,  -0.1170, -0.2937, 0.2979,  -0.1357, 0.4257,  0.3884,  -0.2916, 0.1071,  0.0934,
         0.3645,  -0.4310, -0.3480, 0.0702,  -0.1558};
 
-    migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-    std::vector<float> bias_data{
-        0.0560,  0.0310, -0.1669, -0.0781, 0.1793, -0.1758, 0.3173,  -0.1650, -0.3732, 0.2946,
-        -0.0912, 0.3118, 0.1391,  0.2755,  0.2695, -0.1059, -0.2357, 0.3629,  -0.2534, -0.0494,
-        0.0556,  0.0881, -0.2592, -0.2213, 0.2310, -0.4044, 0.1801,  0.1438,  0.3108,  -0.3607};
 
     migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
     std::vector<float> input{-0.8432,
@@ -1199,9 +1194,6 @@ TEST_CASE(gru_forward_args)
                              -1.0536,
                              -0.2529};
 
-    migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-    std::vector<float> ih_data{
-        -0.0468, 0.5691, -0.0882, 0.8340, 0.1483, -0.3902, -0.5348, 0.4178, 1.0175, 0.9212};
     float clip = 0.0f;
 
     // 3 args
@@ -1242,6 +1234,11 @@ TEST_CASE(gru_forward_args)
 
     // 4 args (bias is used)
     {
+    std::vector<float> bias_data{
+        0.0560,  0.0310, -0.1669, -0.0781, 0.1793, -0.1758, 0.3173,  -0.1650, -0.3732, 0.2946,
+        -0.0912, 0.3118, 0.1391,  0.2755,  0.2695, -0.1059, -0.2357, 0.3629,  -0.2534, -0.0494,
+        0.0556,  0.0881, -0.2592, -0.2213, 0.2310, -0.4044, 0.1801,  0.1438,  0.3108,  -0.3607};
+    migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::program p;
         auto* mm  = p.get_main_module();
         auto seq  = mm->add_literal(migraphx::literal{in_shape, input});
@@ -1280,6 +1277,9 @@ TEST_CASE(gru_forward_args)
 
     // 4 args (ih is used)
     {
+    std::vector<float> ih_data{
+        -0.0468, 0.5691, -0.0882, 0.8340, 0.1483, -0.3902, -0.5348, 0.4178, 1.0175, 0.9212};
+    migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto seq = mm->add_literal(migraphx::literal{in_shape, input});
@@ -2210,14 +2210,6 @@ TEST_CASE(gru_bidirectional_args)
         0.4101,  0.2641,  -0.4110, -0.1681, 0.3582,  -0.2089, 0.0852,  0.0963,  0.3866,  0.1955,
         -0.2174, 0.1996,  -0.2252, 0.1748,  0.1833,  -0.3155, 0.2567,  -0.4387, 0.3402,  0.0599};
 
-    migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-    std::vector<float> bias_data{
-        -0.1582, -0.0826, 0.4008,  0.0118,  0.2511,  0.1900,  -0.2838, 0.2549,  -0.2484, 0.2363,
-        -0.4083, -0.0295, -0.1161, 0.1211,  0.2509,  -0.1414, -0.2628, -0.2992, 0.1517,  0.1817,
-        -0.2783, 0.3183,  -0.1629, -0.3108, -0.3418, 0.0411,  0.2203,  0.2187,  -0.2990, -0.0416,
-        0.0209,  -0.1024, 0.4443,  -0.4420, -0.0330, -0.3591, -0.2990, 0.2167,  0.1395,  0.2317,
-        0.1318,  0.1909,  -0.3615, 0.1953,  -0.2582, -0.2217, 0.3723,  0.1458,  0.2630,  -0.0377,
-        0.1754,  0.0800,  -0.3964, -0.3247, 0.4219,  -0.0900, 0.3553,  0.2614,  -0.1298, -0.1124};
 
     migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
     std::vector<float> input{-0.8432,
@@ -2239,10 +2231,6 @@ TEST_CASE(gru_bidirectional_args)
                              -1.0536,
                              -0.2529};
 
-    migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-    std::vector<float> ih_data{-0.0468, 0.5691,  -0.0882, 0.8340,  0.1483, -0.3902, -0.5348,
-                               0.4178,  1.0175,  0.9212,  -0.0468, 0.5691, -0.0882, 0.8340,
-                               0.1483,  -0.3902, -0.5348, 0.4178,  1.0175, 0.9212};
 
     float clip = 0.0f;
 
@@ -2288,6 +2276,14 @@ TEST_CASE(gru_bidirectional_args)
 
     // 4 args (bias is used)
     {
+    std::vector<float> bias_data{
+        -0.1582, -0.0826, 0.4008,  0.0118,  0.2511,  0.1900,  -0.2838, 0.2549,  -0.2484, 0.2363,
+        -0.4083, -0.0295, -0.1161, 0.1211,  0.2509,  -0.1414, -0.2628, -0.2992, 0.1517,  0.1817,
+        -0.2783, 0.3183,  -0.1629, -0.3108, -0.3418, 0.0411,  0.2203,  0.2187,  -0.2990, -0.0416,
+        0.0209,  -0.1024, 0.4443,  -0.4420, -0.0330, -0.3591, -0.2990, 0.2167,  0.1395,  0.2317,
+        0.1318,  0.1909,  -0.3615, 0.1953,  -0.2582, -0.2217, 0.3723,  0.1458,  0.2630,  -0.0377,
+        0.1754,  0.0800,  -0.3964, -0.3247, 0.4219,  -0.0900, 0.3553,  0.2614,  -0.1298, -0.1124};
+    migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::program p;
         auto* mm  = p.get_main_module();
         auto seq  = mm->add_literal(migraphx::literal{in_shape, input});
@@ -2330,6 +2326,10 @@ TEST_CASE(gru_bidirectional_args)
 
     // 4 args (ih is used)
     {
+    std::vector<float> ih_data{-0.0468, 0.5691,  -0.0882, 0.8340,  0.1483, -0.3902, -0.5348,
+                               0.4178,  1.0175,  0.9212,  -0.0468, 0.5691, -0.0882, 0.8340,
+                               0.1483,  -0.3902, -0.5348, 0.4178,  1.0175, 0.9212};
+    migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto seq = mm->add_literal(migraphx::literal{in_shape, input});
@@ -4186,7 +4186,6 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
                                 -0.83699064, 0.49162736, -0.8271,     -0.5683,     0.4562,
                                 -1.2545,     1.2729,     -0.4082,     -0.4392,     -0.9406,
                                 0.7794,      1.8194,     -0.5811,     0.2166};
-    std::vector<int> sl_data{1, 2, 3};
 
     float clip = 0.0f;
     migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
@@ -4196,10 +4195,11 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
     migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
     migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
     migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
-    migraphx::shape sl_shape{migraphx::shape::int32_type, {batch_size}};
 
     // concatenation of hidden states as program output
     {
+        std::vector<int> sl_data{1, 2, 3};
+        migraphx::shape sl_shape{migraphx::shape::int32_type, {batch_size}};
         migraphx::program p;
         auto* mm    = p.get_main_module();
         auto seq    = mm->add_literal(migraphx::literal{in_shape, input_data});

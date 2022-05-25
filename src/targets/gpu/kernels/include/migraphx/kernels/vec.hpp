@@ -80,7 +80,7 @@ __device__ __host__ auto as_vec(T* x)
 }
 
 template <class T, index_int N>
-using safe_vec = vec<std::conditional_t<std::is_same<T, bool>{}, uint8_t, T>, N>;
+using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
 
 template <class... Ts>
 constexpr auto vec_transform(Ts... xs)

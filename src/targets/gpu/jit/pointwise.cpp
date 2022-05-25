@@ -75,6 +75,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto axis              = find_fast_axis(options.virtual_inputs);
         auto vec               = vectorize::elements(axis, options.virtual_inputs);
         auto preloads          = preload::broadcasts(axis, options.virtual_inputs);
+        options.kernel_name    = v.get("kernel", "kernel");
         options.set_launch_params(
             v,
             compute_global_for(ctx,

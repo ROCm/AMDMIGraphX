@@ -147,8 +147,8 @@ struct array
 
     constexpr array carry(array result) const
     {
-        uint32_t overflow = 0;
-        for(std::ptrdiff_t i = result.size() - 1; i > 0; i--)
+        index_int overflow = 0;
+        for(diff_int i = result.size() - 1; i > 0; i--)
         {
             auto z = result[i] + overflow;
             // Reset overflow

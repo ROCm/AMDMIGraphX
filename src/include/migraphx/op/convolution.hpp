@@ -96,7 +96,7 @@ struct convolution
                 return ret;
             };
 
-        if(input.dynamic())
+        if(input.dynamic() or weights.dynamic())
         {
             std::vector<shape::dynamic_dimension> output_dyn_dims = {input.dyn_dims().at(0),
                                                                      input.dyn_dims().at(1)};

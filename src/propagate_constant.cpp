@@ -26,19 +26,18 @@ bool is_const(instruction_ref ins) { return ins->can_eval() and not skip_propoga
 void propagate_constant::apply(module& m) const
 {
     std::unordered_set<instruction_ref> const_instrs;
+    auto last = std::prev(m.end());
 
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {
-        if(not is_const(i) or i == std::prev(m.end()))
-        {
-            std::for_each(i->inputs().begin(), i->inputs().end(), [&](const instruction_ref ins) {
-                if(is_const(ins))
-                {
-                    const_instrs.emplace(ins);
-                }
-            });
-        }
+        if(is_const(i) and i != last)
+            continue;
+
+        std::copy_if(i->inputs().begin(),
+                     i->inputs().end(),
+                     std::inserter(const_instrs, const_instrs.begin()),
+                     [&](const instruction_ref ins) { return is_const(ins); });
     }
 
     // Compute literals in parallel

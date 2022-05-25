@@ -2,7 +2,7 @@ on:
   push:
     branches: [develop]
   schedule:
-    - cron: "0 1 * * *"
+    - cron: "30 2 * * *"
 env:
   TEST: false
   DOCKERBASE: rocm-migraphx:5.1

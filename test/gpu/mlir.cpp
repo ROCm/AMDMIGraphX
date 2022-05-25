@@ -1,5 +1,7 @@
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
@@ -8,11 +10,25 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/verify_args.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/functional.hpp>
 #include <test.hpp>
 
 using migraphx::trim;
 
 // m test_gpu_mlir && ./bin/test_gpu_mlir
+
+struct mlir_gpu_target : migraphx::gpu::target
+{
+    std::string name() const { return "mlir"; }
+    std::vector<migraphx::pass> get_passes(migraphx::context& gctx, const migraphx::compile_options&) const
+    {
+        auto& ctx = migraphx::any_cast<migraphx::gpu::context>(gctx);
+        return {
+            migraphx::gpu::write_literals{&ctx}
+        };
+    }
+};
 
 std::string encode(std::string s)
 {
@@ -44,9 +60,10 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     std::transform(names.begin(), names.end(), std::back_inserter(inputs), [&](const auto& name) {
         return mm->add_parameter(name, mmlir.get_parameter_shape(name));
     });
+    std::sort(inputs.begin(), inputs.end(), migraphx::by(std::less<>{}, [](auto ins) { return to_string(ins->get_operator()); }));
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
+
     migraphx::gpu::insert_mlir(*mm, mm->end(), mmlir, inputs);
-    std::cout << p << std::endl;
     return p;
 }
 
@@ -64,7 +81,7 @@ migraphx::parameter_map generate_params(const migraphx::program& p)
 
 migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& inputs)
 {
-    migraphx::gpu::target t;
+    mlir_gpu_target t;
     p.compile(t);
     migraphx::parameter_map m;
     for(auto&& input : inputs)
@@ -101,9 +118,9 @@ bool verify_mlir(const migraphx::module& mmlir)
 TEST_CASE(conv)
 {
     const std::string mlir_output = R"__migraphx__(
-module  {
-  func @main(%arg0: tensor<1x8x4x4xf32>, %arg1: tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32> {
-    %0 = migraphx.convolution(%arg0, %arg1) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
+module {
+  func @main(%arg0: tensor<2x8x3x3xf32>, %arg1: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {kernel = "mixr"} {
+    %0 = migraphx.convolution(%arg1, %arg0) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
     return %0 : tensor<1x2x2x2xf32>
   }
 }
@@ -117,7 +134,6 @@ module  {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    std::cout << s << std::endl;
     CHECK(encode(s) == encode(mlir_output));
     EXPECT(verify_mlir(m));
 }
@@ -125,10 +141,10 @@ module  {
 TEST_CASE(conv_add_relu)
 {
     const std::string mlir_output = R"__migraphx__(
-module  {
-  func @main(%arg0: tensor<1x8x4x4xf32>, %arg1: tensor<2x8x3x3xf32>, %arg2: tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32> {
-    %0 = migraphx.convolution(%arg0, %arg1) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
-    %1 = migraphx.add(%0, %arg2) : (tensor<1x2x2x2xf32>, tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
+module {
+  func @main(%arg0: tensor<1x2x2x2xf32>, %arg1: tensor<2x8x3x3xf32>, %arg2: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {kernel = "mixr"} {
+    %0 = migraphx.convolution(%arg2, %arg1) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
+    %1 = migraphx.add(%0, %arg0) : (tensor<1x2x2x2xf32>, tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
     %2 = migraphx.relu(%1) : (tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
     return %2 : tensor<1x2x2x2xf32>
   }
@@ -146,7 +162,6 @@ module  {
     // Skip test if MLIR is not enabled
     if(s.empty())
         return;
-    std::cout << s << std::endl;
     CHECK(encode(s) == encode(mlir_output));
     EXPECT(verify_mlir(m));
 }

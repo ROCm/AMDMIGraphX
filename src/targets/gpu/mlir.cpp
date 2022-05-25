@@ -11,6 +11,7 @@
 #include <mlir-c/Registration.h>
 #endif
 
+#include <migraphx/env.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
@@ -26,6 +27,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -484,9 +487,10 @@ struct mlir_program
         std::string tname = get_device_name();
         // HACK: Since MLIR can't handle the full target name
         auto hacked_tname    = tname.substr(0, tname.find(":"));
-        auto hacked_features = tname.substr(tname.find(":"));
+        if (tname.size() != hacked_tname.size())
+            std::cout << "*************** WARNING: MLIR may not compile the correct target features for: " << tname << std::endl;
         mlirMIGraphXAddBackendPipeline(
-            pm.get(), hacked_tname.c_str(), "amdgcn-amd-amdhsa", hacked_features.c_str());
+            pm.get(), hacked_tname.c_str(), "amdgcn-amd-amdhsa", "");
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op;
@@ -532,11 +536,14 @@ std::string dump_mlir(const module& m)
 
 code_object_op compile_mlir(const module& m)
 {
-    std::cout << m << std::endl;
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    if (trace)
+        std::cout << m << std::endl;
     mlir_program mp;
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-    std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    if (trace)
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     return mp.compile();
 }
 

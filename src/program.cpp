@@ -312,7 +312,9 @@ std::vector<argument> generic_eval(const module* mod,
                     return shapes;
                 };
                 // TODO: Consider how this will be handled when memoized.
-                // Could memoize these output shapes now so not recalculating
+                // Could memoize these output shapes into a map so not recalculating
+                // TODO: Issue with incompatible input tensor to kernel and needing to set
+                // padding/strides
                 output_shape = ins->get_operator().compute_shape(to_shapes(values));
             }
             else
@@ -333,7 +335,6 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
-        // TODO: update this assert for dynamic shapes
         if(not ins->get_shape().dynamic())
         {
             assert(results.at(ins).get_shape() == ins->get_shape());

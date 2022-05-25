@@ -208,7 +208,6 @@ template <class T, class... Ts>
 auto visit_all(T&& x, Ts&&... xs)
 {
     auto&& s = x.get_shape();
-    // cppcheck-suppress redundantInitialization
     std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
     if(!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");

@@ -105,14 +105,14 @@ void eliminate_contiguous::apply(module& m) const
         }
     }
 
-    //Perform evaluations in parallel
+    // Perform evaluations in parallel
     std::vector<argument> literals(prevs.size());
-    par_for(inputs.size(), 1, [&](const auto i){
-        auto c = op::contiguous{};
+    par_for(inputs.size(), 1, [&](const auto i) {
+        auto c      = op::contiguous{};
         literals[i] = c.compute(c.compute_shape({prevs[i]->get_shape()}), {prevs[i]->eval()});
     });
 
-    for (size_t i = 0; i < prevs.size(); i++)
+    for(size_t i = 0; i < prevs.size(); i++)
     {
         auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
         m.replace_instruction(inputs[i], l);

@@ -34,10 +34,11 @@ void propagate_constant::apply(module& m) const
         if(is_const(i) and i != last)
             continue;
 
-        std::copy_if(i->inputs().begin(),
-                     i->inputs().end(),
-                     std::inserter(const_instrs, const_instrs.begin()),
-                     [&](const instruction_ref ins) { return is_const(ins); });
+        std::copy_if(
+            i->inputs().begin(),
+            i->inputs().end(),
+            std::inserter(const_instrs, const_instrs.begin()),
+            [&](const instruction_ref ins) { return is_const(ins) and ins->name() != "@literal"; });
     }
 
     // Compute literals in parallel

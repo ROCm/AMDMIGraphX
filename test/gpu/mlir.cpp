@@ -18,6 +18,11 @@ using migraphx::trim;
 
 // m test_gpu_mlir && ./bin/test_gpu_mlir
 
+// [  FAILED  ] test_conv_add2
+// [  FAILED  ] test_conv_relu
+// [  FAILED  ] test_conv_relu_half
+// [  FAILED  ] test_literals
+
 struct mlir_gpu_target : migraphx::gpu::target
 {
     std::string name() const { return "mlir"; }

@@ -12,7 +12,6 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        std::vector<size_t> input_lens{4, 3, 3, 3};
         auto input =
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =

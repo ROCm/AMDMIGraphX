@@ -30,11 +30,11 @@ struct parse_squeeze : op_parser<parse_squeeze>
                           std::vector<instruction_ref> args) const
     {
         auto op = parser.load(opd.op_name, info);
-        std::vector<int64_t> axes;
         if(args.size() == 2)
         {
             auto arg_axes = args.at(1)->eval();
             check_arg_empty(arg_axes, "PARSE_" + opd.op_name + ": cannot handle variable axes!");
+            std::vector<int64_t> axes;
             arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
             op = assign_axes(op, axes);
         }

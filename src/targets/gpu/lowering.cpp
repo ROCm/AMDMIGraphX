@@ -26,6 +26,8 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -255,9 +257,37 @@ struct miopen_apply
             {
                 check_shape(s, insert_precompile_op(it));
             }
+            else if(it->get_operator().has_offload_copy()) // custom op
+            {
+                check_shape(s, insert_custom_op(it));
+            }
         }
 
         copy_params();
+    }
+
+    instruction_ref insert_custom_op(instruction_ref ins) const
+    {
+        const auto& custom_op = ins->get_operator();
+        if(not custom_op.runs_on_offload_target())
+        {
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, custom_op, cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        }
+
+        return ins;
     }
 
     instruction_ref insert_precompile_op(instruction_ref ins) const

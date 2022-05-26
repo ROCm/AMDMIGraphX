@@ -56,6 +56,8 @@ struct operation
     std::string name() const;
     /// An optional method that can be used to finalize the operator before running
     void finalize(context& ctx);
+    /// An optional method that can be used to set offload copy for a target
+    bool runs_on_offload_target();
     /// This is used to compute the resulting shape from an operation. If an
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
@@ -89,6 +91,8 @@ bool is_context_free(const operation& x);
 bool need_normalization(const operation& x);
 /// Returns true if the operation has a finalize method
 bool has_finalize(const operation& x);
+/// Returns true if the operation has a runs_on_offload_target method
+bool has_offload_copy(const operation& x);
 
 #else
 
@@ -418,6 +422,36 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
 }
 
 template <class T>
+auto runs_on_offload_target(rank<1>, T& x)
+    -> decltype(x.runs_on_offload_target() ? std::true_type{} : std::false_type{})
+{
+    return {};
+}
+
+template <class T>
+auto runs_on_offload_target(rank<0>, T&) -> std::false_type
+{
+}
+
+template <class T>
+auto runs_on_offload_target(T& x) -> decltype(runs_on_offload_target(rank<1>{}, x))
+{
+    return {};
+}
+
+template <class T>
+auto has_offload_copy(rank<1>, T& x) -> decltype(x.runs_on_offload_target(), std::true_type{});
+
+template <class T>
+auto has_offload_copy(rank<0>, T&) -> std::false_type;
+
+template <class T>
+auto has_offload_copy(const T&) -> decltype(has_offload_copy(rank<1>{}, std::declval<T&>()))
+{
+    return {};
+}
+
+template <class T>
 auto compile_op(
     rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
     -> decltype(x.compile(auto_any_cast(ctx), output_shape, input))
@@ -480,6 +514,8 @@ lifetime get_lifetime_op(const T&)
              default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
      virtual(
+         'has_offload_copy', returns = 'bool', const = True, default = 'detail::has_offload_copy'),
+     virtual(
          'get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
@@ -497,6 +533,10 @@ lifetime get_lifetime_op(const T&)
              output  = 'const shape&',
              input   = 'const std::vector<shape>&',
              default = 'detail::finalize_op'),
+     virtual('runs_on_offload_target',
+             returns = 'bool',
+             const   = True,
+             default = 'detail::runs_on_offload_target'),
      virtual('compute_shape',
              returns = 'shape',
              input   = 'const std::vector<shape>&',
@@ -645,6 +685,14 @@ template <class T>
 bool has_finalize(const T& x)
 {
     return detail::has_finalize_op(x);
+}
+
+inline bool has_offload_copy(const operation& op) { return op.has_offload_copy(); }
+
+template <class T>
+bool has_offload_copy(const T& x)
+{
+    return detail::has_offload_copy(x);
 }
 
 void migraphx_to_value(value& v, const operation& op);

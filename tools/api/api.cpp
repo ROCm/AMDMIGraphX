@@ -271,6 +271,13 @@ struct custom_operation
     {
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
+
+    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    {
+        return op.output_alias(std::move(inputs));
+    }
+
+    bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
 };
 
 template <class CustomOp>

@@ -56,6 +56,8 @@ struct operation
     std::string name() const;
     /// An optional method that can be used to finalize the operator before running
     void finalize(context& ctx);
+    /// An optional method that can be used to set offload copy for a target
+    bool runs_on_offload_target();
     /// This is used to compute the resulting shape from an operation. If an
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
@@ -89,6 +91,8 @@ bool is_context_free(const operation& x);
 bool need_normalization(const operation& x);
 /// Returns true if the operation has a finalize method
 bool has_finalize(const operation& x);
+/// Returns true if the operation has a runs_on_offload_target method
+bool has_offload_copy(const operation& x);
 
 #else
 
@@ -418,6 +422,36 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
 }
 
 template <class T>
+auto runs_on_offload_target(rank<1>, T& x)
+    -> decltype(x.runs_on_offload_target() ? std::true_type{} : std::false_type{})
+{
+    return {};
+}
+
+template <class T>
+auto runs_on_offload_target(rank<0>, T&) -> std::false_type
+{
+}
+
+template <class T>
+auto runs_on_offload_target(T& x) -> decltype(runs_on_offload_target(rank<1>{}, x))
+{
+    return {};
+}
+
+template <class T>
+auto has_offload_copy(rank<1>, T& x) -> decltype(x.runs_on_offload_target(), std::true_type{});
+
+template <class T>
+auto has_offload_copy(rank<0>, T&) -> std::false_type;
+
+template <class T>
+auto has_offload_copy(const T&) -> decltype(has_offload_copy(rank<1>{}, std::declval<T&>()))
+{
+    return {};
+}
+
+template <class T>
 auto compile_op(
     rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
     -> decltype(x.compile(auto_any_cast(ctx), output_shape, input))
@@ -482,6 +516,8 @@ struct operation
     // (optional)
     bool has_finalize() const;
     // (optional)
+    bool has_offload_copy() const;
+    // (optional)
     lifetime get_lifetime() const;
     // (optional)
     std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
@@ -489,6 +525,8 @@ struct operation
     value compile(context& ctx, const shape& output, const std::vector<shape>& input);
     // (optional)
     void finalize(context& ctx, const shape& output, const std::vector<shape>& input);
+    // (optional)
+    bool runs_on_offload_target() const;
     // (optional)
     shape compute_shape(const std::vector<shape>& input) const;
     // (optional)
@@ -612,6 +650,12 @@ struct operation
         return (*this).private_detail_te_get_handle().has_finalize();
     }
 
+    bool has_offload_copy() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().has_offload_copy();
+    }
+
     lifetime get_lifetime() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -634,6 +678,12 @@ struct operation
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().finalize(ctx, output, input);
+    }
+
+    bool runs_on_offload_target() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().runs_on_offload_target();
     }
 
     shape compute_shape(const std::vector<shape>& input) const
@@ -731,12 +781,14 @@ struct operation
         virtual bool is_context_free() const                                       = 0;
         virtual bool need_normalization() const                                    = 0;
         virtual bool has_finalize() const                                          = 0;
+        virtual bool has_offload_copy() const                                      = 0;
         virtual lifetime get_lifetime() const                                      = 0;
         virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
         virtual value
         compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
         virtual void
         finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
+        virtual bool runs_on_offload_target() const                                  = 0;
         virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
         virtual shape compute_shape(const std::vector<shape>& inputs,
                                     const std::vector<module_ref>& mod_args) const   = 0;
@@ -800,6 +852,19 @@ struct operation
     static bool private_detail_te_default_has_finalize(float, T&& private_detail_te_self)
     {
         return detail::has_finalize_op(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_has_offload_copy(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.has_offload_copy())
+    {
+        return private_detail_te_self.has_offload_copy();
+    }
+
+    template <class T>
+    static bool private_detail_te_default_has_offload_copy(float, T&& private_detail_te_self)
+    {
+        return detail::has_offload_copy(private_detail_te_self);
     }
 
     template <class T>
@@ -872,6 +937,19 @@ struct operation
                                                    const std::vector<shape>& input)
     {
         detail::finalize_op(private_detail_te_self, ctx, output, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_runs_on_offload_target(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.runs_on_offload_target())
+    {
+        return private_detail_te_self.runs_on_offload_target();
+    }
+
+    template <class T>
+    static bool private_detail_te_default_runs_on_offload_target(float, T&& private_detail_te_self)
+    {
+        return detail::runs_on_offload_target(private_detail_te_self);
     }
 
     template <class T>
@@ -1097,6 +1175,12 @@ struct operation
             return private_detail_te_default_has_finalize(char(0), private_detail_te_value);
         }
 
+        bool has_offload_copy() const override
+        {
+
+            return private_detail_te_default_has_offload_copy(char(0), private_detail_te_value);
+        }
+
         lifetime get_lifetime() const override
         {
 
@@ -1121,6 +1205,13 @@ struct operation
 
             private_detail_te_default_finalize(
                 char(0), private_detail_te_value, ctx, output, input);
+        }
+
+        bool runs_on_offload_target() const override
+        {
+
+            return private_detail_te_default_runs_on_offload_target(char(0),
+                                                                    private_detail_te_value);
         }
 
         shape compute_shape(const std::vector<shape>& input) const override
@@ -1360,6 +1451,14 @@ template <class T>
 bool has_finalize(const T& x)
 {
     return detail::has_finalize_op(x);
+}
+
+inline bool has_offload_copy(const operation& op) { return op.has_offload_copy(); }
+
+template <class T>
+bool has_offload_copy(const T& x)
+{
+    return detail::has_offload_copy(x);
 }
 
 void migraphx_to_value(value& v, const operation& op);

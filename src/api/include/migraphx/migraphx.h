@@ -140,6 +140,13 @@ typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraph
                                                                          void* obj,
                                                                          migraphx_shapes_t inputs);
 
+typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(std::ptrdiff_t* out,
+                                                                        void* obj,
+                                                                        migraphx_shapes_t inputs);
+
+typedef migraphx_status (*migraphx_experimental_custom_op_runs_on_offload_target)(bool* out,
+                                                                                  void* obj);
+
 typedef migraphx_status (*migraphx_experimental_custom_op_copy)(void** out, void* input);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_delete)(void* input);
@@ -494,6 +501,13 @@ migraphx_experimental_custom_op_set_compute(migraphx_experimental_custom_op_t ob
 
 migraphx_status migraphx_experimental_custom_op_set_compute_shape(
     migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input);
+
+migraphx_status migraphx_experimental_custom_op_set_output_alias(
+    migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_output_alias input);
+
+migraphx_status migraphx_experimental_custom_op_set_runs_on_offload_target(
+    migraphx_experimental_custom_op_t obj,
+    migraphx_experimental_custom_op_runs_on_offload_target input);
 
 migraphx_status
 migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t experimental_custom_op);

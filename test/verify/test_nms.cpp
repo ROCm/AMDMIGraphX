@@ -38,22 +38,21 @@ struct test_nms : verify_program<test_nms>
 
         migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
         std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
-
-        auto boxes_l         = mm->add_parameter("boxes", boxes_s);
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
-        auto max_out_l       = mm->add_literal(int64_t{4});
-        auto iou_threshold   = mm->add_literal(0.5f);
-        auto score_threshold = mm->add_literal(0.0f);
-
+        auto boxes_l                  = mm->add_parameter("boxes", boxes_s);
+        auto scores_l                 = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+        auto max_out_l                = mm->add_literal(int64_t{4});
+        auto iou_threshold            = mm->add_literal(0.5f);
+        auto score_threshold          = mm->add_literal(0.0f);
+        auto relu                     = mm->add_instruction(migraphx::make_op("relu"), boxes_l);
         auto r =
             mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}),
-                                boxes_l,
+                                relu,
                                 scores_l,
                                 max_out_l,
                                 iou_threshold,
                                 score_threshold);
-        mm->add_return({r});
-
+        auto relu2 = mm->add_instruction(migraphx::make_op("relu"), r);
+        mm->add_return({relu2});
         return p;
     }
 };

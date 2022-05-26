@@ -271,6 +271,13 @@ struct custom_operation
     {
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
+
+    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    {
+        return op.output_alias(std::move(inputs));
+    }
+
+    bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
 };
 
 template <class CustomOp>
@@ -616,6 +623,31 @@ struct migraphx_experimental_custom_op
         if(api_error_result != migraphx_status_success)
             throw std::runtime_error("Error in compute_shape.");
         return (&out)->object;
+    }
+
+    migraphx_experimental_custom_op_output_alias output_alias_f = nullptr;
+    std::ptrdiff_t output_alias(std::vector<migraphx::shape> inputs) const
+    {
+        std::remove_pointer_t<std::ptrdiff_t*> out;
+        if(output_alias_f == nullptr)
+            throw std::runtime_error("output_alias function is missing.");
+        auto api_error_result =
+            output_alias_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
+        if(api_error_result != migraphx_status_success)
+            throw std::runtime_error("Error in output_alias.");
+        return out;
+    }
+
+    migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;
+    bool runs_on_offload_target() const
+    {
+        std::remove_pointer_t<bool*> out;
+        if(runs_on_offload_target_f == nullptr)
+            throw std::runtime_error("runs_on_offload_target function is missing.");
+        auto api_error_result = runs_on_offload_target_f(&out, object_ptr.data);
+        if(api_error_result != migraphx_status_success)
+            throw std::runtime_error("Error in runs_on_offload_target.");
+        return out;
     }
 };
 
@@ -1827,6 +1859,22 @@ extern "C" migraphx_status migraphx_experimental_custom_op_set_compute_shape(
     migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input)
 {
     auto api_error_result = migraphx::try_([&] { (obj)->compute_shape_f = (input); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_experimental_custom_op_set_output_alias(migraphx_experimental_custom_op_t obj,
+                                                 migraphx_experimental_custom_op_output_alias input)
+{
+    auto api_error_result = migraphx::try_([&] { (obj)->output_alias_f = (input); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_experimental_custom_op_set_runs_on_offload_target(
+    migraphx_experimental_custom_op_t obj,
+    migraphx_experimental_custom_op_runs_on_offload_target input)
+{
+    auto api_error_result = migraphx::try_([&] { (obj)->runs_on_offload_target_f = (input); });
     return api_error_result;
 }
 

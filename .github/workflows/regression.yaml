@@ -105,7 +105,6 @@ jobs:
 
       - name: Send mail
         if: ${{ github.event_name != 'schedule' }}
-        needs: last_report
         uses: dawidd6/action-send-mail@v3
         with:
           # Required mail server address:

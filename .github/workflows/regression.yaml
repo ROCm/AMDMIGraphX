@@ -107,7 +107,7 @@ jobs:
           # Optional (recommended) mail server password:
           password: ${{secrets.MAIL_PASSWORD}}
           # Required mail subject:
-          subject: Github Actions test
+          subject: Github Actions testsend email test
           # Required recipients' addresses:
           to: igor.mirosavljevic@htecgroup.com
           # Required sender full name (address can be skipped):

@@ -39,7 +39,7 @@ void liveness(const module& m, F f)
             {
                 auto i = instruction::get_output_alias(input);
                 // Skip if variable comes from parent
-                if (not m.has_instruction(i))
+                if(not m.has_instruction(i))
                     continue;
                 live_set.insert(i);
             }
@@ -145,32 +145,36 @@ struct allocation_segment
 
     static std::size_t max_type_size(const shape& s)
     {
-        return std::accumulate(s.sub_shapes().begin(), s.sub_shapes().end(), s.type_size(), [](auto size, const auto& sub) {
-            return std::max(size, max_type_size(sub));
-        });
+        return std::accumulate(
+            s.sub_shapes().begin(),
+            s.sub_shapes().end(),
+            s.type_size(),
+            [](auto size, const auto& sub) { return std::max(size, max_type_size(sub)); });
     }
 
     static std::size_t compute_alignment(instruction_ref ins)
     {
         auto alignment = max_type_size(ins->get_shape());
+        // A rough estimate fo the total number of elements
+        auto n = ins->get_shape().bytes() / alignment;
         // Check for vectorized alignment
-        if (alignment > 4) {
-            auto n = (ins->get_shape().bytes() / alignment) % 4;
-            if (n == 0)
+        if(n > 4)
+        {
+            auto d = n % 4;
+            if(d == 0)
                 alignment *= 4;
-            if (n == 2)
+            if(d == 2)
                 alignment *= 2;
         }
         return alignment;
     }
 
     static segment
-    next_segment(std::set<segment>& segments, instruction_ref ins, std::size_t min_alignment)
+    next_segment(std::set<segment>& segments, instruction_ref ins, std::size_t alignment)
     {
         assert(ins->get_shape().bytes() > 0);
         // Compute alignment
-        auto alignment = std::max<std::size_t>(min_alignment, compute_alignment(ins));
-        auto n = 1 + (ins->get_shape().bytes() - 1) / alignment;
+        auto n         = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
         auto start = 0;
         // Insert at end if it can fit at the begining
@@ -228,11 +232,12 @@ struct allocation_segment
             // This set is to track the segments already processed
             std::set<segment> segments;
             // Add all segemnts for the children to the segments already processed
-            transform_if(children.begin(),
-                         children.end(),
-                         std::inserter(segments, segments.begin()),
-                         [&](auto child) { return as.get_segment(child); },
-                         [&](auto child) { return *as.get_segment(child); });
+            transform_if(
+                children.begin(),
+                children.end(),
+                std::inserter(segments, segments.begin()),
+                [&](auto child) { return as.get_segment(child); },
+                [&](auto child) { return *as.get_segment(child); });
 
             // Get the segment for the parent
             auto* parent_segment = as.get_segment(parent);
@@ -252,11 +257,12 @@ struct allocation_segment
                 // This set is to track the segments already processed
                 std::set<segment> segments;
                 // Add all segemnts for the children to the segments already processed
-                transform_if(children.begin(),
-                             children.end(),
-                             std::inserter(segments, segments.begin()),
-                             [&](auto child) { return as.get_segment(child); },
-                             [&](auto child) { return *as.get_segment(child); });
+                transform_if(
+                    children.begin(),
+                    children.end(),
+                    std::inserter(segments, segments.begin()),
+                    [&](auto child) { return as.get_segment(child); },
+                    [&](auto child) { return *as.get_segment(child); });
                 // Get the segment for the parent
                 auto* parent_segment = as.get_segment(parent);
                 assert(parent_segment != nullptr);

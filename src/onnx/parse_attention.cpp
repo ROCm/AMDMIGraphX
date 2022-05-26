@@ -28,9 +28,9 @@ struct parse_attention : op_parser<parse_attention>
             num_heads = info.attributes.at("num_heads").i();
 
         // input shape: (batch_size, sequence_length, input_hidden_size)
-        auto input_lens        = input->get_shape().lens();
-        auto batch_size        = input_lens.at(0);
-        auto sequence_length   = input_lens.at(1);
+        auto input_lens      = input->get_shape().lens();
+        auto batch_size      = input_lens.at(0);
+        auto sequence_length = input_lens.at(1);
 
         // bias shape= (3 * hidden_size)
         auto bias_lens   = bias->get_shape().lens();

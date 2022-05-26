@@ -668,7 +668,7 @@ TEST_CASE(test38)
     auto p83    = m.add_instruction(pass_op{}, p78, p77);
     m.add_instruction(pass_op{}, output, p83, p63);
     run_pass(m);
-    CHECK(m.get_parameter_shape("scratch").bytes() == 6422528); // Optimal solution is 6422528
+    CHECK(m.get_parameter_shape("scratch").bytes() == 7225344); // Optimal solution is 6422528
     CHECK(no_allocate(m));
 }
 

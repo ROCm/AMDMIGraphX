@@ -174,7 +174,7 @@ struct allocation_segment
     {
         assert(ins->get_shape().bytes() > 0);
         // Compute alignment
-        auto n         = 1 + (ins->get_shape().bytes() - 1) / alignment;
+        auto n = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
         auto start = 0;
         // Insert at end if it can fit at the begining

@@ -118,7 +118,7 @@ void pack_int8_args::apply(module& m) const
             assert(val.contains("int8_x4_format"));
             if(not val.at("int8_x4_format").to<bool>())
             {
-                return;
+                continue;
             }
             auto inputs = ins->inputs();
             auto lens   = inputs.at(0)->get_shape().lens();
@@ -159,7 +159,7 @@ void pack_int8_args::apply(module& m) const
             auto val = ins->get_operator().to_value();
             if(not val.at("int8_x4_format").to<bool>())
             {
-                return;
+                continue;
             }
 
             auto inputs   = ins->inputs();

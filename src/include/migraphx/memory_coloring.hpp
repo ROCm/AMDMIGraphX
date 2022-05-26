@@ -16,7 +16,7 @@ struct memory_coloring
 {
     std::string allocation_op{};
     bool verify = false;
-    std::string name() const { return "memory coloring"; }
+    std::string name() const { return "memory_coloring"; }
     void apply(module& m) const;
 };
 

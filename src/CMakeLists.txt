@@ -34,14 +34,13 @@ add_library(migraphx
     json.cpp
     load_save.cpp
     make_op.cpp
+    memory_coloring.cpp
     module.cpp
     msgpack.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
     operation.cpp
-    opt/memory_coloring.cpp
-    opt/memory_coloring_impl.cpp
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp

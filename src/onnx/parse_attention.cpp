@@ -31,7 +31,6 @@ struct parse_attention : op_parser<parse_attention>
         auto input_lens        = input->get_shape().lens();
         auto batch_size        = input_lens.at(0);
         auto sequence_length   = input_lens.at(1);
-        auto input_hidden_size = input_lens.at(2);
 
         // bias shape= (3 * hidden_size)
         auto bias_lens   = bias->get_shape().lens();

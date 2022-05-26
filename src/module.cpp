@@ -737,7 +737,6 @@ std::unordered_map<instruction_ref, std::string>
 module::print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const
 {
     os << "migraphx::module p;" << std::endl;
-    // cppcheck-suppress variableScope
     unsigned long seed = 0;
     names              = this->print(
         [&](auto ins, auto ins_names) {

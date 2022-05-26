@@ -203,6 +203,8 @@ rocm_enable_cppcheck(
         useSmartPointer:*make_shared_array.hpp
         constParameter:*src/targets/gpu/*.cpp
         constParameter:*src/targets/gpu/*.hpp
+        # Suppress mlir_conv.cpp since this file will be deleted
+        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE

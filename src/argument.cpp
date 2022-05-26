@@ -29,7 +29,6 @@ void argument::assign_buffer(std::function<char*()> d)
     // Collect all shapes
     std::unordered_map<std::size_t, shape> shapes;
     {
-        // cppcheck-suppress variableScope
         std::size_t i = 0;
         fix([&](auto self, auto ss) {
             if(ss.sub_shapes().empty())
@@ -60,7 +59,6 @@ void argument::assign_buffer(std::function<char*()> d)
     }
     assert(offset == s.bytes());
 
-    // cppcheck-suppress variableScope
     std::size_t i = 0;
     m_data        = fix<data_t>([&](auto self, auto ss) {
         data_t result;

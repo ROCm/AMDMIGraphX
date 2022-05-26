@@ -682,7 +682,7 @@ struct miopen_fusion
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
 
@@ -706,19 +706,19 @@ struct miopen_conv_bias
         float beta  = 0;
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
 
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        if(not f.compile(ctx))
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        if(not fp.compile(ctx))
             MIGRAPHX_THROW("Failed to compile fusion plan");
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -729,7 +729,7 @@ MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
     fusion::op_t relu = {};
@@ -755,18 +755,18 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        relu = f.create_relu();
-        f.compile(ctx);
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        relu = fp.create_relu();
+        fp.compile(ctx);
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -876,7 +876,6 @@ struct find_conv_pointwise
         {
             if(i.name()[0] == '@')
                 continue;
-            auto inputs = to_shapes(i.inputs());
             op.ops.push_back({{i.get_operator()}});
         }
         std::vector<instruction_ref> inputs = {input_ins, weights_ins, bias_ins, alloc_ins};

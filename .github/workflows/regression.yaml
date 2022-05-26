@@ -104,7 +104,8 @@ jobs:
           echo "::set-output name=latest::$latest"
 
       - name: Send mail
-        ${{ github.event_name != 'schedule' }}
+        if: ${{ github.event_name != 'schedule' }}
+        needs: last_report
         uses: dawidd6/action-send-mail@v3
         with:
           # Required mail server address:

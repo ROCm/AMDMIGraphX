@@ -72,8 +72,7 @@ static bool try_compute_shape(instruction_ref ins,
 
 void eliminate_contiguous::apply(module& m) const
 {
-    std::vector<instruction_ref> inputs;
-    std::vector<instruction_ref> prevs;
+    std::vector<instruction_ref> const_instruction;
 
     for(auto ins : iterator_for(m))
     {
@@ -98,24 +97,24 @@ void eliminate_contiguous::apply(module& m) const
                 }
                 else if(prev->can_eval())
                 {
-                    inputs.push_back(arg);
-                    prevs.push_back(prev);
+                    const_instruction.push_back(arg);
                 }
             }
         }
     }
 
     // Perform evaluations in parallel
-    std::vector<argument> literals(prevs.size());
-    par_for(inputs.size(), 1, [&](const auto i) {
+    std::vector<argument> literals(const_instruction.size());
+    par_for(const_instruction.size(), 1, [&](const auto i) {
         auto c      = op::contiguous{};
-        literals[i] = c.compute(c.compute_shape({prevs[i]->get_shape()}), {prevs[i]->eval()});
+        auto prev   = const_instruction[i]->inputs().front();
+        literals[i] = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
     });
 
-    for(size_t i = 0; i < prevs.size(); i++)
+    for(size_t i = 0; i < const_instruction.size(); i++)
     {
         auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
-        m.replace_instruction(inputs[i], l);
+        m.replace_instruction(const_instruction[i], l);
     }
 }
 

@@ -94,3 +94,43 @@ jobs:
           token: ${{ secrets.GH_SUB_TOKEN }}
           issue-number: 1
           body: ${{ steps.auto_comment.outputs.body}}
+
+      - name: Send mail
+        uses: dawidd6/action-send-mail@v3
+        with:
+          # Required mail server address:
+          server_address: smtp.gmail.com
+          # Required mail server port:
+          server_port: 465
+          # Optional (recommended): mail server username:
+          username: ${{secrets.MAIL_USERNAME}}
+          # Optional (recommended) mail server password:
+          password: ${{secrets.MAIL_PASSWORD}}
+          # Required mail subject:
+          subject: Github Actions test
+          # Required recipients' addresses:
+          to: igor.mirosavljevic@htecgroup.com
+          # Required sender full name (address can be skipped):
+          from: GH Actions # <user@example.com>
+          # Optional whether this connection use TLS (default is true if server_port is 465)
+          secure: true
+          # Optional plain body:
+          body: Testing GH actions workflow
+          # Optional HTML body read from file:
+          #html_body: file://README.html
+          # Optional carbon copy recipients:
+          cc: compy6014@gmail.com
+          # Optional blind carbon copy recipients:
+          #bcc: r2d2@example.com,hansolo@example.com
+          # Optional recipient of the email response:
+          #reply_to: luke@example.com
+          # Optional Message ID this message is replying to:
+          #in_reply_to: <random-luke@example.com>
+          # Optional unsigned/invalid certificates allowance:
+          ignore_cert: true
+          # Optional converting Markdown to HTML (set content_type to text/html too):
+          #convert_markdown: true
+          # Optional attachments:
+          attachments: /home/htec/igor/rocm-migraphx/reports/results-2022-05-26.xlsx
+          # Optional priority: 'high', 'normal' (default) or 'low'
+          priority: normal

@@ -1,14 +1,17 @@
 on:
   workflow_dispatch:
     inputs:
+      release:
+        description: ROCm release version
+        required: true
       git-ref:
         description: Git Ref (Mandatory)
-        required: true
+        required: false
 
 name: MIOPEN Generate database
 
 env:
-  ROCM_VERSION: rocm51
+  ROCM_VERSION: rocm-${{ github.event.inputs.release }}
   MIOPEN_PATH: miopen-databases
   
 jobs:
@@ -30,7 +33,7 @@ jobs:
       - name: Check new image
         id: check_image
         run: |
-          if [[ "$(docker image inspect rocm-migraphx:5.1 2> /dev/null)" != "" ]]; then
+          if [[ "$(docker image inspect rocm-migraphx:${{ github.event.inputs.release }} 2> /dev/null)" != "" ]]; then
             echo "::set-output name=image::true"
           fi
       - name: test step
@@ -75,7 +78,7 @@ jobs:
           --group-add=video 
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
-          rocm-migraphx:5.1 /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
+          rocm-migraphx:${{ github.event.inputs.release }} /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
       - name: Push database to git
         run: |
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/

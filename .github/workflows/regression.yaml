@@ -2,7 +2,7 @@ on:
   push:
     branches: [develop]
   schedule:
-    - cron: "30 4 * * *"
+    - cron: "0 5 * * *"
 env:
   TEST: false
   DOCKERBASE: rocm-migraphx:5.1
@@ -95,7 +95,16 @@ jobs:
           issue-number: 1
           body: ${{ steps.auto_comment.outputs.body}}
 
+      - name: Get latest report
+        id: last_report
+        if: ${{ github.event_name != 'schedule' }}
+        run: |
+          cd /home/htec/igor/rocm-migraphx/reports
+          latest="$(readlink -f $(ls -tp | grep -v /$ | head -1))"
+          echo "::set-output name=latest::$latest"
+
       - name: Send mail
+        ${{ github.event_name != 'schedule' }}
         uses: dawidd6/action-send-mail@v3
         with:
           # Required mail server address:
@@ -107,7 +116,7 @@ jobs:
           # Optional (recommended) mail server password:
           password: ${{secrets.MAIL_PASSWORD}}
           # Required mail subject:
-          subject: Github Actions testsend email test
+          subject: Github Actions test send email test
           # Required recipients' addresses:
           to: igor.mirosavljevic@htecgroup.com
           # Required sender full name (address can be skipped):
@@ -119,7 +128,7 @@ jobs:
           # Optional HTML body read from file:
           #html_body: file://README.html
           # Optional carbon copy recipients:
-          cc: compy6014@gmail.com
+          #cc: igor.mirosavljevic@htecgroup.com,vidoje.gavrilovic@htecgroup.com,jovica.zlatanovic@htecgroup.com,stefan.micic@htecgroup.com
           # Optional blind carbon copy recipients:
           #bcc: r2d2@example.com,hansolo@example.com
           # Optional recipient of the email response:
@@ -131,6 +140,6 @@ jobs:
           # Optional converting Markdown to HTML (set content_type to text/html too):
           #convert_markdown: true
           # Optional attachments:
-          attachments: /home/htec/igor/rocm-migraphx/reports/results-2022-05-26.xlsx
+          attachments: ${{ steps.last_report.outputs.latest}}
           # Optional priority: 'high', 'normal' (default) or 'low'
           priority: normal

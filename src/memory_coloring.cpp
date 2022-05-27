@@ -471,7 +471,7 @@ struct allocation_color
 
 void memory_coloring::apply(module& m) const
 {
-    const std::size_t alignment = 4;
+    const std::size_t alignment = 8;
     auto conflict_table         = build_conflict_table(m, allocation_op);
     auto as                     = allocation_segment::build(conflict_table, alignment);
 
@@ -513,13 +513,12 @@ void memory_coloring::apply(module& m) const
 
     // Replace allocations
     auto mem = m.add_parameter("scratch", shape{shape::int8_type, {n}});
-    for(auto&& pp : as.ins2segment)
+    for(auto&& [ins, seg] : as.ins2segment)
     {
-        auto ins = pp.first;
-        auto seg = pp.second;
         assert(ins->name() == allocation_op);
         auto s             = ins->get_shape();
-        std::size_t offset = seg.first * 32;
+        std::size_t offset = seg.first * alignment;
+        assert(offset < n);
         m.replace_instruction(ins, op::load{s, offset}, mem);
     }
 

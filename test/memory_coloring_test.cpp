@@ -706,7 +706,7 @@ TEST_CASE(test39)
         run_pass(*smod);
     }
 
-    CHECK(mm->get_parameter_shape("scratch").bytes() == 4);
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 8);
     CHECK(then_mod->get_parameter_shape("scratch").bytes() == 24);
     CHECK(else_mod->get_parameter_shape("scratch").bytes() == 24);
     CHECK(no_allocate(*mm));

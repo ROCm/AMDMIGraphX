@@ -8,6 +8,14 @@ env:
   DOCKERBASE: rocm-migraphx:5.1
   MIOPENTUNE: miopen-rocm51
   REPORTS_DIR: migraphx-reports
+  MAIL_TO: igor.mirosavljevic@htecgroup.com
+  MAIL_FROM: GH Actions
+  MAIL_SUBJECT: GH Actions send email test
+  MAIL_BODY: Testing GH Actions workflow
+  SCRIPTS_PATH: /home/htec/jz/source/rocm-migraphx/scripts/
+  TEST_RESULTS_PATH: /home/htec/jz/source/rocm-migraphx/test-results/
+  REPORTS_PATH: /home/htec/igor/rocm-migraphx/reports/
+  PYTHON_PATH: /home/htec/anaconda3/bin/
 
 name: MIGraphX Regression test
 
@@ -60,12 +68,17 @@ jobs:
           --workdir /data/source/rocm-migraphx/scripts/
           rocm-migraphx:5.1 /bin/bash run_perf_mev.sh
       
+      - name: Delete old images/containers
+        run: |
+          docker container prune
+          docker rmi $(docker images --filter=reference="rocm-migraphx:20*" | grep -v $(date +%Y%m%d) | awk 'NR>1 {print $3}')
+      
       - name: Execute report script
         if: ${{ github.event_name == 'schedule' }}
         run: |
-            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/report.py \
-            -t "/home/htec/jz/source/rocm-migraphx/test-results/" \
-            -r "/home/htec/igor/rocm-migraphx/reports/"
+            ${{ env.PYTHON_PATH }}python3 ${{ env.SCRIPTS_PATH }}report.py \
+            -t '${{ env.TEST_RESULTS_PATH }}' \
+            -r '${{ env.REPORTS_PATH }}'
             rm -rf $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
             git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/migraphx-reports.git $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}
             cd $GITHUB_WORKSPACE/${{ env.REPORTS_DIR }}/
@@ -80,8 +93,8 @@ jobs:
         id: auto_comment
         if: ${{ github.event_name != 'schedule' }}
         run: |
-            /home/htec/anaconda3/bin/python3 /home/htec/jz/source/rocm-migraphx/scripts/comment.py -t "/home/htec/jz/source/rocm-migraphx/test-results/"
-            body="$(cat /home/htec/jz/source/rocm-migraphx/scripts/temp.md)"
+            ${{ env.PYTHON_PATH }}python3 ${{ env.SCRIPTS_PATH }}comment.py -t '${{ env.TEST_RESULTS_PATH }}'
+            body="$(cat ${{ env.SCRIPTS_PATH }}temp.md)"
             body="${body//'%'/'%25'}"
             body="${body//$'\n'/'%0A'}"
             body="${body//$'\r'/'%0D'}"
@@ -97,14 +110,14 @@ jobs:
 
       - name: Get latest report
         id: last_report
-        if: ${{ github.event_name != 'schedule' }}
+        if: ${{ github.event_name == 'schedule' }}
         run: |
-          cd /home/htec/igor/rocm-migraphx/reports
+          cd ${{ env.REPORTS_PATH }}
           latest="$(readlink -f $(ls -tp | grep -v /$ | head -1))"
           echo "::set-output name=latest::$latest"
 
       - name: Send mail
-        if: ${{ github.event_name != 'schedule' }}
+        if: ${{ github.event_name == 'schedule' }}
         uses: dawidd6/action-send-mail@v3
         with:
           # Required mail server address:
@@ -116,15 +129,15 @@ jobs:
           # Optional (recommended) mail server password:
           password: ${{secrets.MAIL_PASSWORD}}
           # Required mail subject:
-          subject: Github Actions test send email test
+          subject: ${{ env.MAIL_SUBJECT }}
           # Required recipients' addresses:
-          to: igor.mirosavljevic@htecgroup.com
+          to: ${{ env.MAIL_TO }}
           # Required sender full name (address can be skipped):
-          from: GH Actions # <user@example.com>
+          from: ${{ env.MAIL_FROM }}
           # Optional whether this connection use TLS (default is true if server_port is 465)
           secure: true
           # Optional plain body:
-          body: Testing GH actions workflow
+          body: ${{ env.MAIL_BODY }}
           # Optional HTML body read from file:
           #html_body: file://README.html
           # Optional carbon copy recipients:

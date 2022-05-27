@@ -136,11 +136,10 @@ struct allocation_segment
         return n;
     }
 
-    template<class Iterator>
+    template <class Iterator>
     static bool overlaps(Iterator first, Iterator last, const segment& s)
     {
-        return std::any_of(
-            first, last, [&](auto&& t) { return is_overlap(s, t); });
+        return std::any_of(first, last, [&](auto&& t) { return is_overlap(s, t); });
     }
 
     static bool overlaps(const std::set<segment>& segments, const segment& s)
@@ -151,15 +150,15 @@ struct allocation_segment
     static auto find_gap(const std::set<segment>& segments, std::size_t n)
     {
         auto start = segments.begin();
-        do {
-            start =
-                    std::adjacent_find(start, segments.end(), [&](segment x, segment y) {
-                        if(is_overlap(x, y))
-                            return false;
-                        assert(y.first >= x.second);
-                        auto k = y.first - x.second;
-                        return (k >= n);
-                    });
+        do
+        {
+            start = std::adjacent_find(start, segments.end(), [&](segment x, segment y) {
+                if(is_overlap(x, y))
+                    return false;
+                assert(y.first >= x.second);
+                auto k = y.first - x.second;
+                return (k >= n);
+            });
         } while(start != segments.end() and overlaps(segments.begin(), start, *start));
         return start;
     }

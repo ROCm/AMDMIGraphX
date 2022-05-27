@@ -93,11 +93,14 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
-        -bugprone-signed-char-misuse
+        -bugprone-easily-swappable-parameters
+        -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+        -bugprone-signed-char-misuse
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
+        -cert-err33-c
         -cert-str34-c
         # Disable all alpha checks by default
         -clang-analyzer-alpha*
@@ -127,6 +130,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
+        -cppcoreguidelines-virtual-class-destructor
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
@@ -144,8 +148,10 @@ rocm_enable_clang_tidy(
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-function-cognitive-complexity
+        -readability-identifier-length
         -readability-named-parameter
         -readability-redundant-string-init
+        -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
         -*-avoid-c-arrays
         -*-explicit-constructor
@@ -178,7 +184,7 @@ rocm_enable_cppcheck(
         style
         performance
         portability
-    SUPPRESS 
+    SUPPRESS
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction
@@ -197,6 +203,8 @@ rocm_enable_cppcheck(
         useSmartPointer:*make_shared_array.hpp
         constParameter:*src/targets/gpu/*.cpp
         constParameter:*src/targets/gpu/*.hpp
+        # Suppress mlir_conv.cpp since this file will be deleted
+        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -216,6 +224,7 @@ rocm_enable_cppcheck(
         CPPCHECK=1
         __device__=
         __host__=
+        __global__=
 )
 
 enable_testing()

@@ -19,7 +19,6 @@ namespace gpu {
 // NOLINTNEXTLINE
 static const char* const scatternd_kernel = R"__migraphx__(
 #include <migraphx/kernels/scatternd.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>
@@ -52,9 +51,8 @@ struct scatternd_compiler : compiler<scatternd_compiler>
     {
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
-        auto out_s             = inputs.back();
         options.inputs         = inputs;
-        options.output         = out_s;
+        options.output         = inputs.back();
         options.kernel_name    = "scatternd_kernel";
         options.virtual_inputs = inputs;
         auto reduction         = "assign_" + v.get("reduction", std::string{"none"});

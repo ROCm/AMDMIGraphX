@@ -53,7 +53,7 @@ struct match_find_quantizable_ops
             match::arg(1)(dequantizelinear_op("x2", "scale2")));
     }
 
-    void apply(module& m, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto qop    = r.result;
         auto q1     = r.instructions["x1"];

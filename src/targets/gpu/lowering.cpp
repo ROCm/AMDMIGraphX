@@ -29,7 +29,6 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/greater.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
-#include <migraphx/gpu/layernorm.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/less.hpp>
 #include <migraphx/gpu/logical_and.hpp>

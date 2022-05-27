@@ -136,11 +136,32 @@ struct allocation_segment
         return n;
     }
 
+    template<class Iterator>
+    static bool overlaps(Iterator first, Iterator last, const segment& s)
+    {
+        return std::any_of(
+            first, last, [&](auto&& t) { return is_overlap(s, t); });
+    }
+
     static bool overlaps(const std::set<segment>& segments, const segment& s)
     {
-        auto it = std::find_if(
-            segments.begin(), segments.end(), [&](auto&& t) { return is_overlap(s, t); });
-        return it != segments.end();
+        return overlaps(segments.begin(), segments.end(), s);
+    }
+
+    static auto find_gap(const std::set<segment>& segments, std::size_t n)
+    {
+        auto start = segments.begin();
+        do {
+            start =
+                    std::adjacent_find(start, segments.end(), [&](segment x, segment y) {
+                        if(is_overlap(x, y))
+                            return false;
+                        assert(y.first >= x.second);
+                        auto k = y.first - x.second;
+                        return (k >= n);
+                    });
+        } while(start != segments.end() and overlaps(segments.begin(), start, *start));
+        return start;
     }
 
     static std::size_t max_type_size(const shape& s)
@@ -177,17 +198,10 @@ struct allocation_segment
         auto n = 1 + (ins->get_shape().bytes() - 1) / alignment;
         assert(n > 0);
         auto start = 0;
-        // Insert at end if it can fit at the begining
+        // Insert at end if it cant fit at the begining
         if(segments.empty() or segments.begin()->first <= n)
         {
-            auto it =
-                std::adjacent_find(segments.begin(), segments.end(), [&](segment x, segment y) {
-                    if(is_overlap(x, y))
-                        return false;
-                    assert(y.first >= x.second);
-                    auto k = y.first - x.second;
-                    return (k >= n);
-                });
+            auto it = find_gap(segments, n);
             if(it == segments.end())
                 it = std::max_element(segments.begin(), segments.end(), [&](segment x, segment y) {
                     return x.second < y.second;
@@ -229,9 +243,10 @@ struct allocation_segment
             std::sort(children.begin(), children.end(), [](auto x, auto y) {
                 return x->get_shape().bytes() < y->get_shape().bytes();
             });
+            assert(not contains(children, parent));
             // This set is to track the segments already processed
             std::set<segment> segments;
-            // Add all segemnts for the children to the segments already processed
+            // Add all segments for the children to the segments already processed
             transform_if(
                 children.begin(),
                 children.end(),
@@ -244,8 +259,6 @@ struct allocation_segment
             // Add segment for the parent if there is none or segment overlaps with the children
             if(parent_segment == nullptr or overlaps(segments, *parent_segment))
                 as.add_segment(parent, next_segment(segments, parent, alignment));
-            else
-                segments.insert(*parent_segment);
         }
         // Reduce the number of segments
         for(std::size_t n = 0; n < 3; n++)
@@ -256,7 +269,7 @@ struct allocation_segment
                 auto children = conflict_table.at(parent);
                 // This set is to track the segments already processed
                 std::set<segment> segments;
-                // Add all segemnts for the children to the segments already processed
+                // Add all segments for the children to the segments already processed
                 transform_if(
                     children.begin(),
                     children.end(),

@@ -50,7 +50,6 @@ auto to_value_impl(rank<2>, const T& x) -> decltype(x.begin(), x.end(), value{})
     value result = value::array{};
     for(auto&& y : x)
     {
-        auto e = to_value(y);
         result.insert(to_value(y));
     }
     return result;

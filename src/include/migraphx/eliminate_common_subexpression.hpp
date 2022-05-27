@@ -16,7 +16,7 @@ struct module;
 struct eliminate_common_subexpression
 {
     std::string name() const { return "eliminate_common_subexpression"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

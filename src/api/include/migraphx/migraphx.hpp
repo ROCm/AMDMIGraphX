@@ -39,10 +39,7 @@ template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
 {
     T* result = nullptr;
-    // cppcheck-suppress redundantInitialization
-    // cppcheck-suppress redundantAssignment
-    // cppcheck-suppress unreadVariable
-    auto e = f(&result, std::forward<Ts>(xs)...);
+    auto e    = f(&result, std::forward<Ts>(xs)...);
     if(e != migraphx_status_success)
         throw std::runtime_error("Failed to call function");
     return result;
@@ -51,9 +48,6 @@ T* make(F f, Ts&&... xs)
 template <class F, class... Ts>
 void call(F f, Ts&&... xs)
 {
-    // cppcheck-suppress redundantInitialization
-    // cppcheck-suppress redundantAssignment
-    // cppcheck-suppress unreadVariable
     auto e = f(std::forward<Ts>(xs)...);
     if(e != migraphx_status_success)
         throw std::runtime_error("Failed to call function");
@@ -314,6 +308,7 @@ struct interface_base : Base
                 T** y = reinterpret_cast<T**>(out);
                 T* x  = reinterpret_cast<T*>(input);
                 assert(x != nullptr and y != nullptr and *y == nullptr);
+                // cppcheck-suppress useSmartPointer
                 *y = new T(*x); // NOLINT
             });
         };
@@ -758,6 +753,15 @@ struct module
              args.get_handle_ptr(),
              module_args.get_handle_ptr());
         return instruction(op_ins, own{});
+    }
+
+    template <typename T>
+    instruction add_literal(const migraphx::shape& s, T* buffer)
+    {
+        migraphx_instruction_t literal_ins;
+        const auto* buffer_ptr = reinterpret_cast<const char*>(buffer);
+        call(&migraphx_module_add_literal, &literal_ins, mm.get(), s.get_handle_ptr(), buffer_ptr);
+        return instruction(literal_ins, own{});
     }
 
     instruction add_parameter(const std::string& name, shape s)

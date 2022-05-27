@@ -140,7 +140,6 @@ struct miopen_apply
         add_generic_op("exp");
         add_generic_op("floor");
         add_generic_op("greater");
-        add_generic_op("layernorm");
         add_generic_op("less");
         add_generic_op("log");
         add_generic_op("logical_and");

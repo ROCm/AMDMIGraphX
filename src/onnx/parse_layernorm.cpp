@@ -1,7 +1,6 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/op/layernorm.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/instruction.hpp>
 

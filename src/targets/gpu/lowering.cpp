@@ -11,7 +11,6 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/if_op.hpp>
-#include <migraphx/op/layernorm.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/pooling.hpp>

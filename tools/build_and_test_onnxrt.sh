@@ -1,5 +1,6 @@
 cd /onnxruntime
 pip3 install -r requirements.txt
+pip3 install protobuf==3.20.0
 # Add newer cmake to the path
 export PATH="/opt/cmake/bin:$PATH"
 export CXXFLAGS="-D__HIP_PLATFORM_HCC__=1 -w"

@@ -66,7 +66,6 @@ jobs:
           --group-add=video 
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
-#          rocm-migraphx:$(date +%Y%m%d) /bin/bash run_perf_mev.sh
           rocm-migraphx:5.1.1 /bin/bash run_perf_mev.sh
       
       - name: Delete old images/containers

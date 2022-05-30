@@ -66,13 +66,14 @@ jobs:
           --group-add=video 
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
-          rocm-migraphx:$(date +%Y%m%d) /bin/bash run_perf_mev.sh
+#          rocm-migraphx:$(date +%Y%m%d) /bin/bash run_perf_mev.sh
+          rocm-migraphx:5.1.1 /bin/bash run_perf_mev.sh
       
       - name: Delete old images/containers
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          docker container prune
-          docker rmi $(docker images --filter=reference="rocm-migraphx:20*" | grep -v $(date +%Y%m%d) | awk 'NR>1 {print $3}')
+          docker container prune -f
+          docker rmi -f $(docker images --filter=reference="rocm-migraphx:20*" | grep -v $(date +%Y%m%d) | awk 'NR>1 {print $3}')
       
       - name: Execute report script
         if: ${{ github.event_name == 'schedule' }}

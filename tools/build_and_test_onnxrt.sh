@@ -1,5 +1,6 @@
 cd /onnxruntime
 pip3 install -r requirements.txt
+# pin version of protobuf to fix compatibility errors
 pip3 install protobuf==3.20.0
 # Add newer cmake to the path
 export PATH="/opt/cmake/bin:$PATH"

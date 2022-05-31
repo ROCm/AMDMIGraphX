@@ -120,10 +120,8 @@ struct tensor_view
         return m_data[m_shape.index(this->size() - 1)];
     }
 
-    // cppcheck-suppress functionConst
     iterator begin() { return {0, {this}}; }
 
-    // cppcheck-suppress functionConst
     iterator end() { return {this->size(), {this}}; }
 
     const_iterator begin() const { return {0, {this}}; }

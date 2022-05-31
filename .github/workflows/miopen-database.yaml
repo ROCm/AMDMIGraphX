@@ -28,15 +28,15 @@ jobs:
     runs-on: r3
     needs: checkout_miopen
     outputs:
-      gpu_name: ${{ steps.check_gpu.outputs.gpu_name }}
+      gpu_name: ${{ steps.gpu.outputs.gpu_name }}
     steps:
       - name: Check GPU info
-        id: check_gpu
+        id: gpu
         run: |
           GPU_NAME=$(lshw -C display | awk -F'product: ' '/product/{print $2}' | awk -F '\[|\]' '{print $2}')
-          echo "$GPU_NAME" >> $GITHUB_ENV
+          echo "::set-output name=gpu_name::$GPU_NAME"
       - name: test step
-        run: echo "Value of gpu is ${{ env.GPU_NAME }}"
+        run: echo "Value of gpu is ${{ steps.gpu.outputs.gpu_name }}"
   check_image_version:
     name: Check Image Version
     runs-on: self-hosted
@@ -62,7 +62,7 @@ jobs:
       - name: Check db
         id: check_database
         run: |
-          if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}/${{ env.GPU_NAME }}" ]; then
+          if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}/${{ needs.check_gpu_name.outputs.gpu_name }}" ]; then
             echo "::set-output name=database::true"
           fi
       - name: test step
@@ -97,7 +97,7 @@ jobs:
       - name: Push database to git
         run: |
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          mkdir -p ${{env.ROCM_VERSION}}/${{ env.GPU_NAME }}
+          mkdir -p ${{env.ROCM_VERSION}}/${{ needs.check_gpu_name.outputs.gpu_name }}
           cp -r /home/htec/jz/database/* ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
           git add .
           git config --local user.email github-actions

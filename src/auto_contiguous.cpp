@@ -8,10 +8,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void auto_contiguous::apply(module& p) const
+void auto_contiguous::apply(module& m) const
 {
     std::string key = "require_std_shape";
-    for(auto ins : reverse_iterator_for(p))
+    for(auto ins : reverse_iterator_for(m))
     {
         auto&& attr = ins->get_operator().attributes();
         if((attr.get(key, false)))
@@ -23,18 +23,18 @@ void auto_contiguous::apply(module& p) const
                 {
                     return in;
                 }
-                return p.insert_instruction(ins, make_op("contiguous"), in);
+                return m.insert_instruction(ins, make_op("contiguous"), in);
             });
 
             if(new_args != args)
             {
-                p.replace_instruction(ins, ins->get_operator(), new_args);
+                m.replace_instruction(ins, ins->get_operator(), new_args);
             }
         }
     }
 
-    auto last = std::prev(p.end());
-    for(auto ins : iterator_for(p))
+    auto last = std::prev(m.end());
+    for(auto ins : iterator_for(m))
     {
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
@@ -42,8 +42,8 @@ void auto_contiguous::apply(module& p) const
         shape s = ins->get_shape();
         if(not s.standard() and s.elements() != 0)
         {
-            auto c = p.insert_instruction(std::next(ins), make_op("contiguous"), ins);
-            p.replace_instruction(ins, c);
+            auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
+            m.replace_instruction(ins, c);
         }
     }
 }

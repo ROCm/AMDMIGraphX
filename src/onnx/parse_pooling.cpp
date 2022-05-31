@@ -128,7 +128,7 @@ struct parse_pooling : op_parser<parse_pooling>
             std::fill_n(values["stride"].begin(), kdims, 1);
         }
         // used to calculate the supposed output shape
-        std::vector<int64_t> orig_padding(paddings.begin(), paddings.end());
+        std::vector<int64_t> orig_padding = paddings;
 
         std::vector<int64_t> slice_start;
         std::vector<int64_t> slice_end;

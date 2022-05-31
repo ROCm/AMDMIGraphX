@@ -150,7 +150,7 @@ struct allocation_segment
     static auto find_gap(const std::set<segment>& segments, std::size_t n)
     {
         auto start = segments.begin();
-        do
+        while(true)
         {
             start = std::adjacent_find(start, segments.end(), [&](segment x, segment y) {
                 if(is_overlap(x, y))
@@ -159,8 +159,31 @@ struct allocation_segment
                 auto k = y.first - x.second;
                 return (k >= n);
             });
-        } while(start != segments.end() and overlaps(segments.begin(), start, *start));
-        return start;
+            if (start == segments.end())
+                return start;
+            if (overlaps(segments.begin(), start, *start)) {
+                start++;
+                continue;
+            }
+            return start;
+        }
+        // auto start = segments.begin();
+        // do
+        // {
+        //     start = std::adjacent_find(start, segments.end(), [&](segment x, segment y) {
+        //         if(is_overlap(x, y))
+        //             return false;
+        //         assert(y.first >= x.second);
+        //         auto k = y.first - x.second;
+        //         return (k >= n);
+        //     });
+        //     if (start == segments.end())
+        //         break;
+        //     // This is wrong as it will return start+1 instead of start
+        //     // but its needed so the next iteration wont start at the same pointt
+        //     start++;
+        // } while(overlaps(segments.begin(), start, *start));
+        // return std::prev(start);
     }
 
     static std::size_t max_type_size(const shape& s)

@@ -159,9 +159,10 @@ struct allocation_segment
                 auto k = y.first - x.second;
                 return (k >= n);
             });
-            if (start == segments.end())
+            if(start == segments.end())
                 return start;
-            if (overlaps(segments.begin(), start, *start)) {
+            if(overlaps(segments.begin(), start, *start))
+            {
                 start++;
                 continue;
             }

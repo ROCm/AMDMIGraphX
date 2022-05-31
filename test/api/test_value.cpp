@@ -61,6 +61,7 @@ TEST_CASE(value_construct_bool)
     migraphx::value v = true;
     EXPECT(v.is_bool());
     EXPECT(v.get_bool() == true);
+    EXPECT(*v.if_bool() == true);
     EXPECT(v.get_key().empty());
 }
 

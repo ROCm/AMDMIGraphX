@@ -2659,7 +2659,7 @@ def layernorm_op_test():
 
     return ([node], [x, w, b], [output])
 
-    
+
 @onnx_test
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])

@@ -6,6 +6,29 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+struct layernorm
+{
+    std::string name() const { return "gpu::prelayernorm"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto s = inputs.at(0);
+        if(s.scalar())
+        {
+            return s;
+        }
+        else if(s.broadcasted())
+        {
+            return {s.type(), s.lens()};
+        }
+        else
+        {
+            return s.with_lens(s.lens());
+        }
+    }
+};
+
 namespace {
 struct find_layernorm
 {

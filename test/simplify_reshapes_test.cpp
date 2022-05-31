@@ -1118,4 +1118,106 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(transpose_slice)
+{
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {1, 384, 36, 64}});
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {12}}}), x);
+        auto transpose1 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), slice1);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {12}}, {"ends", {24}}}), x);
+        auto transpose2 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), slice2);
+        auto slice3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {24}}, {"ends", {36}}}), x);
+        auto transpose3 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), slice3);
+        m1.add_return({transpose1, transpose2, transpose3});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 384, 36, 64}});
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), x);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}),
+            transpose);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {12}}, {"ends", {24}}}),
+            transpose);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {24}}, {"ends", {36}}}),
+            transpose);
+        m2.add_return({slice1, slice2, slice3});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_slice_diff_perm)
+{
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {1, 384, 36, 64}});
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {12}}}), x);
+        auto transpose1 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), slice1);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {12}}, {"ends", {24}}}), x);
+        auto transpose2 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), slice2);
+        auto slice3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {24}}, {"ends", {36}}}), x);
+        auto transpose3 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), slice3);
+        m1.add_return({transpose1, transpose2, transpose3});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 384, 36, 64}});
+        auto transpose =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), x);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}),
+            transpose);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {12}}, {"ends", {24}}}),
+            transpose);
+        auto transpose2 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), slice2);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {24}}, {"ends", {36}}}),
+            transpose);
+        m2.add_return({slice1, transpose2, slice3});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_slice_single_transpose)
+{
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", {migraphx::shape::float_type, {1, 384, 36, 64}});
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {12}}}), x);
+        auto sqrt1  = m1.add_instruction(migraphx::make_op("sqrt"), slice1);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {12}}, {"ends", {24}}}), x);
+        auto transpose2 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), slice2);
+        auto slice3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {24}}, {"ends", {36}}}), x);
+        auto sqrt3 = m1.add_instruction(migraphx::make_op("sqrt"), slice3);
+        m1.add_return({sqrt1, transpose2, sqrt3});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

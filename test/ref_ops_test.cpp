@@ -2435,50 +2435,6 @@ TEST_CASE(imagescaler_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(layernorm_test)
-{
-    {
-        // with scale and bias
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape sx{migraphx::shape::float_type, {1, 2, 3}};
-        migraphx::shape swb{migraphx::shape::float_type, {3}};
-        std::vector<float> x_vec{1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
-        auto x = mm->add_literal(migraphx::literal{sx, x_vec});
-        auto w = mm->add_literal(migraphx::literal{swb, {1.0, 1.0, 1.0}});
-        auto b = mm->add_literal(migraphx::literal{swb, {0.0, 0.0, 0.0}});
-        mm->add_instruction(migraphx::make_op("layernorm", {{"epsilon", 1e-5}}), x, w, b);
-        p.compile(migraphx::ref::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector(1 * 2 * 3);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {-1.22474f, 0.0f, 1.22474f, -1.22474f, 0.0f, 1.22474f};
-        for(auto&& i : results_vector)
-            std::cout << i << ", ";
-        std::cout << std::endl;
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-
-    {
-        // without scale and bias
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape sx{migraphx::shape::float_type, {1, 2, 3}};
-        std::vector<float> x_vec{1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
-        auto x = mm->add_literal(migraphx::literal{sx, x_vec});
-        mm->add_instruction(migraphx::make_op("layernorm", {{"epsilon", 1e-5}}), x);
-        p.compile(migraphx::ref::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector(1 * 2 * 3);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {-1.22474f, 0.0f, 1.22474f, -1.22474f, 0.0f, 1.22474f};
-        for(auto&& i : results_vector)
-            std::cout << i << ", ";
-        std::cout << std::endl;
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-}
-
 TEST_CASE(leaky_relu_test)
 {
     migraphx::program p;

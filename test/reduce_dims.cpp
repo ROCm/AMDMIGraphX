@@ -109,6 +109,29 @@ TEST_CASE(transposed1)
     EXPECT(eshapes == rshapes);
 }
 
+TEST_CASE(non_packed_empty1)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({1, 12}, {589824, 64})};
+    std::vector<migraphx::shape> eshapes = {make_shape({12}, {64})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(eshapes == rshapes);
+}
+
+TEST_CASE(non_packed_empty2)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({12, 1}, {64, 589824})};
+    std::vector<migraphx::shape> eshapes = {make_shape({12}, {64})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(eshapes == rshapes);
+}
+
+TEST_CASE(single_dim)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({1}, {1})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
+}
+
 TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});

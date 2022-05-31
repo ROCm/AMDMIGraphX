@@ -33,7 +33,7 @@ struct check_context
     };
 
     std::string name() const { return "check_context"; }
-    void apply(module& p) const { p.insert_instruction(p.begin(), op{}); }
+    void apply(module& m) const { m.insert_instruction(m.begin(), op{}); }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

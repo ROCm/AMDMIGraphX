@@ -581,6 +581,33 @@ TEST_CASE(mean_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(mean_integral_test)
+{
+    migraphx::program p = migraphx::parse_onnx("mean_integral_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::int32_type, {2, 2, 2}};
+    const int num_elms = 8;
+    const int num_data = 10;
+    const std::vector<int> scalars{1, 5, 14, 2, 6, 21, 101, 0, -4, -11};
+    std::vector<std::vector<int>> data;
+    std::transform(scalars.begin(), scalars.end(), std::back_inserter(data), [&](const auto i) {
+        return std::vector<int>(num_elms, i);
+    });
+
+    migraphx::parameter_map pp;
+    for(std::size_t i = 0; i < num_data; ++i)
+        pp[std::to_string(i)] = migraphx::argument(s, data[i].data());
+
+    auto result = p.eval(pp).back();
+    std::vector<double> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    const auto mean = std::accumulate(scalars.begin(), scalars.end(), 0) / num_data;
+    std::vector<int> gold(num_elms, mean);
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(nonzero_test)
 {
     migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");
@@ -694,6 +721,69 @@ TEST_CASE(resize_upsample_pf_test)
 
     std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
                                3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(reversesequence_4D_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("reversesequence_4D_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2, 2}};
+    std::vector<float> x_data = {
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0};
+    migraphx::parameter_map param_map;
+    param_map["x"] = migraphx::argument(xs, x_data.data());
+
+    auto result = p.eval(param_map).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {
+        8.0, 9.0, 10.0, 11.0, 4.0, 5.0, 6.0, 7.0, 0.0, 1.0, 2.0, 3.0, 12.0, 13.0, 14.0, 15.0};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(reversesequence_batch_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("reversesequence_batch_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape xs{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> x_data = {
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0};
+    migraphx::parameter_map param_map;
+    param_map["x"] = migraphx::argument(xs, x_data.data());
+
+    auto result = p.eval(param_map).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {
+        0.0, 1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 7.0, 10.0, 9.0, 8.0, 11.0, 15.0, 14.0, 13.0, 12.0};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(reversesequence_time_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("reversesequence_time_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape xs{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> x_data = {
+        0.0, 4.0, 8.0, 12.0, 1.0, 5.0, 9.0, 13.0, 2.0, 6.0, 10.0, 14.0, 3.0, 7.0, 11.0, 15.0};
+    migraphx::parameter_map param_map;
+    param_map["x"] = migraphx::argument(xs, x_data.data());
+
+    auto result = p.eval(param_map).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {
+        3.0, 6.0, 9.0, 12.0, 2.0, 5.0, 8.0, 13.0, 1.0, 4.0, 10.0, 14.0, 0.0, 7.0, 11.0, 15.0};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

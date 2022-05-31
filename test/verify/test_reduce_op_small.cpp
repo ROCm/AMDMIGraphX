@@ -15,13 +15,14 @@ struct test_reduce_op_small : verify_program<test_reduce_op_small<Op, Axis, T>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{T, {3, 4, 8, 8}};
+        migraphx::shape s{T, {3, 4, 2, 2}};
         auto x = mm->add_parameter("x", s);
-        mm->add_instruction(Op{{1}}, x);
+        mm->add_instruction(Op{{Axis}}, x);
         return p;
     };
 };
 
+template struct test_reduce_op_small<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::int32_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::int32_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::int32_type>;

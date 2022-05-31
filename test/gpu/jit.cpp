@@ -3,6 +3,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -10,7 +11,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
-#include <migraphx/gpu/compile_pointwise.hpp>
+#include <migraphx/gpu/compiler.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -102,6 +103,24 @@ extern "C" {
 __global__ void kernel(void* x) 
 {
     x += y;
+}
+}
+
+int main() {}
+
+)__migraphx__";
+
+// NOLINTNEXTLINE
+const std::string math_template = R"__migraphx__(
+#include <migraphx/kernels/pointwise.hpp>
+#include <migraphx/kernels/math.hpp>
+
+extern "C" {
+__global__ void kernel(${type}* p) 
+{
+    auto x = *p;
+    *p = migraphx::implicit_conversion(migraphx::${invoke});
+
 }
 }
 
@@ -230,7 +249,8 @@ TEST_CASE(compile_pointwise)
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
 
     migraphx::gpu::context ctx;
-    auto co = migraphx::gpu::compile_pointwise(ctx, {input, input}, "[](auto x) { return x + 1; }");
+    auto co = migraphx::gpu::compile_op(
+        "pointwise", ctx, {input, input}, {{"lambda", "[](auto x) { return x + 1; }"}});
 
     migraphx::program p;
     auto* mm            = p.get_main_module();
@@ -245,6 +265,68 @@ TEST_CASE(compile_pointwise)
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
 
     EXPECT(result == output_literal.get_argument());
+}
+
+TEST_CASE(compile_math)
+{
+    std::vector<std::string> math_invoke = {
+        // clang-format off
+        "abs(x)",
+        "acos(x)",
+        "acosh(x)",
+        "asin(x)",
+        "asinh(x)",
+        "atan(x)",
+        "atanh(x)",
+        "ceil(x)",
+        "cos(x)",
+        "cosh(x)",
+        "erf(x)",
+        "exp(x)",
+        "floor(x)",
+        "isnan(x)",
+        "log(x)",
+        "max(x, x)",
+        "min(x, x)",
+        "pow(x, 0)",
+        "pow(x, x)",
+        "round(x)",
+        "rsqrt(x)",
+        "sin(x)",
+        "sinh(x)",
+        "sqrt(x)",
+        "tan(x)",
+        "tanh(x)",
+        "where(true, x, x)",
+        // clang-format on
+    };
+    std::vector<std::string> data_types;
+    auto vec_sizes = {2, 4, 6};
+    for(auto&& t : migraphx::shape::types())
+    {
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
+            continue;
+        auto name = migraphx::shape::cpp_type(t);
+        if(t == migraphx::shape::half_type)
+            name.insert(0, "migraphx::");
+        data_types.push_back(name);
+        migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
+            return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";
+        });
+    }
+    migraphx::shape input{migraphx::shape::float_type, {5, 2}};
+    migraphx::gpu::hip_compile_options options;
+    options.global = 1024;
+    options.local  = 1024;
+    options.inputs = {input};
+    options.output = input;
+    migraphx::par_for(math_invoke.size() * data_types.size(), 1, [&](auto i) {
+        const auto& t      = data_types[i % data_types.size()];
+        const auto& invoke = math_invoke[i / data_types.size()];
+        auto src = migraphx::interpolate_string(math_template, {{"type", t}, {"invoke", invoke}});
+        auto co  = migraphx::gpu::compile_hip_code_object(src, options);
+        (void)co;
+    });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -62,7 +62,7 @@ jobs:
     needs: [check_image_version, check_database]
     if: ( needs.check_database.outputs.database == 'true' && needs.check_image_version.outputs.image == 'true' )
     outputs:
-      gpu-name: ${{ steps.check_gpu_name.outputs.gpu_name }}
+      gpu_name: ${{ steps.check_gpu_name.outputs.gpu_name }}
     steps:
       - name: Perform tuning database
         env:
@@ -86,8 +86,8 @@ jobs:
       - name: Push database to git
         run: |
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          mkdir -p ${{env.ROCM_VERSION}}/
-          cp -r /home/htec/jz/database/ ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
+          mkdir -p ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
+          cp -r /home/htec/jz/database/* ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
           git add .
           git config --local user.email github-actions
           git config --local user.name github-actions@github.com

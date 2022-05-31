@@ -61,12 +61,9 @@ jobs:
     runs-on: r3
     needs: [check_image_version, check_database]
     if: ( needs.check_database.outputs.database == 'true' && needs.check_image_version.outputs.image == 'true' )
+    outputs:
+      gpu-name: ${{ steps.check_gpu_name.outputs.gpu_name }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v1
-        with:
-          submodules: recursive
-          token: ${{ secrets.GH_SUB_TOKEN }}
       - name: Perform tuning database
         env:
           MIOPEN_FIND_ENFORCE: 3
@@ -80,14 +77,17 @@ jobs:
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
           rocm-migraphx:${{ github.event.inputs.release }} /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
+      - name: Check GPU info
+        id: check_gpu_name
+        run: |
+          gpu=$(lshw -C display | awk -F'product: ' '/product/{print $2}' | awk -F '\[|\]' '{print $2}')
+          echo $gpu
+          echo "::set-output name=gpu_name::$gpu"
       - name: Push database to git
         run: |
-          lshw -C display | grep product | cut -f2 -d ":"
-          ls -laht $GITHUB_WORKSPACE/
-          ls -laht $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          mkdir -p ${{env.ROCM_VERSION}}
-          cp -r /home/htec/jz/database/ ${{env.ROCM_VERSION}}/MI-100
+          mkdir -p ${{env.ROCM_VERSION}}/
+          cp -r /home/htec/jz/database/ ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
           git add .
           git config --local user.email github-actions
           git config --local user.name github-actions@github.com

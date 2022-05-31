@@ -23,6 +23,18 @@ jobs:
         run: |
           rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
           git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
+  check_gpu_name:
+    name: Check GPU name
+    runs-on: r3
+    needs: checkout_miopen
+    outputs:
+      gpu_name: ${{ steps.check_gpu.outputs.gpu_name }}
+    steps:
+      - name: Check GPU info
+        id: check_gpu
+        run: |
+          gpu=$(lshw -C display | awk -F'product: ' '/product/{print $2}' | awk -F '\[|\]' '{print $2}')
+          echo "::set-output name=gpu_name::$gpu"
   check_image_version:
     name: Check Image Version
     runs-on: self-hosted
@@ -41,14 +53,14 @@ jobs:
   check_database:
     name: Check database path
     runs-on: r3
-    needs: checkout_miopen
+    needs: [checkout_miopen, check_gpu_name]
     outputs:
       database: ${{ steps.check_database.outputs.database }}
     steps:
       - name: Check db
         id: check_database
         run: |
-          if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}/" ]; then
+          if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}/${{ needs.check_gpu_name.outputs.gpu_name }}" ]; then
             echo "::set-output name=database::true"
           fi
       - name: test step
@@ -61,8 +73,6 @@ jobs:
     runs-on: r3
     needs: [check_image_version, check_database]
     if: ( needs.check_database.outputs.database == 'true' && needs.check_image_version.outputs.image == 'true' )
-    outputs:
-      gpu_name: ${{ steps.check_gpu_name.outputs.gpu_name }}
     steps:
       - name: Perform tuning database
         env:
@@ -77,16 +87,15 @@ jobs:
           -v /home/htec/jz:/data
           --workdir /data/source/rocm-migraphx/scripts/
           rocm-migraphx:${{ github.event.inputs.release }} /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
-      - name: Check GPU info
-        id: check_gpu_name
-        run: |
-          gpu=$(lshw -C display | awk -F'product: ' '/product/{print $2}' | awk -F '\[|\]' '{print $2}')
-          echo $gpu
-          echo "::set-output name=gpu_name::$gpu"
+  push_database:
+    name: Push MIOPEN Database
+    runs-on: r3
+    needs: [create_database, check_gpu_name]
+    steps:
       - name: Push database to git
         run: |
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          mkdir -p ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
+          mkdir -p ${{env.ROCM_VERSION}}/${{ needs.check_gpu_name.outputs.gpu_name }}
           cp -r /home/htec/jz/database/* ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
           git add .
           git config --local user.email github-actions

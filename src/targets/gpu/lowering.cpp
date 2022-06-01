@@ -11,7 +11,6 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/if_op.hpp>
-#include <migraphx/op/layernorm.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/pooling.hpp>
@@ -30,7 +29,6 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/greater.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
-#include <migraphx/gpu/layernorm.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/less.hpp>
 #include <migraphx/gpu/logical_and.hpp>
@@ -141,7 +139,6 @@ struct miopen_apply
         add_generic_op("exp");
         add_generic_op("floor");
         add_generic_op("greater");
-        add_generic_op("layernorm");
         add_generic_op("less");
         add_generic_op("log");
         add_generic_op("logical_and");

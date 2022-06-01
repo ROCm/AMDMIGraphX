@@ -29,10 +29,10 @@ struct parse_layernorm : op_parser<parse_layernorm>
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
-        }
+        } 
         if(contains(info.attributes, "axis"))
         {
-            epsilon = parser.parse_value(info.attributes.at("axis")).at<int64_t>();
+            axis = parser.parse_value(info.attributes.at("axis")).at<int64_t>();
         }
 
         auto epsilon_lit = info.add_literal(literal{shape{x_type, {1}}, {epsilon}});

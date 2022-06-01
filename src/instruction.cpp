@@ -76,27 +76,16 @@ bool operator==(const instruction& i, instruction_ref ref)
 
 static void debug_name(std::ostream& os, const instruction& ins);
 
-bool instruction::valid(instruction_ref start, bool check_order) const
+bool instruction::valid(const module& m, bool check_order) const
 {
-    // Need this lambda because std::distance has undefined behavior when comparing iterators of
-    // from different ranges
-    auto ins_dist = [](instruction_ref s, instruction_ref e) {
-        int dist = 0;
-        while((*s) != (*e))
-        {
-            ++s;
-            ++dist;
-        }
-        return dist;
-    };
-
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                bool ret  = self != i->outputs().end();
-               if(check_order)
+               // assume argument is in previous module if m.has_instruction(i) is false
+               if(check_order and m.has_instruction(i))
                {
-                   // arguments for this instruction before this instruction
-                   ret = ret and (ins_dist(start, i) < ins_dist(start, *self));
+                   // check arguments for this instruction before this instruction
+                   ret = ret and (std::distance(m.begin(), i) < std::distance(m.begin(), *self));
                }
                return ret;
            });

@@ -511,7 +511,7 @@ instruction_ref module::validate() const
             bool check_order = std::all_of(inputs.begin(), inputs.end(), [&](auto in) {
                 return contains(impl->instructions, *in);
             });
-            return !i.valid(impl->instructions.begin(), check_order);
+            return !i.valid(*this, check_order);
         });
 }
 

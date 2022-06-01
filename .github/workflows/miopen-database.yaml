@@ -35,6 +35,7 @@ jobs:
         run: |
           GPU_NAME="$(lshw -C display | awk -F'product: ' '/product/{print $2}' | awk -F '\[|\]' '{print $2}')"
           GPU_NAME=${GPU_NAME//$'\n'/}
+          GPU_NAME=${GPU_NAME// /_}
           echo "::set-output name=gpu_name::$GPU_NAME"
       - name: test step
         run: echo "Value of gpu is ${{ steps.gpu.outputs.gpu_name }}"

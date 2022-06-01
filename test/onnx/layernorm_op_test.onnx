@@ -1,8 +1,9 @@
-layernorm_op_test:¦
-8
+layernorm_op_test:¼
+N
 x
 w
-boutput"LayerNormalization*
+boutput"LayerNormalization*
+axisÿÿÿÿÿÿÿÿÿ *
 epsilon¬Å'7 layernorm_op_testZ
 x
 

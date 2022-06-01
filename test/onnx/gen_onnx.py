@@ -2654,7 +2654,8 @@ def layernorm_op_test():
     node = onnx.helper.make_node('LayerNormalization',
                                  inputs=['x', 'w', 'b'],
                                  outputs=["output"],
-                                 epsilon=1e-5)
+                                 epsilon=1e-5,
+                                 axis=-1)
 
     return ([node], [x, w, b], [output])
 

@@ -184,7 +184,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     shape r     = compute_shape(op, args);
     auto result = impl->insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
-    assert(result->valid(begin()));
+    assert(result->valid(*this));
     return result;
 }
 
@@ -206,7 +206,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     auto out_shape = compute_shape(op, args, module_args);
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
-    assert(result->valid(begin()));
+    assert(result->valid(*this));
     return result;
 }
 
@@ -219,7 +219,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 
     shape r = compute_shape(op, args);
     instruction::replace(ins, op, r, std::move(args));
-    assert(ins->valid(begin()));
+    assert(ins->valid(*this));
     return ins;
 }
 
@@ -232,7 +232,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
-    assert(ins->valid(begin()));
+    assert(ins->valid(*this));
     return ins;
 }
 
@@ -261,7 +261,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         {
             instruction::replace_argument(out, ins, rep);
         }
-        assert(out->valid(begin()));
+        assert(out->valid(*this));
     }
     // Replacement should not be dead code unless its the last instruction
     assert(!rep->outputs().empty() or rep == std::prev(end()));
@@ -269,8 +269,8 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(),
                                                  ins->outputs().end(),
                                                  [&](auto i) { return i == rep; }));
-    assert(ins->valid(begin()));
-    assert(rep->valid(begin()));
+    assert(ins->valid(*this));
+    assert(rep->valid(*this));
     return rep;
 }
 
@@ -383,7 +383,7 @@ instruction_ref module::add_return(std::vector<instruction_ref> args)
     impl->push_back({builtin::returns{}, {}, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
-    assert(result->valid(begin()));
+    assert(result->valid(*this));
 
     return result;
 }
@@ -397,7 +397,7 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
 
     shape r = compute_shape(last->get_operator(), args);
     instruction::replace(last, last->get_operator(), r, std::move(args));
-    assert(last->valid(begin()));
+    assert(last->valid(*this));
 
     return last;
 }

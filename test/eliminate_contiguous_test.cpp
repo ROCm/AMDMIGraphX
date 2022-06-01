@@ -182,4 +182,21 @@ TEST_CASE(contiguous_pointwise)
         mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "contiguous"; }));
 }
 
+TEST_CASE(slice_contiguous)
+{
+    migraphx::module m;
+
+    migraphx::shape s{migraphx::shape::float_type, {4, 2}};
+    auto x  = m.add_parameter("x", s);
+    auto t = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+    auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
+    auto s1 = m.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), c);
+    auto s2 = m.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), c);
+    auto c1 = m.add_instruction(migraphx::make_op("contiguous"), s1);
+    auto c2 = m.add_instruction(migraphx::make_op("contiguous"), s2);
+    m.add_instruction(pass_standard_op{}, c1, c2);
+    run_pass(m);
+    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "contiguous"; }) == 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

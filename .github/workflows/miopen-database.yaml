@@ -99,7 +99,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
           mkdir -p ${{env.ROCM_VERSION}}/${{ needs.check_gpu_name.outputs.gpu_name }}
-          cp -r /home/htec/jz/database/* ${{env.ROCM_VERSION}}/${{ steps.check_gpu_name.outputs.gpu_name }}
+          cp -r /home/htec/jz/database/* ${{env.ROCM_VERSION}}/${{ needs.check_gpu_name.outputs.gpu_name }}
           git add .
           git config --local user.email github-actions
           git config --local user.name github-actions@github.com

@@ -1046,6 +1046,24 @@ inline program load(const char* filename)
         own{});
 }
 
+/// Load a saved migraphx program from buffer
+inline program load_buffer(const std::string& buffer, const file_options& options)
+{
+    const std::vector<char> buffer_ch(buffer.begin(), buffer.end());
+    return program(
+        make<migraphx_program>(&migraphx_load_buffer, buffer_ch, options.get_handle_ptr()),
+        own{});
+}
+
+/// Load a saved migraphx program from buffer
+inline program load_buffer(const std::string& buffer)
+{
+    const std::vector<char> buffer_ch(buffer.begin(), buffer.end());
+    return program(
+        make<migraphx_program>(&migraphx_load_buffer, buffer_ch, migraphx::file_options{}.get_handle_ptr()),
+        own{});
+}
+
 /// Save a program to a file
 inline void save(const program& p, const char* filename, const file_options& options)
 {
@@ -1056,6 +1074,22 @@ inline void save(const program& p, const char* filename, const file_options& opt
 inline void save(const program& p, const char* filename)
 {
     call(&migraphx_save, p.get_handle_ptr(), filename, migraphx::file_options{}.get_handle_ptr());
+}
+
+/// Save a program to a buffer
+inline std::vector<char> save_buffer(const program& p, const file_options& options)
+{
+    std::vector<char> buffer;
+    call(&migraphx_save_buffer, &buffer, p.get_handle_ptr(), options.get_handle_ptr());
+    return buffer;
+}
+
+/// Save a program to a buffer
+inline std::vector<char> save_buffer(const program& p)
+{
+    std::vector<char> buffer;
+    call(&migraphx_save_buffer, &buffer, p.get_handle_ptr(), migraphx::file_options{}.get_handle_ptr());
+    return buffer;
 }
 
 /// Options for parsing onnx options

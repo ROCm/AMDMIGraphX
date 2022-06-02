@@ -5,7 +5,7 @@ on:
         description: ROCm release version
         required: true
       git-ref:
-        description: Git Ref (Mandatory)
+        description: Git Ref
         required: false
 
 name: ROCM release

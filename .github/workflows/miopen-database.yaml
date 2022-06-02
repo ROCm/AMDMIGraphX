@@ -15,18 +15,9 @@ env:
   MIOPEN_PATH: miopen-databases
   
 jobs:
-  checkout_miopen:
-    runs-on: r3
-    name: Checkout MIOPEN Databases
-    steps:
-      - name: Checkout miopen-databases
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
   check_gpu_name:
     name: Check GPU name
-    runs-on: r3
-    needs: checkout_miopen
+    runs-on: self-hosted
     outputs:
       gpu_name: ${{ steps.gpu.outputs.gpu_name }}
     steps:
@@ -42,7 +33,7 @@ jobs:
   check_image_version:
     name: Check Image Version
     runs-on: self-hosted
-    needs: checkout_miopen
+    needs: check_gpu_name
     outputs:
       image: ${{ steps.check_image.outputs.image }}
     steps:
@@ -56,12 +47,16 @@ jobs:
         run: echo "Value of image is ${{ steps.check_image.outputs.image }}"
   check_database:
     name: Check database path
-    runs-on: r3
-    needs: [checkout_miopen, check_gpu_name]
+    runs-on: self-hosted
+    needs: check_gpu_name
     outputs:
       database: ${{ steps.check_database.outputs.database }}
     steps:
-      - name: Check db
+      - name: Checkout miopen-databases
+        run: |
+          rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
+      - name: Check Database path
         id: check_database
         run: |
           if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}/${{ needs.check_gpu_name.outputs.gpu_name }}" ]; then
@@ -74,7 +69,7 @@ jobs:
           echo "Value of database is ${{ steps.check_database.outputs.database }}"
   create_database:
     name: Create MIOPEN Database
-    runs-on: r3
+    runs-on: self-hosted
     needs: [check_image_version, check_database]
     if: ( needs.check_database.outputs.database == 'true' && needs.check_image_version.outputs.image == 'true' )
     steps:
@@ -93,9 +88,13 @@ jobs:
           rocm-migraphx:${{ github.event.inputs.release }} /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
   push_database:
     name: Push MIOPEN Database
-    runs-on: r3
+    runs-on: self-hosted
     needs: [create_database, check_gpu_name]
     steps:
+      - name: Checkout miopen-databases
+        run: |
+          rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/migraphx-benchmark/miopen-databases.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
       - name: Push database to git
         run: |
           cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/

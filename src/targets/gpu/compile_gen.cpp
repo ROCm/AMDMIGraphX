@@ -20,9 +20,8 @@ static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
 
 vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs)
 {
-    if (std::all_of(inputs.begin(), inputs.end(), [&](const auto& s) {
-            return s.lens()[axis] == 1;
-        }))
+    if(std::all_of(
+           inputs.begin(), inputs.end(), [&](const auto& s) { return s.lens()[axis] == 1; }))
         return {1, axis};
     auto sizes = vector_sizes(inputs);
     std::vector<std::size_t> max_vec_size;

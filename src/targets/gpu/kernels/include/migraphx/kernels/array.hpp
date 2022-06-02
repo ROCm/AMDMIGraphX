@@ -4,6 +4,7 @@
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
@@ -188,6 +189,13 @@ template <class T, T... Xs, class F>
 constexpr auto transform(integral_const_array<T, Xs...>, F f)
 {
     return integral_const_array<T, f(Xs)...>{};
+}
+
+template <class T, T... Xs, class F>
+constexpr auto transform_i(integral_const_array<T, Xs...>, F f)
+{
+    return sequence_c<sizeof...(Xs)>(
+        [=](auto... is) { return integral_const_array<T, f(Xs, is)...>{}; });
 }
 
 template <class T, T... Xs, class U, U... Ys, class F>

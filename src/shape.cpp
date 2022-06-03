@@ -419,32 +419,17 @@ const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return im
 
 std::vector<std::size_t> shape::min_lens() const
 {
-    if(not this->dynamic())
-    {
-        return this->lens();
-    }
-    return impl->min_lens();
-    ;
+    return this->dynamic() ? impl->min_lens() : this->lens();
 }
 
 std::vector<std::size_t> shape::max_lens() const
 {
-    if(not this->dynamic())
-    {
-        return this->lens();
-    }
-    return impl->max_lens();
-    ;
+    return this->dynamic() ? impl->max_lens() : this->lens();
 }
 
 std::vector<std::size_t> shape::opt_lens() const
 {
-    if(not this->dynamic())
-    {
-        return this->lens();
-    }
-    return impl->opt_lens();
-    ;
+    return this->dynamic() ? impl->opt_lens() : this->lens();
 }
 
 bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max; }

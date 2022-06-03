@@ -100,7 +100,7 @@ jobs:
         id: auto_comment
         if: ${{ github.event_name != 'schedule' }}
         run: |
-            ${{ env.PYTHON_PATH }}python3 ${{ env.SCRIPTS_PATH }}comment.py -t '${{ env.TEST_RESULTS_PATH }}'
+            ${{ env.PYTHON_PATH }}python3 ${{ env.SCRIPTS_PATH }}comment.py -t '${{ env.TEST_RESULTS_PATH }}' -r '${{ env.SCRIPTS_PATH }}'
             body="$(cat ${{ env.SCRIPTS_PATH }}temp.md)"
             body="${body//'%'/'%25'}"
             body="${body//$'\n'/'%0A'}"

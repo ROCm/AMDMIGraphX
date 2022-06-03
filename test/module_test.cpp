@@ -7,6 +7,7 @@
 #include <sstream>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
+#include <migraphx/verify.hpp>
 
 #include <basic_ops.hpp>
 
@@ -310,6 +311,18 @@ TEST_CASE(module_without_bypass)
     bool found = false;
     migraphx::run_passes(p, {check_for_pass_op{&found}});
     EXPECT(found);
+}
+
+TEST_CASE(multiple_module_dependency)
+{
+    // Test when an instruction from a submodule depends on previous module
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto* sub = p.create_module("sub");
+    auto l1 = mm->add_literal(migraphx::literal(3));
+    sub->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2 ,3}}}), l1);
+    p.compile(migraphx::ref::target{});
+    p.eval({});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

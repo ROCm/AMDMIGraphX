@@ -3,12 +3,14 @@ on:
     branches: [develop]
   schedule:
     - cron: "0 5 * * *"
+
 env:
   TEST: false
   DOCKERBASE: rocm-migraphx:5.1
   MIOPENTUNE: miopen-rocm51
   REPORTS_DIR: migraphx-reports
-  MAIL_TO: igor.mirosavljevic@htecgroup.com
+  MAIL_TO: dl.dl-migraphx-perfrun@amd.com
+  MAIL_CC: igor.mirosavljevic@htecgroup.com,vidoje.gavrilovic@htecgroup.com,jovica.zlatanovic@htecgroup.com,stefan.micic@htecgroup.com
   MAIL_FROM: GH Actions
   MAIL_SUBJECT: GH Actions send email test
   MAIL_BODY: Testing GH Actions workflow
@@ -16,8 +18,12 @@ env:
   TEST_RESULTS_PATH: /home/htec/jz/source/rocm-migraphx/test-results/
   REPORTS_PATH: /home/htec/igor/rocm-migraphx/reports/
   PYTHON_PATH: /home/htec/anaconda3/bin/
+  DOCKER_MOUNT: /home/htec/jz:/data
+  DOCKER_WORKDIR: /data/source/rocm-migraphx/scripts/
 
 name: MIGraphX Regression test
+
+concurrency: benchmark
 
 jobs: 
   check_image_version:
@@ -64,8 +70,8 @@ jobs:
           --device=/dev/kfd
           --network=host
           --group-add=video 
-          -v /home/htec/jz:/data
-          --workdir /data/source/rocm-migraphx/scripts/
+          -v ${{ env.DOCKER_MOUNT }}
+          --workdir ${{ env.DOCKER_WORKDIR }}
           rocm-migraphx:$(date +%Y%m%d) /bin/bash run_perf_mev.sh
       
       - name: Delete old images/containers
@@ -142,7 +148,7 @@ jobs:
           # Optional HTML body read from file:
           #html_body: file://README.html
           # Optional carbon copy recipients:
-          #cc: igor.mirosavljevic@htecgroup.com,vidoje.gavrilovic@htecgroup.com,jovica.zlatanovic@htecgroup.com,stefan.micic@htecgroup.com
+          cc: ${{ env.MAIL_CC }}
           # Optional blind carbon copy recipients:
           #bcc: r2d2@example.com,hansolo@example.com
           # Optional recipient of the email response:

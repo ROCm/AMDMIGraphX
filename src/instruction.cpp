@@ -74,8 +74,6 @@ bool operator==(const instruction& i, instruction_ref ref)
     return std::addressof(i) == std::addressof(*ref);
 }
 
-static void debug_name(std::ostream& os, const instruction& ins);
-
 bool instruction::valid(const module& m, bool check_order) const
 {
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {

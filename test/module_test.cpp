@@ -319,10 +319,12 @@ TEST_CASE(multiple_module_dependency)
     migraphx::program p;
     auto* mm  = p.get_main_module();
     auto* sub = p.create_module("sub");
-    auto l1 = mm->add_literal(migraphx::literal(3));
-    sub->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2 ,3}}}), l1);
-    p.compile(migraphx::ref::target{});
-    p.eval({});
+    auto l1   = mm->add_literal(migraphx::literal(3));
+    // second same literal to make sure instruction_ref is being compared, rahter than the
+    // instructions
+    sub->add_literal(migraphx::literal(3));
+    sub->add_instruction(sum_op{}, l1, l1);
+    sub->validate();
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

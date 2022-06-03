@@ -77,10 +77,10 @@ bool operator==(const instruction& i, instruction_ref ref)
 bool instruction::valid(const module& m, bool check_order) const
 {
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+               (*i).debug_print();
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                bool ret  = self != i->outputs().end();
-               // assume argument is in previous module if m.has_instruction(i) is false
-               if(check_order and m.has_instruction(i))
+               if(check_order)
                {
                    // check arguments for this instruction before this instruction
                    ret = ret and (std::distance(m.begin(), i) < std::distance(m.begin(), *self));

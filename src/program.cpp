@@ -154,6 +154,8 @@ void program::compile(const target& t, compile_options options)
 
     auto mods = this->get_modules();
 
+    std::cout << "mods size: " << mods.size() << std::endl;
+
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {

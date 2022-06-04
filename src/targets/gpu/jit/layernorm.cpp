@@ -39,7 +39,7 @@ __global__ void layernorm_kernel(void* input_p, void* output_p)
 
 struct layernorm_compiler : compiler<layernorm_compiler>
 {
-    std::vector<std::string> names() const { return {"layernorm"}; }
+    std::vector<std::string> names() const { return {"layernorm", "gpu::prelayernorm"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {

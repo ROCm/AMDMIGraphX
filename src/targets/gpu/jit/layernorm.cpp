@@ -26,8 +26,8 @@ namespace migraphx {
 extern "C" {
 __global__ void layernorm_kernel(void* input_p, void* output_p) 
 {
-    transform_args(make_tensors(), ${transformers})(input_p, output_p)([](auto input, auto output) {
-        layernorm<${axis}>(input, output);
+    transform_args(make_tensors(), rotate_last(), ${transformers})(input_p, output_p)([](auto... xs) {
+        layernorm<${axis}>(op::id{}, xs...);
     });
 }
     

@@ -77,7 +77,6 @@ bool operator==(const instruction& i, instruction_ref ref)
 bool instruction::valid(const module& m, bool check_order) const
 {
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
-               (*i).debug_print();
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                bool ret  = self != i->outputs().end();
                if(check_order)

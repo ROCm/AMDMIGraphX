@@ -7,7 +7,6 @@
 #include <sstream>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
-#include <migraphx/verify.hpp>
 
 #include <basic_ops.hpp>
 
@@ -320,7 +319,7 @@ TEST_CASE(multiple_module_dependency)
     auto* mm  = p.get_main_module();
     auto* sub = p.create_module("sub");
     auto l1   = mm->add_literal(migraphx::literal(3));
-    // second same literal to make sure instruction_ref is being compared, rahter than the
+    // second same literal to make sure instruction_ref is being compared, rather than the
     // instructions
     sub->add_literal(migraphx::literal(3));
     sub->add_instruction(sum_op{}, l1, l1);

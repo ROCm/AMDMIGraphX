@@ -255,6 +255,11 @@ MIGRAPHX_REGISTER_OP(hip_layernorm)
 
 struct hip_triadd_layernorm : ternary_device<hip_triadd_layernorm, &device::triadd_layernorm>
 {
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4).standard();
+        return inputs[0];
+    }
     // Empty finalize to skip dimension reduction
     void finalize(context&, const shape&, const std::vector<shape>&) {}
 };

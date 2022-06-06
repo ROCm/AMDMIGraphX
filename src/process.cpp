@@ -20,7 +20,6 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
     int ec = 0;
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
         std::cout << cmd << std::endl;
-    std::array<char, 128> buffer;
     auto closer = [&](FILE* stream) {
         auto status = pclose(stream);
         ec          = WIFEXITED(status) ? 0 : WEXITSTATUS(status); // NOLINT
@@ -30,6 +29,7 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
         std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), "r"), closer); // NOLINT
         if(!pipe)
             MIGRAPHX_THROW("popen() failed: " + cmd);
+        std::array<char, 128> buffer;
         while(fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
             std_out(buffer.data());
     }

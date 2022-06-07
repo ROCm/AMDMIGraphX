@@ -33,7 +33,7 @@ struct nonmaxsuppression
     shape compute_shape(std::vector<shape> inputs) const
     {
         // requires at least 2 inputs
-        check_shapes{inputs, *this}.standard();
+        check_shapes{inputs, *this};
         check_shapes{{inputs.at(0), inputs.at(1)}, *this}.only_dims(3);
         auto lens = inputs.front().lens();
 

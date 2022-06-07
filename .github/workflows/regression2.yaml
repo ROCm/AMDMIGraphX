@@ -45,11 +45,11 @@ jobs:
     needs: check_image_version
     if: ${{ needs.check_image_version.outputs.image == 'true' }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v1
-        with:
-          submodules: recursive
-          token: ${{ secrets.GH_SUB_TOKEN }}
+      #- name: Checkout code
+      #  uses: actions/checkout@v1
+      #  with:
+      #    submodules: recursive
+      #    token: ${{ secrets.GH_SUB_TOKEN }}
       - name: Docker build
         run: |
           cd ./rocm-migraphx/dockerfiles

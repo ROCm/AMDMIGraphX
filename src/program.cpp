@@ -579,7 +579,7 @@ double common_average(const std::vector<double>& v)
 
 double total_average(const std::vector<double>& v)
 {
-    double total  = std::accumulate(v.begin(), v.end(), 0.0);
+    double total = std::accumulate(v.begin(), v.end(), 0.0);
     return total / std::distance(v.begin(), v.end());
 }
 
@@ -658,12 +658,12 @@ void program::perf_report(std::ostream& os,
         overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
     }
 
-    double total_time             = common_average(total_vec);
-    double avg_latency            = total_average(total_vec);
-    double p99_latency            = total_vec[static_cast<std::size_t>(total_vec.size() * 0.99) - 1];
-    double rate                   = 1000.0 / total_time;
-    double overhead_time          = common_average(overhead_vec);
-    double overhead_percent       = overhead_time * 100.0 / total_time;
+    double total_time       = common_average(total_vec);
+    double avg_latency      = total_average(total_vec);
+    double p99_latency      = total_vec[static_cast<std::size_t>(total_vec.size() * 0.99) - 1];
+    double rate             = 1000.0 / total_time;
+    double overhead_time    = common_average(overhead_vec);
+    double overhead_percent = overhead_time * 100.0 / total_time;
     double total_instruction_time = 0.0;
     std::unordered_map<std::string, double> op_times;
     for(auto&& p : ins_vec)

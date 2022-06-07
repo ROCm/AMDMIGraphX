@@ -74,7 +74,7 @@ bool operator==(const instruction& i, instruction_ref ref)
     return std::addressof(i) == std::addressof(*ref);
 }
 
-bool instruction::valid(const module& m, bool check_order) const
+bool instruction::valid(instruction_ref start, bool check_order) const
 {
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
@@ -82,7 +82,7 @@ bool instruction::valid(const module& m, bool check_order) const
                if(check_order)
                {
                    // check arguments for this instruction before this instruction
-                   ret = ret and (std::distance(m.begin(), i) < std::distance(m.begin(), *self));
+                   ret = ret and (std::distance(start, i) < std::distance(start, *self));
                }
                return ret;
            });

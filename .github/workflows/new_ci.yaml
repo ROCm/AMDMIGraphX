@@ -23,8 +23,6 @@ jobs:
           - release
 
     steps:
-    - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
     - uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2

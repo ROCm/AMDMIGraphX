@@ -577,12 +577,6 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
-double total_average(const std::vector<double>& v)
-{
-    double total = std::accumulate(v.begin(), v.end(), 0.0);
-    return total / std::distance(v.begin(), v.end());
-}
-
 std::string perf_group(const operation& op)
 {
     auto attr = op.attributes();
@@ -659,7 +653,6 @@ void program::perf_report(std::ostream& os,
     }
 
     double total_time       = common_average(total_vec);
-    double avg_latency      = total_average(total_vec);
     double p99_latency      = total_vec[static_cast<std::size_t>(total_vec.size() * 0.99) - 1];
     double rate             = 1000.0 / total_time;
     double overhead_time    = common_average(overhead_vec);
@@ -710,7 +703,6 @@ void program::perf_report(std::ostream& os,
     os << "Batch size: " << batch << std::endl;
     os << "Rate: " << rate * batch << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
-    os << "Average latency: " << avg_latency << "ms" << std::endl;
     os << "99th percentile latency: " << p99_latency << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"

@@ -4,6 +4,8 @@
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 
@@ -144,6 +146,20 @@ constexpr auto vec_packed_transform(Ts... xs)
             return f(xs...);
         }
     };
+}
+
+template <class T, class Op>
+constexpr auto vec_reduce(T x, Op op)
+{
+    if constexpr(vec_size<T>() < 2)
+        return x;
+    else
+    {
+        vec_type<T> result = x[0];
+        for(int i = 1; i < vec_size<T>(); i++)
+            result = op(result, x[i]);
+        return result;
+    }
 }
 
 } // namespace migraphx

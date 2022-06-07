@@ -59,6 +59,8 @@ void launch_kernel(hipFunction_t fun,
                    void* kernargs,
                    std::size_t size)
 {
+    assert(global > 0);
+    assert(local > 0);
     void* config[] = {
 // HIP_LAUNCH_PARAM_* are macros that do horrible things
 #ifdef MIGRAPHX_USE_CLANG_TIDY

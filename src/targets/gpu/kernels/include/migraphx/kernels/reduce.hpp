@@ -152,6 +152,21 @@ constexpr auto sliced(Slicer slicer, F f)
     };
 }
 
+template <class Input, index_int Axis>
+constexpr auto compute_reduce_axis()
+{
+    constexpr auto lens =
+        transform_i(get_shape_c<Input>{}.lens, [](index_int x, index_int i) -> index_int {
+            if(i == Axis)
+                return 1;
+            return x;
+        });
+    return make_shape(lens, get_shape_c<Input>{}.strides);
+}
+
+template <class Input, index_int Axis>
+using with_axis = decltype(compute_reduce_axis<Input, Axis>());
+
 struct block
 {
     template <class Slicer>
@@ -163,9 +178,12 @@ struct block
         __device__ auto reduce(Op op, T init, Read read) const
         {
             return sliced(slicer, [=](auto x, auto... xs) {
-                return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) {
-                    return read(x[j], xs[j]...);
-                });
+                return vec_reduce(block_reduce(idx,
+                                               op,
+                                               init,
+                                               x.get_shape().elements(),
+                                               [&](auto j) { return read(x[j], xs[j]...); }),
+                                  op);
             });
         }
 
@@ -174,6 +192,14 @@ struct block
         {
             if(idx.local == 0)
                 f();
+        }
+
+        template <class F>
+        __device__ auto inner(F f) const
+        {
+            return sliced(slicer, [=](auto x, auto... xs) {
+                idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
+            });
         }
     };
 
@@ -220,6 +246,17 @@ struct lane
         __device__ void outer(F f) const
         {
             f();
+        }
+
+        template <class F>
+        __device__ auto inner(F f) const
+        {
+            return sliced(slicer, [=](auto x, auto... xs) {
+                for(index_int j = 0; j < x.get_shape().elements(); j++)
+                {
+                    f(x[j], xs[j]...);
+                }
+            });
         }
     };
 

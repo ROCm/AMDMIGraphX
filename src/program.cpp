@@ -719,9 +719,9 @@ void program::perf_report(std::ostream& os,
     os << std::endl;
 
     os << "Batch size: " << batch << std::endl;
-    os << "Average: " << average << std::endl;
-    os << "Median: " << med << std::endl;
-    os << "Standard deviation: " << std_dev << std::endl;
+    os << "Average: " << average << "ms" << std::endl;
+    os << "Median: " << med << "ms" << std::endl;
+    os << "Standard deviation: " << std_dev << "ms" << std::endl;
     os << "Rate: " << rate * batch << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;

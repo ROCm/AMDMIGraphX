@@ -4,11 +4,9 @@ on:
       release:
         description: ROCm release version
         required: true
-      git-ref:
-        description: Git Ref
-        required: false
 
-name: ROCM release
+
+name: ROCM Docker image build
 
 jobs:
   check_image_version:

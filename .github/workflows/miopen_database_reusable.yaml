@@ -15,10 +15,12 @@ on:
         required: true
       saved_models_path:
         description: Saved Models path
-        default: "/home/htec/jz"
+        default: "/home/htec/jz/source/saved-models"
         required: true
-    
-      
+      test_results_dir:
+        description: Test results path
+        default: "/home/htec/jz/source/rocm-migraphx/test-results"
+        required: true
 
 name: MIOPEN Generate database
 
@@ -84,6 +86,8 @@ jobs:
       - name: Perform tuning database
         env:
           MIOPEN_FIND_ENFORCE: 3
+          SAVED_MODELS: ${{ github.event.inputs.saved_models_path }}
+          TEST_RESULTDIR: ${{ github.event.inputs.test_results_dir }}
         run: >
           docker run -e TZ=America/Chicago
           -e TARGET=gpu
@@ -92,7 +96,7 @@ jobs:
           --network=host
           --group-add=video 
           -v ${{ github.event.inputs.saved_models_path }}:/data
-          --workdir $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/
+          --workdir /src/${{ env.SCRIPT_PATH }}/scripts/
           rocm-migraphx:${{ github.event.inputs.release }} /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
   push_database:
     name: Push MIOPEN Database

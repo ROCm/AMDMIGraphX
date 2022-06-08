@@ -84,13 +84,12 @@ jobs:
           rm -rf $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/
           git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.miopen_db_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
       - name: Perform tuning database
-        env:
-          MIOPEN_FIND_ENFORCE: 3
-          SAVED_MODELS: ${{ github.event.inputs.saved_models_path }}
-          TEST_RESULTDIR: ${{ github.event.inputs.test_results_dir }}
         run: >
           docker run -e TZ=America/Chicago
           -e TARGET=gpu
+          -e SAVED_MODELS=${{ github.event.inputs.saved_models_path }}
+          -e TEST_RESULTDIR=${{ github.event.inputs.test_results_dir }}
+          -e MIOPEN_FIND_ENFORCE=3
           --device=/dev/dri
           --device=/dev/kfd
           --network=host

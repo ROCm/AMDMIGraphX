@@ -578,7 +578,7 @@ struct find_transpose_contiguous_reshaper_unary
     }
 };
 
-struct find_transpose_slice
+struct find_slice_transpose
 {
     auto matcher() const
     {
@@ -657,7 +657,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},
-                            find_transpose_slice{},
+                            find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{});
         dead_code_elimination{}.apply(m);
     }

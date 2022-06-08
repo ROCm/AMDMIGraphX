@@ -579,21 +579,19 @@ double common_average(const std::vector<double>& v)
 
 double total_average(const std::vector<double>& v)
 {
-    double total  = std::accumulate(v.begin(), v.end(), 0.0);
+    double total = std::accumulate(v.begin(), v.end(), 0.0);
     return total / v.size();
 }
 
 double std_deviation(const std::vector<double>& v)
 {
     auto mean = total_average(v);
-    auto var = std::accumulate(v.begin(), v.end(), 0.0, [&](auto a, auto b){ return a + std::pow(b - mean, 2); });
+    auto var  = std::accumulate(
+        v.begin(), v.end(), 0.0, [&](auto a, auto b) { return a + std::pow(b - mean, 2); });
     return std::sqrt(var / v.size());
 }
 
-double median(const std::vector<double>& v)
-{
-    return v[(v.size() / 2) - 1];
-}
+double median(const std::vector<double>& v) { return v[(v.size() / 2) - 1]; }
 
 std::string perf_group(const operation& op)
 {
@@ -723,7 +721,7 @@ void program::perf_report(std::ostream& os,
     os << "Batch size: " << batch << std::endl;
     os << "Average: " << average << std::endl;
     os << "Median: " << med << std::endl;
-    os << "Standard deviation: " << std_dev << std::endl; 
+    os << "Standard deviation: " << std_dev << std::endl;
     os << "Rate: " << rate * batch << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;

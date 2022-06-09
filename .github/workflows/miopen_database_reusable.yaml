@@ -87,13 +87,16 @@ jobs:
         run: >
           docker run -e TZ=America/Chicago
           -e TARGET=gpu
+          -e SAVED_MODELS=/data
+          -e TEST_RESULTDIR=/results
           -e MIOPEN_FIND_ENFORCE=3
           --device=/dev/dri
           --device=/dev/kfd
           --network=host
           --group-add=video 
           -v ${{ github.event.inputs.saved_models_path }}:/data
-          --workdir /data/source/rocm-migraphx/scripts/
+          -v ${{ github.event.inputs.test_results_dir }}:/results
+          --workdir /src/${{ env.SCRIPT_PATH }}/scripts/
           rocm-migraphx:${{ github.event.inputs.release }} /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
   push_database:
     name: Push MIOPEN Database

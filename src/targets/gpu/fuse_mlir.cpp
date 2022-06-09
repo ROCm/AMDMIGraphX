@@ -31,7 +31,7 @@ struct mlir_conv
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
         auto n = inputs.size();
-        return op.compute_shape({inputs[n -2], inputs[n - 1]});
+        return op.compute_shape({inputs[n - 2], inputs[n - 1]});
     }
 };
 MIGRAPHX_REGISTER_OP(mlir_conv);
@@ -86,7 +86,8 @@ struct find_conv_pointwise
                      std::back_inserter(inputs),
                      [&](auto input) { return input != conv_ins; });
         inputs.insert(inputs.end(), conv_ins->inputs().begin(), conv_ins->inputs().end());
-        m.replace_instruction(ins, mlir_conv{conv_ins->get_operator()}, inputs, ins->module_inputs());
+        m.replace_instruction(
+            ins, mlir_conv{conv_ins->get_operator()}, inputs, ins->module_inputs());
     }
 };
 } // namespace

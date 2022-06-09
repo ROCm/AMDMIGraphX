@@ -8,18 +8,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-
 struct mlir_compiler : compiler<mlir_compiler>
 {
-    std::vector<std::string> names() const
-    {
-        return {"gpu::mlir_conv"};
-    }
+    std::vector<std::string> names() const { return {"gpu::mlir_conv"}; }
 
-    operation compile_op(context&, const std::vector<shape>&, const value&) const
-    {
-        return {};
-    }
+    operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
     {
@@ -32,7 +25,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         return [=](module& m, instruction_ref ins) {
             auto mlir = insert_mlir(m, ins, co, ins->inputs());
-            m.replace_instruction(ins, mlir); 
+            m.replace_instruction(ins, mlir);
         };
     }
 };

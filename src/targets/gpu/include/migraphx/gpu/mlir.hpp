@@ -18,8 +18,7 @@ code_object_op compile_mlir(const context& ctx, const module& m);
 instruction_ref insert_mlir(module& m,
                             instruction_ref ins,
                             code_object_op co,
-                            const std::vector<instruction_ref>& inputs);                            
-
+                            const std::vector<instruction_ref>& inputs);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

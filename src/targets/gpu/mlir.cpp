@@ -545,7 +545,7 @@ code_object_op compile_mlir(const context&, const module& m)
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-    auto co = mp.compile();
+    auto co   = mp.compile();
     co.output = m.get_output_shapes().front();
     return co;
 }

@@ -535,7 +535,7 @@ std::string dump_mlir(const module& m)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-code_object_op compile_mlir(const module& m)
+code_object_op compile_mlir(const context&, const module& m)
 {
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
@@ -545,17 +545,16 @@ code_object_op compile_mlir(const module& m)
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-    return mp.compile();
+    auto co = mp.compile();
+    co.output = m.get_output_shapes().front();
+    return co;
 }
 
 instruction_ref insert_mlir(module& m,
                             instruction_ref ins,
-                            const module& mmlir,
+                            code_object_op co,
                             const std::vector<instruction_ref>& inputs)
 {
-    assert(mmlir.get_parameter_names().size() == inputs.size() - 1);
-    auto co = compile_mlir(mmlir);
-
     std::vector<instruction_ref> refs;
     refs.reserve(inputs.size() * 15);
 
@@ -594,7 +593,6 @@ instruction_ref insert_mlir(module& m,
         // refs.push_back(get_literal(1)); // G
     }
     co.expected_inputs = to_shapes(refs);
-    co.output          = mmlir.get_output_shapes().front();
     co.output_arg      = last;
     return m.insert_instruction(ins, co, refs);
 }

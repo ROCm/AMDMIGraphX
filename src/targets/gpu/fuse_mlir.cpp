@@ -3,6 +3,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -10,6 +11,30 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 namespace gpu {
+
+struct mlir_conv
+{
+    operation op = make_op("convolution");
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::mlir_conv"; }
+    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
+    {
+        check_shapes{inputs, *this}.standard();
+        if(mods.size() != 1)
+            MIGRAPHX_THROW("should have one submodule.");
+        if(inputs.size() < 2)
+            MIGRAPHX_THROW("should have at least two inputs.");
+        auto n = inputs.size();
+        return op.compute_shape({inputs[n -2], inputs[n - 1]});
+    }
+};
+MIGRAPHX_REGISTER_OP(mlir_conv);
 
 namespace {
 struct find_conv_pointwise
@@ -61,10 +86,7 @@ struct find_conv_pointwise
                      std::back_inserter(inputs),
                      [&](auto input) { return input != conv_ins; });
         inputs.insert(inputs.end(), conv_ins->inputs().begin(), conv_ins->inputs().end());
-        inputs.push_back(m.insert_instruction(
-            ins, make_op("hip::allocate", {{"shape", to_value(ins->get_shape())}})));
-        auto mlir = insert_mlir(m, ins, mm, inputs);
-        m.replace_instruction(ins, mlir);
+        m.replace_instruction(ins, mlir_conv{conv_ins->get_operator()}, inputs, ins->module_inputs());
     }
 };
 } // namespace

@@ -13,11 +13,13 @@ struct module;
 namespace gpu {
 
 std::string dump_mlir(const module& m);
-code_object_op compile_mlir(const module& m);
+code_object_op compile_mlir(const context& ctx, const module& m);
+
 instruction_ref insert_mlir(module& m,
                             instruction_ref ins,
-                            const module& mmlir,
-                            const std::vector<instruction_ref>& inputs);
+                            code_object_op co,
+                            const std::vector<instruction_ref>& inputs);                            
+
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -69,7 +69,8 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
               }));
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
 
-    migraphx::gpu::insert_mlir(*mm, mm->end(), mmlir, inputs);
+    migraphx::gpu::context ctx;
+    migraphx::gpu::insert_mlir(*mm, mm->end(), compile_mlir(ctx, mmlir), inputs);
     return p;
 }
 

@@ -16,8 +16,8 @@ argument miopen_quant_convolution::compute(context& ctx,
                                            const shape& output_shape,
                                            const std::vector<argument>& args) const
 {
-    auto x_desc = make_tensor(args[0].get_shape(), true);
-    auto w_desc = make_tensor(args[1].get_shape(), true);
+    auto x_desc = make_tensor(args[0].get_shape(), int8_x4_format);
+    auto w_desc = make_tensor(args[1].get_shape(), int8_x4_format);
     auto y_desc = make_tensor(output_shape);
 
     float alpha = 1;
@@ -49,8 +49,8 @@ shape miopen_quant_convolution::compile(context& ctx,
                                         std::vector<shape> inputs)
 {
     shape workspace_shape{};
-    auto x_desc = make_tensor(inputs[0], true);
-    auto w_desc = make_tensor(inputs[1], true);
+    auto x_desc = make_tensor(inputs[0], int8_x4_format);
+    auto w_desc = make_tensor(inputs[1], int8_x4_format);
     auto y_desc = make_tensor(output_shape);
 
     std::size_t workspace_size = 0;
@@ -62,8 +62,15 @@ shape miopen_quant_convolution::compile(context& ctx,
                                              &workspace_size);
     workspace_shape = shape{shape::int8_type, {workspace_size}};
 
-    auto arg_vec4_x = to_gpu(generate_argument(pack_int8_shape(inputs[0])));
-    auto arg_vec4_w = to_gpu(generate_argument(pack_int8_shape(inputs[1])));
+    auto x_shape = inputs[0];
+    auto w_shape = inputs[1];
+    if(int8_x4_format)
+    {
+        x_shape = pack_int8_shape(x_shape);
+        w_shape = pack_int8_shape(w_shape);
+    }
+    auto arg_vec4_x = to_gpu(generate_argument(x_shape));
+    auto arg_vec4_w = to_gpu(generate_argument(w_shape));
     auto y          = allocate_gpu(output_shape);
     auto workspace  = allocate_gpu(workspace_shape);
 

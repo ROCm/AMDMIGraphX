@@ -966,7 +966,7 @@ struct find_gemm_pointwise
         inputs.pop_back();
 
         inputs.push_back(c_ins);
-        inputs.push_back(gemm_ins->inputs().back());
+        inputs.push_back(ins->inputs().back());
 
         gemm.beta = 1;
         m.replace_instruction(ins, gemm, inputs);

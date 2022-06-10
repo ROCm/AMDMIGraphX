@@ -2,7 +2,7 @@ on:
   push:
     branches: [develop]
   schedule:
-    - cron: "0 5 * * *"
+    - cron: "0 5 * * 1-5"
   workflow_dispatch:
 
 env:
@@ -22,7 +22,7 @@ env:
   DOCKER_MOUNT: /home/htec/jz:/data
   DOCKER_WORKDIR: /data/source/rocm-migraphx/scripts/
 
-name: MIGraphX Regression test 2
+name: MIGraphX Regression lite
 
 concurrency: benchmark
 

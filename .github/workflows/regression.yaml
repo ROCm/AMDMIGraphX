@@ -162,5 +162,4 @@ jobs:
           # Optional attachments:
           attachments: ${{ steps.last_report.outputs.latest}}
           # Optional priority: 'high', 'normal' (default) or 'low'
-          priority: normal
-          
+          priority: normal         

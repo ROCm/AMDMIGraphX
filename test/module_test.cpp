@@ -323,7 +323,7 @@ TEST_CASE(multiple_module_dependency)
     // instructions
     sub->add_literal(migraphx::literal(3));
     sub->add_instruction(sum_op{}, l1, l1);
-    sub->validate();
+    EXPECT((sub->validate() == sub->end()));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

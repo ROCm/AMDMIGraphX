@@ -21,6 +21,8 @@ struct module_pass_manager
     virtual ~module_pass_manager() {}
 };
 
+module& get_module(module_pass_manager& mpm);
+
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
 

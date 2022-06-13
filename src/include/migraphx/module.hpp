@@ -178,6 +178,11 @@ struct module
     std::unique_ptr<module_impl> impl;
 };
 
+inline module& get_module(module& m)
+{
+    return m;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -47,7 +47,7 @@ struct find_conv_pointwise
         return match::name("pointwise")(match::any_of[match::inputs()](convolution.bind("x")));
     }
 
-    void apply(module& m, match::matcher_result r) const
+    void apply(module_pass_manager& mpm, match::matcher_result r) const
     {
         auto ins      = r.result;
         auto conv_ins = r.instructions["convolution"];
@@ -61,13 +61,14 @@ struct find_conv_pointwise
            }))
             return;
         std::sort(names.begin(), names.end());
-        module mm{};
+        module_ref mm = mpm.create_module("mlir_" + pm->name());
+        mm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> param_map;
-        auto x    = mm.add_parameter("x" + std::to_string(names.size()),
+        auto x    = mm->add_parameter("x" + std::to_string(names.size()),
                                   conv_ins->inputs().at(0)->get_shape());
-        auto w    = mm.add_parameter("x" + std::to_string(names.size() + 1),
+        auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
                                   conv_ins->inputs().at(1)->get_shape());
-        auto conv = mm.add_instruction(conv_ins->get_operator(), {x, w});
+        auto conv = mm->add_instruction(conv_ins->get_operator(), {x, w});
         std::transform(names.begin(),
                        names.end(),
                        ins->inputs().begin(),
@@ -76,9 +77,9 @@ struct find_conv_pointwise
                            if(input == x_ins)
                                return std::make_pair(pm->get_parameter(name), conv);
                            return std::make_pair(pm->get_parameter(name),
-                                                 mm.add_parameter(name, input->get_shape()));
+                                                 mm->add_parameter(name, input->get_shape()));
                        });
-        mm.add_return(mm.insert_module_instructions(mm.end(), pm, param_map));
+        mm->add_return(mm->insert_module_instructions(mm->end(), pm, param_map));
 
         std::vector<instruction_ref> inputs;
         std::copy_if(ins->inputs().begin(),
@@ -86,13 +87,13 @@ struct find_conv_pointwise
                      std::back_inserter(inputs),
                      [&](auto input) { return input != conv_ins; });
         inputs.insert(inputs.end(), conv_ins->inputs().begin(), conv_ins->inputs().end());
-        m.replace_instruction(
-            ins, mlir_conv{conv_ins->get_operator()}, inputs, ins->module_inputs());
+        mpm.get_module().replace_instruction(
+            ins, mlir_conv{conv_ins->get_operator()}, inputs, {mm});
     }
 };
 } // namespace
 
-void fuse_mlir::apply(module& m) const { match::find_matches(m, find_conv_pointwise{}); }
+void fuse_mlir::apply(module_pass_manager& mpm) const { match::find_matches(mpm, find_conv_pointwise{}); }
 
 } // namespace gpu
 

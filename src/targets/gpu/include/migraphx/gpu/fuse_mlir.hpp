@@ -7,7 +7,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
@@ -15,7 +15,7 @@ struct fuse_mlir
 {
     context* ctx = nullptr;
     std::string name() const { return "gpu::fuse_mlir"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& m) const;
 };
 
 } // namespace gpu

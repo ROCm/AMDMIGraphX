@@ -6,20 +6,21 @@
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 
-
-TEST_CASE(host_buffer_copies) {
-    migraphx::program p; 
+TEST_CASE(host_buffer_copies)
+{
+    migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape ss{migraphx::shape::float_type, {4, 2}};
-    auto a = mm->add_parameter("a", ss);
-    auto b = mm->add_parameter("b", ss);
-    auto aa = mm->add_instruction(migraphx::make_op("add"), a, a);
-    auto gpu_out = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), aa);
+    auto a           = mm->add_parameter("a", ss);
+    auto b           = mm->add_parameter("b", ss);
+    auto aa          = mm->add_instruction(migraphx::make_op("add"), a, a);
+    auto gpu_out     = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), aa);
     auto stream_sync = mm->add_instruction(migraphx::make_op("hip::sync_stream"), gpu_out);
-    auto pass = mm->add_instruction(unary_pass_op{}, stream_sync);
-    auto alloc =  mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ss)}, {"tag", ""}}));
-    auto gpu_in = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), pass, alloc); 
-    auto aab = mm->add_instruction(migraphx::make_op("add"), gpu_in, b);
+    auto pass        = mm->add_instruction(unary_pass_op{}, stream_sync);
+    auto alloc       = mm->add_instruction(
+        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ss)}, {"tag", ""}}));
+    auto gpu_in = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), pass, alloc);
+    auto aab    = mm->add_instruction(migraphx::make_op("add"), gpu_in, b);
     mm->add_return({aab});
     migraphx::parameter_map pp;
     std::vector<float> a_vec(ss.elements(), -1);

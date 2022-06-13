@@ -77,7 +77,8 @@ hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
     void* dev_ptr;
     // check if ptr was allocated through hipHostMalloc
     auto status = hipHostGetDevicePointer(&dev_ptr, ptr, 0);
-    if(status != hipSuccess) {
+    if(status != hipSuccess)
+    {
         status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
         if(status != hipSuccess)
             MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));

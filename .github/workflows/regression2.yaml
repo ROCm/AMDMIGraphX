@@ -15,12 +15,12 @@ env:
   MAIL_FROM: GH Actions
   MAIL_SUBJECT: GH Actions send email test
   MAIL_BODY: Testing GH Actions workflow
-  SCRIPTS_PATH: /home/htec/test/rocm-migraphx/scripts/
-  TEST_RESULTS_PATH: /home/htec/test/rocm-migraphx/test-results/
+  SCRIPTS_PATH: /home/htec/jz/source/rocm-migraphx/scripts/
+  TEST_RESULTS_PATH: /home/htec/jz/source/rocm-migraphx/test-results/
   REPORTS_PATH: /home/htec/igor/rocm-migraphx/reports/
   PYTHON_PATH: /home/htec/anaconda3/bin/
-  DOCKER_MOUNT: /home/htec/test:/data
-  DOCKER_WORKDIR: /data/rocm-migraphx/scripts/
+  DOCKER_MOUNT: /home/htec/jz:/data
+  DOCKER_WORKDIR: /data/source/rocm-migraphx/scripts/
 
 name: MIGraphX Regression lite
 

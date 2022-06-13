@@ -16,7 +16,6 @@
 #include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/pad.hpp>
-#include <migraphx/op/pooling.hpp>
 #include <migraphx/op/softmax.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
@@ -335,109 +334,6 @@ struct ref_im2col
 };
 MIGRAPHX_REGISTER_OP(ref_im2col)
 
-struct max_pool
-{
-    static std::string name() { return "max"; }
-    template <class T>
-    static T start()
-    {
-        return std::numeric_limits<T>::lowest();
-    }
-
-    static double apply(double x, double y)
-    {
-        double m = std::max(x, y);
-        return (m);
-    }
-
-    static double final(double x, std::size_t) { return (x); }
-};
-
-struct avg_pool
-{
-    static std::string name() { return "average"; }
-
-    template <class T>
-    static double start()
-    {
-        return 0.0;
-    }
-
-    static double apply(double x, double y) { return x + y; }
-
-    static double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
-};
-
-template <class Op>
-struct ref_pooling : auto_register_op<ref_pooling<Op>>
-{
-    ref_pooling() = default;
-
-    ref_pooling(op::pooling pop) : op(std::move(pop)) {}
-
-    op::pooling op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::pooling_" + Op::name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        return op.normalize_compute_shape(inputs);
-    }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            using type   = typename decltype(output)::value_type;
-            auto in_s    = input.get_shape();
-            auto in_lens = in_s.lens();
-            std::vector<std::size_t> vec_len(in_lens.begin() + 2, in_lens.end());
-
-            par_for(output_shape.elements(), [&](auto i) {
-                auto idx_o = output_shape.multi(i);
-                auto n_dim = idx_o.size();
-                std::vector<std::size_t> win_start;
-                std::vector<std::size_t> win_size;
-                for(std::size_t dim = 2; dim < n_dim; ++dim)
-                {
-                    auto d_2  = dim - 2;
-                    int start = static_cast<int>(idx_o[dim] * op.stride[d_2]) -
-                                static_cast<int>(op.padding[d_2]);
-                    int end = std::min(start + op.lengths[d_2], in_lens[dim]);
-                    start   = std::max(start, 0);
-                    win_start.push_back(start);
-                    win_size.push_back(end - start);
-                }
-
-                shape win_shape{output_shape.type(), win_size};
-                auto pool_size = win_shape.elements();
-                double acc     = Op::template start<type>();
-                shape_for_each(win_shape, [&](auto idx_w) {
-                    auto idx = idx_o;
-                    std::transform(idx_w.begin(),
-                                   idx_w.end(),
-                                   win_start.begin(),
-                                   idx.begin() + 2,
-                                   [](auto ii, auto jj) { return ii + jj; });
-                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                       idx < in_lens)
-                    {
-                        acc = Op::apply(acc, input[in_s.index(idx)]);
-                    }
-                });
-
-                output[i] = type(Op::final(acc, pool_size));
-            });
-        });
-
-        return result;
-    }
-};
-
 struct ref_op
 {
     operation op = op::identity{};
@@ -609,7 +505,7 @@ struct ref_unary : auto_register_op<ref_unary<Op>>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s = inputs.at(0);
+        const auto& s = inputs.at(0);
         return {s.type(), s.lens()};
     }
 
@@ -783,11 +679,7 @@ struct ref_apply
         init();
         for(auto it : iterator_for(*mod))
         {
-            if(it->name() == "pooling")
-            {
-                apply_pooling(it);
-            }
-            else if(apply_map.count(it->name()) > 0)
+            if(apply_map.count(it->name()) > 0)
             {
                 apply_map.at(it->name())(it);
             }
@@ -814,15 +706,6 @@ struct ref_apply
     {
         auto&& op = any_cast<Op>(ins->get_operator());
         mod->replace_instruction(ins, T{op}, ins->inputs());
-    }
-
-    void apply_pooling(instruction_ref ins) const
-    {
-        auto&& op = any_cast<op::pooling>(ins->get_operator());
-        if(op.mode == op::pooling_mode::max)
-            mod->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
-        else if(op.mode == op::pooling_mode::average)
-            mod->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
     }
 };
 

@@ -19,7 +19,9 @@ struct parse_pooling : op_parser<parse_pooling>
         return {{"AveragePool", "average"},
                 {"GlobalAveragePool", "average"},
                 {"GlobalMaxPool", "max"},
-                {"MaxPool", "max"}};
+                {"MaxPool", "max"},
+                {"LpPool", "lpnorm"},
+                {"GlobalLpPool", "lpnorm"}};
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -27,14 +29,16 @@ struct parse_pooling : op_parser<parse_pooling>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
+        const std::unordered_map<std::string, op::pooling_mode> mode_map = {
+            {"max", op::pooling_mode::max},
+            {"average", op::pooling_mode::average},
+            {"lpnorm", op::pooling_mode::lpnorm}};
         std::string mode = opd.op_name;
-        if(mode != "max" && mode != "average")
+        if(not contains(mode_map, mode))
         {
-            MIGRAPHX_THROW("onnx pooling mode must be \"max\" or \"average\"");
+            MIGRAPHX_THROW("onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
         }
-        operation op = make_op(
-            "pooling",
-            {{"mode", mode == "average" ? op::pooling_mode::average : op::pooling_mode::max}});
+        operation op = make_op("pooling", {{"mode", mode_map.at(mode)}});
         value values = op.to_value();
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
@@ -72,6 +76,12 @@ struct parse_pooling : op_parser<parse_pooling>
             copy(info.attributes["kernel_shape"].ints(), std::back_inserter(values["lengths"]));
             check_attr_sizes(
                 kdims, values["lengths"].size(), "PARSE_POOLING: inconsistent lengths");
+        }
+
+        // lp_order attribute
+        if(contains(info.attributes, "p"))
+        {
+            values["lp_order"] = info.attributes.at("p").i();
         }
 
         // ensure pads availabe only when auto_pad is "NOT_SET"
@@ -118,7 +128,7 @@ struct parse_pooling : op_parser<parse_pooling>
             std::fill_n(values["stride"].begin(), kdims, 1);
         }
         // used to calculate the supposed output shape
-        std::vector<int64_t> orig_padding(paddings.begin(), paddings.end());
+        std::vector<int64_t> orig_padding = paddings;
 
         std::vector<int64_t> slice_start;
         std::vector<int64_t> slice_end;

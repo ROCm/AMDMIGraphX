@@ -212,6 +212,9 @@ def module(h):
                         module_refs='std::vector<migraphx::module*>'),
              fname='add_instruction',
              returns='migraphx::instruction_ref')
+    h.method('add_literal',
+             api.params(shape='const migraphx::shape&', buffer='const char*'),
+             returns='migraphx::instruction_ref')
     h.method('add_parameter',
              api.params(name='const char*', shape='const migraphx::shape&'),
              returns='migraphx::instruction_ref')
@@ -403,6 +406,7 @@ api.add_function('migraphx_quantize_int8',
 @auto_handle(ref=True)
 def context(h):
     h.method('finish', const=True)
+    h.method('get_queue', returns='void*', fname='get_queue().unsafe_get')
 
 
 @api.interface('migraphx_experimental_custom_op',

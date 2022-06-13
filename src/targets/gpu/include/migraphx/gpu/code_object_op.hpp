@@ -35,6 +35,10 @@ struct code_object_op
                     f(self.output, "output"));
     }
 
+    value attributes() const { return {{"group", group()}}; }
+
+    std::string group() const { return "gpu::code_object::" + symbol_name; }
+
     std::string name() const { return "gpu::code_object"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument

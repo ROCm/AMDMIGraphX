@@ -401,7 +401,8 @@ extern "C" struct migraphx_instruction;
 struct migraphx_instruction
 {
     template <class... Ts>
-    migraphx_instruction(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_instruction(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::instruction_ref object;
@@ -411,7 +412,8 @@ extern "C" struct migraphx_instructions;
 struct migraphx_instructions
 {
     template <class... Ts>
-    migraphx_instructions(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_instructions(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::instruction_ref> object;
@@ -421,7 +423,8 @@ extern "C" struct migraphx_modules;
 struct migraphx_modules
 {
     template <class... Ts>
-    migraphx_modules(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_modules(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::module*> object;
@@ -1069,6 +1072,22 @@ migraphx_module_add_instruction_with_mod_args(migraphx_instruction_t* out,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_module_add_literal(migraphx_instruction_t* out,
+                                                       migraphx_module_t module,
+                                                       const_migraphx_shape_t shape,
+                                                       const char* buffer)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(module == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter module: Null pointer");
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = allocate<migraphx_instruction_t>(
+            (module->object).add_literal((shape->object), (buffer)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_module_add_parameter(migraphx_instruction_t* out,
                                                          migraphx_module_t module,
                                                          const char* name,
@@ -1687,6 +1706,16 @@ extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t cont
         if(context == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter context: Null pointer");
         (context->object).finish();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_context_get_queue(void** out, migraphx_context_t context)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(context == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter context: Null pointer");
+        *out = (context->object).get_queue().unsafe_get();
     });
     return api_error_result;
 }

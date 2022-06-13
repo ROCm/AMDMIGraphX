@@ -26,7 +26,6 @@ struct cpu_gather : auto_register_op<cpu_gather>
     }
 
     argument
-    // cppcheck-suppress constParameter
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         std::size_t nelements = output_shape.elements();

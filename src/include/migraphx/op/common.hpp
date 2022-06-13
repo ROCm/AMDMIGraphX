@@ -22,7 +22,8 @@ enum padding_mode_t
 enum class pooling_mode
 {
     average,
-    max
+    max,
+    lpnorm
 };
 
 // indicate rnn computation direction

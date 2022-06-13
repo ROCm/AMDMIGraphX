@@ -31,6 +31,13 @@ struct hip_compile_options
     void set_launch_params(const value& v,
                            const std::function<std::size_t(std::size_t local)>& compute_global,
                            std::size_t default_local = 1024);
+
+    void
+    set_launch_params(const value& v, std::size_t default_global, std::size_t default_local = 1024)
+    {
+        set_launch_params(
+            v, [=](auto) { return default_global; }, default_local);
+    }
 };
 
 /// Compute global for n elements, but max out on target-specific upper limit
@@ -38,6 +45,8 @@ std::function<std::size_t(std::size_t local)>
 compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
 
 operation compile_hip_code_object(const std::string& content, hip_compile_options options);
+
+std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

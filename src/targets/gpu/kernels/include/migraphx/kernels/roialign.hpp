@@ -3,14 +3,15 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/array.hpp>
 
 namespace migraphx {
 
 struct max_pool
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return lowest(); }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return lowest{}; }
 
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T operator()(T x, T y)
@@ -55,7 +56,7 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
             return 0;
         }
 
-        xy[ii]   = max(xy[ii], 0.0f);
+        xy[ii]   = migraphx::max(xy[ii], 0.0f);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
@@ -118,14 +119,12 @@ constexpr roalign_settings<Ts...> make_roalign_settings(Ts... xs)
 }
 
 template <class T, class U, class V, class W, class Settings>
-__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s)
+__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, Settings s)
 {
     auto index      = make_index();
     const auto x    = x_t.begin();
     const auto rois = rois_t.begin();
     const auto ind  = ind_t.begin();
-
-    auto out_ptr = y_t.begin();
 
     // input shape
     auto x_lens      = x_t.get_shape().lens;
@@ -166,35 +165,36 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
         for(index_int ii = 0; ii < roi_size.size(); ++ii)
         {
             roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-            roi_size[ii] = max(roi_size[ii], 1.0f);
+            roi_size[ii] = migraphx::max(roi_size[ii], 1.0f);
 
-            bin_size[ii] = roi_size[ii] / out_dims[ii];
-            bin_grid_size[ii] =
-                (s.sampling_ratio > 0) ? s.sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
+            bin_size[ii]      = roi_size[ii] / out_dims[ii];
+            bin_grid_size[ii] = (s.sampling_ratio > 0)
+                                    ? s.sampling_ratio
+                                    : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
 
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
         if constexpr(s.is_avg_pooling)
         {
-            out_ptr[i] = calc_pooling(offset_x,
-                                      roi_starts,
-                                      bin_size,
-                                      {ph, pw},
-                                      bin_grid_size,
-                                      in_dims,
-                                      s.roi_offset,
-                                      avg_pool{});
+            y_t[i] = calc_pooling(offset_x,
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  avg_pool{});
         }
         else
         {
-            out_ptr[i] = calc_pooling(offset_x,
-                                      roi_starts,
-                                      bin_size,
-                                      {ph, pw},
-                                      bin_grid_size,
-                                      in_dims,
-                                      s.roi_offset,
-                                      max_pool{});
+            y_t[i] = calc_pooling(offset_x,
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  max_pool{});
         }
     }
 }

@@ -93,7 +93,7 @@ add_library(migraphx_device
 )
 add_library(compile_for_gpu INTERFACE)
 target_compile_options(compile_for_gpu INTERFACE -std=c++17 -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
-target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument)
+target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 if(HAS_HIP_LAMBDA_HOST_DEVICE)
   message(STATUS "Enable -fhip-lambda-host-device")
@@ -114,6 +114,7 @@ foreach(KERNEL_FILE ${KERNEL_FILES})
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
     target_sources(kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
 endforeach()
+target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
 
@@ -130,6 +131,7 @@ add_library(migraphx_gpu
     clip.cpp
     code_object_op.cpp
     compile_ops.cpp
+    compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
     compiler.cpp
@@ -158,6 +160,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp
+    prefuse_ops.cpp
     pad.cpp
     pooling.cpp
     quant_convolution.cpp

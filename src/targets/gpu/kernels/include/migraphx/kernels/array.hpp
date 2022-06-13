@@ -74,6 +74,7 @@ struct array
     constexpr const T* data() const { return d; }
 
     constexpr index_constant<N> size() const { return {}; }
+    constexpr auto empty() const { return size() == _c<0>; }
 
     constexpr T* begin() { return d; }
     constexpr const T* begin() const { return d; }
@@ -145,8 +146,8 @@ struct array
 
     constexpr array carry(array result) const
     {
-        uint32_t overflow = 0;
-        for(std::ptrdiff_t i = result.size() - 1; i > 0; i--)
+        index_int overflow = 0;
+        for(diff_int i = result.size() - 1; i > 0; i--)
         {
             auto z = result[i] + overflow;
             // Reset overflow

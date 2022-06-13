@@ -319,11 +319,10 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        auto s = inputs.at(0);
+        const auto& s = inputs.at(0);
         return {s.type(), s.lens()};
     }
     argument
-    // cppcheck-suppress constParameter
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         argument result = get_arg(args, args.size() - 1);
@@ -357,12 +356,11 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3);
-        auto s = inputs.at(0);
+        const auto& s = inputs.at(0);
         return {s.type(), s.lens()};
     }
 
     argument
-    // cppcheck-suppress constParameter
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         argument result = get_arg(args, args.size() - 1);

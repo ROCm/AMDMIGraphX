@@ -7,6 +7,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
@@ -272,6 +273,14 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("op"),
             py::arg("args"),
             py::arg("mod_args") = std::vector<migraphx::module*>{})
+        .def(
+            "add_literal",
+            [](migraphx::module& mm, py::buffer data) {
+                py::buffer_info info = data.request();
+                auto literal_shape   = to_shape(info);
+                return mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
+            },
+            py::arg("data"))
         .def(
             "add_parameter",
             [](migraphx::module& mm, const std::string& name, const migraphx::shape shape) {

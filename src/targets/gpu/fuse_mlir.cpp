@@ -65,9 +65,9 @@ struct find_conv_pointwise
         mm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         auto x    = mm->add_parameter("x" + std::to_string(names.size()),
-                                  conv_ins->inputs().at(0)->get_shape());
+                                   conv_ins->inputs().at(0)->get_shape());
         auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
-                                  conv_ins->inputs().at(1)->get_shape());
+                                   conv_ins->inputs().at(1)->get_shape());
         auto conv = mm->add_instruction(conv_ins->get_operator(), {x, w});
         std::transform(names.begin(),
                        names.end(),
@@ -93,7 +93,10 @@ struct find_conv_pointwise
 };
 } // namespace
 
-void fuse_mlir::apply(module_pass_manager& mpm) const { match::find_matches(mpm, find_conv_pointwise{}); }
+void fuse_mlir::apply(module_pass_manager& mpm) const
+{
+    match::find_matches(mpm, find_conv_pointwise{});
+}
 
 } // namespace gpu
 

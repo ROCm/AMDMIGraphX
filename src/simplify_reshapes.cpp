@@ -626,10 +626,9 @@ struct find_slice_transpose
             auto split = splits[i];
             auto t     = transposes[i];
             auto op    = any_cast<op::slice>(split->get_operator());
-            for(auto& axis : op.axes)
-            {
-                axis = iperm[axis];
-            }
+            std::transform(op.axes.begin(), op.axes.end(), op.axes.begin(), [&](auto axis) {
+                return iperm[axis];
+            });
             auto new_ins = m.insert_instruction(t, op, pre);
             if(t->get_operator() != pre->get_operator())
             {

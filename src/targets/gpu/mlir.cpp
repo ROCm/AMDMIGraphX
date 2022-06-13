@@ -399,9 +399,10 @@ struct mlir_program
                        [&](const std::string& name) { return m.get_parameter_shape(name); });
         std::vector<shape> outputs = m.get_output_shapes();
 
+        std::vector<MlirLocation> arg_locs(inputs.size(), location);
         auto body_inputs   = make_tensors(inputs);
         mlir_region region = mlirRegionCreate();
-        mlir_block fbody   = mlirBlockCreate(body_inputs.size(), body_inputs.data(), &location);
+        mlir_block fbody   = mlirBlockCreate(body_inputs.size(), body_inputs.data(), arg_locs.data());
         MlirBlock result   = fbody.get();
         mlirRegionAppendOwnedBlock(region.get(), fbody.release());
 

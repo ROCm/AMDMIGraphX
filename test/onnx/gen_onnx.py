@@ -352,6 +352,65 @@ def ceil_test():
 
 
 @onnx_test
+def celu_alpha_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.8)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.5)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_wrong_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3])
+
+    node = onnx.helper.make_node('Celu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_zero_alpha_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def clip_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -424,6 +483,22 @@ def clip_test_op11_no_args1():
     node = onnx.helper.make_node('Clip', inputs=['0', '', ''], outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def clip_test_args_type_mismatch():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 3])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [1, 3],
+                                 [1.5, 2.5, 3.5])
+    max_val = helper.make_tensor('max', TensorProto.INT64, [3, 1], [2, 3, 4])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', 'min', 'max'],
+                                 outputs=['1'])
+
+    return ([node], [x], [y], [min_val, max_val])
 
 
 @onnx_test
@@ -1382,6 +1457,114 @@ def expand_test():
 
 
 @onnx_test
+def eyelike_default_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_double_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.DOUBLE, [6, 15])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.DOUBLE, [6, 15])
+
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_half_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT16, [8, 8])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT16, [8, 8])
+
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_k_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike', inputs=['T1'], outputs=['T2'], k=1)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_k_outofbounds_neg_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [2, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [2, 4])
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 k=-2)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_k_outofbounds_pos_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike', inputs=['T1'], outputs=['T2'], k=4)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_not_rank2_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4, 2])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_verify_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike', inputs=['T1'], outputs=['T2'], k=1)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_verify_negk_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 k=-2)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_set_dtype_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.DOUBLE, [3, 4])
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 dtype=TensorProto.DOUBLE)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
 def flatten_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [6, 20])
@@ -1484,6 +1667,35 @@ def gather_elements_axis1_test():
 
 
 @onnx_test
+def gathernd_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node('GatherND',
+                                 inputs=['data', 'indices'],
+                                 outputs=['y'])
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test
+def gathernd_batch_dims_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2])
+
+    node = onnx.helper.make_node(
+        'GatherND',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        batch_dims=1,
+    )
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test
 def gemm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 7])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [11, 5])
@@ -1559,6 +1771,20 @@ def globalavgpool_test():
 
     node = onnx.helper.make_node(
         'GlobalAveragePool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def globallppool_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalLpPool',
         inputs=['0'],
         outputs=['1'],
     )
@@ -2308,6 +2534,32 @@ def instance_norm_val_3d_test():
 
 
 @onnx_test
+def isnan_float_test():
+    t1 = helper.make_tensor_value_info('t1', TensorProto.FLOAT, [2, 3])
+    t2 = helper.make_tensor_value_info('t2', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'IsNaN',
+        inputs=['t1'],
+        outputs=['t2'],
+    )
+    return ([node], [t1], [t2])
+
+
+@onnx_test
+def isnan_half_test():
+    t1 = helper.make_tensor_value_info('t1', TensorProto.FLOAT16, [2, 3])
+    t2 = helper.make_tensor_value_info('t2', TensorProto.FLOAT16, [2, 3])
+
+    node = onnx.helper.make_node(
+        'IsNaN',
+        inputs=['t1'],
+        outputs=['t2'],
+    )
+    return ([node], [t1], [t2])
+
+
+@onnx_test
 def layernorm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 1, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5])
@@ -2596,6 +2848,96 @@ def loop_test():
 
 
 @onnx_test
+def lpnormalization_axis_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'LpNormalization',
+        inputs=['x'],
+        outputs=['y'],
+        axis=0,
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_l1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'LpNormalization',
+        inputs=['x'],
+        outputs=['y'],
+        p=1,
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_l2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 p=2)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_p_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 p=3)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lppool_l1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 3])
+
+    node = onnx.helper.make_node('LpPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[3],
+                                 p=1)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lppool_l2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 3])
+
+    node = onnx.helper.make_node('LpPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[3],
+                                 p=2)
+    return ([node], [x], [y])
+
+
+@onnx_test
 def lrn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 28, 24, 24])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 28, 24, 24])
@@ -2830,6 +3172,20 @@ def mean_test():
     ]
     data_names = [str(i) for i in range(10)]
     mean = helper.make_tensor_value_info('mean', TensorProto.DOUBLE, [2, 2, 2])
+
+    node = onnx.helper.make_node("Mean", inputs=data_names, outputs=["mean"])
+
+    return ([node], data, [mean])
+
+
+@onnx_test
+def mean_integral_test():
+    data = [
+        helper.make_tensor_value_info(str(i), TensorProto.INT32, [2, 2, 2])
+        for i in range(10)
+    ]
+    data_names = [str(i) for i in range(10)]
+    mean = helper.make_tensor_value_info('mean', TensorProto.INT32, [2, 2, 2])
 
     node = onnx.helper.make_node("Mean", inputs=data_names, outputs=["mean"])
 
@@ -4073,6 +4429,142 @@ def resize_upsample_pc_test():
 
 
 @onnx_test
+def reversesequence_4D_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=0,
+        batch_axis=1,
+        sequence_lens=[2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_batch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    seq_lens = np.array([1, 2, 3, 4])
+    seq_lens_tensor = helper.make_tensor(
+        name="sequence_lens",
+        data_type=TensorProto.INT64,
+        dims=seq_lens.shape,
+        vals=seq_lens.astype(np.int64),
+    )
+    arg_seq_lens = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=['arg_seq_lens'],
+        value=seq_lens_tensor,
+    )
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x', 'arg_seq_lens'],
+        outputs=['y'],
+        time_axis=1,
+        batch_axis=0,
+    )
+    return ([arg_seq_lens, node], [x], [y])
+
+
+@onnx_test
+def reversesequence_batch_axis_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4, 2])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=0,
+        batch_axis=2,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_rank_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_sequence_lens_shape_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        sequence_lens=[4, 3, 2],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_same_axis_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=1,
+        batch_axis=1,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_time_axis_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4, 2, 3])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=3,
+        batch_axis=0,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_time_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=0,
+        batch_axis=1,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
 def roialign_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 4, 7, 8])
     roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])
@@ -4108,7 +4600,7 @@ def roialign_test():
 
 
 @onnx_test
-def scatter_test():
+def scatter_add_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32,
                                       [2, 3, 4, 5])
@@ -4117,13 +4609,107 @@ def scatter_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
 
     node = onnx.helper.make_node(
-        'Scatter',
+        'ScatterElements',
+        reduction='add',
         inputs=['data', 'indices', 'update'],
         outputs=['y'],
         axis=-2,
     )
 
     return ([node], [x, i, u], [y])
+
+
+@onnx_test
+def scatter_mul_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
+                                      [2, 3, 4, 5])
+    u = helper.make_tensor_value_info('update', TensorProto.FLOAT,
+                                      [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
+
+    node = onnx.helper.make_node(
+        'ScatterElements',
+        reduction='mul',
+        inputs=['data', 'indices', 'update'],
+        outputs=['y'],
+        axis=-2,
+    )
+
+    return ([node], [x, i, u], [y])
+
+
+@onnx_test
+def scatter_none_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
+                                      [2, 3, 4, 5])
+    u = helper.make_tensor_value_info('update', TensorProto.FLOAT,
+                                      [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
+
+    node = onnx.helper.make_node(
+        'ScatterElements',
+        reduction='none',
+        inputs=['data', 'indices', 'update'],
+        outputs=['y'],
+        axis=-2,
+    )
+
+    return ([node], [x, i, u], [y])
+
+
+@onnx_test
+def scatternd_add_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [2, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [2, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'],
+                                 reduction="add")
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test
+def scatternd_mul_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [2, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [2, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'],
+                                 reduction="mul")
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test
+def scatternd_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [2, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [2, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'])
+
+    return ([node], [data, indices, updates], [output])
 
 
 @onnx_test
@@ -4228,6 +4814,54 @@ def sinh_test():
         outputs=['y'],
     )
 
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_float_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_int_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [8, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
     return ([node], [x], [y])
 
 

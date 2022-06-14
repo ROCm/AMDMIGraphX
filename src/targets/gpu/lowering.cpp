@@ -20,10 +20,10 @@
 
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
-#include <migraphx/gpu/compile_roialign.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/deconvolution.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/equal.hpp>
 #include <migraphx/gpu/gemm.hpp>
@@ -40,6 +40,7 @@
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/unary_not.hpp>
 #include <migraphx/gpu/where.hpp>
+#include <migraphx/gpu/compiler.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <utility>
@@ -60,6 +61,7 @@ struct miopen_apply
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
     bool offload_copy   = false;
     bool int8_x4_format = true;
+    bool compute_fp32   = false;
 
     context& get_context() const
     {
@@ -96,13 +98,22 @@ struct miopen_apply
         }
     }
 
+    const std::unordered_set<std::string>& get_rocblas_fp32_archs()
+    {
+        static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
+        return supported_archs;
+    }
+
     void init()
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-        auto& ctx = get_context();
+        auto& ctx              = get_context();
+        const auto device_name = trim(split_string(get_device_name(), ':').front());
+        if(contains(get_rocblas_fp32_archs(), device_name))
+            compute_fp32 = true;
         rocblas_gemm_flags flag;
         rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
         int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
@@ -170,20 +181,13 @@ struct miopen_apply
         add_extend_op("pad");
         add_extend_op("pooling");
         add_extend_op("prefix_scan_sum");
-        add_extend_op("reduce_max");
-        add_extend_op("reduce_mean");
-        add_extend_op("reduce_min");
-        add_extend_op("reduce_prod");
-        add_extend_op("reduce_sum");
         add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
-        add_extend_op("scatter");
+        add_extend_op("scatter_none");
         add_extend_op("softmax");
         add_extend_op("topk");
-
-        add_precompile_op("pointwise");
 
         add_batch_norm_inference_op();
         add_convolution_op();
@@ -195,7 +199,6 @@ struct miopen_apply
         add_neg_op();
         add_nms_op();
         add_quant_convolution_op();
-        add_roialign();
     }
 
     void copy_params()
@@ -249,9 +252,26 @@ struct miopen_apply
             {
                 check_shape(s, apply_map.at(it->name())(it));
             }
+            else if(has_compiler_for(it->name()))
+            {
+                check_shape(s, insert_precompile_op(it));
+            }
         }
 
         copy_params();
+    }
+
+    instruction_ref insert_precompile_op(instruction_ref ins)
+    {
+        auto output                       = insert_allocation(ins, ins->get_shape());
+        std::vector<instruction_ref> refs = ins->inputs();
+        refs.push_back(output);
+
+        return mod->replace_instruction(
+            ins,
+            make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+            refs,
+            ins->module_inputs());
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
@@ -337,7 +357,7 @@ struct miopen_apply
                 }
             }
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format}, refs);
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
         });
     }
 
@@ -345,8 +365,22 @@ struct miopen_apply
     {
         apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
-            auto conv = miopen_quant_convolution{op, make_conv(op)};
-            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            shape ws;
+            miopen_quant_convolution conv;
+            auto compile_quant_conv_with_format = [&](bool format) {
+                conv = miopen_quant_convolution{op, format, make_conv(op)};
+                ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            };
+
+            try
+            {
+                compile_quant_conv_with_format(int8_x4_format);
+            }
+            catch(migraphx::exception&)
+            {
+                // In case no solver supports the default format, retry using the other format.
+                compile_quant_conv_with_format(!int8_x4_format);
+            }
 
             auto args      = ins->inputs();
             auto workspace = insert_allocation(ins, ws, "workspace");
@@ -355,6 +389,9 @@ struct miopen_apply
             return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }
+
+    // add_generic_op just constructs the operator with no fields whereas add_extend_op copies over
+    // the fields Since it doesn't have fields its default constructed
 
     void add_generic_op(const std::string& name) { add_generic_op(name, "gpu::" + name); }
 
@@ -380,21 +417,6 @@ struct miopen_apply
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
-        });
-    }
-
-    void add_precompile_op(const std::string& name)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto output                       = insert_allocation(ins, ins->get_shape());
-            std::vector<instruction_ref> refs = ins->inputs();
-            refs.push_back(output);
-
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                refs,
-                ins->module_inputs());
         });
     }
 
@@ -432,7 +454,6 @@ struct miopen_apply
                                             reshapes[2],
                                             reshapes[3],
                                             output);
-
         });
     }
 
@@ -486,22 +507,6 @@ struct miopen_apply
             }
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
-        });
-    }
-
-    void add_roialign()
-    {
-        apply_map.emplace("roialign", [=](instruction_ref ins) {
-
-            auto s      = ins->get_shape();
-            auto op_val = ins->get_operator().to_value();
-            auto output = insert_allocation(ins, s);
-            auto args   = ins->inputs();
-            args.push_back(output);
-
-            auto io_shapes = to_shapes(args);
-            auto co        = compile_roialign(get_context(), io_shapes, op_val);
-            return mod->replace_instruction(ins, co, args);
         });
     }
 

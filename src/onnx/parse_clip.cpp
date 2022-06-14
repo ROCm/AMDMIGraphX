@@ -16,7 +16,6 @@ struct parse_clip : op_parser<parse_clip>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto input_lens = args[0]->get_shape().lens();
         instruction_ref min_arg;
         instruction_ref max_arg;
         bool min_used = false;
@@ -45,29 +44,17 @@ struct parse_clip : op_parser<parse_clip>
             max_used      = true;
         }
 
-        if(min_used)
-        {
-            min_arg = info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}),
-                                           min_arg);
-        }
-
-        if(max_used)
-        {
-            max_arg = info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}),
-                                           max_arg);
-        }
-
         if(min_used and max_used)
         {
-            return info.add_instruction(make_op("clip"), args[0], min_arg, max_arg);
+            return info.add_common_op("clip", args[0], min_arg, max_arg);
         }
         else if(max_used)
         {
-            return info.add_instruction(make_op("min"), args[0], max_arg);
+            return info.add_broadcastable_binary_op("min", args[0], max_arg);
         }
         else if(min_used)
         {
-            return info.add_instruction(make_op("max"), args[0], min_arg);
+            return info.add_broadcastable_binary_op("max", args[0], min_arg);
         }
         else
         {

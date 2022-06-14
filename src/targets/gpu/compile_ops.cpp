@@ -6,11 +6,13 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/gpu/compile_pointwise.hpp>
+#include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 
 struct precompile_op
 {
@@ -38,41 +40,22 @@ struct precompile_op
 
 MIGRAPHX_REGISTER_OP(precompile_op);
 
-struct pointwise_compiler
-{
-    std::string name() const { return "pointwise"; }
-
-    operation apply(context& ctx, instruction_ref ins, const operation&) const
-    {
-        assert(not ins->module_inputs().empty());
-        auto* pm = ins->module_inputs().front();
-        return compile_pointwise(ctx, to_shapes(ins->inputs()), *pm);
-    }
-};
-
-using compiler_function = std::function<operation(context&, instruction_ref, operation)>;
-
-template <class T>
-compiler_function make_compiler_function(T x)
-{
-    return {[=](auto&&... xs) { return x.apply(xs...); }};
-}
-
-template <class... Ts>
-std::unordered_map<std::string, compiler_function> make_compilers(Ts... xs)
-{
-    return {{xs.name(), make_compiler_function(xs)}...};
-}
-
 struct compiled_result
 {
-    operation op;
+    compiler_replace replace;
     instruction_ref ins;
 };
 
+template <class F>
+void par_compile(std::size_t n, F f)
+{
+    if(n == 0)
+        return;
+    par_for(n, n / value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, n), f);
+}
+
 void compile_ops::apply(module& m) const
 {
-    auto compilers = make_compilers(pointwise_compiler{});
     std::vector<std::function<compiled_result()>> compiles;
 
     for(auto ins : iterator_for(m))
@@ -80,15 +63,15 @@ void compile_ops::apply(module& m) const
         if(ins->name() != "gpu::precompile_op")
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        assert(contains(compilers, preop.name()));
-        auto c = compilers[preop.name()];
-        compiles.emplace_back([=]() -> compiled_result { return {c(*ctx, ins, preop), ins}; });
+        compiles.emplace_back([=]() -> compiled_result {
+            return {compile(*ctx, ins, preop), ins};
+        });
     }
     std::vector<compiled_result> results(compiles.size());
-    par_for(compiles.size(), 1, [&](auto i) { results[i] = compiles[i](); });
+    par_compile(compiles.size(), [&](auto i) { results[i] = compiles[i](); });
     for(const auto& cr : results)
     {
-        m.replace_instruction(cr.ins, cr.op, cr.ins->inputs());
+        cr.replace(m, cr.ins);
     }
 }
 

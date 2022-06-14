@@ -6,6 +6,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/par_for.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -69,37 +70,51 @@ static bool try_compute_shape(instruction_ref ins,
     return try_compute_shape(ins, inputs, mods);
 }
 
-void eliminate_contiguous::apply(module& p) const
+void eliminate_contiguous::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    std::vector<instruction_ref> const_instruction;
+
+    for(auto ins : iterator_for(m))
     {
         // return instruction should have inputs with standard shape
         if(ins->name() == "@return")
             continue;
 
         // Make a copy so we can modify it while we iterate
-        auto args = ins->inputs();
+        auto args     = ins->inputs();
+        auto new_args = args;
+        auto mod_args = ins->module_inputs();
+
         for(auto arg : ins->inputs())
         {
             if(arg->name() == op_name)
             {
-                auto new_args = args;
-                auto prev     = arg->inputs().front();
+                auto prev = arg->inputs().front();
                 replace(new_args, arg, prev);
-                if(try_compute_shape(ins, new_args, ins->module_inputs()))
+                if(try_compute_shape(ins, new_args, mod_args))
                 {
                     instruction::replace_argument(ins, arg, prev);
                 }
                 else if(prev->can_eval())
                 {
-                    auto c = op::contiguous{};
-                    auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
-
-                    auto l = p.add_literal(r.get_shape(), r.data());
-                    p.replace_instruction(arg, l);
+                    const_instruction.push_back(arg);
                 }
             }
         }
+    }
+
+    // Perform evaluations in parallel
+    std::vector<argument> literals(const_instruction.size());
+    par_for(const_instruction.size(), 1, [&](const auto i) {
+        auto c      = op::contiguous{};
+        auto prev   = const_instruction[i]->inputs().front();
+        literals[i] = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
+    });
+
+    for(size_t i = 0; i < const_instruction.size(); i++)
+    {
+        auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+        m.replace_instruction(const_instruction[i], l);
     }
 }
 

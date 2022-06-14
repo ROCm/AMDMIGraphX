@@ -6,13 +6,15 @@
 namespace migraphx {
 
 using index_int = std::uint32_t;
+using diff_int  = std::int32_t;
 
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
 template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 
-using half = _Float16;
+using half  = _Float16;
+using half2 = migraphx::vec<half, 2>;
 
 } // namespace migraphx
 

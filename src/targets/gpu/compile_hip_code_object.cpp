@@ -93,8 +93,47 @@ const std::vector<std::string>& compiler_warnings()
     return warnings;
 }
 
+void hip_compile_options::set_launch_params(
+    const value& v,
+    const std::function<std::size_t(std::size_t local)>& compute_global,
+    std::size_t default_local)
+{
+    local = v.get("local", default_local);
+    if(v.contains("global"))
+        global = v.at("global").to<std::size_t>();
+    else
+        global = compute_global(local);
+}
+
+std::function<std::size_t(std::size_t local)>
+compute_global_for(context& ctx, std::size_t n, std::size_t over)
+{
+    assert(over > 0);
+    std::size_t max_global = ctx.get_current_device().get_cu_count() *
+                             ctx.get_current_device().get_max_workitems_per_cu();
+    return [n, over, max_global](std::size_t local) {
+        std::size_t groups     = (n + local - 1) / local;
+        std::size_t max_blocks = max_global / local;
+        std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
+        return nglobal;
+    };
+}
+
+std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
+{
+    size_t block_size = 128;
+    while(block_size <= max_block_size and block_size <= n)
+        block_size *= 2;
+    return block_size / 2;
+}
+
 operation compile_hip_code_object(const std::string& content, hip_compile_options options)
 {
+    assert(options.global > 0);
+    assert(options.local > 0);
+    assert(not options.inputs.empty());
+    assert(options.inputs.size() == options.virtual_inputs.size() or
+           options.virtual_inputs.empty());
     std::vector<src_file> srcs;
     std::transform(migraphx_kernels().begin(),
                    migraphx_kernels().end(),

@@ -128,8 +128,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     auto_print::set_terminate_handler(name);
     if(migraphx::enabled(MIGRAPHX_DUMP_TEST{}))
-        migraphx::save(p, name + ".mx");
-    std::vector<std::pair<std::string, result_future>> results;
+        migraphx::save(p, name + ".mxr");
     std::vector<std::string> target_names;
     for(const auto& tname : migraphx::get_targets())
     {
@@ -145,6 +144,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     }
     if(not target_names.empty())
     {
+        std::vector<std::pair<std::string, result_future>> results;
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {

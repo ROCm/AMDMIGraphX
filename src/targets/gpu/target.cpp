@@ -31,6 +31,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/eliminate_workspace.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
@@ -44,7 +45,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_POINTWISE_FUSION)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 
 struct id_pass
 {
@@ -96,11 +97,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_algebra{},
         simplify_reshapes{},
         simplify_algebra{},
+        prefuse_ops{},
+        dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
+        enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
         dead_code_elimination{},
         mlir_conv{&ctx},
         lowering{&ctx, options.offload_copy},

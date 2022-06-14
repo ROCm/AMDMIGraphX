@@ -11,7 +11,7 @@ if(NOT TARGET MIOpen)
 endif()
 
 include(Embed)
-file(GLOB KERNEL_FILES
+file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 add_embed_library(migraphx_kernels ${KERNEL_FILES})
@@ -93,7 +93,7 @@ add_library(migraphx_device
 )
 add_library(compile_for_gpu INTERFACE)
 target_compile_options(compile_for_gpu INTERFACE -std=c++17 -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
-target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument)
+target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 if(HAS_HIP_LAMBDA_HOST_DEVICE)
   message(STATUS "Enable -fhip-lambda-host-device")
@@ -114,11 +114,13 @@ foreach(KERNEL_FILE ${KERNEL_FILES})
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
     target_sources(kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
 endforeach()
+target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
 
 rocm_clang_tidy_check(kernel_file_check)
 
+file(GLOB JIT_GPU_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -129,10 +131,10 @@ add_library(migraphx_gpu
     clip.cpp
     code_object_op.cpp
     compile_ops.cpp
+    compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
-    compile_pointwise.cpp
-    compile_roialign.cpp
+    compiler.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -157,6 +159,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp
+    prefuse_ops.cpp
     pad.cpp
     pooling.cpp
     quant_convolution.cpp
@@ -170,6 +173,7 @@ add_library(migraphx_gpu
     target.cpp
     topk.cpp
     write_literals.cpp
+    ${JIT_GPU_SRCS}
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 
@@ -330,6 +334,12 @@ target_compile_definitions(migraphx_gpu PRIVATE
     "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
     "-DMIGRAPHX_USE_HIPRTC=0"
 )
+if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
+execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
+target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_HIP_COMPILER_LAUNCHER=${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
+endif()
+
 endif()
 
 # Check miopen find mode api

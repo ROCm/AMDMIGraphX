@@ -11,7 +11,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Range>
-void cse_range(module& p, Range&& r)
+void cse_range(module& m, Range&& r)
 {
     std::unordered_multimap<std::string, instruction_ref> instructions;
     std::unordered_set<instruction_ref> processed_ins;
@@ -30,19 +30,24 @@ void cse_range(module& p, Range&& r)
                 continue;
             if(*eq != *ins)
                 continue;
-            p.replace_instruction(ins, eq);
+            m.replace_instruction(ins, eq);
             processed_ins.emplace(ins);
-            auto outputs = eq->outputs();
+            std::vector<instruction_ref> outputs;
+            std::copy_if(eq->outputs().begin(),
+                         eq->outputs().end(),
+                         std::back_inserter(outputs),
+                         [&](auto x) { return m.has_instruction(x); });
+
             std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
                 return std::distance(eq, x) < std::distance(eq, y);
             });
-            cse_range(p, outputs);
+            cse_range(m, outputs);
         }
         instructions.emplace(ins->name(), ins);
     }
 }
 
-void eliminate_common_subexpression::apply(module& p) const { cse_range(p, iterator_for(p)); }
+void eliminate_common_subexpression::apply(module& m) const { cse_range(m, iterator_for(m)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

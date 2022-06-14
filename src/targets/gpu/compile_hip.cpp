@@ -21,6 +21,8 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
 #if MIGRAPHX_USE_HIPRTC
 
@@ -178,6 +180,19 @@ bool is_hip_clang_compiler()
     return result;
 }
 
+bool has_compiler_launcher()
+{
+    static const auto result = fs::exists(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER));
+    return result;
+}
+
+src_compiler assemble(src_compiler compiler)
+{
+    compiler.out_ext = ".S";
+    compiler.flags   = replace_string(compiler.flags, " -c", " -S");
+    return compiler;
+}
+
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
@@ -210,6 +225,10 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     src_compiler compiler;
     compiler.flags    = params;
     compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+#ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
+    if(has_compiler_launcher())
+        compiler.launcher = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER);
+#endif
 
     if(is_hcc_compiler())
         compiler.process = [&](const fs::path& obj_path) -> fs::path {
@@ -228,6 +247,22 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             MIGRAPHX_THROW("Missing hsaco");
         };
 
+    if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
+    {
+        for(const auto& src : srcs)
+        {
+            if(src.path.extension() != ".cpp")
+                continue;
+            std::cout << std::string(src.content.first, src.len()) << std::endl;
+        }
+    }
+
+    if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
+    {
+
+        std::cout << assemble(compiler).compile(srcs).data() << std::endl;
+    }
+
     return {compiler.compile(srcs)};
 }
 
@@ -236,13 +271,6 @@ std::string enum_params(std::size_t count, std::string param)
     std::vector<std::string> items(count);
     transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
     return join_strings(items, ",");
-}
-
-std::size_t compute_global(std::size_t n, std::size_t local)
-{
-    std::size_t groups  = (n + local - 1) / local;
-    std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
-    return nglobal;
 }
 
 #endif // MIGRAPHX_USE_HIPRTC

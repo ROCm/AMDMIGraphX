@@ -4,6 +4,7 @@
 #include <migraphx/instruction.hpp>
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/pooling.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
@@ -462,14 +463,15 @@ TEST_CASE(conv_pooling_dot)
                                      d1);
         auto bc1 = m1.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
-        auto a1  = m1.add_instruction(migraphx::make_op("add"), c1, bc1);
-        auto ap  = m1.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", "average"},
-                                                        {"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"lengths", {7, 7}},
-                                                        {"ceil_mode", 0}}),
-                                     a1);
+        auto a1 = m1.add_instruction(migraphx::make_op("add"), c1, bc1);
+        auto ap =
+            m1.add_instruction(migraphx::make_op("pooling",
+                                                 {{"mode", migraphx::op::pooling_mode::average},
+                                                  {"padding", {0, 0, 0, 0}},
+                                                  {"stride", {1, 1}},
+                                                  {"lengths", {7, 7}},
+                                                  {"ceil_mode", 0}}),
+                               a1);
         auto fl  = m1.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
         auto q4  = add_quantize_op(m1, "quantizelinear", fl, scale, zero);
         auto d8  = add_quantize_op(m1, "dequantizelinear", q4, scale, zero);
@@ -508,14 +510,15 @@ TEST_CASE(conv_pooling_dot)
         auto d5  = add_quantize_op(m2, "dequantizelinear", c1, scale1);
         auto bc1 = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
-        auto a1  = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
-        auto ap  = m2.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", "average"},
-                                                        {"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"lengths", {7, 7}},
-                                                        {"ceil_mode", 0}}),
-                                     a1);
+        auto a1 = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
+        auto ap =
+            m2.add_instruction(migraphx::make_op("pooling",
+                                                 {{"mode", migraphx::op::pooling_mode::average},
+                                                  {"padding", {0, 0, 0, 0}},
+                                                  {"stride", {1, 1}},
+                                                  {"lengths", {7, 7}},
+                                                  {"ceil_mode", 0}}),
+                               a1);
         auto fl  = m2.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
         auto q4  = add_quantize_op(m2, "quantizelinear", fl, scale, zero);
         auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q4, db);
@@ -564,16 +567,17 @@ TEST_CASE(mobilenet_snippet)
                                      d1);
         auto bc1 = mm.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
-        auto a1  = mm.add_instruction(migraphx::make_op("add"), c1, bc1);
-        auto q2  = add_quantize_op(mm, "quantizelinear", a1, scale, zero);
-        auto d6  = add_quantize_op(mm, "dequantizelinear", q2, scale, zero);
-        auto ap  = mm.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", "average"},
-                                                        {"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"lengths", {7, 7}},
-                                                        {"ceil_mode", 0}}),
-                                     d6);
+        auto a1 = mm.add_instruction(migraphx::make_op("add"), c1, bc1);
+        auto q2 = add_quantize_op(mm, "quantizelinear", a1, scale, zero);
+        auto d6 = add_quantize_op(mm, "dequantizelinear", q2, scale, zero);
+        auto ap =
+            mm.add_instruction(migraphx::make_op("pooling",
+                                                 {{"mode", migraphx::op::pooling_mode::average},
+                                                  {"padding", {0, 0, 0, 0}},
+                                                  {"stride", {1, 1}},
+                                                  {"lengths", {7, 7}},
+                                                  {"ceil_mode", 0}}),
+                               d6);
         auto q3  = add_quantize_op(mm, "quantizelinear", ap, scale, zero);
         auto d7  = add_quantize_op(mm, "dequantizelinear", q3, scale, zero);
         auto rs  = mm.add_instruction(migraphx::make_op("reshape", {{"dims", {1, -1}}}), d7);

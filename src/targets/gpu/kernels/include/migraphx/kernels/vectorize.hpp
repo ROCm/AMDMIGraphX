@@ -50,19 +50,10 @@ constexpr auto shape_step(Shape s, Axis)
     });
 }
 
-// Bools can not be used as a vector type so convert it to int8
-template <class T>
-__device__ __host__ T* remove_bool(T* x)
-{
-    return x;
-}
-
-inline __device__ __host__ int8_t* remove_bool(bool* x) { return reinterpret_cast<int8_t*>(x); }
-
 template <index_int N, class T, class Axis>
 __device__ __host__ auto as_vec(T x, Axis axis)
 {
-    if constexpr(N == 0)
+    if constexpr(N < 2)
         return x;
     else
         return make_tensor_view(as_vec<N>(remove_bool(x.data())),
@@ -72,7 +63,7 @@ __device__ __host__ auto as_vec(T x, Axis axis)
 template <index_int N, class T, class Axis>
 constexpr auto tensor_step(T x, Axis axis)
 {
-    if constexpr(N == 0)
+    if constexpr(N < 2)
     {
         return x;
     }
@@ -157,11 +148,11 @@ constexpr auto find_vectorize_size(P pred)
     else if constexpr(decltype(pred(_c<2>)){})
         return _c<2>;
     else
-        return _c<0>;
+        return _c<1>;
 }
 
 template <class T>
-__host__ __device__ auto vectorize(T x)
+__host__ __device__ auto auto_vectorize(T x)
 {
     if constexpr(tensor_vec_size<T>() == 0)
     {
@@ -194,7 +185,7 @@ inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
                 {
                     MIGRAPHX_ASSERT(s.strides[axis] == 0 or s.strides[axis] == 1);
                     MIGRAPHX_ASSERT(s.lens[axis] > 0);
-                    MIGRAPHX_ASSERT(n == 0 or s.lens[axis] % n == 0);
+                    MIGRAPHX_ASSERT(n == 1 or s.lens[axis] % n == 0);
                     if constexpr(s.strides[axis] == 0)
                         return tensor_step<n>(x, axis);
                     else
@@ -215,7 +206,34 @@ inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
 
 inline __device__ __host__ auto auto_vectorize()
 {
-    return [](auto... xs) { return [=](auto f) { auto_vectorize_impl(f, xs...); }; };
+    return make_transform([](auto f, auto... xs) { auto_vectorize_impl(f, xs...); });
+}
+
+template <index_int N, index_int Axis, class T>
+__device__ __host__ auto vectorize_tensor(T x)
+{
+    constexpr auto shape = get_shape_c<T>{};
+    if constexpr(shape.lens[Axis] == 1)
+        return x;
+    else if constexpr(shape.strides[Axis] == 0)
+        return tensor_step<N>(x, _c<Axis>);
+    else
+        return as_vec<N>(x, _c<Axis>);
+}
+
+template <index_int N, index_int Axis>
+__device__ __host__ auto vectorize()
+{
+    return make_transform([](auto f, auto... xs) {
+        if constexpr(N < 2)
+        {
+            f(xs...);
+        }
+        else
+        {
+            f(vectorize_tensor<N, Axis>(xs)...);
+        }
+    });
 }
 
 } // namespace migraphx

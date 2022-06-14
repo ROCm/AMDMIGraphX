@@ -39,6 +39,8 @@ function(generate_embed_source EMBED_NAME)
 
     file(WRITE "${PARSE_HEADER}" "
 #include <unordered_map>
+#include <string>
+#include <utility>
 const std::unordered_map<std::string, std::pair<const char*,const char*>>& ${EMBED_NAME}();
 ")
 
@@ -94,5 +96,6 @@ function(add_embed_library EMBED_NAME)
     generate_embed_source(${EMBED_NAME} SRC ${SRC_FILE} HEADER ${HEADER_FILE} OBJECTS ${OUTPUT_FILES} SYMBOLS ${SYMBOLS})
     add_library(${EMBED_NAME} STATIC ${OUTPUT_FILES} "${SRC_FILE}")
     target_include_directories(${EMBED_NAME} PUBLIC "${EMBED_DIR}/include")
+    target_compile_options(${EMBED_NAME} PRIVATE -Wno-reserved-identifier)
     set_target_properties(${EMBED_NAME} PROPERTIES POSITION_INDEPENDENT_CODE On)
 endfunction()

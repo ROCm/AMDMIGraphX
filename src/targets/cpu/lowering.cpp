@@ -223,7 +223,7 @@ struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s = inputs.at(0);
+        const auto& s = inputs.at(0);
         return {s.type(), s.lens()};
     }
 
@@ -352,7 +352,7 @@ struct cpu_apply
             std::transform(bind_inputs.begin(),
                            bind_inputs.end(),
                            std::back_inserter(inputs),
-                           [&](const auto& s) { return r.instructions.at(s); });
+                           [&](const auto& s) { return r.instructions[s]; });
             inputs.push_back(this->insert_allocation(ins, ins->get_shape()));
             modl->replace_instruction(ins, op, inputs);
         });
@@ -460,11 +460,6 @@ struct cpu_apply
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
            not v["ceil_mode"].to<bool>())
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
-        std::string mode = v["mode"].to<std::string>();
-        if(mode == "max")
-            return replace(ins, make_op("cpu::pooling_max", v));
-        else if(mode == "average")
-            return replace(ins, make_op("cpu::pooling_average", v));
         return ins;
     }
 

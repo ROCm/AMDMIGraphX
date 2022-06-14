@@ -316,7 +316,7 @@ struct find_layernorm
 {
     auto matcher() const { return match::layernorm(&gpu_name); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -331,7 +331,7 @@ struct find_layernorm
         if(relements > 1024 or (relements % 4 != 0 and relements > 256))
             return;
 
-        p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
+        m.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
     }
 };
 
@@ -343,11 +343,11 @@ struct find_triadd_layernorm
             match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
     }
 
-    void apply(module& p, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins    = r.result;
         auto triadd = ins->inputs().front();
-        p.replace_instruction(ins, hip_triadd_layernorm{}, triadd->inputs());
+        m.replace_instruction(ins, hip_triadd_layernorm{}, triadd->inputs());
     }
 };
 
@@ -355,13 +355,13 @@ struct find_gelu
 {
     auto matcher() const { return match::gelu_erf(&gpu_name); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
-        p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
+        m.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
     }
 };
 
@@ -372,7 +372,7 @@ struct find_add_gelu
         return match::name("gpu::gelu")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -381,7 +381,7 @@ struct find_add_gelu
         move_broadcasted_back(args);
 
         args.back() = ins->inputs().back();
-        p.replace_instruction(ins, hip_add_gelu{}, args);
+        m.replace_instruction(ins, hip_add_gelu{}, args);
     }
 };
 
@@ -391,16 +391,16 @@ struct find_gelu_new
 
     auto matcher() const { return match::gelu_tanh(&gpu_name); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
         if(fast_math)
-            p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
+            m.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
         else
-            p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
+            m.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
     }
 };
 
@@ -411,7 +411,7 @@ struct find_add_gelu_new
         return match::name("gpu::gelu_new")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -420,7 +420,7 @@ struct find_add_gelu_new
         move_broadcasted_back(args);
 
         args.back() = ins->inputs().back();
-        p.replace_instruction(ins, hip_add_gelu_new{}, args);
+        m.replace_instruction(ins, hip_add_gelu_new{}, args);
     }
 };
 
@@ -435,7 +435,7 @@ struct find_add_clip
                               .bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto add_ins  = r.instructions["add"];
         auto ins      = r.result;
@@ -448,9 +448,9 @@ struct find_add_clip
         add_args.pop_back();
         add_args.insert(add_args.end(), std::next(ins_args.begin()), ins_args.end());
         if(add_ins->name() == "gpu::add")
-            p.replace_instruction(ins, hip_add_clip{}, add_args);
+            m.replace_instruction(ins, hip_add_clip{}, add_args);
         else if(add_ins->name() == "gpu::triadd")
-            p.replace_instruction(ins, hip_triadd_clip{}, add_args);
+            m.replace_instruction(ins, hip_triadd_clip{}, add_args);
     }
 };
 
@@ -470,7 +470,7 @@ struct find_add_unary
                 .bind("add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -481,9 +481,9 @@ struct find_add_unary
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
-            p.replace_instruction(ins, binary_add_op, args);
+            m.replace_instruction(ins, binary_add_op, args);
         else if(add_ins->name() == "gpu::triadd")
-            p.replace_instruction(ins, ternary_add_op, args);
+            m.replace_instruction(ins, ternary_add_op, args);
     }
 };
 
@@ -498,7 +498,7 @@ struct find_triadd
                 .bind("input")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto add_ins   = r.instructions["add"];
         auto input_ins = r.instructions["input"];
@@ -513,7 +513,7 @@ struct find_triadd
         move_broadcasted_back(args);
 
         args.back() = ins->inputs().back();
-        p.replace_instruction(ins, hip_triadd{}, args);
+        m.replace_instruction(ins, hip_triadd{}, args);
     }
 };
 
@@ -525,7 +525,7 @@ struct find_mul_add
             match::name("gpu::mul")(match::used_once()).bind("mul"), match::any().bind("b")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto mul_ins = r.instructions["mul"];
         auto b_ins   = r.instructions["b"];
@@ -538,7 +538,7 @@ struct find_mul_add
         args.insert(std::prev(args.end()), b_ins);
 
         args.back() = ins->inputs().back();
-        p.replace_instruction(ins, hip_mul_add{}, args);
+        m.replace_instruction(ins, hip_mul_add{}, args);
     }
 };
 
@@ -550,7 +550,7 @@ struct find_mul_add_relu
             match::arg(0)(match::name("gpu::mul_add")(match::used_once()).bind("mul_add")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto mul_add_ins = r.instructions["mul_add"];
         auto ins         = r.result;
@@ -558,7 +558,7 @@ struct find_mul_add_relu
 
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
-        p.replace_instruction(ins, hip_mul_add_relu{}, args);
+        m.replace_instruction(ins, hip_mul_add_relu{}, args);
     }
 };
 
@@ -585,6 +585,11 @@ struct miopen_fusion
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.ops, "ops"));
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
     }
 
     value compile(context& ctx, const shape&, std::vector<shape> inputs)
@@ -676,7 +681,7 @@ struct miopen_fusion
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
 
@@ -700,19 +705,19 @@ struct miopen_conv_bias
         float beta  = 0;
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
 
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        if(not f.compile(ctx))
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        if(not fp.compile(ctx))
             MIGRAPHX_THROW("Failed to compile fusion plan");
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -723,7 +728,7 @@ MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
     fusion::op_t relu = {};
@@ -749,18 +754,18 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        relu = f.create_relu();
-        f.compile(ctx);
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        relu = fp.create_relu();
+        fp.compile(ctx);
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -778,7 +783,7 @@ auto conv_bias(Ms... ms)
 }
 
 template <class Op>
-void apply_conv_bias(context& ctx, module& p, match::matcher_result r)
+void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
 {
     auto conv_ins    = r.instructions["conv"];
     auto bias_ins    = r.instructions["bias"];
@@ -793,7 +798,7 @@ void apply_conv_bias(context& ctx, module& p, match::matcher_result r)
     // TODO: Insert ws allocation
     auto ws = cb.get_workspace(ctx);
     (void)ws;
-    p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
+    m.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
 inline auto precompile_name(std::string s) // NOLINT
@@ -824,9 +829,9 @@ struct find_conv_bias
             match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
-        apply_conv_bias<miopen_conv_bias>(*ctx, p, std::move(r));
+        apply_conv_bias<miopen_conv_bias>(*ctx, m, r);
     }
 };
 
@@ -835,9 +840,9 @@ struct find_conv_bias_relu
     context* ctx = nullptr;
     auto matcher() const { return match::name("gpu::relu")(match::arg(0)(conv_bias())); }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
-        apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, std::move(r));
+        apply_conv_bias<miopen_conv_bias_relu>(*ctx, m, r);
     }
 };
 
@@ -852,7 +857,7 @@ struct find_conv_pointwise
                                     fusable_conv(match::used_once()).bind("conv")));
     }
 
-    void apply(module& m, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto conv_ins    = r.instructions["conv"];
         auto bias_ins    = r.instructions["bias"];
@@ -870,7 +875,6 @@ struct find_conv_pointwise
         {
             if(i.name()[0] == '@')
                 continue;
-            auto inputs = to_shapes(i.inputs());
             op.ops.push_back({{i.get_operator()}});
         }
         std::vector<instruction_ref> inputs = {input_ins, weights_ins, bias_ins, alloc_ins};
@@ -891,7 +895,7 @@ struct find_gemm_add
                                     match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];
@@ -903,26 +907,68 @@ struct find_gemm_add
         if(not float_equal(gemm.beta, 0))
             return;
 
-        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-               return not i->get_shape().standard();
-           }))
-            return;
-
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
 
         auto copy_ins = c_ins;
 
         // Insert copy
-        if(ins == p.end() or c_ins->outputs().size() > 1 or c_ins->inputs().empty())
+        if(ins == m.end() or c_ins->outputs().size() > 1 or c_ins->inputs().empty())
         {
-            copy_ins = p.insert_instruction(ins, hip_copy{}, c_ins, ins->inputs().back());
+            copy_ins = m.insert_instruction(ins, hip_copy{}, c_ins, ins->inputs().back());
         }
         inputs.push_back(copy_ins);
         inputs.push_back(copy_ins);
 
         gemm.beta = 1;
-        p.replace_instruction(ins, gemm, inputs);
+        m.replace_instruction(ins, gemm, inputs);
+    }
+};
+
+auto pointwise_name(const std::string& s)
+{
+    return precompile_name("pointwise")(match::make_basic_pred_matcher([=](auto ins) {
+        module_ref pm = ins->module_inputs().front();
+        auto n = std::count_if(pm->begin(), pm->end(), [&](auto& i) { return i.name() == s; });
+        if(n != 1)
+            return false;
+        return std::all_of(pm->begin(), pm->end(), [&](auto& i) {
+            return starts_with(i.name(), "@") or i.name() == s;
+        });
+    }));
+}
+
+struct find_gemm_pointwise
+{
+    auto matcher() const
+    {
+        return pointwise_name("add")(
+            match::nargs(3),
+            match::all_of[match::inputs()](match::standard_shape()),
+            match::either_arg(0, 1)(match::used_once().bind("c"),
+                                    match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto gemm_ins = r.instructions["gemm"];
+        auto c_ins    = r.instructions["c"];
+
+        auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
+
+        // Already fused gemm
+        if(not float_equal(gemm.beta, 0))
+            return;
+
+        auto inputs = gemm_ins->inputs();
+        inputs.pop_back();
+
+        inputs.push_back(c_ins);
+        inputs.push_back(ins->inputs().back());
+
+        gemm.beta = 1;
+        m.replace_instruction(ins, gemm, inputs);
     }
 };
 
@@ -933,22 +979,22 @@ struct find_commutative_broadcast
         return match::name("gpu::add", "gpu::mul")(match::arg(1)(match::broadcast_shape()));
     }
 
-    void apply(module& p, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto args = ins->inputs();
         move_broadcasted_back(args);
 
-        p.replace_instruction(ins, ins->get_operator(), args);
+        m.replace_instruction(ins, ins->get_operator(), args);
     }
 };
 
-void fuse_ops::apply(module& p) const
+void fuse_ops::apply(module& m) const
 {
-    match::find_matches(p, find_gelu{}, find_gelu_new{fast_math});
-    run_passes(p, {dead_code_elimination{}});
-    match::find_matches(p, find_triadd{});
-    match::find_matches(p,
+    match::find_matches(m, find_gelu{}, find_gelu_new{fast_math});
+    run_passes(m, {dead_code_elimination{}});
+    match::find_matches(m, find_triadd{});
+    match::find_matches(m,
                         find_layernorm{},
                         find_conv_pointwise{ctx},
                         find_conv_bias_relu{ctx},
@@ -961,8 +1007,12 @@ void fuse_ops::apply(module& p) const
                         find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
                         find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
                         find_add_clip{});
-    run_passes(p, {dead_code_elimination{}});
-    match::find_matches(p, find_triadd_layernorm{}, find_gemm_add{}, find_commutative_broadcast{});
+    run_passes(m, {dead_code_elimination{}});
+    match::find_matches(m,
+                        find_triadd_layernorm{},
+                        find_gemm_add{},
+                        find_gemm_pointwise{},
+                        find_commutative_broadcast{});
 }
 
 } // namespace gpu

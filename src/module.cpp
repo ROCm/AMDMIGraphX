@@ -23,6 +23,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_FINALIZE)
+
 struct module_impl
 {
     // A list is used to keep references to an instruction stable
@@ -554,8 +556,14 @@ instruction_ref module::find_dangling_reference() const
 
 void module::finalize(context& ctx)
 {
+    const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {
+        if(trace)
+        {
+            std::cout << "Finalize: ";
+            this->debug_print(ins);
+        }
         ins->finalize(ctx);
         for(const auto& smod : ins->module_inputs())
         {
@@ -628,8 +636,9 @@ std::unordered_map<instruction_ref, std::string> module::print(
             var_name = this->name();
             var_name.append((this->name().empty() ? "@" : ":@"));
             var_name.append(std::to_string(count));
-            count++;
         }
+        // count every instruction so index matches loc in the printout program
+        count++;
         names.emplace(ins, var_name);
 
         print_func(ins, names);
@@ -719,7 +728,6 @@ module::print_cpp(std::ostream& os,
                   const std::string& mname,
                   std::unordered_map<instruction_ref, std::string> names) const
 {
-
     // cppcheck-suppress variableScope
     unsigned long seed = names.size();
     auto last          = std::prev(this->end());

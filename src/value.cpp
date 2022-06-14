@@ -4,6 +4,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/optional.hpp>
 #include <unordered_map>
 #include <utility>
 
@@ -138,6 +139,7 @@ value::value(const std::string& pkey, const value& rhs)
 {
 }
 
+value::value(const std::string& pkey, const char* i) : value(pkey, std::string(i)) {}
 value::value(const char* i) : value(std::string(i)) {}
 
 #define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                           \
@@ -160,6 +162,12 @@ value::value(const char* i) : value(std::string(i)) {}
     }                                                                                  \
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
+
+value& value::operator=(const char* c)
+{
+    *this = std::string{c};
+    return *this;
+}
 
 value& value::operator=(std::nullptr_t)
 {
@@ -410,25 +418,12 @@ value value::with_key(const std::string& pkey) const
     return result;
 }
 
-template <class F, class T, class U, class Common = typename std::common_type<T, U>::type>
-auto compare_common_impl(
-    rank<1>, F f, const std::string& keyx, const T& x, const std::string& keyy, const U& y)
+template <class T>
+const T& compare_decay(const T& x)
 {
-    return f(std::forward_as_tuple(keyx, Common(x)), std::forward_as_tuple(keyy, Common(y)));
+    return x;
 }
-
-template <class F>
-auto compare_common_impl(
-    rank<1>, F f, const std::string& keyx, std::nullptr_t, const std::string& keyy, std::nullptr_t)
-{
-    return f(std::forward_as_tuple(keyx, 0), std::forward_as_tuple(keyy, 0));
-}
-
-template <class F, class T, class U>
-auto compare_common_impl(rank<0>, F, const std::string&, const T&, const std::string&, const U&)
-{
-    return false;
-}
+int compare_decay(std::nullptr_t) { return 0; }
 
 template <class F>
 bool compare(const value& x, const value& y, F f)
@@ -436,7 +431,11 @@ bool compare(const value& x, const value& y, F f)
     bool result = false;
     x.visit_value([&](auto&& a) {
         y.visit_value([&](auto&& b) {
-            result = compare_common_impl(rank<1>{}, f, x.get_key(), a, y.get_key(), b);
+            if constexpr(std::is_same<decltype(a), decltype(b)>{})
+                result = f(std::forward_as_tuple(x.get_key(), compare_decay(a)),
+                           std::forward_as_tuple(y.get_key(), compare_decay(b)));
+            else
+                assert(false); // NOLINT
         });
     });
     return result;
@@ -455,11 +454,16 @@ bool operator==(const value& x, const value& y)
         return false;
     return compare(x, y, std::equal_to<>{});
 }
-bool operator!=(const value& x, const value& y) { return !(x == y); }
-bool operator<(const value& x, const value& y) { return compare(x, y, std::less<>{}); }
-bool operator<=(const value& x, const value& y) { return x == y or x < y; }
+bool operator!=(const value& x, const value& y) { return not(x == y); }
+bool operator<(const value& x, const value& y)
+{
+    if(x.get_type() != y.get_type())
+        return x.get_type() < y.get_type();
+    return compare(x, y, std::less<>{});
+}
+bool operator<=(const value& x, const value& y) { return not(x > y); }
 bool operator>(const value& x, const value& y) { return y < x; }
-bool operator>=(const value& x, const value& y) { return x == y or x > y; }
+bool operator>=(const value& x, const value& y) { return not(x < y); }
 
 void print_value(std::ostream& os, std::nullptr_t) { os << "null"; }
 

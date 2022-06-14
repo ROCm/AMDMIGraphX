@@ -10,7 +10,7 @@ namespace gen {
 
 static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
 {
-    // If all inputs is half then only use half2
+    // If all inputs are half then only use half2
     if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) {
            return s.type() == shape::half_type;
        }))

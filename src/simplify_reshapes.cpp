@@ -128,8 +128,11 @@ struct find_transpose
 {
     auto matcher() const
     {
-        return match::name("transpose")(match::none_of(
-            match::skip_output(match::name("contiguous"))(match::name("transpose"))));
+        auto output_not_transpose =
+            match::none_of(match::skip_output(match::name("contiguous"))(match::name("transpose")));
+        auto input_has_transpose =
+            match::skip(match::name("contiguous"))(match::args(match::name("transpose")));
+        return match::name("transpose")(output_not_transpose, input_has_transpose);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -578,7 +581,7 @@ struct find_transpose_contiguous_reshaper_unary
     }
 };
 
-struct find_transpose_slice
+struct find_slice_transpose
 {
     auto matcher() const
     {
@@ -626,10 +629,9 @@ struct find_transpose_slice
             auto split = splits[i];
             auto t     = transposes[i];
             auto op    = any_cast<op::slice>(split->get_operator());
-            for(auto& axis : op.axes)
-            {
-                axis = iperm[axis];
-            }
+            std::transform(op.axes.begin(), op.axes.end(), op.axes.begin(), [&](auto axis) {
+                return iperm[axis];
+            });
             auto new_ins = m.insert_instruction(t, op, pre);
             if(t->get_operator() != pre->get_operator())
             {
@@ -642,9 +644,94 @@ struct find_transpose_slice
     }
 };
 
+struct find_transpose_slice
+{
+    auto matcher() const
+    {
+        return match::name("transpose")(match::all_of[match::outputs()](match::name("slice")));
+    }
+
+    static std::vector<int64_t> slice_distance(const op::slice& op)
+    {
+        assert(op.starts.size() == op.ends.size());
+        std::vector<int64_t> result(op.starts.size());
+        std::transform(
+            op.ends.begin(), op.ends.end(), op.starts.begin(), result.begin(), std::minus<>{});
+        return result;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto slices = ins->outputs();
+        if(slices.empty())
+            return;
+        auto slice     = any_cast<op::slice>(slices.front()->get_operator());
+        auto sdistance = slice_distance(slice);
+        // Check all distances and axes are the same
+        if(std::any_of(slices.begin(), slices.end(), [&](auto sins) {
+               auto s = any_cast<op::slice>(sins->get_operator());
+               return s.axes != slice.axes or slice_distance(s) != sdistance;
+           }))
+            return;
+        // Check distances are divisible by axes
+        auto mod_by_distance = [&](const auto& v, auto f) {
+            return std::inner_product(v.begin(),
+                                      v.end(),
+                                      sdistance.begin(),
+                                      0,
+                                      std::plus<>{},
+                                      [&](auto x, auto d) -> uint64_t {
+                                          if(d == 0)
+                                              return 1;
+                                          return f(x) % d;
+                                      });
+        };
+        if(mod_by_distance(slice.axes, [&](auto x) { return ins->get_shape().lens()[x]; }) != 0 or
+           mod_by_distance(slice.starts, id{}) != 0 or mod_by_distance(slice.ends, id{}) != 0)
+            return;
+        // TODO: Handle multiple axes
+        if(sdistance.size() != 1)
+            return;
+        auto axis = slice.axes.front();
+        // Skip if axis would be packed
+        if(std::all_of(ins->get_shape().lens().begin(),
+                       ins->get_shape().lens().begin() + axis,
+                       [](auto x) { return x == 1; }))
+            return;
+        // Compute axis before transpose to use for unsqueeeze
+        auto perm    = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto preaxis = std::find(perm.begin(), perm.end(), axis) - perm.begin();
+        // Make unsqeeze
+        auto unsqueeze = m.insert_instruction(
+            ins, make_op("unsqueeze", {{"axes", {preaxis}}, {"steps", sdistance}}), ins->inputs());
+        // Make transpose
+        std::transform(perm.begin(), perm.end(), perm.begin(), [&](auto i) {
+            if(i > preaxis)
+                return i + 1;
+            return i;
+        });
+        perm.insert(perm.begin(), preaxis + 1);
+        auto transpose =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), unsqueeze);
+        // Slice and sqeeze
+        for(auto s : slices)
+        {
+            auto op        = any_cast<op::slice>(s->get_operator());
+            op.axes        = {0};
+            op.starts      = {op.starts.front() / sdistance.front()};
+            op.ends        = {op.ends.front() / sdistance.front()};
+            auto slice_ins = m.insert_instruction(ins, op, transpose);
+            auto squeeze =
+                m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), slice_ins);
+            m.replace_instruction(s, squeeze);
+        }
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
-    for(int i = 0; i < 2; i++)
+    for(int i = 0; i < 4; i++)
     {
         match::find_matches(m,
                             find_where_op{},
@@ -658,6 +745,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},
+                            find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{});
         dead_code_elimination{}.apply(m);
     }

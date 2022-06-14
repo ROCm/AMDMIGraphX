@@ -19,11 +19,12 @@ namespace op {
 struct unsqueeze
 {
     std::vector<int64_t> axes;
+    std::vector<int64_t> steps;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"));
+        return pack(f(self.axes, "axes"), f(self.steps, "steps"));
     }
 
     value attributes() const
@@ -57,16 +58,27 @@ struct unsqueeze
         std::size_t p = 0;
         for(auto i : range(new_size))
         {
-            if(std::find(axes.begin(), axes.end(), i) != axes.end())
+            auto axis_idx = std::find(axes.begin(), axes.end(), i) - axes.begin();
+            if(axis_idx < axes.size())
             {
-                new_lens[i] = 1;
-                if(p == 0) // unsqueeze on the first axes
+                std::int64_t step = 1;
+                if(axis_idx < steps.size())
+                    step = steps[axis_idx];
+                if(step == 0)
+                    MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero");
+                new_lens[i] = step;
+                if(p < old_strides.size())
                 {
-                    new_strides[i] = old_lens[0] * old_strides[0];
+                    if((old_lens[p] % step) != 0)
+                        MIGRAPHX_THROW("UNSQUEEZE: Axis dimenstion is not divisible by step");
+                    old_lens[p] /= step;
+                    new_strides[i] = old_strides[p] * old_lens[p];
                 }
-                else // unsqueeze on middle or last axes
+                else
                 {
-                    new_strides[i] = (p < old_strides.size()) ? old_strides[p - 1] : 1;
+                    if(step != 1)
+                        MIGRAPHX_THROW("UNSQUEEZE: Step must be 1 for extra axes");
+                    new_strides[i] = 1;
                 }
             }
             else

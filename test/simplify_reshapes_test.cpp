@@ -1220,4 +1220,82 @@ TEST_CASE(transpose_slice_single_transpose)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(transpose_slice_non_packed_axis)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), x);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}),
+            transpose);
+        auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), slice);
+        m1.add_return({sqrt});
+    }
+    auto output_shapes = m1.get_output_shapes();
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes() == output_shapes);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});
+        auto unsqueeze =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {12}}}), x);
+        auto transpose = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {3, 0, 2, 1, 4}}}), unsqueeze);
+        auto slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), transpose);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice);
+        auto sqrt    = m2.add_instruction(migraphx::make_op("sqrt"), squeeze);
+        m2.add_return({sqrt});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_slice_non_packed_multi_axis)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});
+        auto transpose =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), x);
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}),
+            transpose);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {12}}, {"ends", {24}}}),
+            transpose);
+        auto transpose2 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), slice2);
+        auto slice3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {24}}, {"ends", {36}}}),
+            transpose);
+        m1.add_return({slice1, transpose2, slice3});
+    }
+    auto output_shapes = m1.get_output_shapes();
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes() == output_shapes);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});
+        auto unsqueeze =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {12}}}), x);
+        auto transpose = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {3, 0, 2, 1, 4}}}), unsqueeze);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), transpose);
+        auto squeeze1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice1);
+        auto slice2   = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), transpose);
+        auto squeeze2   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice2);
+        auto transpose2 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), squeeze2);
+        auto slice3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), transpose);
+        auto squeeze3 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice3);
+        m2.add_return({squeeze1, transpose2, squeeze3});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

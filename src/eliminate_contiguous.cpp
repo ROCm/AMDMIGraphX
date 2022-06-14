@@ -105,15 +105,7 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
             }
             else if(prev->can_eval())
             {
-                replace(new_args, arg, prev);
-                if(try_compute_shape(ins, new_args, mod_args))
-                {
-                    instruction::replace_argument(ins, arg, prev);
-                }
-                else if(prev->can_eval())
-                {
-                    const_instructions.push_back(arg);
-                }
+                const_instructions.push_back(arg);
             }
         }
     }

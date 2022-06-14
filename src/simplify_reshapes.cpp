@@ -699,17 +699,19 @@ struct find_transpose_slice
                        ins->get_shape().lens().begin() + axis,
                        [](auto x) { return x == 1; }))
             return;
+        // Compute axis before transpose to use for unsqueeeze
+        auto perm = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto preaxis = std::find(perm.begin(), perm.end(), axis) - perm.begin();
         // Make unsqeeze
         auto unsqueeze = m.insert_instruction(
-            ins, make_op("unsqueeze", {{"axes", slice.axes}, {"steps", sdistance}}), ins->inputs());
+            ins, make_op("unsqueeze", {{"axes", {preaxis}}, {"steps", sdistance}}), ins->inputs());
         // Make transpose
-        auto perm = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
         std::transform(perm.begin(), perm.end(), perm.begin(), [&](auto i) {
-            if(i >= axis)
+            if(i > preaxis)
                 return i + 1;
             return i;
         });
-        perm.insert(perm.begin(), axis);
+        perm.insert(perm.begin(), preaxis+1);
         auto transpose =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), unsqueeze);
         // Slice and sqeeze

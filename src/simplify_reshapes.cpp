@@ -700,7 +700,7 @@ struct find_transpose_slice
                        [](auto x) { return x == 1; }))
             return;
         // Compute axis before transpose to use for unsqueeeze
-        auto perm = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto perm    = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
         auto preaxis = std::find(perm.begin(), perm.end(), axis) - perm.begin();
         // Make unsqeeze
         auto unsqueeze = m.insert_instruction(
@@ -711,7 +711,7 @@ struct find_transpose_slice
                 return i + 1;
             return i;
         });
-        perm.insert(perm.begin(), preaxis+1);
+        perm.insert(perm.begin(), preaxis + 1);
         auto transpose =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), unsqueeze);
         // Slice and sqeeze

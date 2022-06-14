@@ -6,7 +6,7 @@
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 
-TEST_CASE(host_buffer_copies)
+TEST_CASE(same_host_buffer_copies)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

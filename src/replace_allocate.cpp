@@ -13,7 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
     std::unordered_map<instruction_ref, std::string> mod_output_names{};
-    auto last = instruction::get_output_alias(std::prev(mod.end()));
+    auto last = std::prev(mod.end());
     if(last->name() == "@return")
     {
         const auto& prog_outputs = last->inputs();
@@ -29,6 +29,11 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
         {
             mod_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
         }
+    }
+    else
+    {
+        auto ins = instruction::get_output_alias(last);
+        mod_output_names[ins] = "output";
     }
     return mod_output_names;
 }
@@ -78,22 +83,12 @@ void replace_allocate::apply(module& m) const
 
         auto s = ins->get_shape();
 
-        if(not main_offload_copy and model.needs_out_params())
+        if(not main_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
-            instruction_ref out_param;
 
-            if(last->name() == "@return" and mod_output_names.count(ins) > 0)
-            {
-                out_param = m.add_parameter(mod_output_names[ins], s);
-                m.replace_instruction(ins, out_param);
-                continue;
-            }
-            else if(ins == last)
-            {
-                out_param = m.add_parameter("output", s);
-                m.replace_instruction(ins, out_param);
-                continue;
-            }
+            auto out_param = m.add_parameter(mod_output_names[ins], s);
+            m.replace_instruction(ins, out_param);
+            continue;
         }
 
         m.replace_instruction(

@@ -32,7 +32,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     }
     else
     {
-        auto ins = instruction::get_output_alias(last);
+        auto ins              = instruction::get_output_alias(last);
         mod_output_names[ins] = "output";
     }
     return mod_output_names;

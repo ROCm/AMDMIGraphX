@@ -364,8 +364,22 @@ struct miopen_apply
     {
         apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
-            auto conv = miopen_quant_convolution{op, make_conv(op)};
-            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            shape ws;
+            miopen_quant_convolution conv;
+            auto compile_quant_conv_with_format = [&](bool format) {
+                conv = miopen_quant_convolution{op, format, make_conv(op)};
+                ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            };
+
+            try
+            {
+                compile_quant_conv_with_format(int8_x4_format);
+            }
+            catch(migraphx::exception&)
+            {
+                // In case no solver supports the default format, retry using the other format.
+                compile_quant_conv_with_format(!int8_x4_format);
+            }
 
             auto args      = ins->inputs();
             auto workspace = insert_allocation(ins, ws, "workspace");

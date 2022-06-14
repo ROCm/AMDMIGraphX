@@ -12,7 +12,7 @@ struct dnnl_lrn : dnnl_extend_op<dnnl_lrn, dnnl::lrn_forward, op::lrn>
     {
         return {dnnl::prop_kind::forward_inference,
                 dnnl::algorithm::lrn_across_channels,
-                m.at(DNNL_ARG_SRC_0),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
                 this->op.size,
                 this->op.alpha,
                 this->op.beta,

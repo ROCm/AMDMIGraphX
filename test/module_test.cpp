@@ -1,6 +1,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
 #include <sstream>
@@ -251,6 +252,64 @@ TEST_CASE(submodule_copy)
 
     EXPECT(mm == mm2);
     EXPECT(mm.get_sub_modules() == mm2.get_sub_modules());
+}
+
+TEST_CASE(parameter_name_order)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module mm("main");
+    auto x1 = mm.add_parameter("x1", s);
+    auto x2 = mm.add_parameter("x2", s);
+    auto x3 = mm.add_parameter("x3", s);
+    auto x4 = mm.add_parameter("x4", s);
+
+    std::vector<std::string> param_names = {"x1", "x2", "x3", "x4"};
+    auto sum1                            = mm.add_instruction(migraphx::make_op("add"), x1, x2);
+    auto sum2                            = mm.add_instruction(migraphx::make_op("add"), x3, x4);
+    auto r                               = mm.add_instruction(migraphx::make_op("mul"), sum1, sum2);
+    mm.add_return({r});
+
+    auto names = mm.get_parameter_names();
+    EXPECT(param_names == names);
+
+    auto m1     = mm;
+    auto names1 = m1.get_parameter_names();
+    EXPECT(param_names == names1);
+}
+
+struct check_for_pass_op
+{
+    bool* found = nullptr;
+    std::string name() const { return "check_for_pass_op"; }
+    void apply(migraphx::module& m) const
+    {
+        *found |= std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "pass"; });
+    }
+};
+
+TEST_CASE(module_bypass)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto* sub = p.create_module("sub");
+    sub->set_bypass();
+    sub->add_instruction(pass_op{});
+    mm->add_instruction(mod_pass_op{}, {}, {sub});
+    bool found = false;
+    migraphx::run_passes(p, {check_for_pass_op{&found}});
+    EXPECT(not found);
+}
+
+TEST_CASE(module_without_bypass)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto* sub = p.create_module("sub");
+    sub->add_instruction(pass_op{});
+    mm->add_instruction(mod_pass_op{}, {}, {sub});
+    bool found = false;
+    migraphx::run_passes(p, {check_for_pass_op{&found}});
+    EXPECT(found);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

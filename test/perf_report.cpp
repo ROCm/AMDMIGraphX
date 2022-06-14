@@ -19,6 +19,7 @@ TEST_CASE(perf_report)
 
     std::string output = ss.str();
     EXPECT(migraphx::contains(output, "Summary:"));
+    EXPECT(migraphx::contains(output, "Batch size:"));
     EXPECT(migraphx::contains(output, "Rate:"));
     EXPECT(migraphx::contains(output, "Total time:"));
     EXPECT(migraphx::contains(output, "Total instructions time:"));

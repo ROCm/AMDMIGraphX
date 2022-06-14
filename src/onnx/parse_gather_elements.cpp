@@ -39,7 +39,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
         int tuned_axis = tune_axis(n_rank, axis, opd.op_name);
 
         auto axis_stride      = data_s.strides()[tuned_axis];
-        int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
+        int64_t data_elem_num = data_s.elements();
         // reshape the input data as one dimension and used as input data
         // to the gather operator
         arg_data = info.add_instruction(make_op("reshape", {{"dims", {data_elem_num}}}), arg_data);
@@ -63,8 +63,8 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
             info.add_literal(literal(ind_s, data_indices.begin(), data_indices.end()));
         auto l_dim_idx = info.add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
         auto l_stride  = info.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
-        l_stride = info.add_instruction(make_op("multibroadcast", {{"output_lens", ind_s.lens()}}),
-                                        l_stride);
+        l_stride =
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
         auto dim_diff = info.add_instruction(make_op("sub"), arg_ind, l_dim_idx);
         auto delta    = info.add_instruction(make_op("mul"), dim_diff, l_stride);
         auto ind      = info.add_instruction(make_op("add"), l_shape_idx, delta);

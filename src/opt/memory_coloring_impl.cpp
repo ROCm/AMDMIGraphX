@@ -40,7 +40,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     std::size_t size = s.bytes();
     if(size == 0)
         return false;
-    std::size_t element_size = size / s.elements();
+    std::size_t element_size = (s.elements() == 0 ? 4 : (size / s.elements()));
     live_range& segment      = interval->segment;
     int vn                   = segment.vn;
     std::priority_queue<live_range*, std::vector<live_range*>, ordering> conflict_queue;

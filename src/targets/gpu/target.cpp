@@ -2,7 +2,6 @@
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/decompose.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_concat.hpp>
@@ -10,6 +9,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/memory_coloring.hpp>
@@ -17,19 +17,21 @@
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/remap.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
+#include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/eliminate_workspace.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
@@ -43,6 +45,20 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+
+struct id_pass
+{
+    std::string name() const { return "id"; }
+    void apple(const module&) const {}
+};
+
+pass enable_pass(bool enabled, pass p)
+{
+    if(enabled)
+        return p;
+    return id_pass{};
+}
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -58,8 +74,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     return
     {
         normalize_ops{},
-        decompose{},
         dead_code_elimination{},
+        simplify_qdq{},
         rewrite_quantization{},
         dead_code_elimination{},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
@@ -81,9 +97,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_algebra{},
         simplify_reshapes{},
         simplify_algebra{},
+        prefuse_ops{},
+        dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
         propagate_constant{},
+        dead_code_elimination{},
+        enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
         dead_code_elimination{},
         mlir_conv{&ctx},
         lowering{&ctx, options.offload_copy},
@@ -91,11 +111,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
-        adjust_allocation{gpu_allocation_model{}},
-        dead_code_elimination{},
         pack_int8_args{},
         dead_code_elimination{},
+        adjust_allocation{gpu_allocation_model{}},
+        dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
+        dead_code_elimination{},
+        compile_ops{&ctx},
         dead_code_elimination{},
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},

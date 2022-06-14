@@ -25,14 +25,15 @@ struct dequantizelinear
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        return {shape::float_type, inputs[0].lens(), inputs[0].strides()};
+        check_shapes{inputs, *this}.same_dims();
+        return {inputs[1].type(), inputs[0].lens(), inputs[0].strides()};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto x       = args.at(0);
         auto x_scale = args.at(1);
-        std::vector<int8_t> zeros(output_shape.elements(), 0);
+        std::vector<int8_t> zeros(output_shape.bytes(), 0);
         argument x_zero_point{{x.get_shape().type(), output_shape.lens()}, zeros.data()};
         if(args.size() == 3)
         {

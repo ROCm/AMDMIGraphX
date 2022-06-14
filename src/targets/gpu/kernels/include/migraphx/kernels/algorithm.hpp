@@ -21,6 +21,26 @@ struct greater
     }
 };
 
+template <class InputIt, class T, class BinaryOperation>
+constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
+{
+    for(; first != last; ++first)
+    {
+        init = op(std::move(init), *first);
+    }
+    return init;
+}
+
+template <class InputIt, class OutputIt>
+constexpr OutputIt copy(InputIt first, InputIt last, OutputIt d_first)
+{
+    while(first != last)
+    {
+        *d_first++ = *first++;
+    }
+    return d_first;
+}
+
 template <class Iterator, class Compare>
 constexpr Iterator is_sorted_until(Iterator first, Iterator last, Compare comp)
 {
@@ -94,6 +114,35 @@ constexpr Iterator1 search(Iterator1 first, Iterator1 last, Iterator2 s_first, I
             }
         }
     }
+}
+
+template <class InputIt1, class InputIt2, class T, class BinaryOperation1, class BinaryOperation2>
+constexpr T inner_product(InputIt1 first1,
+                          InputIt1 last1,
+                          InputIt2 first2,
+                          T init,
+                          BinaryOperation1 op1,
+                          BinaryOperation2 op2)
+{
+    while(first1 != last1)
+    {
+        init = op1(init, op2(*first1, *first2));
+        ++first1;
+        ++first2;
+    }
+    return init;
+}
+
+template <class InputIt1, class InputIt2, class T>
+constexpr T inner_product(InputIt1 first1, InputIt1 last1, InputIt2 first2, T init)
+{
+    return inner_product(
+        first1,
+        last1,
+        first2,
+        init,
+        [](auto x, auto y) { return x + y; },
+        [](auto x, auto y) { return x * y; });
 }
 
 } // namespace migraphx

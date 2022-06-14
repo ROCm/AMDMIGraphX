@@ -70,12 +70,14 @@ static literal from_repeated(shape::type_t t, const T& r)
 
 instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) const
 {
-    if(ins->get_shape().standard())
+    auto attr       = ins->get_operator().to_value();
+    std::string key = "require_std_shape";
+    if((attr.get(key, false)) or (not ins->get_shape().standard()))
     {
-        return ins;
+        return add_instruction(make_op("contiguous"), ins);
     }
 
-    return add_instruction(make_op("contiguous"), ins);
+    return ins;
 }
 
 instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_ref>& args,
@@ -85,7 +87,7 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     if(args.size() == 3)
     {
         auto bias_bcast = mod->add_instruction(
-            make_op("broadcast", {{"axis", axis}, {"dims", curr_ins->get_shape().lens()}}),
+            make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
             args[2]);
         return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
@@ -96,7 +98,13 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
                                                                     instruction_ref arg0,
                                                                     instruction_ref arg1) const
 {
-    return add_common_op(*mod, make_op(op_name), {arg0, arg1});
+    return this->add_common_op(op_name, arg0, arg1);
+}
+
+instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
+                                                      std::vector<instruction_ref> inputs) const
+{
+    return migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs));
 }
 
 instruction_ref
@@ -224,27 +232,41 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
+    std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
-        instructions[f.name()] = mod->add_literal(parse_tensor(f));
+        // backup instructions in parent mod
+        mod_insts[f.name()] = mod->add_literal(parse_tensor(f));
     }
 
     for(auto&& input : graph.input())
     {
         const std::string& name = input.name();
         // input not in initializer_data, so it is a real input
-        if(!contains(instructions, name))
+        if(!contains(mod_insts, name))
         {
+            // ONNX specification does not specify hwo to deal with the
+            // scenario that a nested subgraph contains a parameter with the
+            // name existed in its parent graph.
+            // In the current implementation, MIGraphX throws an exception for that.
+            if(contains(instructions, name))
+            {
+                MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
+                               "\" existing in parent graph!");
+            }
+
             std::vector<std::size_t> dims;
             if(map_input_dims.count(name) > 0)
             {
                 dims = map_input_dims.at(name);
             }
 
-            shape s            = parse_type(input.type(), dims);
-            instructions[name] = mod->add_parameter(name, s);
+            shape s         = parse_type(input.type(), dims);
+            mod_insts[name] = mod->add_parameter(name, s);
         }
     }
+
+    std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
     for(auto&& node : graph.node())
     {
@@ -309,6 +331,9 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 
     // add the return instuction
     mod->add_return(output_ins);
+
+    // remove instructions added in this mod
+    erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
@@ -363,8 +388,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, t.int64_data());
     case onnx::TensorProto::UINT64:
         return create_literal(shape::uint64_type, dims, t.uint64_data());
-    case onnx::TensorProto::FLOAT16:
-    {
+    case onnx::TensorProto::FLOAT16: {
         std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
         std::vector<half> data_half;
         std::transform(data_uint16.begin(),
@@ -434,7 +458,8 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
-    default: { MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
+    default: {
+        MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }
     }
 }

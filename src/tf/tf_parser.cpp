@@ -35,20 +35,20 @@ bool tf_parser::should_transpose(instruction_ref ins) const
 instruction_ref tf_parser::to_nhwc(instruction_ref ins) const
 {
     if(should_transpose(ins))
-        return mm->add_instruction(make_op("transpose", {{"dims", {0, 2, 3, 1}}}), ins);
+        return mm->add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), ins);
     return ins;
 }
 
 instruction_ref tf_parser::to_nchw(instruction_ref ins) const
 {
     if(should_transpose(ins))
-        return mm->add_instruction(make_op("transpose", {{"dims", {0, 3, 1, 2}}}), ins);
+        return mm->add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), ins);
     return ins;
 }
 
 instruction_ref tf_parser::to_kcxy(instruction_ref ins) const
 {
-    return mm->add_instruction(make_op("transpose", {{"dims", {3, 2, 0, 1}}}), ins);
+    return mm->add_instruction(make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), ins);
 }
 
 std::vector<instruction_ref> tf_parser::to_nchw(const std::vector<instruction_ref>& args) const
@@ -499,8 +499,7 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
         return create_literal(shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
     case tensorflow::DataType::DT_BOOL:
         return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
-    case tensorflow::DataType::DT_HALF:
-    {
+    case tensorflow::DataType::DT_HALF: {
         std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
         std::vector<uint16_t> data_uint16(data_int32.begin(), data_int32.end());
         std::vector<half> data_half;

@@ -6,16 +6,19 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/par_for.hpp>
 #include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
+static bool try_compute_shape(instruction_ref ins,
+                              const std::vector<shape>& inputs,
+                              const std::vector<module_ref>& mods)
 {
     try
     {
-        shape new_shape = ins->get_operator().compute_shape(inputs);
+        shape new_shape = ins->get_operator().compute_shape(inputs, mods);
         // If the output shape is a standard shape, no need to try its output
         if(new_shape.standard())
         {
@@ -45,7 +48,7 @@ static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inp
                 return (arg == ins) ? new_shape : arg->get_shape();
             });
 
-            if(!try_compute_shape(output, input_shapes))
+            if(!try_compute_shape(output, input_shapes, mods))
             {
                 return false;
             }
@@ -59,63 +62,59 @@ static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inp
     return true;
 }
 
-static bool try_compute_shape(instruction_ref ins, const std::vector<instruction_ref>& args)
+static bool try_compute_shape(instruction_ref ins,
+                              const std::vector<instruction_ref>& args,
+                              const std::vector<module_ref>& mods)
 {
     auto inputs = to_shapes(args);
-    return try_compute_shape(ins, inputs);
+    return try_compute_shape(ins, inputs, mods);
 }
 
-void eliminate_contiguous::apply(module& p) const
+void eliminate_contiguous::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    std::vector<instruction_ref> const_instruction;
+
+    for(auto ins : iterator_for(m))
     {
         // return instruction should have inputs with standard shape
         if(ins->name() == "@return")
             continue;
 
-        if(std::none_of(ins->inputs().begin(), ins->inputs().end(), [&](auto arg) {
-               return arg->name() == op_name;
-           }))
-            continue;
         // Make a copy so we can modify it while we iterate
         auto args     = ins->inputs();
         auto new_args = args;
-        std::transform(new_args.begin(), new_args.end(), new_args.begin(), [&](auto arg) {
+        auto mod_args = ins->module_inputs();
+
+        for(auto arg : ins->inputs())
+        {
             if(arg->name() == op_name)
-                return arg->inputs().front();
-            else
-                return arg;
-        });
-        assert(args.size() == new_args.size());
-
-        if(try_compute_shape(ins, new_args))
-        {
-            p.replace_instruction(ins, ins->get_operator(), new_args);
-        }
-        else
-        {
-            for(auto arg : ins->inputs())
             {
-                if(arg->name() == op_name)
+                auto prev = arg->inputs().front();
+                replace(new_args, arg, prev);
+                if(try_compute_shape(ins, new_args, mod_args))
                 {
-                    new_args  = args;
-                    auto prev = arg->inputs().front();
-                    replace(new_args, arg, prev);
-                    if(try_compute_shape(ins, new_args))
-                    {
-                        instruction::replace_argument(ins, arg, prev);
-                    }
-                    else if(prev->can_eval())
-                    {
-                        auto c = op::contiguous{};
-                        auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
-
-                        auto l = p.add_literal(r.get_shape(), r.data());
-                        p.replace_instruction(arg, l);
-                    }
+                    instruction::replace_argument(ins, arg, prev);
+                }
+                else if(prev->can_eval())
+                {
+                    const_instruction.push_back(arg);
                 }
             }
         }
+    }
+
+    // Perform evaluations in parallel
+    std::vector<argument> literals(const_instruction.size());
+    par_for(const_instruction.size(), 1, [&](const auto i) {
+        auto c      = op::contiguous{};
+        auto prev   = const_instruction[i]->inputs().front();
+        literals[i] = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
+    });
+
+    for(size_t i = 0; i < const_instruction.size(); i++)
+    {
+        auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
+        m.replace_instruction(const_instruction[i], l);
     }
 }
 

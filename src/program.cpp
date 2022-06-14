@@ -13,6 +13,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/marker.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -179,19 +180,78 @@ void program::finalize()
     mm->finalize(this->impl->ctx);
 }
 
+template <class T>
+std::string classify(T x)
+{
+    switch(std::fpclassify(x))
+    {
+    case FP_INFINITE: return "inf";
+    case FP_NAN: return "nan";
+    case FP_NORMAL: return "normal";
+    case FP_SUBNORMAL: return "subnormal";
+    case FP_ZERO: return "zero";
+    default: return "unknown";
+    }
+}
+
+std::unordered_set<std::string> classify_argument(const argument& a)
+{
+    std::unordered_set<std::string> result;
+    a.visit(
+        [&](auto t) {
+            for(const auto& x : t)
+                result.insert(classify(x));
+        },
+        [&](const auto& xs) {
+            for(const auto& x : xs)
+            {
+                auto r = classify_argument(x);
+                result.insert(r.begin(), r.end());
+            }
+        });
+    return result;
+}
+
+void preview_argument(std::ostream& os, const argument& a)
+{
+    a.visit(
+        [&](auto t) {
+            if(t.size() <= 10)
+            {
+                os << t;
+            }
+            else
+            {
+                os << to_string_range(t.begin(), t.begin() + 5);
+                os << ", ..., ";
+                os << to_string_range(t.end() - 5, t.end());
+            }
+        },
+        [&](const auto& xs) {
+            for(const auto& x : xs)
+            {
+                os << '{';
+                preview_argument(os, x);
+                os << '}';
+            }
+        });
+}
+
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    context& ctx,
                                    std::unordered_map<std::string, argument> params,
                                    std::unordered_map<instruction_ref, argument> results,
-                                   F trace)
+                                   F make_trace)
 {
     assert(mod->validate() == mod->end());
     results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);
+    auto trace = make_trace(mod);
     for(auto ins : iterator_for(*mod))
     {
+        assert(results.find(ins) == results.end());
         const auto& name = ins->name();
         if(name == "@literal")
         {
@@ -240,7 +300,8 @@ std::vector<argument> generic_eval(const module* mod,
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                return generic_eval(smod, ctx, inputs, results, trace);
+                auto ssctx = ctx;
+                return generic_eval(smod, ssctx, inputs, results, make_trace);
             };
 
             results.emplace(ins, trace(ins, [&] {
@@ -249,6 +310,7 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
+        assert(results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -257,50 +319,90 @@ template <class F>
 std::vector<argument> generic_eval(const program& p,
                                    context& ctx,
                                    std::unordered_map<std::string, argument> params,
-                                   F trace)
+                                   F make_trace)
 {
     const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, params, {}, trace);
+    return generic_eval(mm, ctx, params, {}, make_trace);
 }
 
 std::vector<argument> program::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
-    auto sctx          = ctx;
-    auto check_context = [&](auto f) {
-        assert(is_shared(ctx, sctx));
-        auto x = f();
-        sctx   = ctx;
-        return x;
+    auto with_check_context = [&](auto f) {
+        return [=, &ctx](auto&&) {
+            auto sctx          = std::make_shared<context>(ctx);
+            auto check_context = [=, &ctx](auto g) {
+                assert(is_shared(ctx, *sctx));
+                auto x = g();
+                *sctx  = ctx;
+                return x;
+            };
+            return [=](auto&&... xs) { return f(xs..., check_context); };
+        };
     };
 #else
-    auto check_context = [](auto f) { return f(); };
+    auto with_check_context = [](auto f) {
+        return [=](auto&&) {
+            return [=](auto&&... xs) { return f(xs..., [](auto g) { return g(); }); };
+        };
+    };
 #endif
 
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
 
     if(trace_level > 0)
     {
-        return generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
-            ctx.finish();
-            std::cout << "Run instruction: ";
-            this->debug_print(ins);
-            timer t{};
-            auto result = check_context(f);
-            double t1   = t.record<milliseconds>();
-            ctx.finish();
-            double t2 = t.record<milliseconds>();
-            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
-                std::cout << "Output: " << result << std::endl;
-            return result;
+        std::unordered_map<instruction_ref, std::string> ins_out;
+        // get instruction names
+        this->print([&](auto x, auto ins_names) {
+            std::stringstream ss;
+            instruction::print(ss, x, ins_names);
+            ins_out[x] = ss.str();
         });
+
+        return generic_eval(*this,
+                            ctx,
+                            std::move(params),
+                            with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                                ctx.finish();
+                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                                timer t{};
+                                auto result = check_context(f);
+                                double t1   = t.record<milliseconds>();
+                                ctx.finish();
+                                double t2 = t.record<milliseconds>();
+                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                                if(trace_level > 1 and ins->name().front() != '@' and
+                                   ins->name() != "load" and not result.empty())
+                                {
+                                    target tgt  = make_target(this->impl->target_name);
+                                    auto buffer = tgt.copy_from(result);
+                                    if(trace_level == 2)
+                                    {
+                                        std::cout << "Output has "
+                                                  << to_string_range(classify_argument(buffer))
+                                                  << std::endl;
+                                        std::cout << "Output: ";
+                                        preview_argument(std::cout, buffer);
+                                        std::cout << std::endl;
+                                    }
+                                    else
+                                    {
+                                        std::cout << "Output: " << buffer << std::endl;
+                                    }
+                                }
+                                return result;
+                            }));
     }
     else
     {
-        return generic_eval(
-            *this, ctx, std::move(params), [&](auto&, auto f) { return check_context(f); });
+        return generic_eval(*this,
+                            ctx,
+                            std::move(params),
+                            with_check_context([&](auto&, auto f, auto&& check_context) {
+                                return check_context(f);
+                            }));
     }
 }
 
@@ -483,7 +585,28 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
+void program::mark(const parameter_map& params, marker&& m)
+{
+    auto& ctx = this->impl->ctx;
+    // Run once by itself
+    eval(params);
+    ctx.finish();
+    // Start marking
+    m.mark_start(*this);
+    generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
+        argument result;
+        m.mark_start(ins);
+        result = f();
+        m.mark_stop(ins);
+        return result;
+    }));
+    m.mark_stop(*this);
+}
+
+void program::perf_report(std::ostream& os,
+                          std::size_t n,
+                          parameter_map params,
+                          std::size_t batch) const
 {
     auto& ctx = this->impl->ctx;
     // Run once by itself
@@ -502,21 +625,22 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(*this, ctx, params, [&](auto ins, auto) {
+    generic_eval(*this, ctx, params, always([&](auto ins, auto) {
         ins_vec[ins].reserve(n);
-        return argument{};
-    });
+        return argument{ins->get_shape(), nullptr};
+    }));
+
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, ctx, params, [&](auto ins, auto f) {
+        generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
             argument result;
             ins_vec[ins].push_back(time<milliseconds>([&] {
                 result = f();
                 ctx.finish();
             }));
             return result;
-        });
+        }));
     }
     for(auto&& p : ins_vec)
         std::sort(p.second.begin(), p.second.end());
@@ -575,7 +699,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     os << std::endl;
 
-    os << "Rate: " << rate << "/sec" << std::endl;
+    os << "Batch size: " << batch << std::endl;
+    os << "Rate: " << rate * batch << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"
@@ -624,6 +749,14 @@ void program::print(
     }
 }
 
+void program::print(
+    const std::function<void(instruction_ref ins,
+                             std::unordered_map<instruction_ref, std::string>)>& print_func) const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    this->print(names, print_func);
+}
+
 void program::print_graph(std::ostream& os, bool brief) const
 {
     const auto* mm = this->get_main_module();
@@ -645,7 +778,9 @@ void program::print_cpp(std::ostream& os) const
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
-    generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
+    generic_eval(*this, ctx, std::move(params), always([](auto ins, auto&&...) {
+        return argument{ins->get_shape(), nullptr};
+    }));
 }
 
 void program::annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const
@@ -689,11 +824,12 @@ void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputItera
     std::transform(mods.begin(), mods.end(), std::inserter(used, used.end()), [](auto&& mod) {
         return mod->name();
     });
-    transform_if(m.begin(),
-                 m.end(),
-                 out,
-                 [&](auto&& pp) { return not contains(used, pp.first); },
-                 [](auto&& pp) { return &pp.second; });
+    transform_if(
+        m.begin(),
+        m.end(),
+        out,
+        [&](auto&& pp) { return not contains(used, pp.first); },
+        [](auto&& pp) { return &pp.second; });
 }
 
 std::vector<const module*> program::get_modules() const
@@ -745,6 +881,22 @@ void program::remove_module(const std::string& name)
                impl->modules.at(name).end(),
                [&](auto&& ins) { return references_instruction(impl->modules, ins, name); }) &&
            "Instruction referenced in another module");
+
+    // if an instruction has an input out side of the current module, need to remove
+    // the instruction from its input's outputs
+    auto& mod = impl->modules.at(name);
+    for(auto ins : iterator_for(mod))
+    {
+        auto inputs = ins->inputs();
+        for(auto in : inputs)
+        {
+            if(not mod.has_instruction(in))
+            {
+                in->remove_output(ins);
+            }
+        }
+    }
+
     impl->modules.erase(name);
 }
 

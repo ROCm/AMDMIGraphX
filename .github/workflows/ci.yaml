@@ -14,12 +14,15 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
+
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: satackey/action-docker-layer-caching@v0.0.8
+    - uses: satackey/action-docker-layer-caching@v0.0.11
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -60,12 +63,14 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: satackey/action-docker-layer-caching@v0.0.8
+    - uses: satackey/action-docker-layer-caching@v0.0.11
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -80,10 +85,10 @@ jobs:
       uses: pat-s/always-upload-cache@v2.1.3
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
-            cppcheck-cache-
+            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
+            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -103,12 +108,14 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: satackey/action-docker-layer-caching@v0.0.8
+    - uses: satackey/action-docker-layer-caching@v0.0.11
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -127,7 +134,7 @@ jobs:
               -o -iname '*.cpp.in' \
               -o -iname '*.cl' \
           | grep -v 'build/' \
-          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-5.0 -style=file {} | diff - {}'
+          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
           find . -iname '*.py' \
           | grep -v 'build/'  \
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
@@ -136,16 +143,22 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
     - uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.6
+        python-version: 3.8
     - name: Install pyflakes
-      run: pip install pyflakes==2.3.1
+      run: pip install pyflakes==2.4.0 mypy==0.931
 
     - name: Run pyflakes
-      run: pyflakes examples/ tools/ src/ test/ doc/
+      run: |
+        pyflakes --version
+        pyflakes examples/ tools/ src/ test/ doc/
+        mypy --version
+        mypy tools/api.py
 
   linux:
 
@@ -161,18 +174,16 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-16.04
           - ubuntu-18.04
           - ubuntu-20.04
         configuration:
           - debug
           - release
           - codecov
-        exclude:
-          - os: ubuntu-16.04
-            configuration: debug
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
     - uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2
@@ -222,7 +233,7 @@ jobs:
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
-        rbuild build -d cget -s gh -t check \
+        rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \

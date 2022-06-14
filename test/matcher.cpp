@@ -7,19 +7,6 @@ namespace match = migraphx::match;
 
 MIGRAPHX_PRED_MATCHER(throws, migraphx::instruction_ref) { MIGRAPHX_THROW("Matcher throws"); }
 
-template <class M>
-migraphx::match::matcher_result find_match(migraphx::module& modl, M&& m)
-{
-    migraphx::match::matcher_result result;
-    for(auto ins : migraphx::iterator_for(modl))
-    {
-        result = migraphx::match::match_instruction(modl, ins, m);
-        if(result.result != modl.end())
-            return result;
-    }
-    return result;
-}
-
 void match1()
 {
     migraphx::module mm;
@@ -345,7 +332,7 @@ TEST_CASE(match_either_args_any1)
         match::name("sum")(match::either_arg(0, 1)(match::any().bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any2)
@@ -360,7 +347,7 @@ TEST_CASE(match_either_args_any2)
         match::either_arg(0, 1)(match::any().bind("x"), match::name("@literal").bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any3)
@@ -375,7 +362,7 @@ TEST_CASE(match_either_args_any3)
         match::either_arg(0, 1)(match::name("@literal").bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any4)
@@ -390,7 +377,7 @@ TEST_CASE(match_either_args_any4)
         match::either_arg(0, 1)(match::name("sum").bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum2});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any5)
@@ -405,7 +392,7 @@ TEST_CASE(match_either_args_any5)
         match::either_arg(0, 1)(match::any().bind("x"), match::name("sum").bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum2});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_all_of1)
@@ -760,10 +747,10 @@ TEST_CASE(match_bind1)
                  match::standard_shape())
                  .bind("pass");
     auto r = find_match(mm, m);
-    EXPECT(bool{r.instructions.at("one") == one});
-    EXPECT(bool{r.instructions.at("two") == two});
-    EXPECT(bool{r.instructions.at("sum") == sum});
-    EXPECT(bool{r.instructions.at("pass") == pass});
+    EXPECT(bool{r.instructions["one"] == one});
+    EXPECT(bool{r.instructions["two"] == two});
+    EXPECT(bool{r.instructions["sum"] == sum});
+    EXPECT(bool{r.instructions["pass"] == pass});
     EXPECT(bool{r.result == pass});
 }
 
@@ -808,9 +795,9 @@ TEST_CASE(match_bind_modules2)
                  match::standard_shape())
                  .bind("pass");
     auto r = find_match(*child, m);
-    EXPECT(bool{r.instructions.at("two") == two});
-    EXPECT(bool{r.instructions.at("sum") == sum});
-    EXPECT(bool{r.instructions.at("pass") == pass});
+    EXPECT(bool{r.instructions["two"] == two});
+    EXPECT(bool{r.instructions["sum"] == sum});
+    EXPECT(bool{r.instructions["pass"] == pass});
     EXPECT(bool{r.result == pass});
 }
 

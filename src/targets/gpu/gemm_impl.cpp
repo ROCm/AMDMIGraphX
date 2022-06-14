@@ -1,5 +1,6 @@
 #include <rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
+#include <migraphx/reduce_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -27,6 +28,22 @@ rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
+void blas_shape(const shape& s)
+{
+    if(s.lens().size() < 2)
+        return;
+    if(std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) { return i == 1; }))
+        MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
+    if(s.lens().size() < 3)
+        return;
+    shape batch_shape{s.type(),
+                      {s.lens().begin(), s.lens().end() - 2},
+                      {s.strides().begin(), s.strides().end() - 2}};
+    auto batch_shapes = reduce_dims({batch_shape});
+    if(batch_shapes.front().lens().size() != 1)
+        MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
+}
+
 template <class R, class... Ts, class... Us>
 R rocblas_invoke(R (*f)(Ts...), Us... xs)
 {
@@ -36,16 +53,29 @@ R rocblas_invoke(R (*f)(Ts...), Us... xs)
         return f(xs..., nullptr, nullptr);
 }
 
+static bool is_transposed(const shape& s)
+{
+    if(not s.transposed())
+        return false;
+    return s.strides().back() != 1;
+}
+
+static rocblas_int get_batch_stride(const argument& a)
+{
+    return a.get_shape().strides()[a.get_shape().strides().size() - 3];
+}
+
 template <class T>
 void gemm_impl(context& ctx,
                const shape& output_shape,
                const std::vector<argument>& args,
                T alpha,
                T beta,
-               bool int8_x4_format)
+               bool int8_x4_format,
+               bool compute_fp32)
 {
-    bool transa     = args[0].get_shape().transposed();
-    bool transb     = args[1].get_shape().transposed();
+    bool transa     = is_transposed(args[0].get_shape());
+    bool transb     = is_transposed(args[1].get_shape());
     auto n_dim      = output_shape.lens().size();
     auto dim_1      = n_dim - 1;
     auto dim_0      = n_dim - 2;
@@ -65,6 +95,11 @@ void gemm_impl(context& ctx,
         output_type = rocblas_datatype_i32_r;
     }
     auto compute_type = output_type;
+    if(compute_fp32)
+    {
+        if(arg_type == rocblas_datatype_f16_r)
+            compute_type = rocblas_datatype_f32_r;
+    }
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
     rocblas_gemm_flags flag =
@@ -77,8 +112,19 @@ void gemm_impl(context& ctx,
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
-        auto alpha_r    = as(alpha);
-        auto beta_r     = as(beta);
+        auto alpha_r = as(alpha);
+        auto beta_r  = as(beta);
+
+        // use void pointer to select different data type if using fp32 mode
+        void* alpha_v = &alpha_r;
+        void* beta_v  = &beta_r;
+
+        if(compute_fp32)
+        {
+            alpha_v = &alpha;
+            beta_v  = &beta;
+        }
+
         auto out_lens   = output_shape.lens();
         rocblas_int m   = out_lens[dim_0];
         rocblas_int n   = out_lens[dim_1];
@@ -104,14 +150,14 @@ void gemm_impl(context& ctx,
                            n,
                            m,
                            k,
-                           &alpha_r,
+                           alpha_v,
                            to_pointer(args.at(1)),
                            arg_type,
                            ldb,
                            to_pointer(args.at(0)),
                            arg_type,
                            lda,
-                           &beta_r,
+                           beta_v,
                            to_pointer(args[2]),
                            output_type,
                            ldc,
@@ -125,6 +171,9 @@ void gemm_impl(context& ctx,
         }
         else
         {
+            auto a_stride = get_batch_stride(args[0]);
+            auto b_stride = get_batch_stride(args[1]);
+            auto c_stride = get_batch_stride(args[2]);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                            ctx.get_stream().get_rocblas(),
                            transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -132,24 +181,24 @@ void gemm_impl(context& ctx,
                            n,
                            m,
                            k,
-                           &alpha_r,
+                           alpha_v,
                            to_pointer(args.at(1)),
                            arg_type,
                            ldb,
-                           k * n,
+                           b_stride,
                            to_pointer(args.at(0)),
                            arg_type,
                            lda,
-                           m * k,
-                           &beta_r,
+                           a_stride,
+                           beta_v,
                            to_pointer(args[2]),
                            output_type,
                            ldc,
-                           m * n,
+                           c_stride,
                            is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                            output_type,
                            ldc,
-                           m * n,
+                           c_stride,
                            num_matrices,
                            compute_type,
                            rocblas_gemm_algo_standard,
@@ -164,9 +213,10 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           float alpha,
           float beta,
-          bool int8_x4_format)
+          bool int8_x4_format,
+          bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
 }
 
 void gemm(context& ctx,
@@ -174,9 +224,10 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           int32_t alpha,
           int32_t beta,
-          bool int8_x4_format)
+          bool int8_x4_format,
+          bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
 }
 
 } // namespace gpu

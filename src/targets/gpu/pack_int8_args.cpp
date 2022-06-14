@@ -22,10 +22,10 @@ static instruction_ref pad_ins(module& m, instruction_ref ins, int offset)
     auto pad_k                     = (k + 3) / 4 * 4;
     auto pad_lens                  = lens;
     pad_lens[lens.size() + offset] = pad_k;
-    std::vector<int64_t> pad_dims(lens.size() * 2, 0);
-    auto ret_ins = ins;
+    auto ret_ins                   = ins;
     if(pad_k != k)
     {
+        std::vector<int64_t> pad_dims(lens.size() * 2, 0);
         pad_dims[lens.size() + offset] = pad_k - k;
         shape ps{s.type(), pad_lens};
         auto ins_out =
@@ -55,7 +55,8 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
             auto t_in  = in0->inputs().front();
             auto p_in  = pad_ins(m, t_in, offset);
             auto dims  = val.at("dims").to_vector<int64_t>();
-            auto r_in  = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+            auto r_in =
+                m.insert_instruction(ins, make_op("transpose", {{"permutation", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else
@@ -85,7 +86,8 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
             auto t_in  = in1->inputs().front();
             auto p_in  = pad_ins(m, t_in, offset);
             auto dims  = val.at("dims").to_vector<int64_t>();
-            auto r_in  = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+            auto r_in =
+                m.insert_instruction(ins, make_op("transpose", {{"permutation", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else
@@ -116,7 +118,7 @@ void pack_int8_args::apply(module& m) const
             assert(val.contains("int8_x4_format"));
             if(not val.at("int8_x4_format").to<bool>())
             {
-                return;
+                continue;
             }
             auto inputs = ins->inputs();
             auto lens   = inputs.at(0)->get_shape().lens();
@@ -154,6 +156,12 @@ void pack_int8_args::apply(module& m) const
         }
         else if(ins->name() == "gpu::quant_convolution")
         {
+            auto val = ins->get_operator().to_value();
+            if(not val.at("int8_x4_format").to<bool>())
+            {
+                continue;
+            }
+
             auto inputs   = ins->inputs();
             auto packed_x = m.insert_instruction(
                 ins,

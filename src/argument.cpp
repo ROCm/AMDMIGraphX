@@ -8,7 +8,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 argument::argument(const shape& s) : m_shape(s)
 {
     auto buffer = make_shared_array<char>(s.bytes());
-    m_data      = {[=]() mutable { return buffer.get(); }};
+    assign_buffer({[=]() mutable { return buffer.get(); }});
 }
 
 argument::argument(shape s, std::nullptr_t)
@@ -18,14 +18,17 @@ argument::argument(shape s, std::nullptr_t)
 
 argument::argument(const shape& s, const argument::data_t& d) : m_shape(s), m_data(d) {}
 
-argument argument::load(const shape& s, char* buffer)
+void argument::assign_buffer(std::function<char*()> d)
 {
+    const shape& s = m_shape;
     if(s.type() != shape::tuple_type)
-        return argument{s, buffer};
+    {
+        m_data = {std::move(d)};
+        return;
+    }
     // Collect all shapes
     std::unordered_map<std::size_t, shape> shapes;
     {
-        // cppcheck-suppress variableScope
         std::size_t i = 0;
         fix([&](auto self, auto ss) {
             if(ss.sub_shapes().empty())
@@ -56,21 +59,23 @@ argument argument::load(const shape& s, char* buffer)
     }
     assert(offset == s.bytes());
 
-    // cppcheck-suppress variableScope
     std::size_t i = 0;
-    return fix<argument>([&](auto self, auto ss) {
+    m_data        = fix<data_t>([&](auto self, auto ss) {
+        data_t result;
         if(ss.sub_shapes().empty())
         {
-            argument r{shapes[i], buffer + offsets[i]};
+            auto n = offsets[i];
+            result = {[d, n]() mutable { return d() + n; }};
             i++;
-            return r;
+            return result;
         }
-        std::vector<argument> subs;
+        std::vector<data_t> subs;
         std::transform(ss.sub_shapes().begin(),
                        ss.sub_shapes().end(),
                        std::back_inserter(subs),
                        [&](auto child) { return self(child); });
-        return argument{subs};
+        result.sub = subs;
+        return result;
     })(s);
 }
 
@@ -99,7 +104,11 @@ bool argument::empty() const { return not m_data.get and m_data.sub.empty(); }
 
 const shape& argument::get_shape() const { return this->m_shape; }
 
-argument argument::reshape(const shape& s) const { return {s, this->m_data}; }
+argument argument::reshape(const shape& s) const
+{
+    assert(s.element_space() <= this->get_shape().element_space());
+    return {s, this->m_data};
+}
 
 argument::data_t argument::data_t::share() const
 {
@@ -146,6 +155,14 @@ std::vector<argument> argument::get_sub_objects() const
                        return argument{s, d};
                    });
     return result;
+}
+
+argument argument::element(std::size_t i) const
+{
+    assert(this->get_shape().sub_shapes().empty());
+    auto idx    = this->get_shape().index(i);
+    auto offset = this->get_shape().type_size() * idx;
+    return argument{shape{this->get_shape().type()}, this->data() + offset};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

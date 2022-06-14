@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 ARG PREFIX=/usr/local
 
@@ -6,32 +6,30 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/4.2/ xenial main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.0.2/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
-    clang-format-5.0 \
+    clang-format-10 \
     cmake \
     curl \
     doxygen \
-    g++-5 \
     g++-7 \
     gdb \
     git \
     lcov \
     locales \
     pkg-config \
-    python \
-    python-dev \
-    python-pip \
     python3 \
     python3-dev \
     python3-pip \
     software-properties-common \
     wget \
     rocm-device-libs \
+    hip-base \
+    libnuma-dev \
     miopen-hip \
     rocblas \
     zlib1g-dev && \
@@ -57,6 +55,7 @@ ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+RUN test -f /usr/local/hash || exit 1
 
 # Install yapf
 RUN pip3 install yapf==0.28.0

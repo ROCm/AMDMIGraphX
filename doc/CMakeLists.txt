@@ -1,22 +1,24 @@
+project(migraphx-doc)
+find_package(ROCM REQUIRED)
 
-include(DoxygenDoc)
+include(ROCMDoxygenDoc)
 
-set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen/)
-add_doxygen_doc(
+set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen)
+rocm_add_doxygen_doc(
     OUTPUT_DIRECTORY ${DOXYGEN_OUTPUT}
     INPUT 
-        ${PROJECT_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src
     INCLUDE_PATH
-        ${PROJECT_SOURCE_DIR}/src/include
-        ${PROJECT_SOURCE_DIR}/src/targets/cpu/include
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_SOURCE_DIR}/src/include
+        ${CMAKE_SOURCE_DIR}/src/targets/cpu/include
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/include
     STRIP_FROM_INC_PATH
-        ${PROJECT_SOURCE_DIR}/src/include
-        ${PROJECT_SOURCE_DIR}/src/targets/cpu/include
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_SOURCE_DIR}/src/include
+        ${CMAKE_SOURCE_DIR}/src/targets/cpu/include
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/include
     EXCLUDE_PATTERNS
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/kernels
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/device
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/kernels
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/device
     SEARCH_INCLUDES YES
     MACRO_EXPANSION YES
     RECURSIVE YES
@@ -36,13 +38,14 @@ add_doxygen_doc(
     EXTRACT_ALL YES
     ENUM_VALUES_PER_LINE 1
     FULL_PATH_NAMES YES
+    WARN_LOGFILE "${DOXYGEN_OUTPUT}/DoxygenWarningLog.txt"
     PREDEFINED DOXYGEN
 )
 
-include(SphinxDoc)
-add_sphinx_doc(src 
+include(ROCMSphinxDoc)
+rocm_add_sphinx_doc(src 
     BUILDER html 
-    OUTPUT_DIR html 
+    OUTPUT_DIR html
     VARS 
         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
         breathe_default_project=proj
@@ -51,7 +54,7 @@ add_sphinx_doc(src
 
 find_package(LATEX)
 if(LATEX_FOUND)
-    add_sphinx_doc(src 
+    rocm_add_sphinx_doc(src 
         BUILDER latex
         OUTPUT_DIR pdf
         VARS 
@@ -60,6 +63,6 @@ if(LATEX_FOUND)
         DEPENDS doxygen
     )
 else()
-    message("Latex builder not found. Latex builder is required only for building the PDF documentation for MIGraph and is not necessary for building the library, or any other components. To build PDF documentation run make in ${CMAKE_CURRENT_SOURCE_DIR}/pdf, once a latex builder is installed.")
+    message("Latex builder not found. Latex builder is required only for building the PDF documentation for MIGraphX and is not necessary for building the library, or any other components. To build PDF documentation run make in ${CMAKE_CURRENT_SOURCE_DIR}/pdf, once a latex builder is installed.")
 endif()
 

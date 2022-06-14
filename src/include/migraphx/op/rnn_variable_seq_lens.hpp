@@ -37,7 +37,7 @@ struct rnn_var_sl_shift_output
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        int64_t max_len = static_cast<int64_t>(output_shape.lens()[0]);
+        int64_t max_len = output_shape.lens()[0];
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(output)::value_type;
             args[1].visit([&](auto seq_lens) {
@@ -76,7 +76,7 @@ struct rnn_var_sl_shift_sequence
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        int64_t max_len = static_cast<int64_t>(output_shape.lens()[0]);
+        int64_t max_len = output_shape.lens()[0];
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(output)::value_type;
             args[1].visit([&](auto seq_lens) {

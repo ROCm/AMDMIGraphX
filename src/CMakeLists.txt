@@ -7,6 +7,7 @@ include(CheckCXXLinkerFlag)
 add_library(migraphx 
     adjust_allocation.cpp
     analyze_streams.cpp
+    apply_alpha_beta.cpp
     argument.cpp
     auto_contiguous.cpp
     common.cpp
@@ -14,7 +15,6 @@ add_library(migraphx
     convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
-    decompose.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
@@ -26,6 +26,7 @@ add_library(migraphx
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fuse_pointwise.cpp
     generate.cpp
     inline_module.cpp
     insert_pad.cpp
@@ -38,6 +39,7 @@ add_library(migraphx
     msgpack.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
+    op_enums.cpp
     operation.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
@@ -48,10 +50,12 @@ add_library(migraphx
     program.cpp
     propagate_constant.cpp
     quantization.cpp
+    quantize_fp16.cpp
+    quantize_int8.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
-    remap.cpp
+    simplify_qdq.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
@@ -106,12 +110,14 @@ register_migraphx_ops(
     flatten
     floor
     gather
+    gathernd
     get_tuple_elem
     greater
     gru
     identity
     if_op
     im2col
+    isnan
     layout
     leaky_relu
     less
@@ -121,15 +127,20 @@ register_migraphx_ops(
     logical_or
     logical_xor
     logsoftmax
+    loop
     lrn
     lstm
     max
     min
     mul
     multibroadcast
+    multinomial
     neg
+    nonmaxsuppression
+    nonzero
     outline
     pad
+    pointwise
     pooling
     pow
     prefix_scan_sum
@@ -150,10 +161,16 @@ register_migraphx_ops(
     rnn_last_cell_output
     rnn_last_hs_output
     rnn_var_sl_last_output
+    roialign
     round
     rsqrt
     scalar
-    scatter
+    scatter_add
+    scatter_mul
+    scatter_none
+    scatternd_add
+    scatternd_mul
+    scatternd_none
     sigmoid
     sign
     sinh
@@ -167,11 +184,13 @@ register_migraphx_ops(
     sub
     tanh
     tan
+    topk
     transpose
     unary_not
     undefined
     unknown
     unsqueeze
+    where
 )
 register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::rnn_var_sl_shift_output op::rnn_var_sl_shift_sequence)
 register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)
@@ -193,13 +212,15 @@ target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 
+find_package(Threads)
+target_link_libraries(migraphx PUBLIC Threads::Threads)
+
 find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 
 set(PACKAGE_DEPENDS)
 
@@ -210,6 +231,7 @@ add_subdirectory(tf)
 
 add_subdirectory(py)
 add_subdirectory(targets/ref)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 if(MIGRAPHX_ENABLE_CPU)
 add_subdirectory(targets/cpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
@@ -227,9 +249,10 @@ if(HAVE_HALF_EXPR)
 endif()
 
 rocm_export_targets(
-  TARGETS migraphx::migraphx migraphx_all_targets
+  TARGETS migraphx::migraphx_c
   NAMESPACE migraphx::
   DEPENDS
+    Threads
     ${PACKAGE_DEPENDS}
 )
  

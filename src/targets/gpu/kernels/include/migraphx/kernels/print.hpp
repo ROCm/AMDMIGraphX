@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_PRINT_HPP
 #define MIGRAPHX_GUARD_KERNELS_PRINT_HPP
 
-#include <hip/hip_runtime.h>
+#include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/algorithm.hpp>
@@ -139,6 +139,10 @@ struct basic_printer
     __host__ __device__ const basic_printer& operator<<(unsigned long value) const
     {
         return print_ulong(value);
+    }
+    __host__ __device__ const basic_printer& operator<<(migraphx::half value) const
+    {
+        return print_double(value);
     }
     __host__ __device__ const basic_printer& operator<<(float value) const
     {

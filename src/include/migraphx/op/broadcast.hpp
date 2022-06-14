@@ -30,7 +30,7 @@ struct broadcast
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "dims"));
+        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "out_lens"));
     }
 
     std::string name() const { return "broadcast"; }
@@ -67,7 +67,6 @@ struct broadcast
     {
         return args[0].reshape(output_shape);
     }
-    lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

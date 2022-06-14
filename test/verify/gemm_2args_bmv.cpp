@@ -16,7 +16,7 @@ struct gemm_2args_bmv : verify_program<gemm_2args_bmv>
         auto l2   = mm->add_parameter("2", m2_shape);
         auto ul2  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l2);
         auto bul2 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 3, 5, 1}}}), ul2);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5, 1}}}), ul2);
 
         mm->add_instruction(migraphx::make_op("dot"), l1, bul2);
 

@@ -178,14 +178,58 @@ def shapes(h):
              returns='const migraphx::shape&')
 
 
+@api.handle('migraphx_instruction', 'migraphx::instruction_ref')
+def instruction(h):
+    pass
+
+
+@api.handle('migraphx_instructions', 'std::vector<migraphx::instruction_ref>')
+def instructions(h):
+    h.constructor(
+        'create',
+        api.params(ptr='const_migraphx_instruction_t*', size='size_t'),
+        fname='migraphx::to_obj_vector<const_migraphx_instruction_t>')
+
+
+@api.handle('migraphx_modules', 'std::vector<migraphx::module*>')
+def modules(h):
+    h.constructor('create',
+                  api.params(ptr='migraphx_module_t*', size='size_t'),
+                  fname='migraphx::to_objptr_vector<migraphx::module*>')
+
+
 @auto_handle(ref=True)
 def module(h):
+    h.constructor('create', api.params(name='std::string'))
     h.method('print', invoke='migraphx::print_module($@)', const=True)
+    h.method('add_instruction',
+             api.params(op='migraphx::operation',
+                        args='std::vector<migraphx::instruction_ref>'),
+             returns='migraphx::instruction_ref')
+    h.method('add_instruction_with_mod_args',
+             api.params(op='migraphx::operation',
+                        args='std::vector<migraphx::instruction_ref>',
+                        module_refs='std::vector<migraphx::module*>'),
+             fname='add_instruction',
+             returns='migraphx::instruction_ref')
+    h.method('add_literal',
+             api.params(shape='const migraphx::shape&', buffer='const char*'),
+             returns='migraphx::instruction_ref')
+    h.method('add_parameter',
+             api.params(name='const char*', shape='const migraphx::shape&'),
+             returns='migraphx::instruction_ref')
+    h.method('add_return',
+             api.params(args='std::vector<migraphx::instruction_ref>'),
+             returns='migraphx::instruction_ref')
 
 
 @auto_handle()
 def program(h):
+    h.constructor('create')
     h.method('get_main_module', returns='migraphx::module*')
+    h.method('create_module',
+             api.params(name='const char*'),
+             returns='migraphx::module*')
     h.method(
         'compile',
         api.params(target='migraphx::target',
@@ -207,12 +251,18 @@ def program(h):
              invoke='migraphx::equal($@)',
              returns='bool',
              const=True)
+    h.method('experimental_get_context',
+             invoke='migraphx::get_context($@)',
+             const=True,
+             returns='migraphx::context')
 
 
 @auto_handle()
 def operation(h):
     h.constructor('create',
-                  api.params(name='const char*', attributes='const char*'),
+                  api.params(name='const char*',
+                             attributes='const char*',
+                             vlist='...'),
                   fname='migraphx::create_op')
     h.method('name', returns='std::string')
 
@@ -243,6 +293,30 @@ def onnx_options(h):
         api.params(value='size_t'),
         invoke='migraphx::set_default_dim_value($@)',
     )
+    h.method(
+        'set_default_loop_iterations',
+        api.params(value='int64_t'),
+        invoke='migraphx::set_default_loop_iterations($@)',
+    )
+
+
+@auto_handle()
+def file_options(h):
+    h.constructor('create')
+    h.method('set_file_format',
+             api.params(format='const char*'),
+             invoke='migraphx::set_file_format($@)')
+
+
+@auto_handle()
+def compile_options(h):
+    h.constructor('create')
+    h.method('set_offload_copy',
+             api.params(value='bool'),
+             invoke='migraphx::set_offload_copy($@)')
+    h.method('set_fast_math',
+             api.params(value='bool'),
+             invoke='migraphx::set_fast_math($@)')
 
 
 api.add_function('migraphx_parse_onnx',
@@ -327,3 +401,19 @@ api.add_function('migraphx_quantize_int8',
                             target='migraphx::target',
                             options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')
+
+
+@auto_handle(ref=True)
+def context(h):
+    h.method('finish', const=True)
+    h.method('get_queue', returns='void*', fname='get_queue().unsafe_get')
+
+
+@api.interface('migraphx_experimental_custom_op',
+               'migraphx::experimental_custom_op')
+def experimental_custom_op(h):
+    h.constructor('create', api.params(name='const char*'))
+    h.virtual('compute_shape',
+              api.params(inputs='std::vector<migraphx::shape>'),
+              returns='migraphx::shape')
+    h.method('register', invoke='migraphx::register_custom_op($@)')

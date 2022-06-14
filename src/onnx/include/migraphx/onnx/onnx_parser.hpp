@@ -32,9 +32,20 @@ struct onnx_parser
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,
                                  uint64_t axis) const;
+
         instruction_ref add_broadcastable_binary_op(const std::string& op_name,
                                                     instruction_ref arg0,
                                                     instruction_ref arg1) const;
+
+        instruction_ref add_common_op(const std::string& op_name,
+                                      std::vector<instruction_ref> inputs) const;
+
+        template <class... Ts>
+        instruction_ref add_common_op(const std::string& op_name, Ts... xs) const
+        {
+            return add_common_op(op_name, {xs...});
+        }
+
         instruction_ref add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const;
 
@@ -63,6 +74,7 @@ struct onnx_parser
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     bool skip_unknown_operators = false;
+    int64_t max_loop_iterations = 10;
     int64_t opset_version       = 13;
 
     std::unordered_map<std::string, op_func> ops;

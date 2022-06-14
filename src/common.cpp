@@ -96,7 +96,7 @@ instruction_ref insert_common_op(module& m,
         if(input->get_shape().lens() != common.lens())
         {
             input = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"output_lens", common.lens()}}), input);
+                ins, make_op("multibroadcast", {{"out_lens", common.lens()}}), input);
         }
         if(input->get_shape().type() != common.type())
         {

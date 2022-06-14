@@ -2,6 +2,9 @@
 
 #if defined(__GNUC__) && __GNUC__ <= 5
 namespace std {
+#ifdef MIGRAPHX_ENABLE_ZENDNN
+namespace dnnl = zendnn;
+#endif
 template <>
 struct hash<dnnl::algorithm>
 {
@@ -70,7 +73,7 @@ dnnl::memory::desc to_dnnl_memory_desc(const shape& s)
 
 dnnl::memory to_dnnl_memory(const dnnl::memory::desc& desc, const argument& a)
 {
-    return dnnl::memory(desc, get_dnnl_context().engine, a.data());
+    return {desc, get_dnnl_context().engine, a.data()};
 }
 
 dnnl::memory to_dnnl_memory(const argument& a)

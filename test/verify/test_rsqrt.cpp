@@ -16,9 +16,9 @@ struct test_rsqrt : verify_program<test_rsqrt>
         auto min_val = mm->add_literal(1.0f);
         auto max_val = mm->add_literal(std::numeric_limits<float>::max());
         min_val      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
         max_val = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
         auto l0 = mm->add_instruction(migraphx::make_op("clip"), x, min_val, max_val);
         mm->add_instruction(migraphx::make_op("rsqrt"), l0);
         return p;

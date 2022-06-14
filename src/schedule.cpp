@@ -42,7 +42,7 @@ struct stream_info
     std::unordered_map<instruction_ref, std::size_t> iweights;
     ins_dep_map mod_implicit_deps;
 
-    void calc_implicit_deps(const module& p) { mod_implicit_deps = p.calc_implicit_deps(); }
+    void calc_implicit_deps(const module& m) { mod_implicit_deps = m.calc_implicit_deps(); }
 
     void accumulate_weights(instruction_ref last, const schedule_model& model)
     {
@@ -116,15 +116,15 @@ struct stream_info
         }
     };
 
-    std::size_t assign_streams(module& p, std::size_t n)
+    std::size_t assign_streams(module& m, std::size_t n)
     {
         assert(n > 0);
         partition critical;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
         fix([&](auto self, auto ins, auto& part) {
-            assert(not is_end(ins, p.end()));
-            if(not p.has_instruction(ins))
+            assert(not is_end(ins, m.end()));
+            if(not m.has_instruction(ins))
                 return;
             if(contains(partitions, ins))
                 return;
@@ -151,8 +151,8 @@ struct stream_info
                 }
             }
             // Sort instructions
-            p.move_instruction(ins, p.end());
-        })(std::prev(p.end()), critical);
+            m.move_instruction(ins, m.end());
+        })(std::prev(m.end()), critical);
 
         // Set the critical partition to stream 0
         set_stream(critical, 0);
@@ -197,13 +197,13 @@ struct stream_info
         }
     };
 
-    void sort(module& p, std::size_t)
+    void sort(module& m, std::size_t)
     {
         std::set<weight_ins, compare_weight_ins> children;
         std::unordered_map<instruction_ref, std::size_t> visited;
-        auto last      = std::prev(p.end());
+        auto last      = std::prev(m.end());
         auto mw        = this->weights.at(last);
-        auto nw        = mw / (p.size() + 1);
+        auto nw        = mw / (m.size() + 1);
         auto add_child = [&](auto ins) {
             auto x  = 1 + (mw - this->weights.at(ins)) / (nw + 1);
             auto w  = x * this->iweights.at(ins);
@@ -222,10 +222,10 @@ struct stream_info
             // Pop the first element
             auto top = children.begin()->second;
             children.erase(children.begin());
-            p.move_instruction(top, p.begin());
+            m.move_instruction(top, m.begin());
             for(auto ins : top->inputs())
             {
-                if(not p.has_instruction(ins))
+                if(not m.has_instruction(ins))
                     continue;
                 add_child(ins);
             }
@@ -234,10 +234,22 @@ struct stream_info
             {
                 for(auto ins : mod_implicit_deps.at(top))
                 {
-                    assert(p.has_instruction(ins));
+                    assert(m.has_instruction(ins));
                     add_child(ins);
                 }
             }
+        }
+
+        // move dangling parameter to the front so as not be removed
+        auto ins = std::next(last);
+        while(ins != m.end())
+        {
+            auto next = std::next(ins);
+            if(ins->name() == "@param")
+            {
+                m.move_instruction(ins, m.begin());
+            }
+            ins = next;
         }
     }
 
@@ -352,18 +364,18 @@ struct stream_info
     }
 
     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
-    find_concurrent_instructions(module& p) const
+    find_concurrent_instructions(module& m) const
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
-        dominator_info di = compute_dominator(p);
-        result.reserve(p.size());
-        merge_from.reserve(p.size());
-        for(auto ins : reverse_iterator_for(p))
+        dominator_info di = compute_dominator(m);
+        result.reserve(m.size());
+        merge_from.reserve(m.size());
+        for(auto ins : reverse_iterator_for(m))
         {
             for(auto&& arg : ins->outputs())
             {
-                if(not p.has_instruction(arg))
+                if(not m.has_instruction(arg))
                     continue;
                 if(is_merge_point(arg))
                     merge_from[ins].insert(arg);
@@ -403,18 +415,18 @@ struct stream_info
     }
 
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
-    get_conflicts(module& p)
+    get_conflicts(module& m)
     {
 
         using conflict_table_type =
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
-        auto concur_ins = this->find_concurrent_instructions(p);
+        auto concur_ins = this->find_concurrent_instructions(m);
 
         // Compute an index for each instruction
         std::unordered_map<instruction_ref, std::size_t> ins2index;
         std::size_t index_total = 0;
-        for(auto ins : iterator_for(p))
+        for(auto ins : iterator_for(m))
             ins2index[ins] = index_total++;
 
         std::vector<conflict_table_type> thread_conflict_tables(
@@ -495,21 +507,24 @@ struct stream_info
     }
 };
 
-void schedule::apply(module& p) const
+void schedule::apply(module& m) const
 {
     if(not enable)
         return;
 
     stream_info si;
-    si.calc_implicit_deps(p);
-    auto last = std::prev(p.end());
+    si.calc_implicit_deps(m);
+    auto last = std::prev(m.end());
     si.accumulate_weights(last, model);
-    auto nstreams = si.assign_streams(p, model.concurrency());
-    si.sort(p, model.concurrency());
+    auto nstreams = si.assign_streams(m, model.concurrency());
+    si.sort(m, model.concurrency());
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {
-        p.annotate(std::cout, [&](auto ins) {
+        m.annotate(std::cout, [&](auto ins) {
+            if(ins->name() == "@param" and not contains(si.weights, ins))
+                return;
+
             std::cout << ":";
             std::cout << " weight=" << si.weights.at(ins);
             std::cout << " input={";
@@ -533,9 +548,9 @@ void schedule::apply(module& p) const
     std::unordered_map<instruction_ref, std::size_t> ins2wait;
     std::unordered_map<std::size_t, std::unordered_set<std::size_t>> waited_for;
     std::unordered_map<instruction_ref, std::unordered_set<std::size_t>> ins2waited;
-    ins2wait.reserve(p.size());
-    ins2waited.reserve(p.size());
-    for(auto ins : iterator_for(p))
+    ins2wait.reserve(m.size());
+    ins2waited.reserve(m.size());
+    for(auto ins : iterator_for(m))
     {
         // Only schedule instructions that have a stream
         if(not si.has_stream(ins))
@@ -544,29 +559,27 @@ void schedule::apply(module& p) const
         // Schedule instruction on the stream
         auto stream = si.get_stream(ins);
         assert(stream < model.concurrency());
-        model.sched(p, ins, stream);
+        model.sched(m, ins, stream);
         // Insert wait instructions
         if(si.is_merge_point(ins, stream))
         {
             for(auto i : si.get_recorded_instructions(ins))
             {
-                if(not si.has_stream(i))
+                if(not si.has_stream(i) or si.get_stream(i) == stream)
                     continue;
-                auto istream = si.get_stream(i);
-                if(stream == istream)
-                    continue;
+
                 // Create a new event if it hasn't been recorded
                 if(not contains(ins2wait, i))
                 {
                     ins2wait[i] = wait_id;
-                    model.record(p, i, wait_id);
+                    model.record(m, i, wait_id);
                     wait_id++;
                 }
                 auto w = ins2wait.at(i);
                 // If we already waited for the event on this stream then dont
                 // insert another wait event
                 if(not contains(waited_for[stream], w))
-                    model.wait(p, ins, w);
+                    model.wait(m, ins, w);
                 // Store the event as waited
                 waited_for[stream].insert(w);
                 // Store all wait events that have been waited on prior to the recorded instruction
@@ -581,7 +594,7 @@ void schedule::apply(module& p) const
     }
 
     // Add memory conflicts
-    auto conflict_table = si.get_conflicts(p);
+    auto conflict_table = si.get_conflicts(m);
     for(auto&& ip : conflict_table)
     {
         if(ip.second.empty())
@@ -589,7 +602,7 @@ void schedule::apply(module& p) const
         std::vector<instruction_ref> args;
         args.push_back(ip.first);
         args.insert(args.end(), ip.second.begin(), ip.second.end());
-        p.insert_instruction(std::next(ip.first), make_op("identity"), args);
+        m.insert_instruction(std::next(ip.first), make_op("identity"), args);
     }
 }
 

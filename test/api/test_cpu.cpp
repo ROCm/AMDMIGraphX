@@ -163,4 +163,16 @@ TEST_CASE(get_main_module)
     p.print();
 }
 
+TEST_CASE(set_loop_default_iter_num)
+{
+    migraphx::onnx_options option;
+    option.set_default_loop_iterations(15);
+    auto p                             = migraphx::parse_onnx("loop_default_test.onnx", option);
+    auto out_shapes                    = p.get_output_shapes();
+    std::vector<std::size_t> out_lens0 = {1};
+    EXPECT(out_shapes[0].lengths() == out_lens0);
+    std::vector<std::size_t> out_lens1 = {15, 1};
+    EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

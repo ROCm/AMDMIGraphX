@@ -23,6 +23,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
 struct program_impl;
 
+struct marker;
+
 /**
  * @brief Stores the instruction stream
  */
@@ -65,7 +67,10 @@ struct program
 
     void finalize();
 
-    void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
+    void
+    perf_report(std::ostream& os, std::size_t n, parameter_map params, std::size_t batch = 1) const;
+
+    void mark(const parameter_map& params, marker&& m);
 
     value to_value() const;
     void from_value(const value& v);
@@ -74,6 +79,9 @@ struct program
     void debug_print(instruction_ref ins) const;
     void print(std::unordered_map<instruction_ref, std::string>& names,
                const std::function<void(instruction_ref,
+                                        std::unordered_map<instruction_ref, std::string>)>&
+                   print_func) const;
+    void print(const std::function<void(instruction_ref ins,
                                         std::unordered_map<instruction_ref, std::string>)>&
                    print_func) const;
 

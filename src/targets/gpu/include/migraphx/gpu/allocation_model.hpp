@@ -3,6 +3,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <string>
 
 namespace migraphx {

@@ -18,24 +18,24 @@ add_layernorm(migraphx::module& m, migraphx::instruction_ref x, std::vector<size
 
     auto mean = m.add_instruction(migraphx::op::reduce_mean({2}), x);
     auto mean_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", dims}}), mean);
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
     auto sub = m.add_instruction(migraphx::make_op("sub"), x, mean_mbcast);
     auto exponent_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", dims}}), exponent);
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), exponent);
     auto pow            = m.add_instruction(migraphx::make_op("pow"), sub, exponent_mbcast);
     auto var            = m.add_instruction(migraphx::op::reduce_mean({2}), pow);
     auto epsilon_mbcast = m.add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", {1, dims.at(1), 1}}}), epsilon);
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, dims.at(1), 1}}}), epsilon);
     auto add_epsilon = m.add_instruction(migraphx::make_op("add"), var, epsilon_mbcast);
     auto sqrt        = m.add_instruction(migraphx::make_op("sqrt"), add_epsilon);
     auto sqrt_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", dims}}), sqrt);
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), sqrt);
     auto div = m.add_instruction(migraphx::make_op("div"), sub, sqrt_mbcast);
     auto scale_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", dims}}), scale);
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), scale);
     auto mul = m.add_instruction(migraphx::make_op("mul"), scale_mbcast, div);
     auto bias_mbcast =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", dims}}), bias);
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), bias);
     return m.add_instruction(migraphx::make_op("add"), mul, bias_mbcast);
 }
 
@@ -72,6 +72,23 @@ struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
         migraphx::program p;
         auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 4, 24};
+        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+        auto y    = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});
+        auto z    = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, dims});
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
+        add_layernorm(*mm, add2, dims);
+        return p;
+    }
+};
+
+struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 384, 1024};
         auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         auto y    = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});
         auto z    = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, dims});

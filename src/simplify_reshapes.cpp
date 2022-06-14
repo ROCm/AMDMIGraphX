@@ -70,19 +70,19 @@ struct find_reshaper
             match::any_of[match::outputs()](match::name(reshaper_names())));
     }
 
-    void apply(module& p, const match::matcher_result& mr) const
+    void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         std::vector<instruction_ref> reshapes{ins};
         while(is_reshaper(reshapes.back()))
         {
             assert(!reshapes.back()->inputs().empty());
-            assert(p.has_instruction(reshapes.back()->inputs().front()));
+            assert(m.has_instruction(reshapes.back()->inputs().front()));
             auto input = reshapes.back()->inputs().front();
             reshapes.push_back(input);
         }
 
-        std::pair<instruction_ref, instruction_ref> r{p.end(), p.end()};
+        std::pair<instruction_ref, instruction_ref> r{m.end(), m.end()};
         for(auto start : iterator_for(reshapes))
         {
             auto last = std::find_if(reshapes.rbegin(), reshapes.rend(), [&](auto&& i) {
@@ -96,7 +96,7 @@ struct find_reshaper
         }
         if(r.first != r.second)
         {
-            p.replace_instruction(r.first, r.second);
+            m.replace_instruction(r.first, r.second);
         }
     }
 };
@@ -117,10 +117,10 @@ struct find_nop_reshapes
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 
-    void apply(module& p, const match::matcher_result& mr) const
+    void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
-        p.replace_instruction(ins, ins->inputs().front());
+        m.replace_instruction(ins, ins->inputs().front());
     }
 };
 
@@ -132,7 +132,7 @@ struct find_transpose
             match::skip_output(match::name("contiguous"))(match::name("transpose"))));
     }
 
-    void apply(module& p, const match::matcher_result& mr) const
+    void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         auto x   = ins;
@@ -149,11 +149,12 @@ struct find_transpose
             return;
         if(is_no_transpose(dims))
         {
-            p.replace_instruction(ins, t->inputs().front());
+            m.replace_instruction(ins, t->inputs().front());
         }
         else
         {
-            p.replace_instruction(ins, make_op("transpose", {{"dims", dims}}), t->inputs().front());
+            m.replace_instruction(
+                ins, make_op("transpose", {{"permutation", dims}}), t->inputs().front());
         }
     }
 };
@@ -222,7 +223,7 @@ struct find_nested_slice
         return result;
     }
 
-    void apply(module& p, const match::matcher_result& mr) const
+    void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins   = mr.result;
         auto slice = ins->inputs().front();
@@ -240,7 +241,7 @@ struct find_nested_slice
             op.starts.push_back(pp.second.first);
             op.ends.push_back(pp.second.second);
         }
-        p.replace_instruction(ins, op, input);
+        m.replace_instruction(ins, op, input);
     }
 };
 
@@ -251,7 +252,7 @@ struct find_concat_transpose
         return match::name("concat")(match::all_of[match::inputs()](match::transpose_shape()));
     }
 
-    void apply(module& p, const match::matcher_result& mr) const
+    void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
@@ -278,12 +279,14 @@ struct find_concat_transpose
         std::vector<instruction_ref> inputs;
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                return p.insert_instruction(ins, make_op("transpose", {{"dims", permutation}}), i);
+                return m.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", permutation}}), i);
             });
-        auto concat = p.insert_instruction(ins, op, inputs);
-        auto t = p.insert_instruction(ins, make_op("transpose", {{"dims", ipermutation}}), concat);
+        auto concat = m.insert_instruction(ins, op, inputs);
+        auto t      = m.insert_instruction(
+            ins, make_op("transpose", {{"permutation", ipermutation}}), concat);
         assert(ins->get_shape().lens() == t->get_shape().lens());
-        p.replace_instruction(ins, t);
+        m.replace_instruction(ins, t);
     }
 };
 
@@ -300,7 +303,7 @@ struct find_nested_concat
         return op.axis;
     }
 
-    void apply(module& p, const match::matcher_result& mr) const
+    void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins  = mr.result;
         auto axis = get_axis(ins);
@@ -313,9 +316,8 @@ struct find_nested_concat
                 else
                     args.push_back(i);
             }
-
         })(ins->inputs());
-        p.replace_instruction(ins, ins->get_operator(), args);
+        m.replace_instruction(ins, ins->get_operator(), args);
     }
 };
 
@@ -327,7 +329,7 @@ struct find_resize
             match::args(match::name("reshape").bind("data"), match::is_constant().bind("ind")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto ins_rsp = r.instructions["data"];
@@ -415,13 +417,13 @@ struct find_resize
         }
 
         auto in_rsp   = ins_rsp->inputs().front();
-        auto rsp_data = p.insert_instruction(
+        auto rsp_data = m.insert_instruction(
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
-        auto mb_rsp = p.insert_instruction(
-            ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp_data);
-        auto std_mb = p.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
+        auto mb_rsp = m.insert_instruction(
+            ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
+        auto std_mb = m.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
         std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
-        p.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);
+        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);
     }
 };
 
@@ -434,7 +436,7 @@ struct find_where_op
                         match::is_constant().bind("ind")));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto concat  = r.instructions["data"];
@@ -473,11 +475,11 @@ struct find_where_op
 
         if(val)
         {
-            p.replace_instruction(ins, inputs.at(0));
+            m.replace_instruction(ins, inputs.at(0));
         }
         else
         {
-            p.replace_instruction(ins, inputs.at(1));
+            m.replace_instruction(ins, inputs.at(1));
         }
     }
 };
@@ -494,7 +496,7 @@ struct find_reshape_cont
                 match::any()));
     }
 
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto ins_cont = r.instructions["cont"];
@@ -528,19 +530,59 @@ struct find_reshape_cont
             else
             {
                 inputs.push_back(
-                    p.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), in));
+                    m.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), in));
             }
         }
-        auto out = p.insert_instruction(ins, ins->get_operator(), inputs);
-        p.replace_instruction(ins, make_op("reshape", {{"dims", out_dims}}), out);
+        auto out = m.insert_instruction(ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, make_op("reshape", {{"dims", out_dims}}), out);
     }
 };
 
-void simplify_reshapes::apply(module& p) const
+// match sequence of transpose --> contiguous --> reshaper_op
+auto match_transpose_contiguous_reshaper()
+{
+    return match::name({"reshape", "squeeze", "unsqueeze"})(
+               match::used_once(),
+               match::args(
+                   match::name("contiguous")(
+                       match::used_once(), match::args(match::transpose_shape().bind("trans_ins")))
+                       .bind("cont_ins")))
+        .bind("reshaper_ins");
+};
+
+// finds the pattern of transpose --> contiguous --> reshaper_op --> unary
+// application of this matcher moves the unary operation before the contiguous so it becomes
+// transpose --> unary --> contiguous --> reshaper_op. later pointwise sub-module can be created out
+// of unary --> contiguous --> reshaper_op. Such pattern appears in depthToSpace or spaceToDepth
+// operator.
+struct find_transpose_contiguous_reshaper_unary
+{
+    auto matcher() const
+    {
+        return pointwise(match::used_once(),
+                         match::nargs(1),
+                         match::args(match_transpose_contiguous_reshaper()));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins           = r.result;
+        auto reshaper_ins  = r.instructions["reshaper_ins"];
+        auto trans_ins     = r.instructions["trans_ins"];
+        auto cont_ins      = r.instructions["cont_ins"];
+        auto unary_op_name = ins->get_operator().name();
+        auto unary_ins     = m.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
+        auto new_cont_ins  = m.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
+        // older cont and reshape are removed by deadcode elimination
+        m.replace_instruction(ins, reshaper_ins->get_operator(), new_cont_ins);
+    }
+};
+
+void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < 2; i++)
     {
-        match::find_matches(p,
+        match::find_matches(m,
                             find_where_op{},
                             find_resize{},
                             find_reshape_cont{},
@@ -550,8 +592,9 @@ void simplify_reshapes::apply(module& p) const
                             find_concat_transpose{},
                             find_nested_convert{},
                             find_nested_slice{},
-                            find_nested_concat{});
-        dead_code_elimination{}.apply(p);
+                            find_nested_concat{},
+                            find_transpose_contiguous_reshaper_unary{});
+        dead_code_elimination{}.apply(m);
     }
 }
 

@@ -23,7 +23,7 @@ struct multibroadcast
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.output_lens, "output_lens"));
+        return pack(f(self.output_lens, "out_lens"));
     }
 
     std::string name() const { return "multibroadcast"; }
@@ -69,7 +69,6 @@ struct multibroadcast
     {
         return args[0].reshape(output_shape);
     }
-    lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

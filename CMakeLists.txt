@@ -10,6 +10,12 @@ if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
+# Setup valid strings for build type
+if (NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Configs")
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
+
 # Default installation path
 if(WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
@@ -36,21 +42,15 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 1.3)
+rocm_setup_version(VERSION 2.3)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.4")
-        message(FATAL_ERROR "MIGraph requires at least gcc 5.4")
-    endif()
-endif()
-
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)
 if(HAS_HIP)
-    message(STATUS "Enable miopen backend")
+    message(STATUS "Enable gpu backend")
     set(MIGRAPHX_ENABLE_GPU On CACHE BOOL "")
 else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
@@ -60,10 +60,12 @@ endif()
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-std=c++17)
+add_compile_options(-std=c++17)
+
+if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
+    set(CONFIGURE_DEPENDS)
 else()
-    add_compile_options(-std=c++14)
+    set(CONFIGURE_DEPENDS CONFIGURE_DEPENDS)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -91,11 +93,14 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
-        -bugprone-signed-char-misuse
+        -bugprone-easily-swappable-parameters
+        -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+        -bugprone-signed-char-misuse
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
+        -cert-err33-c
         -cert-str34-c
         # Disable all alpha checks by default
         -clang-analyzer-alpha*
@@ -125,6 +130,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
+        -cppcoreguidelines-virtual-class-destructor
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
@@ -142,8 +148,10 @@ rocm_enable_clang_tidy(
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-function-cognitive-complexity
+        -readability-identifier-length
         -readability-named-parameter
         -readability-redundant-string-init
+        -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
         -*-avoid-c-arrays
         -*-explicit-constructor
@@ -176,7 +184,7 @@ rocm_enable_cppcheck(
         style
         performance
         portability
-    SUPPRESS 
+    SUPPRESS
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction
@@ -190,15 +198,19 @@ rocm_enable_cppcheck(
         shadowVariable
         unsafeClassDivZero
         definePrefix:*test/include/test.hpp
+        ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
         constParameter:*src/targets/gpu/*.cpp
         constParameter:*src/targets/gpu/*.hpp
+        # Suppress mlir_conv.cpp since this file will be deleted
+        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
     SOURCES
+        examples/
         src/
         test/
     INCLUDE
@@ -212,6 +224,7 @@ rocm_enable_cppcheck(
         CPPCHECK=1
         __device__=
         __host__=
+        __global__=
 )
 
 enable_testing()
@@ -223,7 +236,7 @@ rocm_create_package(
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip-hcc half
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

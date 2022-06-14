@@ -151,10 +151,10 @@ TEST_CASE(allocate_with_out_no_params)
     auto z = m.add_parameter("z", s);
     auto alloc =
         m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    auto pass1 = m.add_instruction(pass_op{}, x, y, alloc);
+    auto pass1 = m.add_instruction(pass_op{}, alloc, x, y);
     auto alloc2 =
         m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    m.add_instruction(pass_op{}, z, pass1, alloc2);
+    m.add_instruction(pass_op{}, alloc2, z, pass1);
     run_pass(m, allocation_with_out_model{});
 
     EXPECT(std::any_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {

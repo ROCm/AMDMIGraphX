@@ -64,7 +64,6 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
 void replace_allocate::apply(module& m) const
 {
     auto mod_output_names  = create_output_names(m);
-    auto last              = instruction::get_output_alias(std::prev(m.end()));
     bool main_offload_copy = m.name() == "main" ? this->offload_copy : false;
     for(auto ins : iterator_for(m))
     {

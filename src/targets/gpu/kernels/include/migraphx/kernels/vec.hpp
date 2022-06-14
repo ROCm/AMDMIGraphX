@@ -5,7 +5,6 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
-#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 

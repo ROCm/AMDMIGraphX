@@ -46,6 +46,8 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
 
 operation compile_hip_code_object(const std::string& content, hip_compile_options options);
 
+std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

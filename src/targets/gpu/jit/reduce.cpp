@@ -2,6 +2,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/ranges.hpp>
@@ -16,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+using namespace migraphx::gpu::gen; // NOLINT
+
 static const char* const simple_reduce_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -26,9 +30,10 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void kernel(void* input_p, void* output_p) 
+__global__ void reduce_kernel(void* input_p, void* output_p) 
 {
-    make_tensors()(input_p, output_p)([](auto input, auto output) {
+    
+    transform_args(make_tensors(), ${transformers})(input_p, output_p)([](auto input, auto output) {
 
         simple_reduce<reduce::${algo}>(${reduction}, ${init}, input, output, ${read}, ${write});
     });
@@ -39,14 +44,6 @@ __global__ void kernel(void* input_p, void* output_p)
 } // namespace migraphx
 
 )__migraphx__";
-
-constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024)
-{
-    size_t block_size = 128;
-    while(block_size <= max_block_size and block_size <= n)
-        block_size *= 2;
-    return block_size / 2;
-}
 
 static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
 {
@@ -101,32 +98,42 @@ struct reduce_compiler : compiler<reduce_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto reduce_elements = get_reduce_elements(inputs);
-        auto algo            = v.get("algo", get_reduce_algo(inputs));
+        options.inputs         = inputs;
+        options.output         = inputs.back();
+        options.virtual_inputs = reduce_dims(inputs);
+        auto faxis             = find_fast_axis({options.virtual_inputs.front()});
+        vectorize vec{};
+        // Vectorize if the axis is a reduction axis
+        if(options.virtual_inputs.back().lens()[faxis] == 1)
+        {
+            vec = vectorize::elements(faxis, options.virtual_inputs);
+        }
+        auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
+        auto nelements = options.virtual_inputs.back().elements();
+        auto algo      = v.get("algo", get_reduce_algo(options.virtual_inputs));
         if(algo == "block")
         {
-            auto block_size = compute_block_size(reduce_elements, 256);
+            auto block_size = compute_block_size(relements, 256);
             options.set_launch_params(
-                v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
+                v, compute_global_for(ctx, nelements * block_size, 256), block_size);
         }
         else if(algo == "lane")
         {
-            options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 256));
+            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
         }
         else
         {
             MIGRAPHX_THROW("Unknown reduce algo: " + algo);
         }
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(inputs);
-        std::string identity   = "[](auto x) { return x; }";
-        auto src               = interpolate_string(simple_reduce_kernel,
+        options.kernel_name  = "reduce_kernel";
+        std::string identity = "[](auto x) { return x; }";
+        auto src             = interpolate_string(simple_reduce_kernel,
                                       {{"reduction", v.at("reduction").to<std::string>()},
                                        {"init", v.get("init", std::string{"0"})},
                                        {"read", v.get("read", identity)},
                                        {"write", v.get("write", identity)},
                                        {"algo", algo},
+                                       {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})}});
         options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);

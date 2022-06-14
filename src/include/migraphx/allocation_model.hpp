@@ -28,6 +28,8 @@ struct allocation_model
     operation allocate(const shape& s) const;
     /// Create a preallocated operator for the given shape
     operation preallocate(const shape& s, const std::string& id) const;
+    /// Check if outputs are to be inserted
+    bool needs_out_params() const;
 };
 
 #else
@@ -45,6 +47,8 @@ struct allocation_model
     operation allocate(const shape& s) const;
     //
     operation preallocate(const shape& s, std::string id) const;
+    //
+    bool needs_out_params() const;
 };
 
 #else
@@ -136,6 +140,12 @@ struct allocation_model
         return (*this).private_detail_te_get_handle().preallocate(s, std::move(id));
     }
 
+    bool needs_out_params() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().needs_out_params();
+    }
+
     friend bool is_shared(const allocation_model& private_detail_x,
                           const allocation_model& private_detail_y)
     {
@@ -154,6 +164,7 @@ struct allocation_model
         virtual std::string copy() const                                    = 0;
         virtual operation allocate(const shape& s) const                    = 0;
         virtual operation preallocate(const shape& s, std::string id) const = 0;
+        virtual bool needs_out_params() const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -198,6 +209,11 @@ struct allocation_model
         {
 
             return private_detail_te_value.preallocate(s, std::move(id));
+        }
+
+        bool needs_out_params() const override
+        {
+            return private_detail_te_value.needs_out_params();
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

@@ -11,7 +11,7 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct cpu_allocate : migraphx::auto_register_op<cpu_allocate>
+struct allocate_no_out : migraphx::auto_register_op<allocate_no_out>
 {
     migraphx::shape s{};
 
@@ -21,7 +21,7 @@ struct cpu_allocate : migraphx::auto_register_op<cpu_allocate>
         return migraphx::pack(f(self.s, "shape"));
     }
 
-    std::string name() const { return "cpu::allocate"; }
+    std::string name() const { return "allocate_no_out"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
         migraphx::check_shapes{inputs, *this}.has(0);
@@ -35,18 +35,17 @@ struct cpu_allocate : migraphx::auto_register_op<cpu_allocate>
     }
 };
 
-struct hip_allocate : migraphx::auto_register_op<hip_allocate>
+struct allocate_with_out : migraphx::auto_register_op<allocate_with_out>
 {
     migraphx::shape s{};
-    std::string tag{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return migraphx::pack(f(self.s, "shape"), f(self.tag, "tag"));
+        return migraphx::pack(f(self.s, "shape"));
     }
 
-    std::string name() const { return "hip::allocate"; }
+    std::string name() const { return "allocate_with_out"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
         migraphx::check_shapes{inputs, *this}.has(0);
@@ -60,26 +59,30 @@ struct hip_allocate : migraphx::auto_register_op<hip_allocate>
     }
 };
 
-struct cpu_allocation_model
+// allocation model that has no out params
+struct allocation_no_out_model
 {
-    std::string name() const { return "cpu::allocate"; }
+    std::string name() const { return "allocate_no_out"; }
     migraphx::operation allocate(const migraphx::shape& s) const
     {
         return migraphx::make_op(name(), {{"shape", to_value(s)}});
     }
     migraphx::operation preallocate(const migraphx::shape&, const std::string&) const { return {}; }
     std::string copy() const { return {}; }
+    bool needs_out_params() const { return false; }
 };
 
-struct gpu_allocation_model
+// allocation model with out params
+struct allocation_with_out_model
 {
-    std::string name() const { return "hip::allocate"; }
+    std::string name() const { return "allocate_with_out"; }
     migraphx::operation allocate(const migraphx::shape& s) const
     {
         return migraphx::make_op(name(), {{"shape", to_value(s)}});
     }
     migraphx::operation preallocate(const migraphx::shape&, const std::string&) const { return {}; }
     std::string copy() const { return {}; }
+    bool needs_out_params() const { return true; }
 };
 
 void run_pass(migraphx::module& m, migraphx::allocation_model model, bool offload_copy = false)
@@ -104,42 +107,42 @@ migraphx::module create_simple_program()
     auto y = m.add_parameter("y", s);
     auto alloc =
         m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    m.add_instruction(pass_op{}, x, y, alloc);
+    m.add_instruction(pass_op{}, alloc, x, y);
     return m;
 }
 
-TEST_CASE(cpu_allocate)
+TEST_CASE(allocate_no_out)
 {
     migraphx::module m = create_simple_program();
-    run_pass(m, cpu_allocation_model{});
+    run_pass(m, allocation_no_out_model{});
 
     EXPECT(std::any_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
-        return migraphx::contains(ins.name(), "cpu::allocate");
+        return migraphx::contains(ins.name(), "allocate_no_out");
     }));
 }
 
-TEST_CASE(hip_out_param)
+TEST_CASE(allocate_with_out_param)
 {
     migraphx::module m = create_simple_program();
-    run_pass(m, gpu_allocation_model{});
+    run_pass(m, allocation_with_out_model{});
 
     EXPECT(std::none_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
         return migraphx::contains(ins.name(), "allocate");
     }));
 }
 
-TEST_CASE(hip_out_param_return)
+TEST_CASE(allocate_with_out_return)
 {
     migraphx::module m = create_simple_program();
     m.add_return({std::prev(m.end())});
-    run_pass(m, gpu_allocation_model{});
+    run_pass(m, allocation_with_out_model{});
 
     EXPECT(std::none_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
         return migraphx::contains(ins.name(), "allocate");
     }));
 }
 
-TEST_CASE(hip_allocate)
+TEST_CASE(allocate_with_out_no_params)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {5}};
@@ -152,10 +155,10 @@ TEST_CASE(hip_allocate)
     auto alloc2 =
         m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
     m.add_instruction(pass_op{}, z, pass1, alloc2);
-    run_pass(m, gpu_allocation_model{});
+    run_pass(m, allocation_with_out_model{});
 
     EXPECT(std::any_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
-        return migraphx::contains(ins.name(), "hip::allocate");
+        return migraphx::contains(ins.name(), "allocate_with_out");
     }));
 }
 
@@ -172,20 +175,20 @@ TEST_CASE(if_allocate)
     auto* then_mod = p.create_module("If_0_if");
     auto alloc     = then_mod->add_instruction(
         migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    auto a1 = then_mod->add_instruction(pass_op{}, x, alloc);
+    auto a1 = then_mod->add_instruction(pass_op{}, alloc, x);
     then_mod->add_return({a1});
 
     auto* else_mod = p.create_module("If_0_else");
     auto alloc1    = else_mod->add_instruction(
         migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
-    auto a2 = else_mod->add_instruction(pass_op{}, y, alloc1);
+    auto a2 = else_mod->add_instruction(pass_op{}, alloc1, y);
     else_mod->add_return({a2});
 
     mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
 
-    run_pass(p, gpu_allocation_model{});
+    run_pass(p, allocation_with_out_model{});
     EXPECT(std::any_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
-        return migraphx::contains(ins.name(), "hip::allocate");
+        return migraphx::contains(ins.name(), "allocate_with_out");
     }));
 }
 

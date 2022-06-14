@@ -19,11 +19,10 @@ namespace op {
 struct allocate
 {
     shape s{};
-    std::string tag = "";
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.s, "shape"), f(self.tag, "tag"));
+        return pack(f(self.s, "shape"));
     }
     std::string name() const { return "allocate"; }
     shape compute_shape(const std::vector<shape>& inputs) const

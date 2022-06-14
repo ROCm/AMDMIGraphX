@@ -16,6 +16,10 @@ struct gpu_allocation_model
     std::string copy() const;
     operation allocate(const shape& s) const;
     operation preallocate(const shape& s, const std::string& id) const;
+    bool needs_out_params() const
+    {
+        return true;        
+    }
 };
 
 } // namespace gpu

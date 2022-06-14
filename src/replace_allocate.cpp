@@ -33,7 +33,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     return mod_output_names;
 }
 
-void insert_if_allocations(instruction_ref ins, module& mod, const allocation_model& model)
+void insert_submod_allocations(instruction_ref ins, module& mod, const allocation_model& model)
 {
     std::vector<instruction_ref> inputs = ins->inputs();
     std::vector<module_ref> mod_args    = ins->module_inputs();
@@ -52,6 +52,7 @@ void insert_if_allocations(instruction_ref ins, module& mod, const allocation_mo
         output = mod.insert_instruction(ins, model.allocate(s));
         inputs.push_back(output);
     }
+
     mod.replace_instruction(ins, ins->get_operator(), inputs, mod_args);
 }
 
@@ -60,47 +61,47 @@ void replace_allocate::apply(module& m) const
     auto mod_output_names  = create_output_names(m);
     auto last              = instruction::get_output_alias(std::prev(m.end()));
     bool main_offload_copy = m.name() == "main" ? this->offload_copy : false;
-    std::string model_name = model.name();
     for(auto ins : iterator_for(m))
     {
-        if(ins->get_operator().name() == "if")
+        auto op = ins->get_operator();
+        auto op_name = op.name();
+
+        // check if allocations from submodules need to be inserted
+        // for now, only the "if" operator is affected
+        if(op_name == "if")
         {
-            insert_if_allocations(ins, m, model);
+            insert_submod_allocations(ins, m, model);
             continue;
         }
-        if(ins->get_operator().name() != "allocate")
+        if(op_name != "allocate")
             continue;
-        auto op = ins->get_operator();
-        auto v  = op.to_value();
-        assert(v.contains("tag"));
-        auto tag = v.at("tag").get_string();
+        
         auto s   = ins->get_shape();
 
-        if(model_name == "cpu::allocate")
+        if(not main_offload_copy and model.needs_out_params())
         {
-            m.replace_instruction(ins, m.insert_instruction(ins, model.allocate(s)));
-            continue;
+            instruction_ref out_param;
+
+            if(last->name() == "@return" 
+            and
+            mod_output_names.count(ins) > 0)
+            {
+                out_param = m.add_parameter(mod_output_names[ins], s);
+                m.replace_instruction(ins, out_param);
+                continue;
+            }
+            else if(ins == last)
+            {
+                out_param = m.add_parameter("output", s);
+                m.replace_instruction(ins, out_param);
+                continue;
+            }
         }
 
-        auto ins_alias = instruction::get_output_alias(ins->outputs().front());
-        instruction_ref out_param;
-        if(not main_offload_copy and last->name() == "@return" and tag.empty() and
-           mod_output_names.count(ins_alias) > 0)
-        {
-            out_param = m.add_parameter(mod_output_names[ins_alias], s);
-            m.replace_instruction(ins, out_param);
-            continue;
-        }
-        else if(not main_offload_copy and ins_alias == last and tag.empty())
-        {
-            out_param = m.add_parameter("output", s);
-            m.replace_instruction(ins, out_param);
-            continue;
-        }
         m.replace_instruction(
             ins,
             m.insert_instruction(
-                ins, make_op(model_name, migraphx::value{{"shape", to_value(s)}, v.at("tag")})));
+                ins, make_op(model.name(), migraphx::value{{"shape", to_value(s)}})));
     }
 }
 

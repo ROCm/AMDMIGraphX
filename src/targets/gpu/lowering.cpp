@@ -252,10 +252,10 @@ struct miopen_apply
     }
 
     instruction_ref
-    insert_allocation(instruction_ref ins, const shape& s, std::string tag = "") const
+    insert_allocation(instruction_ref ins, const shape& s) const
     {
         return mod->insert_instruction(
-            ins, make_op("allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
+            ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
     void add_convolution_op()
@@ -266,7 +266,7 @@ struct miopen_apply
             auto conv = miopen_convolution{op, make_conv(op)};
             auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(
@@ -282,7 +282,7 @@ struct miopen_apply
             auto conv = miopen_deconvolution{op, make_deconv(op)};
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(
@@ -329,7 +329,7 @@ struct miopen_apply
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto args      = ins->inputs();
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
@@ -447,18 +447,15 @@ struct miopen_apply
             auto copy_inputs = inputs;
             std::transform(
                 copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
-                    return mod->insert_instruction(
-                        ins, make_op("hip::allocate", {{"shape", to_value(in->get_shape())}}));
+                    return insert_allocation(ins, in->get_shape());
                 });
 
             auto mod_args = ins->module_inputs();
             auto output   = insert_allocation(ins, ins->get_shape());
 
             const auto* sub_mod = mod_args.front();
-            auto cond_out       = mod->insert_instruction(
-                ins,
-                make_op("hip::allocate",
-                        {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
+            auto cond_out = insert_allocation(ins, sub_mod->get_output_shapes().front());
+
             // add cond and mod outputs to the argument list
             inputs.push_back(cond_out);
             inputs.push_back(output);

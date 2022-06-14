@@ -251,11 +251,9 @@ struct miopen_apply
             ins->module_inputs());
     }
 
-    instruction_ref
-    insert_allocation(instruction_ref ins, const shape& s) const
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
     {
-        return mod->insert_instruction(
-            ins, make_op("allocate", {{"shape", to_value(s)}}));
+        return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
     void add_convolution_op()
@@ -445,16 +443,16 @@ struct miopen_apply
             inputs.at(0)     = synced_max_iter;
             inputs.at(1)     = cpu_cond;
             auto copy_inputs = inputs;
-            std::transform(
-                copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
-                    return insert_allocation(ins, in->get_shape());
-                });
+            std::transform(copy_inputs.begin(),
+                           copy_inputs.end(),
+                           std::back_inserter(inputs),
+                           [&](auto in) { return insert_allocation(ins, in->get_shape()); });
 
             auto mod_args = ins->module_inputs();
             auto output   = insert_allocation(ins, ins->get_shape());
 
             const auto* sub_mod = mod_args.front();
-            auto cond_out = insert_allocation(ins, sub_mod->get_output_shapes().front());
+            auto cond_out       = insert_allocation(ins, sub_mod->get_output_shapes().front());
 
             // add cond and mod outputs to the argument list
             inputs.push_back(cond_out);

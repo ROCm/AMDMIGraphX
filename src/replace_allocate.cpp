@@ -63,7 +63,7 @@ void replace_allocate::apply(module& m) const
     bool main_offload_copy = m.name() == "main" ? this->offload_copy : false;
     for(auto ins : iterator_for(m))
     {
-        auto op = ins->get_operator();
+        auto op      = ins->get_operator();
         auto op_name = op.name();
 
         // check if allocations from submodules need to be inserted
@@ -75,16 +75,14 @@ void replace_allocate::apply(module& m) const
         }
         if(op_name != "allocate")
             continue;
-        
-        auto s   = ins->get_shape();
+
+        auto s = ins->get_shape();
 
         if(not main_offload_copy and model.needs_out_params())
         {
             instruction_ref out_param;
 
-            if(last->name() == "@return" 
-            and
-            mod_output_names.count(ins) > 0)
+            if(last->name() == "@return" and mod_output_names.count(ins) > 0)
             {
                 out_param = m.add_parameter(mod_output_names[ins], s);
                 m.replace_instruction(ins, out_param);
@@ -100,8 +98,8 @@ void replace_allocate::apply(module& m) const
 
         m.replace_instruction(
             ins,
-            m.insert_instruction(
-                ins, make_op(model.name(), migraphx::value{{"shape", to_value(s)}})));
+            m.insert_instruction(ins,
+                                 make_op(model.name(), migraphx::value{{"shape", to_value(s)}})));
     }
 }
 

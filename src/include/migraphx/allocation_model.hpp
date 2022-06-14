@@ -164,7 +164,7 @@ struct allocation_model
         virtual std::string copy() const                                    = 0;
         virtual operation allocate(const shape& s) const                    = 0;
         virtual operation preallocate(const shape& s, std::string id) const = 0;
-        virtual bool needs_out_params() const = 0;
+        virtual bool needs_out_params() const                               = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>

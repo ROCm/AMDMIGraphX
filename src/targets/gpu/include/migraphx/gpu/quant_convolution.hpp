@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_QUANT_CONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
@@ -14,6 +15,7 @@ struct context;
 struct miopen_quant_convolution
 {
     op::quant_convolution op;
+    bool int8_x4_format = false;
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
     miopenHandle_t handle = nullptr;
@@ -22,7 +24,8 @@ struct miopen_quant_convolution
     static auto reflect(Self& self, F f)
     {
         // TODO: Add algo
-        return op::quant_convolution::reflect(self.op, f);
+        return pack_join(migraphx::reflect(self.op, f),
+                         pack(f(self.int8_x4_format, "int8_x4_format")));
     }
 
     std::string name() const { return "gpu::quant_convolution"; }

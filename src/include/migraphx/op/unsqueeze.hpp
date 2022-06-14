@@ -62,21 +62,21 @@ struct unsqueeze
             if(axis_idx < axes.size())
             {
                 std::int64_t step = 1;
-                if (axis_idx < steps.size())
+                if(axis_idx < steps.size())
                     step = steps[axis_idx];
-                if (step == 0)
+                if(step == 0)
                     MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero");
                 new_lens[i] = step;
-                if (p < old_strides.size())
+                if(p < old_strides.size())
                 {
-                    if ((old_lens[p] % step) != 0)
+                    if((old_lens[p] % step) != 0)
                         MIGRAPHX_THROW("UNSQUEEZE: Axis dimenstion is not divisible by step");
                     old_lens[p] /= step;
                     new_strides[i] = old_strides[p] * old_lens[p];
                 }
                 else
                 {
-                    if (step != 1)
+                    if(step != 1)
                         MIGRAPHX_THROW("UNSQUEEZE: Step must be 1 for extra axes");
                     new_strides[i] = 1;
                 }

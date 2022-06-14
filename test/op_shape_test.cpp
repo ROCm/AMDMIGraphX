@@ -1580,7 +1580,6 @@ TEST_CASE(test_unsqueeze_transpose_step)
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
 }
 
-
 TEST_CASE(test_unsqueeze_multibroadcast)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}, {0, 1, 0}};

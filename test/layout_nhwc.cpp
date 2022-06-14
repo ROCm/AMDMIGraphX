@@ -73,7 +73,7 @@ TEST_CASE(conv_add)
             x,
             w);
         auto b = m1.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}), y);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}), y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
     run_pass(m1);
@@ -92,7 +92,7 @@ TEST_CASE(conv_add)
             x,
             w);
         auto b = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}), y);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}), y);
         auto add = m2.add_instruction(migraphx::make_op("add"), conv, b);
         m2.add_instruction(layout(), add);
     }

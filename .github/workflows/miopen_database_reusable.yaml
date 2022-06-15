@@ -89,7 +89,7 @@ jobs:
           -e TARGET=gpu
           -e SAVED_MODELS=/data
           -e TEST_RESULTDIR=/results
-          -e MIOPEN_FIND_ENFORCE=3
+          -e MIOPEN_FIND_ENFORCE=search
           --device=/dev/dri
           --device=/dev/kfd
           --network=host

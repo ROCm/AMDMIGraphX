@@ -470,13 +470,15 @@ def relu6_test(g1):
                                             name='0')
         tf.nn.relu6(g1_input, 'relu6')
 
+
 @tf_test
 def relu6_mismatch_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float16,
                                             shape=(1, 3, 13, 37),
                                             name='0')
-        tf.nn.relu6(g1_input, 'relu6')    
+        tf.nn.relu6(g1_input, 'relu6')
+
 
 @tf_test
 def reshape_test(g1):

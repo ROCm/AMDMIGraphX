@@ -716,9 +716,8 @@ TEST_CASE(relu6_mismatch_test)
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
 
-    auto l0_convert = mm->add_instruction(migraphx::make_op("convert",
-                                        {{"target_type", migraphx::shape::float_type}}), 
-                                          l0);
+    auto l0_convert = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l0);
 
     min_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
                                   min_val);

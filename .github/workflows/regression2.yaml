@@ -45,14 +45,13 @@ jobs:
     needs: check_image_version
     if: ${{ needs.check_image_version.outputs.image == 'true' }}
     steps:
-      #- name: Checkout code
-      #  uses: actions/checkout@v1
-      #  with:
-      #    submodules: recursive
-      #    token: ${{ secrets.GH_SUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v1
+        with:
+          submodules: recursive
+          token: ${{ secrets.GH_SUB_TOKEN }}
       - name: Docker build
         run: |
-          pwd
           cd ./rocm-migraphx/dockerfiles
           docker build -t "rocm-migraphx:$(date +%Y%m%d)" --no-cache --build-arg BRANCH=$GITHUB_REF_NAME --build-arg DOCKERBASE=${{ env.DOCKERBASE }} --build-arg MIOPENTUNE=${{ env.MIOPENTUNE }} -f dockerfile-daily2 .
   execute_scripts:

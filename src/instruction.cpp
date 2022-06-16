@@ -81,6 +81,7 @@ bool instruction::valid(instruction_ref start, bool check_order) const
                bool ret  = self != i->outputs().end();
                if(check_order)
                {
+                   // check arguments for this instruction before this instruction
                    ret = ret and (std::distance(start, i) < std::distance(start, *self));
                }
                return ret;

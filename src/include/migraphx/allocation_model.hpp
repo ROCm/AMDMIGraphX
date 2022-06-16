@@ -213,6 +213,7 @@ struct allocation_model
 
         bool needs_out_params() const override
         {
+
             return private_detail_te_value.needs_out_params();
         }
 

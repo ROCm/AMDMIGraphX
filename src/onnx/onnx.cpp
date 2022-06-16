@@ -18,10 +18,10 @@ template <class... Ts>
 program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx::onnx_parser parser;
-    parser.map_input_dims         = options.map_input_dims;
-    parser.map_dyn_input_dims         = options.map_dyn_input_dims;
-    auto dim_val = options.default_dim_value;
-    if (dim_val != 0)
+    parser.map_input_dims     = options.map_input_dims;
+    parser.map_dyn_input_dims = options.map_dyn_input_dims;
+    auto dim_val              = options.default_dim_value;
+    if(dim_val != 0)
     {
         parser.default_dyn_dim_value = {dim_val, dim_val, 0};
     }

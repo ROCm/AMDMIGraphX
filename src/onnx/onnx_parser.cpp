@@ -256,18 +256,18 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
                                "\" existing in parent graph!");
             }
-            
+
             shape s;
             std::vector<std::size_t> dims;
             if(map_input_dims.count(name) > 0)
             {
                 dims = map_input_dims.at(name);
-                s = parse_type(input.type(), dims);
+                s    = parse_type(input.type(), dims);
             }
             else if(map_dyn_input_dims.count(name) > 0)
             {
                 shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
-                s = {shape_type, map_dyn_input_dims.at(name)};
+                s                        = {shape_type, map_dyn_input_dims.at(name)};
             }
             else
             {
@@ -447,22 +447,18 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                            return default_dyn_dim_value;
                        }
                    });
-    
+
     if(dynamic_dims.empty())
     {
         return {shape_type};
     }
-    if (std::all_of(dynamic_dims.begin(), dynamic_dims.end(), [](auto dd) { return dd.is_fixed(); }))
+    if(std::all_of(dynamic_dims.begin(), dynamic_dims.end(), [](auto dd) { return dd.is_fixed(); }))
     {
         std::vector<std::size_t> dims;
-        std::transform(
-            dynamic_dims.begin(),
-            dynamic_dims.end(),
-            std::back_inserter(dims),
-            [](auto d) {
-                return d.max;
-            }
-        );
+        std::transform(dynamic_dims.begin(),
+                       dynamic_dims.end(),
+                       std::back_inserter(dims),
+                       [](auto d) { return d.max; });
         return {shape_type, dims};
     }
     return {shape_type, dynamic_dims};

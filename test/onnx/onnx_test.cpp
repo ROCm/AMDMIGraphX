@@ -5431,7 +5431,9 @@ TEST_CASE(variable_batch_user_input_test2)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {{2, 5, 0}, {3, 3, 0}, {16, 16, 0},  {16, 16, 0}}});
+    auto l0  = mm->add_parameter("0",
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {{2, 5, 0}, {3, 3, 0}, {16, 16, 0}, {16, 16, 0}}});
     auto r   = mm->add_instruction(migraphx::make_op("identity"), l0);
     mm->add_return({r});
 
@@ -5447,7 +5449,9 @@ TEST_CASE(variable_batch_user_input_test3)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {{2, 5, 0}, {3, 3, 0}, {16, 16, 0},  {16, 16, 0}}});
+    auto l0  = mm->add_parameter("0",
+                                migraphx::shape{migraphx::shape::float_type,
+                                                {{2, 5, 0}, {3, 3, 0}, {16, 16, 0}, {16, 16, 0}}});
     auto r   = mm->add_instruction(migraphx::make_op("identity"), l0);
     mm->add_return({r});
 

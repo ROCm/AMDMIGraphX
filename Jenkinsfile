@@ -37,7 +37,7 @@ def rocmtestnode(Map conf) {
             stage("checkout ${variant}") {
                 checkout scm
             }
-            gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+            gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 pre()
                 stage("image ${variant}") {
                     try {

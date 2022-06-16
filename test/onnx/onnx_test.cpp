@@ -3831,7 +3831,6 @@ TEST_CASE(reshape_non_standard_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::op::reshape op;
-    std::vector<int64_t> reshape_dims{4, 3, 2};
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
     auto x = mm->add_parameter("x", s);
     auto tran_x =

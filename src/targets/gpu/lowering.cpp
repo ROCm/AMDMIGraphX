@@ -335,7 +335,7 @@ struct miopen_apply
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
-            assert(refs.size() == 2);  
+            assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
             return mod->replace_instruction(

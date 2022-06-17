@@ -420,7 +420,7 @@ def experimental_custom_op(h):
     h.constructor('create', api.params(name='const char*'))
     h.virtual('compute',
               api.params(ctx='migraphx::context',
-                         output='migraphx::shape',
+                         output='const migraphx::shape&',
                          inputs='std::vector<migraphx::argument>'),
               returns='migraphx::argument')
     h.virtual('compute_shape',

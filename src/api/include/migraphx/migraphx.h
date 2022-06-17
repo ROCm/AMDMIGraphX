@@ -109,7 +109,7 @@ typedef const struct migraphx_experimental_custom_op* const_migraphx_experimenta
 typedef migraphx_status (*migraphx_experimental_custom_op_compute)(migraphx_argument_t out,
                                                                    void* obj,
                                                                    migraphx_context_t ctx,
-                                                                   migraphx_shape_t output,
+                                                                   const_migraphx_shape_t output,
                                                                    migraphx_arguments_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraphx_shape_t out,

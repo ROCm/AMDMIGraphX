@@ -566,7 +566,7 @@ struct migraphx_experimental_custom_op
     migraphx::experimental_custom_op xobject;
     migraphx_experimental_custom_op_compute compute_f = nullptr;
     migraphx::argument compute(migraphx::context ctx,
-                               migraphx::shape output,
+                               const migraphx::shape& output,
                                std::vector<migraphx::argument> inputs) const
     {
         std::remove_pointer_t<migraphx_argument_t> out;
@@ -575,7 +575,7 @@ struct migraphx_experimental_custom_op
         auto api_error_result = compute_f(&out,
                                           object_ptr.data,
                                           object_cast<migraphx_context_t>(&(ctx)),
-                                          object_cast<migraphx_shape_t>(&(output)),
+                                          object_cast<const_migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
             throw std::runtime_error("Error in compute.");

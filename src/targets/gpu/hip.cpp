@@ -76,12 +76,14 @@ hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
 {
     void* dev_ptr;
     // check if ptr was allocated through hipHostMalloc
-    auto status = hipHostGetDevicePointer(&dev_ptr, ptr, 0);
-    if(status != hipSuccess)
+     auto status = hipHostGetDevicePointer(&dev_ptr, ptr, 0);
+    if(status == hipErrorInvalidValue)
     {
         status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
         if(status != hipSuccess)
             MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
+    } else if (status == hipErrorOutOfMemory) {
+        MIGRAPHX_THROW("Couldn't get device pointer for host buffer: " + hip_error(status));
     }
     return hip_host_ptr{ptr};
 }

@@ -479,7 +479,7 @@ struct mlir_program
         }
     }
 
-    code_object_op compile()
+    code_object_op compile() MIGRAPHX_TIDY_CONST
     {
         mlir_pass_manager pm{mlirPassManagerCreate(ctx.get())};
         // 1st pipeline to call

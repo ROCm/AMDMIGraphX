@@ -293,27 +293,9 @@ struct miopen_apply
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
-            if(refs.size() == 2)
-            {
-                auto output = insert_allocation(ins, ins->get_shape());
-                refs.push_back(output);
-            }
-            else
-            {
-                auto c_alias = instruction::get_output_alias(refs.back());
-                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
-                {
-                    auto output = insert_allocation(ins, ins->get_shape());
-                    auto copy_out =
-                        mod->insert_instruction(ins, make_op("hip::copy"), refs.back(), output);
-                    refs.back() = copy_out;
-                    refs.push_back(copy_out);
-                }
-                else
-                {
-                    refs.push_back(refs.back());
-                }
-            }
+            assert(refs.size() == 2);
+            auto output = insert_allocation(ins, ins->get_shape());
+            refs.push_back(output);
             return mod->replace_instruction(
                 ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
         });

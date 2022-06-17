@@ -54,6 +54,7 @@ add_library(migraphx
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
+    replace_allocate.cpp
     simplify_qdq.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
@@ -80,6 +81,7 @@ register_migraphx_ops(
     acosh
     acos
     add
+    allocate
     argmax
     argmin
     asinh

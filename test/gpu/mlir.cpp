@@ -29,19 +29,19 @@ struct mlir_gpu_target : migraphx::gpu::target
     }
 };
 
-std::string encode(std::string s)
+std::string encode(const std::string& s)
 {
     std::stringstream ss;
     bool prespace = false;
     for(auto c : s)
     {
-        if(std::isspace(c))
+        if(std::isspace(c) != 0)
         {
             if(not prespace)
                 ss << "  ";
             prespace = true;
         }
-        else if(std::isprint(c))
+        else if(std::isprint(c) != 0)
         {
             ss << c;
             prespace = false;

@@ -129,8 +129,8 @@ struct mlir_program
           location(mlirLocationUnknownGet(ctx.get())),
           mmodule(mlirModuleCreateEmpty(location))
     {
-        MlirDialectHandle mixrHandle = mlirGetDialectHandle__migraphx__();
-        mlirDialectHandleRegisterDialect(mixrHandle, ctx.get());
+        MlirDialectHandle mixr_handle = mlirGetDialectHandle__migraphx__();
+        mlirDialectHandleRegisterDialect(mixr_handle, ctx.get());
         mlirRegisterAllDialects(ctx.get());
         mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
     }
@@ -487,7 +487,7 @@ struct mlir_program
         // 2nd pipeline to call
         std::string tname = get_device_name();
         // HACK: Since MLIR can't handle the full target name
-        auto hacked_tname = tname.substr(0, tname.find(":"));
+        auto hacked_tname = tname.substr(0, tname.find(':'));
         if(tname.size() != hacked_tname.size())
             std::cout
                 << "*************** WARNING: MLIR may not compile the correct target features for: "
@@ -502,7 +502,7 @@ struct mlir_program
         return op;
     }
 
-    std::pair<std::size_t, std::size_t> get_launch_params()
+    std::pair<std::size_t, std::size_t> get_launch_params() const
     {
         uint32_t attrs[2];
         // returns block and grid sizes
@@ -512,7 +512,7 @@ struct mlir_program
         return {global, local};
     }
 
-    value::binary get_binary()
+    value::binary get_binary() const
     {
         int size = 0;
         mlirGetBinary(mmodule.get(), &size, nullptr);

@@ -23,7 +23,7 @@ struct mlir_conv
     }
 
     std::string name() const { return "gpu::mlir_conv"; }
-    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
+    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
         check_shapes{inputs, *this}.standard();
         if(mods.size() != 1)
@@ -47,12 +47,12 @@ struct find_conv_pointwise
         return match::name("pointwise")(match::any_of[match::inputs()](convolution.bind("x")));
     }
 
-    void apply(module_pass_manager& mpm, match::matcher_result r) const
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto conv_ins = r.instructions["convolution"];
         auto x_ins    = r.instructions["x"]; // input after contiguous
-        auto pm       = ins->module_inputs().front();
+        auto *pm       = ins->module_inputs().front();
         auto names    = pm->get_parameter_names();
         // Whitelist pointwise operators
         if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {

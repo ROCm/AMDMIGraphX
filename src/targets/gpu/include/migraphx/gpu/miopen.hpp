@@ -11,7 +11,7 @@
 
 #include <sstream>
 
-#ifdef HAS_FIND_MODE_API
+#ifdef MIGRAPHX_HAS_FIND_MODE_API
 extern "C" miopenStatus_t miopenHiddenSetConvolutionFindMode(miopenConvolutionDescriptor_t convDesc,
                                                              int findMode);
 #endif
@@ -104,7 +104,7 @@ inline convolution_descriptor make_conv(const T& op)
         c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);
     if(op.group > 1)
         miopenSetConvolutionGroupCount(c.get(), op.group);
-#ifdef HAS_FIND_MODE_API
+#ifdef MIGRAPHX_HAS_FIND_MODE_API
     miopenHiddenSetConvolutionFindMode(c.get(), 1); // Normal mode
 #endif
     return c;

@@ -379,4 +379,18 @@ TEST_CASE(module_without_bypass)
     EXPECT(found);
 }
 
+TEST_CASE(multiple_module_dependency)
+{
+    // Test when an instruction from a submodule depends on previous module
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto* sub = p.create_module("sub");
+    auto l1   = mm->add_literal(migraphx::literal(3));
+    // second same literal to make sure instruction_ref is being compared, rather than the
+    // instructions
+    sub->add_literal(migraphx::literal(3));
+    sub->add_instruction(sum_op{}, l1, l1);
+    EXPECT((sub->validate() == sub->end()));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

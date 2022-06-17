@@ -22,6 +22,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_FINALIZE)
+
 struct module_impl
 {
     // A list is used to keep references to an instruction stable
@@ -560,9 +562,8 @@ instruction_ref module::validate() const
     return std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& i) {
             auto inputs      = i.inputs();
-            bool check_order = std::all_of(inputs.begin(), inputs.end(), [&](auto in) {
-                return contains(impl->instructions, *in);
-            });
+            bool check_order = std::all_of(
+                inputs.begin(), inputs.end(), [&](auto in) { return has_instruction(in); });
             return !i.valid(impl->instructions.begin(), check_order);
         });
 }
@@ -605,8 +606,14 @@ instruction_ref module::find_dangling_reference() const
 
 void module::finalize(context& ctx)
 {
+    const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {
+        if(trace)
+        {
+            std::cout << "Finalize: ";
+            this->debug_print(ins);
+        }
         ins->finalize(ctx);
         for(const auto& smod : ins->module_inputs())
         {
@@ -781,7 +788,6 @@ std::unordered_map<instruction_ref, std::string>
 module::print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const
 {
     os << "migraphx::module p;" << std::endl;
-    // cppcheck-suppress variableScope
     unsigned long seed = 0;
     names              = this->print(
         [&](auto ins, auto ins_names) {

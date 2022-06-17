@@ -168,7 +168,6 @@ bool verify_range(const R1& r1, const R2& r2, double tolerance = 80, double* out
 {
     double threshold = std::numeric_limits<range_value<R1>>::epsilon() * tolerance;
     auto error       = rms_range(r1, r2);
-    // cppcheck-suppress uninitvar
     if(out_error != nullptr)
         *out_error = error;
     return error <= threshold;

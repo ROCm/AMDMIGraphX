@@ -291,29 +291,7 @@ struct cpu_apply
 {
     module* modl;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
-    std::unordered_map<instruction_ref, std::string> prog_output_names{};
     instruction_ref last{};
-
-    void create_output_names()
-    {
-        this->last = instruction::get_output_alias(std::prev(modl->end()));
-        if(this->last->name() == "@return")
-        {
-            const auto& prog_outputs = last->inputs();
-            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
-
-            std::transform(prog_outputs.begin(),
-                           prog_outputs.end(),
-                           outputs_alias.begin(),
-                           [](const auto& i) { return instruction::get_output_alias(i); });
-
-            std::size_t index = 0;
-            for(auto ins : outputs_alias)
-            {
-                prog_output_names[ins] = modl->name() + ":#output_" + std::to_string(index++);
-            }
-        }
-    }
 
     void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate = true)
     {
@@ -352,7 +330,7 @@ struct cpu_apply
             std::transform(bind_inputs.begin(),
                            bind_inputs.end(),
                            std::back_inserter(inputs),
-                           [&](const auto& s) { return r.instructions.at(s); });
+                           [&](const auto& s) { return r.instructions[s]; });
             inputs.push_back(this->insert_allocation(ins, ins->get_shape()));
             modl->replace_instruction(ins, op, inputs);
         });
@@ -360,7 +338,6 @@ struct cpu_apply
 
     void init()
     {
-        create_output_names();
         extend_dnnl_algos("dnnl::binary",
                           {
                               {"add", "binary_add"},
@@ -490,7 +467,7 @@ struct cpu_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
     {
-        return modl->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
+        return modl->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 };
 

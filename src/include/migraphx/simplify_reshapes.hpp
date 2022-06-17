@@ -16,7 +16,7 @@ struct module;
 struct simplify_reshapes
 {
     std::string name() const { return "simplify_reshapes"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

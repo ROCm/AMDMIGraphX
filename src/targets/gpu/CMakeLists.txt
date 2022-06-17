@@ -131,6 +131,7 @@ add_library(migraphx_gpu
     clip.cpp
     code_object_op.cpp
     compile_ops.cpp
+    compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
     compiler.cpp
@@ -158,6 +159,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp
+    prefuse_ops.cpp
     pad.cpp
     pooling.cpp
     quant_convolution.cpp

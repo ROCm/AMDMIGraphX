@@ -93,8 +93,8 @@ def parse(file):
     first_marker_time = 0
     for i in data:
         if (i):
-            if ("Marker start:" in i['name']) and (
-                    i['name'] not in list_names):
+            if ("Marker start:" in i['name']) and (i['name']
+                                                   not in list_names):
                 list_names.append(i['name'])
                 if first_marker:
                     first_marker_time = i['ts']
@@ -137,12 +137,12 @@ def parse(file):
                     name == entry['name']
             ):  # name can match on gpu or cpu side, for gpu, we need data from gpu markers.
                 if (("gpu::" in name)
-                        and ("UserMarker frame:" in entry['args']['desc'])
-                    ):  #gpu side information
+                        and ("UserMarker frame:"
+                             in entry['args']['desc'])):  #gpu side information
                     temp_list.append(int(entry.get('dur')))
                 elif (("gpu::" not in name)
-                      and ("Marker start:" in entry['args']['desc'])
-                      ):  #cpu side information
+                      and ("Marker start:"
+                           in entry['args']['desc'])):  #cpu side information
                     temp_list.append(int(entry.get('dur')))
         list_times_per_names.append(temp_list)
 
@@ -295,10 +295,10 @@ def main():
 
         tmp_sum = df_tot.loc[:, df_tot.columns.str.contains('SUM')].astype(int)
         tmp_min = df_tot.loc[:, df_tot.columns.str.contains('MIN')].astype(int)
-        tmp_max = df_tot.loc[:, df_tot.columns.str.match("^MAX_.$")].astype(
-            int)
-        tmp_count = df_tot.loc[:, df_tot.columns.str.match("COUNT")].astype(
-            int)
+        tmp_max = df_tot.loc[:,
+                             df_tot.columns.str.match("^MAX_.$")].astype(int)
+        tmp_count = df_tot.loc[:,
+                               df_tot.columns.str.match("COUNT")].astype(int)
 
         tmp_sum['SUM_avg'] = tmp_sum.mean(axis=1).astype(int)
         tmp_min['MIN_avg'] = tmp_min.mean(axis=1).astype(int)

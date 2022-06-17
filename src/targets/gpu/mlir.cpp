@@ -495,7 +495,7 @@ struct mlir_program
         mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str(), "amdgcn-amd-amdhsa", "");
         mlirPassManagerRun(pm.get(), mmodule.get());
 
-        code_object_op op;
+        code_object_op op{};
         op.symbol_name                = "main";
         op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
@@ -605,6 +605,7 @@ std::string dump_mlir(const module&) { return {}; }
 code_object_op compile_mlir(const context&, const module&) { return {}; }
 
 instruction_ref
+// cppcheck-suppress funcArgNamesDifferent
 insert_mlir(module& m, instruction_ref, code_object_op, const std::vector<instruction_ref>&)
 {
     return m.end();

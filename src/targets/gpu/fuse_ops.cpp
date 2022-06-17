@@ -812,15 +812,6 @@ inline auto precompile_name(std::string s) // NOLINT
     });
 }
 
-template <class... Ms>
-auto conv_bias_pointwise(Ms... ms)
-{
-    return precompile_name("pointwise")(
-        match::either_arg(0, 1)(bias_shape(match::used_once()).bind("bias"),
-                                fusable_conv(match::used_once()).bind("conv")),
-        ms...);
-}
-
 struct find_conv_bias
 {
     context* ctx = nullptr;

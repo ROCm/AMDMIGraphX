@@ -15,12 +15,12 @@ struct context;
 
 struct code_object_op
 {
-    value::binary code_object;
-    std::string symbol_name;
-    std::size_t global;
-    std::size_t local;
-    std::vector<shape> expected_inputs;
-    shape output;
+    value::binary code_object{};
+    std::string symbol_name = "";
+    std::size_t global = 0;
+    std::size_t local = 0;
+    std::vector<shape> expected_inputs{};
+    shape output{};
     std::int64_t output_arg = -1;
     kernel k{};
 

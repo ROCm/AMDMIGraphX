@@ -18,15 +18,10 @@ struct parse_relu6 : op_parser<parse_relu6>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto input_lens = args[0]->get_shape().lens();
-        auto min_val    = info.add_literal(0.0f);
-        auto max_val    = info.add_literal(6.0f);
+        auto min_val = info.add_literal(0.0f);
+        auto max_val = info.add_literal(6.0f);
 
-        min_val =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
-        max_val =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
-        return info.add_instruction(make_op("clip"), args.front(), min_val, max_val);
+        return info.add_common_op("clip", args[0], min_val, max_val);
     }
 };
 

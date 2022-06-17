@@ -33,6 +33,16 @@ struct tf_parser
         instruction_ref add_broadcastable_binary_op(const std::string& op_name,
                                                     instruction_ref arg0,
                                                     instruction_ref arg1) const;
+
+        instruction_ref add_common_op(const std::string& op_name,
+                                      std::vector<instruction_ref> inputs) const;
+
+        template <class... Ts>
+        instruction_ref add_common_op(const std::string& op_name, Ts... xs) const
+        {
+            return add_common_op(op_name, {xs...});
+        }
+
         instruction_ref add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const;
 

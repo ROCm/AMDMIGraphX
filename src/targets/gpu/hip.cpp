@@ -83,7 +83,7 @@ hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
         if(status != hipSuccess)
             MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
     }
-    else if(status == hipErrorOutOfMemory)
+    else if(status != hipSuccess)
     {
         MIGRAPHX_THROW("Couldn't get device pointer for host buffer: " + hip_error(status));
     }

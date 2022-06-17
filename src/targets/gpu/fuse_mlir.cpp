@@ -52,7 +52,7 @@ struct find_conv_pointwise
         auto ins      = r.result;
         auto conv_ins = r.instructions["convolution"];
         auto x_ins    = r.instructions["x"]; // input after contiguous
-        auto *pm       = ins->module_inputs().front();
+        auto* pm      = ins->module_inputs().front();
         auto names    = pm->get_parameter_names();
         // Whitelist pointwise operators
         if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {

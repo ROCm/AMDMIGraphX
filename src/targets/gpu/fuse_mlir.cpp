@@ -95,7 +95,11 @@ struct find_conv_pointwise
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
+#ifdef MIGRAPHX_MLIR
     match::find_matches(mpm, find_conv_pointwise{});
+#else
+    (void)mpm;
+#endif
 }
 
 } // namespace gpu

@@ -1,33 +1,104 @@
+#####################################################################################
+#  The MIT License (MIT)
+#  
+#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#  
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#  
+#  The above copyright notice and this permission notice shall be included in
+#  all copies or substantial portions of the Software.
+#  
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#  THE SOFTWARE.
+#####################################################################################
 from fileinput import filename
 from operator import contains
 import sys
 import subprocess
 
-# Header and footer of the comment block 
+#Debug flag
+debug = False
+
+
+# check the first n lines since I'm assuming here that we won't have the AMD copright or some sort of
+# copyright after the first 10 lines
+def isStamped(inputFile):
+    result = False
+    key_message = "Advanced Micro Devices, Inc. All rights reserved"
+
+    if key_message in inputFile:
+        result = True
+
+    return result
+
+
+# Header and footer of the comment block
 # modify these if we want some different style
 def topHeader(commentChar):
     delim = None
     if "*" in commentChar:
         delim = "/*"
-    if  "#" in commentChar:
-        delim = "###########################################"
+    if "#" in commentChar:
+        delim = "#####################################################################################"
     return delim
 
 def bottomFooter(commentChar):
     delim = None
     if "*" in commentChar:
         delim = "*/"
-    if  "#" in commentChar:
-        delim = "###########################################"
+    if "#" in commentChar:
+        delim = "#####################################################################################"
     return delim
 
 #Simple just open and write stuff to each file with the license stamp
 def openAndWriteFile(filename, message, commentChar):
-    print("Writing header to ", filename)
 
     #open save old contents and append things here
-    with open(filename, 'r') as contents:
-        save = contents.read()
+    if debug is True:
+        print("Open", filename, end='')
+
+    #with open(filename, 'r') as contents:
+    #    save = contents.read()
+    try:
+        file = open(filename, 'r')
+    except OSError as e:
+        if debug is True:
+            print("....Open Error: Skipping  file ")
+        file.close()
+        return
+    else:
+        with file as contents:
+            try:
+                save = contents.read()
+                res = isStamped(save)
+
+                #Check if we have a licence stamp already
+                if res is True:
+                    if debug is True:
+                        print("....Already Stamped: Skipping  file ")
+
+                    contents.close()
+                    return
+
+            except UnicodeDecodeError as eu:
+                if debug is True:
+                    print("...Skipping binary file ")
+                contents.close()
+                return
+
+    if debug is True:
+        print("...Writing header", end='')
+
     with open(filename, 'w') as contents:
         #append the licence to the top of the file
 
@@ -36,7 +107,10 @@ def openAndWriteFile(filename, message, commentChar):
             contents.write(delim + "\n")
 
         for line in message:
-            contents.write(commentChar + " " + line + "\n")
+            if line is not '':
+                contents.write(commentChar + " " + line + "\n")
+            else:
+                contents.write(commentChar + "\n")
 
         delim = bottomFooter(commentChar)
         if delim is not None:
@@ -45,7 +119,7 @@ def openAndWriteFile(filename, message, commentChar):
         #write remaining contents    
         contents.write(save)
 
-    print("done")
+    print("...done")
 
 # Get the file type based on what we care about to tag with our licence
 # file. Otherwise return None for the delimiter and skip the file
@@ -54,45 +128,39 @@ def getDelimiter(filename):
 
     delimiter = None
     if ".cpp" in filename:
-        delimiter = "* " 
+        delimiter = "*"
     if ".hpp" in filename:
-        delimiter = "* "
+        delimiter = "*"
     if ".py" in filename:
-        delimiter = "# "
+        delimiter = "#"
     if ".txt" in filename:
-        delimiter = "# "
+        delimiter = "#"
 
     return delimiter 
 
 def main():
-    #figure out what file we want to read in our message from
-#    liscence_file = input("Enter License file (default is LICENSE)")
 
-    #if liscence_file is None:
-#        licence_file = "LICENSE"
+    message = open('LICENSE').read()
 
-    bashCommand = "cat LICENSE"
-    process = subprocess.Popen(bashCommand.split(), stdout= subprocess.PIPE)
-    message, error = process.communicate()
+    #Get a list of all the files in our git repo
+    #bashCommand = "git ls-files --exclude-standard"
+    #print (bashCommand.split())
+    proc = subprocess.run("git ls-files --exclude-standard",
+                          shell=True,
+                          stdout=subprocess.PIPE)
+    fileList = proc.stdout.decode().split('\n')
+    message = message.split('\n')
 
-    if error == None:
-        #Get a list of all the files in our git repo
-        bashCommand = "git ls-files --exclude-standard"
-        process = subprocess.Popen(bashCommand.split(), stdout= subprocess.PIPE)
-        output, error = process.communicate()
-        if error is None:
-            fileList = output.splitlines()
-            message  = message.splitlines()
-            #print(message)
-            for file in fileList:
-                commentDelim = getDelimiter(file)
-                if commentDelim is not None:
-                    openAndWriteFile(file, message, commentDelim)
+    if debug is True:
+        print("Target file list:\n" + str(fileList))
+        print("Output Message:\n" + str(message))
 
-        else:
-            print ("error parsing in list of files")
-    else:
-        print ("error parsing in license file")
+    for file in fileList:
+        #print(file)
+        commentDelim = getDelimiter(file)
+        if commentDelim is not None:
+            openAndWriteFile(file, message, commentDelim)
+
 
 if __name__ == "__main__":
     main()

@@ -61,9 +61,9 @@ struct find_conv_pointwise
            }))
             return;
         // Only fuse with fp32 for now
-        if (std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-            return i->get_shape().type() != shape::type_t::float_type;
-        }))
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+               return i->get_shape().type() != shape::type_t::float_type;
+           }))
             return;
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());

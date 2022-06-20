@@ -128,8 +128,8 @@ def openAndWriteFile(filename, message, commentChar):
 
         #write remaining contents
         contents.write(save)
-
-    print("...done")
+    if debug is True:
+        print("...done")
 
 
 # Get the file type based on what we care about to tag with our licence

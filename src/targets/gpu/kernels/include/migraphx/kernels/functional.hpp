@@ -137,7 +137,7 @@ constexpr auto by(F f)
 template <class F, class... Ts>
 constexpr void each_args(F f, Ts&&... xs)
 {
-    swallow{(f(std::forward<Ts>(xs)), 0)...};
+    swallow{(f(static_cast<Ts&&>(xs)), 0)...};
 }
 
 template <class F>

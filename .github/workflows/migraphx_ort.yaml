@@ -7,7 +7,6 @@ jobs:
   check_image_version:
     name: Check Image Version
     runs-on: self-hosted
-    needs: check_gpu_name
     outputs:
       image: ${{ steps.check_image.outputs.image }}
     steps:

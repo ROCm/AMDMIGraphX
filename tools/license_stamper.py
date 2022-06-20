@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #####################################################################################
 #  The MIT License (MIT)
 #  
@@ -21,26 +22,17 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 #####################################################################################
-from fileinput import filename
-from operator import contains
-import sys
 import subprocess
 
 #Debug flag
-debug = False
+debug = True
 
-
-# check the first n lines since I'm assuming here that we won't have the AMD copright or some sort of
-# copyright after the first 10 lines
-def isStamped(inputFile):
+def hasKeySequence(inputfile, key_message):
     result = False
-    key_message = "Advanced Micro Devices, Inc. All rights reserved"
-
-    if key_message in inputFile:
+    if key_message in inputfile:
         result = True
 
     return result
-
 
 # Header and footer of the comment block
 # modify these if we want some different style
@@ -62,6 +54,7 @@ def bottomFooter(commentChar):
 
 #Simple just open and write stuff to each file with the license stamp
 def openAndWriteFile(filename, message, commentChar):
+    add_shebang = False
 
     #open save old contents and append things here
     if debug is True:
@@ -73,17 +66,26 @@ def openAndWriteFile(filename, message, commentChar):
         file = open(filename, 'r')
     except OSError as e:
         if debug is True:
-            print("....Open Error: Skipping  file ")
+            print(str(e) + "....Open Error: Skipping  file ")
         file.close()
         return
     else:
         with file as contents:
             try:
+                saved_shebang = contents.readline()
+                add_shebang = hasKeySequence(saved_shebang, "#!")
+
+                # No shebang so start at beginning line
+                if add_shebang is False:
+                    contents.seek(0)
+
                 save = contents.read()
-                res = isStamped(save)
+
+                hasAmdLic = hasKeySequence(save, "Advanced Micro Devices, Inc. All rights reserved")
+                hasOtherLic = hasKeySequence(save, "Software License")
 
                 #Check if we have a licence stamp already
-                if res is True:
+                if hasAmdLic or hasOtherLic is True:
                     if debug is True:
                         print("....Already Stamped: Skipping  file ")
 
@@ -92,7 +94,7 @@ def openAndWriteFile(filename, message, commentChar):
 
             except UnicodeDecodeError as eu:
                 if debug is True:
-                    print("...Skipping binary file ")
+                    print(str(eu) + "...Skipping binary file ")
                 contents.close()
                 return
 
@@ -101,6 +103,9 @@ def openAndWriteFile(filename, message, commentChar):
 
     with open(filename, 'w') as contents:
         #append the licence to the top of the file
+
+        if add_shebang is True:
+            contents.write(saved_shebang + "\n")
 
         delim = topHeader(commentChar)
         if delim is not None:

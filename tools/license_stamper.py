@@ -25,7 +25,7 @@
 import subprocess
 
 #Debug flag
-debug = True
+debug = False
 
 
 def hasKeySequence(inputfile, key_message):

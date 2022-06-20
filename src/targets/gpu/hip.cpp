@@ -74,7 +74,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
 
 hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
 {
-    void* dev_ptr;
+    void* dev_ptr = nullptr;
     // check if ptr was allocated through hipHostMalloc
     auto status = hipHostGetDevicePointer(&dev_ptr, ptr, 0);
     if(status == hipErrorInvalidValue)

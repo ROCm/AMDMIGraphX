@@ -44,7 +44,6 @@ x = numpy.random.random((1, 3, 192, 192))
 x = x.astype(numpy.float32)
 
 import migraphx
-
 model = migraphx.parse_onnx("dm_nfnet_f0.onnx")
 model.compile(migraphx.get_target("gpu"))
 print(model.get_parameter_names())

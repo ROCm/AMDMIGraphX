@@ -28,7 +28,6 @@ import tensorflow as tf
 
 
 def tf_test(op_test):
-
     def run_test():
         g1 = tf.Graph()
         op_test(g1)

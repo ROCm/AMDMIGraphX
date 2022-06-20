@@ -38,7 +38,6 @@ pytest_plugins = 'onnx.backend.test.report',
 
 
 class MIGraphXBackendTest(onnx.backend.test.BackendTest):
-
     def __init__(self, backend, parent_module=None):
         super(MIGraphXBackendTest, self).__init__(backend, parent_module)
 

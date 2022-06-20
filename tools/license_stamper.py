@@ -117,7 +117,7 @@ def openAndWriteFile(filename, message, commentChar):
             contents.write(delim + "\n")
 
         for line in message:
-            if line is not '':
+            if line != '':
                 contents.write(commentChar + " " + line + "\n")
             else:
                 contents.write(commentChar + "\n")

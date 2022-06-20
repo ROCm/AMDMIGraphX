@@ -32,3 +32,20 @@ jobs:
         run: |
           cd ./rocm-migraphx/dockerfiles
           docker build -t "migraphx-ort:$(date +%Y%m%d)" --no-cache -f dockerfile_migraphx_benchmark .
+  run_benchmark:
+    name: Run benchmark
+    runs-on: self-hosted
+    if: ${{ always() }}
+    needs: build_image
+    steps:
+      - name: Execute benchmark script
+        run: >
+          docker run -e TZ=America/Chicago
+          -e TARGET=gpu
+          --device=/dev/dri
+          --device=/dev/kfd
+          --network=host
+          --group-add=video 
+          -v /home/htec/jz:/data
+          --workdir /data/source/rocm-migraphx/scripts/
+          migraphx-ort:$(date +%Y%m%d) /bin/bash ort_benchmark4.sh

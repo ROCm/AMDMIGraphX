@@ -378,14 +378,14 @@ struct interface_base : Base
         return x;
     }
 
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wdeprecated"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated"
     template <class T>
     auto auto_convert_param(rank<1>, T x) -> decltype(as_handle<T>{x})
     {
         return as_handle<T>{x};
     }
-    #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
     template <class T>
     auto auto_convert_param(rank<2>, T x) -> decltype(as_handle<T>{x, borrow{}})

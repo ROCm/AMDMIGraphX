@@ -1,0 +1,34 @@
+on:
+  workflow_dispatch:
+    
+name: MiGraphX Benchmark
+
+jobs:
+  check_image_version:
+    name: Check Image Version
+    runs-on: self-hosted
+    needs: check_gpu_name
+    outputs:
+      image: ${{ steps.check_image.outputs.image }}
+    steps:
+      - name: Check new image
+        id: check_image
+        run: |
+          if [ ! -z "$(docker images -q migraphx-ort:`date +%Y%m%d`)" ]; then
+            echo "::set-output name=image::true"
+          fi
+  build_image:
+    name: Build New Image
+    runs-on: self-hosted
+    needs: check_image_version
+    if: ${{ needs.check_image_version.outputs.image == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+        with:
+          submodules: recursive
+          token: ${{ secrets.GH_SUB_TOKEN }}
+      - name: Docker build
+        run: |
+          cd ./rocm-migraphx/dockerfiles
+          docker build -t "migraphx-ort:$(date +%Y%m%d)" --no-cache -f dockerfile_migraphx_benchmark .

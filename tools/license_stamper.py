@@ -143,9 +143,15 @@ def getDelimiter(filename):
         delimiter = "*"
     if ".hpp" in filename:
         delimiter = "*"
+    if ".h" in filename:
+        delimiter = "*"
     if ".py" in filename:
         delimiter = "#"
     if ".txt" in filename:
+        delimiter = "#"
+    if ".sh" in filename:
+        delimiter = "#"
+    if ".bsh" in filename:
         delimiter = "#"
 
     return delimiter

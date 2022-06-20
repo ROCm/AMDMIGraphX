@@ -140,7 +140,6 @@ add_library(migraphx_gpu
     convolution.cpp
     deconvolution.cpp
     device_name.cpp
-    eliminate_workspace.cpp
     elu.cpp
     fuse_ops.cpp
     gather.cpp

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 #####################################################################################
 #  The MIT License (MIT)
-#  
+#
 #  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
-#  
+#
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
 #  in the Software without restriction, including without limitation the rights
 #  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 #  copies of the Software, and to permit persons to whom the Software is
 #  furnished to do so, subject to the following conditions:
-#  
+#
 #  The above copyright notice and this permission notice shall be included in
 #  all copies or substantial portions of the Software.
-#  
+#
 #  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 #  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 #  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
@@ -27,12 +27,14 @@ import subprocess
 #Debug flag
 debug = True
 
+
 def hasKeySequence(inputfile, key_message):
     result = False
     if key_message in inputfile:
         result = True
 
     return result
+
 
 # Header and footer of the comment block
 # modify these if we want some different style
@@ -44,6 +46,7 @@ def topHeader(commentChar):
         delim = "#####################################################################################"
     return delim
 
+
 def bottomFooter(commentChar):
     delim = None
     if "*" in commentChar:
@@ -51,6 +54,7 @@ def bottomFooter(commentChar):
     if "#" in commentChar:
         delim = "#####################################################################################"
     return delim
+
 
 #Simple just open and write stuff to each file with the license stamp
 def openAndWriteFile(filename, message, commentChar):
@@ -81,7 +85,8 @@ def openAndWriteFile(filename, message, commentChar):
 
                 save = contents.read()
 
-                hasAmdLic = hasKeySequence(save, "Advanced Micro Devices, Inc. All rights reserved")
+                hasAmdLic = hasKeySequence(
+                    save, "Advanced Micro Devices, Inc. All rights reserved")
                 hasOtherLic = hasKeySequence(save, "Software License")
 
                 #Check if we have a licence stamp already
@@ -121,13 +126,15 @@ def openAndWriteFile(filename, message, commentChar):
         if delim is not None:
             contents.write(delim + "\n")
 
-        #write remaining contents    
+        #write remaining contents
         contents.write(save)
 
     print("...done")
 
+
 # Get the file type based on what we care about to tag with our licence
 # file. Otherwise return None for the delimiter and skip the file
+
 
 def getDelimiter(filename):
 
@@ -141,7 +148,8 @@ def getDelimiter(filename):
     if ".txt" in filename:
         delimiter = "#"
 
-    return delimiter 
+    return delimiter
+
 
 def main():
 

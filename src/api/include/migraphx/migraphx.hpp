@@ -277,6 +277,7 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
                   typename std::enable_if<std::is_convertible<HandleType*, handle_type*>{}>::type> \
     name(HandleType* p, Lifetime lifetime)                                                         \
     {                                                                                              \
+        std::cout << "constructor with lifetime" << "\n"; \
         this->set_handle(p, std::move(lifetime));                                                  \
     }
 
@@ -379,7 +380,7 @@ struct interface_base : Base
     }
 
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     template <class T>
     auto auto_convert_param(rank<1>, T x) -> decltype(as_handle<T>{x})
     {
@@ -442,7 +443,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     shape() {}
 
     MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
-    shape(const migraphx_shape* p) { this->set_handle(p, borrow{}); }
+    shape(const migraphx_shape* p) { assert(false); this->set_handle(p, borrow{}); }
 
     MIGRAPHX_HANDLE_CONSTRUCTOR(shape);
 

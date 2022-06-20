@@ -14,7 +14,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_REGISTER_OP(hip_allocate)
-MIGRAPHX_REGISTER_OP(hip_sync_device)
 MIGRAPHX_REGISTER_OP(hip_sync_stream)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)

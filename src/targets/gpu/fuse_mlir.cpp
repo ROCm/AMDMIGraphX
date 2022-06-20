@@ -12,6 +12,7 @@ struct module;
 
 namespace gpu {
 
+#ifdef MIGRAPHX_MLIR
 struct mlir_conv
 {
     operation op = make_op("convolution");
@@ -40,7 +41,7 @@ namespace {
 struct find_conv_pointwise
 {
     // Find a convolution followed by a pointwise operation.
-    auto matcher() const // NOLINT
+    auto matcher() const
     {
         auto convolution =
             match::skip(match::name("contiguous"))(match::name("convolution").bind("convolution"));
@@ -97,6 +98,8 @@ struct find_conv_pointwise
     }
 };
 } // namespace
+
+#endif
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {

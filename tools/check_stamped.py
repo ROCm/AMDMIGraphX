@@ -36,6 +36,7 @@ def hasKeySequence(inputfile, key_message):
 
 #Simple just open and write stuff to each file with the license stamp
 def openAndCheckFile(filename):
+    result = False
     #open save old contents and append things here
     if debug is True:
         print("Open", filename, end='')
@@ -89,12 +90,12 @@ def main():
     # The filetypes we want to check for that are stamped
     # LICENSE is included here as it SHOULD have a liscence in it otherwise flag it as unstamped
     supported_file_types = (".cpp", ".hpp", ".h", ".py", ".txt", ".sh", ".bsh",
-                            "LICENSE")
+                            "LICENSE", ".ipynb")
 
     #add general stuff we shouldn't stamp and any exceptions here
     unsupported_file_types = [
         ".onnx", ".pb", ".rst", ".jpg", ".jpeg", ".proto", ".md", ".clang",
-        ".cmake", ".weight", ".ipynb", ".ini", "json", ".docker", ".git",
+        ".cmake", ".weight", ".ini", "json", ".docker", ".git",
         ".rules", ".yml"
     ]
 

@@ -1,0 +1,39 @@
+#ifndef MIGRAPHX_GUARD_KERNELS_LAYERNORM_HPP
+#define MIGRAPHX_GUARD_KERNELS_LAYERNORM_HPP
+#include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/print.hpp>
+
+namespace migraphx {
+
+template <index_int Axis, class F, class Output, class Input, class... Inputs>
+__device__ void layernorm(F compute, Output output, Input input, Inputs... inputs)
+{
+    using reduce_output = reduce::with_axis<Input, Axis>;
+    constexpr auto relements =
+        get_shape_c<Input>{}.elements() / get_shape_c<reduce_output>{}.elements();
+    MIGRAPHX_ASSERT(relements > 0);
+    reduce::block::run<reduce_output>([&](auto, auto r) {
+        using value_type = typename Input::type;
+        auto mean        = [&](auto f) {
+            return r.reduce(op::sum{}, 0, [&](auto x) { return f(x) / value_type{relements}; })(
+                input);
+        };
+        // mean(x)
+        auto mean_x = mean(op::id{});
+        // mean(m ^ 2)
+        auto mean_m2 = mean([&](auto x) {
+            auto m = x - mean_x;
+            return m * m;
+        });
+
+        r.inner([&](auto& y, auto x, auto... xs) {
+            auto m = x - mean_x;
+            // m * rsqrt(mean(m ^ 2) + 1e-12)
+            y = compute(m * rsqrt(mean_m2 + value_type{1e-12}), xs...);
+        })(output, input, inputs...);
+    });
+}
+
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_KERNELS_LAYERNORM_HPP

@@ -39,7 +39,6 @@ class MIGraphXBackendRep(BackendRep):
     Computes the prediction for a pipeline converted into
     an :class:`onnxruntime.InferenceSession` node.
     """
-
     def __init__(self, prog, input_names):
         """
         :param session: :class:`migraphx.program`

@@ -31,7 +31,6 @@ from onnx import TensorProto
 
 
 def onnx_test(op_test):
-
     def run_test():
         op_info = op_test()
         if len(op_info) > 3:

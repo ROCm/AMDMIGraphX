@@ -61,8 +61,6 @@ check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
 set(CMAKE_REQUIRED_INCLUDES)
 set(CMAKE_EXTRA_INCLUDE_FILES)
 
-find_package(nlohmann_json 3.8.0 REQUIRED)
-
 include(ROCMSetupVersion)
 
 rocm_setup_version(VERSION 2.3)

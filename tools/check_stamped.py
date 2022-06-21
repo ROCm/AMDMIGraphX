@@ -25,6 +25,7 @@
 import subprocess
 import sys
 
+debug = False
 
 def hasKeySequence(inputfile, key_message):
     result = False
@@ -81,10 +82,6 @@ def check_filename(filename, fileTuple):
             break
 
     return supported
-
-
-debug = False
-
 
 def main():
     # The filetypes we want to check for that are stamped

@@ -28,6 +28,40 @@ import subprocess
 debug = False
 
 
+# Markdown code blob we should use to insert into notebook files
+def getipynb_markdownBlockAsList():
+    markdownBlock = [
+        '\t{\n'
+        '\t\t"cell_type": "code",\n',
+        '\t\t"metadata": {},\n',
+        '\t\t"source": [\n',
+        '\t\t\t\"#  The MIT License (MIT)\",\n',
+        '\t\t\t\"#\",\n',
+        '\t\t\t\"#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.\",\n',
+        '\t\t\t\"#\",\n',
+        '\t\t\t\"#  Permission is hereby granted, free of charge, to any person obtaining a copy\",\n',
+        '\t\t\t\"#  of this software and associated documentation files (the \'Software\'), to deal\",\n',
+        '\t\t\t\"#  in the Software without restriction, including without limitation the rights\",\n',
+        '\t\t\t\"#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\",\n',
+        '\t\t\t\"#  copies of the Software, and to permit persons to whom the Software is\",\n',
+        '\t\t\t\"#  furnished to do so, subject to the following conditions:\",\n',
+        '\t\t\t\"#\",\n',
+        '\t\t\t\"#  The above copyright notice and this permission notice shall be included in\",\n',
+        '\t\t\t\"#  all copies or substantial portions of the Software.\",\n',
+        '\t\t\t\"#\",\n',
+        '\t\t\t\"#  THE SOFTWARE IS PROVIDED \'AS IS\', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\",\n',
+        '\t\t\t\"#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\",\n',
+        '\t\t\t\"#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE\",\n',
+        '\t\t\t\"#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\",\n',
+        '\t\t\t\"#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\",\n',
+        '\t\t\t\"#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\",\n',
+        '\t\t\t\"#  THE SOFTWARE.\"\n',
+        '\t\t]\n',
+        '\t},\n',
+    ]
+    return markdownBlock
+
+
 def hasKeySequence(inputfile, key_message):
     result = False
     if key_message in inputfile:
@@ -40,25 +74,39 @@ def hasKeySequence(inputfile, key_message):
 # modify these if we want some different style
 def topHeader(commentChar):
     delim = None
+
+    #Early return
+    if "//" in commentChar:
+        delim = getipynb_markdownBlockAsList()
+        delim.append("\n")
+        return ''.join(str(x) for x in delim)
+
     if "*" in commentChar:
-        delim = "/*"
+        delim = "/*\n"
     if "#" in commentChar:
-        delim = "#####################################################################################"
+        delim = "#####################################################################################\n"
     return delim
 
 
 def bottomFooter(commentChar):
     delim = None
+    #Early return - no footer handled by
+    if "//" in commentChar:
+        return delim
+
     if "*" in commentChar:
-        delim = "*/"
+        delim = "*/\n"
     if "#" in commentChar:
-        delim = "#####################################################################################"
+        delim = "#####################################################################################\n"
     return delim
 
 
 #Simple just open and write stuff to each file with the license stamp
 def openAndWriteFile(filename, message, commentChar):
     add_shebang = False
+    #markdown file stamping for .ipynb
+    save_markdown_lines = []
+    modify_markdown = False
 
     #open save old contents and append things here
     if debug is True:
@@ -76,13 +124,22 @@ def openAndWriteFile(filename, message, commentChar):
     else:
         with file as contents:
             try:
-                saved_shebang = contents.readline()
-                add_shebang = hasKeySequence(saved_shebang, "#!")
+                if commentChar != "//":
+                    saved_shebang = contents.readline()
+                    add_shebang = hasKeySequence(saved_shebang, "#!")
 
-                # No shebang so start at beginning line
-                if add_shebang is False:
-                    contents.seek(0)
+                    # No shebang so start at beginning line
+                    if add_shebang is False:
+                        contents.seek(0)
 
+                # Get the first tags in notebook before we insert license into a cell as a comment block
+                if commentChar == "//":
+                    save_markdown_lines.extend(contents.readline())  # { tag
+                    save_markdown_lines.extend(
+                        contents.readline())  # "cells": [ tag
+                    modify_markdown = True
+
+                #read remaining lines in the original file
                 save = contents.read()
 
                 hasAmdLic = hasKeySequence(
@@ -109,22 +166,29 @@ def openAndWriteFile(filename, message, commentChar):
     with open(filename, 'w') as contents:
         #append the licence to the top of the file
 
+        #Append shebang before license
         if add_shebang is True:
             contents.write(saved_shebang + "\n")
 
+        #Append markdown hooks before license
+        if modify_markdown is True:
+            contents.write(''.join(str(x) for x in save_markdown_lines))
+
         delim = topHeader(commentChar)
         if delim is not None:
-            contents.write(delim + "\n")
+            contents.write(delim)
+            #print(delim)
 
-        for line in message:
-            if line != '':
-                contents.write(commentChar + " " + line + "\n")
-            else:
-                contents.write(commentChar + "\n")
+        if modify_markdown is False:
+            for line in message:
+                if line != '':
+                    contents.write(commentChar + " " + line + "\n")
+                else:
+                    contents.write(commentChar + "\n")
 
         delim = bottomFooter(commentChar)
         if delim is not None:
-            contents.write(delim + "\n")
+            contents.write(delim)
 
         #write remaining contents
         contents.write(save)
@@ -138,21 +202,23 @@ def openAndWriteFile(filename, message, commentChar):
 
 def getDelimiter(filename):
 
+    delimiterDict = {
+        ".cpp": "*",
+        ".hpp": "*",
+        ".h": "*",
+        ".ipynb": "//",
+        ".py": "#",
+        ".txt": "#",
+        ".bsh": "#",
+        ".sh": "#"
+    }
+    listOfKeys = delimiterDict.keys()
     delimiter = None
-    if ".cpp" in filename:
-        delimiter = "*"
-    if ".hpp" in filename:
-        delimiter = "*"
-    if ".h" in filename:
-        delimiter = "*"
-    if ".py" in filename:
-        delimiter = "#"
-    if ".txt" in filename:
-        delimiter = "#"
-    if ".sh" in filename:
-        delimiter = "#"
-    if ".bsh" in filename:
-        delimiter = "#"
+
+    for extension in listOfKeys:
+        if extension in filename:
+            delimiter = delimiterDict[extension]
+            break
 
     return delimiter
 

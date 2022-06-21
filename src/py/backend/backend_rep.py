@@ -21,10 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-# -------------------------------------------------------------------------
-# Copyright (c) Advanced Micro Device Inc. All rights reserved.
-# Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """
 Implements ONNX's backend API.
 """

@@ -14,7 +14,6 @@ const std::string select_all = R"__migraphx__(
 SELECT * FROM test_db;
 )__migraphx__";
 
-
 TEST_CASE(read_write)
 {
     migraphx::tmp_dir td{};
@@ -24,7 +23,7 @@ TEST_CASE(read_write)
         db.execute(create_table);
     }
     {
-        auto db = migraphx::sqlite::read(db_path);
+        auto db   = migraphx::sqlite::read(db_path);
         auto rows = db.execute(select_all);
         EXPECT(rows.size() == 1);
         auto row = rows.front();

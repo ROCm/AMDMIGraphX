@@ -18,7 +18,8 @@ struct sqlite
     static sqlite read(const fs::path& p);
     static sqlite write(const fs::path& p);
     std::vector<std::unordered_map<std::string, std::string>> execute(const std::string& s);
-private:
+
+    private:
     std::shared_ptr<sqlite_impl> impl;
 };
 

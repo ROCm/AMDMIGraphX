@@ -15,14 +15,14 @@ struct sqlite_impl
     void open(const fs::path& p, int flags)
     {
         sqlite3* ptr_tmp = nullptr;
-        int rc = sqlite3_open_v2(p.string().c_str(), &ptr_tmp, flags, nullptr);
-        ptr = sqlite3_ptr{ptr_tmp};
-        if (rc != 0)
+        int rc           = sqlite3_open_v2(p.string().c_str(), &ptr_tmp, flags, nullptr);
+        ptr              = sqlite3_ptr{ptr_tmp};
+        if(rc != 0)
             MIGRAPHX_THROW("error opening " + p.string() + ": " + error_message());
     }
 
-    template<class F>
-    void exec(const char*sql, F f)
+    template <class F>
+    void exec(const char* sql, F f)
     {
         auto callback = [](void* obj, auto... xs) -> int {
             try
@@ -37,7 +37,7 @@ struct sqlite_impl
             }
         };
         int rc = sqlite3_exec(get(), sql, callback, &f, nullptr);
-        if (rc != 0)
+        if(rc != 0)
             MIGRAPHX_THROW(error_message());
     }
 
@@ -71,9 +71,12 @@ std::vector<std::unordered_map<std::string, std::string>> sqlite::execute(const 
     impl->exec(s.c_str(), [&](int n, char** texts, char** names) {
         std::unordered_map<std::string, std::string> row;
         row.reserve(n);
-        std::transform(names, names+n, texts, std::inserter(row, row.begin()), [&](const char* name, const char* text) {
-            return std::make_pair(name, text);
-        });
+        std::transform(
+            names,
+            names + n,
+            texts,
+            std::inserter(row, row.begin()),
+            [&](const char* name, const char* text) { return std::make_pair(name, text); });
         result.push_back(row);
     });
     return result;

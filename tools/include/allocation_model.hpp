@@ -28,6 +28,8 @@ struct allocation_model
     operation allocate(const shape& s) const;
     /// Create a preallocated operator for the given shape
     operation preallocate(const shape& s, const std::string& id) const;
+    /// Check if outputs are to be inserted
+    bool needs_out_params() const;
 };
 
 #else
@@ -37,7 +39,8 @@ interface('allocation_model',
     virtual('name', returns='std::string', const=True),
     virtual('copy', returns='std::string', const=True),
     virtual('allocate', s='const shape&', returns='operation', const=True),
-    virtual('preallocate', s='const shape&', id='std::string', returns='operation', const=True)
+    virtual('preallocate', s='const shape&', id='std::string', returns='operation', const=True),
+    virtual('needs_out_params', returns='bool', const=True)
 )
 %>
 

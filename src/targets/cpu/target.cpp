@@ -13,6 +13,7 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
@@ -69,6 +70,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             dead_code_elimination{},
             lowering{},
             eliminate_contiguous{"dnnl::reorder"},
+            dead_code_elimination{},
+            replace_allocate{cpu_allocation_model{}},
             dead_code_elimination{},
             adjust_allocation{cpu_allocation_model{}},
             dead_code_elimination{},

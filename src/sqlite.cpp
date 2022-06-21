@@ -27,7 +27,7 @@ struct sqlite_impl
         auto callback = [](void* obj, auto... xs) -> int {
             try
             {
-                auto g = static_cast<const F*>(obj);
+                const auto* g = static_cast<const F*>(obj);
                 (*g)(xs...);
                 return 0;
             }

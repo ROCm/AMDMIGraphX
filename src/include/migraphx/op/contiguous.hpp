@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_CONTIGUOUS_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -28,6 +27,8 @@ struct contiguous
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
+        if(inputs.front().standard())
+            return inputs.front();
         auto lens = inputs.at(0).lens();
         auto t    = inputs.at(0).type();
         return {t, lens};
@@ -42,6 +43,11 @@ struct contiguous
             });
         });
         return result;
+    }
+
+    auto apply() const
+    {
+        return [](auto x) { return x; };
     }
 };
 

@@ -46,6 +46,33 @@ struct simple_operation_no_print
     }
 };
 
+struct compilable_op
+{
+    std::string name() const { return "compilable"; }
+    migraphx::argument
+    compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+
+    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+
+    migraphx::value
+    compile(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&)
+    {
+        return {{"compiled", true}};
+    }
+};
+
 TEST_CASE(operation_copy_test)
 {
     simple_operation s{};
@@ -55,6 +82,15 @@ TEST_CASE(operation_copy_test)
     EXPECT(s == op1);
     // cppcheck-suppress duplicateExpression
     EXPECT(op2 == op1);
+}
+
+TEST_CASE(operation_copy_assign_test)
+{
+    simple_operation s{};
+    migraphx::operation op;
+    op = s;
+    // cppcheck-suppress duplicateExpression
+    EXPECT(s == op);
 }
 
 TEST_CASE(operation_equal_test)
@@ -162,6 +198,53 @@ TEST_CASE(check_run_finalize_throw)
     migraphx::operation op = final_operation_throw{};
     migraphx::context ctx{};
     EXPECT(test::throws([&] { op.finalize(ctx, {}, {}); }));
+}
+
+TEST_CASE(check_to_value1)
+{
+    migraphx::operation op = simple_operation{};
+    auto v                 = op.to_value();
+    EXPECT(v == migraphx::value{{"data", 1}});
+}
+
+TEST_CASE(check_to_value2)
+{
+    migraphx::operation op = simple_operation{};
+    auto v                 = migraphx::to_value(op);
+    EXPECT(v == migraphx::value{{"name", "simple"}, {"operator", {{"data", 1}}}});
+}
+
+TEST_CASE(check_from_value1)
+{
+    migraphx::operation op1 = simple_operation{};
+    migraphx::operation op2 = simple_operation{3};
+
+    op1.from_value({{"data", 3}});
+    EXPECT(op1 == op2);
+}
+
+TEST_CASE(check_from_value2)
+{
+    migraphx::operation op1 = migraphx::from_value<simple_operation>({{"data", 3}});
+    migraphx::operation op2 = simple_operation{3};
+
+    EXPECT(op1 == op2);
+}
+
+TEST_CASE(compile)
+{
+    migraphx::operation op = compilable_op{};
+    migraphx::context ctx{};
+    auto v = op.compile(ctx, {}, {});
+    EXPECT(v.at("compiled").to<bool>() == true);
+}
+
+TEST_CASE(compile_non_compilable)
+{
+    migraphx::operation op = simple_operation{};
+    migraphx::context ctx{};
+    auto v = op.compile(ctx, {}, {});
+    EXPECT(v.empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

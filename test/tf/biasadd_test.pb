@@ -1,8 +1,8 @@
 
 ;
-0Placeholder*
-shape:ô*
-dtype0
+0Placeholder*
+dtype0*
+shape:ô
 /
 1Placeholder*
 dtype0*
@@ -10,4 +10,4 @@
 :
 	bias_add1BiasAdd01*
 T0*
-data_formatNHWC"
+data_formatNHWC"¸

@@ -9,7 +9,7 @@ namespace device {
 
 void ceil(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) { return ::ceil(to_hip_type(x)); });
+    nary(stream, result, arg)([](auto x) __device__ { return ::ceil(to_hip_type(x)); });
 }
 
 } // namespace device

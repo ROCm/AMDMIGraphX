@@ -3,9 +3,9 @@
 
 #include <array>
 #include <migraphx/op/common.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/op/tanh.hpp>
 #include <migraphx/op/sigmoid.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>

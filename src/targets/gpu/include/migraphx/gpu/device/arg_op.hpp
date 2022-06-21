@@ -72,15 +72,15 @@ template <class Op>
 void arg_op(Op op, hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
     auto arg_shape        = arg.get_shape();
-    auto lens             = arg_shape.lens();
-    auto batch_lens       = lens;
-    size_t batch_item_num = lens[axis];
+    auto batch_lens       = arg_shape.lens();
+    size_t batch_item_num = batch_lens[axis];
     batch_lens[axis]      = 1;
     migraphx::shape batch_shape{arg_shape.type(), batch_lens};
+    migraphx::shape std_arg_shape{arg_shape.type(), arg_shape.lens()};
 
-    hip_visit_all(arg, arg_shape, batch_shape)([&](auto input, auto arg_s, auto batch_s) {
-        auto output = device_cast(result.get<int64_t>().data());
-        using type  = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
+    hip_visit_all(arg, std_arg_shape, batch_shape)([&](auto input, auto arg_s, auto batch_s) {
+        auto* output = device_cast(result.get<int64_t>().data());
+        using type   = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
         // use one block for items in one batch.
         const size_t max_block_size  = 256;
         const std::size_t block_size = compute_block_size(batch_item_num, max_block_size);

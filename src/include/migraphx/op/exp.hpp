@@ -3,7 +3,6 @@
 
 #include <array>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>

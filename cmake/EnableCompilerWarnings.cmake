@@ -96,18 +96,24 @@ else()
                 -Wno-gnu-zero-variadic-macro-arguments
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types
+                -Wno-option-ignored
                 -Wno-padded
                 -Wno-shorten-64-to-32
                 -Wno-sign-conversion
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
+                -Wno-c99-extensions
+                # -Wno-c++2a-designator
             )
         else()
             list(APPEND CMAKE_COMPILER_WARNINGS
                 -Wno-missing-field-initializers
+                -Wno-maybe-uninitialized
                 # -Wno-deprecated-declarations
             )
         endif()
-        add_definitions(${CMAKE_COMPILER_WARNINGS})
+        foreach(COMPILER_WARNING ${CMAKE_COMPILER_WARNINGS})
+            add_compile_options($<$<COMPILE_LANGUAGE:${COMPILER}>:${COMPILER_WARNING}>)
+        endforeach()
     endforeach()
 endif ()

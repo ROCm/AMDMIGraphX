@@ -21,6 +21,8 @@ std::vector<std::string> env(const char* name);
 
 std::size_t value_of(const char* name, std::size_t fallback = 0);
 
+std::string string_value_of(const char* name, std::string fallback = "");
+
 template <class T>
 bool enabled(T)
 {
@@ -39,6 +41,13 @@ template <class T>
 std::size_t value_of(T, std::size_t fallback = 0)
 {
     static const std::size_t result = value_of(T::value(), fallback);
+    return result;
+}
+
+template <class T>
+std::string string_value_of(T, std::string fallback = "")
+{
+    static const std::string result = string_value_of(T::value(), fallback);
     return result;
 }
 

@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void contiguous(hipStream_t stream, argument result, argument arg);
+void contiguous(hipStream_t stream, const argument& result, const argument& arg);
 
 } // namespace device
 } // namespace gpu

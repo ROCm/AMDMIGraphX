@@ -1,15 +1,9 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_COMMON_HPP
 #define MIGRAPHX_GUARD_OPERATORS_COMMON_HPP
 
-#include <array>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <ostream>
+#include <vector>
 #include <migraphx/config.hpp>
-#include <cmath>
 #include <utility>
 
 namespace migraphx {
@@ -23,6 +17,15 @@ enum padding_mode_t
     valid
 };
 
+// The pooling modes must correspond 1-1 to the operators defined for struct parse_pooling.
+// Used in pooling and roialign operators.
+enum class pooling_mode
+{
+    average,
+    max,
+    lpnorm
+};
+
 // indicate rnn computation direction
 enum class rnn_direction
 {
@@ -31,6 +34,7 @@ enum class rnn_direction
     bidirectional,
 };
 
+std::ostream& operator<<(std::ostream& os, pooling_mode v);
 std::ostream& operator<<(std::ostream& os, rnn_direction v);
 
 } // namespace op

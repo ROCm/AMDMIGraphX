@@ -103,19 +103,19 @@ host_type<T>* host_cast(T* x)
 }
 
 template <class T>
-device_type<T> device_cast(const T& x)
+__device__ __host__ device_type<T> device_cast(const T& x)
 {
     return reinterpret_cast<const device_type<T>&>(x);
 }
 
 template <class T>
-device_type<T>* device_cast(T* x)
+__device__ __host__ device_type<T>* device_cast(T* x)
 {
     return reinterpret_cast<device_type<T>*>(x);
 }
 
 template <class T>
-tensor_view<device_type<T>> device_cast(tensor_view<T> x)
+__device__ __host__ tensor_view<device_type<T>> device_cast(tensor_view<T> x)
 {
     return {x.get_shape(), reinterpret_cast<device_type<T>*>(x.data())};
 }
@@ -128,6 +128,21 @@ __device__ __host__ T to_hip_type(T x)
 
 // Hip doens't support __fp16
 inline __device__ __host__ float to_hip_type(gpu_half x) { return x; }
+
+#define MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
+    template <class X>                             \
+    struct trait : std::trait<X>                   \
+    {                                              \
+    };                                             \
+                                                   \
+    template <>                                    \
+    struct trait<T> : std::true_type               \
+    {                                              \
+    };
+
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, __fp16)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
 
 } // namespace device
 } // namespace gpu

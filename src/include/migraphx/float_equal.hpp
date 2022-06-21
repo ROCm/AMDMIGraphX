@@ -10,6 +10,7 @@
 
 #include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/type_traits.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -19,7 +20,7 @@ using common_type = typename std::common_type<Ts...>::type;
 
 struct float_equal_fn
 {
-    template <class T, MIGRAPHX_REQUIRES(std::is_floating_point<T>{})>
+    template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
     static bool apply(T x, T y)
     {
         return std::isfinite(x) and std::isfinite(y) and
@@ -27,7 +28,7 @@ struct float_equal_fn
                std::nextafter(x, std::numeric_limits<T>::max()) >= y;
     }
 
-    template <class T, MIGRAPHX_REQUIRES(not std::is_floating_point<T>{})>
+    template <class T, MIGRAPHX_REQUIRES(not is_floating_point<T>{})>
     static bool apply(T x, T y)
     {
         return x == y;

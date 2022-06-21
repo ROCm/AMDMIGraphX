@@ -12,7 +12,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 /// Represents exceptions that can be thrown by migraphxlib
 struct exception : std::runtime_error
 {
-    exception(const std::string& msg = "") : std::runtime_error(msg) {}
+    unsigned int error;
+    exception(unsigned int e = 0, const std::string& msg = "") : std::runtime_error(msg), error(e)
+    {
+    }
 };
 
 /**
@@ -24,7 +27,13 @@ struct exception : std::runtime_error
  */
 inline exception make_exception(const std::string& context, const std::string& message = "")
 {
-    return {context + ": " + message};
+    return {0, context + ": " + message};
+}
+
+inline exception
+make_exception(const std::string& context, unsigned int e, const std::string& message = "")
+{
+    return {e, context + ": " + message};
 }
 
 /**
@@ -35,16 +44,18 @@ inline exception make_exception(const std::string& context, const std::string& m
  *
  * @return A string that represents the file location
  */
-inline std::string make_source_context(const std::string& file, int line)
+inline std::string make_source_context(const std::string& file, int line, const std::string& fname)
 {
-    return file + ":" + std::to_string(line);
+    return file + ":" + std::to_string(line) + ": " + fname;
 }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_MAKE_SOURCE_CTX() migraphx::make_source_context(__FILE__, __LINE__, __func__)
 
 /**
  * @brief Throw an exception with context information
  */
-#define MIGRAPHX_THROW(...) \
-    throw migraphx::make_exception(migraphx::make_source_context(__FILE__, __LINE__), __VA_ARGS__)
+#define MIGRAPHX_THROW(...) throw migraphx::make_exception(MIGRAPHX_MAKE_SOURCE_CTX(), __VA_ARGS__)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

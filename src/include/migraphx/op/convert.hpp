@@ -3,7 +3,6 @@
 
 #include <array>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -33,9 +32,19 @@ struct convert : unary<convert>
         return {target_type, inputs.at(0).lens(), inputs.at(0).strides()};
     }
 
+    std::string point_op() const
+    {
+        return "${function:convert}<" + shape::cpp_type(target_type) + ">(${0})";
+    }
+
     auto apply() const
     {
-        return [](auto x) { return x; };
+        auto type = target_type;
+        return [type](auto x) {
+            auto y = x;
+            shape::visit(type, [&](auto as) { y = std::min(std::max(as(x), as.min()), as.max()); });
+            return y;
+        };
     }
 
     convert(shape::type_t t) : target_type{t} {}

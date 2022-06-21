@@ -52,7 +52,8 @@ struct literal : raw_data<literal>
         fill(start, end);
     }
 
-    literal(const shape& s, const char* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
+    literal(const shape& s, T* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
         std::copy(x, x + s.bytes(), buffer.get());
     }
@@ -65,11 +66,13 @@ struct literal : raw_data<literal>
 
     const shape& get_shape() const { return this->m_shape; }
 
+    std::vector<literal> get_sub_objects() const { return {}; }
+
     /// Convert the data to an argument
     argument get_argument() const
     {
-        std::vector<char> b(buffer.get(), buffer.get() + m_shape.bytes());
-        return {m_shape, [b]() mutable { return b.data(); }};
+        auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
+        return {m_shape, [b]() { return b.get(); }};
     }
 
     private:
@@ -90,7 +93,7 @@ struct literal : raw_data<literal>
             m_shape.visit_type([&](auto as) {
                 auto output = make_view(m_shape, as.from(buffer.get()));
                 shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) = *it;
+                    output(idx.begin(), idx.end()) = *it; // NOLINT(bugprone-signed-char-misuse)
                     it++;
                 });
             });
@@ -124,6 +127,9 @@ literal transform(literal l1, literal l2, F f)
     });
     return result;
 }
+
+void migraphx_to_value(value& v, const literal& l);
+void migraphx_from_value(const value& v, literal& l);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

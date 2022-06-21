@@ -15,8 +15,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
-
 #ifdef DOXYGEN
 
 /// An interface for target-dependent optimization for the concat instruction

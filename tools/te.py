@@ -1,4 +1,4 @@
-import string, sys, re, os
+import string, sys, re
 
 trivial = ['std::size_t', 'instruction_ref']
 
@@ -12,16 +12,15 @@ headers = '''
 '''
 
 form = string.Template('''
+#ifdef TYPE_ERASED_DECLARATION
 
-/*
-* Type-erased interface for:
-* 
-* struct ${struct_name}
-* {
-${comment_members}
-* };
-* 
-*/
+// Type-erased interface for:
+struct ${struct_name}
+{
+${decl_members}
+};
+
+#else
 
 struct ${struct_name}
 {
@@ -41,10 +40,17 @@ struct ${struct_name}
     template <typename PrivateDetailTypeErasedT>
     ${struct_name} & operator= (PrivateDetailTypeErasedT value)
     {
-        if (private_detail_te_handle_mem_var.unique())
-            *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
-        else if (!private_detail_te_handle_mem_var)
-            private_detail_te_handle_mem_var = std::make_shared<PrivateDetailTypeErasedT>(std::forward<PrivateDetailTypeErasedT>(value));
+        using std::swap;
+        auto * derived = this->any_cast<PrivateDetailTypeErasedT>();
+        if(derived and private_detail_te_handle_mem_var.unique())
+        {
+            *derived = std::forward<PrivateDetailTypeErasedT>(value);
+        }
+        else 
+        {
+            ${struct_name} rhs(value);
+            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var); 
+        }
         return *this;
     }
 
@@ -52,7 +58,7 @@ struct ${struct_name}
     template<typename PrivateDetailTypeErasedT>
     PrivateDetailTypeErasedT * any_cast()
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT) ?
+        return this->type_id() == typeid(PrivateDetailTypeErasedT) ?
         std::addressof(static_cast<private_detail_te_handle_type<typename std::remove_cv<PrivateDetailTypeErasedT>::type> &>(private_detail_te_get_handle()).private_detail_te_value) :
         nullptr;
     }
@@ -60,7 +66,7 @@ struct ${struct_name}
     template<typename PrivateDetailTypeErasedT>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type * any_cast() const
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT) ?
+        return this->type_id() == typeid(PrivateDetailTypeErasedT) ?
         std::addressof(static_cast<const private_detail_te_handle_type<typename std::remove_cv<PrivateDetailTypeErasedT>::type> &>(private_detail_te_get_handle()).private_detail_te_value) :
         nullptr;
     }
@@ -182,6 +188,7 @@ inline const ValueType & any_cast(const ${struct_name} & x)
     if (y == nullptr) throw std::bad_cast();
     return *y;
 }
+#endif
 ''')
 
 nonvirtual_member = string.Template('''
@@ -206,6 +213,10 @@ ${return_type} ${internal_name}(${member_params}) ${member_const} override
 
 comment_member = string.Template(
     '''*     ${friend} ${return_type} ${name}(${params}) ${const};''')
+
+decl_member = string.Template('''    ${comment}
+    ${friend} ${return_type} ${name}(${params}) ${const};
+''')
 
 default_member = string.Template('''
 template<class T>
@@ -272,7 +283,8 @@ def convert_member(d, struct_name):
             'this': '(*this)',
             'using': '',
             'brief': '',
-            'return_': ''
+            'return_': '',
+            'comment': '// '
         }
         args = []
         params = []
@@ -299,6 +311,7 @@ def convert_member(d, struct_name):
                 member['friend'] = 'friend'
             elif x == 'default':
                 member['default'] = t
+                member['comment'] = member['comment'] + '(optional)'
             elif x == 'using':
                 member['using'] = 'using {};'.format(d[name]['using'])
             elif x == '__brief__':
@@ -340,18 +353,21 @@ def generate_form(name, members):
     virtual_members = []
     comment_members = []
     default_members = []
+    decl_members = []
     for member in members:
         m = convert_member(member, name)
         nonvirtual_members.append(nonvirtual_member.substitute(m))
         pure_virtual_members.append(pure_virtual_member.substitute(m))
         virtual_members.append(virtual_member.substitute(m))
         comment_members.append(comment_member.substitute(m))
+        decl_members.append(decl_member.substitute(m))
         if 'default' in m:
             default_members.append(default_member.substitute(m))
     return form.substitute(nonvirtual_members=''.join(nonvirtual_members),
                            pure_virtual_members=''.join(pure_virtual_members),
                            virtual_members=''.join(virtual_members),
                            default_members=''.join(default_members),
+                           decl_members=''.join(decl_members),
                            comment_members='\n'.join(comment_members),
                            struct_name=name)
 
@@ -379,7 +395,7 @@ def template_eval(template, **kwargs):
     escaped = (re.escape(start), re.escape(end))
     mark = re.compile('%s(.*?)%s' % escaped, re.DOTALL)
     for key in kwargs:
-        exec ('%s = %s' % (key, kwargs[key]))
+        exec('%s = %s' % (key, kwargs[key]))
     for item in mark.findall(template):
         template = template.replace(start + item + end,
                                     str(eval(item.strip())))

@@ -125,16 +125,10 @@ auto fix(F f)
     return fix<void>(f);
 }
 
-template <class... Ts>
-auto pack(Ts... xs)
-{
-    return [=](auto f) { return f(xs...); };
-}
-
 template <class F, class T>
 auto fold_impl(F&&, T&& x)
 {
-    return x;
+    return std::forward<T>(x);
 }
 
 template <class F, class T, class U, class... Ts>
@@ -147,6 +141,22 @@ template <class F>
 auto fold(F f)
 {
     return [=](auto&&... xs) { return fold_impl(f, std::forward<decltype(xs)>(xs)...); };
+}
+
+template <class... Ts>
+auto pack(Ts... xs)
+{
+    return [=](auto f) { return f(xs...); };
+}
+
+inline auto pack_join() { return pack(); }
+
+template <class... Ps>
+auto pack_join(Ps... ps)
+{
+    return fold([](auto p1, auto p2) {
+        return p1([=](auto... xs) { return p2([=](auto... ys) { return pack(xs..., ys...); }); });
+    })(ps...);
 }
 
 template <class F, class Proj>
@@ -215,6 +225,11 @@ struct id
         return static_cast<T&&>(x);
     }
 };
+
+template <class... Ts>
+void nop(Ts&&...)
+{
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

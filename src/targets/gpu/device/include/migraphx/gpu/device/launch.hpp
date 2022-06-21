@@ -44,7 +44,7 @@ struct index
 template <class F>
 __global__ void launcher(F f)
 {
-    index idx{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x};
+    index idx{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
     f(idx);
 }
 
@@ -56,6 +56,7 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         using f_type = decltype(f);
         dim3 nblocks(global / local);
         dim3 nthreads(local);
+        // cppcheck-suppress UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
     };
 }
@@ -74,21 +75,27 @@ MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(
 
 inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 {
-    index_int groups  = (n + local - 1) / local;
-    index_int nglobal = std::min<index_int>(256, groups) * local;
+    index_int groups = (n + local - 1) / local;
+    // max possible number of blocks is set to 1B (1,073,741,824)
+    index_int nglobal = std::min<index_int>(1073741824, groups) * local;
 
     return [=](auto f) {
-        launch(stream, nglobal, local)(
-            [=](auto idx) { idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); }); });
+        launch(stream, nglobal, local)([=](auto idx) __device__ {
+            idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); });
+        });
     };
 }
 
+#ifdef MIGRAPHX_USE_CLANG_TIDY
+#define MIGRAPHX_DEVICE_SHARED
+#else
 // Workaround hcc's broken tile_static macro
 #ifdef tile_static
 #undef tile_static
 #define MIGRAPHX_DEVICE_SHARED __attribute__((tile_static))
 #else
 #define MIGRAPHX_DEVICE_SHARED __shared__
+#endif
 #endif
 
 } // namespace device

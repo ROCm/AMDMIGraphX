@@ -43,6 +43,7 @@ struct outline
 struct param
 {
     std::string parameter;
+    uint32_t order = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -60,6 +61,16 @@ struct param
     {
         os << op.name() << ":" << op.parameter;
         return os;
+    }
+};
+
+struct returns
+{
+    std::string name() const { return "@return"; }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        MIGRAPHX_THROW("builtin");
     }
 };
 

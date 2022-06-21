@@ -5,10 +5,25 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+shape pack_int8_shape(const shape& s)
+{
+    if(s.type() != shape::int8_type)
+    {
+        MIGRAPHX_THROW("PACK_INT8_ARGS: only process int8_type");
+    }
+
+    auto lens    = s.lens();
+    auto strides = s.strides();
+    lens[1]      = (lens[1] + 3) / 4 * 4;
+    strides[0]   = strides[1] * lens[1];
+
+    return {s.type(), lens, strides};
+}
+
 shape miopen_int8_conv_pack::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{{inputs.at(0)}, *this}.has(1).standard();
-    return inputs.at(0);
+    return pack_int8_shape(inputs.at(0));
 }
 
 argument

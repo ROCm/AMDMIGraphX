@@ -1,0 +1,26 @@
+deconv_output_shape_test:´
+A
+x
+wy"ConvTranspose*
+output_shape@
+@ *
+strides@@ deconv_output_shape_testZ
+x
+
+
+
+
+Z
+w
+
+
+
+
+b
+y
+
+
+
+
+
+B

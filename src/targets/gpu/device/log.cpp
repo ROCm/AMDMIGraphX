@@ -9,7 +9,7 @@ namespace device {
 
 void log(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) { return ::log(to_hip_type(x)); });
+    nary(stream, result, arg)([](auto x) __device__ { return ::log(to_hip_type(x)); });
 }
 
 } // namespace device

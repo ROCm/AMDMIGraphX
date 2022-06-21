@@ -16,7 +16,7 @@ struct manage_deleter
     {
         if(x != nullptr)
         {
-            f(x);
+            (void)f(x);
         }
     }
 };

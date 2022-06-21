@@ -31,7 +31,7 @@ struct multi_index
 };
 
 template <class ForStride>
-auto deduce_for_stride(ForStride fs) -> decltype(fs(id{}));
+__device__ __host__ auto deduce_for_stride(ForStride fs) -> decltype(fs(id{}));
 
 MIGRAPHX_DEVICE_CONSTEXPR multi_index<1> make_multi_index(index_int i, index_int n)
 {
@@ -57,9 +57,10 @@ inline auto mi_nglobal(const hip_shape<N>& s, index_int nlocal)
 {
     assert(s.standard);
     assert(s.elements() > 0);
-    index_int n       = s.elements();
-    index_int groups  = (n + nlocal - 1) / nlocal;
-    index_int nglobal = std::min<index_int>(128, groups) * nlocal;
+    index_int n      = s.elements();
+    index_int groups = (n + nlocal - 1) / nlocal;
+    // max possible number of blocks is set to 1B (1,073,741,824)
+    index_int nglobal = std::min<index_int>(1073741824, groups) * nlocal;
 
     assert(groups > 0);
     assert(nglobal > 0);
@@ -95,7 +96,7 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, index_int 
     auto nglobal       = global.index(nglobal_multi);
 
     return [=](auto f) {
-        launch(stream, nglobal, nlocal)([=](auto idx) {
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
             auto midx = make_multi_index(global, idx.global, nglobal_multi);
             f(idx, midx.for_stride(global.lens));
         });

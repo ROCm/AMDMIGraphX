@@ -1,5 +1,6 @@
 
 #include <migraphx/literal.hpp>
+#include <migraphx/serialize.hpp>
 #include <sstream>
 #include <string>
 #include "test.hpp"
@@ -117,6 +118,21 @@ TEST_CASE(literal_visit_empty)
     migraphx::literal x{};
     EXPECT(test::throws([&] { x.visit([](auto) {}); }));
     EXPECT(test::throws([&] { x.visit_at([](auto) {}); }));
+}
+
+TEST_CASE(value_literal)
+{
+    migraphx::shape s{migraphx::shape::int64_type, {3}};
+    migraphx::literal l1{s, {1, 2, 3}};
+    auto v1 = migraphx::to_value(l1);
+    migraphx::literal l2{1};
+    auto v2 = migraphx::to_value(l2);
+    EXPECT(v1 != v2);
+
+    auto l3 = migraphx::from_value<migraphx::literal>(v1);
+    EXPECT(l3 == l1);
+    auto l4 = migraphx::from_value<migraphx::literal>(v2);
+    EXPECT(l4 == l2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

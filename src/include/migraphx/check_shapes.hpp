@@ -25,8 +25,6 @@ struct check_shapes
     {
     }
 
-    check_shapes(const std::vector<shape>& s) : begin(s.data()), end(s.data() + s.size()) {}
-
     template <class Op>
     check_shapes(const std::vector<shape>& s, const Op& op)
         : begin(s.data()), end(s.data() + s.size()), name(op.name())
@@ -59,6 +57,13 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& nelements(std::size_t n) const
+    {
+        if(!this->all_of([&](const shape& s) { return s.elements() == n; }))
+            MIGRAPHX_THROW(prefix() + "Shapes must have only " + std::to_string(n) + " elements");
+        return *this;
+    }
+
     const check_shapes& only_dims(std::size_t n) const
     {
         assert(begin != nullptr);
@@ -67,6 +72,32 @@ struct check_shapes
         {
             if(begin->lens().size() != n)
                 MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
+        }
+        return *this;
+    }
+
+    const check_shapes& max_ndims(std::size_t n) const
+    {
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        if(begin != end)
+        {
+            if(begin->lens().size() > n)
+                MIGRAPHX_THROW(prefix() + "Shape must have at most " + std::to_string(n) +
+                               " dimensions");
+        }
+        return *this;
+    }
+
+    const check_shapes& min_ndims(std::size_t n) const
+    {
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        if(begin != end)
+        {
+            if(begin->lens().size() < n)
+                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
+                               " dimensions");
         }
         return *this;
     }
@@ -120,6 +151,20 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& packed_or_broadcasted() const
+    {
+        if(!this->all_of([](const shape& s) { return s.packed() or s.broadcasted(); }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not packed nor broadcasted");
+        return *this;
+    }
+
+    const check_shapes& tuple_type() const
+    {
+        if(!this->all_of([](const shape& s) { return s.type() == shape::tuple_type; }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not tuple!");
+        return *this;
+    }
+
     const check_shapes& not_transposed() const
     {
         if(!this->all_of([](const shape& s) { return not s.transposed(); }))
@@ -138,6 +183,13 @@ struct check_shapes
     {
         if(!this->all_of([&](const shape& s) { return s.elements() == n; }))
             MIGRAPHX_THROW(prefix() + "Wrong number of elements");
+        return *this;
+    }
+
+    const check_shapes& batch_not_transposed() const
+    {
+        if(!this->all_of([&](const shape& s) { return batch_not_transposed_strides(s.strides()); }))
+            MIGRAPHX_THROW(prefix() + "Batch size is transposed");
         return *this;
     }
 
@@ -162,7 +214,7 @@ struct check_shapes
         return std::all_of(begin, end, p);
     }
 
-    const shape* get(long i)
+    const shape* get(long i) const
     {
         if(i >= size())
             MIGRAPHX_THROW(prefix() + "Accessing shape out of bounds");
@@ -173,9 +225,31 @@ struct check_shapes
         return begin + i;
     }
 
-    check_shapes slice(long start) { return {get(start), end, name}; }
+    check_shapes slice(long start) const { return {get(start), end, name}; }
 
-    check_shapes slice(long start, long last) { return {get(start), get(last), name}; }
+    check_shapes slice(long start, long last) const { return {get(start), get(last), name}; }
+
+    private:
+    static bool batch_not_transposed_strides(const std::vector<std::size_t>& strides)
+    {
+        if(strides.size() <= 2)
+            return true;
+        auto dim_0       = strides.size() - 2;
+        auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
+        std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
+        if(std::all_of(batch.begin(), batch.end(), [&](auto i) { return (i < matrix_size); }))
+        {
+            return false;
+        }
+
+        if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
+               return (i < j or i < matrix_size or j < matrix_size);
+           }) != batch.end())
+        {
+            return false;
+        }
+        return true;
+    }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

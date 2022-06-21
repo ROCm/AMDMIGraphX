@@ -10,18 +10,22 @@
 template <class Tag>
 struct stowed
 {
+    // NOLINTNEXTLINE
     static typename Tag::type value;
 };
 template <class Tag>
+// NOLINTNEXTLINE
 typename Tag::type stowed<Tag>::value;
 
 template <class Tag, typename Tag::type X>
 struct stow_private
 {
     stow_private() noexcept { stowed<Tag>::value = X; }
+    // NOLINTNEXTLINE
     static stow_private instance;
 };
 template <class Tag, typename Tag::type X>
+// NOLINTNEXTLINE
 stow_private<Tag, X> stow_private<Tag, X>::instance;
 
 template <class C, class T>

@@ -2,13 +2,13 @@
 #define MIGRAPHX_GUARD_OPERATORS_AS_SHAPE_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 
@@ -34,7 +34,7 @@ struct as_shape
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        return {std::move(output_shape), std::move(args.front().data)};
+        return args.front().reshape(output_shape);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

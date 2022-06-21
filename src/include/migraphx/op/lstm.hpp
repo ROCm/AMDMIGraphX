@@ -4,6 +4,8 @@
 #include <array>
 #include <migraphx/op/common.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/op/sigmoid.hpp>
+#include <migraphx/op/tanh.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -31,6 +33,7 @@ struct lstm
         return pack(f(self.hidden_size, "hidden_size"),
                     f(self.actv_funcs, "actv_func"),
                     f(self.direction, "direction"),
+                    f(self.clip, "clip"),
                     f(self.input_forget, "input_forget"));
     }
 

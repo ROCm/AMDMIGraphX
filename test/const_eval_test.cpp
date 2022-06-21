@@ -52,42 +52,52 @@ struct test_context
 TEST_CASE(literal_test)
 {
     migraphx::program p;
-    auto lit = p.add_literal(1);
+
+    auto* mm = p.get_main_module();
+    auto lit = mm->add_literal(1);
     CHECK(lit->eval() == migraphx::literal{1});
 }
 
 TEST_CASE(param_test)
 {
     migraphx::program p;
-    auto lit = p.add_parameter("param", migraphx::shape{migraphx::shape::float_type, {1}});
+
+    auto* mm = p.get_main_module();
+    auto lit = mm->add_parameter("param", migraphx::shape{migraphx::shape::float_type, {1}});
     CHECK(lit->eval().empty());
 }
 
 TEST_CASE(op_test1)
 {
     migraphx::program p;
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto sum = p.add_instruction(sum_cf_op{}, one, two);
+
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(sum_cf_op{}, one, two);
     CHECK(sum->eval() == migraphx::literal{3});
 }
 
 TEST_CASE(op_test2)
 {
     migraphx::program p;
-    auto x   = p.add_parameter("param", migraphx::shape{migraphx::shape::float_type, {1}});
-    auto two = p.add_literal(2);
-    auto sum = p.add_instruction(sum_cf_op{}, x, two);
+
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("param", migraphx::shape{migraphx::shape::float_type, {1}});
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(sum_cf_op{}, x, two);
     CHECK(sum->eval().empty());
 }
 
 TEST_CASE(op_test3)
 {
     migraphx::program p;
-    auto one  = p.add_literal(1);
-    auto two  = p.add_literal(2);
-    auto sum1 = p.add_instruction(sum_op{}, one, two);
-    auto sum2 = p.add_instruction(sum_cf_op{}, sum1, two);
+
+    auto* mm  = p.get_main_module();
+    auto one  = mm->add_literal(1);
+    auto two  = mm->add_literal(2);
+    auto sum1 = mm->add_instruction(sum_op{}, one, two);
+    auto sum2 = mm->add_instruction(sum_cf_op{}, sum1, two);
     CHECK(sum2->eval().empty());
 }
 

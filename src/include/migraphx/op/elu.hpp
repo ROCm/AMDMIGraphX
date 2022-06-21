@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_ELU_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -19,7 +18,7 @@ namespace op {
 struct elu
 {
     std::string name() const { return "elu"; }
-    float alpha;
+    float alpha = 1;
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);

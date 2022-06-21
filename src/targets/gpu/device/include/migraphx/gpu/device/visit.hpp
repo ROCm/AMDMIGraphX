@@ -14,32 +14,27 @@ constexpr void visit_tensor_size(index_int n, F f)
 {
     switch(n)
     {
-    case 1:
-    {
+    case 1: {
         f(std::integral_constant<index_int, 1>{});
         break;
     }
-    case 2:
-    {
+    case 2: {
         f(std::integral_constant<index_int, 2>{});
         break;
     }
-    case 3:
-    {
+    case 3: {
         f(std::integral_constant<index_int, 3>{});
         break;
     }
-    case 4:
-    {
+    case 4: {
         f(std::integral_constant<index_int, 4>{});
         break;
     }
-    case 5:
-    {
+    case 5: {
         f(std::integral_constant<index_int, 5>{});
         break;
     }
-    default: throw std::runtime_error("Unknown tensor size");
+    default: throw std::runtime_error("Tensor dims " + std::to_string(n) + " out of range");
     }
 }
 
@@ -49,6 +44,50 @@ template <class T>
 auto get_shape(const T& x) -> decltype(x.get_shape())
 {
     return x.get_shape();
+}
+
+template <class T>
+struct is_hip_type : std::false_type
+{
+};
+
+template <>
+struct is_hip_type<float> : std::true_type
+{
+};
+template <>
+struct is_hip_type<half> : std::true_type
+{
+};
+template <>
+struct is_hip_type<bool> : std::true_type
+{
+};
+template <>
+struct is_hip_type<std::int8_t> : std::true_type
+{
+};
+template <>
+struct is_hip_type<std::uint8_t> : std::true_type
+{
+};
+
+template <class T, class V, MIGRAPHX_REQUIRES(is_hip_type<typename T::type>{})>
+void hip_visitor_invoke(T as, V&& v)
+{
+    v(as);
+}
+
+template <class T, class V, MIGRAPHX_REQUIRES(not is_hip_type<typename T::type>{})>
+void hip_visitor_invoke(T, V&&)
+{
+    MIGRAPHX_THROW(std::string("Unsupported data type on GPU: ") + __PRETTY_FUNCTION__);
+}
+
+template <class V>
+auto hip_visitor(V v)
+{
+    return [=](auto as) { hip_visitor_invoke(as, v); };
 }
 
 template <class V, class F, class... Ts>
@@ -62,8 +101,9 @@ void hip_visit_all_impl(const shape& s, F f, V&& v, Ts&&... xs)
         static_cast<index_int>(get_shape(xs).lens().size())...};
     if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
-    visit_tensor_size(s.lens().size(),
-                      [&](auto ndim) { s.visit_type([&](auto as) { v(f(xs, ndim, as)...); }); });
+    visit_tensor_size(s.lens().size(), [&](auto ndim) {
+        s.visit_type(hip_visitor([&](auto as) { v(f(xs, ndim, as)...); }));
+    });
 }
 
 template <class V, class F, class... Ts>
@@ -136,7 +176,13 @@ template <index_int N, class T, class... Ts>
 auto hip_vec_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
-        hip_visit_all_impl(get_shape(x),
+        auto sx   = get_shape(x);
+        auto lens = sx.lens();
+        assert(lens.back() % N == 0);
+        assert(sx.strides().back() == 1);
+        lens.back() /= N;
+        shape vec_sx{sx.type(), lens};
+        hip_visit_all_impl(vec_sx,
                            make_hip_convert([](auto* p) { return as_vec<N>(device_cast(p)); }),
                            f,
                            x,

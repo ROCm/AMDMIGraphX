@@ -3,7 +3,6 @@
 
 #include <array>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -19,6 +18,7 @@ namespace op {
 
 struct sigmoid : unary<sigmoid>
 {
+    std::string point_op() const { return "1.f / (1.f + ${function:exp}(-${0}))"; }
     auto apply() const
     {
         return [](auto x) { return 1.f / (1.f + std::exp(-x)); };

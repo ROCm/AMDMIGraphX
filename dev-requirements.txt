@@ -1,5 +1,7 @@
 pfultz2/rocm-recipes
-danmar/cppcheck@ef714225bb31e9a76ac2484796763572386955ae -DHAVE_RULES=1
-ROCm-Developer-Tools/HIP@2490e42baa7d90458f0632fd9fbead2d395f41b9
-python/cpython@v3.6.6 -X autotools -H sha256:92aa914572c695c0aeb01b0a214813f414da4b51a371234df514a74761f2bb36
+facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
+ccache@v4.1
+pcre,pfultz2/pcre@8.45 -H sha256:d6f7182602a775a7d500a0cedca6449af0400c6493951513046d17615ed0bf11
+danmar/cppcheck@2.8 -DHAVE_RULES=1
+RadeonOpenCompute/rocm-cmake@1ebf7e7bc61bb5e949c171562b421264065230a7 --build
 -f requirements.txt

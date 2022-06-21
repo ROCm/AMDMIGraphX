@@ -9,7 +9,7 @@ namespace gpu {
 shape hip_convert::compute_shape(std::vector<shape> inputs) const
 {
     inputs.pop_back();
-    check_shapes{inputs}.packed();
+    check_shapes{inputs, *this}.packed();
     return op.compute_shape(inputs);
 }
 

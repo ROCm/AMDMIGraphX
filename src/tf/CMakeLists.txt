@@ -19,11 +19,13 @@ target_compile_options(tf-proto PRIVATE -w)
 target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
 set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
-add_library(migraphx_tf tf.cpp)
+file(GLOB TF_SRCS ${CONFIGURE_DEPENDS} *.cpp)
+add_library(migraphx_tf ${TF_SRCS})
+target_include_directories(migraphx_tf PRIVATE include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
 rocm_set_soversion(migraphx_tf ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_tf)
-target_link_libraries(migraphx_tf PRIVATE tf-proto)
+target_link_libraries(migraphx_tf PRIVATE tf-proto "-Wl,--exclude-libs,ALL")
 target_link_libraries(migraphx_tf PUBLIC migraphx)
 
 rocm_install_targets(

@@ -147,7 +147,7 @@ std::size_t mismatch_diff(R1&& r1, R2&& r2, T diff)
 }
 
 template <class R1, class R2>
-double rms_range(R1&& r1, R2&& r2)
+double rms_range(const R1& r1, const R2& r2)
 {
     std::size_t n = range_distance(r1);
     if(n == range_distance(r2))
@@ -164,11 +164,10 @@ double rms_range(R1&& r1, R2&& r2)
 }
 
 template <class R1, class R2>
-bool verify_range(R1&& r1, R2&& r2, double tolerance = 80, double* out_error = nullptr)
+bool verify_range(const R1& r1, const R2& r2, double tolerance = 80, double* out_error = nullptr)
 {
     double threshold = std::numeric_limits<range_value<R1>>::epsilon() * tolerance;
     auto error       = rms_range(r1, r2);
-    // cppcheck-suppress uninitvar
     if(out_error != nullptr)
         *out_error = error;
     return error <= threshold;

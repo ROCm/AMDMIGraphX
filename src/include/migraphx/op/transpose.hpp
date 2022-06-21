@@ -2,13 +2,11 @@
 #define MIGRAPHX_GUARD_OPERATORS_TRANSPOSE_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 
@@ -23,7 +21,7 @@ struct transpose
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dims, "dims"));
+        return pack(f(self.dims, "permutation"));
     }
 
     std::string name() const { return "transpose"; }
@@ -34,6 +32,7 @@ struct transpose
         auto input_lens    = input.lens();
         auto input_strides = input.strides();
         auto t             = input.type();
+
         if(dims.size() != input_lens.size())
         {
             MIGRAPHX_THROW("Permutation has wrong number of axes");
@@ -42,7 +41,7 @@ struct transpose
         std::iota(axes.begin(), axes.end(), 0);
         if(!std::is_permutation(axes.begin(), axes.end(), dims.begin()))
         {
-            MIGRAPHX_THROW("Invalid permutation");
+            MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
         }
         std::vector<size_t> output_lens(input_lens.size());
         std::vector<size_t> output_strides(input_lens.size());
@@ -55,7 +54,7 @@ struct transpose
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        return {std::move(output_shape), std::move(args.front().data)};
+        return args[0].reshape(output_shape);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

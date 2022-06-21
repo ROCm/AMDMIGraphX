@@ -7,10 +7,15 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <unordered_map>
 #include <migraphx/reflect.hpp>
 #include <migraphx/streamutils.hpp>
+#include <migraphx/normalize_attributes.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/module_ref.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
+#include <migraphx/lifetime.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -57,6 +62,8 @@ struct operation
 
 /// Returns true if operation does not require a context to run compute
 bool is_context_free(const operation& x);
+/// Returns true if operation needs normalization before running compute
+bool need_normalization(const operation& x);
 /// Returns true if the operation has a finalize method
 bool has_finalize(const operation& x);
 
@@ -96,7 +103,73 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
-auto compute_op(rank<2>,
+auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs))
+{
+    return x.compute_shape(inputs);
+}
+
+template <class T>
+auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.normalize_compute_shape(inputs))
+{
+    dependent_type<operation, T> y = x;
+    normalize_attributes(y, inputs[0].lens());
+    return any_cast<T>(y).normalize_compute_shape(inputs);
+}
+
+template <class T>
+auto compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs, {}))
+{
+    return x.compute_shape(inputs, {});
+}
+
+template <class T>
+shape compute_shape_op(rank<0>, const T& x, const std::vector<shape>&)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Shape not computable: " + name);
+}
+
+template <class T>
+shape compute_shape_op(const T& x, const std::vector<shape>& inputs)
+{
+    return compute_shape_op(rank<3>{}, x, inputs);
+}
+
+template <class T>
+auto mod_compute_shape_op(rank<1>,
+                          const T& x,
+                          const std::vector<shape>& inputs,
+                          const std::vector<module_ref>& mod_args)
+    -> decltype(x.compute_shape(inputs, mod_args))
+{
+    return x.compute_shape(inputs, mod_args);
+}
+
+template <class T>
+shape mod_compute_shape_op(rank<0>,
+                           const T& x,
+                           const std::vector<shape>& inputs,
+                           const std::vector<module_ref>& mod_args)
+{
+    if(mod_args.empty())
+        return compute_shape_op(x, inputs);
+    std::string name = x.name();
+    MIGRAPHX_THROW("Shape not computable: " + name);
+}
+
+template <class T>
+shape mod_compute_shape_op(const T& x,
+                           const std::vector<shape>& inputs,
+                           const std::vector<module_ref>& mod_args)
+{
+    return mod_compute_shape_op(rank<1>{}, x, inputs, mod_args);
+}
+
+template <class T>
+auto compute_op(rank<1>,
                 const T& x,
                 context& ctx,
                 const shape& output_shape,
@@ -104,14 +177,6 @@ auto compute_op(rank<2>,
     -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
-}
-
-template <class T>
-auto compute_op(
-    rank<1>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
-{
-    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -125,22 +190,14 @@ template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, ctx, output_shape, input);
-}
-
-template <class T>
-auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
-{
-    return x.compute(output_shape, input);
+    return compute_op(rank<1>{}, x, ctx, output_shape, input);
 }
 
 template <class T>
 auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input))
+    -> decltype(x.compute(output_shape, input))
 {
-    std::string name = x.name();
-    MIGRAPHX_THROW("Not computable without a context: " + name);
+    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -153,7 +210,112 @@ argument compute_op(rank<0>, const T& x, const shape&, const std::vector<argumen
 template <class T>
 argument compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, output_shape, input);
+    return compute_op(rank<1>{}, x, output_shape, input);
+}
+
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
+{
+    return x.compute(output, inputs, module_args, f);
+}
+
+template <class T, class F>
+argument compute_op(rank<0>,
+                    const T& x,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    const shape& output,
+                    const std::vector<argument>& inputs,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<1>{}, x, output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<4>,
+                const T& x,
+                context& ctx,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(auto_any_cast(ctx), output, inputs, module_args, f))
+{
+    return x.compute(auto_any_cast(ctx), output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<3>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
+{
+    return x.compute(output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<2>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(output, inputs))
+{
+    return x.compute(output, inputs);
+}
+
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                context& ctx,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(auto_any_cast(ctx), output, inputs))
+{
+    return x.compute(auto_any_cast(ctx), output, inputs);
+}
+
+template <class T, class F>
+argument compute_op(rank<0>,
+                    const T& x,
+                    context&,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    context& ctx,
+                    const shape& output,
+                    const std::vector<argument>& inputs,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, f);
 }
 
 template <class T>
@@ -170,6 +332,20 @@ auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argum
 template <class T>
 auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
     rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+{
+    return {};
+}
+
+template <class T>
+auto need_normalization_op(rank<1>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.normalize_compute_shape(inputs), std::true_type{});
+
+template <class T>
+auto need_normalization_op(rank<0>, const T&, const std::vector<shape>&) -> std::false_type;
+
+template <class T>
+auto need_normalization_op(const T& x)
+    -> decltype(need_normalization_op(rank<1>{}, x, std::declval<std::vector<shape>>()))
 {
     return {};
 }
@@ -218,6 +394,55 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
     return {};
 }
 
+template <class T>
+auto compile_op(
+    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(x.compile(auto_any_cast(ctx), output_shape, input))
+{
+    return x.compile(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+value compile_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+{
+    return value::object{};
+}
+
+template <class T>
+value compile_op(const T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input)
+{
+    return compile_op(rank<1>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
+value attributes_op(const T&)
+{
+    return value::object{};
+}
+
+template <class T>
+value to_value_op(const T& x)
+{
+    return migraphx::to_value(x);
+}
+
+template <class T>
+void from_value_op(T& x, const value& v)
+{
+    if(not(v.is_object() or (v.empty() and v.is_array())))
+        MIGRAPHX_THROW("Value is not an object");
+    return migraphx::from_value(v, x);
+}
+
+template <class T>
+lifetime get_lifetime_op(const T&)
+{
+    return lifetime::local;
+}
+
 } // namespace detail
 
 <%
@@ -226,18 +451,40 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
      virtual('name', returns = 'std::string', const = True),
      virtual(
          'is_context_free', returns = 'bool', const = True, default = 'detail::is_context_free_op'),
+     virtual('need_normalization',
+             returns = 'bool',
+             const   = True,
+             default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
+     virtual(
+         'get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',
              const   = True,
              default = 'detail::output_alias_op'),
+     virtual('compile',
+             returns = 'value',
+             ctx     = 'context&',
+             output  = 'const shape&',
+             input   = 'const std::vector<shape>&',
+             default = 'detail::compile_op'),
      virtual('finalize',
              ctx     = 'context&',
              output  = 'const shape&',
              input   = 'const std::vector<shape>&',
              default = 'detail::finalize_op'),
-     virtual('compute_shape', returns = 'shape', input = 'const std::vector<shape>&', const = True),
+     virtual('compute_shape',
+             returns = 'shape',
+             input   = 'const std::vector<shape>&',
+             const   = True,
+             default = 'detail::compute_shape_op'),
+     virtual('compute_shape',
+             returns  = 'shape',
+             inputs   = 'const std::vector<shape>&',
+             mod_args = 'const std::vector<module_ref>&',
+             const    = True,
+             default  = 'detail::mod_compute_shape_op'),
      virtual('compute',
              returns = 'argument',
              ctx     = 'context&',
@@ -251,6 +498,30 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
              input   = 'const std::vector<argument>&',
              const   = True,
              default = 'detail::compute_op'),
+     virtual(
+         'compute',
+         returns     = 'argument',
+         output      = 'const shape&',
+         input       = 'const std::vector<argument>&',
+         module_args = 'const std::vector<module_ref>&',
+         run =
+             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
+         const   = True,
+         default = 'detail::compute_op'),
+     virtual(
+         'compute',
+         returns     = 'argument',
+         ctx         = 'context&',
+         output      = 'const shape&',
+         input       = 'const std::vector<argument>&',
+         module_args = 'const std::vector<module_ref>&',
+         run =
+             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
+         const   = True,
+         default = 'detail::compute_op'),
+     virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
+     virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
+     virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),
      friend('operator<<',
             returns = 'std::ostream &',
             os      = 'std::ostream &',
@@ -267,12 +538,82 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
     return !(x == y);
 }
 
+inline value
+compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    return op.compile(ctx, output_shape, input);
+}
+template <class Context>
+inline value
+compile(operation& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    dependent_type<context, Context> ctx2 = std::ref(ctx);
+    return compile(op, ctx2, output_shape, input);
+}
+template <class T, class Context>
+inline auto compile(T& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(op.compile(ctx, ctx, output_shape, input))
+{
+    return op.compile(ctx, ctx, output_shape, input);
+}
+inline shape compute_shape(const operation& op, const std::vector<shape>& inputs)
+{
+    return op.compute_shape(inputs);
+}
+
+template <class T>
+inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
+    -> decltype(op.compute_shape(inputs))
+{
+    return op.compute_shape(inputs);
+}
+
+template <class T>
+inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
+    -> decltype(op.normalize_compute_shape(inputs))
+{
+    return detail::compute_shape_op(op, inputs);
+}
+
+inline shape compute_shape(const operation& op,
+                           const std::vector<shape>& inputs,
+                           const std::vector<module_ref>& mod_args)
+{
+    return op.compute_shape(inputs, mod_args);
+}
+
+template <class T>
+inline auto compute_shape(const T& op,
+                          const std::vector<shape>& inputs,
+                          const std::vector<module_ref>& mod_args)
+    -> decltype(op.compute_shape(inputs, mod_args))
+{
+    return op.compute_shape(inputs, mod_args);
+}
+
+template <class T>
+inline auto compute_shape(const T& op,
+                          const std::vector<shape>& inputs,
+                          const std::vector<module_ref>& mod_args)
+    -> decltype(op.normalize_compute_shape(inputs, mod_args))
+{
+    return detail::compute_shape_op(op, inputs, mod_args);
+}
+
 inline bool is_context_free(const operation& op) { return op.is_context_free(); }
 
 template <class T>
 bool is_context_free(const T& x)
 {
     return detail::is_context_free_op(x);
+}
+
+inline bool need_normalization(const operation& op) { return op.need_normalization(); }
+
+template <class T>
+bool need_normalization(const T& x)
+{
+    return detail::need_normalization_op(x);
 }
 
 inline bool has_finalize(const operation& op) { return op.has_finalize(); }
@@ -282,6 +623,9 @@ bool has_finalize(const T& x)
 {
     return detail::has_finalize_op(x);
 }
+
+void migraphx_to_value(value& v, const operation& op);
+void migraphx_from_value(const value& v, operation& op);
 
 #endif
 

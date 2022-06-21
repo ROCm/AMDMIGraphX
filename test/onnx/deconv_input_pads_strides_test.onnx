@@ -1,0 +1,24 @@
+deconv_input_pads_strides_test:¶
+=
+x
+wy"ConvTranspose*
+pads@@@@ *
+strides@@ deconv_input_pads_strides_testZ
+x
+
+
+
+
+Z
+w
+
+
+
+
+b
+y
+
+
+
+
+B

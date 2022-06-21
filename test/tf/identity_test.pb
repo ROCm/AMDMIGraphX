@@ -1,8 +1,8 @@
 
 :
-0Placeholder*
-shape:*
-dtype0
+0Placeholder*
+dtype0*
+shape:
  
 identityIdentity0*
-T0"
+T0"¸

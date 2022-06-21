@@ -3,7 +3,6 @@
 
 #include <array>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -19,6 +18,7 @@ namespace op {
 
 struct sign : unary<sign>
 {
+    std::string point_op() const { return "(${0} > 0 ? 1 : ((${0} < 0) ? -1 : 0))"; }
     auto apply() const
     {
         return [](auto x) { return (x > 0 ? 1 : ((x < 0) ? -1 : 0)); };

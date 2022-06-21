@@ -25,16 +25,24 @@ constexpr T normalize(unsigned long z)
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max      = std::numeric_limits<T>::max() / 64;
+    const auto max      = 1UL << (sizeof(T) * 5);
     const auto half_max = max / 2;
     return half_max - (z % max);
 }
 
-template <class T, MIGRAPHX_REQUIRES(not is_signed<T>{} and std::is_integral<T>{})>
+template <class T,
+          MIGRAPHX_REQUIRES(not is_signed<T>{} and std::is_integral<T>{} and
+                            not std::is_same<T, bool>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max = std::numeric_limits<T>::max() / 64;
+    const auto max = 1UL << (sizeof(T) * 5);
     return z % max;
+}
+
+template <class T, MIGRAPHX_REQUIRES(std::is_same<T, bool>{})>
+constexpr bool normalize(unsigned long z)
+{
+    return static_cast<bool>(z % 2);
 }
 
 template <class T>
@@ -80,16 +88,16 @@ struct xorshift_generator
 template <class T>
 auto generate_tensor_data(const migraphx::shape& s, unsigned long seed = 0)
 {
-    auto result = make_shared_array<T>(s.elements());
-    std::generate(result.get(), result.get() + s.elements(), xorshf96_generator<T>{seed});
+    auto result = make_shared_array<T>(s.element_space());
+    std::generate(result.get(), result.get() + s.element_space(), xorshf96_generator<T>{seed});
     return result;
 }
 
 template <class T>
 auto fill_tensor_data(const migraphx::shape& s, unsigned long value = 0)
 {
-    auto result = make_shared_array<T>(s.elements());
-    std::generate(result.get(), result.get() + s.elements(), [=] { return value; });
+    auto result = make_shared_array<T>(s.element_space());
+    std::generate(result.get(), result.get() + s.element_space(), [=] { return value; });
     return result;
 }
 

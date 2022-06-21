@@ -3,13 +3,14 @@
 
 #include <array>
 #include <migraphx/op/common.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -19,12 +20,12 @@ namespace op {
 
 struct convolution
 {
-    std::array<std::size_t, 2> padding  = {{0, 0}};
-    std::array<std::size_t, 2> stride   = {{1, 1}};
-    std::array<std::size_t, 2> dilation = {{1, 1}};
+    std::vector<std::size_t> padding  = {0, 0};
+    std::vector<std::size_t> stride   = {1, 1};
+    std::vector<std::size_t> dilation = {1, 1};
 
-    padding_mode_t padding_mode = default_;
     int group                   = 1;
+    padding_mode_t padding_mode = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -32,36 +33,68 @@ struct convolution
         return pack(f(self.padding, "padding"),
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
-                    f(self.padding_mode, "padding_mode"),
-                    f(self.group, "group"));
+                    f(self.group, "group"),
+                    f(self.padding_mode, "padding_mode"));
     }
 
     std::string name() const { return "convolution"; }
-    shape compute_shape(std::vector<shape> inputs) const
+
+    void check_attribute_size() const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims().only_dims(4);
+        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
+               stride.size() == dilation.size()))
+        {
+            MIGRAPHX_THROW("CONVOLUTION: inconsistent attribute sizes");
+        }
+    }
+
+    value attributes() const { return {{"normalize_padding", "padding"}}; }
+
+    shape normalize_compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
+        check_attribute_size();
+        // dim num of input and attribute should match
+        auto input_size   = inputs[0].lens().size();
+        auto padding_size = padding.size();
+        if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
+        {
+            MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
+        }
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
-        auto t               = input.type();
+        size_t kdims         = input_size - 2;
+        if(kdims != this->kdims())
+        {
+            MIGRAPHX_THROW("convolution: input k-dims does not match attribute size");
+        }
 
-        return {t,
-                {
-                    input.lens()[0],
-                    weights.lens()[0],
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
-                         2 * padding[0]) /
-                                stride[0] +
-                            1)),
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
-                         2 * padding[1]) /
-                                stride[1] +
-                            1)),
-                }};
+        if(input.lens().at(1) != (weights.lens().at(1) * group))
+            MIGRAPHX_THROW("CONVOLUTION: Mismatch channel numbers");
+
+        std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
+
+        for(size_t i = 0; i < kdims; i++)
+        {
+            auto padding_factor = 2 * padding[i];
+            if(padding_size == 2 * kdims)
+                padding_factor = padding[i] + padding[i + kdims];
+            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                1,
+                (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                 padding_factor) /
+                        stride[i] +
+                    1)));
+        }
+
+        return inputs[0].with_lens(output_lens);
+    }
+
+    size_t kdims() const
+    {
+        check_attribute_size();
+        return stride.size();
     }
 };
 

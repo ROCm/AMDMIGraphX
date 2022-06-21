@@ -2,6 +2,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/env.hpp>
 
 namespace migraphx {
@@ -10,27 +11,25 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
-void write_literals::apply(program& p) const
+void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
     std::size_t n = 0;
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
             if(enabled(MIGRAPHX_COPY_LITERALS{}))
             {
                 literal l  = ins->get_literal();
-                auto pre   = p.add_literal(l);
-                auto alloc = p.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
-                p.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+                auto pre   = m.add_literal(l);
+                auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
+                m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
             }
             else
             {
-                std::string id = "@literal:" + std::to_string(n);
-                argument a     = to_gpu(ins->get_literal().get_argument());
-                ctx->get_current_device().preallocations[id] = a;
-                p.replace_instruction(ins, hip_load_memory{a.get_shape(), id});
+                std::string id = m.name() + ":@literal:" + std::to_string(n);
+                m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
                 n++;
             }
         }

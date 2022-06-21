@@ -15,7 +15,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+struct module;
 struct operation;
 
 #ifdef DOXYGEN
@@ -26,30 +26,35 @@ struct schedule_model
     /// Get the number of concurrent instruction allowed
     std::size_t concurrency() const;
     /// Schedule a concurrent instruction
-    void sched(program& p, instruction_ref ins, std::size_t n) const;
+    void sched(module& m, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
-    void wait(program& p, instruction_ref ins, std::size_t wait_id) const;
+    void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
     // Insert necessary records after an instruction
-    void record(program& p, instruction_ref ins, std::size_t wait_id) const;
+    void record(module& m, instruction_ref ins, std::size_t wait_id) const;
     /// Compute weights for an operation
     std::size_t weight(const operation& op) const;
 };
 
 #else
 
-/*
- * Type-erased interface for:
- *
- * struct schedule_model
- * {
- *      std::size_t concurrency() const;
- *      void sched(program& p,instruction_ref ins,std::size_t n) const;
- *      void wait(program& p,instruction_ref ins,std::size_t wait_id) const;
- *      void record(program& p,instruction_ref ins,std::size_t wait_id) const;
- *      std::size_t weight(const operation& op) const;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct schedule_model
+{
+    //
+    std::size_t concurrency() const;
+    //
+    void sched(module& m, instruction_ref ins, std::size_t n) const;
+    //
+    void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
+    //
+    void record(module& m, instruction_ref ins, std::size_t wait_id) const;
+    //
+    std::size_t weight(const operation& op) const;
+};
+
+#else
 
 struct schedule_model
 {
@@ -69,11 +74,17 @@ struct schedule_model
     template <typename PrivateDetailTypeErasedT>
     schedule_model& operator=(PrivateDetailTypeErasedT value)
     {
-        if(private_detail_te_handle_mem_var.unique())
-            *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
-        else if(!private_detail_te_handle_mem_var)
-            private_detail_te_handle_mem_var = std::make_shared<PrivateDetailTypeErasedT>(
-                std::forward<PrivateDetailTypeErasedT>(value));
+        using std::swap;
+        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        if(derived and private_detail_te_handle_mem_var.unique())
+        {
+            *derived = std::forward<PrivateDetailTypeErasedT>(value);
+        }
+        else
+        {
+            schedule_model rhs(value);
+            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var);
+        }
         return *this;
     }
 
@@ -81,7 +92,7 @@ struct schedule_model
     template <typename PrivateDetailTypeErasedT>
     PrivateDetailTypeErasedT* any_cast()
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())
@@ -92,7 +103,7 @@ struct schedule_model
     template <typename PrivateDetailTypeErasedT>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<const private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())
@@ -114,22 +125,22 @@ struct schedule_model
         return (*this).private_detail_te_get_handle().concurrency();
     }
 
-    void sched(program& p, instruction_ref ins, std::size_t n) const
+    void sched(module& m, instruction_ref ins, std::size_t n) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().sched(p, ins, n);
+        (*this).private_detail_te_get_handle().sched(m, ins, n);
     }
 
-    void wait(program& p, instruction_ref ins, std::size_t wait_id) const
+    void wait(module& m, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait(p, ins, wait_id);
+        (*this).private_detail_te_get_handle().wait(m, ins, wait_id);
     }
 
-    void record(program& p, instruction_ref ins, std::size_t wait_id) const
+    void record(module& m, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().record(p, ins, wait_id);
+        (*this).private_detail_te_get_handle().record(m, ins, wait_id);
     }
 
     std::size_t weight(const operation& op) const
@@ -152,11 +163,11 @@ struct schedule_model
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::size_t concurrency() const                                         = 0;
-        virtual void sched(program& p, instruction_ref ins, std::size_t n) const        = 0;
-        virtual void wait(program& p, instruction_ref ins, std::size_t wait_id) const   = 0;
-        virtual void record(program& p, instruction_ref ins, std::size_t wait_id) const = 0;
-        virtual std::size_t weight(const operation& op) const                           = 0;
+        virtual std::size_t concurrency() const                                        = 0;
+        virtual void sched(module& m, instruction_ref ins, std::size_t n) const        = 0;
+        virtual void wait(module& m, instruction_ref ins, std::size_t wait_id) const   = 0;
+        virtual void record(module& m, instruction_ref ins, std::size_t wait_id) const = 0;
+        virtual std::size_t weight(const operation& op) const                          = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -189,22 +200,22 @@ struct schedule_model
 
         std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
 
-        void sched(program& p, instruction_ref ins, std::size_t n) const override
+        void sched(module& m, instruction_ref ins, std::size_t n) const override
         {
 
-            private_detail_te_value.sched(p, ins, n);
+            private_detail_te_value.sched(m, ins, n);
         }
 
-        void wait(program& p, instruction_ref ins, std::size_t wait_id) const override
+        void wait(module& m, instruction_ref ins, std::size_t wait_id) const override
         {
 
-            private_detail_te_value.wait(p, ins, wait_id);
+            private_detail_te_value.wait(m, ins, wait_id);
         }
 
-        void record(program& p, instruction_ref ins, std::size_t wait_id) const override
+        void record(module& m, instruction_ref ins, std::size_t wait_id) const override
         {
 
-            private_detail_te_value.record(p, ins, wait_id);
+            private_detail_te_value.record(m, ins, wait_id);
         }
 
         std::size_t weight(const operation& op) const override
@@ -277,6 +288,7 @@ inline const ValueType& any_cast(const schedule_model& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

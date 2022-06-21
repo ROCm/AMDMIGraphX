@@ -1,5 +1,9 @@
 
 #include <migraphx/shape.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/stringutils.hpp>
 #include <array>
 #include <algorithm>
 #include <numeric>
@@ -41,6 +45,15 @@ TEST_CASE(test_shape_standard)
 TEST_CASE(test_shape_packed)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {2, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+TEST_CASE(test_shape_non_packed_single_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 35, 35}, {156800, 1225, 35, 1}};
     EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
@@ -90,6 +103,33 @@ TEST_CASE(test_shape_overlap3)
     EXPECT(not s.packed());
     EXPECT(not s.transposed());
     EXPECT(not s.broadcasted());
+}
+
+TEST_CASE(test_shape_scalar1)
+{
+    migraphx::shape s{migraphx::shape::float_type};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_shape_scalar2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1}, {0}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_shape_scalar_broadcast)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 2, 3, 3}, {0, 0, 0, 0}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
 }
 
 TEST_CASE(test_shape_broadcasted)
@@ -143,6 +183,53 @@ TEST_CASE(test_shape_default_copy)
     migraphx::shape s2{};
     EXPECT(s1 == s2);
     EXPECT(!(s1 != s2));
+}
+
+TEST_CASE(test_shape_normalize_standard1)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
+    EXPECT(s.standard());
+    auto n = s.normalize_standard();
+    EXPECT(n == s);
+}
+
+TEST_CASE(test_shape_normalize_standard2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 35, 35}, {156800, 1225, 35, 1}};
+    EXPECT(s.standard());
+    auto n = s.normalize_standard();
+    EXPECT(n.standard());
+    EXPECT(n != s);
+    EXPECT(n.lens() == s.lens());
+    EXPECT(n.type() == s.type());
+}
+
+TEST_CASE(test_shape_normalize_standard3)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 2}};
+    EXPECT(not s.standard());
+    auto n = s.normalize_standard();
+    EXPECT(n == s);
+}
+
+TEST_CASE(test_shape_normalize_scalar1)
+{
+    migraphx::shape s{migraphx::shape::float_type};
+    EXPECT(s.standard());
+    EXPECT(s.scalar());
+    auto n = s.normalize_standard();
+    EXPECT(n != s);
+    EXPECT(n.standard());
+    EXPECT(not n.scalar());
+}
+
+TEST_CASE(test_shape_normalize_scalar2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {0, 0}};
+    EXPECT(not s.standard());
+    EXPECT(s.scalar());
+    auto n = s.normalize_standard();
+    EXPECT(n == s);
 }
 
 TEST_CASE(test_shape4)
@@ -285,6 +372,251 @@ TEST_CASE(test_shape4_nonpacked)
     EXPECT(s.index({0, 1, 0, 0}) == s.index(8 * 8));
     EXPECT(s.index({1, 0, 0, 0}) == s.index(8 * 8 * 32));
     EXPECT(s.index(s.elements() - 1) == 469273);
+}
+
+TEST_CASE(test_serialize)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {100, 32, 8, 8}};
+    auto v1 = migraphx::to_value(s1);
+    migraphx::shape s2{migraphx::shape::uint64_type, {2, 2}};
+    auto v2 = migraphx::to_value(s2);
+    EXPECT(v1 != v2);
+
+    auto s3 = migraphx::from_value<migraphx::shape>(v1);
+    EXPECT(s3 == s1);
+    auto s4 = migraphx::from_value<migraphx::shape>(v2);
+    EXPECT(s4 == s2);
+    EXPECT(s3 != s4);
+}
+
+TEST_CASE(tuple)
+{
+    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type},
+                       migraphx::shape{migraphx::shape::int8_type}}};
+    EXPECT(s.type() == migraphx::shape::tuple_type);
+    EXPECT(s.bytes() == 4 + 1);
+    EXPECT(s.type_size() == 0);
+    EXPECT(s.type_string() == "tuple_type");
+    EXPECT(s.lens().empty());
+    EXPECT(s.strides().empty());
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.broadcasted());
+    EXPECT(not s.transposed());
+    EXPECT(not s.scalar());
+    EXPECT(s.sub_shapes().size() == 2);
+    EXPECT(s.sub_shapes()[0].type() == migraphx::shape::float_type);
+    EXPECT(s.sub_shapes()[0].elements() == 1);
+    EXPECT(s.sub_shapes()[1].type() == migraphx::shape::int8_type);
+    EXPECT(s.sub_shapes()[1].elements() == 1);
+    EXPECT(test::throws([&] { s.visit_type([](auto) {}); }));
+}
+
+TEST_CASE(tuple_copy)
+{
+    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type},
+                        migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s2{{migraphx::shape{migraphx::shape::float_type},
+                        migraphx::shape{migraphx::shape::int8_type}}};
+    EXPECT(s1 == s2);
+    auto s3 = s1;
+    EXPECT(s3 == s1);
+    EXPECT(s3 == s2);
+    migraphx::shape s4{{migraphx::shape{migraphx::shape::int8_type},
+                        migraphx::shape{migraphx::shape::float_type}}};
+    EXPECT(s4 != s1);
+    EXPECT(s4 != s2);
+    EXPECT(s4 != s3);
+}
+
+TEST_CASE(tuple_print)
+{
+    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type},
+                       migraphx::shape{migraphx::shape::int8_type}}};
+    std::string x = migraphx::to_string(s);
+    EXPECT(x.front() == '[');
+    EXPECT(x.back() == ']');
+    EXPECT(migraphx::contains(x, "float"));
+    EXPECT(migraphx::contains(x, "int8"));
+}
+
+TEST_CASE(tuple_serialize)
+{
+    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type},
+                        migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s2{{migraphx::shape{migraphx::shape::int8_type},
+                        migraphx::shape{migraphx::shape::float_type}}};
+    auto v1 = migraphx::to_value(s1);
+    auto v2 = migraphx::to_value(s2);
+    EXPECT(v1 != v2);
+
+    auto s3 = migraphx::from_value<migraphx::shape>(v1);
+    EXPECT(s3 == s1);
+    auto s4 = migraphx::from_value<migraphx::shape>(v2);
+    EXPECT(s4 == s2);
+    EXPECT(s3 != s4);
+}
+
+TEST_CASE(test_with_lens1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {1, 2}};
+    auto s2 = s1.with_lens({4, 3});
+    EXPECT(s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {4, 3}, {1, 4}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens2)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {2, 1}};
+    auto s2 = s1.with_lens({3, 4});
+    EXPECT(s2.standard());
+    migraphx::shape s3{migraphx::shape::float_type, {3, 4}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {64, 1, 24, 24}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous2)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 1}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 =
+        migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous3)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {64, 3, 1, 1}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous4)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 1, 1, 3}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 =
+        migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous5)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 5, 24, 24}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous6)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 24, 24, 5}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 =
+        migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous7)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 1, 1, 3}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 =
+        migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous8)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 24, 24}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous9)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 24, 24, 1}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 =
+        migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous10)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {3, 2, 4, 1}};
+    auto s2 = s1.with_lens({3, 2, 4, 1});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {3, 2, 4, 1}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous11)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {64, 1, 1, 1}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s1.standard());
+    EXPECT(s2.standard());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous12)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 64, 1, 1}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s1.standard());
+    EXPECT(s2.standard());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous13)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 1, 1, 3}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 =
+        migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(cpp_type_name)
+{
+    EXPECT(migraphx::shape::cpp_type(migraphx::shape::int8_type) == "int8_t");
+    EXPECT(migraphx::shape::cpp_type(migraphx::shape::float_type) == "float");
+    EXPECT(migraphx::shape::cpp_type(migraphx::shape::half_type) == "half");
+    EXPECT(test::throws([&] { migraphx::shape::cpp_type(migraphx::shape::tuple_type); }));
+}
+
+TEST_CASE(test_with_type)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 0}};
+    EXPECT(s.type() == migraphx::shape::float_type);
+    auto new_s = s.with_type(migraphx::shape::half_type);
+    EXPECT(s.type() == migraphx::shape::float_type);
+    EXPECT(s.type() != new_s.type());
+    EXPECT(s.lens() == new_s.lens());
+    EXPECT(s.strides() == new_s.strides());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

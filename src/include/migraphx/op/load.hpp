@@ -2,13 +2,11 @@
 #define MIGRAPHX_GUARD_OPERATORS_LOAD_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 
@@ -30,15 +28,16 @@ struct load
     std::string name() const { return "load"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         return s;
     }
     argument compute(const shape&, const std::vector<argument>& args) const
     {
         if((offset + s.bytes()) > args[0].get_shape().bytes())
             MIGRAPHX_THROW("Load access is out of bounds");
-        return {s, args[0].data() + offset};
+        return argument{s, args[0].data() + offset};
     }
+    lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 
     friend std::ostream& operator<<(std::ostream& os, const load& op)

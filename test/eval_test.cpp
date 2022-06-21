@@ -71,7 +71,7 @@ struct reverse_pass
 {
     std::string name() const { return "reverse_pass"; }
 
-    void apply(migraphx::program& p) const { std::reverse(p.begin(), p.end()); }
+    void apply(migraphx::module& m) const { std::reverse(m.begin(), m.end()); }
 };
 
 struct reverse_target
@@ -89,17 +89,17 @@ struct invert_pass
 {
     std::string name() const { return "invert_pass"; }
 
-    void apply(migraphx::program& p) const
+    void apply(migraphx::module& m) const
     {
-        for(auto ins : migraphx::iterator_for(p))
+        for(auto ins : migraphx::iterator_for(m))
         {
             if(ins->name() == "sum")
             {
-                p.replace_instruction(ins, minus_op{}, ins->inputs());
+                m.replace_instruction(ins, minus_op{}, ins->inputs());
             }
             else if(ins->name() == "minus")
             {
-                p.replace_instruction(ins, sum_op{}, ins->inputs());
+                m.replace_instruction(ins, sum_op{}, ins->inputs());
             }
         }
     }
@@ -130,11 +130,11 @@ struct double_invert_target
 TEST_CASE(literal_test1)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
-    auto result = p.eval({});
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -142,13 +142,13 @@ TEST_CASE(literal_test1)
 TEST_CASE(literal_test2)
 {
     migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto one  = mm->add_literal(1);
+    auto two  = mm->add_literal(2);
+    auto sum1 = mm->add_instruction(sum_op{}, one, two);
+    mm->add_instruction(sum_op{}, sum1, two);
 
-    auto one  = p.add_literal(1);
-    auto two  = p.add_literal(2);
-    auto sum1 = p.add_instruction(sum_op{}, one, two);
-    p.add_instruction(sum_op{}, sum1, two);
-
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{5});
     EXPECT(result != migraphx::literal{3});
 }
@@ -156,10 +156,10 @@ TEST_CASE(literal_test2)
 TEST_CASE(print_test)
 {
     migraphx::program p;
-
-    auto x   = p.add_parameter("x", {migraphx::shape::int32_type});
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, x, two);
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, x, two);
 
     std::stringstream ss;
     ss << p;
@@ -170,13 +170,14 @@ TEST_CASE(print_test)
 TEST_CASE(param_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
+    auto y   = mm->add_parameter("y", {migraphx::shape::int32_type});
 
-    auto x = p.add_parameter("x", {migraphx::shape::int32_type});
-    auto y = p.add_parameter("y", {migraphx::shape::int32_type});
-
-    p.add_instruction(sum_op{}, x, y);
-    auto result = p.eval(
-        {{"x", migraphx::literal{1}.get_argument()}, {"y", migraphx::literal{2}.get_argument()}});
+    mm->add_instruction(sum_op{}, x, y);
+    auto result = p.eval({{"x", migraphx::literal{1}.get_argument()},
+                          {"y", migraphx::literal{2}.get_argument()}})
+                      .back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -184,11 +185,11 @@ TEST_CASE(param_test)
 TEST_CASE(param_error_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
+    auto y   = mm->add_parameter("y", {migraphx::shape::int32_type});
 
-    auto x = p.add_parameter("x", {migraphx::shape::int32_type});
-    auto y = p.add_parameter("y", {migraphx::shape::int32_type});
-
-    p.add_instruction(sum_op{}, x, y);
+    mm->add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
         [&] {
             p.eval({{"x", migraphx::literal{1}.get_argument()}});
@@ -199,11 +200,11 @@ TEST_CASE(param_error_test)
 TEST_CASE(param_error_shape_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type, {1, 1}});
+    auto y   = mm->add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
 
-    auto x = p.add_parameter("x", {migraphx::shape::int32_type, {1, 1}});
-    auto y = p.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
-
-    p.add_instruction(sum_op{}, x, y);
+    mm->add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
         [&] {
             p.eval({
@@ -217,31 +218,34 @@ TEST_CASE(param_error_shape_test)
 TEST_CASE(get_param1)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::int32_type, {1, 2}};
-    auto x = p.add_parameter("x", s);
-    auto y = p.add_parameter("y", s);
-    p.add_instruction(sum_op{}, x, y);
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_instruction(sum_op{}, x, y);
     EXPECT(bool{p.get_parameter("x") == x});
     EXPECT(bool{p.get_parameter("y") == y});
-    EXPECT(bool{p.get_parameter("nonexistent") == p.end()});
+    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
 }
 
 TEST_CASE(get_param2)
 {
     migraphx::program p;
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
-    EXPECT(bool{p.get_parameter("nonexistent") == p.end()});
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
+    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
 }
 
 TEST_CASE(get_param_shapes)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::int32_type, {1, 2}};
-    auto x = p.add_parameter("x", s);
-    auto y = p.add_parameter("y", s);
-    p.add_instruction(sum_op{}, x, y);
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_instruction(sum_op{}, x, y);
     auto m = p.get_parameter_shapes();
     EXPECT(m.count("nonexistent") == 0);
     EXPECT(m.at("x") == s);
@@ -251,14 +255,14 @@ TEST_CASE(get_param_shapes)
 TEST_CASE(replace_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(sum_op{}, one, two);
+    mm->replace_instruction(sum, minus_op{}, two, one);
+    EXPECT(bool{p.validate() == mm->end()});
 
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto sum = p.add_instruction(sum_op{}, one, two);
-    p.replace_instruction(sum, minus_op{}, two, one);
-    EXPECT(bool{p.validate() == p.end()});
-
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{3});
 }
@@ -266,15 +270,15 @@ TEST_CASE(replace_test)
 TEST_CASE(replace_ins_test)
 {
     migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto one   = mm->add_literal(1);
+    auto two   = mm->add_literal(2);
+    auto sum   = mm->add_instruction(sum_op{}, one, two);
+    auto minus = mm->add_instruction(minus_op{}, two, one);
+    mm->replace_instruction(sum, minus);
+    EXPECT(bool{p.validate() == mm->end()});
 
-    auto one   = p.add_literal(1);
-    auto two   = p.add_literal(2);
-    auto sum   = p.add_instruction(sum_op{}, one, two);
-    auto minus = p.add_instruction(minus_op{}, two, one);
-    p.replace_instruction(sum, minus);
-    EXPECT(bool{p.validate() == p.end()});
-
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{3});
 }
@@ -282,16 +286,16 @@ TEST_CASE(replace_ins_test)
 TEST_CASE(replace_ins_test2)
 {
     migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto one   = mm->add_literal(1);
+    auto two   = mm->add_literal(2);
+    auto sum   = mm->add_instruction(sum_op{}, one, two);
+    auto minus = mm->add_instruction(minus_op{}, two, one);
+    mm->add_instruction(pass_op{}, minus);
+    mm->replace_instruction(two, sum);
+    EXPECT(bool{p.validate() == mm->end()});
 
-    auto one   = p.add_literal(1);
-    auto two   = p.add_literal(2);
-    auto sum   = p.add_instruction(sum_op{}, one, two);
-    auto minus = p.add_instruction(minus_op{}, two, one);
-    p.add_instruction(pass_op{}, minus);
-    p.replace_instruction(two, sum);
-    EXPECT(bool{p.validate() == p.end()});
-
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{2});
     EXPECT(result != migraphx::literal{3});
 }
@@ -299,14 +303,14 @@ TEST_CASE(replace_ins_test2)
 TEST_CASE(replace_op_test)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto sum = p.add_instruction(sum_op{}, two, one);
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(sum_op{}, two, one);
     sum->replace(minus_op{});
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{3});
 }
@@ -314,27 +318,27 @@ TEST_CASE(replace_op_test)
 TEST_CASE(replace_op_recompute_shape_throw)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto sum = p.add_instruction(sum_op{}, one, two);
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(sum_op{}, one, two);
     EXPECT(test::throws<migraphx::exception>([&] { sum->replace(unary_pass_op{}); }));
 }
 
 TEST_CASE(insert_replace_test)
 {
     migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto one  = mm->add_literal(1);
+    auto two  = mm->add_literal(2);
+    auto sum1 = mm->add_instruction(sum_op{}, one, two);
+    mm->add_instruction(sum_op{}, sum1, two);
 
-    auto one  = p.add_literal(1);
-    auto two  = p.add_literal(2);
-    auto sum1 = p.add_instruction(sum_op{}, one, two);
-    p.add_instruction(sum_op{}, sum1, two);
+    auto sum0 = mm->insert_instruction(sum1, sum_op{}, two, two);
+    mm->replace_instruction(sum1, minus_op{}, sum0, two);
+    EXPECT(bool{p.validate() == mm->end()});
 
-    auto sum0 = p.insert_instruction(sum1, sum_op{}, two, two);
-    p.replace_instruction(sum1, minus_op{}, sum0, two);
-    EXPECT(bool{p.validate() == p.end()});
-
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{4});
     EXPECT(result != migraphx::literal{5});
 }
@@ -342,15 +346,15 @@ TEST_CASE(insert_replace_test)
 TEST_CASE(remove_test1)
 {
     migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto one     = mm->add_literal(1);
+    auto two     = mm->add_literal(2);
+    auto sum     = mm->add_instruction(sum_op{}, one, two);
+    auto removed = mm->add_instruction(minus_op{}, sum, one);
+    mm->remove_instruction(removed);
+    EXPECT(bool{p.validate() == mm->end()});
 
-    auto one     = p.add_literal(1);
-    auto two     = p.add_literal(2);
-    auto sum     = p.add_instruction(sum_op{}, one, two);
-    auto removed = p.add_instruction(minus_op{}, sum, one);
-    p.remove_instruction(removed);
-    EXPECT(bool{p.validate() == p.end()});
-
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{1});
 }
@@ -358,15 +362,15 @@ TEST_CASE(remove_test1)
 TEST_CASE(remove_test2)
 {
     migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto one     = mm->add_literal(1);
+    auto two     = mm->add_literal(2);
+    auto removed = mm->add_instruction(minus_op{}, two, one);
+    mm->add_instruction(sum_op{}, one, two);
+    mm->remove_instruction(removed);
+    EXPECT(bool{p.validate() == mm->end()});
 
-    auto one     = p.add_literal(1);
-    auto two     = p.add_literal(2);
-    auto removed = p.add_instruction(minus_op{}, two, one);
-    p.add_instruction(sum_op{}, one, two);
-    p.remove_instruction(removed);
-    EXPECT(bool{p.validate() == p.end()});
-
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{1});
 }
@@ -374,12 +378,12 @@ TEST_CASE(remove_test2)
 TEST_CASE(target_test)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
     p.compile(id_target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -387,12 +391,12 @@ TEST_CASE(target_test)
 TEST_CASE(invert_target_test)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, two, one);
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, two, one);
     p.compile(invert_target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{4});
 }
@@ -400,12 +404,12 @@ TEST_CASE(invert_target_test)
 TEST_CASE(double_invert_target_test)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, two, one);
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, two, one);
     p.compile(double_invert_target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -413,10 +417,10 @@ TEST_CASE(double_invert_target_test)
 TEST_CASE(reverse_target_test)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
     EXPECT(test::throws<migraphx::exception>([&] { p.compile(reverse_target{}); }));
 }
 
@@ -425,28 +429,30 @@ TEST_CASE(reverse_target_test)
 TEST_CASE(eval_context1)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     id_target t{};
     EXPECT(is_shared(t.ctx, t.get_context()));
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
     p.compile(t);
     EXPECT(is_shared(t.ctx, p.get_context()));
-    p.eval({});
+    p.eval({}).back();
     EXPECT(is_shared(t.ctx, p.get_context()));
 }
 
 TEST_CASE(eval_context2)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     id_target t{};
     EXPECT(is_shared(t.ctx, t.get_context()));
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(id_ctx_op{}, one, two);
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(id_ctx_op{}, one, two);
     p.compile(t);
     EXPECT(is_shared(t.ctx, p.get_context()));
-    p.eval({});
+    p.eval({}).back();
     // id_ctx_op will modify the context
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }
@@ -454,16 +460,17 @@ TEST_CASE(eval_context2)
 TEST_CASE(eval_context3)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     id_target t{};
     EXPECT(is_shared(t.ctx, t.get_context()));
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(id_ctx_final_op{}, one, two);
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(id_ctx_final_op{}, one, two);
     p.compile(t);
     // Finalizer will modify the context
     EXPECT(not is_shared(t.ctx, p.get_context()));
     auto ctx = p.get_context();
-    p.eval({});
+    p.eval({}).back();
     EXPECT(is_shared(ctx, p.get_context()));
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }
@@ -494,22 +501,24 @@ std::string capture_output(F f)
 TEST_CASE(debug_print_test)
 {
     migraphx::program p;
-    auto one                                    = p.add_literal(1);
+    auto* mm                                    = p.get_main_module();
+    auto one                                    = mm->add_literal(1);
     std::vector<migraphx::instruction_ref> onev = {one};
 
     migraphx::program p2;
-    auto one2 = p2.add_literal(1);
+    auto* mm2 = p2.get_main_module();
+    auto one2 = mm2->add_literal(1);
 
-    auto program_out = migraphx::trim(capture_output([&] { p.debug_print(); }));
-    auto ins_out     = migraphx::trim(capture_output([&] { p.debug_print(one); }));
-    auto inss_out    = migraphx::trim(capture_output([&] { p.debug_print(onev); }));
-    auto end_out     = migraphx::trim(capture_output([&] { p.debug_print(p.end()); }));
-    auto p2_ins_out  = migraphx::trim(capture_output([&] { p.debug_print(one2); }));
+    auto program_out = migraphx::trim(capture_output([&] { mm->debug_print(); }));
+    auto ins_out     = migraphx::trim(capture_output([&] { mm->debug_print(one); }));
+    auto inss_out    = migraphx::trim(capture_output([&] { mm->debug_print(onev); }));
+    auto end_out     = migraphx::trim(capture_output([&] { mm->debug_print(mm->end()); }));
+    auto p2_ins_out  = migraphx::trim(capture_output([&] { mm->debug_print(one2); }));
 
     EXPECT(program_out == ins_out);
     EXPECT(inss_out == ins_out);
     EXPECT(end_out == "End instruction");
-    EXPECT(p2_ins_out == "Instruction not part of program");
+    EXPECT(p2_ins_out == "Instruction not part of module");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

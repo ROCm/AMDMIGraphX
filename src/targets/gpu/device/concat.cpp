@@ -22,7 +22,7 @@ argument concat(hipStream_t stream,
         auto output_shape = shape{
             arg.get_shape().type(), arg.get_shape().lens(), args.back().get_shape().strides()};
         auto output = argument{output_shape, args.back().data() + byte_offset};
-        contiguous(stream, std::move(output), arg);
+        contiguous(stream, output, arg);
     }
     return args.back();
 }

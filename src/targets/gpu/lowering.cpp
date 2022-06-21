@@ -1,73 +1,52 @@
-#include <rocblas.h>
+#include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/hip.hpp>
-#include <migraphx/dfor.hpp>
-#include <migraphx/gpu/device/contiguous.hpp>
-#include <migraphx/gpu/device/add.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/gpu/argmax.hpp>
-#include <migraphx/gpu/argmin.hpp>
-#include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/op/abs.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/dot.hpp>
+#include <migraphx/op/elu.hpp>
+#include <migraphx/op/if_op.hpp>
+#include <migraphx/op/leaky_relu.hpp>
+#include <migraphx/op/lrn.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/reshape.hpp>
+#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/op/quant_dot.hpp>
+
+#include <migraphx/gpu/abs.hpp>
+#include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
-#include <migraphx/gpu/quant_convolution.hpp>
-#include <migraphx/gpu/contiguous.hpp>
-#include <migraphx/gpu/relu.hpp>
-#include <migraphx/gpu/sigmoid.hpp>
-#include <migraphx/gpu/abs.hpp>
-#include <migraphx/gpu/leaky_relu.hpp>
+#include <migraphx/gpu/deconvolution.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/elu.hpp>
-#include <migraphx/gpu/softmax.hpp>
-#include <migraphx/gpu/logsoftmax.hpp>
-#include <migraphx/gpu/add.hpp>
-#include <migraphx/gpu/sub.hpp>
-#include <migraphx/gpu/div.hpp>
-#include <migraphx/gpu/exp.hpp>
-#include <migraphx/gpu/erf.hpp>
-#include <migraphx/gpu/log.hpp>
-#include <migraphx/gpu/sin.hpp>
-#include <migraphx/gpu/sign.hpp>
-#include <migraphx/gpu/cos.hpp>
-#include <migraphx/gpu/tan.hpp>
-#include <migraphx/gpu/sinh.hpp>
-#include <migraphx/gpu/cosh.hpp>
-#include <migraphx/gpu/tanh.hpp>
-#include <migraphx/gpu/asin.hpp>
-#include <migraphx/gpu/acos.hpp>
-#include <migraphx/gpu/atan.hpp>
-#include <migraphx/gpu/mul.hpp>
-#include <migraphx/gpu/max.hpp>
-#include <migraphx/gpu/min.hpp>
-#include <migraphx/gpu/batchnorm.hpp>
-#include <migraphx/gpu/pooling.hpp>
+#include <migraphx/gpu/equal.hpp>
 #include <migraphx/gpu/gemm.hpp>
-#include <migraphx/gpu/concat.hpp>
-#include <migraphx/gpu/pad.hpp>
-#include <migraphx/gpu/gather.hpp>
-#include <migraphx/gpu/lrn.hpp>
-#include <migraphx/gpu/convert.hpp>
-#include <migraphx/gpu/clip.hpp>
-#include <migraphx/gpu/reduce_sum.hpp>
-#include <migraphx/gpu/round.hpp>
-#include <migraphx/gpu/ceil.hpp>
-#include <migraphx/gpu/floor.hpp>
-#include <migraphx/gpu/rsqrt.hpp>
-#include <migraphx/gpu/sqrt.hpp>
-#include <migraphx/gpu/reduce_mean.hpp>
-#include <migraphx/gpu/reduce_min.hpp>
-#include <migraphx/gpu/reduce_max.hpp>
-#include <migraphx/gpu/pow.hpp>
-#include <migraphx/gpu/sqdiff.hpp>
+#include <migraphx/gpu/greater.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
+#include <migraphx/gpu/leaky_relu.hpp>
+#include <migraphx/gpu/less.hpp>
+#include <migraphx/gpu/logical_and.hpp>
+#include <migraphx/gpu/logical_or.hpp>
+#include <migraphx/gpu/logical_xor.hpp>
+#include <migraphx/gpu/lrn.hpp>
+#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/quant_convolution.hpp>
+#include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/unary_not.hpp>
+#include <migraphx/gpu/where.hpp>
+#include <migraphx/gpu/compiler.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/program.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -75,12 +54,15 @@ namespace gpu {
 
 struct miopen_apply
 {
-    program* prog        = nullptr;
+    module* mod          = nullptr;
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
+    bool offload_copy   = false;
+    bool int8_x4_format = true;
+    bool compute_fp32   = false;
 
-    context& get_context()
+    context& get_context() const
     {
         assert(pass != nullptr);
         assert(pass->ctx != nullptr);
@@ -94,112 +76,184 @@ struct miopen_apply
         (void)i;
     }
 
-    void init()
+    const std::unordered_set<std::string>& get_rocblas_fp32_archs()
     {
-        assert(prog != nullptr);
-        assert(pass != nullptr);
-        this->last = instruction::get_output_alias(std::prev(prog->end()));
-
-        add_miopen_simple_op<miopen_abs>("abs", make_abs);
-
-        add_miopen_extend_op<miopen_leaky_relu, op::leaky_relu>("leaky_relu", make_leaky_relu);
-        add_miopen_extend_op<miopen_elu, op::elu>("elu", make_elu);
-
-        add_generic_op<hip_add>("add");
-        add_generic_op<hip_sub>("sub");
-        add_generic_op<hip_exp>("exp");
-        add_generic_op<hip_erf>("erf");
-        add_generic_op<hip_log>("log");
-        add_generic_op<hip_sin>("sin");
-        add_generic_op<hip_cos>("cos");
-        add_generic_op<hip_tan>("tan");
-        add_generic_op<hip_sinh>("sinh");
-        add_generic_op<hip_cosh>("cosh");
-        add_generic_op<hip_tanh>("tanh");
-        add_generic_op<hip_asin>("asin");
-        add_generic_op<hip_acos>("acos");
-        add_generic_op<hip_atan>("atan");
-        add_generic_op<hip_sqrt>("sqrt");
-        add_generic_op<hip_mul>("mul");
-        add_generic_op<hip_div>("div");
-        add_generic_op<hip_max>("max");
-        add_generic_op<hip_min>("min");
-        add_generic_op<hip_rsqrt>("rsqrt");
-        add_generic_op<hip_round>("round");
-        add_generic_op<hip_pow>("pow");
-        add_generic_op<hip_sqdiff>("sqdiff");
-        add_generic_op<hip_relu>("relu");
-        add_generic_op<hip_sign>("sign");
-        add_generic_op<hip_sigmoid>("sigmoid");
-        add_generic_op<hip_ceil>("ceil");
-        add_generic_op<hip_floor>("floor");
-
-        add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
-        add_extend_op<hip_concat, op::concat>("concat");
-        add_extend_op<hip_softmax, op::softmax>("softmax");
-        add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");
-        add_extend_op<hip_argmax, op::argmax>("argmax");
-        add_extend_op<hip_argmin, op::argmin>("argmin");
-        add_extend_op<hip_gather, op::gather>("gather");
-        add_extend_op<hip_pad, op::pad>("pad");
-        add_extend_op<hip_convert, op::convert>("convert");
-        add_extend_op<hip_clip, op::clip>("clip");
-        add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
-        add_extend_op<hip_reduce_mean, op::reduce_mean>("reduce_mean");
-        add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
-        add_extend_op<hip_reduce_max, op::reduce_max>("reduce_max");
-        add_gemm_op<op::dot>("dot");
-        add_gemm_op<op::quant_dot>("quant_dot");
-
-        add_lrn_op();
-        add_convolution_op();
-        add_quant_convolution_op();
-        add_pooling_op();
-        add_batch_norm_inference_op();
+        static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
+        return supported_archs;
     }
 
-    void copy_params()
+    void init()
     {
-        if(not pass->offload_copy)
+        assert(mod != nullptr);
+        assert(pass != nullptr);
+
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+        auto& ctx              = get_context();
+        const auto device_name = trim(split_string(get_device_name(), ':').front());
+        if(contains(get_rocblas_fp32_archs(), device_name))
+            compute_fp32 = true;
+        rocblas_gemm_flags flag;
+        rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+        int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
+#endif
+
+        offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
+
+        add_generic_op("acos");
+        add_generic_op("acosh");
+        add_generic_op("add");
+        add_generic_op("asin");
+        add_generic_op("asinh");
+        add_generic_op("atan");
+        add_generic_op("atanh");
+        add_generic_op("ceil");
+        add_generic_op("contiguous");
+        add_generic_op("cos");
+        add_generic_op("cosh");
+        add_generic_op("div");
+        add_generic_op("equal");
+        add_generic_op("erf");
+        add_generic_op("exp");
+        add_generic_op("floor");
+        add_generic_op("greater");
+        add_generic_op("less");
+        add_generic_op("log");
+        add_generic_op("logical_and");
+        add_generic_op("logical_or");
+        add_generic_op("logical_xor");
+        add_generic_op("max");
+        add_generic_op("min");
+        add_generic_op("mul");
+        add_generic_op("not");
+        add_generic_op("pow");
+        add_generic_op("prelu");
+        add_generic_op("recip");
+        add_generic_op("relu");
+        add_generic_op("round");
+        add_generic_op("rsqrt");
+        add_generic_op("sigmoid");
+        add_generic_op("sign");
+        add_generic_op("sin");
+        add_generic_op("sinh");
+        add_generic_op("sqdiff");
+        add_generic_op("sqrt");
+        add_generic_op("sub");
+        add_generic_op("tan");
+        add_generic_op("tanh");
+        add_generic_op("where");
+
+        add_extend_op("abs");
+        add_extend_op("argmax");
+        add_extend_op("argmin");
+        add_extend_op("clip");
+        add_extend_op("concat");
+        add_extend_op("convert");
+        add_extend_op("elu");
+        add_extend_op("gather");
+        add_extend_op("leaky_relu");
+        add_extend_op("logsoftmax");
+        add_extend_op("lrn");
+        add_extend_op("multinomial");
+        add_extend_op("nonzero");
+        add_extend_op("pad");
+        add_extend_op("pooling");
+        add_extend_op("prefix_scan_sum");
+        add_extend_op("reverse");
+        add_extend_op("rnn_var_sl_last_output");
+        add_extend_op("rnn_var_sl_shift_output");
+        add_extend_op("rnn_var_sl_shift_sequence");
+        add_extend_op("scatter_none");
+        add_extend_op("softmax");
+        add_extend_op("topk");
+
+        add_batch_norm_inference_op();
+        add_convolution_op();
+        add_deconvolution_op();
+        add_gemm_op<op::dot>("dot");
+        add_gemm_op<op::quant_dot>("quant_dot");
+        add_if_op();
+        add_loop_op();
+        add_neg_op();
+        add_nms_op();
+        add_quant_convolution_op();
+    }
+
+    void copy_params() const
+    {
+        if(not offload_copy)
             return;
-        for(auto ins : iterator_for(*prog))
+
+        for(auto ins : iterator_for(*mod))
         {
             if(ins->name() != "@param")
                 continue;
+
+            // parameter no outputs, no need to insert copy to gpu
+            if(ins->outputs().empty())
+                continue;
+
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
-            auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
-            prog->replace_instruction(ins, c);
+            auto c   = mod->insert_instruction(pos, make_op("hip::copy_to_gpu"), ins, a);
+            mod->replace_instruction(ins, c);
         }
-        auto end = std::prev(prog->end());
-        prog->add_instruction(hip_copy_from_gpu{}, end);
+
+        // return instruction
+        auto ret = std::prev(mod->end());
+        if(ret->name() == "@return")
+        {
+            const auto& inputs = ret->inputs();
+
+            // each input of ret need to be copied from gpu to host, and replace
+            // output with copy output
+            for(const auto& in : inputs)
+            {
+                auto p_output = mod->insert_instruction(ret, make_op("hip::copy_from_gpu"), in);
+                instruction::replace_argument(ret, in, p_output);
+            }
+        }
+        // else branch to handle legacy program without the return instruction
+        else
+        {
+            mod->add_instruction(make_op("hip::copy_from_gpu"), ret);
+        }
     }
 
     void apply()
     {
         init();
-        for(auto it = prog->begin(); it != prog->end(); it++)
+        for(auto it = mod->begin(); it != mod->end(); it++)
         {
             auto s = it->get_shape();
             if(apply_map.count(it->name()) > 0)
             {
                 check_shape(s, apply_map.at(it->name())(it));
             }
+            else if(has_compiler_for(it->name()))
+            {
+                check_shape(s, insert_precompile_op(it));
+            }
         }
+
         copy_params();
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
+    instruction_ref insert_precompile_op(instruction_ref ins) const
     {
-        if(not pass->offload_copy and ins == last and tag.empty())
-        {
-            return prog->add_parameter("output", s);
-        }
-        else
-        {
-            auto result = prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
-            return result;
-        }
+        auto output                       = insert_allocation(ins, ins->get_shape());
+        std::vector<instruction_ref> refs = ins->inputs();
+        refs.push_back(output);
+
+        return mod->replace_instruction(
+            ins,
+            make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+            refs,
+            ins->module_inputs());
+    }
+
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
+    {
+        return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
     void add_convolution_op()
@@ -208,46 +262,42 @@ struct miopen_apply
             auto&& op = any_cast<op::convolution>(ins->get_operator());
 
             auto conv = miopen_convolution{op, make_conv(op)};
-            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
-            return prog->replace_instruction(
+            return mod->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
         });
     }
 
-    template <class Op>
-    void add_gemm_op(std::string name)
+    void add_deconvolution_op()
+    {
+        apply_map.emplace("deconvolution", [=](instruction_ref ins) {
+            auto&& op = any_cast<op::deconvolution>(ins->get_operator());
+
+            auto conv = miopen_deconvolution{op, make_deconv(op)};
+            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+
+            auto workspace = insert_allocation(ins, ws);
+            auto output    = insert_allocation(ins, ins->get_shape());
+
+            return mod->replace_instruction(
+                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
+    }
+
+    template <typename Op>
+    void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op                         = any_cast<Op>(ins->get_operator());
-            auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
-            if(refs.size() == 2)
-            {
-                auto output = insert_allocation(ins, ins->get_shape());
-                beta        = 0;
-                refs.push_back(output);
-            }
-            else
-            {
-                auto c_alias = instruction::get_output_alias(refs.back());
-                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
-                {
-                    auto output   = insert_allocation(ins, ins->get_shape());
-                    auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
-                    refs.back()   = copy_out;
-                    refs.push_back(copy_out);
-                }
-                else
-                {
-                    refs.push_back(refs.back());
-                }
-            }
-
-            return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);
+            assert(refs.size() == 2);
+            auto output = insert_allocation(ins, ins->get_shape());
+            refs.push_back(output);
+            return mod->replace_instruction(
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
         });
     }
 
@@ -255,84 +305,58 @@ struct miopen_apply
     {
         apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
-            auto conv = miopen_quant_convolution{op, make_conv(op)};
-            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            shape ws;
+            miopen_quant_convolution conv;
+            auto compile_quant_conv_with_format = [&](bool format) {
+                conv = miopen_quant_convolution{op, format, make_conv(op)};
+                ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            };
+
+            try
+            {
+                compile_quant_conv_with_format(int8_x4_format);
+            }
+            catch(migraphx::exception&)
+            {
+                // In case no solver supports the default format, retry using the other format.
+                compile_quant_conv_with_format(!int8_x4_format);
+            }
 
             auto args      = ins->inputs();
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
-            return prog->replace_instruction(ins, conv, args[0], args[1], workspace, output);
+            return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }
 
-    void add_pooling_op()
-    {
-        apply_map.emplace("pooling", [=](instruction_ref ins) {
-            auto&& op   = any_cast<op::pooling>(ins->get_operator());
-            auto pd     = make_pooling(op);
-            auto output = insert_allocation(ins, ins->get_shape());
+    // add_generic_op just constructs the operator with no fields whereas add_extend_op copies over
+    // the fields Since it doesn't have fields its default constructed
 
-            return prog->replace_instruction(
-                ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
-        });
-    }
+    void add_generic_op(const std::string& name) { add_generic_op(name, "gpu::" + name); }
 
-    void add_lrn_op()
+    void add_generic_op(const std::string& op_name, const std::string& gpu_name)
     {
-        apply_map.emplace("lrn", [=](instruction_ref ins) {
-            auto&& op   = any_cast<op::lrn>(ins->get_operator());
-            auto ldesc  = make_lrn(op);
-            auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(
-                ins, miopen_lrn{std::move(ldesc)}, ins->inputs().at(0), output);
-        });
-    }
-
-    template <class T>
-    void add_generic_op(std::string name)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            return prog->replace_instruction(ins, T{}, refs);
+            return mod->replace_instruction(ins, make_op(gpu_name), refs);
         });
     }
 
-    template <class T, class Op>
-    void add_extend_op(std::string name)
+    void add_extend_op(const std::string& name) { add_extend_op(name, "gpu::" + name); }
+
+    void add_extend_op(const std::string& op_name, const std::string& gpu_name)
     {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op                         = any_cast<Op>(ins->get_operator());
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            auto&& op                         = ins->get_operator();
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            return prog->replace_instruction(ins, T{op}, refs);
-        });
-    }
-
-    template <class T, class Op, class F>
-    void add_miopen_extend_op(std::string name, F f)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op = any_cast<Op>(ins->get_operator());
-            auto ad   = f(op.alpha);
-
-            auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
-        });
-    }
-
-    template <class T, class F>
-    void add_miopen_simple_op(std::string name, F f)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto ad     = f();
-            auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
+            return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
         });
     }
 
@@ -342,26 +366,122 @@ struct miopen_apply
             auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
             auto output     = insert_allocation(ins, ins->get_shape());
             shape old_shape = ins->inputs().at(1)->get_shape();
-            std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
-            auto reshape_op = op::reshape{new_shape};
+            auto input      = ins->inputs()[0];
+            auto input_lens = input->get_shape().lens();
+            std::vector<int64_t> rsp_lens(input_lens.size(), 1);
+            // for per_activation case, also need to reshape input
+            if(op.bn_mode == op::batch_norm_inference::per_activation)
+            {
+                std::copy(input_lens.begin() + 1, input_lens.end(), rsp_lens.begin() + 1);
+            }
+            else
+            {
+                rsp_lens[1] = static_cast<int64_t>(old_shape.elements());
+            }
+
+            auto reshape_op = op::reshape{rsp_lens};
             std::vector<instruction_ref> reshapes;
             std::transform(ins->inputs().begin() + 1,
                            ins->inputs().end(),
                            std::back_inserter(reshapes),
-                           [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
-            return prog->replace_instruction(ins,
-                                             miopen_batch_norm_inference{op},
-                                             ins->inputs().at(0),
-                                             reshapes[0],
-                                             reshapes[1],
-                                             reshapes[2],
-                                             reshapes[3],
-                                             output);
+                           [&](auto i) { return mod->insert_instruction(ins, reshape_op, i); });
+
+            return mod->replace_instruction(ins,
+                                            miopen_batch_norm_inference{op},
+                                            input,
+                                            reshapes[0],
+                                            reshapes[1],
+                                            reshapes[2],
+                                            reshapes[3],
+                                            output);
+        });
+    }
+
+    // use 0 - input to represent neg
+    void add_neg_op()
+    {
+        apply_map.emplace("neg", [=](instruction_ref ins) {
+            auto s = ins->get_shape();
+            std::vector<float> zeros(s.elements(), 0.0f);
+            auto l0     = mod->add_literal(literal(s, zeros));
+            auto output = insert_allocation(ins, s);
+            return mod->replace_instruction(
+                ins, make_op("gpu::sub"), l0, ins->inputs().front(), output);
+        });
+    }
+
+    // add input and output argument for the if operator
+    void add_if_op()
+    {
+        apply_map.emplace("if", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            auto cpu_cond =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
+            auto sync_cond = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_cond);
+            inputs.front() = sync_cond;
+
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        });
+    }
+
+    // replace the loop operator with gpu_loop operator
+    void add_loop_op()
+    {
+        apply_map.emplace("loop", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            // copy max_iter from gpu to cpu
+            auto cpu_max_iter =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(0));
+            auto cpu_cond =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
+            auto synced_max_iter =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter, cpu_cond);
+            inputs.at(0)     = synced_max_iter;
+            inputs.at(1)     = cpu_cond;
+            auto copy_inputs = inputs;
+            std::transform(copy_inputs.begin(),
+                           copy_inputs.end(),
+                           std::back_inserter(inputs),
+                           [&](auto in) { return insert_allocation(ins, in->get_shape()); });
+
+            auto mod_args = ins->module_inputs();
+            auto output   = insert_allocation(ins, ins->get_shape());
+
+            const auto* sub_mod = mod_args.front();
+            auto cond_out       = insert_allocation(ins, sub_mod->get_output_shapes().front());
+
+            // add cond and mod outputs to the argument list
+            inputs.push_back(cond_out);
+            inputs.push_back(output);
+
+            return mod->replace_instruction(
+                ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
+        });
+    }
+
+    void add_nms_op()
+    {
+        apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
         });
     }
 };
 
-void lowering::apply(program& p) const { miopen_apply{&p, this}.apply(); }
+void lowering::apply(module& m) const { miopen_apply{&m, this}.apply(); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

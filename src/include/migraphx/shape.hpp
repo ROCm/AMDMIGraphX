@@ -14,6 +14,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
 struct shape_impl;
 
 struct shape
@@ -22,6 +23,7 @@ struct shape
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
+    m(bool_type, bool) \
     m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \
@@ -33,12 +35,12 @@ struct shape
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t)
-// clang-format on
+    // clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -56,6 +58,11 @@ struct shape
     struct get_type<const T> : get_type<T>
     {
     };
+
+    static const std::vector<type_t>& types();
+
+    static std::string name(type_t t);
+    static std::string cpp_type(type_t t);
 
     shape();
     shape(type_t t);
@@ -75,6 +82,10 @@ struct shape
     {
     }
 
+    shape(const std::vector<shape>& subs);
+
+    static shape
+    from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
@@ -93,13 +104,14 @@ struct shape
     {
         assert(std::distance(start, last) <= this->lens().size());
         assert(this->lens().size() == this->strides().size());
-        return std::inner_product(start, last, this->strides().begin(), std::size_t{0});
+        return std::inner_product(start, last, this->strides().begin(), std::size_t{0}); // NOLINT
     }
 
     /// Map element index to space index
     std::size_t index(std::size_t i) const;
 
     std::vector<std::size_t> multi(std::size_t i) const;
+    void multi_copy(std::size_t i, std::size_t* start, const std::size_t* end) const;
 
     /// Returns true if the shape is packed with no padding
     bool packed() const;
@@ -114,6 +126,13 @@ struct shape
     /// Returns true if all strides are equal to 0 (scalar tensor)
     bool scalar() const;
 
+    shape normalize_standard() const;
+
+    shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
+    shape with_lens(const std::vector<std::size_t>& l) const;
+
+    shape with_type(type_t t) const;
+
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);
     friend std::ostream& operator<<(std::ostream& os, const shape& x);
@@ -121,56 +140,76 @@ struct shape
     template <class T>
     struct as
     {
-        using type = T;
+        using type = std::conditional_t<std::is_same<T, bool>{}, int8_t, T>;
+
+        type max() const { return std::numeric_limits<type>::max(); }
+
+        type min() const { return std::numeric_limits<type>::lowest(); }
 
         template <class U>
-        T operator()(U u) const
+        type operator()(U u) const
         {
-            return T(u);
+            return type(u);
         }
 
         template <class U>
-        T* operator()(U* u) const
+        type* operator()(U* u) const
         {
-            return static_cast<T*>(u);
+            return static_cast<type*>(u);
         }
 
         template <class U>
-        const T* operator()(const U* u) const
+        const type* operator()(const U* u) const
         {
-            return static_cast<T*>(u);
+            return static_cast<type*>(u);
         }
 
-        T operator()() const { return {}; }
+        type operator()() const { return {}; }
 
-        std::size_t size(std::size_t n = 1) const { return sizeof(T) * n; }
+        std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
         template <class U>
-        T* from(U* buffer, std::size_t n = 0) const
+        type* from(U* buffer, std::size_t n = 0) const
         {
-            return reinterpret_cast<T*>(buffer) + n;
+            return reinterpret_cast<type*>(buffer) + n;
         }
 
         template <class U>
-        const T* from(const U* buffer, std::size_t n = 0) const
+        const type* from(const U* buffer, std::size_t n = 0) const
         {
-            return reinterpret_cast<const T*>(buffer) + n;
+            return reinterpret_cast<const type*>(buffer) + n;
         }
 
-        type_t type_enum() const { return get_type<T>{}; }
+        type_t type_enum() const { return get_type<type>{}; }
     };
 
-    template <class Visitor>
-    void visit_type(Visitor v) const
+    template <class Visitor, class TupleVisitor>
+    static void visit(type_t t, Visitor v, TupleVisitor tv)
     {
-        switch(this->type())
+        switch(t)
         {
+        case tuple_type: {
+            tv();
+            return;
+        }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE
         }
         MIGRAPHX_THROW("Unknown type");
+    }
+
+    template <class Visitor>
+    static void visit(type_t t, Visitor v)
+    {
+        return visit(t, v, [] { MIGRAPHX_THROW("Tuple cannot be visited."); });
+    }
+
+    template <class... Visitors>
+    void visit_type(Visitors... vs) const
+    {
+        visit(this->type(), vs...);
     }
 
     template <class Visitor>
@@ -181,12 +220,20 @@ struct shape
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 
-    private:
-    std::shared_ptr<const shape_impl> impl;
+    std::string type_string() const;
+    static type_t parse_type(const std::string& s);
+
+    const std::vector<shape>& sub_shapes() const;
 
     std::size_t element_space() const;
-    std::string type_string() const;
+
+    private:
+    shape(std::shared_ptr<shape_impl> pimpl);
+    std::shared_ptr<const shape_impl> impl;
 };
+
+void migraphx_to_value(value& v, const shape& s);
+void migraphx_from_value(const value& v, shape& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -3,12 +3,11 @@
 
 #include <array>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -18,29 +17,31 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct clip : unary<clip>
+struct clip
 {
-    float max_val = std::numeric_limits<float>::max();
-    float min_val = std::numeric_limits<float>::min();
+    std::string name() const { return "clip"; }
 
-    clip() {}
-
-    clip(float max, float min) : max_val(max), min_val(min) {}
-
-    auto apply() const
+    value attributes() const
     {
-        auto max = max_val;
-        auto min = min_val;
-        return [max, min](auto x) {
-            using type = decltype(x);
-            return std::min(std::max(type(min), x), type(max));
-        };
+        return {{"pointwise", true},
+                {"point_op", "${function:min}(${function:max}(${1}, ${0}), ${2})"}};
     }
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    shape compute_shape(std::vector<shape> inputs) const
     {
-        return pack(f(self.max_val, "max"), f(self.min_val, "min"));
+        check_shapes{inputs, *this}.has(3).same_type().same_dims();
+        return inputs.front();
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0], args[1], args[2])([&](auto output, auto x, auto min, auto max) {
+            par_for(output_shape.elements(),
+                    [&](auto i) { output[i] = std::min(std::max(min[i], x[i]), max[i]); });
+        });
+
+        return result;
     }
 };
 

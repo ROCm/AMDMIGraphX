@@ -1,20 +1,20 @@
-add2:q
+implicit_sub_bcast_test:|
 
 0
-1out"Subsubtraction2Z
+1out"Subimplicit_sub_bcast_testZ
 0
-
+
 
 
 
 Z
 1
-
+
 
 b
 out
-
+
 
 
 
-B
+B

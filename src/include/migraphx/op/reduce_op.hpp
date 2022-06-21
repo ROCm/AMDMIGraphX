@@ -7,6 +7,8 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <vector>
 
 namespace migraphx {
@@ -40,6 +42,15 @@ struct zero
     }
 };
 
+struct one
+{
+    template <class T>
+    operator T() const
+    {
+        return T{1};
+    }
+};
+
 template <class Derived>
 struct reduce_op : op_name<Derived>
 {
@@ -51,6 +62,13 @@ struct reduce_op : op_name<Derived>
         return pack(f(self.axes, "axes"));
     }
 
+    value attributes() const
+    {
+        value normalize;
+        normalize["axes"] = value::array{normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
     {
         auto tuned_axes = axes;
@@ -59,26 +77,11 @@ struct reduce_op : op_name<Derived>
             tuned_axes.resize(n_dim);
             std::iota(tuned_axes.begin(), tuned_axes.end(), 0);
         }
-        else
-        {
-            for(auto& axis : tuned_axes)
-            {
-                int64_t s_dim = static_cast<int64_t>(n_dim);
-                if(axis >= s_dim or axis < -s_dim)
-                {
-                    MIGRAPHX_THROW("REDUCE_OP: axis out of range");
-                }
-                if(axis < 0)
-                {
-                    axis += n_dim;
-                }
-            }
-        }
 
         return tuned_axes;
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         auto s          = inputs.at(0);
@@ -89,7 +92,7 @@ struct reduce_op : op_name<Derived>
             lens[axis] = 1;
         }
 
-        return {s.type(), lens};
+        return inputs[0].with_lens(lens);
     }
 
     template <class T>
@@ -110,13 +113,14 @@ struct reduce_op : op_name<Derived>
                 std::vector<std::size_t>& out_idx,
                 tensor_view<T>& output) const
     {
-        auto data_idx = out_idx;
-        T val         = static_cast<const Derived&>(*this).init();
+        using accumulator = accumulator_type<T>;
+        auto& self        = static_cast<const Derived&>(*this);
+        auto data_idx     = out_idx;
+        accumulator val   = self.init();
         shape_for_each(batch_shape, [&](auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
-            val = static_cast<const Derived&>(*this).op()(
-                static_cast<const Derived&>(*this).input()(input(data_idx.begin(), data_idx.end())),
-                val);
+            accumulator x = input(data_idx.begin(), data_idx.end());
+            val           = self.op()(accumulator{self.input()(x)}, val);
         });
 
         output(out_idx.begin(), out_idx.end()) =
@@ -145,12 +149,12 @@ struct reduce_op : op_name<Derived>
 
     auto input() const
     {
-        return [&](auto val) { return val; };
+        return [](auto val) { return val; };
     }
 
     auto output(const shape&) const
     {
-        return [&](auto val) { return val; };
+        return [](auto val) { return val; };
     }
 
     reduce_op() {}

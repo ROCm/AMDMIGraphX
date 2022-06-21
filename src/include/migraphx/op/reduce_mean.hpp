@@ -14,12 +14,12 @@ struct reduce_mean : reduce_op<reduce_mean>
 
     auto op() const
     {
-        return [=](auto x, auto y) { return x + y; };
+        return [](auto x, auto y) { return x + y; };
     }
 
     auto output(const shape& s) const
     {
-        return [&](auto val) { return val / s.elements(); };
+        return [&](auto val) { return val / static_cast<decltype(val)>(s.elements()); };
     }
 };
 

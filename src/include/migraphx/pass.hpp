@@ -3,16 +3,19 @@
 
 #include <cassert>
 #include <string>
-#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/rank.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+struct module;
+struct module_pass_manager;
 
 #ifdef DOXYGEN
 
@@ -22,22 +25,53 @@ struct pass
 {
     /// A unique name used to identify the pass
     std::string name() const;
+    /// Run the pass on the module
+    void apply(module_pass_manager& mpm) const;
+    void apply(module& m) const;
     /// Run the pass on the program
     void apply(program& p) const;
 };
 
 #else
 
-/*
- * Type-erased interface for:
- *
- * struct pass
- * {
- *      std::string name() const;
- *      void apply(program & p) const;
- * };
- *
- */
+module& get_module(module_pass_manager& mpm);
+
+namespace detail {
+
+template <class T>
+auto module_pass_manager_apply(rank<1>, const T& x, module_pass_manager& mpm)
+    -> decltype(x.apply(get_module(mpm)))
+{
+    return x.apply(get_module(mpm));
+}
+
+template <class T>
+void module_pass_manager_apply(rank<0>, const T&, module_pass_manager&)
+{
+}
+
+template <class T>
+void module_pass_manager_apply(const T& x, module_pass_manager& mpm)
+{
+    module_pass_manager_apply(rank<1>{}, x, mpm);
+}
+
+} // namespace detail
+
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct pass
+{
+    //
+    std::string name() const;
+    // (optional)
+    void apply(module_pass_manager& mpm) const;
+    // (optional)
+    void apply(program& p) const;
+};
+
+#else
 
 struct pass
 {
@@ -57,11 +91,17 @@ struct pass
     template <typename PrivateDetailTypeErasedT>
     pass& operator=(PrivateDetailTypeErasedT value)
     {
-        if(private_detail_te_handle_mem_var.unique())
-            *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
-        else if(!private_detail_te_handle_mem_var)
-            private_detail_te_handle_mem_var = std::make_shared<PrivateDetailTypeErasedT>(
-                std::forward<PrivateDetailTypeErasedT>(value));
+        using std::swap;
+        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        if(derived and private_detail_te_handle_mem_var.unique())
+        {
+            *derived = std::forward<PrivateDetailTypeErasedT>(value);
+        }
+        else
+        {
+            pass rhs(value);
+            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var);
+        }
         return *this;
     }
 
@@ -69,7 +109,7 @@ struct pass
     template <typename PrivateDetailTypeErasedT>
     PrivateDetailTypeErasedT* any_cast()
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())
@@ -80,7 +120,7 @@ struct pass
     template <typename PrivateDetailTypeErasedT>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<const private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())
@@ -102,6 +142,12 @@ struct pass
         return (*this).private_detail_te_get_handle().name();
     }
 
+    void apply(module_pass_manager& mpm) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().apply(mpm);
+    }
+
     void apply(program& p) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -121,9 +167,38 @@ struct pass
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const     = 0;
-        virtual void apply(program& p) const = 0;
+        virtual std::string name() const                   = 0;
+        virtual void apply(module_pass_manager& mpm) const = 0;
+        virtual void apply(program& p) const               = 0;
     };
+
+    template <class T>
+    static auto
+    private_detail_te_default_apply(char, T&& private_detail_te_self, module_pass_manager& mpm)
+        -> decltype(private_detail_te_self.apply(mpm))
+    {
+        private_detail_te_self.apply(mpm);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_apply(float, T&& private_detail_te_self, module_pass_manager& mpm)
+    {
+        migraphx::detail::module_pass_manager_apply(private_detail_te_self, mpm);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_apply(char, T&& private_detail_te_self, program& p)
+        -> decltype(private_detail_te_self.apply(p))
+    {
+        private_detail_te_self.apply(p);
+    }
+
+    template <class T>
+    static void private_detail_te_default_apply(float, T&& private_detail_te_self, program& p)
+    {
+        migraphx::nop(private_detail_te_self, p);
+    }
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
@@ -155,7 +230,17 @@ struct pass
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        void apply(program& p) const override { private_detail_te_value.apply(p); }
+        void apply(module_pass_manager& mpm) const override
+        {
+
+            private_detail_te_default_apply(char(0), private_detail_te_value, mpm);
+        }
+
+        void apply(program& p) const override
+        {
+
+            private_detail_te_default_apply(char(0), private_detail_te_value, p);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -221,6 +306,7 @@ inline const ValueType& any_cast(const pass& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

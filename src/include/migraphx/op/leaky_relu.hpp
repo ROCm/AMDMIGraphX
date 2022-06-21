@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_LEAKY_RELU_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -18,7 +17,7 @@ namespace op {
 
 struct leaky_relu
 {
-    float alpha;
+    float alpha = 0.01;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

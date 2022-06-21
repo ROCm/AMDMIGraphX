@@ -1,0 +1,19 @@
+#ifndef MIGRAPHX_GUARD_RTGLIB_JSON_HPP
+#define MIGRAPHX_GUARD_RTGLIB_JSON_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <string>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+std::string to_pretty_json_string(const value& val, std::size_t indent = 4);
+std::string to_json_string(const value& val);
+value from_json_string(const std::string& str);
+value from_json_string(const char* str, std::size_t size);
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

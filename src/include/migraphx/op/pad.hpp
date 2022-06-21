@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_PAD_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -49,6 +48,12 @@ struct pad
 
         shape s{inputs.front().type(), rdims};
         return s;
+    }
+
+    std::size_t pad_ndims() const
+    {
+        assert(pads.size() % 2 == 0);
+        return pads.size() / 2;
     }
 
     bool symmetric() const

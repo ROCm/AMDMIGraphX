@@ -3,7 +3,6 @@
 
 #include <array>
 #include <migraphx/op/binary.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -19,6 +18,13 @@ namespace op {
 
 struct add : binary<add>
 {
+    value attributes() const
+    {
+        auto a           = base_attributes();
+        a["commutative"] = true;
+        return a;
+    }
+    std::string point_function() const { return "+"; }
     auto apply() const
     {
         return [](auto x, auto y) { return x + y; };

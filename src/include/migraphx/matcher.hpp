@@ -4,8 +4,10 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/program.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/type_name.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -17,18 +19,51 @@ namespace match {
 
 struct matcher_context
 {
-    matcher_context(instruction_ref i) : last(i) {}
+    matcher_context(module& m) : mod(&m) {}
     std::unordered_map<std::string, instruction_ref> instructions;
-    instruction_ref not_found() const { return last; }
 
     template <class M>
     bool matched(M m, instruction_ref ins)
     {
-        return m.match(*this, ins) != this->not_found();
+        return has_value(m.match(*this, ins));
+    }
+
+    template <class M>
+    bool matched(M m, optional<instruction_ref> ins)
+    {
+        if(ins)
+            return has_value(m.match(*this, *ins));
+        return false;
+    }
+
+    template <class M, class I>
+    auto lazy_match(M m, I ins)
+    {
+        return [=] { return this->matched(m, ins); };
+    }
+
+    bool has_instruction(instruction_ref ins) const
+    {
+        if(mod == nullptr)
+            return true;
+        return mod->has_instruction(ins);
+    }
+    bool has_instruction(optional<instruction_ref> ins) const
+    {
+        if(ins)
+            return this->has_instruction(*ins);
+        return false;
+    }
+
+    bool is_last(instruction_ref ins) const
+    {
+        assert(mod->begin() != mod->end());
+        assert(this->has_instruction(ins));
+        return ins == std::prev(mod->end());
     }
 
     private:
-    instruction_ref last;
+    module* mod = nullptr;
 };
 
 /// Convert a predicate function into a matcher
@@ -37,12 +72,11 @@ struct predicate_matcher
 {
     P p;
 
-    instruction_ref match(matcher_context& ctx, instruction_ref ins) const
+    optional<instruction_ref> match(const matcher_context&, instruction_ref ins) const
     {
-        assert(ins != ctx.not_found());
         if(p(ins))
-            return ins;
-        return ctx.not_found();
+            return optional<instruction_ref>{ins};
+        return nullopt;
     }
 };
 
@@ -52,11 +86,7 @@ struct function_matcher
 {
     F f;
 
-    instruction_ref match(matcher_context& ctx, instruction_ref ins) const
-    {
-        assert(ins != ctx.not_found());
-        return f(ctx, ins);
-    }
+    auto match(matcher_context& ctx, instruction_ref ins) const { return f(ctx, ins); }
 };
 
 /// Convert a function into a matcher
@@ -71,10 +101,15 @@ template <class M>
 auto bind_match(M m, std::string name)
 {
     return make_function_matcher(
-        [ =, name = std::move(name) ](matcher_context & ctx, instruction_ref ins) {
+        [=, name = std::move(name)](matcher_context& ctx,
+                                    instruction_ref ins) -> optional<instruction_ref> {
             auto result = m.match(ctx, ins);
-            if(result != ctx.not_found())
+            if(result)
+            {
+                if(not ctx.has_instruction(ins))
+                    return nullopt;
                 ctx.instructions[name] = ins;
+            }
             return result;
         });
 }
@@ -87,10 +122,7 @@ struct bindable_matcher
 
     auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
-    instruction_ref match(matcher_context& ctx, instruction_ref ins) const
-    {
-        return m.match(ctx, ins);
-    }
+    auto match(matcher_context& ctx, instruction_ref ins) const { return m.match(ctx, ins); }
 };
 
 /// Create a bindable matcher
@@ -118,8 +150,24 @@ using bool_list = std::initializer_list<bool>;
 
 struct id_matcher
 {
-    instruction_ref match(matcher_context&, instruction_ref ins) const { return ins; }
+    auto match(matcher_context&, instruction_ref ins) const
+    {
+        return optional<instruction_ref>{ins};
+    }
 };
+
+// Forward declare class and constructors
+template <class M>
+struct basic_matcher;
+
+template <class M>
+basic_matcher<M> make_basic_matcher(M m);
+
+template <class F>
+basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f);
+
+template <class P>
+basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p);
 
 /// The basic matcher provides the all_of composability of the matcher
 template <class M>
@@ -132,26 +180,23 @@ struct basic_matcher
     {
         // Copy m because we cant capture `this` by value
         auto mm = m;
-        return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
+        return make_basic_fun_matcher([=](matcher_context& ctx,
+                                          instruction_ref ins) -> optional<instruction_ref> {
             auto result = mm.match(ctx, ins);
-            if(result != ctx.not_found())
+            if(result)
             {
-                bool matches = fold([&](auto x, auto y) {
-                    return x and y.match(ctx, result) != ctx.not_found();
-                })(true, ms...);
+                bool matches =
+                    fold([&](auto x, auto y) { return x and ctx.matched(y, result); })(true, ms...);
                 if(matches)
                     return result;
             }
-            return ctx.not_found();
+            return nullopt;
         });
     }
 
     auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
-    instruction_ref match(matcher_context& ctx, instruction_ref ins) const
-    {
-        return m.match(ctx, ins);
-    }
+    auto match(matcher_context& ctx, instruction_ref ins) const { return m.match(ctx, ins); }
 };
 
 /// Create a basic matcher from a matcher
@@ -175,14 +220,25 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     return {{p}};
 }
 
+/// Create a typed-erased matcher
+using any_matcher_base = basic_matcher<
+    function_matcher<std::function<optional<instruction_ref>(matcher_context&, instruction_ref)>>>;
+struct any_matcher : any_matcher_base
+{
+    template <class M>
+    any_matcher(M mm) : any_matcher_base({[=](auto& ctx, auto ins) { return mm.match(ctx, ins); }})
+    {
+    }
+};
+
 /// This macro takes care of the boilerplate for defining a matcher
 #define MIGRAPHX_BASIC_MATCHER(name, ...)                                     \
     struct name##_m                                                           \
     {                                                                         \
-        instruction_ref match(__VA_ARGS__) const;                             \
+        optional<instruction_ref> match(__VA_ARGS__) const;                   \
     };                                                                        \
     const constexpr auto name = migraphx::match::basic_matcher<name##_m>{{}}; \
-    inline instruction_ref name##_m::match(__VA_ARGS__) const
+    inline optional<instruction_ref> name##_m::match(__VA_ARGS__) const
 
 /// This macro takes care of the boilerplate for defining a predicate matcher
 #define MIGRAPHX_PRED_MATCHER(name, ...)                                                  \
@@ -196,48 +252,130 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
 
 struct matcher_result
 {
-    std::unordered_map<std::string, instruction_ref> instructions;
+    struct instruction_container
+    {
+        instruction_container() = default;
+        instruction_container(std::unordered_map<std::string, instruction_ref> x)
+            : ins_map(std::move(x))
+        {
+        }
+
+        instruction_ref operator[](const std::string& name) const
+        {
+            auto it = ins_map.find(name);
+            if(it == ins_map.end())
+                MIGRAPHX_THROW("Accessing name that wasn't bound in matcher: " + name);
+            return it->second;
+        }
+
+        auto find(const std::string& name) const { return ins_map.find(name); }
+
+        auto begin() const { return ins_map.cbegin(); }
+
+        auto end() const { return ins_map.cend(); }
+
+        bool has_instructions_in(const module& mod) const
+        {
+            return std::all_of(ins_map.begin(), ins_map.end(), [&](auto&& p) {
+                return mod.has_instruction(p.second);
+            });
+        }
+
+        private:
+        std::unordered_map<std::string, instruction_ref> ins_map;
+    };
+    instruction_container instructions;
     instruction_ref result;
 };
 
 /// Match a single instruction
 template <class M>
-matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
+matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
 {
-    assert(ins != p.end());
+    assert(ins != mod.end());
+    assert(mod.has_instruction(ins));
+    matcher_context ctx{mod};
     matcher_result result;
-    matcher_context ctx{p.end()};
-    result.result       = m.match(ctx, ins);
-    result.instructions = ctx.instructions;
+    if(m.match(ctx, ins))
+    {
+        result.result       = ins;
+        result.instructions = ctx.instructions;
+        assert(result.instructions.has_instructions_in(mod));
+    }
+    else
+    {
+        result.result = mod.end();
+    }
     return result;
 }
 
-/// Find matches for an instruction in the program
-template <class... Ms>
-void find_matches(program& p, instruction_ref ins, Ms&&... ms)
+/// Find first instance of a matching instruction in a module
+template <class M>
+match::matcher_result find_match(module& modl, M&& m)
 {
-    bool match = false;
+    match::matcher_result result;
+    for(auto ins : iterator_for(modl))
+    {
+        result = match::match_instruction(modl, ins, m);
+        if(result.result != modl.end())
+            return result;
+    }
+    return result;
+}
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
+
+/// Find matches for an instruction in the module
+template <class... Ms>
+void find_matches(module& mod, instruction_ref ins, Ms&&... ms)
+{
+#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
+    const
+#endif
+        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
+    bool match     = false;
     each_args(
         [&](auto&& m) {
             if(match)
                 return;
-            auto r = match_instruction(p, ins, m.matcher());
-            if(r.result == p.end())
+            auto r = match_instruction(mod, ins, m.matcher());
+            if(r.result == mod.end())
                 return;
-            m.apply(p, r);
+            if(trace)
+            {
+                std::cout << "Matched by " << get_type_name(m) << std::endl;
+                mod.debug_print(ins);
+            }
+            m.apply(mod, r);
             match = true;
         },
         ms...);
 }
 
-/// Find matches in a program
+/// Find matches in a module
 template <class... Ms>
-void find_matches(program& p, Ms&&... ms)
+void find_matches(module& mod, Ms&&... ms)
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(mod))
     {
-        find_matches(p, ins, ms...);
+        find_matches(mod, ins, ms...);
     }
+}
+
+template <class M, class F>
+struct find_generic_match
+{
+    M m;
+    F f;
+    M matcher() const { return m; }
+
+    void apply(module& mod, const matcher_result& mr) const { f(mod, mr); }
+};
+
+template <class M, class F>
+find_generic_match<M, F> make_match_finder(M m, F f)
+{
+    return {m, f};
 }
 
 template <class M>
@@ -246,7 +384,7 @@ struct find_skip
     M m;
     M matcher() const { return m; }
 
-    void apply(program&, const matcher_result&) const {}
+    void apply(module&, const matcher_result&) const {}
 };
 
 template <class M>
@@ -258,18 +396,18 @@ find_skip<M> make_find_skip(M m)
 struct lazy_and
 {
     template <class F, class G>
-    bool operator()(F f, G g) const
+    auto operator()(F f, G g) const
     {
-        return f() and g();
+        return [=] { return f() and g(); };
     }
 };
 
 struct lazy_or
 {
     template <class F, class G>
-    bool operator()(F f, G g) const
+    auto operator()(F f, G g) const
     {
-        return f() or g();
+        return [=] { return f() or g(); };
     }
 };
 
@@ -281,7 +419,7 @@ struct match_fold_f
     {
         Op op;
         auto matched = [&](auto m) { return [=, &ctx] { return ctx.matched(m, ins); }; };
-        return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
+        return fold(op)(always(Start), matched(ms)...)();
     }
 
     template <class Pack>
@@ -293,12 +431,13 @@ struct match_fold_f
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
-        return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-            bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
-            if(matches == Matches)
-                return ins;
-            return ctx.not_found();
-        });
+        return make_bf_matcher(
+            [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+                bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
+                if(matches == Matches)
+                    return {ins};
+                return nullopt;
+            });
     }
 
     template <class Selector>
@@ -307,17 +446,18 @@ struct match_fold_f
         return [=](auto... ms) {
             // Workaround ICE on gcc by packing matchers into an object
             auto mpack = pack(ms...);
-            return make_bf_matcher([=](matcher_context& ctx, instruction_ref start) {
-                Op op;
-                bool matches = Start;
-                select(start, [&](auto ins) {
-                    auto fm = [&] { return match_fold_f::fold_matchers_pack(ctx, ins, mpack); };
-                    matches = op(always(matches), fm);
+            return make_bf_matcher(
+                [=](matcher_context& ctx, instruction_ref start) -> optional<instruction_ref> {
+                    Op op;
+                    bool matches = Start;
+                    select(start, [&](auto ins) {
+                        auto fm = [&] { return match_fold_f::fold_matchers_pack(ctx, ins, mpack); };
+                        matches = op(always(matches), fm)();
+                    });
+                    if(matches == Matches)
+                        return {start};
+                    return nullopt;
                 });
-                if(matches == Matches)
-                    return start;
-                return ctx.not_found();
-            });
         };
     }
 };
@@ -374,64 +514,46 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
-MIGRAPHX_BASIC_MATCHER(output, const matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(output, const matcher_context&, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
-        return ins->outputs().front();
-    return ctx.not_found();
+        return {ins->outputs().front()};
+    return nullopt;
 }
 
 MIGRAPHX_BASIC_MATCHER(used_once, const matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
-        return ins;
-    if(ins->outputs().empty() and std::next(ins) == ctx.not_found())
-        return ins;
-    return ctx.not_found();
-}
-
-inline auto used_once_recursive(std::size_t depth)
-{
-    return make_basic_fun_matcher([=](const matcher_context& ctx, instruction_ref start) {
-        // Used once
-        if(start->outputs().size() == 1)
-            return start;
-        // Unused
-        if(start->outputs().empty())
-        {
-            if(std::next(start) == ctx.not_found())
-                return start;
-            else
-                return ctx.not_found();
-        }
-        // Check for dead instructions
-        auto is_dead = fix<bool>([&](auto self, auto ins, auto n) {
-            if(n == 0)
-                return false;
-            if(ins->get_shape().elements() == 0)
-                return false;
-            if(ins->outputs().empty() and std::next(ins) != ctx.not_found())
-                return true;
-            return std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
-                return self(i, n - 1);
-            });
-        });
-        auto dead    = std::count_if(start->outputs().begin(), start->outputs().end(), [&](auto i) {
-            return is_dead(i, depth);
-        });
-        if(dead + 1 == start->outputs().size())
-            return start;
-        return ctx.not_found();
-    });
+        return {ins};
+    if(ins->outputs().empty() and ctx.is_last(ins))
+        return {ins};
+    return nullopt;
 }
 
 MIGRAPHX_PRED_MATCHER(is_constant, instruction_ref ins) { return ins->can_eval(); }
 
 MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref ins)
 {
-    if(ins->outputs().empty() and ins != std::prev(ctx.not_found()))
-        return ins;
-    return ctx.not_found();
+    if(ins->outputs().empty() and not ctx.is_last(ins))
+        return {ins};
+    return nullopt;
+}
+
+template <class... Ms>
+auto skip(Ms... ms)
+{
+    auto m = any_of(ms...);
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+        return fix<optional<instruction_ref>>(
+            [&](auto self, auto ins) -> optional<instruction_ref> {
+                if(ins->inputs().size() == 1 and ctx.matched(m, ins))
+                {
+                    auto next = ins->inputs().front();
+                    return self(next);
+                }
+                return ins;
+            })(start);
+    });
 }
 
 template <class... Ms>
@@ -439,32 +561,51 @@ auto skip_output(Ms... ms)
 {
     auto m = any_of(ms...);
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
-        return fix<instruction_ref>([&](auto self, auto ins) {
-            if(ins->outputs().size() == 1)
-            {
-                auto next = ins->outputs().front();
-                if(ctx.matched(m, next))
+        return fix<optional<instruction_ref>>(
+            [&](auto self, auto ins) -> optional<instruction_ref> {
+                if(ins->outputs().size() == 1)
                 {
-                    auto skipped_next = self(next);
-                    if(skipped_next != ctx.not_found())
-                        return skipped_next;
+                    auto next = ins->outputs().front();
+                    if(ctx.matched(m, next))
+                    {
+                        auto skipped_next = self(next);
+                        if(skipped_next)
+                            return skipped_next;
+                    }
+                    return next;
                 }
-                return next;
-            }
-            return ctx.not_found();
-        })(start);
+                return nullopt;
+            })(start);
     });
+}
+
+inline auto var(std::string s)
+{
+    return make_basic_fun_matcher(
+        [=, s = std::move(s)](const matcher_context& ctx,
+                              instruction_ref) -> optional<instruction_ref> {
+            auto it = ctx.instructions.find(s);
+            if(it == ctx.instructions.end())
+                return nullopt;
+            return it->second;
+        });
 }
 
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [ =, s = std::move(s) ](instruction_ref ins) { return ins->name() == s; });
+        [=, s = std::move(s)](instruction_ref ins) { return ins->name() == s; });
+}
+
+inline auto name_contains(const std::string& name)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return contains(ins->get_operator().name(), name); });
 }
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([ =, names = std::move(names) ](instruction_ref ins) {
+    return make_basic_pred_matcher([=, names = std::move(names)](instruction_ref ins) {
         return names.count(ins->name()) > 0;
     });
 }
@@ -482,11 +623,12 @@ inline auto nargs(std::size_t n)
 
 inline auto arg(std::size_t i)
 {
-    return make_basic_fun_matcher([=](const matcher_context& ctx, instruction_ref ins) {
-        if(i < ins->inputs().size())
-            return ins->inputs()[i];
-        return ctx.not_found();
-    });
+    return make_basic_fun_matcher(
+        [=](const matcher_context&, instruction_ref ins) -> optional<instruction_ref> {
+            if(i < ins->inputs().size())
+                return ins->inputs()[i];
+            return nullopt;
+        });
 }
 
 // Workaround for bugs in clang
@@ -518,21 +660,136 @@ inline auto either_arg(std::size_t i, std::size_t j)
     };
 }
 
+inline auto any_arg(std::size_t i, std::size_t j)
+{
+    return [=](auto m) { return match::any_of(arg(i)(m), arg(j)(m)); };
+}
+
+template <std::size_t N, class M>
+std::size_t tree_leafs_impl(matcher_context& ctx,
+                            std::array<instruction_ref, N>& leafs,
+                            M m,
+                            instruction_ref ins)
+{
+    std::size_t idx = 0;
+    fix([&](auto self, auto i) {
+        if(idx == leafs.size())
+            return;
+        if(ctx.matched(m, i) and i->inputs().size() >= 2)
+        {
+            self(i->inputs()[0]);
+            self(i->inputs()[1]);
+            return;
+        }
+        leafs[idx] = i;
+        idx++;
+    })(ins);
+    return idx;
+}
+
+template <class M, class... Ms>
+auto tree(M main_op, Ms... ms)
+{
+    return make_basic_fun_matcher(
+        [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            // Flatten leaf nodes
+            std::array<instruction_ref, sizeof...(Ms)> leafs;
+            std::size_t idx = tree_leafs_impl(ctx, leafs, main_op, ins);
+            if(idx != leafs.size())
+                return nullopt;
+            // Use explicit captures to workaround ICE on gcc
+            // Capture by value to workaround compile error on gcc 9
+            bool found = sequence_c<sizeof...(Ms)>([ms..., &ctx, &leafs](auto... is) {
+                return fold(lazy_and{})(ctx.lazy_match(ms, leafs[is])...)();
+            });
+            if(not found)
+                return nullopt;
+            return ins;
+        });
+}
+
+template <class M, class... Ms>
+auto unordered_tree(M main_op, Ms... ms)
+{
+    return make_basic_fun_matcher(
+        [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            // Flatten leaf nodes
+            std::array<instruction_ref, sizeof...(Ms)> leafs;
+            std::size_t idx = tree_leafs_impl(ctx, leafs, main_op, ins);
+            if(idx != leafs.size())
+                return nullopt;
+            // Use explicit captures to workaround ICE on gcc
+            bool found = sequence_c<sizeof...(Ms)>([ms..., &ctx, &leafs](auto... is) {
+                return by(fold(lazy_and{}), [is..., &ctx, &leafs](auto m) {
+                    return fold(lazy_or{})(ctx.lazy_match(m, leafs[is])...);
+                })(ms...)();
+            });
+            if(not found)
+                return nullopt;
+            return ins;
+        });
+}
+
 template <class M>
 auto same_shape(M m)
 {
-    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        auto i = m.match(ctx, ins);
-        if(i != ctx.not_found() and i->get_shape() == ins->get_shape())
-            return ins;
-        return ctx.not_found();
-    });
+    return make_basic_fun_matcher(
+        [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            auto i = m.match(ctx, ins);
+            if(i and (*i)->get_shape() == ins->get_shape())
+                return ins;
+            return nullopt;
+        });
 }
 
 template <class... Ms>
 auto same_shape(Ms... ms)
 {
     return all_of(same_shape(ms)...);
+}
+
+template <class... Ms>
+auto skip_broadcasts(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous"))(ms...);
+}
+
+template <class... Ms>
+auto skip_broadcasts_converts(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
+}
+
+template <class T>
+inline auto has_value(T x, float tolerance = 1e-6)
+{
+    return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "@literal")
+            return false;
+        auto l = ins->get_literal();
+        if(l.empty())
+            return false;
+        bool b = false;
+        l.visit([&](auto v) {
+            if(std::all_of(
+                   v.begin(), v.end(), [&](auto val) { return std::fabs(val - x) < tolerance; }))
+                b = true;
+        });
+        return b;
+    }));
+}
+
+inline auto has_attribute(const std::string& name)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
+}
+
+template <class... Ms>
+auto pointwise(Ms... ms)
+{
+    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)),
+                                             ms...);
 }
 
 } // namespace match

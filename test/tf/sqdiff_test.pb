@@ -9,4 +9,4 @@
 shape:
 *
 sqdiffSquaredDifference01*
-T0"
+T0"¸

@@ -3,7 +3,6 @@
 
 #include <array>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -19,6 +18,7 @@ namespace op {
 
 struct relu : unary<relu>
 {
+    std::string point_op() const { return "${function:max}(decltype(${0}){0}, ${0})"; }
     auto apply() const
     {
         return [](auto x) { return std::max(decltype(x){0}, x); };

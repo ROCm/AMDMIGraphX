@@ -1,5 +1,6 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/clamp.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 #include <migraphx/gpu/device/pad.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
@@ -18,17 +19,13 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
     hip_visit_all(result, arg1)([&](auto output, auto input) {
         using type      = typename decltype(output)::value_type;
         using hip_index = typename decltype(output)::hip_index;
-        type device_val = value;
-        if(float_equal(value, std::numeric_limits<float>::lowest()))
-        {
-            device_val = device_cast(std::numeric_limits<type>::lowest());
-        }
-        gs_launch(stream,
-                  result.get_shape().elements())([=](auto i) { output.data()[i] = device_val; });
+        type device_val = pad_clamp<host_type<type>>(value);
+        gs_launch(stream, result.get_shape().elements())(
+            [=](auto i) __device__ { output.data()[i] = device_val; });
 
         hip_index offsets;
         std::copy(pads.begin(), pads.begin() + offsets.size(), offsets.begin());
-        gs_launch(stream, nelements)([=](auto i) {
+        gs_launch(stream, nelements)([=](auto i) __device__ {
             auto idx = input.get_shape().multi(i);
             for(std::size_t j = 0; j < offsets.size(); j++)
             {

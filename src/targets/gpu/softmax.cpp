@@ -1,6 +1,7 @@
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/device/softmax.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -9,12 +10,14 @@ namespace gpu {
 shape hip_softmax::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(2).standard();
-    return op.compute_shape({inputs.at(0)});
+    return op.normalize_compute_shape({inputs.at(0)});
 }
 
 argument hip_softmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    device::softmax(ctx.get_stream().get(), args.back(), args.front(), op.axis);
+    auto n_dim      = args.front().get_shape().lens().size();
+    auto tuned_axis = tune_axis(n_dim, op.axis, op.name());
+    device::softmax(ctx.get_stream().get(), args.back(), args.front(), tuned_axis);
     return args.back();
 }
 

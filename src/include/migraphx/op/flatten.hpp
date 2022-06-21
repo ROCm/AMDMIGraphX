@@ -2,13 +2,15 @@
 #define MIGRAPHX_GUARD_OPERATORS_FLATTEN_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 
@@ -18,7 +20,7 @@ namespace op {
 
 struct flatten
 {
-    uint64_t axis = 0;
+    int64_t axis = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -26,16 +28,19 @@ struct flatten
         return pack(f(self.axis, "axis"));
     }
 
-    std::string name() const { return "flatten"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    value attributes() const
     {
-        check_shapes{inputs}.has(1);
-        auto&& lens = inputs.front().lens();
+        value normalize;
+        normalize["axis"] =
+            value::array{normalize_attribute::include_min, normalize_attribute::include_max};
+        return {{"normalize_axes", normalize}};
+    }
 
-        if(axis > lens.size())
-        {
-            MIGRAPHX_THROW("axis for flatten must be less than tensor rank");
-        }
+    std::string name() const { return "flatten"; }
+    shape normalize_compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1).standard();
+        auto&& lens = inputs.front().lens();
         auto x =
             std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
         auto y =
@@ -44,7 +49,7 @@ struct flatten
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        return {std::move(output_shape), std::move(args.front().data)};
+        return args[0].reshape(output_shape);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

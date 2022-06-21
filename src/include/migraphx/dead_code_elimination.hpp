@@ -8,6 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct module;
 struct program;
 
 /**
@@ -16,6 +17,7 @@ struct program;
 struct dead_code_elimination
 {
     std::string name() const { return "dead_code_elimination"; }
+    void apply(module& m) const;
     void apply(program& p) const;
 };
 

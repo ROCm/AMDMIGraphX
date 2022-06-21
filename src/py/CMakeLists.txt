@@ -1,21 +1,14 @@
 
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 if(MIGRAPHX_ENABLE_PYTHON)
-    find_program(DEFAULT_PYTHON_EXE python)
-    if(DEFAULT_PYTHON_EXE)
-        set(PYTHON_EXECUTABLE ${DEFAULT_PYTHON_EXE} CACHE PATH "Path to python executable")
-    endif()
-    find_package(pybind11 REQUIRED)
-    pybind11_add_module(migraphx_py migraphx_py.cpp)
-    set_target_properties(migraphx_py PROPERTIES 
-        OUTPUT_NAME migraphx
-        C_VISIBILITY_PRESET hidden
-        CXX_VISIBILITY_PRESET hidden
-    )
-    target_link_libraries(migraphx_py PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_cpu)
-    if(MIGRAPHX_ENABLE_GPU)
-        target_link_libraries(migraphx_py PRIVATE migraphx_gpu)
-        target_compile_definitions(migraphx_py PRIVATE -DHAVE_GPU)
-    endif()
-    rocm_install_targets(TARGETS migraphx_py)
+    include(PythonModules)
+
+    add_custom_target(migraphx_py)
+
+    foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
+        py_add_module(migraphx_py_${PYTHON_VERSION} migraphx_py.cpp PYTHON_VERSION ${PYTHON_VERSION} PYTHON_MODULE migraphx)
+        target_link_libraries(migraphx_py_${PYTHON_VERSION} PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_all_targets)
+        rocm_install_targets(TARGETS migraphx_py_${PYTHON_VERSION})
+        add_dependencies(migraphx_py migraphx_py_${PYTHON_VERSION})
+    endforeach()
 endif()

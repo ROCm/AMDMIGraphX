@@ -1,9 +1,10 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/op/abnormal_ops.hpp>
-#include <migraphx/op/add.hpp>
-#include <migraphx/op/identity.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
+
 #include <test.hpp>
 
 void run_pass(migraphx::program& p)
@@ -14,14 +15,14 @@ void run_pass(migraphx::program& p)
 TEST_CASE(simple_test)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == count);
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) == count);
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -29,15 +30,15 @@ TEST_CASE(simple_test)
 TEST_CASE(simple_test_nop)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(nop{});
-    p.add_instruction(sum_op{}, one, two);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(nop{});
+    mm->add_instruction(sum_op{}, one, two);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == count);
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) == count);
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -45,15 +46,15 @@ TEST_CASE(simple_test_nop)
 TEST_CASE(simple_test_nop2)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(nop{});
-    p.add_instruction(sum_op{}, one, two);
-    p.add_instruction(nop{});
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(nop{});
+    mm->add_instruction(sum_op{}, one, two);
+    mm->add_instruction(nop{});
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{});
     EXPECT(result != migraphx::literal{4});
 }
@@ -61,15 +62,15 @@ TEST_CASE(simple_test_nop2)
 TEST_CASE(duplicate_test1)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
-    p.add_instruction(sum_op{}, one, two);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
+    mm->add_instruction(sum_op{}, one, two);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == (count - 1));
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -77,16 +78,16 @@ TEST_CASE(duplicate_test1)
 TEST_CASE(duplicate_test2)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(sum_op{}, one, two);
-    p.add_instruction(minus_op{}, one, two);
-    p.add_instruction(sum_op{}, one, two);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
+    mm->add_instruction(minus_op{}, one, two);
+    mm->add_instruction(sum_op{}, one, two);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == (count - 2));
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) == (count - 2));
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -94,18 +95,18 @@ TEST_CASE(duplicate_test2)
 TEST_CASE(depth_test)
 {
     migraphx::program p;
-
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto x1  = p.add_instruction(sum_op{}, one, two);
-    auto x2  = p.add_instruction(sum_op{}, one, two);
-    p.add_instruction(minus_op{}, x1, x2);
-    p.add_instruction(minus_op{}, x1, x2);
-    p.add_instruction(sum_op{}, one, two);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto x1  = mm->add_instruction(sum_op{}, one, two);
+    auto x2  = mm->add_instruction(sum_op{}, one, two);
+    mm->add_instruction(minus_op{}, x1, x2);
+    mm->add_instruction(minus_op{}, x1, x2);
+    mm->add_instruction(sum_op{}, one, two);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == (count - 4));
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) == (count - 4));
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -113,16 +114,17 @@ TEST_CASE(depth_test)
 TEST_CASE(undefined_test)
 {
     migraphx::program p;
-
-    auto one   = p.add_literal(1);
-    auto two   = p.add_literal(2);
-    auto undef = p.add_instruction(migraphx::op::undefined{});
-    p.add_instruction(sum_op{}, one, two);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("undefined"));
+    mm->add_instruction(sum_op{}, one, two);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == count - 1);
-    EXPECT(not p.has_instruction(undef));
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) == count - 1);
+    EXPECT(
+        std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "undefined"; }));
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -130,52 +132,123 @@ TEST_CASE(undefined_test)
 TEST_CASE(duplicate_args1)
 {
     migraphx::program p;
-
-    auto l0 = p.add_literal(0);
-    auto l3 = p.add_literal(3);
-    p.add_instruction(migraphx::op::add{}, l3, l3);
-    p.add_instruction(migraphx::op::identity{}, l0);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_literal(0);
+    auto l3  = mm->add_literal(3);
+    mm->add_instruction(migraphx::make_op("add"), l3, l3);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) != count);
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) != count);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
 }
 
 TEST_CASE(duplicate_args2)
 {
     migraphx::program p;
-
-    auto l0   = p.add_literal(0);
-    auto l3   = p.add_literal(3);
-    auto sum1 = p.add_instruction(migraphx::op::add{}, l0, l3);
-    p.add_instruction(migraphx::op::add{}, sum1, l3);
-    p.add_instruction(migraphx::op::identity{}, l0);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm  = p.get_main_module();
+    auto l0   = mm->add_literal(0);
+    auto l3   = mm->add_literal(3);
+    auto sum1 = mm->add_instruction(migraphx::make_op("add"), l0, l3);
+    mm->add_instruction(migraphx::make_op("add"), sum1, l3);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) != count);
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) != count);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
 }
 
 TEST_CASE(duplicate_args3)
 {
     migraphx::program p;
-
-    auto l0   = p.add_literal(0);
-    auto l3   = p.add_literal(3);
-    auto sum1 = p.add_instruction(migraphx::op::add{}, l0, l3);
-    auto sum2 = p.add_instruction(migraphx::op::add{}, l0, sum1);
-    p.add_instruction(migraphx::op::add{}, sum2, l3);
-    p.add_instruction(migraphx::op::identity{}, l0);
-    auto count = std::distance(p.begin(), p.end());
+    auto* mm  = p.get_main_module();
+    auto l0   = mm->add_literal(0);
+    auto l3   = mm->add_literal(3);
+    auto sum1 = mm->add_instruction(migraphx::make_op("add"), l0, l3);
+    auto sum2 = mm->add_instruction(migraphx::make_op("add"), l0, sum1);
+    mm->add_instruction(migraphx::make_op("add"), sum2, l3);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
+    auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) != count);
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    EXPECT(std::distance(mm->begin(), mm->end()) != count);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
+}
+
+TEST_CASE(reused_twice)
+{
+    migraphx::program p;
+    auto* mm                 = p.get_main_module();
+    std::vector<size_t> dims = {1, 2, 2};
+    auto x        = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+    auto y        = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});
+    auto z        = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, dims});
+    auto add1     = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto add2     = mm->add_instruction(migraphx::make_op("add"), add1, z);
+    auto epsilon  = mm->add_literal(1e-12f);
+    auto exponent = mm->add_literal(2.0f);
+
+    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), add2);
+    auto mean_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
+    auto sub = mm->add_instruction(migraphx::make_op("sub"), add2, mean_mbcast);
+    auto exponent_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), exponent);
+    auto pow = mm->add_instruction(migraphx::make_op("pow"), sub, exponent_mbcast);
+    auto var = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), pow);
+    auto epsilon_mbcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, dims.at(1), 1}}}), epsilon);
+    auto add_epsilon = mm->add_instruction(migraphx::make_op("add"), var, epsilon_mbcast);
+    mm->add_instruction(migraphx::make_op("sqrt"), add_epsilon);
+    mm->add_instruction(migraphx::make_op("add"), x, y);
+
+    auto count = std::distance(mm->begin(), mm->end());
+    run_pass(p);
+    p.debug_print();
+    EXPECT(std::distance(mm->begin(), mm->end()) != count);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 4);
+}
+
+TEST_CASE(unused_module)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto* m1 = p.create_module("unused");
+    auto* m2 = p.create_module("used");
+    auto l0  = mm->add_literal(0);
+    m1->add_literal(0);
+    m2->add_literal(0);
+    mm->add_instruction(mod_pass_op{}, {l0}, {m2});
+    EXPECT(migraphx::contains(p.get_modules(), m1));
+    EXPECT(migraphx::contains(p.get_modules(), m2));
+    run_pass(p);
+    EXPECT(migraphx::contains(p.get_modules(), m2));
+    EXPECT(not migraphx::contains(p.get_modules(), m1));
+}
+
+TEST_CASE(param_not_eliminated)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::int32_type, {2, 2}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        mm->add_parameter("z", s);
+        auto sum = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_return({sum});
+
+        return p;
+    };
+
+    auto p = create_program();
+    run_pass(p);
+    EXPECT(p == create_program());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

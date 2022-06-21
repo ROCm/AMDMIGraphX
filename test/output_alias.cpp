@@ -6,8 +6,9 @@
 TEST_CASE(simple_alias)
 {
     migraphx::program p;
-    auto l  = p.add_literal(1);
-    auto p1 = p.add_instruction(pass_op{}, l);
+    auto* mm = p.get_main_module();
+    auto l   = mm->add_literal(1);
+    auto p1  = mm->add_instruction(pass_op{}, l);
     EXPECT(bool{migraphx::instruction::get_output_alias(l) == l});
     EXPECT(bool{migraphx::instruction::get_output_alias(p1) == l});
 }
@@ -15,10 +16,11 @@ TEST_CASE(simple_alias)
 TEST_CASE(cascade_alias)
 {
     migraphx::program p;
-    auto l  = p.add_literal(1);
-    auto p1 = p.add_instruction(pass_op{}, l);
-    auto p2 = p.add_instruction(pass_op{}, p1);
-    auto p3 = p.add_instruction(pass_op{}, p2);
+    auto* mm = p.get_main_module();
+    auto l   = mm->add_literal(1);
+    auto p1  = mm->add_instruction(pass_op{}, l);
+    auto p2  = mm->add_instruction(pass_op{}, p1);
+    auto p3  = mm->add_instruction(pass_op{}, p2);
     EXPECT(bool{migraphx::instruction::get_output_alias(l) == l});
     EXPECT(bool{migraphx::instruction::get_output_alias(p1) == l});
     EXPECT(bool{migraphx::instruction::get_output_alias(p2) == l});
@@ -28,9 +30,10 @@ TEST_CASE(cascade_alias)
 TEST_CASE(no_alias)
 {
     migraphx::program p;
-    auto x   = p.add_literal(1);
-    auto y   = p.add_literal(2);
-    auto sum = p.add_instruction(sum_op{}, x, y);
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(1);
+    auto y   = mm->add_literal(2);
+    auto sum = mm->add_instruction(sum_op{}, x, y);
     EXPECT(bool{migraphx::instruction::get_output_alias(sum) == sum});
 }
 

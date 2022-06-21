@@ -10,6 +10,12 @@ if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
+# Setup valid strings for build type
+if (NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Configs")
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
+
 # Default installation path
 if(WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
@@ -20,34 +26,52 @@ endif()
 project(migraphx)
 find_package(ROCM REQUIRED)
 
+find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
+if (NOT HALF_INCLUDE_DIR)
+    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+endif()
+
+include(CheckTypeSize)
+set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
+set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
+check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
+set(CMAKE_REQUIRED_INCLUDES)
+set(CMAKE_EXTRA_INCLUDE_FILES)
+
+find_package(nlohmann_json 3.8.0 REQUIRED)
+
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.5)
+rocm_setup_version(VERSION 2.3)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.4")
-        message(FATAL_ERROR "MIGraph requires at least gcc 5.4")
-    endif()
-endif()
-
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)
 if(HAS_HIP)
-    message(STATUS "Enable miopen backend")
+    message(STATUS "Enable gpu backend")
     set(MIGRAPHX_ENABLE_GPU On CACHE BOOL "")
 else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
-add_compile_options(-std=c++14)
+# Disable cpu backend by default
+set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
+
+set(CMAKE_CXX_STANDARD_DEFAULT "")
+add_compile_options(-std=c++17)
+
+if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
+    set(CONFIGURE_DEPENDS)
+else()
+    set(CONFIGURE_DEPENDS CONFIGURE_DEPENDS)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
+if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip
 elseif(MIGRAPHX_ENABLE_GPU)
@@ -55,15 +79,49 @@ elseif(MIGRAPHX_ENABLE_GPU)
 endif()
 rocm_enable_clang_tidy(
     CHECKS
-        *
-        -android-cloexec-fopen
-        -clang-analyzer-alpha.core.CastToStruct
+        boost-*
+        bugprone-*
+        cert-*
+        clang-analyzer-*
+        clang-diagnostic-*
+        cppcoreguidelines-*
+        google-*
+        hicpp-multiway-paths-covered
+        hicpp-signed-bitwise
+        llvm-namespace-comment
+        misc-*
+        modernize-*
+        performance-*
+        readability-*
+        -bugprone-easily-swappable-parameters
+        -bugprone-implicit-widening-of-multiplication-result
+        -bugprone-macro-parentheses
+        -bugprone-signed-char-misuse
+        # Disable the aliased reserved identifiers
+        -cert-dcl37-c
+        -cert-dcl51-cpp
+        -cert-err33-c
+        -cert-str34-c
+        # Disable all alpha checks by default
+        -clang-analyzer-alpha*
+        # Enable some alpha checks
+        clang-analyzer-alpha.core.CallAndMessageUnInitRefArg
+        clang-analyzer-alpha.core.Conversion
+        clang-analyzer-alpha.core.IdenticalExpr
+        clang-analyzer-alpha.core.PointerArithm
+        clang-analyzer-alpha.core.PointerSub
+        clang-analyzer-alpha.core.TestAfterDivZero
+        clang-analyzer-alpha.cplusplus.InvalidIterator
+        clang-analyzer-alpha.cplusplus.IteratorRange
+        clang-analyzer-alpha.cplusplus.MismatchedIterator
+        clang-analyzer-alpha.cplusplus.MisusedMovedObject
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
         -cppcoreguidelines-explicit-virtual-functions
+        -cppcoreguidelines-init-variables
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
@@ -72,22 +130,12 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
-        -fuchsia-*
-        -google-readability-braces-around-statements
-        -google-readability-todo
+        -cppcoreguidelines-virtual-class-destructor
+        -google-readability-*
         -google-runtime-int
         -google-runtime-references
-        -hicpp-braces-around-statements
-        -hicpp-explicit-conversions
-        -hicpp-member-init
-        -hicpp-no-array-decay
-        -hicpp-special-member-functions
-        -hicpp-uppercase-literal-suffix
-        -hicpp-use-override
-        # This check is broken
-        -llvm-header-guard
-        -llvm-include-order
         -misc-macro-parentheses
+        -misc-no-recursion
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-use-default-member-init
@@ -97,12 +145,18 @@ rocm_enable_clang_tidy(
         -modernize-use-transparent-functors
         -performance-type-promotion-in-math-fn
         -readability-braces-around-statements
+        -readability-convert-member-functions-to-static
         -readability-else-after-return
+        -readability-function-cognitive-complexity
+        -readability-identifier-length
         -readability-named-parameter
-        -readability-uppercase-literal-suffix,
+        -readability-redundant-string-init
+        -readability-suspicious-call-argument
+        -readability-uppercase-literal-suffix
         -*-avoid-c-arrays
         -*-explicit-constructor
         -*-magic-numbers
+        -*-narrowing-conversions
         -*-non-private-member-variables-in-classes
         -*-use-auto
         -*-use-emplace
@@ -114,12 +168,14 @@ rocm_enable_clang_tidy(
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
         "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
-    # CLANG_ARGS
-    #     -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
-    #     -analyzer-config widen-loops=true
-    #     -analyzer-config unroll-loops=true
-    #     -analyzer-config cfg-lifetime=true
-    #     -analyzer-config cfg-scopes=true
+    CLANG_ARGS
+        -analyzer-max-loop 10
+        -analyzer-inline-max-stack-depth 10
+        -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
+        -analyzer-config widen-loops=true
+        -analyzer-config unroll-loops=true
+        -analyzer-config cfg-lifetime=true
+        -analyzer-config cfg-scopes=true
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(
@@ -128,7 +184,7 @@ rocm_enable_cppcheck(
         style
         performance
         portability
-    SUPPRESS 
+    SUPPRESS
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction
@@ -136,28 +192,39 @@ rocm_enable_cppcheck(
         passedByValue
         unusedStructMember
         functionStatic
-        functionConst:*program.*
+        functionConst
         shadowFunction
         shadowVar
         shadowVariable
         unsafeClassDivZero
         definePrefix:*test/include/test.hpp
+        ctuOneDefinitionRuleViolation:*test/*
+        useSmartPointer:*src/api/api.cpp
+        useSmartPointer:*make_shared_array.hpp
+        constParameter:*src/targets/gpu/*.cpp
+        constParameter:*src/targets/gpu/*.hpp
+        # Suppress mlir_conv.cpp since this file will be deleted
+        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
     SOURCES
+        examples/
         src/
         test/
     INCLUDE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1
         __device__=
         __host__=
+        __global__=
 )
 
 enable_testing()
@@ -169,14 +236,21 @@ rocm_create_package(
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip_hcc half
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-
 add_subdirectory(src)
 add_subdirectory(doc)
 add_subdirectory(test)
 add_subdirectory(tools)
+
+set(DEST_DIR ${CMAKE_BINARY_DIR})
+file(GLOB backend_files ${CMAKE_SOURCE_DIR}/src/py/backend/*.py)
+file(MAKE_DIRECTORY ${DEST_DIR}/lib/onnx_migraphx)
+foreach(py_file ${backend_files})
+    configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
+endforeach(py_file)
+configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)

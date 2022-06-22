@@ -14,7 +14,7 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
         int* h_output    = nullptr;
         auto* d_output   = reinterpret_cast<int*>(inputs[0].data());
         auto input_bytes = inputs[0].get_shape().bytes();
-        auto* output_ptr  = inputs[1].data();
+        auto* output_ptr = inputs[1].data();
         auto copy_bytes  = input_bytes / 2;
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
         MIGRAPHX_HIP_ASSERT(hipHostMalloc(&h_output, input_bytes));

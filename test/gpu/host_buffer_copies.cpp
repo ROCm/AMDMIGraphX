@@ -54,7 +54,7 @@ TEST_CASE(arguments_lifetime)
         return;
     };
 
-    auto f = [use_on_gpu](migraphx::argument input) {
+    auto f = [use_on_gpu](const migraphx::argument& input) {
         auto a = migraphx::gpu::register_on_gpu(input);
         auto s = a.get_shape();
         {

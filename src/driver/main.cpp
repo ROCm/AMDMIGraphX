@@ -552,26 +552,41 @@ struct onnx : command<onnx>
 
 struct main_command
 {
-    static std::string get_command_help(const std::string& title = "Commands:")
+    static std::string get_command_help(const std::string& title = colorize(color::fg_yellow, "COMMANDS:"))
     {
         std::string result = title + "\n";
-        return std::accumulate(get_commands().begin(),
-                               get_commands().end(),
+        std::vector<std::string> commands(get_commands().size());
+        std::transform(get_commands().begin(), get_commands().end(), commands.begin(), [](const auto& p) {
+            return colorize(color::fg_green, p.first);
+        });
+        std::sort(commands.begin(), commands.end());
+        return std::accumulate(commands.begin(),
+                               commands.end(),
                                result,
-                               [](auto r, auto&& p) { return r + "    " + p.first + "\n"; });
+                               [](auto r, auto&& s) { return r + "    " + s + "\n"; });
     }
     void parse(argument_parser& ap)
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
                                   "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+        ap(unused, {}, ap.metavar("<command>"), ap.set_value(true));                                  
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
+
+        // Trim command off of exe name
+        ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
     }
 
-    void run() { std::cout << get_command_help("Missing command:") << std::endl; }
+    bool unused = false;
+
+    void run()
+    { 
+        std::cout << color::fg_red << color::bold << "error: " << color::reset;
+        std::cout << get_command_help("missing command:") << std::endl; 
+    }
 };
 
 } // namespace MIGRAPHX_INLINE_NS
@@ -593,11 +608,11 @@ int main(int argc, const char* argv[])
     auto cmd = args.front();
     if(m.count(cmd) > 0)
     {
-        m.at(cmd)({args.begin() + 1, args.end()});
+        m.at(cmd)(argv[0], {args.begin() + 1, args.end()});
     }
     else
     {
-        run_command<main_command>(args);
+        run_command<main_command>(argv[0], args);
     }
 
     return 0;

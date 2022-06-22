@@ -18,7 +18,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 inline auto& get_commands()
 {
     // NOLINTNEXTLINE
-    static std::unordered_map<std::string, std::function<void(std::vector<std::string> args)>> m;
+    static std::unordered_map<std::string, std::function<void(const std::string& exe_name, std::vector<std::string> args)>> m;
     return m;
 }
 
@@ -42,10 +42,11 @@ const std::string& command_name()
 }
 
 template <class T>
-void run_command(std::vector<std::string> args, bool add_help = false)
+void run_command(const std::string& exe_name, std::vector<std::string> args, bool add_help = false)
 {
     T x;
     argument_parser ap;
+    ap.set_exe_name(exe_name + " " + command_name<T>());
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
@@ -58,7 +59,7 @@ template <class T>
 int auto_register_command()
 {
     auto& m              = get_commands();
-    m[command_name<T>()] = [](std::vector<std::string> args) { run_command<T>(args, true); };
+    m[command_name<T>()] = [](const std::string& exe_name, std::vector<std::string> args) { run_command<T>(exe_name, args, true); };
     return 0;
 }
 

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <list>
 #include <set>
 #include <string>
 #include <sstream>
@@ -17,6 +18,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/rank.hpp>
 
 #ifndef _WIN32
@@ -79,6 +81,13 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
 #endif
     return os;
+}
+
+inline std::string colorize(color c, const std::string& s)
+{
+    std::stringstream ss;
+    ss << c << s << color::reset;
+    return ss.str();
 }
 
 template <class T>
@@ -248,70 +257,92 @@ struct argument_parser
         });
     }
 
+    template<class F>
+    argument* find_argument(F f)
+    {
+        auto it = std::find_if(arguments.begin(), arguments.end(), f);
+        if (it == arguments.end())
+            return nullptr;
+        return std::addressof(*it);
+    }
+
     MIGRAPHX_DRIVER_STATIC auto show_help(const std::string& msg = "")
     {
         return do_action([=](auto& self) {
-            std::cout << color::fg_yellow << "FLAGS:" << color::reset << std::endl;
+            argument* input_argument = self.find_argument([](const auto& arg) { return arg.flags.empty(); });
+            std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
+            std::cout << "    " << self.exe_name << " <options> ";
+            if (input_argument)
+                std::cout << input_argument->metavar;
             std::cout << std::endl;
-            for(auto&& arg : self.arguments)
+            std::cout << std::endl;
+            if (self.find_argument([](const auto& arg) { return arg.nargs == 0; }))
             {
-                if(arg.nargs != 0)
-                    continue;
-                const int col_align = 35;
-                std::string prefix  = "    ";
-                int len             = 0;
-                std::cout << color::fg_green;
-                for(const std::string& a : arg.flags)
+                std::cout << color::fg_yellow << "FLAGS:" << color::reset << std::endl;
+                std::cout << std::endl;
+                for(auto&& arg : self.arguments)
                 {
-                    len += prefix.length() + a.length();
-                    std::cout << prefix;
-                    std::cout << a;
-                    prefix = ", ";
+                    if(arg.nargs != 0)
+                        continue;
+                    const int col_align = 35;
+                    std::string prefix  = "    ";
+                    int len             = 0;
+                    std::cout << color::fg_green;
+                    for(const std::string& a : arg.flags)
+                    {
+                        len += prefix.length() + a.length();
+                        std::cout << prefix;
+                        std::cout << a;
+                        prefix = ", ";
+                    }
+                    std::cout << color::reset;
+                    int spaces = col_align - len;
+                    if(spaces < 0)
+                    {
+                        std::cout << std::endl;
+                    }
+                    else
+                    {
+                        for(int i = 0; i < spaces; i++)
+                            std::cout << " ";
+                    }
+                    std::cout << arg.help << std::endl;
                 }
-                std::cout << color::reset;
-                int spaces = col_align - len;
-                if(spaces < 0)
+                std::cout << std::endl;
+            }
+            if (self.find_argument([](const auto& arg) { return arg.nargs != 0; }))
+            {
+                std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
+                for(auto&& arg : self.arguments)
                 {
+                    if(arg.nargs == 0)
+                        continue;
                     std::cout << std::endl;
-                }
-                else
-                {
-                    for(int i = 0; i < spaces; i++)
-                        std::cout << " ";
-                }
-                std::cout << arg.help << std::endl;
-            }
-            std::cout << std::endl;
-            std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
-            for(auto&& arg : self.arguments)
-            {
-                if(arg.nargs == 0)
-                    continue;
-                std::cout << std::endl;
-                std::string prefix = "    ";
-                std::cout << color::fg_green;
-                if(arg.flags.empty())
-                {
-                    std::cout << prefix;
-                    std::cout << arg.metavar;
-                }
-                for(const std::string& a : arg.flags)
-                {
-                    std::cout << prefix;
-                    std::cout << a;
-                    prefix = ", ";
-                }
-                std::cout << color::reset;
-                if(not arg.type.empty())
-                {
-                    std::cout << " [" << color::fg_blue << arg.type << color::reset << "]";
-                    if(not arg.default_value.empty())
-                        std::cout << " (Default: " << arg.default_value << ")";
+                    std::string prefix = "    ";
+                    std::cout << color::fg_green;
+                    if(arg.flags.empty())
+                    {
+                        std::cout << prefix;
+                        std::cout << arg.metavar;
+                    }
+                    for(const std::string& a : arg.flags)
+                    {
+                        std::cout << prefix;
+                        std::cout << a;
+                        prefix = ", ";
+                    }
+                    std::cout << color::reset;
+                    if(not arg.type.empty())
+                    {
+                        std::cout << " [" << color::fg_blue << arg.type << color::reset << "]";
+                        if(not arg.default_value.empty())
+                            std::cout << " (Default: " << arg.default_value << ")";
+                    }
+                    std::cout << std::endl;
+                    std::cout << "        " << arg.help << std::endl;
                 }
                 std::cout << std::endl;
-                std::cout << "        " << arg.help << std::endl;
             }
-            std::cout << std::endl;
             if(not msg.empty())
                 std::cout << msg << std::endl;
         });
@@ -345,6 +376,44 @@ struct argument_parser
         };
     }
 
+    bool run_action(const argument& arg, const std::string& flag, const std::vector<std::string>& inputs)
+    {
+        std::string msg = "";
+        try
+        {
+            return arg.action(*this, inputs);
+        }
+        catch(const std::exception& e)
+        {
+            msg = e.what();
+        }
+        catch(...)
+        {
+            msg = "unknown exception";
+        }
+        auto show_usage = [&] {
+            std::cout << flag;
+            if(not arg.type.empty())
+                std::cout << " [" << arg.type << "]";
+        };
+        std::cout << color::fg_red << color::bold << "error: " << color::reset;
+        std::cout << "Invalid input to '" << color::fg_yellow;
+        show_usage();
+        std::cout << color::reset << "'" << std::endl;
+        std::cout << "       " << msg << std::endl;
+        std::cout << std::endl;
+        std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
+        std::cout << "    " << exe_name << " ";
+        show_usage();
+        std::cout << std::endl;
+        if (find_argument([](const auto& a) { return contains(a.flags, "--help"); }))
+        {
+            std::cout << std::endl;
+            std::cout << "For more information try '" << color::fg_green << "--help" << color::reset << "'" << std::endl;
+        }
+        return true;
+    }
+
     bool parse(std::vector<std::string> args)
     {
         std::unordered_map<std::string, unsigned> keywords;
@@ -364,12 +433,22 @@ struct argument_parser
             {
                 if(arg_map.count(flag) > 0)
                 {
-                    if(arg.action(*this, arg_map[flag]))
+                    if(run_action(arg, flag, arg_map[flag]))
                         return true;
                 }
             }
         }
         return false;
+    }
+
+    void set_exe_name(const std::string& s)
+    {
+        exe_name = s;
+    }
+
+    const std::string& get_exe_name() const
+    {
+        return exe_name;
     }
 
     using string_map = std::unordered_map<std::string, std::vector<std::string>>;
@@ -406,7 +485,8 @@ struct argument_parser
     }
 
     private:
-    std::vector<argument> arguments;
+    std::list<argument> arguments;
+    std::string exe_name = "";
 };
 
 } // namespace MIGRAPHX_INLINE_NS

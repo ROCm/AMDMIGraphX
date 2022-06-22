@@ -1,11 +1,15 @@
 #include "migraphx/instruction.hpp"
 #include <iostream>
 #include <vector>
+#include <hip/hip_runtime_api.h>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 #include <basic_ops.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/make_op.hpp>
+
+#define MIGRAPHX_HIP_ASSERT(x) (EXPECT(x == hipSuccess))
 
 TEST_CASE(host_same_buffer_copy)
 {
@@ -38,6 +42,34 @@ TEST_CASE(host_same_buffer_copy)
     std::vector<float> results_vector(ss.elements(), -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(c_vec, results_vector));
+}
+
+TEST_CASE(arguments_lifetime) {
+    auto use_on_gpu = [](const migraphx::argument& arg, int c) {
+        auto* arg_ptr = arg.data();
+        MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
+        MIGRAPHX_HIP_ASSERT(hipMemset(arg_ptr, c, arg.get_shape().bytes()));
+        MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
+        return;
+    };
+
+    auto f = [use_on_gpu](migraphx::argument input) {
+        auto a = migraphx::gpu::register_on_gpu(input); 
+        auto s = a.get_shape();
+        {
+            auto b = migraphx::gpu::register_on_gpu(input);
+            use_on_gpu(b, 0);
+            std::vector<float> expected_b(s.elements(), 0);
+            auto gold  = migraphx::argument(s, expected_b.data());
+        }
+        use_on_gpu(a, 1);
+        return true;
+    };
+
+   migraphx::shape ss{migraphx::shape::float_type, {4, 2}};
+   std::vector<float> x_data(ss.elements(), -1);
+   migraphx::argument x{ss, x_data.data()};
+   EXPECT(f(x));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

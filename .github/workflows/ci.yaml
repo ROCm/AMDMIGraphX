@@ -160,7 +160,7 @@ jobs:
         mypy --version
         mypy tools/api.py
 
-  Licensing:
+  licensing:
     runs-on: ubuntu-18.04
 
     steps:

@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <iterator>
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/int8_gemm_pack.hpp>
@@ -22,10 +45,10 @@ static instruction_ref pad_ins(module& m, instruction_ref ins, int offset)
     auto pad_k                     = (k + 3) / 4 * 4;
     auto pad_lens                  = lens;
     pad_lens[lens.size() + offset] = pad_k;
-    std::vector<int64_t> pad_dims(lens.size() * 2, 0);
-    auto ret_ins = ins;
+    auto ret_ins                   = ins;
     if(pad_k != k)
     {
+        std::vector<int64_t> pad_dims(lens.size() * 2, 0);
         pad_dims[lens.size() + offset] = pad_k - k;
         shape ps{s.type(), pad_lens};
         auto ins_out =
@@ -118,7 +141,7 @@ void pack_int8_args::apply(module& m) const
             assert(val.contains("int8_x4_format"));
             if(not val.at("int8_x4_format").to<bool>())
             {
-                return;
+                continue;
             }
             auto inputs = ins->inputs();
             auto lens   = inputs.at(0)->get_shape().lens();
@@ -156,6 +179,12 @@ void pack_int8_args::apply(module& m) const
         }
         else if(ins->name() == "gpu::quant_convolution")
         {
+            auto val = ins->get_operator().to_value();
+            if(not val.at("int8_x4_format").to<bool>())
+            {
+                continue;
+            }
+
             auto inputs   = ins->inputs();
             auto packed_x = m.insert_instruction(
                 ins,

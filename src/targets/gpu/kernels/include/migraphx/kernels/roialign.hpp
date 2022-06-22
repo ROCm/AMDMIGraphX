@@ -1,16 +1,40 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_KERNELS_ROIALIGN_HPP
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/array.hpp>
 
 namespace migraphx {
 
 struct max_pool
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return lowest(); }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return lowest{}; }
 
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T operator()(T x, T y)
@@ -55,7 +79,7 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
             return 0;
         }
 
-        xy[ii]   = max(xy[ii], 0.0f);
+        xy[ii]   = migraphx::max(xy[ii], 0.0f);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
@@ -164,11 +188,12 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         for(index_int ii = 0; ii < roi_size.size(); ++ii)
         {
             roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-            roi_size[ii] = max(roi_size[ii], 1.0f);
+            roi_size[ii] = migraphx::max(roi_size[ii], 1.0f);
 
-            bin_size[ii] = roi_size[ii] / out_dims[ii];
-            bin_grid_size[ii] =
-                (s.sampling_ratio > 0) ? s.sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
+            bin_size[ii]      = roi_size[ii] / out_dims[ii];
+            bin_grid_size[ii] = (s.sampling_ratio > 0)
+                                    ? s.sampling_ratio
+                                    : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
 
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);

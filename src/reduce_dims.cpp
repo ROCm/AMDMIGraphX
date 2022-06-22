@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/reduce_dims.hpp>
 
 namespace migraphx {
@@ -16,10 +39,8 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
         auto bstride = s.strides()[n + 1];
         auto blen    = s.lens()[n + 1];
 
-        if(astride == bstride * blen)
-        {
+        if(astride == bstride * blen or alen == 1)
             new_lens.push_back(alen * blen);
-        }
     }
     if(new_lens.size() != shapes.size())
         return false;
@@ -37,10 +58,25 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
     return true;
 }
 
+void reduce_dim1(std::vector<shape>& shapes)
+{
+    if(std::any_of(shapes.begin(), shapes.end(), [&](const auto& s) {
+           return s.lens().size() < 2 or s.lens().back() != 1;
+       }))
+        return;
+    for(auto& s : shapes)
+    {
+        auto lens    = s.lens();
+        auto strides = s.strides();
+        lens.pop_back();
+        strides.pop_back();
+        s = shape{s.type(), lens, strides};
+    }
+}
+
 std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
 {
     while(reduce_dim(shapes, n) and n < shapes.size()) {}
-
     return n + 1;
 }
 void reduce_dim_all(std::vector<shape>& shapes)
@@ -48,6 +84,7 @@ void reduce_dim_all(std::vector<shape>& shapes)
     std::size_t n = 0;
     while(n < shapes.front().lens().size() - 1)
         n = reduce_dim_all(shapes, n);
+    reduce_dim1(shapes);
 }
 
 std::vector<std::size_t> base_lens(const std::vector<shape>& shapes)

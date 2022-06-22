@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 
@@ -17,6 +40,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
+
+void blas_shape(const shape& s);
 
 template <class Op>
 struct rocblas_gemm
@@ -50,13 +75,14 @@ struct rocblas_gemm
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
         check_shapes{in_shapes, *this}.not_broadcasted();
-        batch_not_transposed(inputs[0].strides());
-        batch_not_transposed(inputs[1].strides());
+        blas_shape(inputs[0]);
+        blas_shape(inputs[1]);
         // if gemm and add are fused
-        if(not float_equal(beta, 0))
+        if(in_shapes.size() > 2)
         {
             auto cmat_shape = in_shapes.back();
             in_shapes.pop_back();
+            blas_shape(cmat_shape);
             auto op_out_shape = op.compute_shape(in_shapes);
             if(cmat_shape.lens() != op_out_shape.lens())
             {
@@ -71,6 +97,7 @@ struct rocblas_gemm
                                to_string(cmat_shape.type()) +
                                ", it must be: " + to_string(op_out_shape.type()));
             }
+            return op_out_shape;
         }
 
         return op.compute_shape(in_shapes);
@@ -94,28 +121,6 @@ struct rocblas_gemm
                  compute_fp32);
         }
         return args.back();
-    }
-
-    void batch_not_transposed(const std::vector<std::size_t>& strides) const
-    {
-        if(strides.size() <= 2)
-            return;
-        auto dim_0       = strides.size() - 2;
-        auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
-        std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
-        if(std::all_of(batch.begin(), batch.end(), [&](auto i) { return (i < matrix_size); }))
-        {
-            MIGRAPHX_THROW("GPU_GEMM: matrix size and batch size {" + to_string_range(strides) +
-                           "} are transposed!");
-        }
-
-        if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
-               return (i < j or i < matrix_size or j < matrix_size);
-           }) != batch.end())
-        {
-            MIGRAPHX_THROW("GPU_GEMM: batch size {" + to_string_range(strides) +
-                           "} is transposed!");
-        }
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const

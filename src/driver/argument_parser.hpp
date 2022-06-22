@@ -377,6 +377,14 @@ struct argument_parser
         };
     }
 
+    template<class T>
+    void set_exe_name_to(T& x)
+    {
+        actions.push_back([&](auto& self) {
+            x = self.exe_name;
+        });
+    }
+
     bool
     run_action(const argument& arg, const std::string& flag, const std::vector<std::string>& inputs)
     {
@@ -441,6 +449,8 @@ struct argument_parser
                 }
             }
         }
+        for(auto&& action:actions)
+            action(*this);
         return false;
     }
 
@@ -484,6 +494,7 @@ struct argument_parser
     private:
     std::list<argument> arguments;
     std::string exe_name = "";
+    std::vector<std::function<void(argument_parser&)>> actions;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

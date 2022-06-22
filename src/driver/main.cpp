@@ -570,7 +570,7 @@ struct main_command
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
                                   "." + std::to_string(MIGRAPHX_VERSION_MINOR);
-        ap(unused, {}, ap.metavar("<command>"), ap.set_value(true));
+        ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
@@ -579,14 +579,32 @@ struct main_command
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
+        ap.set_exe_name_to(exe_name);
     }
 
-    bool unused = false;
+    std::vector<std::string> wrong_commands{};
+    std::string exe_name = "<exe>";
 
     void run()
     {
         std::cout << color::fg_red << color::bold << "error: " << color::reset;
-        std::cout << get_command_help("missing command:") << std::endl;
+        auto it = std::find_if(wrong_commands.begin(), wrong_commands.end(), [](const auto& c) {
+            return get_commands().count(c) > 0;
+        });
+        if (it == wrong_commands.end())
+        {
+            std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset << "' is not a valid command." << std::endl;
+            std::cout << get_command_help("Available commands:") << std::endl;
+        }
+        else
+        {
+            std::cout << "command '" << color::fg_yellow << *it << color::reset << "' must be first argument" << std::endl;
+            std::cout << std::endl;
+
+            std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
+            std::cout << "    " << exe_name << " " << *it << " <options>" << std::endl;
+        }
+        std::cout << std::endl;
     }
 };
 

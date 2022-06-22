@@ -12,7 +12,7 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
     {
         // sets first half size_bytes of the input 0, and rest of the half bytes are copied.
         float* d_output;
-        auto* h_output   = reinterpret_cast<float*>(inputs[1].data());
+        auto* h_output   = reinterpret_cast<float*>(inputs[0].data());
         auto input_bytes = inputs[0].get_shape().bytes();
         auto copy_bytes  = input_bytes / 2;
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
@@ -25,13 +25,11 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
         MIGRAPHX_HIP_ASSERT(hipMemset(d_output, 0, copy_bytes));
         MIGRAPHX_HIP_ASSERT(hipMemcpy(h_output, d_output, input_bytes, hipMemcpyDeviceToHost));
         MIGRAPHX_HIP_ASSERT(hipFree(d_output));
-        return inputs[1];
+        return inputs[0];
     }
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        CHECK(inputs.size() == 2);
-        CHECK(bool{inputs[0] == inputs[1]});
         return inputs.back();
     }
 };
@@ -45,14 +43,12 @@ TEST_CASE(run_simple_custom_op)
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     auto alloc         = m.add_allocation(s);
-    auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {x, alloc});
+    auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {x});
     m.add_return({custom_kernel});
     p.compile(migraphx::target("gpu"));
     migraphx::program_parameters pp;
     std::vector<float> x_data(12, 1);
-    std::vector<float> ret_data(12, -1);
     pp.add("x", migraphx::argument(s, x_data.data()));
-    pp.add("main:#output_0", migraphx::argument(s, ret_data.data()));
     auto results = p.eval(pp);
     auto result  = results[0];
     std::vector<float> expected_result(12, 0);

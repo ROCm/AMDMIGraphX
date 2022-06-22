@@ -82,43 +82,6 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
 }
 
 template <class T>
-struct value_parser
-{
-    template <MIGRAPHX_REQUIRES(not std::is_enum<T>{} and not is_multi_value<T>{})>
-    static T apply(const std::string& x)
-    {
-        T result;
-        std::stringstream ss;
-        ss.str(x);
-        ss >> result;
-        if(ss.fail())
-            throw std::runtime_error("Failed to parse: " + x);
-        return result;
-    }
-
-    template <MIGRAPHX_REQUIRES(std::is_enum<T>{} and not is_multi_value<T>{})>
-    static T apply(const std::string& x)
-    {
-        std::ptrdiff_t i;
-        std::stringstream ss;
-        ss.str(x);
-        ss >> i;
-        if(ss.fail())
-            throw std::runtime_error("Failed to parse: " + x);
-        return static_cast<T>(i);
-    }
-
-    template <MIGRAPHX_REQUIRES(is_multi_value<T>{} and not std::is_enum<T>{})>
-    static T apply(const std::string& x)
-    {
-        T result;
-        using value_type = typename T::value_type;
-        result.insert(result.end(), value_parser<value_type>::apply(x));
-        return result;
-    }
-};
-
-template <class T>
 struct type_name
 {
     static const std::string& apply() { return migraphx::get_type_name<T>(); }
@@ -143,6 +106,44 @@ struct type_name<std::vector<T>>
         return name;
     }
 };
+
+template <class T>
+struct value_parser
+{
+    template <MIGRAPHX_REQUIRES(not std::is_enum<T>{} and not is_multi_value<T>{})>
+    static T apply(const std::string& x)
+    {
+        T result;
+        std::stringstream ss;
+        ss.str(x);
+        ss >> result;
+        if(ss.fail())
+            throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
+        return result;
+    }
+
+    template <MIGRAPHX_REQUIRES(std::is_enum<T>{} and not is_multi_value<T>{})>
+    static T apply(const std::string& x)
+    {
+        std::ptrdiff_t i;
+        std::stringstream ss;
+        ss.str(x);
+        ss >> i;
+        if(ss.fail())
+            throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
+        return static_cast<T>(i);
+    }
+
+    template <MIGRAPHX_REQUIRES(is_multi_value<T>{} and not std::is_enum<T>{})>
+    static T apply(const std::string& x)
+    {
+        T result;
+        using value_type = typename T::value_type;
+        result.insert(result.end(), value_parser<value_type>::apply(x));
+        return result;
+    }
+};
+
 
 struct argument_parser
 {

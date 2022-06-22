@@ -19,6 +19,10 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/rank.hpp>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -50,6 +54,32 @@ struct is_container : decltype(detail::is_container(int(0), std::declval<T>()))
 template <class T>
 using is_multi_value =
     std::integral_constant<bool, (is_container<T>{} and not std::is_convertible<T, std::string>{})>;
+
+enum class color
+{
+    reset      = 0,
+    bold       = 1,
+    underlined = 4,
+    fg_red     = 31,
+    fg_green   = 32,
+    fg_yellow  = 33,
+    fg_blue    = 34,
+    fg_default = 39,
+    bg_red     = 41,
+    bg_green   = 42,
+    bg_yellow  = 43,
+    bg_blue    = 44,
+    bg_default = 49
+};
+inline std::ostream& operator<<(std::ostream& os, const color& c)
+{
+#ifndef _WIN32
+    static const bool use_color = isatty(STDOUT_FILENO) != 0;
+    if(use_color)
+        return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#endif
+    return os;
+}
 
 template <class T>
 struct value_parser
@@ -195,10 +225,45 @@ struct argument_parser
     MIGRAPHX_DRIVER_STATIC auto show_help(const std::string& msg = "")
     {
         return do_action([=](auto& self) {
+            std::cout << color::fg_yellow << "FLAGS:" << color::reset << std::endl;
+            std::cout << std::endl;
             for(auto&& arg : self.arguments)
             {
+                if (arg.nargs != 0)
+                    continue;
+                const int col_align = 35;
+                std::string prefix = "    ";
+                int len = 0;
+                std::cout << color::fg_green;
+                for(const std::string& a : arg.flags)
+                {
+                    len += prefix.length() + a.length();
+                    std::cout << prefix;
+                    std::cout << a;
+                    prefix = ", ";
+                }
+                std::cout << color::reset;
+                int spaces = col_align - len;
+                if (spaces < 0)
+                {
+                    std::cout << std::endl;
+                }
+                else
+                {
+                    for(int i=0;i<spaces;i++)
+                        std::cout << " ";
+                }
+                std::cout << arg.help << std::endl;
+            }
+            std::cout << std::endl;
+            std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
+            for(auto&& arg : self.arguments)
+            {
+                if (arg.nargs == 0)
+                    continue;
                 std::cout << std::endl;
                 std::string prefix = "    ";
+                std::cout << color::fg_green;
                 if(arg.flags.empty())
                 {
                     std::cout << prefix;
@@ -210,9 +275,10 @@ struct argument_parser
                     std::cout << a;
                     prefix = ", ";
                 }
+                std::cout << color::reset;
                 if(not arg.type.empty())
                 {
-                    std::cout << " [" << arg.type << "]";
+                    std::cout << " [" << color::fg_blue << arg.type << color::reset << "]";
                     if(not arg.default_value.empty())
                         std::cout << " (Default: " << arg.default_value << ")";
                 }

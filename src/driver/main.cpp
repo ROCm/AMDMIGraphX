@@ -552,9 +552,9 @@ struct onnx : command<onnx>
 
 struct main_command
 {
-    static std::string get_command_help()
+    static std::string get_command_help(const std::string& title = "Commands:")
     {
-        std::string result = "Commands:\n";
+        std::string result = title + "\n";
         return std::accumulate(get_commands().begin(),
                                get_commands().end(),
                                result,
@@ -571,7 +571,10 @@ struct main_command
            ap.show_help(version_str));
     }
 
-    void run() {}
+    void run() 
+    {
+        std::cout << get_command_help("Missing command:") << std::endl;
+    }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

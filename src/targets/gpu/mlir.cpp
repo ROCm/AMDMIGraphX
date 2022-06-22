@@ -604,15 +604,14 @@ std::string dump_mlir(const module&) { return {}; }
 
 code_object_op compile_mlir(const context&, const module&) { return {}; }
 
-template<class T>
-void use(T&) {}
+template <class T>
+void use(T&)
+{
+}
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent
-insert_mlir(module& m,
-            instruction_ref,
-            code_object_op co,
-            const std::vector<instruction_ref>&)
+insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
 {
     use(co);
     return m.end();

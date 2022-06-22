@@ -1,12 +1,12 @@
 
+#include <memory>
 #include <migraphx/gpu/hip.hpp>
-
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <miopen/miopen.h>
-
+#include <mutex>
 #include <vector>
 
 namespace migraphx {
@@ -55,12 +55,17 @@ void* get_device_ptr(void* hptr)
     return result;
 }
 
-hip_ptr allocate_gpu(std::size_t sz, bool host = false)
+static auto& get_malloc_host_ptrs() {
+    static std::unordered_map<void*, std::weak_ptr<void>> cache;
+    return cache;
+}
+
+std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
     if(sz > get_available_gpu_memory())
         MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
-    void* result = nullptr;
-    auto status  = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
+    void* alloc_ptr = nullptr;
+    auto status  = host ? hipHostMalloc(&alloc_ptr, sz) : hipMalloc(&alloc_ptr, sz);
     if(status != hipSuccess)
     {
         if(host)
@@ -68,26 +73,47 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
         else
             return allocate_gpu(sz, true);
     }
-    assert(result != nullptr);
-    return hip_ptr{result};
+    assert(alloc_ptr != nullptr);
+    std::shared_ptr<void> result = share(hip_ptr{alloc_ptr});
+    if(host)  {
+       get_malloc_host_ptrs()[alloc_ptr] = result; 
+    }
+    return result;
 }
 
-hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
+static auto& registered_host_ptrs() 
 {
-    void* dev_ptr = nullptr;
-    // check if ptr was allocated through hipHostMalloc
-    auto status = hipHostGetDevicePointer(&dev_ptr, ptr, 0);
-    if(status == hipErrorInvalidValue)
+    static std::unordered_map<void*, std::weak_ptr<void>> cache;
+    return cache;
+}
+
+std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
+{
+    static std::mutex m;
+    std::shared_ptr<void> result = nullptr;
     {
-        status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
+        std::lock_guard<std::mutex> lock(m);
+        auto it = registered_host_ptrs().find(ptr);
+        if (it != registered_host_ptrs().end()) {
+            result = it->second.lock();
+        }
+        it = get_malloc_host_ptrs().find(ptr);
+        if(it != get_malloc_host_ptrs().end()) {
+            result = it->second.lock();
+        }
     }
-    else if(status != hipSuccess)
+    if (result) {
+        return result;
+    }
+    auto status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
+    result = share(hip_host_ptr{ptr});
     {
-        MIGRAPHX_THROW("Couldn't get device pointer for host buffer: " + hip_error(status));
-    }
-    return hip_host_ptr{ptr};
+        std::lock_guard<std::mutex> lock(m);
+        registered_host_ptrs()[ptr] = result;
+    }   
+    return result;
 }
 
 template <class T>
@@ -103,7 +129,7 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
+std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
     gpu_sync();
     auto result = allocate_gpu(sz, host);
@@ -125,7 +151,7 @@ hip_ptr write_to_gpu(const T& x)
 
 argument allocate_gpu(const shape& s, bool host)
 {
-    auto p = share(allocate_gpu(s.bytes() + 1, host));
+    auto p = allocate_gpu(s.bytes() + 1, host);
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 

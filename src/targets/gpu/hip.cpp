@@ -55,7 +55,8 @@ void* get_device_ptr(void* hptr)
     return result;
 }
 
-static auto& get_malloc_host_ptrs() {
+static auto& get_malloc_host_ptrs()
+{
     static std::unordered_map<void*, std::weak_ptr<void>> cache;
     return cache;
 }
@@ -65,7 +66,7 @@ std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
     if(sz > get_available_gpu_memory())
         MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
     void* alloc_ptr = nullptr;
-    auto status  = host ? hipHostMalloc(&alloc_ptr, sz) : hipMalloc(&alloc_ptr, sz);
+    auto status     = host ? hipHostMalloc(&alloc_ptr, sz) : hipMalloc(&alloc_ptr, sz);
     if(status != hipSuccess)
     {
         if(host)
@@ -75,13 +76,14 @@ std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
     }
     assert(alloc_ptr != nullptr);
     std::shared_ptr<void> result = share(hip_ptr{alloc_ptr});
-    if(host)  {
-       get_malloc_host_ptrs()[alloc_ptr] = result; 
+    if(host)
+    {
+        get_malloc_host_ptrs()[alloc_ptr] = result;
     }
     return result;
 }
 
-static auto& registered_host_ptrs() 
+static auto& registered_host_ptrs()
 {
     static std::unordered_map<void*, std::weak_ptr<void>> cache;
     return cache;
@@ -94,15 +96,18 @@ std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
     {
         std::lock_guard<std::mutex> lock(m);
         auto it = registered_host_ptrs().find(ptr);
-        if (it != registered_host_ptrs().end()) {
+        if(it != registered_host_ptrs().end())
+        {
             result = it->second.lock();
         }
         it = get_malloc_host_ptrs().find(ptr);
-        if(it != get_malloc_host_ptrs().end()) {
+        if(it != get_malloc_host_ptrs().end())
+        {
             result = it->second.lock();
         }
     }
-    if (result) {
+    if(result)
+    {
         return result;
     }
     auto status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
@@ -112,7 +117,7 @@ std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
     {
         std::lock_guard<std::mutex> lock(m);
         registered_host_ptrs()[ptr] = result;
-    }   
+    }
     return result;
 }
 

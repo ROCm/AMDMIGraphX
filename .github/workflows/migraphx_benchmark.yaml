@@ -71,7 +71,8 @@ jobs:
           --network=host
           --group-add=video 
           -v ${{ github.event.inputs.result_path }}:/test-results
-          --workdir $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/
+          -v $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}:/src
+          --workdir /src/scripts/
           migraphx-ort:$(date +%Y%m%d) /bin/bash ort_benchmark4.sh
       - name: Execute report script
         run: |

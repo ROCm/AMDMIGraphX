@@ -161,6 +161,9 @@ jobs:
         mypy tools/api.py
 
   Licensing:
+    runs-on: ubuntu-18.04
+
+    steps:
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
     - uses: actions/checkout@v2
@@ -168,10 +171,8 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.8
-    runs-on: ubuntu-18.04
-      steps:
-      - name: run License Check
-         run: python3 tools/check_stamped.py
+    - name: run License Check
+      run: python3 tools/check_stamped.py
 
   linux:
 

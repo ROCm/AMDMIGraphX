@@ -377,12 +377,10 @@ struct argument_parser
         };
     }
 
-    template<class T>
+    template <class T>
     void set_exe_name_to(T& x)
     {
-        actions.push_back([&](auto& self) {
-            x = self.exe_name;
-        });
+        actions.push_back([&](auto& self) { x = self.exe_name; });
     }
 
     bool
@@ -449,7 +447,7 @@ struct argument_parser
                 }
             }
         }
-        for(auto&& action:actions)
+        for(auto&& action : actions)
             action(*this);
         return false;
     }

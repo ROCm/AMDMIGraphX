@@ -591,14 +591,16 @@ struct main_command
         auto it = std::find_if(wrong_commands.begin(), wrong_commands.end(), [](const auto& c) {
             return get_commands().count(c) > 0;
         });
-        if (it == wrong_commands.end())
+        if(it == wrong_commands.end())
         {
-            std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset << "' is not a valid command." << std::endl;
+            std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset
+                      << "' is not a valid command." << std::endl;
             std::cout << get_command_help("Available commands:") << std::endl;
         }
         else
         {
-            std::cout << "command '" << color::fg_yellow << *it << color::reset << "' must be first argument" << std::endl;
+            std::cout << "command '" << color::fg_yellow << *it << color::reset
+                      << "' must be first argument" << std::endl;
             std::cout << std::endl;
 
             std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;

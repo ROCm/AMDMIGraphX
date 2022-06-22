@@ -26,6 +26,18 @@ import subprocess
 import sys
 
 debug = False
+# The filetypes we want to check for that are stamped
+# LICENSE is included here as it SHOULD have a liscence in it otherwise flag it as unstamped
+supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
+                        ".bsh", "LICENSE", ".cmake")
+
+#add general stuff we shouldn't stamp and any exceptions here
+unsupported_file_types = [
+    ".onnx", ".pb", ".rst", ".jpg", ".jpeg", ".proto", ".md", ".clang",
+    ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
+]
+
+specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
 
 
 def hasKeySequence(inputfile, key_message):
@@ -83,20 +95,6 @@ def check_filename(filename, fileTuple):
 
 
 def main():
-    # The filetypes we want to check for that are stamped
-    # LICENSE is included here as it SHOULD have a liscence in it otherwise flag it as unstamped
-    supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt",
-                            ".sh", ".bsh", "LICENSE", ".cmake")
-
-    #add general stuff we shouldn't stamp and any exceptions here
-    unsupported_file_types = [
-        ".onnx", ".pb", ".rst", ".jpg", ".jpeg", ".proto", ".md", ".clang",
-        ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
-    ]
-
-    #Specifics to ignore
-    specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
-
     unsupported_file_types.extend(specificIgnores)
 
     #Get a list of all the tracked files in our git repo

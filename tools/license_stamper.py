@@ -32,13 +32,9 @@ debug = False
 def getipynb_markdownBlockAsList():
     markdownBlock = [
         '\t{\n'
-        '\t\t"cell_type": "code",\n',
-        '\t\t"execution_count": null,\n',
-        '\t\t"metadata": {},\n',
-        '\t\t"outputs": [],\n',
-        '\t\t"source": [\n',
-        '\t\t\t\"#  The MIT License (MIT)\\n\",\n',
-        '\t\t\t\"#\\n\",\n',
+        '\t\t"cell_type": "code",\n', '\t\t"execution_count": null,\n',
+        '\t\t"metadata": {},\n', '\t\t"outputs": [],\n', '\t\t"source": [\n',
+        '\t\t\t\"#  The MIT License (MIT)\\n\",\n', '\t\t\t\"#\\n\",\n',
         '\t\t\t\"#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
         '\t\t\t\"#\\n\",\n',
         '\t\t\t\"#  Permission is hereby granted, free of charge, to any person obtaining a copy\\n\",\n',
@@ -57,9 +53,7 @@ def getipynb_markdownBlockAsList():
         '\t\t\t\"#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\\n\",\n',
         '\t\t\t\"#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\\n\",\n',
         '\t\t\t\"#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\\n\",\n',
-        '\t\t\t\"#  THE SOFTWARE.\\n\"\n',
-        '\t\t]\n',
-        '\t},'
+        '\t\t\t\"#  THE SOFTWARE.\\n\"\n', '\t\t]\n', '\t},'
     ]
     return markdownBlock
 

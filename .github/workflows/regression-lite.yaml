@@ -75,11 +75,11 @@ jobs:
           --workdir ${{ env.DOCKER_WORKDIR }}
           rocm-migraphx:$(date +%Y%m%d) /bin/bash run_perf_mev.sh
       
-#      - name: Delete old images/containers
-#        if: ${{ github.event_name == 'schedule' }}
-#        run: |
-#          docker container prune -f
-#          docker rmi -f $(docker images --filter=reference="rocm-migraphx:20*" | grep -v $(date +%Y%m%d) | awk 'NR>1 {print $3}')
+      - name: Delete old images/containers
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          docker container prune -f
+          docker rmi -f $(docker images --filter=reference="rocm-migraphx:20*" | grep -v $(date +%Y%m%d) | awk 'NR>1 {print $3}')
       
       - name: Execute report script
         if: ${{ github.event_name == 'schedule' }}

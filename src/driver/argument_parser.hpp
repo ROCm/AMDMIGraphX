@@ -257,11 +257,11 @@ struct argument_parser
         });
     }
 
-    template<class F>
+    template <class F>
     argument* find_argument(F f)
     {
         auto it = std::find_if(arguments.begin(), arguments.end(), f);
-        if (it == arguments.end())
+        if(it == arguments.end())
             return nullptr;
         return std::addressof(*it);
     }
@@ -269,14 +269,15 @@ struct argument_parser
     MIGRAPHX_DRIVER_STATIC auto show_help(const std::string& msg = "")
     {
         return do_action([=](auto& self) {
-            argument* input_argument = self.find_argument([](const auto& arg) { return arg.flags.empty(); });
+            argument* input_argument =
+                self.find_argument([](const auto& arg) { return arg.flags.empty(); });
             std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
             std::cout << "    " << self.exe_name << " <options> ";
-            if (input_argument)
+            if(input_argument)
                 std::cout << input_argument->metavar;
             std::cout << std::endl;
             std::cout << std::endl;
-            if (self.find_argument([](const auto& arg) { return arg.nargs == 0; }))
+            if(self.find_argument([](const auto& arg) { return arg.nargs == 0; }))
             {
                 std::cout << color::fg_yellow << "FLAGS:" << color::reset << std::endl;
                 std::cout << std::endl;
@@ -310,7 +311,7 @@ struct argument_parser
                 }
                 std::cout << std::endl;
             }
-            if (self.find_argument([](const auto& arg) { return arg.nargs != 0; }))
+            if(self.find_argument([](const auto& arg) { return arg.nargs != 0; }))
             {
                 std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
                 for(auto&& arg : self.arguments)
@@ -376,7 +377,8 @@ struct argument_parser
         };
     }
 
-    bool run_action(const argument& arg, const std::string& flag, const std::vector<std::string>& inputs)
+    bool
+    run_action(const argument& arg, const std::string& flag, const std::vector<std::string>& inputs)
     {
         std::string msg = "";
         try
@@ -406,10 +408,11 @@ struct argument_parser
         std::cout << "    " << exe_name << " ";
         show_usage();
         std::cout << std::endl;
-        if (find_argument([](const auto& a) { return contains(a.flags, "--help"); }))
+        if(find_argument([](const auto& a) { return contains(a.flags, "--help"); }))
         {
             std::cout << std::endl;
-            std::cout << "For more information try '" << color::fg_green << "--help" << color::reset << "'" << std::endl;
+            std::cout << "For more information try '" << color::fg_green << "--help" << color::reset
+                      << "'" << std::endl;
         }
         return true;
     }
@@ -441,15 +444,9 @@ struct argument_parser
         return false;
     }
 
-    void set_exe_name(const std::string& s)
-    {
-        exe_name = s;
-    }
+    void set_exe_name(const std::string& s) { exe_name = s; }
 
-    const std::string& get_exe_name() const
-    {
-        return exe_name;
-    }
+    const std::string& get_exe_name() const { return exe_name; }
 
     using string_map = std::unordered_map<std::string, std::vector<std::string>>;
     template <class IsKeyword>

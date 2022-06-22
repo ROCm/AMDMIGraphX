@@ -552,24 +552,25 @@ struct onnx : command<onnx>
 
 struct main_command
 {
-    static std::string get_command_help(const std::string& title = colorize(color::fg_yellow, "COMMANDS:"))
+    static std::string get_command_help(const std::string& title = colorize(color::fg_yellow,
+                                                                            "COMMANDS:"))
     {
         std::string result = title + "\n";
         std::vector<std::string> commands(get_commands().size());
-        std::transform(get_commands().begin(), get_commands().end(), commands.begin(), [](const auto& p) {
-            return colorize(color::fg_green, p.first);
-        });
+        std::transform(get_commands().begin(),
+                       get_commands().end(),
+                       commands.begin(),
+                       [](const auto& p) { return colorize(color::fg_green, p.first); });
         std::sort(commands.begin(), commands.end());
-        return std::accumulate(commands.begin(),
-                               commands.end(),
-                               result,
-                               [](auto r, auto&& s) { return r + "    " + s + "\n"; });
+        return std::accumulate(commands.begin(), commands.end(), result, [](auto r, auto&& s) {
+            return r + "    " + s + "\n";
+        });
     }
     void parse(argument_parser& ap)
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
                                   "." + std::to_string(MIGRAPHX_VERSION_MINOR);
-        ap(unused, {}, ap.metavar("<command>"), ap.set_value(true));                                  
+        ap(unused, {}, ap.metavar("<command>"), ap.set_value(true));
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
@@ -583,9 +584,9 @@ struct main_command
     bool unused = false;
 
     void run()
-    { 
+    {
         std::cout << color::fg_red << color::bold << "error: " << color::reset;
-        std::cout << get_command_help("missing command:") << std::endl; 
+        std::cout << get_command_help("missing command:") << std::endl;
     }
 };
 

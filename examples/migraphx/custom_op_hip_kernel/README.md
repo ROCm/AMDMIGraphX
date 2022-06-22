@@ -1,5 +1,5 @@
 # Custom Kernel using MIGraphX API. 
- This is a simple example that shows how to write custom implementation for any operator using MIGraphX's C/C++ APIs. 
+ This is a simple example of a custom operator implementation using MIGraphX's C/C++ APIs. 
  Kernels can be written in either HIP, MIOpen, or by using RocBLAS library. 
 
  To build the example, ensure ROCm is installed at `/opt/rocm`. 

@@ -86,13 +86,12 @@ def main():
     # The filetypes we want to check for that are stamped
     # LICENSE is included here as it SHOULD have a liscence in it otherwise flag it as unstamped
     supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt",
-                            ".sh", ".bsh", "LICENSE")
+                            ".sh", ".bsh", "LICENSE", ".cmake")
 
     #add general stuff we shouldn't stamp and any exceptions here
     unsupported_file_types = [
         ".onnx", ".pb", ".rst", ".jpg", ".jpeg", ".proto", ".md", ".clang",
-        ".cmake", ".weight", ".ini", ".json", ".docker", ".git", ".rules",
-        ".yml"
+        ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
     ]
 
     #Specifics to ignore

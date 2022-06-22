@@ -210,7 +210,8 @@ def getDelimiter(filename):
         ".py": "#",
         ".txt": "#",
         ".bsh": "#",
-        ".sh": "#"
+        ".sh": "#",
+        ".cmake": "#"
     }
     listOfKeys = delimiterDict.keys()
     delimiter = None

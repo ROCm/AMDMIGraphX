@@ -27,11 +27,11 @@ import sys
 
 debug = False
 
+
 def hasKeySequence(inputfile, key_message):
     result = False
     if key_message in inputfile:
         result = True
-
     return result
 
 
@@ -75,13 +75,12 @@ def openAndCheckFile(filename):
 # Deterine if filename is desired in the fileTuple past in
 def check_filename(filename, fileTuple):
     supported = False
-
     for key in fileTuple:
         if key in filename:
             supported = True
             break
-
     return supported
+
 
 def main():
     # The filetypes we want to check for that are stamped

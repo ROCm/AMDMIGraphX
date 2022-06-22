@@ -37,6 +37,8 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/support_metric.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,6 +63,13 @@ struct target
      * @return The context to be used during compilation and execution.
      */
     context get_context() const;
+    /**
+     * @brief Check how well an instruction is supported on a target with the given metric
+     * @param ins Instruction to check if it's supported
+     * @param metric Used to define how the return value should be interpreted
+     * @return The value based on the chosen metric. Negative numbers mean unsupported
+     */
+    float is_supported(T&, instruction_ref ins, support_metric m) const;
     /**
      * @brief copy an argument to the current target.
      *
@@ -105,11 +114,18 @@ argument copy_from_target(T&, const argument& arg)
     return arg;
 }
 
+template <class T>
+float target_is_supported(T&, instruction_ref, support_metric)
+{
+    return 0;
+}
+
 <%
 interface('target',
      virtual('name', returns='std::string', const=True),
      virtual('get_passes', ctx='context&', options='const compile_options&', returns='std::vector<pass>', const=True),
      virtual('get_context', returns='context', const=True),
+     virtual('is_supported', returns='float', ins='instruction_ref', m='support_metric', const=True, default='target_is_supported'),
      virtual('copy_to',
              returns = 'argument',
              input   = 'const argument&',

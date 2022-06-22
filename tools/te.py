@@ -23,7 +23,7 @@
 #####################################################################################
 import string, sys, re
 
-trivial = ['std::size_t', 'instruction_ref']
+trivial = ['std::size_t', 'instruction_ref', 'support_metric']
 
 headers = '''
 #include <algorithm>

@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>

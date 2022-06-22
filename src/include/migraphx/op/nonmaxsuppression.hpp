@@ -70,8 +70,7 @@ struct nonmaxsuppression
     };
 
     template <class T>
-    box
-    batch_box(const migraphx::tensor_view<T>& boxes, std::size_t box_ind, std::size_t box_idx) const
+    box batch_box(const T& boxes, std::size_t box_ind, std::size_t box_idx) const
     {
         box result{};
         auto start = box_ind + 4 * box_idx;
@@ -128,6 +127,29 @@ struct nonmaxsuppression
         return intersection_over_union > iou_threshold;
     }
 
+    // filter boxes below score_threshold
+    template <class T>
+    void filter_boxes_by_score(
+        T scores,
+        std::size_t score_offset_ind,
+        std::size_t num_boxes,
+        const float score_threshold,
+        std::priority_queue<std::pair<float, int64_t>>& boxes_heap) const
+    {
+        auto insert_to_boxes_heap =
+            make_function_output_iterator([&boxes_heap](const auto& x) { boxes_heap.push(x); });
+        int64_t box_idx = 0;
+        transform_if(
+                scores.begin() + score_offset_ind,
+                scores.begin() + score_offset_ind + num_boxes,
+                insert_to_boxes_heap,
+                [&](auto sc) {
+                box_idx++;
+                return sc >= score_threshold;
+                },
+                [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
+    }
+    
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
@@ -163,39 +185,24 @@ struct nonmaxsuppression
                     // index to first value of this batch
                     std::size_t batch_boxes_ind = batch_idx * num_boxes * 4;
                     std::priority_queue<std::pair<float, int64_t>> boxes_heap;
-                    auto insert_to_boxes_heap =
-                        make_function_output_iterator([&](const auto& x) { boxes_heap.push(x); });
-                    int64_t box_idx = 0;
-
-                    // filter boxes below score_threshold
-                    transform_if(
-                        scores.begin() + score_offset_ind,
-                        scores.begin() + score_offset_ind + num_boxes,
-                        insert_to_boxes_heap,
-                        [&](auto sc) {
-                            box_idx++;
-                            return sc >= score_threshold;
-                        },
-                        [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
-
+                    filter_boxes_by_score(scores, score_offset_ind, num_boxes, score_threshold, boxes_heap);
                     selected_boxes_inside_class.clear();
                     // Get the next box with top score, filter by iou_threshold
                     while(!boxes_heap.empty() &&
                           selected_boxes_inside_class.size() < max_output_boxes_per_class)
                     {
-                        const std::pair<float, int64_t>& next_top_score = boxes_heap.top();
-
                         // Check with existing selected boxes for this class, remove box if it
                         // exceeds the IOU (Intersection Over Union) threshold
+                        const auto next_top_score = boxes_heap.top();
                         bool not_selected = std::any_of(
-                            selected_boxes_inside_class.begin(),
-                            selected_boxes_inside_class.end(),
-                            [&](auto selected_index) {
+                                selected_boxes_inside_class.begin(),
+                                selected_boxes_inside_class.end(),
+                                [&](auto selected_index) {
                                 return this->suppress_by_iou(
-                                    batch_box(boxes, batch_boxes_ind, next_top_score.second),
-                                    batch_box(boxes, batch_boxes_ind, selected_index.second),
-                                    iou_threshold);
-                            });
+                                        batch_box(boxes, batch_boxes_ind, next_top_score.second),
+                                        batch_box(boxes, batch_boxes_ind, selected_index.second),
+                                        iou_threshold);
+                                });
 
                         if(not not_selected)
                         {

@@ -50,12 +50,13 @@ TEST_CASE(run_sigmoid_custom_op)
     auto param_shapes            = p.get_parameter_shapes();
     migraphx::argument input_arg = migraphx::argument::generate(param_shapes["x"]);
     pp.add("x", input_arg);
-    auto results   = p.eval(pp);
-    auto result    = results[0];
+    auto results         = p.eval(pp);
+    auto result          = results[0];
     auto expected_result = input_arg.as_vector<float>();
-    std::transform(expected_result.begin(), expected_result.end(), expected_result.begin(), [](auto y) {
-        return 1.f / (1.f + std::exp(-y));
-    });
+    std::transform(expected_result.begin(),
+                   expected_result.end(),
+                   expected_result.begin(),
+                   [](auto y) { return 1.f / (1.f + std::exp(-y)); });
     EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
 }
 

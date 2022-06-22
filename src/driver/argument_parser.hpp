@@ -265,6 +265,11 @@ struct argument_parser
             return nullptr;
         return std::addressof(*it);
     }
+    template <class F>
+    bool has_argument(F f)
+    {
+        return find_argument(f) != nullptr;
+    }
 
     MIGRAPHX_DRIVER_STATIC auto show_help(const std::string& msg = "")
     {
@@ -414,7 +419,7 @@ struct argument_parser
         std::cout << "    " << exe_name << " ";
         show_usage();
         std::cout << std::endl;
-        if(find_argument([](const auto& a) { return contains(a.flags, "--help"); }))
+        if(has_argument([](const auto& a) { return contains(a.flags, "--help"); }))
         {
             std::cout << std::endl;
             std::cout << "For more information try '" << color::fg_green << "--help" << color::reset

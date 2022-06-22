@@ -1,0 +1,78 @@
+on:
+  workflow_dispatch:
+    inputs:
+      script_repo:
+        description: Script repository (rocm-migraphx)
+        default: "migraphx-benchmark/rocm-migraphx"
+        required: true
+      result_path:
+        description: Result Path
+        required: true
+        default: /home/htec/jz/test-results
+      result_repo:
+        description: Result repository
+        required: true
+        default: "migraphx-benchmark/migraphx-results"
+    
+name: MiGraphX Benchmark
+
+env:
+  SCRIPT_PATH: rocm-migraphx
+
+jobs:
+  check_image_version:
+    name: Check Image Version
+    runs-on: self-hosted
+    outputs:
+      image: ${{ steps.check_image.outputs.image }}
+    steps:
+      - name: Check new image
+        id: check_image
+        run: |
+          if [ -z "$(docker images -q migraphx-ort:`date +%Y%m%d`)" ]; then
+            echo "::set-output name=image::true"
+          fi
+  build_image:
+    name: Build New Image
+    runs-on: self-hosted
+    needs: check_image_version
+    if: ${{ needs.check_image_version.outputs.image == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+        with:
+          submodules: recursive
+          token: ${{ secrets.GH_SUB_TOKEN }}
+      - name: Clone scripts repo
+        run: |
+          rm -rf $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.script_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
+      - name: Docker build
+        run: |
+          cd $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/dockerfiles
+          docker build -t "migraphx-ort:$(date +%Y%m%d)" --no-cache -f dockerfile_migraphx_benchmark .
+  run_benchmark:
+    name: Run benchmark
+    runs-on: self-hosted
+    if: ${{ always() }}
+    needs: build_image
+    steps:
+      - name: Clone scripts repo
+        run: |
+          rm -rf $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.script_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
+      - name: Execute benchmark script
+        run: >
+          docker run -e TZ=America/Chicago
+          -e TARGET=gpu
+          -e TEST_RESULTDIR=/test-results
+          --device=/dev/dri
+          --device=/dev/kfd
+          --network=host
+          --group-add=video 
+          -v ${{ github.event.inputs.result_path }}:/test-results
+          --workdir $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/
+          migraphx-ort:$(date +%Y%m%d) /bin/bash ort_benchmark4.sh
+      - name: Execute report script
+        run: |
+          python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report.py -i ${{ github.event.inputs.result_path }}/onnxruntime-`date '+%Y-%m-%d-%H-%M'` -o summary.csv

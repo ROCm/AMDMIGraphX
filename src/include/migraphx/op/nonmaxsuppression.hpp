@@ -129,12 +129,13 @@ struct nonmaxsuppression
 
     // filter boxes below score_threshold
     template <class T>
-    void filter_boxes_by_score(T scores,
+    std::priority_queue<std::pair<float, int64_t>> filter_boxes_by_score(T scores,
                                std::size_t score_offset_ind,
                                std::size_t num_boxes,
-                               const float score_threshold,
-                               std::priority_queue<std::pair<float, int64_t>>& boxes_heap) const
+                               float score_threshold
+                               ) const
     {
+        std::priority_queue<std::pair<float, int64_t>> boxes_heap;
         auto insert_to_boxes_heap =
             make_function_output_iterator([&boxes_heap](const auto& x) { boxes_heap.push(x); });
         int64_t box_idx = 0;
@@ -147,6 +148,7 @@ struct nonmaxsuppression
                 return sc >= score_threshold;
             },
             [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
+        return boxes_heap;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -183,9 +185,8 @@ struct nonmaxsuppression
                         (batch_idx * num_classes + class_idx) * num_boxes;
                     // index to first value of this batch
                     std::size_t batch_boxes_ind = batch_idx * num_boxes * 4;
-                    std::priority_queue<std::pair<float, int64_t>> boxes_heap;
-                    filter_boxes_by_score(
-                        scores, score_offset_ind, num_boxes, score_threshold, boxes_heap);
+                    auto boxes_heap = filter_boxes_by_score(
+                        scores, score_offset_ind, num_boxes, score_threshold);
                     selected_boxes_inside_class.clear();
                     // Get the next box with top score, filter by iou_threshold
                     while(!boxes_heap.empty() &&

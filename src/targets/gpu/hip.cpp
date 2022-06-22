@@ -22,13 +22,13 @@
  * THE SOFTWARE.
  */
 
-#include <memory>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <miopen/miopen.h>
+#include <memory>
 #include <mutex>
 #include <vector>
 

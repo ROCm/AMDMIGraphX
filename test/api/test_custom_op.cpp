@@ -52,11 +52,11 @@ TEST_CASE(run_sigmoid_custom_op)
     pp.add("x", input_arg);
     auto results   = p.eval(pp);
     auto result    = results[0];
-    auto input_vec = input_arg.as_vector<float>();
-    std::transform(input_vec.begin(), input_vec.end(), input_vec.begin(), [](auto y) {
+    auto expected_result = input_arg.as_vector<float>();
+    std::transform(expected_result.begin(), expected_result.end(), expected_result.begin(), [](auto y) {
         return 1.f / (1.f + std::exp(-y));
     });
-    EXPECT(bool{result == migraphx::argument(s, input_vec.data())});
+    EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

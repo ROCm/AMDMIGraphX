@@ -606,7 +606,7 @@ code_object_op compile_mlir(const context&, const module&) { return {}; }
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent
-insert_mlir(module& m, instruction_ref, code_object_op, const std::vector<instruction_ref>&)
+insert_mlir(module& m, instruction_ref, code_object_op, const std::vector<instruction_ref>&) // NOLINT
 {
     return m.end();
 }

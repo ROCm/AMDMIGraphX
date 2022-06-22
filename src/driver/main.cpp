@@ -571,10 +571,7 @@ struct main_command
            ap.show_help(version_str));
     }
 
-    void run() 
-    {
-        std::cout << get_command_help("Missing command:") << std::endl;
-    }
+    void run() { std::cout << get_command_help("Missing command:") << std::endl; }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

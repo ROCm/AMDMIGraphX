@@ -229,11 +229,11 @@ struct argument_parser
             std::cout << std::endl;
             for(auto&& arg : self.arguments)
             {
-                if (arg.nargs != 0)
+                if(arg.nargs != 0)
                     continue;
                 const int col_align = 35;
-                std::string prefix = "    ";
-                int len = 0;
+                std::string prefix  = "    ";
+                int len             = 0;
                 std::cout << color::fg_green;
                 for(const std::string& a : arg.flags)
                 {
@@ -244,13 +244,13 @@ struct argument_parser
                 }
                 std::cout << color::reset;
                 int spaces = col_align - len;
-                if (spaces < 0)
+                if(spaces < 0)
                 {
                     std::cout << std::endl;
                 }
                 else
                 {
-                    for(int i=0;i<spaces;i++)
+                    for(int i = 0; i < spaces; i++)
                         std::cout << " ";
                 }
                 std::cout << arg.help << std::endl;
@@ -259,7 +259,7 @@ struct argument_parser
             std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
             for(auto&& arg : self.arguments)
             {
-                if (arg.nargs == 0)
+                if(arg.nargs == 0)
                     continue;
                 std::cout << std::endl;
                 std::string prefix = "    ";

@@ -33,7 +33,9 @@ def getipynb_markdownBlockAsList():
     markdownBlock = [
         '\t{\n'
         '\t\t"cell_type": "code",\n',
+        '\t\t"excecution_count": null,\n',
         '\t\t"metadata": {},\n',
+        '\t\t"outputs": [],\n',
         '\t\t"source": [\n',
         '\t\t\t\"#  The MIT License (MIT)\",\n',
         '\t\t\t\"#\",\n',

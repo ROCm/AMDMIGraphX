@@ -144,7 +144,6 @@ struct value_parser
     }
 };
 
-
 struct argument_parser
 {
     struct argument

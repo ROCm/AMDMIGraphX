@@ -92,7 +92,7 @@ def main():
     #add general stuff we shouldn't stamp and any exceptions here
     unsupported_file_types = [
         ".onnx", ".pb", ".rst", ".jpg", ".jpeg", ".proto", ".md", ".clang",
-        ".cmake", ".weight", ".ini", "json", ".docker", ".git", ".rules",
+        ".cmake", ".weight", ".ini", ".json", ".docker", ".git", ".rules",
         ".yml"
     ]
 

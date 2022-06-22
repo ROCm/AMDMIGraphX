@@ -24,12 +24,12 @@ struct parse_convolution : op_parser<parse_convolution>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto op      = make_op(opd.op_name);
-        auto values  = op.to_value();
-        auto l0      = args[0];
-        auto weights = args[1];
-        auto  l0_shape = l0->get_shape();
-        auto in_lens = l0_shape.max_lens();
+        auto op       = make_op(opd.op_name);
+        auto values   = op.to_value();
+        auto l0       = args[0];
+        auto weights  = args[1];
+        auto l0_shape = l0->get_shape();
+        auto in_lens  = l0_shape.max_lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 

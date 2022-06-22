@@ -163,14 +163,14 @@ argument allocate_gpu(const shape& s, bool host)
 argument register_on_gpu(const argument& arg)
 {
     auto arg_shared = arg.share();
-    auto p          = share(register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes()));
+    auto p          = register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes());
     return {arg_shared.get_shape(),
             [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
 }
 
 argument to_gpu(const argument& arg, bool host)
 {
-    auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes(), host));
+    auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
     return {arg.get_shape(), p};
 }
 

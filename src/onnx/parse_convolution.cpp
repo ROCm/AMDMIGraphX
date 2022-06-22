@@ -28,11 +28,12 @@ struct parse_convolution : op_parser<parse_convolution>
         auto values  = op.to_value();
         auto l0      = args[0];
         auto weights = args[1];
-        auto in_lens = l0->get_shape().lens();
+        auto  l0_shape = l0->get_shape();
+        auto in_lens = l0_shape.max_lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 
-        // ensure pads availabe only when auto_pad is "NOT_SET"
+        // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, "CONV");
 
         if(contains(info.attributes, "strides"))
@@ -59,7 +60,7 @@ struct parse_convolution : op_parser<parse_convolution>
 
         if(contains(info.attributes, "auto_pad"))
         {
-            auto weight_lens = weights->get_shape().lens();
+            auto weight_lens = weights->get_shape().max_lens();
             std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
             cal_auto_padding_size(info,
                                   values,

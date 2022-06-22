@@ -827,6 +827,27 @@ def conv_bn_relu_maxpool_test():
 
     return ([node0, node1, node2, node3], [x, y, z, m, n, k, l], [out])
 
+@onnx_test
+def conv_dynamic_batch_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                        [None, 1, 3, 3])
+
+    node = onnx.helper.make_node('Conv', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, y], [out])
+
+
+@onnx_test
+def conv_dynamic_img_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, None, None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                        [1, 1, None, None])
+
+    node = onnx.helper.make_node('Conv', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, y], [out])
+
 
 @onnx_test
 def conv_relu_maxpool_test():

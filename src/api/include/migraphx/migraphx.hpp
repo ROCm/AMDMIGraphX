@@ -826,17 +826,22 @@ struct module
     std::shared_ptr<migraphx_module> mm;
 };
 
-struct context : MIGRAPHX_HANDLE_BASE(context)
+struct context : handle_lookup<context, migraphx_context>
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(context);
+    context(migraphx_context* p, borrow) : ctx(std::shared_ptr<migraphx_context*>(), p) {}
 
-    void finish() const { call(&migraphx_context_finish, this->get_handle_ptr()); }
+    template <class T>
+    context(migraphx_context* p, share<T> b) : ctx(b.alias(p))
+    {
+    }
+
+    void finish() const { call(&migraphx_context_finish, ctx.get()); }
 
     template <class T>
     T get_queue()
     {
         void* out;
-        call(&migraphx_context_get_queue, &out, this->get_handle_ptr());
+        call(&migraphx_context_get_queue, &out, ctx.get());
         // TODO: check type here
         return reinterpret_cast<T>(out);
     }

@@ -430,9 +430,8 @@ api.add_function('migraphx_quantize_int8',
                  fname='migraphx::quantize_int8_wrap')
 
 
-@auto_handle()
+@auto_handle(ref=True)
 def context(h):
-    h.constructor('create')
     h.method('finish', const=True)
     h.method('get_queue', returns='void*', fname='get_queue().unsafe_get')
 

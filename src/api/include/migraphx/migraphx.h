@@ -469,13 +469,6 @@ migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                        migraphx_target_t target,
                                        migraphx_quantize_int8_options_t options);
 
-migraphx_status migraphx_context_destroy(migraphx_context_t context);
-
-migraphx_status migraphx_context_assign_to(migraphx_context_t output,
-                                           const_migraphx_context_t input);
-
-migraphx_status migraphx_context_create(migraphx_context_t* context);
-
 migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 
 migraphx_status migraphx_context_get_queue(void** out, migraphx_context_t context);

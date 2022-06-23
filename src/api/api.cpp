@@ -1766,26 +1766,6 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_context_destroy(migraphx_context_t context)
-{
-    auto api_error_result = migraphx::try_([&] { destroy((context)); });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_context_assign_to(migraphx_context_t output,
-                                                      const_migraphx_context_t input)
-{
-    auto api_error_result = migraphx::try_([&] { *output = *input; });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_context_create(migraphx_context_t* context)
-{
-    auto api_error_result = migraphx::try_(
-        [&] { *context = object_cast<migraphx_context_t>(allocate<migraphx::context>()); });
-    return api_error_result;
-}
-
 extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t context)
 {
     auto api_error_result = migraphx::try_([&] {

@@ -64,6 +64,7 @@ jobs:
           git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.script_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
       - name: Execute benchmark script
         run: >
+          export RESULT_DATE=$(date '+%Y-%m-%d-%H-%M')
           docker run -e TZ=America/Chicago
           -e TARGET=gpu
           -e TEST_RESULTDIR=/test-results
@@ -82,8 +83,8 @@ jobs:
       - name: Execute report script
         run: |
           python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report.py \
-          -i ${{ github.event.inputs.result_path }}/onnxruntime-`date '+%Y-%m-%d-%H-%M'`/ \
-          -o $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/migraphx-result-$(date '+%Y-%m-%d-%H-%M').csv
+          -i ${{ github.event.inputs.result_path }}/onnxruntime-$RESULT_DATE/ \
+          -o $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/migraphx-result-$RESULT_DATE.csv
       - name: Push report
         run: |
           cd $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/

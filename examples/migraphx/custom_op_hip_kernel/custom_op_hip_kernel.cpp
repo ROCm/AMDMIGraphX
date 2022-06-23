@@ -107,9 +107,12 @@ int main(int argc, const char* argv[])
                    expected_result.end(),
                    expected_result.begin(),
                    [](auto i) { return std::pow(i, 2); });
-    if(bool{result == migraphx::argument(s, expected_result.data())}) {
+    if(bool{result == migraphx::argument(s, expected_result.data())})
+    {
         std::cout << "Successfully executed custom HIP kernel example\n";
-    } else {
+    }
+    else
+    {
         std::cout << "Custom HIP kernel example failed\n";
     }
     return 0;

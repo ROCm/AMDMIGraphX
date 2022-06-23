@@ -38,19 +38,17 @@ migraphx::shape make_shape(std::vector<std::size_t> lens, std::vector<std::size_
 
 bool verify_shape(const migraphx::shape& s1, const migraphx::shape& s2)
 {
-    if (s1.elements() != s2.elements())
+    if(s1.elements() != s2.elements())
         return false;
-    return migraphx::all_of(migraphx::range(s1.elements()), [&](auto i) {
-        return s1.index(i) == s2.index(i);
-    });
+    return migraphx::all_of(migraphx::range(s1.elements()),
+                            [&](auto i) { return s1.index(i) == s2.index(i); });
 }
 
-template<class Range1, class Range2>
+template <class Range1, class Range2>
 bool verify_shapes(const Range1& r1, const Range2& r2)
 {
-    return migraphx::equal(r1, r2, [](const auto& s1, const auto& s2) {
-        return verify_shape(s1, s2);
-    });
+    return migraphx::equal(
+        r1, r2, [](const auto& s1, const auto& s2) { return verify_shape(s1, s2); });
 }
 
 TEST_CASE(same_standard)

@@ -734,6 +734,33 @@ TEST_CASE(simplify_div_const)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_unit_mult_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(1);
+        m1.add_instruction(migraphx::make_op("mul"), x, unit);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    migraphx::module m3;
+    {
+        auto unit = m3.add_literal(1);
+        auto x    = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m3.add_instruction(migraphx::make_op("mul"), unit, x);
+    }
+    run_pass(m3);
+
+    EXPECT((m1 == m3) && (m1 == m2));
+}
+
 TEST_CASE(simplify_sub_const)
 {
     migraphx::module m1;
@@ -1782,6 +1809,7 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
     }
     EXPECT(m1.sort() == m2.sort());
 }
+
 TEST_CASE(reorder_reshape_slice)
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};

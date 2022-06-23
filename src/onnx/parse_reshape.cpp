@@ -53,8 +53,21 @@ struct parse_reshape : op_parser<parse_reshape>
             s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
         }
 
-        return info.add_instruction(make_op("reshape", {{"dims", dims}}),
-                                    info.make_contiguous(args[0]));
+        std::vector<size_t> orig_dims = args[0]->get_shape().lens();
+
+        auto dims_acc = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<int64_t>());
+        auto orig_dims_acc = std::accumulate(orig_dims.begin(), orig_dims.end(), 1, std::multiplies<int64_t>());
+
+        if (std::abs(dims_acc) == orig_dims_acc)
+            return info.add_instruction(make_op("reshape", {{"dims", dims}}),
+                                        info.make_contiguous(args[0]));
+        if(parser.default_dim_value * std::abs(dims_acc) == orig_dims_acc)
+        {
+            dims[0] *= parser.default_dim_value;
+            return info.add_instruction(make_op("reshape", {{"dims", dims}}),
+                                        info.make_contiguous(args[0]));
+        }
+        MIGRAPHX_THROW("Reshape: incorrect number of elements: " + std::to_string(dims_acc) + " versus " + std::to_string(orig_dims_acc));
     }
 };
 

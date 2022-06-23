@@ -62,9 +62,9 @@ jobs:
         run: |
           rm -rf $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/
           git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.script_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
+          export RESULT_DATE=$(date '+%Y-%m-%d-%H-%M')
       - name: Execute benchmark script
         run: >
-          export RESULT_DATE=$(date '+%Y-%m-%d-%H-%M')
           docker run -e TZ=America/Chicago
           -e TARGET=gpu
           -e TEST_RESULTDIR=/test-results

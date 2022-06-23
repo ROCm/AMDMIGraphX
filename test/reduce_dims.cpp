@@ -155,7 +155,7 @@ TEST_CASE(single_dim)
     EXPECT(ishapes == rshapes);
 }
 
-TEST_CASE(step_broadcast_transpos)
+TEST_CASE(step_broadcast_transpose)
 {
     std::vector<migraphx::shape> ishapes = {make_shape({1, 2, 2, 1}, {0, 0, 3, 6}),
                                             make_shape({1, 2, 2, 1}, {4, 2, 1, 1})};

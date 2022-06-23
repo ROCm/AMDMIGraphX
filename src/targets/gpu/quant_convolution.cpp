@@ -68,8 +68,8 @@ argument miopen_quant_convolution::compute(context& ctx,
 }
 
 shape miopen_quant_convolution::find(context& ctx,
-                                        const shape& output_shape,
-                                        std::vector<shape> inputs)
+                                     const shape& output_shape,
+                                     std::vector<shape> inputs)
 {
     shape workspace_shape{};
     auto x_desc = make_tensor(inputs[0], int8_x4_format);
@@ -92,10 +92,10 @@ shape miopen_quant_convolution::find(context& ctx,
         x_shape = pack_int8_shape(x_shape);
         w_shape = pack_int8_shape(w_shape);
     }
-    auto x = to_gpu(generate_argument(x_shape));
-    auto w = to_gpu(generate_argument(w_shape));
-    auto y          = allocate_gpu(output_shape);
-    auto workspace  = allocate_gpu(workspace_shape);
+    auto x         = to_gpu(generate_argument(x_shape));
+    auto w         = to_gpu(generate_argument(w_shape));
+    auto y         = allocate_gpu(output_shape);
+    auto workspace = allocate_gpu(workspace_shape);
 
     int algo_count = 1;
     miopenConvAlgoPerf_t perf;

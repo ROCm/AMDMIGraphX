@@ -44,7 +44,8 @@ struct miopen_deconvolution
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack_join(op::deconvolution::reflect(self.op, f), pack(f(self.solution_id, "solution_id")));
+        return pack_join(op::deconvolution::reflect(self.op, f),
+                         pack(f(self.solution_id, "solution_id")));
     }
 
     std::string name() const { return "gpu::deconv"; }

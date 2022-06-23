@@ -133,6 +133,7 @@ jobs:
               -o -iname '*.hpp.in' \
               -o -iname '*.cpp.in' \
               -o -iname '*.cl' \
+              -o -iname '*.c' \
           | grep -v 'build/' \
           | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
           find . -iname '*.py' \

@@ -103,9 +103,12 @@ int main(int argc, const char* argv[])
     auto results                       = p.eval(pp);
     auto result                        = results[0];
     std::vector<float> expected_result = x_data;
-    if(bool{result == migraphx::argument(x_shape, expected_result.data())}) {
+    if(bool{result == migraphx::argument(x_shape, expected_result.data())})
+    {
         std::cout << "Successfully executed custom rocBLAS kernel example\n";
-    } else {
+    }
+    else
+    {
         std::cout << "Custom rocBLAS kernel example failed\n";
     }
     return 0;

@@ -82,7 +82,7 @@ struct module_impl
         instruction_set.clear();
         nparams = 0;
     }
-
+    
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
 
     void push_back(const instruction& ins) { insert(instructions.end(), ins); }
@@ -385,8 +385,7 @@ std::vector<instruction_ref> module::insert_module_instructions(
 
 instruction_ref module::add_literal(literal l)
 {
-    impl->emplace_front(std::move(l));
-    return impl->instructions.begin();
+    return insert_literal(begin(), std::move(l));
 }
 
 instruction_ref module::add_outline(const shape& s)
@@ -397,10 +396,7 @@ instruction_ref module::add_outline(const shape& s)
 
 instruction_ref module::add_parameter(std::string name, shape s)
 {
-    assert(get_parameter_shape(name) == shape{});
-    impl->push_front({builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
-    impl->nparams++;
-    return impl->instructions.begin();
+    return insert_parameter(begin(), std::move(name), std::move(s));
 }
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
@@ -411,6 +407,20 @@ instruction_ref module::add_return(std::vector<instruction_ref> args)
     assert(result->valid(begin()));
 
     return result;
+}
+
+instruction_ref module::insert_literal(instruction_ref ins, literal l)
+{
+    impl->emplace(ins, std::move(l));
+    return std::prev(ins);
+}
+
+instruction_ref module::insert_parameter(instruction_ref ins, std::string name, shape s)
+{
+    assert(get_parameter_shape(name) == shape{});
+    impl->insert(ins, {builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
+    impl->nparams++;
+    return std::prev(ins);
 }
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)

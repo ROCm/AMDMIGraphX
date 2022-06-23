@@ -504,12 +504,12 @@ static void mod_from_val(module_ref mod,
 
         if(name == "@param")
         {
-            output = mod->add_parameter(fields["parameter"].to<std::string>(),
+            output = mod->insert_parameter(mod->end(), fields["parameter"].to<std::string>(),
                                         migraphx::from_value<shape>(node.at("shape")));
         }
         else if(name == "@literal")
         {
-            output = mod->add_literal(migraphx::from_value<literal>(node.at("literal")));
+            output = mod->insert_literal(mod->end(), migraphx::from_value<literal>(node.at("literal")));
         }
         else
         {
@@ -544,11 +544,11 @@ static void mod_from_val(module_ref mod,
             }
             else if(module_inputs.empty())
             {
-                output = mod->add_instruction(op, inputs);
+                output = mod->insert_instruction(mod->end(), op, inputs);
             }
             else
             {
-                output = mod->add_instruction(op, inputs, module_inputs);
+                output = mod->insert_instruction(mod->end(), op, inputs, module_inputs);
             }
         }
         output->set_normalized(normalized);

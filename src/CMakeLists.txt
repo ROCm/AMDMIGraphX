@@ -32,6 +32,7 @@ add_library(migraphx
     analyze_streams.cpp
     apply_alpha_beta.cpp
     argument.cpp
+    assignment.cpp
     auto_contiguous.cpp
     common.cpp
     compile_src.cpp

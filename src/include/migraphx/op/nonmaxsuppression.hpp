@@ -39,7 +39,15 @@ struct nonmaxsuppression
         // check input shape
         if(lens[1] != inputs.at(1).lens()[2])
         {
-            MIGRAPHX_THROW("NonMaxSuppression: dimension mismatch between first and second input!");
+            MIGRAPHX_THROW(
+                "NonMaxSuppression: spatial dimension mismatch between boxes and scores input");
+        }
+
+        // check batch sizes
+        if(lens[0] != inputs.at(1).lens()[0])
+        {
+            MIGRAPHX_THROW(
+                "NonMaxSuppression: number of batches mismatch between boxes and scores input");
         }
 
         std::vector<int64_t> out_lens(2);
@@ -134,7 +142,7 @@ struct nonmaxsuppression
     {
         std::priority_queue<std::pair<float, int64_t>> boxes_heap;
         auto insert_to_boxes_heap =
-            make_function_output_iterator([&boxes_heap](const auto& x) { boxes_heap.push(x); });
+            make_function_output_iterator([&](const auto& x) { boxes_heap.push(x); });
         int64_t box_idx = 0;
         transform_if(
             scores.begin() + score_offset_ind,
@@ -167,7 +175,7 @@ struct nonmaxsuppression
                 const auto& lens       = scores.get_shape().lens();
                 const auto num_batches = lens[0];
                 const auto num_classes = lens[1];
-                const auto num_boxes   = boxes.get_shape().lens()[1];
+                const auto num_boxes   = lens[2];
                 // boxes of a class with NMS applied [score, index]
                 std::vector<std::pair<float, int64_t>> selected_boxes_inside_class;
                 std::vector<int64_t> selected_indices;

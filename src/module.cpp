@@ -82,7 +82,7 @@ struct module_impl
         instruction_set.clear();
         nparams = 0;
     }
-    
+
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
 
     void push_back(const instruction& ins) { insert(instructions.end(), ins); }
@@ -383,10 +383,7 @@ std::vector<instruction_ref> module::insert_module_instructions(
     return mod_outputs;
 }
 
-instruction_ref module::add_literal(literal l)
-{
-    return insert_literal(begin(), std::move(l));
-}
+instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
 
 instruction_ref module::add_outline(const shape& s)
 {

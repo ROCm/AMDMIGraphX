@@ -92,7 +92,7 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
             throw std::runtime_error("Compiling program with " + name + " alters its shape");
         }
     }
-    if (t.name() != "ref")
+    if(t.name() != "ref")
         verify_load_save(p);
 }
 

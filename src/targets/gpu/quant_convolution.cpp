@@ -67,7 +67,7 @@ argument miopen_quant_convolution::compute(context& ctx,
     return args[3];
 }
 
-shape miopen_quant_convolution::compile(context& ctx,
+shape miopen_quant_convolution::find(context& ctx,
                                         const shape& output_shape,
                                         std::vector<shape> inputs)
 {
@@ -92,8 +92,8 @@ shape miopen_quant_convolution::compile(context& ctx,
         x_shape = pack_int8_shape(x_shape);
         w_shape = pack_int8_shape(w_shape);
     }
-    auto arg_vec4_x = to_gpu(generate_argument(x_shape));
-    auto arg_vec4_w = to_gpu(generate_argument(w_shape));
+    auto x = to_gpu(generate_argument(x_shape));
+    auto w = to_gpu(generate_argument(w_shape));
     auto y          = allocate_gpu(output_shape);
     auto workspace  = allocate_gpu(workspace_shape);
 
@@ -101,9 +101,9 @@ shape miopen_quant_convolution::compile(context& ctx,
     miopenConvAlgoPerf_t perf;
     auto status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
                                                         x_desc.get(),
-                                                        arg_vec4_x.implicit(),
+                                                        x.implicit(),
                                                         w_desc.get(),
-                                                        arg_vec4_w.implicit(),
+                                                        w.implicit(),
                                                         cd.get(),
                                                         y_desc.get(),
                                                         y.implicit(),
@@ -114,11 +114,35 @@ shape miopen_quant_convolution::compile(context& ctx,
                                                         workspace_size,
                                                         false);
     if(status != miopenStatusSuccess)
-    {
-        MIGRAPHX_THROW("QUANT_CONVOLUTION: find convolution failed");
-    }
-    handle = ctx.get_stream().get_miopen();
-    algo   = perf.fwd_algo;
+        MIGRAPHX_THROW("MIOpen Quant Convolution: find convolution failed");
+    algo = perf.fwd_algo;
+
+    size_t solution_count;
+
+    status = miopenConvolutionForwardGetSolutionCount(ctx.get_stream().get_miopen(),
+                                                      w_desc.get(),
+                                                      x_desc.get(),
+                                                      cd.get(),
+                                                      y_desc.get(),
+                                                      &solution_count);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen Quant Convolution: get solution count failed");
+
+    std::vector<miopenConvSolution_t> solutions(solution_count);
+
+    status = miopenConvolutionForwardGetSolution(ctx.get_stream().get_miopen(),
+                                                 w_desc.get(),
+                                                 x_desc.get(),
+                                                 cd.get(),
+                                                 y_desc.get(),
+                                                 solution_count,
+                                                 &solution_count,
+                                                 solutions.data());
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen Quant Convolution: get solution failed");
+
+    solution_id = solutions.front().solution_id;
+
     return shape{shape::int8_type, {perf.memory}};
 }
 
@@ -126,13 +150,29 @@ void miopen_quant_convolution::finalize(context& ctx,
                                         const shape& output_shape,
                                         std::vector<shape> inputs)
 {
-    if(handle == ctx.get_stream().get_miopen())
-        return;
-    // Check that workspace hasn't changed
-    auto size = inputs.at(2).bytes();
-    auto ws   = compile(ctx, output_shape, std::move(inputs));
-    if(ws.bytes() > size)
-        MIGRAPHX_THROW("Workspace has changed during finalization.");
+    if(cd == nullptr)
+        cd = make_conv(op);
+    if(solution_id == 0)
+    {
+        // Check that workspace hasn't changed
+        auto size = inputs.at(2).bytes();
+        auto ws   = find(ctx, output_shape, inputs);
+        if(ws.bytes() > size)
+            MIGRAPHX_THROW("MIOpen uant Convolution: workspace has changed during finalization.");
+    }
+
+    auto x_desc = make_tensor(inputs[0], int8_x4_format);
+    auto w_desc = make_tensor(inputs[1], int8_x4_format);
+    auto y_desc = make_tensor(output_shape);
+
+    auto status = miopenConvolutionForwardCompileSolution(ctx.get_stream().get_miopen(),
+                                                          w_desc.get(),
+                                                          x_desc.get(),
+                                                          cd.get(),
+                                                          y_desc.get(),
+                                                          solution_id);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen Quant Convolution: compile solution failed");
 }
 
 shape miopen_quant_convolution::pack_int8_shape(const shape& s) const

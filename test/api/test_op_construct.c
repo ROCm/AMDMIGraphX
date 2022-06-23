@@ -30,7 +30,8 @@ void expect_equal(const char* x, const char* y)
         abort();
 }
 
-int main() {
+int main() 
+{
     char name[1024];
     migraphx_operation_t op;
     migraphx_operation_create(&op, "add", 0);

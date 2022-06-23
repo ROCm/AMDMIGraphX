@@ -148,9 +148,12 @@ int main(int argc, const char* argv[])
                    expected_result.end(),
                    expected_result.begin(),
                    [](auto i) { return std::abs(i); });
-    if(bool{result == migraphx::argument(s, expected_result.data())}) {
+    if(bool{result == migraphx::argument(s, expected_result.data())})
+    {
         std::cout << "Successfully executed custom MIOpen kernel example with MIGraphX\n";
-    } else {
+    }
+    else
+    {
         std::cout << "Custom MIOpen kernel example failed\n";
     }
     return 0;

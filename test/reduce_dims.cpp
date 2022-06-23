@@ -23,6 +23,7 @@
  */
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include "test.hpp"
 
 migraphx::shape make_shape(std::vector<std::size_t> lens)
@@ -35,6 +36,23 @@ migraphx::shape make_shape(std::vector<std::size_t> lens, std::vector<std::size_
     return {migraphx::shape::float_type, std::move(lens), std::move(strides)};
 }
 
+bool verify_shape(const migraphx::shape& s1, const migraphx::shape& s2)
+{
+    if (s1.elements() != s2.elements())
+        return false;
+    return migraphx::all_of(migraphx::range(s1.elements()), [&](auto i) {
+        return s1.index(i) == s2.index(i);
+    });
+}
+
+template<class Range1, class Range2>
+bool verify_shapes(const Range1& r1, const Range2& r2)
+{
+    return migraphx::equal(r1, r2, [](const auto& s1, const auto& s2) {
+        return verify_shape(s1, s2);
+    });
+}
+
 TEST_CASE(same_standard)
 {
     auto is                              = make_shape({64, 3, 7, 7});
@@ -42,7 +60,7 @@ TEST_CASE(same_standard)
     std::vector<migraphx::shape> ishapes = {is, is, is};
     std::vector<migraphx::shape> eshapes = {os, os, os};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
-
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -53,7 +71,7 @@ TEST_CASE(same_broadcast1)
     std::vector<migraphx::shape> ishapes = {is, make_shape({64, 3, 7, 7}, {0, 1, 0, 0}), is};
     std::vector<migraphx::shape> eshapes = {os, make_shape({64, 3, 7 * 7}, {0, 1, 0}), os};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
-
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -64,7 +82,7 @@ TEST_CASE(same_broadcast2)
     std::vector<migraphx::shape> ishapes = {is, make_shape({64, 3, 8, 7, 7}, {0, 8, 1, 0, 0}), is};
     std::vector<migraphx::shape> eshapes = {os, make_shape({64, 8 * 3, 7 * 7}, {0, 1, 0}), os};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
-
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -75,7 +93,7 @@ TEST_CASE(same_transposed)
     std::vector<migraphx::shape> ishapes = {is, migraphx::reorder_shape(is, {0, 1, 3, 2}), is};
     std::vector<migraphx::shape> eshapes = {os, migraphx::reorder_shape(os, {0, 2, 1}), os};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
-
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -86,7 +104,7 @@ TEST_CASE(different_masked1)
     std::vector<migraphx::shape> ishapes = {is, make_shape({1, 3, 1, 1}), is};
     std::vector<migraphx::shape> eshapes = {os, make_shape({1, 3, 1}), os};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
-
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -98,7 +116,7 @@ TEST_CASE(different_masked2)
         is, make_shape({1, 3, 1, 1}), make_shape({64, 1, 7, 7})};
     std::vector<migraphx::shape> eshapes = {os, make_shape({1, 3, 1}), make_shape({64, 1, 7 * 7})};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
-
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -128,7 +146,7 @@ TEST_CASE(transposed1)
     std::vector<migraphx::shape> eshapes = {
         make_shape({8, 28, 4, 56 * 56}), make_shape({8, 28, 4, 56 * 56}, {351232, 3136, 87808, 1})};
     auto rshapes = migraphx::reduce_dims(ishapes);
-
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -137,6 +155,7 @@ TEST_CASE(non_packed_empty1)
     std::vector<migraphx::shape> ishapes = {make_shape({1, 12}, {589824, 64})};
     std::vector<migraphx::shape> eshapes = {make_shape({12}, {64})};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -145,6 +164,7 @@ TEST_CASE(non_packed_empty2)
     std::vector<migraphx::shape> ishapes = {make_shape({12, 1}, {64, 589824})};
     std::vector<migraphx::shape> eshapes = {make_shape({12}, {64})};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 
@@ -161,6 +181,7 @@ TEST_CASE(step_broadcast_transpose)
                                             make_shape({1, 2, 2, 1}, {4, 2, 1, 1})};
     std::vector<migraphx::shape> eshapes = {make_shape({2, 2}, {0, 3}), make_shape({2, 2}, {2, 1})};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(verify_shapes(ishapes, rshapes));
     EXPECT(eshapes == rshapes);
 }
 

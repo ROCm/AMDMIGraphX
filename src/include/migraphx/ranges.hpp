@@ -210,10 +210,10 @@ void replace(Range&& r, const T& old, const T& new_x)
     std::replace(r.begin(), r.end(), old, new_x);
 }
 
-template <class R1, class R2>
-bool equal(R1&& r1, R2&& r2)
+template <class R1, class R2, class... Predicate>
+bool equal(R1&& r1, R2&& r2, Predicate... pred)
 {
-    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end());
+    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
 }
 
 template <class R>

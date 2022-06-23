@@ -12,12 +12,13 @@ on:
       result_repo:
         description: Result repository
         required: true
-        default: "migraphx-benchmark/migraphx-results"
+        default: "migraphx-benchmark/migraphx-compare-results"
     
 name: MiGraphX Benchmark
 
 env:
   SCRIPT_PATH: rocm-migraphx
+  RESULT_PATH: migraphx-compare-results
 
 jobs:
   check_image_version:
@@ -74,6 +75,20 @@ jobs:
           -v $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}:/src
           --workdir /src/scripts/
           migraphx-ort:$(date +%Y%m%d) /bin/bash ort_benchmark4.sh
+      - name: Clone result repo
+        run: |
+          rm -rf $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/
+          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.result_repo }}.git $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}
       - name: Execute report script
         run: |
-          python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report.py -i ${{ github.event.inputs.result_path }}/onnxruntime-`date '+%Y-%m-%d-%H-%M'` -o summary.csv
+          python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report.py \
+          -i ${{ github.event.inputs.result_path }}/onnxruntime-`date '+%Y-%m-%d-%H-%M'`/ \
+          -o $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/migraphx-result-$(date '+%Y-%m-%d-%H-%M').csv
+      - name: Push report
+        run: |
+          cd $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/
+          git add .
+          git config --local user.email github-actions
+          git config --local user.name github-actions@github.com
+          git commit -m "Push report" -a
+          git push

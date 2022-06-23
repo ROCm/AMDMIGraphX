@@ -157,7 +157,8 @@ TEST_CASE(single_dim)
 
 TEST_CASE(step_broadcast_transpos)
 {
-    std::vector<migraphx::shape> ishapes = {make_shape({1, 2, 2, 1}, {0, 0, 3, 6}), make_shape({1, 2, 2, 1}, {4, 2, 1, 1})};
+    std::vector<migraphx::shape> ishapes = {make_shape({1, 2, 2, 1}, {0, 0, 3, 6}),
+                                            make_shape({1, 2, 2, 1}, {4, 2, 1, 1})};
     std::vector<migraphx::shape> eshapes = {make_shape({2, 2}, {0, 3}), make_shape({2, 2}, {2, 1})};
     auto rshapes                         = migraphx::reduce_dims(ishapes);
     EXPECT(eshapes == rshapes);

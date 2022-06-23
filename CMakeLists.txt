@@ -83,7 +83,7 @@ endif()
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options(-std=c++17)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 
 if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
     set(CONFIGURE_DEPENDS)

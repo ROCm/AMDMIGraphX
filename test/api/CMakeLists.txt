@@ -41,6 +41,7 @@ add_api_test(module_construct test_module_construct.cpp ${TEST_ONNX_DIR})
 add_api_test(ref test_cpu.cpp ${TEST_ONNX_DIR})
 add_api_test(save_load test_save_load.cpp ${TEST_ONNX_DIR})
 add_api_test(op test_op_construct.cpp ${TEST_ONNX_DIR})
+add_api_test(c_op test_op_construct.c ${TEST_ONNX_DIR})
 add_api_test(tf_parser test_tf_parser.cpp ${TEST_TF_DIR})
 # GPU-based tests
 if(MIGRAPHX_ENABLE_GPU)

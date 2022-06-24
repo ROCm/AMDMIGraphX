@@ -129,6 +129,26 @@ constexpr Iterator find(Iterator first, Iterator last, const T& value)
     return find_if(first, last, [&](const auto& x) { return x == value; });
 }
 
+template< class InputIt, class UnaryPredicate >
+constexpr bool any_of(InputIt first, InputIt last, UnaryPredicate p)
+{
+    return find_if(first, last, p) != last;
+}
+
+template< class InputIt, class UnaryPredicate >
+constexpr bool none_of(InputIt first, InputIt last, UnaryPredicate p)
+{
+    return find_if(first, last, p) == last;
+}
+
+template< class InputIt, class UnaryPredicate >
+constexpr bool all_of(InputIt first, InputIt last, UnaryPredicate p)
+{
+    return none_of(first, last, [=](auto&& x) {
+        return not p(x);
+    });
+}
+
 template <class Iterator1, class Iterator2>
 constexpr Iterator1 search(Iterator1 first, Iterator1 last, Iterator2 s_first, Iterator2 s_last)
 {

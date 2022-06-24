@@ -1,3 +1,5 @@
+name: (Disabled) MIGraphX Regression test
+
 on:
   push:
     branches: [develop]
@@ -20,8 +22,6 @@ env:
   PYTHON_PATH: /home/htec/anaconda3/bin/
   DOCKER_MOUNT: /home/htec/jz:/data
   DOCKER_WORKDIR: /data/source/rocm-migraphx/scripts/
-
-name: MIGraphX Regression test
 
 concurrency: benchmark
 

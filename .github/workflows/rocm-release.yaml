@@ -1,17 +1,16 @@
+name: ROCM Docker image build
+
 on:
   workflow_dispatch:
     inputs:
-      release:
+      rocm_release:
         description: ROCm release version
         required: true
 
-
-name: ROCM Docker image build
-
 jobs:
   release:
-    uses: migraphx-benchmark/actions/.github/workflows/.yml@main
+    uses: migraphx-benchmark/actions/.github/workflows/rocm-release.yml@main
     with:
-      release: ${{ inputs.release }}
+      rocm_release: ${{ inputs.rocm_release }}
     secrets:
-      gh_token: ${{ secrets.GH_SUB_TOKEN }}
+      gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

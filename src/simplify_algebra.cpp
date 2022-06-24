@@ -853,10 +853,7 @@ struct find_div_const
 
 struct find_unit_div_const
 {
-    auto matcher() const
-    {
-        return match::name("div")(match::arg(1)(match::has_value(1.0f)));
-    }
+    auto matcher() const { return match::name("div")(match::arg(1)(match::has_value(1.0f))); }
 
     void apply(module& m, const match::matcher_result& r) const
     {

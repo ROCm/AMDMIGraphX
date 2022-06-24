@@ -18,6 +18,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/rank.hpp>
 
@@ -388,6 +389,49 @@ struct argument_parser
         actions.push_back([&](const auto& self) { x = self.exe_name; });
     }
 
+    void print_usage_for(const argument& arg, const std::string& flag) const
+    {
+        std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
+        std::cout << "    " << exe_name << " ";
+        std::cout << flag;
+        if(not arg.type.empty())
+            std::cout << " [" << arg.type << "]";
+        std::cout << std::endl;
+    }
+
+    auto spellcheck(const std::vector<std::string>& inputs)
+    {
+        struct result_t
+        {
+            const argument* arg = nullptr;
+            std::string correct = "";
+            std::string incorrect = "";
+            std::ptrdiff_t distance = std::numeric_limits<std::ptrdiff_t>::max();
+        };
+        result_t result;
+        for(const auto& input:inputs)
+        {
+            if (input.empty())
+                continue;
+            if (input[0] != '-')
+                continue;
+            for(const auto& arg:arguments)
+            {
+                for(const auto& flag:arg.flags)
+                {
+                    if (flag.empty())
+                        continue;
+                    if (flag[0] != '-')
+                        continue;
+                    auto d = levenshtein_distance(flag.begin(), flag.end(), input.begin(), input.end());
+                    if (d < result.distance)
+                        result = result_t{&arg, flag, input, d};
+                }
+            }
+        }
+        return result;
+    }
+
     bool
     run_action(const argument& arg, const std::string& flag, const std::vector<std::string>& inputs)
     {
@@ -404,20 +448,30 @@ struct argument_parser
         {
             msg = "unknown exception";
         }
-        auto show_usage = [&] {
+        std::cout << color::fg_red << color::bold << "error: " << color::reset;
+        auto sc = spellcheck(inputs);
+        std::cout << sc.distance << std::endl;
+        std::cout << sc.correct << std::endl;
+        if (sc.distance < 5)
+        {
+            std::cout << "Found argument '" << color::fg_yellow << sc.incorrect << "'";
+            std::cout << " which wasn't expected, or isn't valid in this context" << std::endl;
+            std::cout << "       ";
+            std::cout << "Did you mean " << color::fg_green << sc.correct << color::reset << "?" << std::endl;
+            std::cout << std::endl;
+            print_usage_for(*sc.arg, sc.correct);
+        }
+        else
+        {
+            std::cout << "Invalid input to '" << color::fg_yellow;
             std::cout << flag;
             if(not arg.type.empty())
                 std::cout << " [" << arg.type << "]";
-        };
-        std::cout << color::fg_red << color::bold << "error: " << color::reset;
-        std::cout << "Invalid input to '" << color::fg_yellow;
-        show_usage();
-        std::cout << color::reset << "'" << std::endl;
-        std::cout << "       " << msg << std::endl;
-        std::cout << std::endl;
-        std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
-        std::cout << "    " << exe_name << " ";
-        show_usage();
+            std::cout << color::reset << "'" << std::endl;
+            std::cout << "       " << msg << std::endl;
+            std::cout << std::endl;
+            print_usage_for(arg, flag);
+        }
         std::cout << std::endl;
         if(has_argument([](const auto& a) { return contains(a.flags, "--help"); }))
         {

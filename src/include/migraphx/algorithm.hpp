@@ -51,6 +51,21 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
     }
 }
 
+template<class Iterator1, class Iterator2>
+std::ptrdiff_t levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2)
+{
+    if (first1 == last1)
+        return std::distance(first2, last2);
+    if (first2 == last2)
+        return std::distance(first1, last1);
+    if (*first1 == *first2)
+        return levenshtein_distance(std::next(first1), last1, std::next(first2), last2);
+    auto x1 = levenshtein_distance(std::next(first1), last1, std::next(first2), last2);
+    auto x2 = levenshtein_distance(first1, last1, std::next(first2), last2);
+    auto x3 = levenshtein_distance(std::next(first1), last1, first2, last2);
+    return std::ptrdiff_t{1} + std::min({x1, x2, x3});
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

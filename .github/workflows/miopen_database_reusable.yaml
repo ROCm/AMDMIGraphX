@@ -1,7 +1,9 @@
+name: MIOPEN Generate database
+
 on:
   workflow_dispatch:
     inputs:
-      release:
+      rocm_release:
         description: ROCm release version
         required: true
         default: "5.1"
@@ -22,101 +24,20 @@ on:
         default: "/home/htec/jz/source/rocm-migraphx/test-results"
         required: true
 
-name: MIOPEN Generate database
-
 env:
   ROCM_VERSION: rocm-${{ github.event.inputs.release }}
   MIOPEN_PATH: miopen-databases
   SCRIPT_PATH: rocm-migraphx
   
 jobs:
-  check_gpu_name:
-    name: Check GPU name
-    runs-on: self-hosted
-    outputs:
-      gpu_name: ${{ steps.gpu.outputs.gpu_name }}
-    steps:
-      - name: Check GPU info
-        id: gpu
-        run: |
-          GPU_NAME="$(lshw -C display | awk -F'product: ' '/product/{print $2}' | awk -F '\[|\]' '{print $2}')"
-          GPU_NAME=${GPU_NAME//$'\n'/}
-          GPU_NAME=${GPU_NAME// /_}
-          echo "::set-output name=gpu_name::$GPU_NAME"
-  check_image_version:
-    name: Check Image Version
-    runs-on: self-hosted
-    needs: check_gpu_name
-    outputs:
-      image: ${{ steps.check_image.outputs.image }}
-    steps:
-      - name: Check new image
-        id: check_image
-        run: |
-          if [ ! -z "$(docker images -q rocm-migraphx:${{ github.event.inputs.release }})" ]; then
-            echo "::set-output name=image::true"
-          fi
-  check_database:
-    name: Check database path
-    runs-on: self-hosted
-    needs: check_gpu_name
-    outputs:
-      database: ${{ steps.check_database.outputs.database }}
-    steps:
-      - name: Checkout miopen-databases
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.miopen_db_repo }}.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
-      - name: Check Database path
-        id: check_database
-        run: |
-          if [ ! -d "$GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/${{ env.ROCM_VERSION }}/${{ needs.check_gpu_name.outputs.gpu_name }}" ]; then
-            echo "::set-output name=database::true"
-          fi
-  create_database:
-    name: Create MIOPEN Database
-    runs-on: self-hosted
-    needs: [check_image_version, check_database]
-    if: ( needs.check_database.outputs.database == 'true' && needs.check_image_version.outputs.image == 'true' )
-    steps:
-      - name: Clone scripts repo
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.script_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
-      - name: Perform tuning database
-        run: >
-          docker run -e TZ=America/Chicago
-          -e TARGET=gpu
-          -e SAVED_MODELS=/data
-          -e TEST_RESULTDIR=/results
-          -e MIOPEN_FIND_ENFORCE=3
-          --device=/dev/dri
-          --device=/dev/kfd
-          --network=host
-          --group-add=video 
-          -v ${{ github.event.inputs.saved_models_path }}:/data
-          -v ${{ github.event.inputs.test_results_dir }}:/results
-          -v $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}:/script
-          --workdir /script/scripts/
-          rocm-migraphx:${{ github.event.inputs.release }} /bin/bash -c "./run_perf_mev.sh; cp -r /root/.config/miopen /data/database"
-  push_database:
-    name: Push MIOPEN Database
-    runs-on: self-hosted
-    needs: [create_database, check_gpu_name]
-    steps:
-      - name: Checkout miopen-databases
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.miopen_db_repo }}.git $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}
-      - name: Push database to git
-        run: |
-          cd $GITHUB_WORKSPACE/${{ env.MIOPEN_PATH }}/
-          mkdir -p ${{env.ROCM_VERSION}}/${{ needs.check_gpu_name.outputs.gpu_name }}
-          cp -r /home/htec/jz/database/* ${{env.ROCM_VERSION}}/${{ needs.check_gpu_name.outputs.gpu_name }}
-          git add .
-          git config --local user.email github-actions
-          git config --local user.name github-actions@github.com
-          git commit -m "Push databases" -a
-          git push
-
+  miopen:
+    uses: migraphx-benchmark/actions/.github/workflows/miopen-db.yml@main
+    with:
+      rocm_release: ${{ inputs.rocm_release }}
+      miopen_db_repo: ${{ inputs.miopen_db_repo }}
+      script_repo: ${{ inputs.script_repo }}
+      saved_models_path: ${{ inputs.saved_models_path }}
+      test_results_dir: ${{ inputs.test_results_dir }}
+    secrets:
+      gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
           

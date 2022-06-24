@@ -43,14 +43,17 @@ migraphx::program create_program()
 
 TEST_CASE(is_supported)
 {
-    auto p = create_program();
-    auto t = migraphx::make_target("ref");
+    auto p       = create_program();
+    auto targets = migraphx::get_targets();
+    EXPECT(!targets.empty());
+    auto first_target = targets[0];
+    auto t            = migraphx::make_target(first_target);
 
     const auto assignments = p.get_target_assignments({t});
     for(const auto& [ins, target] : assignments)
     {
         (void)ins;
-        EXPECT(target == "ref");
+        EXPECT(target == first_target);
     }
 }
 

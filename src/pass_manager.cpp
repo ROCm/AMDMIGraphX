@@ -128,15 +128,15 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
         {
             if(mod->bypass())
                 continue;
-            if (not visited.insert(mod).second)
+            if(not visited.insert(mod).second)
                 continue;
             module_pm mpm{mod, &trace};
-            mpm.prog     = &prog;
-            auto parents = range(tree.equal_range(mod));
+            mpm.prog      = &prog;
+            auto parents  = range(tree.equal_range(mod));
             auto nparents = distance(parents);
-            if (nparents == 0)
+            if(nparents == 0)
                 mpm.common_parent = nullptr;
-            else if (nparents == 1)
+            else if(nparents == 1)
                 mpm.common_parent = parents.begin()->second;
             else
                 // Just set common parent to main module when there is muliple parents for now

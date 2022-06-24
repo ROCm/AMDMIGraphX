@@ -21,16 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
 
-#include <migraphx/assignment.hpp>
+#include <unordered_map>
+
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void assignment::add_assignment(instruction_ref ins, const std::string& target)
+struct target_assignments
 {
-    assignments.emplace(ins, target);
-}
+    void add_assignment(instruction_ref ins, const std::string& target);
+
+    auto begin() const { return assignments.cbegin(); }
+    auto end() const { return assignments.cend(); }
+
+    private:
+    std::unordered_map<instruction_ref, std::string> assignments;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP

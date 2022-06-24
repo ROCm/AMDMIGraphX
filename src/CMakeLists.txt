@@ -32,7 +32,6 @@ add_library(migraphx
     analyze_streams.cpp
     apply_alpha_beta.cpp
     argument.cpp
-    assignment.cpp
     auto_contiguous.cpp
     common.cpp
     compile_src.cpp
@@ -89,6 +88,7 @@ add_library(migraphx
     shape.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    target_assignments.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp

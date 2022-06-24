@@ -33,7 +33,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/compile_options.hpp>
-#include <migraphx/assignment.hpp>
+#include <migraphx/target_assignments.hpp>
 #include <migraphx/assignment_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
@@ -86,8 +86,8 @@ struct program
 
     instruction_ref validate() const;
 
-    assignment get_target_assignments(const std::vector<target>& targets,
-                                      assignment_options options = assignment_options{});
+    target_assignments get_target_assignments(const std::vector<target>& targets,
+                                              assignment_options options = assignment_options{});
 
     void compile(const target& t, compile_options options = compile_options{});
 

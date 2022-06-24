@@ -159,12 +159,12 @@ instruction_ref program::validate() const
     return mm->validate();
 }
 
-assignment program::get_target_assignments(const std::vector<target>& targets,
-                                           assignment_options options)
+target_assignments program::get_target_assignments(const std::vector<target>& targets,
+                                                   assignment_options options)
 {
     const auto m = options.metric;
 
-    assignment p;
+    target_assignments p;
 
     const auto* mod = get_main_module();
     for(auto it : iterator_for(*mod))

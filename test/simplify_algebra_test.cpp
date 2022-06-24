@@ -337,7 +337,7 @@ TEST_CASE(simplify_mul_add)
     migraphx::module m1;
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one = m1.add_literal(1);
+        auto one = m1.add_literal(3);
         auto two = m1.add_literal(2);
         auto sum = m1.add_instruction(migraphx::make_op("add"), one, x);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), sum, two);
@@ -348,7 +348,7 @@ TEST_CASE(simplify_mul_add)
     migraphx::module m2;
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one  = m2.add_literal(1);
+        auto one  = m2.add_literal(3);
         auto two  = m2.add_literal(2);
         auto mul1 = m2.add_instruction(migraphx::make_op("mul"), two, x);
         auto mul2 = m2.add_instruction(migraphx::make_op("mul"), two, one);

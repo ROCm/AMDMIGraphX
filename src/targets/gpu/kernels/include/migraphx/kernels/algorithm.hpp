@@ -49,7 +49,7 @@ constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 {
     for(; first != last; ++first)
     {
-        init = op(std::move(init), *first);
+        init = op(static_cast<T&&>(init), *first);
     }
     return init;
 }

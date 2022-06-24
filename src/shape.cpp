@@ -61,8 +61,7 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
         assert(m_lens.size() == m_strides.size());
-        m_standard = this->elements() == this->element_space() and
-                    not skips() and
+        m_standard = this->elements() == this->element_space() and not skips() and
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
 
@@ -113,7 +112,7 @@ struct shape_impl
     bool skips() const
     {
         assert(m_lens.size() == m_strides.size());
-        if (elements() == 1)
+        if(elements() == 1)
             return false;
         return std::none_of(m_strides.begin(), m_strides.end(), [](auto x) { return x == 1; });
     }
@@ -268,7 +267,8 @@ void shape::multi_copy(std::size_t i, std::size_t* start, const std::size_t* end
 
 bool shape::packed() const
 {
-    return this->sub_shapes().empty() and not impl->skips() and this->elements() == this->element_space();
+    return this->sub_shapes().empty() and not impl->skips() and
+           this->elements() == this->element_space();
 }
 
 bool shape::transposed() const
@@ -293,7 +293,8 @@ bool shape::transposed() const
 bool shape::broadcasted() const
 {
     assert(this->lens().size() == this->strides().size());
-    return std::any_of(this->strides().begin(), this->strides().end(), [](auto x) { return x == 0; });
+    return std::any_of(
+        this->strides().begin(), this->strides().end(), [](auto x) { return x == 0; });
 }
 
 bool shape::scalar() const

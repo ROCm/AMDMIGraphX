@@ -244,6 +244,10 @@ def module(h):
     h.method('add_return',
              api.params(args='std::vector<migraphx::instruction_ref>'),
              returns='migraphx::instruction_ref')
+    h.method('add_allocation',
+             api.params(s='const migraphx::shape&'),
+             invoke='migraphx::add_allocation($@)',
+             returns='migraphx::instruction_ref')
 
 
 @auto_handle()
@@ -436,6 +440,11 @@ def context(h):
                'migraphx::experimental_custom_op')
 def experimental_custom_op(h):
     h.constructor('create', api.params(name='const char*'))
+    h.virtual('compute',
+              api.params(ctx='migraphx::context',
+                         output='migraphx::shape',
+                         inputs='std::vector<migraphx::argument>'),
+              returns='migraphx::argument')
     h.virtual('compute_shape',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')

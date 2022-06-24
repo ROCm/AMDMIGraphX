@@ -1,5 +1,6 @@
 #include <rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
+#include <migraphx/reduce_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -27,6 +28,22 @@ rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
+void blas_shape(const shape& s)
+{
+    if(s.lens().size() < 2)
+        return;
+    if(std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) { return i == 1; }))
+        MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
+    if(s.lens().size() < 3)
+        return;
+    shape batch_shape{s.type(),
+                      {s.lens().begin(), s.lens().end() - 2},
+                      {s.strides().begin(), s.strides().end() - 2}};
+    auto batch_shapes = reduce_dims({batch_shape});
+    if(batch_shapes.front().lens().size() != 1)
+        MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
+}
+
 template <class R, class... Ts, class... Us>
 R rocblas_invoke(R (*f)(Ts...), Us... xs)
 {
@@ -34,6 +51,18 @@ R rocblas_invoke(R (*f)(Ts...), Us... xs)
         return f(xs...);
     else
         return f(xs..., nullptr, nullptr);
+}
+
+static bool is_transposed(const shape& s)
+{
+    if(not s.transposed())
+        return false;
+    return s.strides().back() != 1;
+}
+
+static rocblas_int get_batch_stride(const argument& a)
+{
+    return a.get_shape().strides()[a.get_shape().strides().size() - 3];
 }
 
 template <class T>
@@ -45,8 +74,8 @@ void gemm_impl(context& ctx,
                bool int8_x4_format,
                bool compute_fp32)
 {
-    bool transa     = args[0].get_shape().transposed();
-    bool transb     = args[1].get_shape().transposed();
+    bool transa     = is_transposed(args[0].get_shape());
+    bool transb     = is_transposed(args[1].get_shape());
     auto n_dim      = output_shape.lens().size();
     auto dim_1      = n_dim - 1;
     auto dim_0      = n_dim - 2;
@@ -142,6 +171,9 @@ void gemm_impl(context& ctx,
         }
         else
         {
+            auto a_stride = get_batch_stride(args[0]);
+            auto b_stride = get_batch_stride(args[1]);
+            auto c_stride = get_batch_stride(args[2]);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                            ctx.get_stream().get_rocblas(),
                            transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -153,20 +185,20 @@ void gemm_impl(context& ctx,
                            to_pointer(args.at(1)),
                            arg_type,
                            ldb,
-                           k * n,
+                           b_stride,
                            to_pointer(args.at(0)),
                            arg_type,
                            lda,
-                           m * k,
+                           a_stride,
                            beta_v,
                            to_pointer(args[2]),
                            output_type,
                            ldc,
-                           m * n,
+                           c_stride,
                            is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                            output_type,
                            ldc,
-                           m * n,
+                           c_stride,
                            num_matrices,
                            compute_type,
                            rocblas_gemm_algo_standard,

@@ -79,7 +79,13 @@ instruction_ref tf_parser::node_info::add_broadcastable_binary_op(const std::str
                                                                   instruction_ref arg0,
                                                                   instruction_ref arg1) const
 {
-    return add_common_op(*mm, make_op(op_name), {arg0, arg1});
+    return this->add_common_op(op_name, arg0, arg1);
+}
+
+instruction_ref tf_parser::node_info::add_common_op(const std::string& op_name,
+                                                    std::vector<instruction_ref> inputs) const
+{
+    return migraphx::add_common_op(*mm, make_op(op_name), std::move(inputs));
 }
 
 int64_t tf_parser::parse_axis(const int64_t dim, const size_t num_dims) const

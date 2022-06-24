@@ -13,7 +13,7 @@ struct adjust_allocation
 {
     allocation_model model;
     std::string name() const { return "adjust_allocation"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -13,7 +13,7 @@ struct basic_iota_iterator
     F f;
 
     using difference_type = diff_int;
-    using reference       = decltype(f(std::declval<Iterator>()));
+    using reference       = decltype(f(declval<Iterator>()));
     using value_type      = remove_reference_t<reference>;
     using pointer         = add_pointer_t<value_type>;
 

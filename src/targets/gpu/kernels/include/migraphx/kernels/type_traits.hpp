@@ -35,6 +35,21 @@ struct enable_if<true, T>
 template <bool B, class T = void>
 using enable_if_t = typename enable_if<B, T>::type;
 
+template <bool B, class T, class F>
+struct conditional
+{
+    using type = T;
+};
+
+template <class T, class F>
+struct conditional<false, T, F>
+{
+    using type = F;
+};
+
+template <bool B, class T, class F>
+using conditional_t = typename conditional<B, T, F>::type;
+
 // NOLINTNEXTLINE
 #define MIGRAPHX_BUILTIN_TYPE_TRAIT1(name)   \
     template <class T>                       \

@@ -22,6 +22,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
 #if MIGRAPHX_USE_HIPRTC
 
@@ -133,7 +134,6 @@ struct hiprtc_program
         std::vector<char> buffer(n);
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
         assert(buffer.back() == 0);
-        // cppcheck-suppress returnDanglingLifetime
         return {buffer.begin(), buffer.end() - 1};
     }
 
@@ -246,6 +246,16 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             }
             MIGRAPHX_THROW("Missing hsaco");
         };
+
+    if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
+    {
+        for(const auto& src : srcs)
+        {
+            if(src.path.extension() != ".cpp")
+                continue;
+            std::cout << std::string(src.content.first, src.len()) << std::endl;
+        }
+    }
 
     if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
     {

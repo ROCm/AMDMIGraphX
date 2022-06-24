@@ -53,10 +53,8 @@ struct shape
             if(shape{}.broadcasted())
             {
                 index_array s{};
-                auto out = copy_if(lstrides.begin(),
-                     lstrides.end(),
-                     s.begin(),
-                     [](auto x) { return x != 0; });
+                auto out = copy_if(
+                    lstrides.begin(), lstrides.end(), s.begin(), [](auto x) { return x != 0; });
                 return not is_sorted(s.begin(), out, greater{});
             }
             else

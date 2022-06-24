@@ -64,12 +64,13 @@ constexpr OutputIt copy(InputIt first, InputIt last, OutputIt d_first)
     return d_first;
 }
 
-template<class InputIt, class OutputIt, class UnaryPredicate>
-constexpr OutputIt copy_if(InputIt first, InputIt last, 
-                 OutputIt d_first, UnaryPredicate pred)
+template <class InputIt, class OutputIt, class UnaryPredicate>
+constexpr OutputIt copy_if(InputIt first, InputIt last, OutputIt d_first, UnaryPredicate pred)
 {
-    for (; first != last; ++first) {
-        if (pred(*first)) {
+    for(; first != last; ++first)
+    {
+        if(pred(*first))
+        {
             *d_first = *first;
             ++d_first;
         }

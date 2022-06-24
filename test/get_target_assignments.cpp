@@ -26,7 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/assignment.hpp>
+#include <migraphx/target_assignments.hpp>
 
 migraphx::program create_program()
 {

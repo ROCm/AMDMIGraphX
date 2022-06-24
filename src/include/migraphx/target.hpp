@@ -227,7 +227,7 @@ struct target
     float is_supported(instruction_ref ins, support_metric m) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().is_supported(ins, std::move(m));
+        return (*this).private_detail_te_get_handle().is_supported(ins, m);
     }
 
     argument copy_to(const argument& input) const
@@ -276,9 +276,9 @@ struct target
                                                        T&& private_detail_te_self,
                                                        instruction_ref ins,
                                                        support_metric m)
-        -> decltype(private_detail_te_self.is_supported(ins, std::move(m)))
+        -> decltype(private_detail_te_self.is_supported(ins, m))
     {
-        return private_detail_te_self.is_supported(ins, std::move(m));
+        return private_detail_te_self.is_supported(ins, m);
     }
 
     template <class T>
@@ -287,7 +287,7 @@ struct target
                                                         instruction_ref ins,
                                                         support_metric m)
     {
-        return target_is_supported(private_detail_te_self, ins, std::move(m));
+        return target_is_supported(private_detail_te_self, ins, m);
     }
 
     template <class T>
@@ -375,8 +375,7 @@ struct target
         float is_supported(instruction_ref ins, support_metric m) const override
         {
 
-            return private_detail_te_default_is_supported(
-                char(0), private_detail_te_value, ins, std::move(m));
+            return private_detail_te_default_is_supported(char(0), private_detail_te_value, ins, m);
         }
 
         argument copy_to(const argument& input) const override

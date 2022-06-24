@@ -281,7 +281,7 @@ TEST_CASE(insert_instructions_module)
 {
     migraphx::shape s{migraphx::shape::int32_type, {1}};
     migraphx::module m1("m1");
-    auto x1 = m1.add_parameter("x1", s);
+    auto x1   = m1.add_parameter("x1", s);
     auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), {x1});
     m1.add_instruction(migraphx::make_op("add"), {sqrt, x1});
 

@@ -50,7 +50,7 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
     {
         // if compile options has offload_copy = true then, parameters and outputs will be
         // automatically copied to and from GPUs' memory. Here assume that `inputs` arguments are
-        // already in the GPU, so no need to do Malloc, Free or Memcpy last element in the `inputs`
+        // already in the GPU, so no need to do Malloc, Free or Memcpy. Last element in the `inputs`
         // is output argument, so it should be returned from compute method.
         auto* input_buffer  = reinterpret_cast<float*>(inputs[0].data());
         auto* output_buffer = reinterpret_cast<float*>(inputs[1].data());

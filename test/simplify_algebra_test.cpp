@@ -761,6 +761,26 @@ TEST_CASE(simplify_unit_mult_const)
     EXPECT((m1 == m3) && (m1 == m2));
 }
 
+TEST_CASE(simplify_unit_div_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(1);
+        auto div  = m1.add_instruction(migraphx::make_op("div"), x, unit);
+        m1.add_return({div});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_return({x});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_neg_unit_mult_const)
 {
     migraphx::module m1;

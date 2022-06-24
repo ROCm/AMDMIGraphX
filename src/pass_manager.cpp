@@ -118,20 +118,30 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
         trace = tracer{std::cout};
+    std::unordered_set<module_ref> visited;
     for(const auto& p : passes)
     {
         auto mods = prog.get_modules();
         auto tree = prog.get_module_tree();
+        visited.clear();
         for(const auto& mod : reverse(mods))
         {
             if(mod->bypass())
                 continue;
+            if (not visited.insert(mod).second)
+                continue;
             module_pm mpm{mod, &trace};
             mpm.prog     = &prog;
             auto parents = range(tree.equal_range(mod));
-            // Assume only one parent for now
-            assert(distance(parents) < 2);
-            mpm.common_parent = (distance(parents) == 0) ? nullptr : parents.begin()->second;
+            auto nparents = distance(parents);
+            if (nparents == 0)
+                mpm.common_parent = nullptr;
+            else if (nparents == 1)
+                mpm.common_parent = parents.begin()->second;
+            else
+                // Just set common parent to main module when there is muliple parents for now
+                // TODO: Compute the common parent
+                mpm.common_parent = prog.get_main_module();
             mpm.run_pass(p);
         }
         run_pass(prog, p, trace);

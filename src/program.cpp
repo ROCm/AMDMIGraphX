@@ -859,7 +859,6 @@ std::vector<const module*> program::get_modules() const
 {
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
-    assert(impl->modules.size() == result.size());
     return result;
 }
 
@@ -867,7 +866,6 @@ std::vector<module*> program::get_modules()
 {
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
-    assert(impl->modules.size() == result.size());
     return result;
 }
 

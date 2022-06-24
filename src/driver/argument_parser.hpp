@@ -403,28 +403,29 @@ struct argument_parser
     {
         struct result_t
         {
-            const argument* arg = nullptr;
-            std::string correct = "";
-            std::string incorrect = "";
+            const argument* arg     = nullptr;
+            std::string correct     = "";
+            std::string incorrect   = "";
             std::ptrdiff_t distance = std::numeric_limits<std::ptrdiff_t>::max();
         };
         result_t result;
-        for(const auto& input:inputs)
+        for(const auto& input : inputs)
         {
-            if (input.empty())
+            if(input.empty())
                 continue;
-            if (input[0] != '-')
+            if(input[0] != '-')
                 continue;
-            for(const auto& arg:arguments)
+            for(const auto& arg : arguments)
             {
-                for(const auto& flag:arg.flags)
+                for(const auto& flag : arg.flags)
                 {
-                    if (flag.empty())
+                    if(flag.empty())
                         continue;
-                    if (flag[0] != '-')
+                    if(flag[0] != '-')
                         continue;
-                    auto d = levenshtein_distance(flag.begin(), flag.end(), input.begin(), input.end());
-                    if (d < result.distance)
+                    auto d =
+                        levenshtein_distance(flag.begin(), flag.end(), input.begin(), input.end());
+                    if(d < result.distance)
                         result = result_t{&arg, flag, input, d};
                 }
             }
@@ -452,12 +453,13 @@ struct argument_parser
         auto sc = spellcheck(inputs);
         std::cout << sc.distance << std::endl;
         std::cout << sc.correct << std::endl;
-        if (sc.distance < 5)
+        if(sc.distance < 5)
         {
             std::cout << "Found argument '" << color::fg_yellow << sc.incorrect << "'";
             std::cout << " which wasn't expected, or isn't valid in this context" << std::endl;
             std::cout << "       ";
-            std::cout << "Did you mean " << color::fg_green << sc.correct << color::reset << "?" << std::endl;
+            std::cout << "Did you mean " << color::fg_green << sc.correct << color::reset << "?"
+                      << std::endl;
             std::cout << std::endl;
             print_usage_for(*sc.arg, sc.correct);
         }

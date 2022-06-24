@@ -753,6 +753,27 @@ TEST_CASE(simplify_unit_div_const)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_zero_div_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("div"), x, unit);
+    }
+
+    bool result = false;
+    try
+    {
+        run_pass(m1);
+    }
+    catch(const std::runtime_error& e)
+    {
+        result = true;
+    }
+    EXPECT(result);
+}
+
 TEST_CASE(simplify_sub_const)
 {
     migraphx::module m1;

@@ -851,6 +851,16 @@ struct find_div_const
     }
 };
 
+struct find_zero_div_const
+{
+    auto matcher() const { return match::name("div")(match::arg(1)(match::has_value(0.0f))); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        MIGRAPHX_THROW("ERROR: Matched division by zero in pass");
+    }
+};
+
 struct find_unit_div_const
 {
     auto matcher() const { return match::name("div")(match::arg(1)(match::has_value(1.0f))); }
@@ -1061,6 +1071,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_add{},
+                            find_zero_div_const{},
                             find_unit_div_const{},
                             find_div_const{},
                             find_sub_const{},

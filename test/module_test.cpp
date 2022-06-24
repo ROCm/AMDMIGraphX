@@ -282,6 +282,29 @@ TEST_CASE(insert_instructions_module)
     migraphx::shape s{migraphx::shape::int32_type, {1}};
     migraphx::module m1("m1");
     auto x1 = m1.add_parameter("x1", s);
+    auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), {x1});
+    m1.add_instruction(migraphx::make_op("add"), {sqrt, x1});
+
+    migraphx::module m2("m2");
+    auto x2 = m2.add_parameter("x2", s);
+    m2.add_instruction(migraphx::make_op("sqrt"), {x2});
+
+    m1.insert_instructions(sqrt, &m2, {{x2, x1}});
+
+    EXPECT(std::prev(sqrt)->name() == "sqrt");
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
+    EXPECT(contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
+}
+
+TEST_CASE(add_instructions_module)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module m1("m1");
+    auto x1 = m1.add_parameter("x1", s);
     m1.add_instruction(migraphx::make_op("sqrt"), {x1});
 
     migraphx::module m2("m2");
@@ -298,7 +321,7 @@ TEST_CASE(insert_instructions_module)
     EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
 }
 
-TEST_CASE(insert_instructions_range)
+TEST_CASE(add_instructions_range)
 {
     migraphx::shape s{migraphx::shape::int32_type, {1}};
     migraphx::module m1("m1");
@@ -321,7 +344,7 @@ TEST_CASE(insert_instructions_range)
     EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
 }
 
-TEST_CASE(insert_instructions_vector)
+TEST_CASE(add_instructions_vector)
 {
     migraphx::shape s{migraphx::shape::int32_type, {1}};
     migraphx::module m1("m1");

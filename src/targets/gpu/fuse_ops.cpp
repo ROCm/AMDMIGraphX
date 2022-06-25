@@ -701,6 +701,7 @@ struct miopen_fusion
         return args.back();
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_fusion)
 
 struct miopen_conv_bias
 {

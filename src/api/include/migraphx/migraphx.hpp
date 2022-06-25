@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
@@ -378,11 +401,14 @@ struct interface_base : Base
         return x;
     }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     template <class T>
     auto auto_convert_param(rank<1>, T x) -> decltype(as_handle<T>{x})
     {
         return as_handle<T>{x};
     }
+#pragma GCC diagnostic pop
 
     template <class T>
     auto auto_convert_param(rank<2>, T x) -> decltype(as_handle<T>{x, borrow{}})
@@ -540,6 +566,14 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         char* pout;
         call(&migraphx_argument_buffer, &pout, this->get_handle_ptr());
         return pout;
+    }
+
+    template <typename T>
+    std::vector<T> as_vector() const
+    {
+        size_t vector_len = this->get_shape().bytes() / sizeof(T);
+        T* buffer_ptr     = reinterpret_cast<T*>(this->data());
+        return {buffer_ptr, buffer_ptr + vector_len};
     }
 
     /// Generate an argument using random data
@@ -779,13 +813,20 @@ struct module
         return instruction(ret_ins, own{});
     }
 
+    instruction add_allocation(const migraphx::shape& s)
+    {
+        migraphx_instruction_t ret_ins;
+        call(&migraphx_module_add_allocation, &ret_ins, mm.get(), s.get_handle_ptr());
+        return instruction(ret_ins, own{});
+    }
+
     migraphx_module_t get_handle_ptr() const { return mm.get(); }
 
     private:
     std::shared_ptr<migraphx_module> mm;
 };
 
-struct context
+struct context : handle_lookup<context, migraphx_context>
 {
     context(migraphx_context* p, borrow) : ctx(std::shared_ptr<migraphx_context*>(), p) {}
 
@@ -1154,9 +1195,10 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
 
 struct experimental_custom_op_base
 {
-    virtual std::string name() const                 = 0;
-    virtual shape compute_shape(shapes inputs) const = 0;
-    virtual ~experimental_custom_op_base()           = default;
+    virtual std::string name() const                                            = 0;
+    virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
+    virtual shape compute_shape(shapes inputs) const                            = 0;
+    virtual ~experimental_custom_op_base()                                      = default;
 };
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
@@ -1166,6 +1208,7 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     {
         this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
         MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
+        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute);
     }
 
     void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }

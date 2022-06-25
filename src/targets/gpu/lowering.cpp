@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -58,7 +81,6 @@ struct miopen_apply
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
-    std::unordered_map<instruction_ref, std::string> prog_output_names{};
     bool offload_copy   = false;
     bool int8_x4_format = true;
     bool compute_fp32   = false;
@@ -75,27 +97,6 @@ struct miopen_apply
         assert(x == i->get_shape());
         (void)x;
         (void)i;
-    }
-
-    void create_output_names()
-    {
-        this->last = instruction::get_output_alias(std::prev(mod->end()));
-        if(this->last->name() == "@return")
-        {
-            const auto& prog_outputs = last->inputs();
-            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
-
-            std::transform(prog_outputs.begin(),
-                           prog_outputs.end(),
-                           outputs_alias.begin(),
-                           [](const auto& i) { return instruction::get_output_alias(i); });
-
-            std::size_t index = 0;
-            for(auto ins : outputs_alias)
-            {
-                prog_output_names[ins] = mod->name() + ":#output_" + std::to_string(index++);
-            }
-        }
     }
 
     const std::unordered_set<std::string>& get_rocblas_fp32_archs()
@@ -120,7 +121,6 @@ struct miopen_apply
 #endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
-        create_output_names();
 
         add_generic_op("acos");
         add_generic_op("acosh");
@@ -200,7 +200,7 @@ struct miopen_apply
         add_quant_convolution_op();
     }
 
-    void copy_params()
+    void copy_params() const
     {
         if(not offload_copy)
             return;
@@ -260,7 +260,7 @@ struct miopen_apply
         copy_params();
     }
 
-    instruction_ref insert_precompile_op(instruction_ref ins)
+    instruction_ref insert_precompile_op(instruction_ref ins) const
     {
         auto output                       = insert_allocation(ins, ins->get_shape());
         std::vector<instruction_ref> refs = ins->inputs();
@@ -273,28 +273,9 @@ struct miopen_apply
             ins->module_inputs());
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
     {
-        // Instruction's output is an input of the ret instruction
-        if(offload_copy)
-        {
-            auto result = mod->insert_instruction(
-                ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
-            return result;
-        }
-
-        auto ins_alias = instruction::get_output_alias(ins);
-        if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
-        {
-            return mod->add_parameter(prog_output_names[ins_alias], s);
-        }
-        else if(ins == last and tag.empty())
-        {
-            return mod->add_parameter("output", s);
-        }
-
-        return mod->insert_instruction(
-            ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
+        return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
     void add_convolution_op()
@@ -305,7 +286,7 @@ struct miopen_apply
             auto conv = miopen_convolution{op, make_conv(op)};
             auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(
@@ -321,7 +302,7 @@ struct miopen_apply
             auto conv = miopen_deconvolution{op, make_deconv(op)};
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(
@@ -334,27 +315,9 @@ struct miopen_apply
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
-            if(refs.size() == 2)
-            {
-                auto output = insert_allocation(ins, ins->get_shape());
-                refs.push_back(output);
-            }
-            else
-            {
-                auto c_alias = instruction::get_output_alias(refs.back());
-                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
-                {
-                    auto output = insert_allocation(ins, ins->get_shape());
-                    auto copy_out =
-                        mod->insert_instruction(ins, make_op("hip::copy"), refs.back(), output);
-                    refs.back() = copy_out;
-                    refs.push_back(copy_out);
-                }
-                else
-                {
-                    refs.push_back(refs.back());
-                }
-            }
+            assert(refs.size() == 2);
+            auto output = insert_allocation(ins, ins->get_shape());
+            refs.push_back(output);
             return mod->replace_instruction(
                 ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
         });
@@ -382,7 +345,7 @@ struct miopen_apply
             }
 
             auto args      = ins->inputs();
-            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
@@ -479,33 +442,7 @@ struct miopen_apply
             auto sync_cond = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_cond);
             inputs.front() = sync_cond;
 
-            std::vector<module_ref> mod_args = ins->module_inputs();
-            std::map<std::string, shape> name_shapes;
-            for(const auto& smod : mod_args)
-            {
-                auto ps = smod->get_parameter_shapes();
-                name_shapes.insert(ps.begin(), ps.end());
-            }
-
-            bool ins_output_allocated = false;
-            for(auto& pn : name_shapes)
-            {
-                const auto& s = pn.second;
-                instruction_ref output{};
-                if(s == ins->get_shape() and not ins_output_allocated)
-                {
-                    output               = insert_allocation(ins, s);
-                    ins_output_allocated = true;
-                }
-                else
-                {
-                    output = mod->insert_instruction(
-                        ins, make_op("hip::allocate", {{"shape", to_value(s)}}));
-                }
-                inputs.push_back(output);
-            }
-
-            return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }
 
@@ -524,20 +461,17 @@ struct miopen_apply
             inputs.at(0)     = synced_max_iter;
             inputs.at(1)     = cpu_cond;
             auto copy_inputs = inputs;
-            std::transform(
-                copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
-                    return mod->insert_instruction(
-                        ins, make_op("hip::allocate", {{"shape", to_value(in->get_shape())}}));
-                });
+            std::transform(copy_inputs.begin(),
+                           copy_inputs.end(),
+                           std::back_inserter(inputs),
+                           [&](auto in) { return insert_allocation(ins, in->get_shape()); });
 
             auto mod_args = ins->module_inputs();
             auto output   = insert_allocation(ins, ins->get_shape());
 
             const auto* sub_mod = mod_args.front();
-            auto cond_out       = mod->insert_instruction(
-                ins,
-                make_op("hip::allocate",
-                        {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
+            auto cond_out       = insert_allocation(ins, sub_mod->get_output_shapes().front());
+
             // add cond and mod outputs to the argument list
             inputs.push_back(cond_out);
             inputs.push_back(output);

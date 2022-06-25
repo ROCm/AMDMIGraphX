@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_SHAPE_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_SHAPE_HPP
 
@@ -22,7 +45,7 @@ struct shape
 
     constexpr auto element_space() const { return _c<Strides{}.dot(Lens{} - 1) + 1>; }
 
-    constexpr auto packed() const { return elements() == element_space(); }
+    constexpr auto packed() const { return not skips() and elements() == element_space(); }
     constexpr auto broadcasted() const { return _c<Strides{}.product() == 0>; }
     constexpr auto transposed() const
     {
@@ -31,21 +54,21 @@ struct shape
             if(shape{}.broadcasted())
             {
                 index_array s{};
-                index_int j = 0;
-                for(index_int i = 0; i < s.size(); i++)
-                {
-                    if(lstrides[i] != 0)
-                    {
-                        s[j] = lstrides[i];
-                        j++;
-                    }
-                }
-                return not is_sorted(s.begin(), s.begin() + j, greater{});
+                auto out = copy_if(
+                    lstrides.begin(), lstrides.end(), s.begin(), [](auto x) { return x != 0; });
+                return not is_sorted(s.begin(), out, greater{});
             }
             else
             {
                 return not is_sorted(lstrides.begin(), lstrides.end(), greater{});
             }
+        });
+    }
+    constexpr auto skips() const
+    {
+        return return_c([] {
+            auto lstrides = Strides{};
+            return none_of(lstrides.begin(), lstrides.end(), [](auto x) { return x == 1; });
         });
     }
 
@@ -64,24 +87,32 @@ struct shape
     constexpr index_int index(index_int i) const
     {
         if(this->standard())
+        {
+            MIGRAPHX_ASSERT(i == compute_index(i));
             return i;
+        }
         else
         {
-            const auto rank  = this->lens.size();
-            index_int s      = 1;
-            index_int result = 0;
-            for(index_int j = 0; j < rank; j++)
-            {
-                const index_int k      = rank - j - 1;
-                const index_int stride = this->strides[k];
-                const index_int len    = this->lens[k];
-                const index_int slen   = s * len;
-                const index_int idx    = (i % slen) / s;
-                result += stride * idx;
-                s = slen;
-            }
-            return result;
+            return compute_index(i);
         }
+    }
+
+    constexpr index_int compute_index(index_int i) const
+    {
+        const auto rank  = this->lens.size();
+        index_int s      = 1;
+        index_int result = 0;
+        for(index_int j = 0; j < rank; j++)
+        {
+            const index_int k      = rank - j - 1;
+            const index_int stride = this->strides[k];
+            const index_int len    = this->lens[k];
+            const index_int slen   = s * len;
+            const index_int idx    = (i % slen) / s;
+            result += stride * idx;
+            s = slen;
+        }
+        return result;
     }
 
     /// Convert single index into a multi-index

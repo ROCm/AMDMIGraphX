@@ -65,18 +65,6 @@ __global__ void ${kernel}(${params})
 
 )__migraphx__";
 
-static std::vector<std::string> get_op_names(const module& m)
-{
-    std::vector<std::string> result;
-    for(auto& ins : m)
-    {
-        if(starts_with(ins.name(), "@"))
-            continue;
-        result.push_back(ins.name());
-    }
-    return result;
-}
-
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
     std::vector<std::string> names() const { return {"pointwise", "contiguous"}; }
@@ -127,31 +115,13 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         {
             assert(not ins->module_inputs().empty());
             auto* pm = ins->module_inputs().front();
-            run_passes(*pm, {eliminate_common_subexpression{}, dead_code_elimination{}});
-            cpp_generator g;
-            g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
-            g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
-            g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
-            g.add_point_op("sign",
-                           "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
-            g.add_point_op("equal", "migraphx::abs(${0} == ${1})");
-            g.add_point_op("less", "migraphx::abs(${0} < ${1})");
-            g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
-            g.add_point_op("not", "migraphx::abs(not ${0})");
-            // Add explict conversions
-            g.fresult([](const shape& s) {
-                return "migraphx::convert<" + shape::cpp_type(s.type()) + ">";
-            });
-            auto name = g.create_function(
-                g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
-            std::string lambda = "MIGRAPHX_LIFT(" + name + ")";
-            auto op_names      = get_op_names(*pm);
-            op_names.push_back("kernel");
-            auto op_name_string = join_strings(op_names, "_");
+            auto pf = generate_pointwise(*pm, "inner_pointwise");
+            std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
+            auto kernel_name = generate_name_from_ops(*pm) + "_kernel";
             return replace(compile_op(
                 ctx,
                 to_shapes(ins->inputs()),
-                {{"lambda", lambda}, {"preamble", g.str()}, {"kernel", op_name_string}}));
+                {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}}));
         }
     }
 };

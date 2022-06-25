@@ -136,16 +136,14 @@ std::string generate_pointwise(const module& pm, const std::string& name)
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
     g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
-    g.add_point_op("sign",
-                   "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
+    g.add_point_op("sign", "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
     g.add_point_op("equal", "migraphx::abs(${0} == ${1})");
     g.add_point_op("less", "migraphx::abs(${0} < ${1})");
     g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
     g.add_point_op("not", "migraphx::abs(not ${0})");
     // Add explict conversions
-    g.fresult([](const shape& s) {
-        return "migraphx::convert<" + shape::cpp_type(s.type()) + ">";
-    });
+    g.fresult(
+        [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
     g.create_function(
         g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m).set_name(name));
     return g.str();
@@ -165,7 +163,7 @@ static std::vector<std::string> get_op_names(const module& m)
 
 std::string generate_name_from_ops(const module& m)
 {
-    auto op_names      = get_op_names(m);
+    auto op_names = get_op_names(m);
     return join_strings(op_names, "_");
 }
 

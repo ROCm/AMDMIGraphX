@@ -31,7 +31,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace {
 
-template<class Derived, std::size_t N>
+template <class Derived, std::size_t N>
 struct layernorm_base
 {
     shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
@@ -42,7 +42,7 @@ struct layernorm_base
             auto* pm = mods.front();
             nargs    = pm->get_parameter_names().size();
         }
-        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs+N);
+        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs + N);
         auto s = inputs.at(0);
         if(s.scalar())
         {
@@ -86,11 +86,14 @@ struct find_layernorm
 
 struct find_add_layernorm
 {
-    auto matcher() const { return match::layernorm()(match::var("x")(match::name("add").bind("add"))); }
+    auto matcher() const
+    {
+        return match::layernorm()(match::var("x")(match::name("add").bind("add")));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
+        auto ins     = r.result;
         auto add_ins = r.instructions["add"];
 
         m.replace_instruction(ins, add_layernorm{}, add_ins->inputs());

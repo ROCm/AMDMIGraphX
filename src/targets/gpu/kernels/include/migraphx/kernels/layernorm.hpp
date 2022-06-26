@@ -6,8 +6,15 @@
 
 namespace migraphx {
 
-template <index_int Axis, class F, class BinOp, class Output, class Input1, class Input2, class... Inputs>
-__device__ void generic_binary_layernorm(F compute, BinOp op, Output output, Input1 input1, Input2 input2, Inputs... inputs)
+template <index_int Axis,
+          class F,
+          class BinOp,
+          class Output,
+          class Input1,
+          class Input2,
+          class... Inputs>
+__device__ void generic_binary_layernorm(
+    F compute, BinOp op, Output output, Input1 input1, Input2 input2, Inputs... inputs)
 {
     using reduce_output = reduce::with_axis<Input1, Axis>;
     constexpr auto relements =
@@ -16,8 +23,9 @@ __device__ void generic_binary_layernorm(F compute, BinOp op, Output output, Inp
     reduce::block::run<reduce_output>([&](auto, auto r) {
         using value_type = typename Input1::type;
         auto mean        = [&](auto f) {
-            return r.reduce(op::sum{}, 0, [&](auto x1, auto x2) { return f(x1, x2) / value_type{relements}; })(
-                input1, input2);
+            return r.reduce(op::sum{}, 0, [&](auto x1, auto x2) {
+                return f(x1, x2) / value_type{relements};
+            })(input1, input2);
         };
         // mean(x)
         auto mean_x = mean(op);
@@ -35,17 +43,19 @@ __device__ void generic_binary_layernorm(F compute, BinOp op, Output output, Inp
     });
 }
 
-
 template <index_int Axis, class F, class Output, class Input, class... Inputs>
 __device__ void layernorm(F compute, Output output, Input input, Inputs... inputs)
 {
-    generic_binary_layernorm<Axis>(compute, [](auto x, auto) { return x; }, output, input, input, inputs...);
+    generic_binary_layernorm<Axis>(
+        compute, [](auto x, auto) { return x; }, output, input, input, inputs...);
 }
 
 template <index_int Axis, class F, class Output, class Input1, class Input2, class... Inputs>
-__device__ void add_layernorm(F compute, Output output, Input1 input1, Input2 input2, Inputs... inputs)
+__device__ void
+add_layernorm(F compute, Output output, Input1 input1, Input2 input2, Inputs... inputs)
 {
-    generic_binary_layernorm<Axis>(compute, [](auto x1, auto x2) { return x1 + x2; }, output, input1, input2, inputs...);
+    generic_binary_layernorm<Axis>(
+        compute, [](auto x1, auto x2) { return x1 + x2; }, output, input1, input2, inputs...);
 }
 
 } // namespace migraphx

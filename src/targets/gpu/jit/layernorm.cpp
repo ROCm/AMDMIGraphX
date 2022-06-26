@@ -43,7 +43,10 @@ __global__ void ${kernel}(${params})
 
 struct layernorm_compiler : compiler<layernorm_compiler>
 {
-    std::vector<std::string> names() const { return {"layernorm", "gpu::prelayernorm", "gpu::preadd_layernorm"}; }
+    std::vector<std::string> names() const
+    {
+        return {"layernorm", "gpu::prelayernorm", "gpu::preadd_layernorm"};
+    }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -82,20 +85,21 @@ struct layernorm_compiler : compiler<layernorm_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        auto v = op.to_value();
+        auto v         = op.to_value();
         v["layernorm"] = "layernorm";
-        v["kernel"] = "layernorm_kernel";
-        if (op.name() == "gpu::preadd_layernorm")
+        v["kernel"]    = "layernorm_kernel";
+        if(op.name() == "gpu::preadd_layernorm")
         {
             v["layernorm"] = "add_layernorm";
-            v["kernel"] = "add_layernorm_kernel";
+            v["kernel"]    = "add_layernorm_kernel";
         }
         if(not ins->module_inputs().empty())
         {
             auto* pm      = ins->module_inputs().front();
             v["preamble"] = generate_pointwise(*pm, "post_layernorm");
             v["post"]     = "MIGRAPHX_LIFT(post_layernorm)";
-            v["kernel"]   = v["layernorm"].to<std::string>() + "_" + generate_name_from_ops(*pm) + "_kernel";
+            v["kernel"] =
+                v["layernorm"].to<std::string>() + "_" + generate_name_from_ops(*pm) + "_kernel";
         }
         return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
     }

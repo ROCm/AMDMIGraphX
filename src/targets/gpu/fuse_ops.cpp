@@ -1047,6 +1047,26 @@ struct find_contiguous_pointwise
     }
 };
 
+struct find_layernorm_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(match::arg(0)(precompile_name("gpu::prelayernorm").bind("layernorm")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto layernorm = r.instructions["layernorm"];
+        auto* pm = ins->module_inputs().front();
+
+        auto inputs = ins->inputs();
+        inputs.front() = layernorm->inputs().front();
+
+        m.replace_instruction(ins, layernorm->get_operator(), inputs, {pm});
+    }
+};
+
 void fuse_ops::apply(module& m) const
 {
     match::find_matches(m, find_contiguous_pointwise{}, find_gelu{}, find_gelu_new{fast_math});
@@ -1069,6 +1089,7 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m,
                         find_triadd_layernorm{},
                         find_gemm_add{},
+                        find_layernorm_pointwise{},
                         find_gemm_pointwise{},
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});

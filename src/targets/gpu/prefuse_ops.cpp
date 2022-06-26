@@ -34,9 +34,14 @@ struct layernorm
 {
     std::string name() const { return "gpu::prelayernorm"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
     {
-        check_shapes{inputs, *this}.has(1);
+        std::size_t nargs = 1;
+        if (not mods.empty()) {
+            auto* pm    = mods.front();
+            nargs = pm->get_parameter_names().size();
+        }
+        check_shapes{inputs, *this}.has(nargs);
         auto s = inputs.at(0);
         if(s.scalar())
         {

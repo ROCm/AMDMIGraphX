@@ -32,7 +32,7 @@
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...) \
-    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
+    [](auto&&... private_lisft_xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(private_lisft_xs)>(private_lisft_xs)...))
 
 namespace migraphx {
 

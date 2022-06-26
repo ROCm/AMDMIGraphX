@@ -74,13 +74,14 @@ struct rocblas_gemm
     {
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
-        check_shapes{in_shapes, *this}.not_broadcasted();
+        check_shapes{in_shapes, *this};
         blas_shape(inputs[0]);
         blas_shape(inputs[1]);
         // if gemm and add are fused
         if(in_shapes.size() > 2)
         {
             auto cmat_shape = in_shapes.back();
+            check_shapes{{cmat_shape}, *this}.not_transposed().not_broadcasted();
             in_shapes.pop_back();
             blas_shape(cmat_shape);
             auto op_out_shape = op.compute_shape(in_shapes);

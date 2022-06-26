@@ -39,7 +39,8 @@ struct gemm_add_broadcast1 : verify_program<gemm_add_broadcast1>
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
         auto l3 = mm->add_parameter("3", m3_shape);
-        auto l3_b = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), l3);
+        auto l3_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), l3);
 
         auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
         mm->add_instruction(migraphx::make_op("add"), dot, l3_b);

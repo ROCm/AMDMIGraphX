@@ -825,13 +825,14 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     m.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
-inline auto precompile_name(std::string s) // NOLINT
+template<class... Strings>
+inline auto precompile_name(Strings... names) // NOLINT
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "gpu::precompile_op")
             return false;
         auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
-        return (op.name() == s);
+        return (contains({names...}, op.name()));
     });
 }
 
@@ -1052,7 +1053,7 @@ struct find_layernorm_pointwise
     auto matcher() const
     {
         return precompile_name("pointwise")(
-            match::arg(0)(precompile_name("gpu::prelayernorm").bind("layernorm")));
+            match::arg(0)(precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1061,8 +1062,12 @@ struct find_layernorm_pointwise
         auto layernorm = r.instructions["layernorm"];
         auto* pm       = ins->module_inputs().front();
 
-        auto inputs    = ins->inputs();
-        inputs.front() = layernorm->inputs().front();
+        if (not layernorm->module_inputs().empty())
+            return;
+
+        auto inputs    = layernorm->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), ins->inputs().begin()+1, ins->inputs().end());
 
         m.replace_instruction(ins, layernorm->get_operator(), inputs, {pm});
     }

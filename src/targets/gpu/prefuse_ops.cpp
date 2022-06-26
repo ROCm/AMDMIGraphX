@@ -30,13 +30,19 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace {
-struct layernorm
-{
-    std::string name() const { return "gpu::prelayernorm"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+template <class Derived, std::size_t N>
+struct layernorm_base
+{
+    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
     {
-        check_shapes{inputs, *this}.has(1);
+        std::size_t nargs = 1;
+        if(not mods.empty())
+        {
+            auto* pm = mods.front();
+            nargs    = pm->get_parameter_names().size();
+        }
+        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs + N);
         auto s = inputs.at(0);
         if(s.scalar())
         {
@@ -52,7 +58,18 @@ struct layernorm
         }
     }
 };
+
+struct layernorm : layernorm_base<layernorm, 0>
+{
+    std::string name() const { return "gpu::prelayernorm"; }
+};
 MIGRAPHX_REGISTER_OP(layernorm);
+
+struct add_layernorm : layernorm_base<add_layernorm, 1>
+{
+    std::string name() const { return "gpu::preadd_layernorm"; }
+};
+MIGRAPHX_REGISTER_OP(add_layernorm);
 
 struct find_layernorm
 {
@@ -64,6 +81,22 @@ struct find_layernorm
         auto x_ins = r.instructions["x"];
 
         m.replace_instruction(ins, layernorm{}, x_ins);
+    }
+};
+
+struct find_add_layernorm
+{
+    auto matcher() const
+    {
+        return match::layernorm()(match::var("x")(match::name("add").bind("add")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto add_ins = r.instructions["add"];
+
+        m.replace_instruction(ins, add_layernorm{}, add_ins->inputs());
     }
 };
 
@@ -128,7 +161,7 @@ struct find_gputriaddlayernorm
 
 void prefuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_layernorm{});
+    match::find_matches(m, find_add_layernorm{}, find_layernorm{});
     // match::find_matches(m, find_gputriaddlayernorm{}, find_gpulayernorm{});
 }
 

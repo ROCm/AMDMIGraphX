@@ -25,6 +25,12 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/cpp_generator.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -123,6 +129,45 @@ std::size_t find_fast_axis(const std::vector<shape>& inputs)
 std::string make_transformer_args(std::vector<std::string> transformers)
 {
     return join_strings(std::move(transformers), ", ");
+}
+
+std::string generate_pointwise(const module& pm, const std::string& name)
+{
+    module m = pm;
+    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    cpp_generator g;
+    g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
+    g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
+    g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
+    g.add_point_op("sign", "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
+    g.add_point_op("equal", "migraphx::abs(${0} == ${1})");
+    g.add_point_op("less", "migraphx::abs(${0} < ${1})");
+    g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
+    g.add_point_op("not", "migraphx::abs(not ${0})");
+    // Add explict conversions
+    g.fresult(
+        [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
+    g.create_function(
+        g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m).set_name(name));
+    return g.str();
+}
+
+static std::vector<std::string> get_op_names(const module& m)
+{
+    std::vector<std::string> result;
+    for(auto& ins : m)
+    {
+        if(starts_with(ins.name(), "@"))
+            continue;
+        result.push_back(ins.name());
+    }
+    return result;
+}
+
+std::string generate_name_from_ops(const module& m)
+{
+    auto op_names = get_op_names(m);
+    return join_strings(op_names, "_");
 }
 
 } // namespace gen

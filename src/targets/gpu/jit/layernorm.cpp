@@ -56,7 +56,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         {
             vec = vectorize::elements(faxis, inputs);
         }
-        auto preloads          = preload::broadcasts(axis, inputs);
+        auto preloads   = preload::broadcasts(axis, inputs);
         auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = inputs.back().elements() / relements;
         auto block_size = compute_block_size(relements, 256);
@@ -65,12 +65,11 @@ struct layernorm_compiler : compiler<layernorm_compiler>
             v, compute_global_for(ctx, nelements * block_size, 256), block_size);
         options.output      = inputs.back();
         options.inputs      = inputs;
-        options.kernel_name    = v.get("kernel", "layernorm_kernel");
+        options.kernel_name = v.get("kernel", "layernorm_kernel");
 
-        auto src = interpolate_string(
-            layernorm_kernel,
-            {{"kernel", options.kernel_name}, 
-            {"params", enum_params(inputs.size(), "void * private_p")},
+        auto src = interpolate_string(layernorm_kernel,
+                                      {{"kernel", options.kernel_name},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"transformers", make_transformer_args(preloads, vec)},
                                        {"post", v.get("post", std::string{"op::id{}"})},
@@ -83,11 +82,11 @@ struct layernorm_compiler : compiler<layernorm_compiler>
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         auto v = op.to_value();
-        if (not ins->module_inputs().empty())
+        if(not ins->module_inputs().empty())
         {
-            auto* pm           = ins->module_inputs().front();
-            v["preamble"]            = generate_pointwise(*pm, "post_layernorm");
-            v["post"] = "MIGRAPHX_LIFT(post_layernorm)";
+            auto* pm      = ins->module_inputs().front();
+            v["preamble"] = generate_pointwise(*pm, "post_layernorm");
+            v["post"]     = "MIGRAPHX_LIFT(post_layernorm)";
             v["kernel"]   = "layernorm_" + generate_name_from_ops(*pm) + "_kernel";
         }
         return replace(compile_op(ctx, to_shapes(ins->inputs()), v));

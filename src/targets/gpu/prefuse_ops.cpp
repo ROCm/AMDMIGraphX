@@ -37,9 +37,10 @@ struct layernorm
     shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
     {
         std::size_t nargs = 1;
-        if (not mods.empty()) {
-            auto* pm    = mods.front();
-            nargs = pm->get_parameter_names().size();
+        if(not mods.empty())
+        {
+            auto* pm = mods.front();
+            nargs    = pm->get_parameter_names().size();
         }
         check_shapes{inputs, *this}.has(nargs);
         auto s = inputs.at(0);

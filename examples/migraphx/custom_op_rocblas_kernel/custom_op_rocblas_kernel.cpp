@@ -66,14 +66,18 @@ struct sscal_custom_op final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(inputs.size() != 2) {
+        if(inputs.size() != 2)
+        {
             throw std::runtime_error("sscal_custom_op must have 2 input arguments");
         }
-        if(inputs[0].lengths().size() != 1 || inputs[0].lengths()[0] != 1) {
+        if(inputs[0].lengths().size() != 1 || inputs[0].lengths()[0] != 1)
+        {
             throw std::runtime_error("first input argument to sscal_custom_op must be a scalar");
         }
-        if(inputs[1].lengths().size() != 1) {
-            throw std::runtime_error("second input argument to sscal_custom_op must be a vector with dimension one");
+        if(inputs[1].lengths().size() != 1)
+        {
+            throw std::runtime_error(
+                "second input argument to sscal_custom_op must be a vector with dimension one");
         }
         return inputs.back();
     }

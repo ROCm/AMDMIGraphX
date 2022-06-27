@@ -7,5 +7,5 @@
  1.  `export LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH`
  2.  `cd $MIGRAPHX_SRC/examples/migraphx/custom_op_rocblas_kernel/`
  3.  `mkdir build && cd build`
- 4.  `CXX=/opt/rocm/llvm/bin/clang++ cmake ..  && make`
+ 4.  `cmake ..  && make`
  5.  `./custom_op_rocblas_kernel`

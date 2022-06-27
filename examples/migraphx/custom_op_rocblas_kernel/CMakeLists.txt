@@ -28,11 +28,11 @@ set (CMAKE_CXX_STANDARD 14)
 set (EXAMPLE custom_op_rocblas_kernel)
 
 
-list (APPEND CMAKE_PREFIX_PATH /opt/rocm/rocblas /opt/rocm/hip /opt/rocm)
+list (APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
 find_package (migraphx REQUIRED)
 find_package (rocblas REQUIRED)
 
 message("source file: " ${EXAMPLE}.cpp " ---> bin: " ${EXAMPLE})
 add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
 
-target_link_libraries(${EXAMPLE} migraphx::c roc::rocblas hip::device)
+target_link_libraries(${EXAMPLE} migraphx::c roc::rocblas) 

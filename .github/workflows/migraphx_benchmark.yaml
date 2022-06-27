@@ -85,6 +85,7 @@ jobs:
   git_push_result:
     name: Push result to Github
     runs-on: self-hosted
+    if: ${{ always() }}
     needs: run_benchmark
     steps:
       - name: Clone result repo

@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/instruction.hpp>
@@ -291,29 +314,7 @@ struct cpu_apply
 {
     module* modl;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
-    std::unordered_map<instruction_ref, std::string> prog_output_names{};
     instruction_ref last{};
-
-    void create_output_names()
-    {
-        this->last = instruction::get_output_alias(std::prev(modl->end()));
-        if(this->last->name() == "@return")
-        {
-            const auto& prog_outputs = last->inputs();
-            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
-
-            std::transform(prog_outputs.begin(),
-                           prog_outputs.end(),
-                           outputs_alias.begin(),
-                           [](const auto& i) { return instruction::get_output_alias(i); });
-
-            std::size_t index = 0;
-            for(auto ins : outputs_alias)
-            {
-                prog_output_names[ins] = modl->name() + ":#output_" + std::to_string(index++);
-            }
-        }
-    }
 
     void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate = true)
     {
@@ -360,7 +361,6 @@ struct cpu_apply
 
     void init()
     {
-        create_output_names();
         extend_dnnl_algos("dnnl::binary",
                           {
                               {"add", "binary_add"},
@@ -490,7 +490,7 @@ struct cpu_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
     {
-        return modl->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
+        return modl->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 };
 

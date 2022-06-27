@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_RANGES_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_RANGES_HPP
 
@@ -187,10 +210,16 @@ void replace(Range&& r, const T& old, const T& new_x)
     std::replace(r.begin(), r.end(), old, new_x);
 }
 
-template <class R1, class R2>
-bool equal(R1&& r1, R2&& r2)
+template <class R1, class R2, class... Predicate>
+bool equal(R1&& r1, R2&& r2, Predicate... pred)
 {
-    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end());
+    return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
+}
+
+template <class Range>
+auto distance(Range&& r)
+{
+    return std::distance(r.begin(), r.end());
 }
 
 template <class R>

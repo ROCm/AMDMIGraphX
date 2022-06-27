@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
@@ -25,6 +48,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
 #include <set>
@@ -677,11 +701,12 @@ struct miopen_fusion
         return args.back();
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_fusion)
 
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
 
@@ -705,19 +730,19 @@ struct miopen_conv_bias
         float beta  = 0;
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
 
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        if(not f.compile(ctx))
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        if(not fp.compile(ctx))
             MIGRAPHX_THROW("Failed to compile fusion plan");
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -728,7 +753,7 @@ MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
     fusion::op_t relu = {};
@@ -754,18 +779,18 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        relu = f.create_relu();
-        f.compile(ctx);
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        relu = fp.create_relu();
+        fp.compile(ctx);
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -875,7 +900,6 @@ struct find_conv_pointwise
         {
             if(i.name()[0] == '@')
                 continue;
-            auto inputs = to_shapes(i.inputs());
             op.ops.push_back({{i.get_operator()}});
         }
         std::vector<instruction_ref> inputs = {input_ins, weights_ins, bias_ins, alloc_ins};
@@ -966,7 +990,7 @@ struct find_gemm_pointwise
         inputs.pop_back();
 
         inputs.push_back(c_ins);
-        inputs.push_back(gemm_ins->inputs().back());
+        inputs.push_back(ins->inputs().back());
 
         gemm.beta = 1;
         m.replace_instruction(ins, gemm, inputs);
@@ -990,9 +1014,43 @@ struct find_commutative_broadcast
     }
 };
 
+struct find_contiguous
+{
+    auto matcher() const { return match::name("gpu::contiguous"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        m.replace_instruction(
+            ins,
+            make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}),
+            ins->inputs());
+    }
+};
+
+struct find_contiguous_pointwise
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto pw     = ins->inputs().front();
+        auto alloc  = ins->inputs().back();
+        auto args   = pw->inputs();
+        args.back() = alloc;
+
+        m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
+    }
+};
+
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_gelu{}, find_gelu_new{fast_math});
+    match::find_matches(m, find_contiguous_pointwise{}, find_gelu{}, find_gelu_new{fast_math});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_triadd{});
     match::find_matches(m,
@@ -1014,6 +1072,7 @@ void fuse_ops::apply(module& m) const
                         find_gemm_add{},
                         find_gemm_pointwise{},
                         find_commutative_broadcast{});
+    match::find_matches(m, find_contiguous{});
 }
 
 } // namespace gpu

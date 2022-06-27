@@ -1,5 +1,6 @@
 # Custom rocBLAS Kernel using MIGraphX API. 
- This is an example of a custom operator implementation using MIGraphX's C/C++ APIs. 
+ This is an example of a custom operator implementation using MIGraphX's C/C++ APIs. It also demonstrates how to use this custom op in conjunction with rest of MIGraphX operators to build  and run MIGraphX program on GPU. 
+
  Kernels can be written in either HIP, MIOpen, or by using RocBLAS library.  This particular example uses **rocBLAS** library calls.
 
  To build and run the example, ensure ROCm is installed at `/opt/rocm`. 

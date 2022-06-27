@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
@@ -39,9 +62,7 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
         assert(m_lens.size() == m_strides.size());
-        // assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
-        //        "At least one stride must be non-zero");
-        m_standard = this->elements() == this->element_space() and
+        m_standard = this->elements() == this->element_space() and not skips() and
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
 
@@ -135,6 +156,14 @@ struct shape_impl
                        ret.begin(),
                        [](shape::dynamic_dimension x) { return x.opt; });
         return ret;
+    }
+    // Does the shape skip over elements?
+    bool skips() const
+    {
+        assert(m_lens.size() == m_strides.size());
+        if(elements() == 1)
+            return false;
+        return std::none_of(m_strides.begin(), m_strides.end(), [](auto x) { return x == 1; });
     }
 
     std::shared_ptr<shape_impl> copy() const { return std::make_shared<shape_impl>(*this); }
@@ -321,7 +350,8 @@ bool shape::packed() const
     {
         return false;
     }
-    return this->sub_shapes().empty() and this->elements() == this->element_space();
+    return this->sub_shapes().empty() and not impl->skips() and
+           this->elements() == this->element_space();
 }
 
 bool shape::transposed() const
@@ -354,10 +384,8 @@ bool shape::broadcasted() const
         return false;
     }
     assert(this->lens().size() == this->strides().size());
-    return std::accumulate(this->strides().begin(),
-                           this->strides().end(),
-                           std::size_t{1},
-                           std::multiplies<std::size_t>()) == 0;
+    return std::any_of(
+        this->strides().begin(), this->strides().end(), [](auto x) { return x == 0; });
 }
 
 bool shape::scalar() const

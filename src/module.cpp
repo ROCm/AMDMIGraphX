@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <iterator>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
@@ -510,9 +533,8 @@ instruction_ref module::validate() const
     return std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& i) {
             auto inputs      = i.inputs();
-            bool check_order = std::all_of(inputs.begin(), inputs.end(), [&](auto in) {
-                return contains(impl->instructions, *in);
-            });
+            bool check_order = std::all_of(
+                inputs.begin(), inputs.end(), [&](auto in) { return has_instruction(in); });
             return !i.valid(impl->instructions.begin(), check_order);
         });
 }
@@ -797,17 +819,20 @@ void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) 
     });
 }
 
-std::vector<module_ref> module::get_sub_modules() const
+std::vector<module_ref> module::get_sub_modules(bool shallow) const
 {
     std::vector<module_ref> vec_modules;
     for(auto ins : iterator_for(*this))
     {
         const auto& mod_args = ins->module_inputs();
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
-        for(const auto& smod : mod_args)
+        if(not shallow)
         {
-            auto sub_mods = smod->get_sub_modules();
-            vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
+            for(const auto& smod : mod_args)
+            {
+                auto sub_mods = smod->get_sub_modules();
+                vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
+            }
         }
     }
 

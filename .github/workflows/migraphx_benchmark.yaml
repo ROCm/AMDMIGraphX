@@ -71,7 +71,7 @@ jobs:
           echo "::set-output name=result_time_start::$RESULT_DATE"
       - name: Execute benchmark script
         run: >
-          docker run -e TZ=America/Chicago
+          docker run -e TZ=America/New_York
           -e TARGET=gpu
           -e TEST_RESULTDIR=/test-results
           --device=/dev/dri

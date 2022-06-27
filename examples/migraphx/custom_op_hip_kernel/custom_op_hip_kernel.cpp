@@ -75,7 +75,7 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
         {
             throw std::runtime_error("square_custom_op must have 2 arguments");
         }
-        if(bool{inputs[0] != inputs[1]})
+        if(inputs[0] != inputs[1])
         {
             throw std::runtime_error("Inputs to the square_custom_op must have same Shape");
         }

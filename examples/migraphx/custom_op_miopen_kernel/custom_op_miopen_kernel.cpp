@@ -119,10 +119,12 @@ struct abs_custom_op final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(inputs.size() != 2) {
+        if(inputs.size() != 2)
+        {
             throw std::runtime_error("abs_custom_op must have two input arguments");
         }
-        if(inputs[0] != inputs[1]) {
+        if(inputs[0] != inputs[1])
+        {
             throw std::runtime_error("Input arguments to abs_custom_op must have same shape");
         }
         return inputs.back();

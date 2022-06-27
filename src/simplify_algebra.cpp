@@ -870,6 +870,26 @@ struct find_unit_mult_const
     }
 };
 
+struct find_neg_unit_mult_const
+{
+    auto matcher() const
+    {
+        return match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto args = ins->inputs();
+
+        auto c_in = r.instructions["x"];
+
+        auto neg = m.add_instruction(make_op("neg"), c_in);
+        m.replace_instruction(ins, neg);
+    }
+};
+
 struct find_sub_const
 {
     auto matcher() const
@@ -1070,6 +1090,7 @@ void simplify_algebra::apply(module& m) const
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
+                            find_neg_unit_mult_const{},
                             find_unit_mult_const{},
                             find_concat_op{},
                             find_split_concat{},

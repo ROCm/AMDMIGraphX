@@ -317,6 +317,11 @@ struct interface_base : Base
             f();
             return migraphx_status_success;
         }
+        catch(const std::exception& ex)
+        {
+            std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+            return migraphx_status_unknown_error;
+        }
         catch(...)
         {
             return migraphx_status_unknown_error;

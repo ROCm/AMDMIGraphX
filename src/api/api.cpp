@@ -601,7 +601,7 @@ struct migraphx_experimental_custom_op
                                           object_cast<migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute.");
+            throw std::runtime_error("Error in compute of: " + xobject.name);
         return (&out)->object;
     }
 
@@ -614,7 +614,7 @@ struct migraphx_experimental_custom_op
         auto api_error_result =
             compute_shape_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute_shape.");
+            throw std::runtime_error("Error in compute_shape of: " + xobject.name);
         return (&out)->object;
     }
 };

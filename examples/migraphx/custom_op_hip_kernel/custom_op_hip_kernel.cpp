@@ -71,8 +71,12 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
     }
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        assert(inputs.size() == 2);
-        assert(bool{inputs[0] == inputs[1]});
+        if(inputs.size() != 2) {
+            throw std::runtime_error("square_custom_op must have 2 arguments");
+        }
+        if(bool{inputs[0] != inputs[1]}) {
+            throw std::runtime_error("Inputs to the square_custom_op must have same Shape");
+        }
         return inputs.back();
     }
 };

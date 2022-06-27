@@ -99,11 +99,15 @@ struct abs_custom_op final : migraphx::experimental_custom_op_base
     {
         float alpha = 1;
         float beta  = 0;
+        // MIOpen kernel call takes raw buffer pointers for the TensorData. These Buffer pointers 
+        // must be accompanied with Tensor Description e.g. shape, type, strides, dimensionality. 
+        // Following `make_miopen_tensor` makes such tensor descriptors to pass as parameter to MIOpen kernel call.
         auto y_desc = make_miopen_tensor(output_shape);
         auto x_desc = make_miopen_tensor(args[0].get_shape());
         // create MIOpen stream handle
         auto miopen_handle = make_miopen_handle(ctx);
-        // make miopen activation descriptor
+        // MIOpen has generic kernel for many different kinds of activation functions. 
+        // Each such generic call must be accompanied with description of what kind of activation computation to perform 
         auto ad = make_activation_descriptor(miopenActivationABS, 0, 0, 0);
         miopenActivationForward(
             miopen_handle, ad, &alpha, x_desc, args[0].data(), &beta, y_desc, args[1].data());

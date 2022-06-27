@@ -97,6 +97,11 @@ jobs:
           python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report.py \
           -i ${{ github.event.inputs.result_path }}/onnxruntime-${{ needs.run_benchmark.outputs.result_time_start }}/ \
           -o $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/migraphx-result-${{ needs.run_benchmark.outputs.result_time_start }}.csv
+      - name: Execute detail report script
+        run: |
+          python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report_detail.py \
+          -i ${{ github.event.inputs.result_path }}/onnxruntime-${{ needs.run_benchmark.outputs.result_time_start }}/dashboard-detail.csv \
+          -o $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/migraphx-result-detail-${{ needs.run_benchmark.outputs.result_time_start }}.csv
       - name: Push report
         run: |
           cd $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/

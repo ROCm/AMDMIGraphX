@@ -819,17 +819,20 @@ void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) 
     });
 }
 
-std::vector<module_ref> module::get_sub_modules() const
+std::vector<module_ref> module::get_sub_modules(bool shallow) const
 {
     std::vector<module_ref> vec_modules;
     for(auto ins : iterator_for(*this))
     {
         const auto& mod_args = ins->module_inputs();
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
-        for(const auto& smod : mod_args)
+        if(not shallow)
         {
-            auto sub_mods = smod->get_sub_modules();
-            vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
+            for(const auto& smod : mod_args)
+            {
+                auto sub_mods = smod->get_sub_modules();
+                vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
+            }
         }
     }
 

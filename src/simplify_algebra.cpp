@@ -866,13 +866,7 @@ struct find_unit_mult_const
 
         auto c_in = r.instructions["x"];
 
-        auto res = args.front();
-        if(args.front() != c_in)
-        {
-            res = args.back();
-        }
-
-        m.replace_instruction(ins, res);
+        m.replace_instruction(ins, c_in);
     }
 };
 

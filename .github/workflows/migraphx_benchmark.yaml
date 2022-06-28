@@ -7,8 +7,8 @@ jobs:
   benchmark:
     uses: migraphx-benchmark/actions/.github/workflows/benchmarks.yml@main
     with:
-      script_repo: "migraphx-benchmark/benchmark-utils"
+      script_repo: migraphx-benchmark/benchmark-utils
       result_path: /home/htec/jz/test-results
-      result_repo: "migraphx-benchmark/migraphx-compare-results"
+      result_repo: migraphx-benchmark/migraphx-compare-results
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

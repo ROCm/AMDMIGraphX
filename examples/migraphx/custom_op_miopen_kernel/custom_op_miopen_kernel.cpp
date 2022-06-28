@@ -34,7 +34,6 @@
 
 inline miopenTensorDescriptor_t make_miopen_tensor(const migraphx::shape& s, bool pack = false)
 {
-    // TODO: normalize_standard shape for scalar
     miopenTensorDescriptor_t t;
     MIGRAPHX_MIOPEN_ASSERT(miopenCreateTensorDescriptor(&t));
     // Convert to ints
@@ -150,11 +149,11 @@ int main(int argc, const char* argv[])
     // set offload copy to true for GPUs
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
-    migraphx::program_parameters pp;
+    migraphx::program_parameters prog_params;
     std::vector<float> x_data(s.bytes() / sizeof(s.type()));
     std::iota(x_data.begin(), x_data.end(), 0);
-    pp.add("x", migraphx::argument(s, x_data.data()));
-    auto results                       = p.eval(pp);
+    prog_params.add("x", migraphx::argument(s, x_data.data()));
+    auto results                       = p.eval(prog_params);
     auto result                        = results[0];
     std::vector<float> expected_result = x_data;
     std::transform(expected_result.begin(),

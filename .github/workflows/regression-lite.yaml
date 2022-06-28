@@ -11,7 +11,7 @@ on:
 
   workflow_dispatch:
 
-concurrency: benchmark
+#concurrency: benchmark
 
 jobs:
   release:

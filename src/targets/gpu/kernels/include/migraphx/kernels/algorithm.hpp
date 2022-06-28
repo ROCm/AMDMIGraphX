@@ -49,7 +49,7 @@ constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 {
     for(; first != last; ++first)
     {
-        init = op(std::move(init), *first);
+        init = op(static_cast<T&&>(init), *first);
     }
     return init;
 }
@@ -60,6 +60,20 @@ constexpr OutputIt copy(InputIt first, InputIt last, OutputIt d_first)
     while(first != last)
     {
         *d_first++ = *first++;
+    }
+    return d_first;
+}
+
+template <class InputIt, class OutputIt, class UnaryPredicate>
+constexpr OutputIt copy_if(InputIt first, InputIt last, OutputIt d_first, UnaryPredicate pred)
+{
+    for(; first != last; ++first)
+    {
+        if(pred(*first))
+        {
+            *d_first = *first;
+            ++d_first;
+        }
     }
     return d_first;
 }
@@ -113,6 +127,24 @@ template <class Iterator, class T>
 constexpr Iterator find(Iterator first, Iterator last, const T& value)
 {
     return find_if(first, last, [&](const auto& x) { return x == value; });
+}
+
+template <class InputIt, class UnaryPredicate>
+constexpr bool any_of(InputIt first, InputIt last, UnaryPredicate p)
+{
+    return find_if(first, last, p) != last;
+}
+
+template <class InputIt, class UnaryPredicate>
+constexpr bool none_of(InputIt first, InputIt last, UnaryPredicate p)
+{
+    return find_if(first, last, p) == last;
+}
+
+template <class InputIt, class UnaryPredicate>
+constexpr bool all_of(InputIt first, InputIt last, UnaryPredicate p)
+{
+    return none_of(first, last, [=](auto&& x) { return not p(x); });
 }
 
 template <class Iterator1, class Iterator2>

@@ -53,7 +53,6 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/eliminate_workspace.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -152,7 +151,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         sync_device{},
         preallocate_param{"scratch", gpu_allocation_model{}},
         dead_code_elimination{},
-        eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},
         normalize_ops{},

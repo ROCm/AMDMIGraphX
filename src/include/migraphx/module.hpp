@@ -183,7 +183,7 @@ struct module
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
-    std::vector<module_ref> get_sub_modules() const;
+    std::vector<module_ref> get_sub_modules(bool shallow = false) const;
     module& sort();
     ins_dep_map calc_implicit_deps() const;
 

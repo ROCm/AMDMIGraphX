@@ -32,32 +32,28 @@ debug = False
 def getipynb_markdownBlockAsList():
     markdownBlock = [
         '\t{\n'
-        '\t\t"cell_type": "code",\n',
-        '\t\t"metadata": {},\n',
-        '\t\t"source": [\n',
-        '\t\t\t\"#  The MIT License (MIT)\",\n',
-        '\t\t\t\"#\",\n',
-        '\t\t\t\"#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.\",\n',
-        '\t\t\t\"#\",\n',
-        '\t\t\t\"#  Permission is hereby granted, free of charge, to any person obtaining a copy\",\n',
-        '\t\t\t\"#  of this software and associated documentation files (the \'Software\'), to deal\",\n',
-        '\t\t\t\"#  in the Software without restriction, including without limitation the rights\",\n',
-        '\t\t\t\"#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\",\n',
-        '\t\t\t\"#  copies of the Software, and to permit persons to whom the Software is\",\n',
-        '\t\t\t\"#  furnished to do so, subject to the following conditions:\",\n',
-        '\t\t\t\"#\",\n',
-        '\t\t\t\"#  The above copyright notice and this permission notice shall be included in\",\n',
-        '\t\t\t\"#  all copies or substantial portions of the Software.\",\n',
-        '\t\t\t\"#\",\n',
-        '\t\t\t\"#  THE SOFTWARE IS PROVIDED \'AS IS\', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\",\n',
-        '\t\t\t\"#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\",\n',
-        '\t\t\t\"#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE\",\n',
-        '\t\t\t\"#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\",\n',
-        '\t\t\t\"#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\",\n',
-        '\t\t\t\"#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\",\n',
-        '\t\t\t\"#  THE SOFTWARE.\"\n',
-        '\t\t]\n',
-        '\t},\n',
+        '\t\t"cell_type": "code",\n', '\t\t"execution_count": null,\n',
+        '\t\t"metadata": {},\n', '\t\t"outputs": [],\n', '\t\t"source": [\n',
+        '\t\t\t\"#  The MIT License (MIT)\\n\",\n', '\t\t\t\"#\\n\",\n',
+        '\t\t\t\"#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
+        '\t\t\t\"#\\n\",\n',
+        '\t\t\t\"#  Permission is hereby granted, free of charge, to any person obtaining a copy\\n\",\n',
+        '\t\t\t\"#  of this software and associated documentation files (the \'Software\'), to deal\\n\",\n',
+        '\t\t\t\"#  in the Software without restriction, including without limitation the rights\\n\",\n',
+        '\t\t\t\"#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\\n\",\n',
+        '\t\t\t\"#  copies of the Software, and to permit persons to whom the Software is\\n\",\n',
+        '\t\t\t\"#  furnished to do so, subject to the following conditions:\\n\",\n',
+        '\t\t\t\"#\\n\",\n',
+        '\t\t\t\"#  The above copyright notice and this permission notice shall be included in\\n\",\n',
+        '\t\t\t\"#  all copies or substantial portions of the Software.\\n\",\n',
+        '\t\t\t\"#\\n\",\n',
+        '\t\t\t\"#  THE SOFTWARE IS PROVIDED \'AS IS\', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\\n\",\n',
+        '\t\t\t\"#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\\n\",\n',
+        '\t\t\t\"#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE\\n\",\n',
+        '\t\t\t\"#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\\n\",\n',
+        '\t\t\t\"#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\\n\",\n',
+        '\t\t\t\"#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\\n\",\n',
+        '\t\t\t\"#  THE SOFTWARE.\\n\"\n', '\t\t]\n', '\t},'
     ]
     return markdownBlock
 
@@ -210,7 +206,8 @@ def getDelimiter(filename):
         ".py": "#",
         ".txt": "#",
         ".bsh": "#",
-        ".sh": "#"
+        ".sh": "#",
+        ".cmake": "#"
     }
     listOfKeys = delimiterDict.keys()
     delimiter = None

@@ -236,6 +236,11 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
+{
+    return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
+}
+
 struct experimental_custom_op
 {
     std::string name;
@@ -260,7 +265,12 @@ struct custom_operation
         return op.compute_shape(std::move(inputs));
     }
 
-    argument compute(const std::vector<argument>&) const { MIGRAPHX_THROW("Not computable"); }
+    // TODO: Compute method with module_args
+    argument
+    compute(migraphx::context ctx, migraphx::shape output_shape, std::vector<argument> inputs) const
+    {
+        return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
+    }
 };
 
 template <class CustomOp>

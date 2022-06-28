@@ -92,13 +92,7 @@ TEST_CASE(if_pl_test)
 
         auto outputs = p.eval(pp);
         auto output  = outputs[0];
-        auto lens    = output.get_shape().lengths();
-        auto elem_num =
-            std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
-        float* data_ptr = reinterpret_cast<float*>(output.data());
-        std::vector<float> ret(data_ptr, data_ptr + elem_num);
-
-        return ret;
+        return output.as_vector<float>();
     };
 
     // then branch
@@ -141,18 +135,11 @@ TEST_CASE(loop_test)
 
         auto outputs = p.eval(pp);
         auto output  = outputs[0];
-        auto lens    = output.get_shape().lengths();
-        auto elem_num =
-            std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
-        float* data_ptr = reinterpret_cast<float*>(output.data());
         std::vector<std::vector<float>> ret;
-        ret.push_back({data_ptr, data_ptr + elem_num});
+        ret.push_back(output.as_vector<float>());
 
-        output   = outputs[1];
-        lens     = output.get_shape().lengths();
-        elem_num = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
-        data_ptr = reinterpret_cast<float*>(output.data());
-        ret.push_back({data_ptr, data_ptr + elem_num});
+        output = outputs[1];
+        ret.push_back(output.as_vector<float>());
 
         return ret;
     };

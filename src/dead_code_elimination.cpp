@@ -50,7 +50,7 @@ void dead_code_elimination::apply(module& m) const
             break;
         // Skip instruction with empty shape as output unless its a builtin or undefined or identity
         if((not i->get_shape().dynamic() and i->get_shape().elements() == 0) and
-           i->name().front() != '@' not contains({"undefined", "identity", "allocate"}, i->name()))
+           i->name().front() != '@' and not contains({"undefined", "identity", "allocate"}, i->name()))
             continue;
         assert(std::distance(m.begin(), i) <= std::distance(m.begin(), last));
         std::unordered_set<instruction_ref> visited;

@@ -200,6 +200,15 @@ TEST_CASE(test_shape_broadcasted5)
     EXPECT(s.broadcasted());
 }
 
+TEST_CASE(test_shape_step_broadcasted)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {0, 3}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
 TEST_CASE(test_shape_default_copy)
 {
     migraphx::shape s1{};

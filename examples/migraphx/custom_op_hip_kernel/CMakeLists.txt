@@ -21,41 +21,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
+cmake_minimum_required(VERSION 3.5)
+project (custom_hip_kernel)
 
-function(register_op TARGET_NAME)
-    set(options)
-    set(oneValueArgs HEADER)
-    set(multiValueArgs OPERATORS INCLUDES)
+set (CMAKE_CXX_STANDARD 14)
+set (EXAMPLE custom_op_hip_kernel)
 
-    cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+list (APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+find_package (migraphx REQUIRED)
+find_package (hip REQUIRED)
 
-    string(MAKE_C_IDENTIFIER "${PARSE_HEADER}" BASE_NAME)
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ops)
-    set(FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/ops/${BASE_NAME}.cpp)
-    file(WRITE "${FILE_NAME}" "")
-    foreach(INCLUDE ${PARSE_INCLUDES})
-        file(APPEND "${FILE_NAME}" "
-#include <${INCLUDE}>
-")
-    endforeach()
-    file(APPEND "${FILE_NAME}" "
-#include <migraphx/register_op.hpp>
-#include <${PARSE_HEADER}>
-")
+message("source file: " ${EXAMPLE}.cpp " ---> bin: " ${EXAMPLE})
+add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
 
-
-        file(APPEND "${FILE_NAME}" "
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-")
-    foreach(OPERATOR ${PARSE_OPERATORS})
-        file(APPEND "${FILE_NAME}" "
-MIGRAPHX_REGISTER_OP(${OPERATOR})
-")
-    endforeach()
-    file(APPEND "${FILE_NAME}" "
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-")
-    target_sources(${TARGET_NAME} PRIVATE ${FILE_NAME})
-endfunction()
+target_link_libraries(${EXAMPLE} migraphx::c hip::device)

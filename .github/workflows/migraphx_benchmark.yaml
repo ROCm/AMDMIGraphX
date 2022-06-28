@@ -1,112 +1,14 @@
-on:
-  workflow_dispatch:
-    inputs:
-      script_repo:
-        description: Script repository (rocm-migraphx)
-        default: "migraphx-benchmark/rocm-migraphx"
-        required: true
-      result_path:
-        description: Result Path
-        required: true
-        default: /home/htec/jz/test-results
-      result_repo:
-        description: Result repository
-        required: true
-        default: "migraphx-benchmark/migraphx-compare-results"
-    
 name: MiGraphX Benchmark
 
-env:
-  SCRIPT_PATH: rocm-migraphx
-  RESULT_PATH: migraphx-compare-results
+on:
+  workflow_dispatch:
 
 jobs:
-  check_image_version:
-    name: Check Image Version
-    runs-on: self-hosted
-    outputs:
-      image: ${{ steps.check_image.outputs.image }}
-    steps:
-      - name: Check new image
-        id: check_image
-        run: |
-          if [ -z "$(docker images -q migraphx-ort:`date +%Y%m%d`)" ]; then
-            echo "::set-output name=image::true"
-          fi
-  build_image:
-    name: Build New Image
-    runs-on: self-hosted
-    needs: check_image_version
-    if: ${{ needs.check_image_version.outputs.image == 'true' }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v1
-        with:
-          submodules: recursive
-          token: ${{ secrets.GH_SUB_TOKEN }}
-      - name: Clone scripts repo
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.script_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
-      - name: Docker build
-        run: |
-          cd $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/dockerfiles
-          docker build -t "migraphx-ort:$(date +%Y%m%d)" --no-cache -f dockerfile_migraphx_benchmark .
-  run_benchmark:
-    name: Run benchmark
-    runs-on: self-hosted
-    if: ${{ always() }}
-    outputs:
-      result_time_start: ${{ steps.result_time.outputs.result_time_start }}
-    needs: build_image
-    steps:
-      - name: Clone scripts repo
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.script_repo }}.git $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}
-      - name: Export start time
-        id: result_time
-        run: |
-          RESULT_DATE=$(date '+%Y-%m-%d-%H-%M')
-          echo "::set-output name=result_time_start::$RESULT_DATE"
-      - name: Execute benchmark script
-        run: >
-          docker run -e TZ=America/New_York
-          -e TARGET=gpu
-          -e TEST_RESULTDIR=/test-results
-          --device=/dev/dri
-          --device=/dev/kfd
-          --network=host
-          --group-add=video 
-          -v ${{ github.event.inputs.result_path }}:/test-results
-          -v $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}:/src
-          --workdir /src/scripts/
-          migraphx-ort:$(date +%Y%m%d) /bin/bash ort_benchmark4.sh
-  git_push_result:
-    name: Push result to Github
-    runs-on: self-hosted
-    if: ${{ always() }}
-    needs: run_benchmark
-    steps:
-      - name: Clone result repo
-        run: |
-          rm -rf $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/
-          git clone https://${{ secrets.GH_SUB_TOKEN }}@github.com/${{ github.event.inputs.result_repo }}.git $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}
-      - name: Execute report script
-        run: |
-          python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report.py \
-          -i ${{ github.event.inputs.result_path }}/onnxruntime-${{ needs.run_benchmark.outputs.result_time_start }}/ \
-          -o $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/migraphx-result-${{ needs.run_benchmark.outputs.result_time_start }}.csv
-      - name: Execute detail report script
-        run: |
-          python3 $GITHUB_WORKSPACE/${{ env.SCRIPT_PATH }}/scripts/benchmark_report_detail.py \
-          -i ${{ github.event.inputs.result_path }}/onnxruntime-${{ needs.run_benchmark.outputs.result_time_start }}/dashboard-detail.csv \
-          -o $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/migraphx-result-detail-${{ needs.run_benchmark.outputs.result_time_start }}.csv
-      - name: Push report
-        run: |
-          cd $GITHUB_WORKSPACE/${{ env.RESULT_PATH }}/
-          git add .
-          git config --local user.email github-actions
-          git config --local user.name github-actions@github.com
-          git commit -m "Push report" -a
-          git push
+  benchmark:
+    uses: migraphx-benchmark/actions/.github/workflows/benchmarks.yml@main
+    with:
+      script_repo: "migraphx-benchmark/benchmark-utils"
+      result_path: /home/htec/jz/test-results
+      result_repo: "migraphx-benchmark/migraphx-compare-results"
+    secrets:
+      gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

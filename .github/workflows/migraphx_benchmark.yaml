@@ -9,6 +9,6 @@ jobs:
     with:
       script_repo: migraphx-benchmark/benchmark-utils
       result_path: /home/htec/jz/test-results
-      result_repo: migraphx-benchmark/migraphx-compare-results
+      result_repo: "migraphx-benchmark/comparison-results"
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

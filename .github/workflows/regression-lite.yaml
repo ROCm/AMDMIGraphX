@@ -18,5 +18,6 @@ jobs:
     uses: migraphx-benchmark/actions/.github/workflows/perf-test.yml@main
     with:
       rocm_release: "5.1"
+      result_number: 10
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

@@ -23,8 +23,8 @@
  */
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
+
 #include "migraphx.h"
-#include <cxxabi.h>
 #include <initializer_list>
 #include <migraphx/migraphx.h>
 #include <memory>
@@ -346,9 +346,7 @@ struct interface_base : Base
                 delete x; // NOLINT
             });
         };
-        int status = 0;
-        std::string obj_typename = abi::__cxa_demangle(typeid(obj).name(), nullptr, nullptr, &status);
-        this->make_handle(f, &obj, obj_typename.c_str(), copy, del, std::forward<Ts>(xs)...);
+        this->make_handle(f, &obj, copy, del, std::forward<Ts>(xs)...);
     }
 
     template <class T, class Setter, class F>

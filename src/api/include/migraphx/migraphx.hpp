@@ -23,6 +23,7 @@
  */
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
+#include "migraphx.h"
 #include <cxxabi.h>
 #include <initializer_list>
 #include <migraphx/migraphx.h>

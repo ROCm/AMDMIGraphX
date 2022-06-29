@@ -303,37 +303,26 @@ struct find_double_add_lit_broadcast
 
 struct find_inner_broadcast
 {
-    auto matcher() const
-    {
-        return pointwise(match::all_of[match::inputs()](
-            match::broadcast_shape(), match::name("broadcast", "multibroadcast")));
-    }
+    auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins    = r.result;
-        auto inputs = ins->inputs();
-        if(inputs.empty())
+        auto ins        = r.result;
+        auto broadcasts = ins->inputs();
+        if(broadcasts.empty())
             return;
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
-            if(contains({"broadcast", "multibroadcast"}, i->name()))
-                return i->inputs().front();
-            else
-                return i;
-        });
-
-        if(not std::all_of(inputs.begin(), inputs.end(), [&](auto& x) {
-               return x->get_shape() == inputs.front()->get_shape();
+        std::vector<instruction_ref> inputs;
+        std::transform(broadcasts.begin(),
+                       broadcasts.end(),
+                       std::back_inserter(inputs),
+                       [](auto i) { return i->inputs().front(); });
+        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
+               return i->get_shape() != inputs.front()->get_shape();
            }))
             return;
 
-        auto op  = m.insert_instruction(ins, ins->get_operator(), inputs);
-        auto bop = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-            return contains({"broadcast", "multibroadcast"}, i->name());
-        });
-
-        assert(bop != ins->inputs().end());
-        m.replace_instruction(ins, (*bop)->get_operator(), op);
+        auto op = m.insert_instruction(ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }
 };
 
@@ -461,8 +450,9 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](match::name("slice")(
-            match::any_of[match::outputs()](match::pointwise(), reduction()))));
+        return match::any(
+            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
+                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)

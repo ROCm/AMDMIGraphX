@@ -270,25 +270,31 @@ struct find_inner_broadcast
     auto matcher() const
     {
         return pointwise(
-            match::nargs(2),
-            match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
+            match::all_of[match::inputs()](match::broadcast()));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
-        auto x_ins = r.instructions["x"];
-        auto y_ins = r.instructions["y"];
-
-        auto xbroadcast = any_cast<op::broadcast>(x_ins->get_operator());
-        auto ybroadcast = any_cast<op::broadcast>(y_ins->get_operator());
-
-        if(xbroadcast.axis != ybroadcast.axis)
+        auto broadcasts = ins->inputs();
+        if (broadcasts.empty())
+            return;
+        if (std::any_of(broadcasts.begin(), broadcasts.end(), [&](auto i) {
+            return i->get_operator() != broadcasts.front()->get_operator();
+        }))
+            return;
+        std::vector<instruction_ref> inputs;
+        std::transform(broadcasts.begin(), broadcasts.end(), std::back_inserter(inputs), [](auto i) {
+            return i->inputs().front();
+        });
+        if (std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
+            return i->get_shape() != inputs.front()->get_shape();
+        }))
             return;
 
         auto op = m.insert_instruction(
-            ins, ins->get_operator(), x_ins->inputs().front(), y_ins->inputs().front());
-        m.replace_instruction(ins, xbroadcast, op);
+            ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }
 };
 
@@ -417,7 +423,7 @@ struct find_splits
     auto matcher() const
     {
         return match::any(match::any_of[match::outputs()](match::name("slice")(
-            match::any_of[match::outputs()](match::pointwise(), reduction()))));
+            match::any_of[match::outputs()](match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)

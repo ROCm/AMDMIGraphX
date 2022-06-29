@@ -11,6 +11,6 @@ jobs:
   release:
     uses: migraphx-benchmark/actions/.github/workflows/rocm-release.yml@main
     with:
-      rocm_release: 5.1
+      rocm_release: ${{ github.event.inputs.rocm_release }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

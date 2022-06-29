@@ -851,6 +851,23 @@ struct find_div_const
     }
 };
 
+struct find_zero_add_const
+{
+    auto matcher() const
+    {
+        return match::name("add")(
+            match::either_arg(0, 1)(match::has_value(0.0f), match::any().bind("x")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto x_in = r.instructions["x"];
+
+        m.replace_instruction(ins, x_in);
+    }
+};
+
 struct find_sub_const
 {
     auto matcher() const
@@ -1042,6 +1059,7 @@ void simplify_algebra::apply(module& m) const
         match::find_matches(m,
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
+                            find_zero_add_const{},
                             find_add_lit_broadcast{},
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},

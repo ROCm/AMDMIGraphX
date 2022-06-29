@@ -123,6 +123,33 @@ TEST_CASE(simplify_add3)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_zero_add_constant)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("add"), zero, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    migraphx::module m3;
+    {
+        auto x    = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m3.add_literal(0);
+        m3.add_instruction(migraphx::make_op("add"), x, zero);
+    }
+    run_pass(m3);
+
+    EXPECT((m1 == m2) && (m2 == m3));
+}
+
 TEST_CASE(simplify_add_broadcast1)
 {
     migraphx::shape inner{migraphx::shape::int32_type, {2}};

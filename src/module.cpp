@@ -35,6 +35,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/json.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -758,44 +759,33 @@ void module::print_graph(std::ostream& os, bool brief) const
     os << "}" << std::endl;
 }
 
+static std::string to_c_id(const std::string& name, char rep = '_')
+{
+    std::string id = transform_string(name, [&](auto c) {
+        if(with_char(::isalnum)(c) or c == '_')
+            return c;
+        return rep;
+    });
+    while(contains(id, "__"))
+        replace_string_inplace(id, "__", "_");
+    return id;
+}
+
 static std::string cpp_var_name(const std::string& name)
 {
-    return "m" + replace_string(name, "@", "x");
+    return to_c_id("x_" + replace_string(name, ":", "_module_"));
 }
 
-static std::string cpp_op_var(const std::string& name, instruction_ref ins)
+static void print_make_op(std::ostream& os, const operation& op)
 {
-    return replace_string(name, "@", ins->name());
-}
-
-static void print_op_attributes(std::ostream& os, const std::string& name, const operation& op)
-{
-    std::string x = to_string(op);
-    if(contains(x, "["))
+    os << "migraphx::make_op(" << enclose_name(op.name());
+    auto v = op.to_value();
+    if(not v.empty())
     {
-        auto start                 = x.find('[');
-        auto end                   = x.find(']');
-        std::string attribute_text = x.substr(start + 1, end - start - 1);
-        std::vector<std::string> attributes;
-        for(auto&& attribute : split_string(attribute_text, ','))
-        {
-            if(contains(attribute, '='))
-                attributes.push_back(attribute);
-            else
-                attributes.back() += "," + attribute;
-        }
-        for(auto&& attribute : attributes)
-        {
-            auto p     = split_string(attribute, '=');
-            auto key   = p.front();
-            auto value = p.back();
-            if(contains({"bn_mode", "padding_mode"}, key))
-                continue;
-            if(key == "mode")
-                value = enclose_name(trim(value));
-            os << name << "." << key << " = " << value << ";" << std::endl;
-        }
+        os << ", "
+           << "migraphx::from_json_string(" << enclose_name(to_json_string(v)) << ")";
     }
+    os << ")";
 }
 
 static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
@@ -808,22 +798,25 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 }
 
 std::unordered_map<instruction_ref, std::string>
-module::print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const
+module::print_cpp(std::ostream& os,
+                  const std::string& mname,
+                  std::unordered_map<instruction_ref, std::string> names) const
 {
-    os << "migraphx::module p;" << std::endl;
-    unsigned long seed = 0;
+    // cppcheck-suppress variableScope
+    unsigned long seed = names.size();
+    auto last          = std::prev(this->end());
     names              = this->print(
         [&](auto ins, auto ins_names) {
-            auto op = cpp_op_var(ins_names.at(ins), ins);
-            if(ins->name().front() != '@')
-            {
-                os << "migraphx::op::" << ins->name() << " " << op << ";" << std::endl;
-                print_op_attributes(os, op, ins->get_operator());
-            }
-            os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
+            std::vector<std::string> input_vars;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(input_vars),
+                           [&](auto input) { return cpp_var_name(ins_names.at(input)); });
+            if(ins != last)
+                os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {
-                os << "p.add_literal(";
+                os << mname << "->add_literal(";
                 bool use_abs = false;
                 ins->get_literal().visit([&](auto v) {
                     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
@@ -841,17 +834,22 @@ module::print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::str
             else if(ins->name() == "@param")
             {
                 std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
-                os << "p.add_parameter(" << enclose_name(name) << ",";
+                os << mname << "->add_parameter(" << enclose_name(name) << ",";
                 print_cpp_shape(os, ins->get_shape());
                 os << ");" << std::endl;
             }
+            else if(ins->name() == "@return")
+            {
+                os << mname << "->add_return({";
+                os << join_strings(input_vars, ", ");
+                os << "});" << std::endl;
+            }
             else
             {
-                os << "p.add_instruction(" << op;
-                for(auto input : ins->inputs())
-                {
-                    os << ", " << cpp_var_name(ins_names.at(input));
-                }
+                assert(ins->name().front() != '@');
+                os << mname << "->add_instruction(";
+                print_make_op(os, ins->get_operator());
+                os << ", " << join_strings(input_vars, ", ");
                 os << ");" << std::endl;
             }
         },
@@ -860,7 +858,7 @@ module::print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::str
     return names;
 }
 
-void module::print_cpp(std::ostream& os) const { this->print_cpp(os, {}); }
+void module::print_cpp(std::ostream& os) const { this->print_cpp(os, this->name(), {}); }
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {

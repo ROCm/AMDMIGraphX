@@ -19,5 +19,6 @@ jobs:
     with:
       rocm_release: "5.1"
       result_number: 10
+      flags: "-s" 
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

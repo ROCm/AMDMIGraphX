@@ -14,12 +14,15 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
+        default: "5.1"
       result_number:
         description: Last N results
         required: true
+        default: "10"
       flags:
         description: -m for Max value; -s for Std dev; -r for Threshold file
         required: true
+        default: "-s"
 
 concurrency: benchmark
 

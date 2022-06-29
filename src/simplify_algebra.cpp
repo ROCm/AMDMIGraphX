@@ -874,37 +874,23 @@ struct find_unit_ops
     }
 };
 
-struct find_neg_unit_mult_const
+struct find_neg_unit_ops
 {
     auto matcher() const
     {
-        return match::name("mul")(
+        auto mul_neg_1 = match::name("mul")(
             match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
+        auto div_neg_1 =
+            match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f)));
+        return match::any_of(mul_neg_1, div_neg_1);
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
-        auto args = ins->inputs();
-
         auto c_in = r.instructions["x"];
 
         auto neg = m.add_instruction(make_op("neg"), c_in);
-        m.replace_instruction(ins, neg);
-        m.replace_instruction(ins, args.front());
-    }
-};
-
-struct find_neg_unit_div_const
-{
-    auto matcher() const { return match::name("div")(match::arg(1)(match::has_value(-1.0f))); }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins  = r.result;
-        auto args = ins->inputs();
-        auto neg  = m.add_instruction(make_op("neg"), args.front());
-
         m.replace_instruction(ins, neg);
     }
 };
@@ -1107,11 +1093,10 @@ void simplify_algebra::apply(module& m) const
                             find_mul_slice_conv{},
                             find_mul_add{},
                             find_unit_ops{},
-                            find_neg_unit_div_const{},
+                            find_neg_unit_ops{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
-                            find_neg_unit_mult_const{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

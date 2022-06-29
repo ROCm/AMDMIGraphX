@@ -439,7 +439,8 @@ def context(h):
 @api.interface('migraphx_experimental_custom_op',
                'migraphx::experimental_custom_op')
 def experimental_custom_op(h):
-    h.constructor('create', api.params(obj_typename='const char*', name='const char*'))
+    h.constructor('create',
+                  api.params(obj_typename='const char*', name='const char*'))
     h.virtual('compute',
               api.params(ctx='migraphx::context',
                          output='migraphx::shape',

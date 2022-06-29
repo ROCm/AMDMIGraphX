@@ -2,10 +2,10 @@ name: ROCM Docker image build
 
 on:
   workflow_dispatch:
-    # inputs:
-    #   rocm_release:
-    #     description: ROCm release version
-    #     required: true
+    inputs:
+      rocm_release:
+        description: ROCm release version
+        required: true
 
 jobs:
   release:

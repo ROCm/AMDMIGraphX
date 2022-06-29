@@ -488,7 +488,7 @@ struct mlir_program
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
-            if (ins->name())
+            if(ins->name())
                 pp = {ins->get_operator(), ins->inputs(), ins->get_shape()};
 
             std::vector<MlirValue> inputs;
@@ -548,10 +548,7 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    std::string get_tune_params()
-    {
-        return get_mlir_perf_for_conv(pp);
-    }
+    std::string get_tune_params() { return get_mlir_perf_for_conv(pp); }
 
     mlir_context ctx;
     MlirLocation location;

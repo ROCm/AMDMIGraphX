@@ -783,6 +783,15 @@ struct manage_generic_ptr
         return *this;
     }
 
+    std::string get_typename() const {
+        int status = 0;
+        std::string obj_typename = abi::__cxa_demangle(typeid(data).name(), nullptr, nullptr, &status);
+        if(status != 0) {
+            throw std::runtime_error("demangling of managed_ptr failed");
+        }
+        return obj_typename;
+    }
+
     ~manage_generic_ptr()
     {
         if(data != nullptr)
@@ -1059,7 +1068,7 @@ ${return_type} ${name}(${params}) const
         throw std::runtime_error("${name} function is missing.");
     auto api_error_result = ${fname}(${args});
     if (api_error_result != ${success})
-        throw std::runtime_error("Error in ${name} of: " + xobject.name);
+        throw std::runtime_error("Error in ${name} of: " + object_ptr.get_typename());
     return ${output};
 }
 ''')

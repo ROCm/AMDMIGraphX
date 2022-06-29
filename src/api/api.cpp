@@ -39,7 +39,7 @@
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
 #include <cstdarg>
-
+#include <cxxabi.h>
 namespace migraphx {
 
 template <class F>
@@ -342,6 +342,18 @@ struct manage_generic_ptr
         return *this;
     }
 
+    std::string get_typename() const
+    {
+        int status = 0;
+        std::string obj_typename =
+            abi::__cxa_demangle(typeid(data).name(), nullptr, nullptr, &status);
+        if(status != 0)
+        {
+            throw std::runtime_error("demangling of managed_ptr failed");
+        }
+        return obj_typename;
+    }
+
     ~manage_generic_ptr()
     {
         if(data != nullptr)
@@ -601,7 +613,7 @@ struct migraphx_experimental_custom_op
                                           object_cast<migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute of: " + xobject.name);
+            throw std::runtime_error("Error in compute of: " + object_ptr.get_typename());
         return (&out)->object;
     }
 
@@ -614,7 +626,7 @@ struct migraphx_experimental_custom_op
         auto api_error_result =
             compute_shape_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute_shape of: " + xobject.name);
+            throw std::runtime_error("Error in compute_shape of: " + object_ptr.get_typename());
         return (&out)->object;
     }
 };

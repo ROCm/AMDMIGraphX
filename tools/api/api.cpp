@@ -39,7 +39,7 @@
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
 #include <cstdarg>
-
+#include <cxxabi.h>
 namespace migraphx {
 
 template <class F>

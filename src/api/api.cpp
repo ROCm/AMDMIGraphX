@@ -313,30 +313,35 @@ struct manage_generic_ptr
 
     manage_generic_ptr(std::nullptr_t) {}
 
-    manage_generic_ptr(void* pdata, C pcopier, D pdeleter)
-        : data(nullptr), copier(pcopier), deleter(pdeleter)
+    manage_generic_ptr(void* pdata, std::string pptr_typename, C pcopier, D pdeleter)
+        : data(nullptr), ptr_typename(pptr_typename), copier(pcopier), deleter(pdeleter)
     {
         copier(&data, pdata);
     }
 
     manage_generic_ptr(const manage_generic_ptr& rhs)
-        : data(nullptr), copier(rhs.copier), deleter(rhs.deleter)
+        : data(nullptr), ptr_typename(rhs.ptr_typename), copier(rhs.copier), deleter(rhs.deleter)
     {
         if(copier)
             copier(&data, rhs.data);
     }
 
     manage_generic_ptr(manage_generic_ptr&& other) noexcept
-        : data(other.data), copier(other.copier), deleter(other.deleter)
+        : data(other.data),
+          ptr_typename(other.ptr_typename),
+          copier(other.copier),
+          deleter(other.deleter)
     {
-        other.data    = nullptr;
-        other.copier  = nullptr;
-        other.deleter = nullptr;
+        other.data         = nullptr;
+        other.ptr_typename = "";
+        other.copier       = nullptr;
+        other.deleter      = nullptr;
     }
 
     manage_generic_ptr& operator=(manage_generic_ptr rhs)
     {
         std::swap(data, rhs.data);
+        std::swap(ptr_typename, rhs.ptr_typename);
         std::swap(copier, rhs.copier);
         std::swap(deleter, rhs.deleter);
         return *this;
@@ -348,9 +353,10 @@ struct manage_generic_ptr
             deleter(data);
     }
 
-    void* data = nullptr;
-    C copier   = nullptr;
-    D deleter  = nullptr;
+    void* data               = nullptr;
+    std::string ptr_typename = "";
+    C copier                 = nullptr;
+    D deleter                = nullptr;
 };
 
 extern "C" struct migraphx_shape;
@@ -578,10 +584,11 @@ struct migraphx_experimental_custom_op
 {
     template <class... Ts>
     migraphx_experimental_custom_op(void* p,
+                                    std::string ptr_typename,
                                     migraphx_experimental_custom_op_copy c,
                                     migraphx_experimental_custom_op_delete d,
                                     Ts&&... xs)
-        : object_ptr(p, c, d), xobject(std::forward<Ts>(xs)...)
+        : object_ptr(p, ptr_typename, c, d), xobject(std::forward<Ts>(xs)...)
     {
     }
     manage_generic_ptr<migraphx_experimental_custom_op_copy, migraphx_experimental_custom_op_delete>
@@ -601,7 +608,7 @@ struct migraphx_experimental_custom_op
                                           object_cast<migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute of: " + xobject.name);
+            throw std::runtime_error("Error in compute of: " + object_ptr.ptr_typename);
         return (&out)->object;
     }
 
@@ -614,7 +621,7 @@ struct migraphx_experimental_custom_op
         auto api_error_result =
             compute_shape_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute_shape of: " + xobject.name);
+            throw std::runtime_error("Error in compute_shape of: " + object_ptr.ptr_typename);
         return (&out)->object;
     }
 };
@@ -1804,13 +1811,14 @@ migraphx_experimental_custom_op_assign_to(migraphx_experimental_custom_op_t outp
 extern "C" migraphx_status
 migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experimental_custom_op,
                                        void* obj,
+                                       const char* ptr_typename,
                                        migraphx_experimental_custom_op_copy c,
                                        migraphx_experimental_custom_op_delete d,
                                        const char* name)
 {
     auto api_error_result = migraphx::try_([&] {
         *experimental_custom_op =
-            allocate<migraphx_experimental_custom_op_t>((obj), (c), (d), (name));
+            allocate<migraphx_experimental_custom_op_t>((obj), (ptr_typename), (c), (d), (name));
     });
     return api_error_result;
 }

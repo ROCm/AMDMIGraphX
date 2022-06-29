@@ -859,7 +859,10 @@ struct find_unit_ops
             match::either_arg(0, 1)(match::has_value(1.0f), match::any().bind("x")));
         auto div_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
-        return match::any_of(mul_1, div_1);
+        auto add_0 = match::name("add")(
+            match::either_arg(0, 1)(match::has_value(0.0f), match::any().bind("x")));
+
+        return match::any_of(mul_1, div_1, add_0);
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -868,24 +871,6 @@ struct find_unit_ops
         auto c_in = r.instructions["x"];
 
         m.replace_instruction(ins, c_in);
-    }
-};
-
-struct find_zero_add_const
-{
-    auto matcher() const
-    {
-        return match::name("add")(
-            match::either_arg(0, 1)(match::has_value(0.0f), match::any().bind("x")));
-
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins  = r.result;
-        auto x_in = r.instructions["x"];
-
-        m.replace_instruction(ins, x_in);
     }
 };
 
@@ -1101,7 +1086,6 @@ void simplify_algebra::apply(module& m) const
         match::find_matches(m,
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
-                            find_zero_add_const{},
                             find_add_lit_broadcast{},
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},

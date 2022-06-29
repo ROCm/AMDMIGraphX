@@ -10,6 +10,16 @@ on:
     - cron: "0 5 * * 1-6"
 
   workflow_dispatch:
+    inputs:
+      rocm_release:
+        description: ROCm Version
+        required: true
+      result_number:
+        description: Last N results
+        required: true
+      flags:
+        description: -m for Max value; -s for Std dev; -r for Threshold file
+        required: true
 
 concurrency: benchmark
 
@@ -17,8 +27,8 @@ jobs:
   release:
     uses: migraphx-benchmark/actions/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: "5.1"
-      result_number: 10
-      flags: "-s" 
+      rocm_release: ${{ github.event.inputs.rocm_release }}
+      result_number: ${{ github.event.inputs.result_number }}
+      flags: ${{ github.event.inputs.flags }} 
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

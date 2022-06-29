@@ -10,16 +10,6 @@ namespace gpu {
 
 namespace {
 
-// C-HxW-XxY-K-OHxOW-N-padhxpadw-stride-dilation-0-xlayout-wlayout-ylayout-type-F
-
-// case miopenFloat: return "FP32";
-// case miopenHalf: return "FP16";
-// case miopenInt8: return "INT8";
-// case miopenInt8x4: return "INT8x4";
-// case miopenInt32: return "INT32";
-// case miopenBFloat16: return "BF16";
-// case miopenDouble: return "FP64";
-
 std::string get_layout(const shape& s, std::string labels)
 {
     auto result = labels;

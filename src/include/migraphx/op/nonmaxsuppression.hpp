@@ -56,7 +56,7 @@ struct nonmaxsuppression
     shape compute_shape(std::vector<shape> inputs) const
     {
         // requires at least 2 inputs
-        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.only_dims(3);
+        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.only_dims(3).same_ndims();
         // both boxes and scores will be dynamic if one of them is dynamic
         if(inputs.at(0).dynamic())
         {

@@ -31,6 +31,7 @@
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -78,25 +79,26 @@ std::string vectorize::str() const
 preload preload::broadcasts(std::size_t axis, const std::vector<shape>& inputs)
 {
     const std::size_t max_lds_bytes = 4096;
-    std::vector<bool> result;
-    std::transform(inputs.begin(),
-                   inputs.end(),
-                   std::back_inserter(result),
-                   [&](const shape& input) { return input.strides()[axis] == 0; });
-    auto bytes = std::inner_product(inputs.begin(),
-                                    inputs.end(),
-                                    result.begin(),
-                                    std::size_t{0},
-                                    std::plus<>{},
-                                    [](const shape& s, bool b) -> std::size_t {
-                                        if(b)
-                                            return s.bytes();
-                                        return 0;
-                                    });
-    if(bytes < max_lds_bytes)
-        return {result};
-    // TODO: Try to partially preload items
-    std::fill(result.begin(), result.end(), false);
+    std::vector<bool> result(inputs.size());
+    std::vector<std::size_t> preloaded;
+    for(auto i:range(inputs.size()))
+    {
+        if (inputs[i].strides()[axis] == 0)
+            preloaded.push_back(i);
+    }
+    std::sort(preloaded.begin(), preloaded.end(), by(std::less<>{}, [&](auto i) {
+        return inputs[i].bytes();
+    }));
+    
+    std::size_t bytes = 0;
+    for(auto i:preloaded)
+    {
+        auto input = inputs[i];
+        bytes += input.bytes();
+        if (bytes > max_lds_bytes)
+            break;
+        result[i] = true;
+    }
     return {result};
 }
 

@@ -267,33 +267,29 @@ struct find_double_add_lit_broadcast
 
 struct find_inner_broadcast
 {
-    auto matcher() const
-    {
-        return pointwise(
-            match::all_of[match::inputs()](match::broadcast()));
-    }
+    auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
+        auto ins        = r.result;
         auto broadcasts = ins->inputs();
-        if (broadcasts.empty())
+        if(broadcasts.empty())
             return;
-        if (std::any_of(broadcasts.begin(), broadcasts.end(), [&](auto i) {
-            return i->get_operator() != broadcasts.front()->get_operator();
-        }))
+        if(std::any_of(broadcasts.begin(), broadcasts.end(), [&](auto i) {
+               return i->get_operator() != broadcasts.front()->get_operator();
+           }))
             return;
         std::vector<instruction_ref> inputs;
-        std::transform(broadcasts.begin(), broadcasts.end(), std::back_inserter(inputs), [](auto i) {
-            return i->inputs().front();
-        });
-        if (std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
-            return i->get_shape() != inputs.front()->get_shape();
-        }))
+        std::transform(broadcasts.begin(),
+                       broadcasts.end(),
+                       std::back_inserter(inputs),
+                       [](auto i) { return i->inputs().front(); });
+        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
+               return i->get_shape() != inputs.front()->get_shape();
+           }))
             return;
 
-        auto op = m.insert_instruction(
-            ins, ins->get_operator(), inputs);
+        auto op = m.insert_instruction(ins, ins->get_operator(), inputs);
         m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }
 };
@@ -422,8 +418,9 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](match::name("slice")(
-            match::any_of[match::outputs()](match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
+        return match::any(
+            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
+                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)

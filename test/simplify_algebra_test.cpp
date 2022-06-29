@@ -854,6 +854,42 @@ TEST_CASE(simplify_neg_unit_div_const)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_sub_zero_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("sub"), x, zero);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_sub_neg_zero_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("sub"), zero, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_sub_const)
 {
     migraphx::module m1;

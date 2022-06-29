@@ -744,6 +744,9 @@ void destroy(T* x)
 {
     delete x; // NOLINT
 }
+
+
+
 // TODO: Move to interface preamble
 template <class C, class D>
 struct manage_generic_ptr
@@ -754,23 +757,24 @@ struct manage_generic_ptr
     {
     }
 
-    manage_generic_ptr(void* pdata, C pcopier, D pdeleter)
-        : data(nullptr), copier(pcopier), deleter(pdeleter)
+    manage_generic_ptr(void* pdata, const char* obj_tname, C pcopier, D pdeleter)
+        : data(nullptr), obj_typename(obj_tname), copier(pcopier), deleter(pdeleter)
     {
         copier(&data, pdata);
     }
 
     manage_generic_ptr(const manage_generic_ptr& rhs)
-        : data(nullptr), copier(rhs.copier), deleter(rhs.deleter)
+        : data(nullptr), obj_typename(rhs.obj_typename), copier(rhs.copier), deleter(rhs.deleter)
     {
         if(copier)
             copier(&data, rhs.data);
     }
 
     manage_generic_ptr(manage_generic_ptr&& other) noexcept
-        : data(other.data), copier(other.copier), deleter(other.deleter)
+        : data(other.data), obj_typename(other.obj_typename), copier(other.copier), deleter(other.deleter)
     {
         other.data    = nullptr;
+        other.obj_typename = "";
         other.copier  = nullptr;
         other.deleter = nullptr;
     }
@@ -778,19 +782,20 @@ struct manage_generic_ptr
     manage_generic_ptr& operator=(manage_generic_ptr rhs)
     {
         std::swap(data, rhs.data);
+        std::swap(obj_typename, rhs.obj_typename);
         std::swap(copier, rhs.copier);
         std::swap(deleter, rhs.deleter);
         return *this;
     }
 
-    std::string get_typename() const {
+    std::string get_demangled_name() const {
         int status = 0;
-        std::string obj_typename = abi::__cxa_demangle(typeid(data).name(), nullptr, nullptr, &status);
+        std::string demangled_name = abi::__cxa_demangle(obj_typename, nullptr, nullptr, &status);
         if(status != 0) {
-            throw std::runtime_error("demangling of managed_ptr failed");
+            throw std::runtime_error("demangling to get typename failed");
         }
-        return obj_typename;
-    }
+        return demangled_name;
+    }   
 
     ~manage_generic_ptr()
     {
@@ -799,6 +804,7 @@ struct manage_generic_ptr
     }
 
     void* data = nullptr;
+    const char* obj_typename = "";
     C copier   = nullptr;
     D deleter  = nullptr;
 };
@@ -1051,8 +1057,8 @@ interface_handle_definition = Template('''
 extern "C" struct ${ctype};
 struct ${ctype} {
     template<class... Ts>
-    ${ctype}(void* p, ${copier} c, ${deleter} d, Ts&&... xs)
-    : object_ptr(p, c, d), xobject(std::forward<Ts>(xs)...)
+    ${ctype}(void* p, ${copier} c, ${deleter} d,  const char* obj_typename, Ts&&... xs)
+    : object_ptr(p, obj_typename, c, d), xobject(std::forward<Ts>(xs)...)
     {}
     manage_generic_ptr<${copier}, ${deleter}> object_ptr = nullptr;
     ${cpptype} xobject;
@@ -1068,7 +1074,7 @@ ${return_type} ${name}(${params}) const
         throw std::runtime_error("${name} function is missing.");
     auto api_error_result = ${fname}(${args});
     if (api_error_result != ${success})
-        throw std::runtime_error("Error in ${name} of: " + object_ptr.get_typename());
+        throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.get_demangled_name()));
     return ${output};
 }
 ''')

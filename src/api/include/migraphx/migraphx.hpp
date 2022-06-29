@@ -1211,7 +1211,7 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     template <class T>
     experimental_custom_op(T& obj)
     {
-        this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
+        this->make_interface(&migraphx_experimental_custom_op_create, obj, typeid(obj).name(), obj.name().c_str());
         MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
         MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute);
     }

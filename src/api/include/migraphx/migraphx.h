@@ -486,6 +486,7 @@ migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experi
                                        void* obj,
                                        migraphx_experimental_custom_op_copy c,
                                        migraphx_experimental_custom_op_delete d,
+                                       const char* obj_typename,
                                        const char* name);
 
 migraphx_status

@@ -311,10 +311,6 @@ struct find_inner_broadcast
         auto broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;
-        if(std::any_of(broadcasts.begin(), broadcasts.end(), [&](auto i) {
-               return i->get_operator() != broadcasts.front()->get_operator();
-           }))
-            return;
         std::vector<instruction_ref> inputs;
         std::transform(broadcasts.begin(),
                        broadcasts.end(),

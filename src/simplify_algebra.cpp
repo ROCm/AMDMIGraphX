@@ -857,12 +857,8 @@ struct find_zero_div_const
 
     void apply [[noreturn]] (const module& m, const match::matcher_result& r) const
     {
-        // if(enabled(MIGRAPHX_TRACE_MATCHES{}))
-        //{
-        //    m.debug_print();
-        //   std::cout << "ERROR:DIV_BY_ZERO: ";
-        //   m.debug_print(r.result);
-        //}
+        (void)m;
+        (void)r;
         MIGRAPHX_THROW("ERROR: Matched division by zero in pass");
     }
 };

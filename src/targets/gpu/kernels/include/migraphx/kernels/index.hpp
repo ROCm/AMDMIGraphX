@@ -63,11 +63,12 @@ struct index
     template <class F, class N, class Stride>
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
-        if constexpr(not is_integral<N>{} and not is_integral<Stride>{} and max_stride_iterations(n, stride) == 1)
+        if constexpr(not is_integral<N>{} and not is_integral<Stride>{} and
+                     max_stride_iterations(n, stride) == 1)
         {
             if constexpr(stride > n)
             {
-                if (start < n)
+                if(start < n)
                     f(start);
             }
             else

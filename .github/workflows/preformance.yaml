@@ -34,13 +34,9 @@ jobs:
   release:
     uses: migraphx-benchmark/actions/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: '5.1'
-      result_number: '10'
-      flags: '-s'
-      performance_reports_repo: 'migraphx-benchmark/migraphx-reports'
-      # rocm_release: ${{ github.event.inputs.rocm_release }}
-      # result_number: ${{ github.event.inputs.result_number }}
-      # flags: ${{ github.event.inputs.flags }} 
-      # performance_reports_repo: ${{ github.event.inputs.performance_reports_repo }} 
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.1' }}
+      result_number: ${{ github.event.inputs.result_number || '10' }}
+      flags: ${{ github.event.inputs.flags || '-s' }} 
+      performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'migraphx-benchmark/migraphx-reports' }} 
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

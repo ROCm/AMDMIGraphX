@@ -209,7 +209,7 @@ struct integral_const_array : array<T, sizeof...(Xs)>
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
 };
 
-template<class F>
+template <class F>
 constexpr auto return_const_array(F f)
 {
     constexpr const auto a = f();

@@ -102,64 +102,62 @@ struct shape
     {
         if constexpr(shape{}.standard())
             MIGRAPHX_ASSERT(i == compute_index(i));
-            return i;
-        }
-        else
+        return i;
+    }
+    else { return compute_index(i); }
+}
+
+constexpr index_int
+compute_index(index_int i) const
+{
+    constexpr auto sstrides = compute_standard_strides();
+    constexpr auto rank     = Lens{}.size();
+    index_int result        = 0;
+    repeat(rank, [&](auto j) {
+        constexpr auto k      = rank - j - 1;
+        constexpr auto stride = Strides{}[k];
+        constexpr auto len    = Lens{}[k];
+        if constexpr(stride != 0)
         {
-            return compute_index(i);
+            constexpr auto s    = sstrides[k];
+            constexpr auto slen = s * len;
+            auto idx            = (i % slen) / s;
+            result += stride * idx;
         }
-    }
+    });
+    return result;
+}
 
-    constexpr index_int compute_index(index_int i) const
+/// Convert single index into a multi-index
+constexpr index_array multi(index_int idx) const
+{
+    index_array result;
+    index_int tidx = idx;
+    for(diff_int is = result.size() - 1; is > 0; is--)
     {
-        constexpr auto sstrides = compute_standard_strides();
-        constexpr auto rank  = Lens{}.size();
-        index_int result = 0;
-        repeat(rank, [&](auto j) {
-            constexpr auto k      = rank - j - 1;
-            constexpr auto stride = Strides{}[k];
-            constexpr auto len    = Lens{}[k];
-            if constexpr(stride != 0)
-            {
-                constexpr auto s   = sstrides[k];
-                constexpr auto slen   = s * len;
-                auto idx    = (i % slen) / s;
-                result += stride * idx;
-            }
-        });
-        return result;
+        result[is] = tidx % lens[is];
+        tidx       = tidx / lens[is];
     }
+    result[0] = tidx;
+    return result;
+}
+/// Convert multi-index into a single index
+constexpr index_int single(index_array idx) const
+{
+    if(idx.empty())
+        return 0;
+    return inner_product(lens.begin() + 1, lens.end(), idx.begin(), idx.back());
+}
 
-    /// Convert single index into a multi-index
-    constexpr index_array multi(index_int idx) const
-    {
-        index_array result;
-        index_int tidx = idx;
-        for(diff_int is = result.size() - 1; is > 0; is--)
-        {
-            result[is] = tidx % lens[is];
-            tidx       = tidx / lens[is];
-        }
-        result[0] = tidx;
-        return result;
-    }
-    /// Convert multi-index into a single index
-    constexpr index_int single(index_array idx) const
-    {
-        if(idx.empty())
-            return 0;
-        return inner_product(lens.begin() + 1, lens.end(), idx.begin(), idx.back());
-    }
+constexpr shape get_shape() const { return *this; }
 
-    constexpr shape get_shape() const { return *this; }
-
-    template <class Stream>
-    friend constexpr const Stream& operator<<(const Stream& ss, const shape& s)
-    {
-        ss << "{" << s.lens << "}, {" << s.strides << "}";
-        return ss;
-    }
-};
+template <class Stream>
+friend constexpr const Stream& operator<<(const Stream& ss, const shape& s)
+{
+    ss << "{" << s.lens << "}, {" << s.strides << "}";
+    return ss;
+}
+}; // namespace migraphx
 
 template <class Lens, class Strides>
 constexpr shape<Lens, Strides> make_shape(Lens lens, Strides strides)

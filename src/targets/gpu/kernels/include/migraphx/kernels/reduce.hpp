@@ -147,10 +147,11 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 }
 #endif
 
-
 namespace reduce {
 
-struct inner_array_base {};
+struct inner_array_base
+{
+};
 
 template <class Output, class Input, class T>
 constexpr auto reduce_slice(Input input, T i)
@@ -227,20 +228,20 @@ struct block
                 f();
         }
 
-        template<class T, index_int N, index_int Stride, class Shape>
+        template <class T, index_int N, index_int Stride, class Shape>
         struct inner_array : inner_array_base
         {
             array<T, N> arr;
-            constexpr Shape get_shape() const {return Shape{};}
-            template<class U>
+            constexpr Shape get_shape() const { return Shape{}; }
+            template <class U>
             constexpr auto& operator[](U i) const
             {
-                return arr[i/Stride];
+                return arr[i / Stride];
             }
-            template<class U>
+            template <class U>
             constexpr auto& operator[](U i)
             {
-                return arr[i/Stride];
+                return arr[i / Stride];
             }
         };
 
@@ -255,8 +256,14 @@ struct block
                 }
                 else
                 {
-                    inner_array<result_type, decltype(idx.max_local_stride_iterations(x.get_shape().elements())){}, decltype(idx.nlocal()){}, decltype(x.get_shape())> y;
-                    idx.local_stride(x.get_shape().elements(), [&](auto j) { y[j] = f(x[j], xs[j]...); });
+                    inner_array<result_type,
+                                decltype(
+                                    idx.max_local_stride_iterations(x.get_shape().elements())){},
+                                decltype(idx.nlocal()){},
+                                decltype(x.get_shape())>
+                        y;
+                    idx.local_stride(x.get_shape().elements(),
+                                     [&](auto j) { y[j] = f(x[j], xs[j]...); });
                     return y;
                 }
             });

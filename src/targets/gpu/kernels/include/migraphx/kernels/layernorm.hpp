@@ -22,13 +22,10 @@ __device__ void generic_binary_layernorm(
     MIGRAPHX_ASSERT(relements > 0);
     reduce::block::run<reduce_output>([&](auto, auto r) {
         using value_type = typename Input1::type;
-        auto input = r.inner([&](auto x1, auto x2) {
-            return op(x1, x2);
-        })(input1, input2);
+        auto input       = r.inner([&](auto x1, auto x2) { return op(x1, x2); })(input1, input2);
         auto mean        = [&](auto f) {
-            return r.reduce(op::sum{}, 0, [&](auto x) {
-                return f(x) / value_type{relements};
-            })(input);
+            return r.reduce(op::sum{}, 0, [&](auto x) { return f(x) / value_type{relements}; })(
+                input);
         };
         // mean(x)
         auto mean_x = mean(op::id{});

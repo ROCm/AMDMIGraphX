@@ -53,13 +53,13 @@ struct index
         return blockDim.x; // NOLINT
     }
 #endif
-    template<class N>
+    template <class N>
     constexpr auto max_global_stride_iterations(N n) const
     {
         return _c<1> + n / nglobal();
     }
 
-    template<class N>
+    template <class N>
     constexpr auto max_local_stride_iterations(N n) const
     {
         return _c<1> + n / nlocal();

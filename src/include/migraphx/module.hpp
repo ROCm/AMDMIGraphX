@@ -120,9 +120,33 @@ struct module
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
     std::vector<instruction_ref>
-    insert_module_instructions(instruction_ref ins,
-                               module_ref m,
-                               std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+    add_instructions(const std::vector<instruction_ref>& instructions,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    add_instructions(module_ref m,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    add_instructions(instruction_ref start,
+                     instruction_ref last,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        const std::vector<instruction_ref>& instructions,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        module_ref m,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        instruction_ref start,
+                        instruction_ref last,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
@@ -179,7 +203,9 @@ struct module
 
     void print_cpp(std::ostream& os) const;
     std::unordered_map<instruction_ref, std::string>
-    print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const;
+    print_cpp(std::ostream& os,
+              const std::string& mname,
+              std::unordered_map<instruction_ref, std::string> names) const;
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 

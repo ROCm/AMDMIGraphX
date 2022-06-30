@@ -35,7 +35,7 @@ static void inline_submodule(module& m, instruction_ref ins, bool cond)
 {
     const auto& mod_inputs = ins->module_inputs();
     module_ref smod        = cond ? mod_inputs.at(0) : mod_inputs.at(1);
-    auto mod_outputs       = m.insert_module_instructions(ins, smod);
+    auto mod_outputs       = m.insert_instructions(ins, smod);
 
     auto ins_outputs = ins->outputs();
     assert(mod_outputs.size() >= ins_outputs.size());

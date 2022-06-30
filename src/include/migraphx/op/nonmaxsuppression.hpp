@@ -196,43 +196,64 @@ struct nonmaxsuppression
         return boxes_heap;
     }
 
-    template <class H, class S>
-    void select_boxes(H& boxes_heap,
-                      std::vector<std::pair<double, int64_t>>& selected_boxes_inside_class,
-                      std::vector<int64_t>& selected_indices,
-                      S batch_boxes_start,
-                      std::size_t max_output_boxes_per_class,
-                      double iou_threshold,
-                      std::size_t batch_idx,
-                      std::size_t class_idx) const
+    template <class Output, class Boxes, class Scores>
+    std::size_t compute_nms(Output output,
+                            Boxes boxes,
+                            Scores scores,
+                            const shape& max_output_shape,
+                            std::size_t max_output_boxes_per_class,
+                            double iou_threshold,
+                            double score_threshold) const
     {
-        selected_boxes_inside_class.clear();
-        // Get the next box with top score, filter by iou_threshold
-        while(!boxes_heap.empty() &&
-              selected_boxes_inside_class.size() < max_output_boxes_per_class)
-        {
-            // Check with existing selected boxes for this class, remove box if it
-            // exceeds the IOU (Intersection Over Union) threshold
-            const auto next_top_score = boxes_heap.top();
-            bool not_selected =
-                std::any_of(selected_boxes_inside_class.begin(),
-                            selected_boxes_inside_class.end(),
-                            [&](auto selected_index) {
-                                return this->suppress_by_iou(
-                                    batch_box(batch_boxes_start, next_top_score.second),
-                                    batch_box(batch_boxes_start, selected_index.second),
-                                    iou_threshold);
-                            });
-
-            if(not not_selected)
+        std::fill(output.begin(), output.end(), 0);
+        const auto& lens       = scores.get_shape().lens();
+        const auto num_batches = lens[0];
+        const auto num_classes = lens[1];
+        const auto num_boxes   = lens[2];
+        // boxes of a class with NMS applied [score, index]
+        std::vector<std::pair<double, int64_t>> selected_boxes_inside_class;
+        std::vector<int64_t> selected_indices;
+        selected_boxes_inside_class.reserve(max_output_shape.elements());
+        // iterate over batches and classes
+        shape comp_s{shape::double_type, {num_batches, num_classes}};
+        shape_for_each(comp_s, [&](auto idx) {
+            auto batch_idx = idx[0];
+            auto class_idx = idx[1];
+            // index offset for this class
+            auto scores_start = scores.begin() + (batch_idx * num_classes + class_idx) * num_boxes;
+            // iterator to first value of this batch
+            auto batch_boxes_start = boxes.begin() + batch_idx * num_boxes * 4;
+            auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
+            selected_boxes_inside_class.clear();
+            // Get the next box with top score, filter by iou_threshold
+            while(!boxes_heap.empty() &&
+                  selected_boxes_inside_class.size() < max_output_boxes_per_class)
             {
-                selected_boxes_inside_class.push_back(next_top_score);
-                selected_indices.push_back(batch_idx);
-                selected_indices.push_back(class_idx);
-                selected_indices.push_back(next_top_score.second);
+                // Check with existing selected boxes for this class, remove box if it
+                // exceeds the IOU (Intersection Over Union) threshold
+                const auto next_top_score = boxes_heap.top();
+                bool not_selected =
+                    std::any_of(selected_boxes_inside_class.begin(),
+                                selected_boxes_inside_class.end(),
+                                [&](auto selected_index) {
+                                    return this->suppress_by_iou(
+                                        batch_box(batch_boxes_start, next_top_score.second),
+                                        batch_box(batch_boxes_start, selected_index.second),
+                                        iou_threshold);
+                                });
+
+                if(not not_selected)
+                {
+                    selected_boxes_inside_class.push_back(next_top_score);
+                    selected_indices.push_back(batch_idx);
+                    selected_indices.push_back(class_idx);
+                    selected_indices.push_back(next_top_score.second);
+                }
+                boxes_heap.pop();
             }
-            boxes_heap.pop();
-        }
+        });
+        std::copy(selected_indices.begin(), selected_indices.end(), output.begin());
+        return selected_indices.size() / 3;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -253,40 +274,15 @@ struct nonmaxsuppression
 
         result.visit([&](auto output) {
             visit_all(args[0], args[1])([&](auto boxes, auto scores) {
-                const auto& lens       = scores.get_shape().lens();
-                const auto num_batches = lens[0];
-                const auto num_classes = lens[1];
-                const auto num_boxes   = lens[2];
-                // boxes of a class with NMS applied [score, index]
-                std::vector<std::pair<double, int64_t>> selected_boxes_inside_class;
-                std::vector<int64_t> selected_indices;
-                selected_boxes_inside_class.reserve(max_output_shape.elements());
-                // iterate over batches and classes
-                shape comp_s{shape::double_type, {num_batches, num_classes}};
-                shape_for_each(comp_s, [&](auto idx) {
-                    auto batch_idx = idx[0];
-                    auto class_idx = idx[1];
-                    // index offset for this class
-                    auto scores_start =
-                        scores.begin() + (batch_idx * num_classes + class_idx) * num_boxes;
-                    // iterator to first value of this batch
-                    auto batch_boxes_start = boxes.begin() + batch_idx * num_boxes * 4;
-                    auto boxes_heap =
-                        filter_boxes_by_score(scores_start, num_boxes, score_threshold);
-                    select_boxes(boxes_heap,
-                                 selected_boxes_inside_class,
-                                 selected_indices,
-                                 batch_boxes_start,
-                                 max_output_boxes_per_class,
-                                 iou_threshold,
-                                 batch_idx,
-                                 class_idx);
-                });
-                std::copy(selected_indices.begin(), selected_indices.end(), output.begin());
-                num_selected = selected_indices.size() / 3;
+                num_selected = compute_nms(output,
+                                           boxes,
+                                           scores,
+                                           max_output_shape,
+                                           max_output_boxes_per_class,
+                                           iou_threshold,
+                                           score_threshold);
             });
         });
-
         return result.reshape({output_shape.type(), {num_selected, 3}});
     }
 };

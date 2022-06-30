@@ -41,8 +41,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
-
 auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
 auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
 auto op_lit_broadcast(std::string op, std::string x, std::string y)
@@ -859,12 +857,12 @@ struct find_zero_div_const
 
     void apply [[noreturn]] (const module& m, const match::matcher_result& r) const
     {
-        if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        {
-            m.debug_print();
-            std::cout << "ERROR:DIV_BY_ZERO: ";
-            m.debug_print(r.result);
-        }
+        // if(enabled(MIGRAPHX_TRACE_MATCHES{}))
+        //{
+        //    m.debug_print();
+        //   std::cout << "ERROR:DIV_BY_ZERO: ";
+        //   m.debug_print(r.result);
+        //}
         MIGRAPHX_THROW("ERROR: Matched division by zero in pass");
     }
 };
@@ -921,21 +919,18 @@ struct find_zero_ops
     auto matcher() const
     {
         auto mul_zero = match::name("mul")(
-            match::either_arg(0, 1)(match::has_value(0.0f), match::any().bind("x")));
+            match::either_arg(0, 1)(match::has_value(0.0f).bind("x"), match::any()));
         auto div_zero =
-            match::name("div")(match::args(match::has_value(0.0f), match::any().bind("x")));
+            match::name("div")(match::args(match::has_value(0.0f).bind("x"), match::any()));
         return match::any_of(mul_zero, div_zero);
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
-        auto x_ins = r.instructions["x"];
-        auto zero  = m.add_literal(0);
-        auto ret   = m.add_return({zero});
+        auto ins      = r.result;
+        auto zero_ins = r.instructions["x"];
 
-        m.remove_instruction((x_ins));
-        m.replace_instruction(ins, ret);
+        m.replace_instruction(ins, zero_ins);
     }
 };
 

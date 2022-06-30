@@ -936,42 +936,47 @@ TEST_CASE(simplify_zero_mult_const)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m1.add_literal(0);
-        m1.add_instruction(migraphx::make_op("mul"), x, zero);
+        auto x       = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero    = m1.add_literal(0);
+        auto mul_ins = m1.add_instruction(migraphx::make_op("mul"), x, zero);
+        m1.add_return({mul_ins});
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
+        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
         m2.add_return({zero});
     }
 
     migraphx::module m3;
     {
-        auto zero = m3.add_literal(0);
-        auto x    = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m3.add_instruction(migraphx::make_op("mul"), zero, x);
+        auto x       = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero    = m3.add_literal(0);
+        auto mul_ins = m3.add_instruction(migraphx::make_op("mul"), zero, x);
+        m3.add_return({mul_ins});
     }
     run_pass(m3);
 
-    EXPECT((m1 == m3) && (m1 == m2));
+    EXPECT((m1 == m2) && (m3 == m2));
 }
 
 TEST_CASE(simplify_zero_div_const)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m1.add_literal(0);
-        m1.add_instruction(migraphx::make_op("div"), zero, x);
+        auto zero    = m1.add_literal(0);
+        auto x       = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto div_ins = m1.add_instruction(migraphx::make_op("div"), zero, x);
+        m1.add_return({div_ins});
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
         auto zero = m2.add_literal(0);
+        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         m2.add_return({zero});
     }
 

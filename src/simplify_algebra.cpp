@@ -851,6 +851,19 @@ struct find_div_const
     }
 };
 
+struct find_zero_div_const
+{
+    auto matcher() const { return match::name("div")(match::arg(1)(match::has_value(0.0f))); }
+
+    void apply [[noreturn]] (const module& m, const match::matcher_result& r) const
+    {
+        m.debug_print();
+        std::cout << "ERROR:DIV_BY_ZERO: ";
+        m.debug_print(r.result);
+        MIGRAPHX_THROW("ERROR: Matched division by zero in pass");
+    }
+};
+
 struct find_unit_ops
 {
     auto matcher() const
@@ -1121,6 +1134,7 @@ void simplify_algebra::apply(module& m) const
                             find_unit_ops{},
                             find_neg_unit_ops{},
                             find_zero_ops{},
+                            find_zero_div_const{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

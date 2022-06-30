@@ -746,7 +746,6 @@ void destroy(T* x)
 }
 
 
-
 // TODO: Move to interface preamble
 template <class C, class D>
 struct manage_generic_ptr
@@ -787,15 +786,6 @@ struct manage_generic_ptr
         std::swap(deleter, rhs.deleter);
         return *this;
     }
-
-    std::string get_demangled_name() const {
-        int status = 0;
-        std::string demangled_name = abi::__cxa_demangle(obj_typename, nullptr, nullptr, &status);
-        if(status != 0) {
-            throw std::runtime_error("demangling to get typename failed");
-        }
-        return demangled_name;
-    }   
 
     ~manage_generic_ptr()
     {
@@ -1074,7 +1064,7 @@ ${return_type} ${name}(${params}) const
         throw std::runtime_error("${name} function is missing.");
     auto api_error_result = ${fname}(${args});
     if (api_error_result != ${success})
-        throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.get_demangled_name()));
+        throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.obj_typename));
     return ${output};
 }
 ''')

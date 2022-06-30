@@ -58,6 +58,42 @@ struct rank<0>
 {
 };
 
+template <class PrivateMigraphTypeNameProbe>
+std::string compute_type_name()
+{
+    std::string name;
+#ifdef _MSC_VER
+    name = typeid(PrivateMigraphTypeNameProbe).name();
+    name = name.substr(7);
+#else
+    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
+
+    name = __PRETTY_FUNCTION__;
+
+    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
+#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
+    auto length = name.find_last_of(",") - begin;
+#else
+    auto length = name.find_first_of("];", begin) - begin;
+#endif
+    name        = name.substr(begin, length);
+#endif
+    return name;
+}
+
+template <class T>
+const std::string& get_type_name()
+{
+    static const std::string name = compute_type_name<T>();
+    return name;
+}
+
+template <class T>
+const std::string& get_type_name(const T&)
+{
+    return get_type_name<T>();
+}
+
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
 {
@@ -1212,7 +1248,7 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     experimental_custom_op(T& obj)
     {
         this->make_interface(
-            &migraphx_experimental_custom_op_create, obj, typeid(obj).name(), obj.name().c_str());
+            &migraphx_experimental_custom_op_create, obj, get_type_name(obj).c_str(), obj.name().c_str());
         MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
         MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute);
     }

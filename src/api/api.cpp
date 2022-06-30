@@ -39,7 +39,6 @@
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
 #include <cstdarg>
-#include <cxxabi.h>
 namespace migraphx {
 
 template <class F>
@@ -348,17 +347,6 @@ struct manage_generic_ptr
         return *this;
     }
 
-    std::string get_demangled_name() const
-    {
-        int status                 = 0;
-        std::string demangled_name = abi::__cxa_demangle(obj_typename, nullptr, nullptr, &status);
-        if(status != 0)
-        {
-            throw std::runtime_error("demangling to get typename failed");
-        }
-        return demangled_name;
-    }
-
     ~manage_generic_ptr()
     {
         if(data != nullptr)
@@ -621,7 +609,7 @@ struct migraphx_experimental_custom_op
                                           object_cast<migraphx_arguments_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
             throw std::runtime_error("Error in compute of: " +
-                                     std::string(object_ptr.get_demangled_name()));
+                                     std::string(object_ptr.obj_typename));
         return (&out)->object;
     }
 
@@ -635,7 +623,7 @@ struct migraphx_experimental_custom_op
             compute_shape_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
             throw std::runtime_error("Error in compute_shape of: " +
-                                     std::string(object_ptr.get_demangled_name()));
+                                     std::string(object_ptr.obj_typename));
         return (&out)->object;
     }
 };

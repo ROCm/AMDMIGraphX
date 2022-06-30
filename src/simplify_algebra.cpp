@@ -898,6 +898,29 @@ struct find_neg_unit_ops
     }
 };
 
+struct find_zero_ops
+{
+    auto matcher() const
+    {
+        auto mul_zero = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(0.0f), match::any().bind("x")));
+        auto div_zero =
+            match::name("div")(match::args(match::has_value(0.0f), match::any().bind("x")));
+        return match::any_of(mul_zero, div_zero);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto zero  = m.add_literal(0);
+        auto ret   = m.add_return({zero});
+
+        m.remove_instruction((x_ins));
+        m.replace_instruction(ins, ret);
+    }
+};
+
 struct find_sub_const
 {
     auto matcher() const
@@ -1097,6 +1120,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_add{},
                             find_unit_ops{},
                             find_neg_unit_ops{},
+                            find_zero_ops{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

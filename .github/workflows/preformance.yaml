@@ -14,19 +14,19 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: "5.1"
+        default: '5.1'
       performance_reports_repo:
         description: Result repository
         required: true
-        default: "migraphx-benchmark/migraphx-reports"
+        default: 'migraphx-benchmark/migraphx-reports'
       result_number:
         description: Last N results
         required: true
-        default: "10"
+        default: '10'
       flags:
         description: -m for Max value; -s for Std dev; -r for Threshold file
         required: true
-        default: "-s"
+        default: '-s'
 
 concurrency: benchmark
 

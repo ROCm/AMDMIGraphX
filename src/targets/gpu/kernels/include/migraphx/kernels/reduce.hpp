@@ -147,24 +147,34 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 }
 #endif
 
+
+namespace reduce {
+
+struct inner_array_base {};
+
 template <class Output, class Input, class T>
 constexpr auto reduce_slice(Input input, T i)
 {
-    constexpr auto lens = transform(get_shape_c<Input>{}.lens,
-                                    get_shape_c<Output>{}.lens,
-                                    [](index_int x, index_int y) -> index_int {
-                                        if(x == y)
-                                            return 1;
-                                        return x;
-                                    });
-    ;
-    constexpr auto s = make_shape(lens, get_shape_c<Input>{}.strides);
-    MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <=
-                    input.get_shape().element_space());
-    return make_tensor_view(&input[i], s);
+    if constexpr(is_base_of<inner_array_base, Input>{})
+    {
+        return input;
+    }
+    else
+    {
+        constexpr auto lens = transform(get_shape_c<Input>{}.lens,
+                                        get_shape_c<Output>{}.lens,
+                                        [](index_int x, index_int y) -> index_int {
+                                            if(x == y)
+                                                return 1;
+                                            return x;
+                                        });
+        ;
+        constexpr auto s = make_shape(lens, get_shape_c<Input>{}.strides);
+        MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <=
+                        input.get_shape().element_space());
+        return make_tensor_view(&input[i], s);
+    }
 }
-
-namespace reduce {
 
 template <class Slicer, class F>
 constexpr auto sliced(Slicer slicer, F f)
@@ -217,11 +227,38 @@ struct block
                 f();
         }
 
+        template<class T, index_int N, index_int Stride, class Shape>
+        struct inner_array : inner_array_base
+        {
+            array<T, N> arr;
+            constexpr Shape get_shape() const {return Shape{};}
+            template<class U>
+            constexpr auto& operator[](U i) const
+            {
+                return arr[i/Stride];
+            }
+            template<class U>
+            constexpr auto& operator[](U i)
+            {
+                return arr[i/Stride];
+            }
+        };
+
         template <class F>
         __device__ auto inner(F f) const
         {
             return sliced(slicer, [=](auto x, auto... xs) {
-                idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
+                using result_type = decltype(f(x[0], xs[0]...));
+                if constexpr(is_same<result_type, void>{})
+                {
+                    idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
+                }
+                else
+                {
+                    inner_array<result_type, decltype(idx.max_local_stride_iterations(x.get_shape().elements())){}, decltype(idx.nlocal()){}, decltype(x.get_shape())> y;
+                    idx.local_stride(x.get_shape().elements(), [&](auto j) { y[j] = f(x[j], xs[j]...); });
+                    return y;
+                }
             });
         }
     };

@@ -22,24 +22,27 @@ __device__ void generic_binary_layernorm(
     MIGRAPHX_ASSERT(relements > 0);
     reduce::block::run<reduce_output>([&](auto, auto r) {
         using value_type = typename Input1::type;
+        auto input = r.inner([&](auto x1, auto x2) {
+            return op(x1, x2);
+        })(input1, input2);
         auto mean        = [&](auto f) {
-            return r.reduce(op::sum{}, 0, [&](auto x1, auto x2) {
-                return f(x1, x2) / value_type{relements};
-            })(input1, input2);
+            return r.reduce(op::sum{}, 0, [&](auto x) {
+                return f(x) / value_type{relements};
+            })(input);
         };
         // mean(x)
-        auto mean_x = mean(op);
+        auto mean_x = mean(op::id{});
         // mean(m ^ 2)
-        auto mean_m2 = mean([&](auto x1, auto x2) {
-            auto m = op(x1, x2) - mean_x;
+        auto mean_m2 = mean([&](auto x) {
+            auto m = x - mean_x;
             return m * m;
         });
 
-        r.inner([&](auto& y, auto x1, auto x2, auto... xs) {
-            auto m = op(x1, x2) - mean_x;
+        r.inner([&](auto& y, auto x, auto... xs) {
+            auto m = x - mean_x;
             // m * rsqrt(mean(m ^ 2) + 1e-12)
             y = compute(m * rsqrt(mean_m2 + value_type{1e-12}), xs...);
-        })(output, input1, input2, inputs...);
+        })(output, input, inputs...);
     });
 }
 

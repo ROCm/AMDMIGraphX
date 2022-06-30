@@ -9,9 +9,7 @@ namespace migraphx {
 template <class T, index_int N, class Op>
 constexpr auto vec_reduce(const array<T, N>& a, Op op)
 {
-    return a.apply([&](auto x) {
-        return vec_reduce(x, op);
-    });
+    return a.apply([&](auto x) { return vec_reduce(x, op); });
 }
 
 template <index_int Axis,
@@ -30,12 +28,12 @@ __device__ void generic_binary_layernorm(
     MIGRAPHX_ASSERT(relements > 0);
     reduce::block::run<reduce_output>([&](auto, auto r) {
         using value_type = typename Input1::type;
-        auto means = r.reduce(op::sum{}, make_array<value_type>(0, 0), [&](auto x1, auto x2) {
+        auto means       = r.reduce(op::sum{}, make_array<value_type>(0, 0), [&](auto x1, auto x2) {
             auto x = op(x1, x2);
-            return make_array(x, x*x) / value_type{relements};
+            return make_array(x, x * x) / value_type{relements};
         })(input1, input2);
 
-        auto mean_x = means[0];
+        auto mean_x  = means[0];
         auto mean_x2 = means[1];
 
         r.inner([&](auto& y, auto x1, auto x2, auto... xs) {

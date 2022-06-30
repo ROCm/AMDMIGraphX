@@ -134,7 +134,7 @@ struct array
         return result;
     }
 
-    template<class F>
+    template <class F>
     constexpr auto apply(F f) const
     {
         array<decltype(f(d[0])), N> result;
@@ -210,8 +210,8 @@ struct array
     }
 };
 
-template<class T, class... Ts>
-constexpr array<T, sizeof...(Ts)+1> make_array(T x, Ts... xs)
+template <class T, class... Ts>
+constexpr array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
 {
     return {x, static_cast<T>(xs)...};
 }

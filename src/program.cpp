@@ -790,10 +790,17 @@ void program::print_cpp(std::ostream& os) const
 {
     auto vec_modules = this->get_modules();
     std::unordered_map<instruction_ref, std::string> names;
+    os << "migraphx::program p;\n";
     for(auto& mod : vec_modules)
     {
-        os << "module: \"" << mod->name() << "\"" << std::endl;
-        names = mod->print_cpp(os, names);
+        std::string var_name = "m" + mod->name();
+        os << "migraphx::module_ref " << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module();";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_cpp(os, var_name, names);
         os << std::endl;
     }
 }
@@ -866,6 +873,23 @@ std::vector<module*> program::get_modules()
 {
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
+    return result;
+}
+
+template <class Module, class Map>
+void generic_insert_module_tree(Module* pm, Map& m)
+{
+    for(auto* sm : pm->get_sub_modules(true))
+    {
+        m.insert(std::make_pair(sm, pm));
+        generic_insert_module_tree(sm, m);
+    }
+}
+
+std::unordered_multimap<module_ref, module_ref> program::get_module_tree()
+{
+    std::unordered_multimap<module_ref, module_ref> result;
+    generic_insert_module_tree(this->get_main_module(), result);
     return result;
 }
 

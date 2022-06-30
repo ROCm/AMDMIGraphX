@@ -41,6 +41,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
+
 auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
 auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
 auto op_lit_broadcast(std::string op, std::string x, std::string y)
@@ -857,9 +859,12 @@ struct find_zero_div_const
 
     void apply [[noreturn]] (const module& m, const match::matcher_result& r) const
     {
-        m.debug_print();
-        std::cout << "ERROR:DIV_BY_ZERO: ";
-        m.debug_print(r.result);
+        if(enabled(MIGRAPHX_TRACE_PASSES{}))
+        {
+            m.debug_print();
+            std::cout << "ERROR:DIV_BY_ZERO: ";
+            m.debug_print(r.result);
+        }
         MIGRAPHX_THROW("ERROR: Matched division by zero in pass");
     }
 };

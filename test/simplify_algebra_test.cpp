@@ -906,7 +906,7 @@ TEST_CASE(simplify_div_zero_const)
     }
     catch(const std::runtime_error& e)
     {
-        std::cerr << e.what() << std::endl;
+        (void)e;
         result = true;
     }
     EXPECT(result);

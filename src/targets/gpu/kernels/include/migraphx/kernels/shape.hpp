@@ -74,6 +74,20 @@ struct shape
 
     constexpr auto standard() const { return packed() and not transposed(); }
 
+    static constexpr auto compute_standard_strides()
+    {
+        return return_const_array([] {
+            index_array result{};
+            index_int s = 1;
+            for(diff_int is = result.size() - 1; is >= 0; is--)
+            {
+                result[is] = s;
+                s *= Lens{}[is];
+            }
+            return result;
+        });
+    }
+
     constexpr index_int index(index_array x) const { return x.dot(strides); }
 
     constexpr index_int index(std::initializer_list<index_int> x) const
@@ -86,8 +100,7 @@ struct shape
 
     constexpr index_int index(index_int i) const
     {
-        if(this->standard())
-        {
+        if constexpr(shape{}.standard())
             MIGRAPHX_ASSERT(i == compute_index(i));
             return i;
         }
@@ -99,19 +112,21 @@ struct shape
 
     constexpr index_int compute_index(index_int i) const
     {
-        const auto rank  = this->lens.size();
-        index_int s      = 1;
+        constexpr auto sstrides = compute_standard_strides();
+        constexpr auto rank  = Lens{}.size();
         index_int result = 0;
-        for(index_int j = 0; j < rank; j++)
-        {
-            const index_int k      = rank - j - 1;
-            const index_int stride = this->strides[k];
-            const index_int len    = this->lens[k];
-            const index_int slen   = s * len;
-            const index_int idx    = (i % slen) / s;
-            result += stride * idx;
-            s = slen;
-        }
+        repeat(rank, [&](auto j) {
+            constexpr auto k      = rank - j - 1;
+            constexpr auto stride = Strides{}[k];
+            constexpr auto len    = Lens{}[k];
+            if constexpr(stride != 0)
+            {
+                constexpr auto s   = sstrides[k];
+                constexpr auto slen   = s * len;
+                auto idx    = (i % slen) / s;
+                result += stride * idx;
+            }
+        });
         return result;
     }
 

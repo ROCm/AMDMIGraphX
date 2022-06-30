@@ -54,8 +54,8 @@ struct index
     }
 #endif
 
-    template <class F>
-    __device__ void global_stride(index_int n, F f) const
+    template <class N, class F>
+    __device__ void global_stride(N n, F f) const
     {
         const auto stride = nglobal();
         for(index_int i = global; i < n; i += stride)
@@ -64,8 +64,8 @@ struct index
         }
     }
 
-    template <class F>
-    __device__ void local_stride(index_int n, F f) const
+    template <class N, class F>
+    __device__ void local_stride(N n, F f) const
     {
         const auto stride = nlocal();
         for(index_int i = local; i < n; i += stride)

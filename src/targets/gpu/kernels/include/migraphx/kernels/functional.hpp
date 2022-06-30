@@ -112,6 +112,12 @@ struct gens<1> : seq<0>
 };
 
 template <class F, index_int... Ns>
+constexpr void repeat_c_impl(F f, seq<Ns...>)
+{
+    swallow{(f(std::integral_constant<std::size_t, Ns>{}), 0)...};
+}
+
+template <class F, index_int... Ns>
 constexpr auto sequence_c_impl(F&& f, seq<Ns...>)
 {
     return f(index_constant<Ns>{}...);
@@ -141,6 +147,18 @@ template <class IntegerConstant, class F>
 constexpr auto sequence(IntegerConstant ic, F&& f)
 {
     return sequence_c<ic>(f);
+}
+
+template <std::size_t N, class F>
+constexpr void repeat_c(F f)
+{
+    detail::repeat_c_impl(f, detail::gens<N>{});
+}
+
+template <class IntegerConstant, class F>
+constexpr auto repeat(IntegerConstant ic, F&& f)
+{
+    return repeat_c<ic>(f);
 }
 
 template <class F, class G>

@@ -76,6 +76,7 @@ namespace migraphx {
 template <class T, index_int N>
 struct array
 {
+    using type = T;
     T d[N];
     constexpr T& operator[](index_int i)
     {
@@ -207,6 +208,15 @@ struct integral_const_array : array<T, sizeof...(Xs)>
     using base_array = array<T, sizeof...(Xs)>;
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
 };
+
+template<class F>
+constexpr auto return_const_array(F f)
+{
+    constexpr const auto a = f();
+    return sequence(a.size(), [=](auto... is) {
+        return integral_const_array<typename decltype(a)::type, a[is]...>{};
+    });
+}
 
 template <class T, T... Xs, class F>
 constexpr auto transform(integral_const_array<T, Xs...>, F f)

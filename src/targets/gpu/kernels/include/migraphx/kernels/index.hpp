@@ -98,7 +98,7 @@ struct index
     }
 };
 
-inline __device__ index make_index()
+inline __device__ __attribute__((const)) index make_index()
 {
     return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }

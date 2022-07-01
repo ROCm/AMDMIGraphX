@@ -31,11 +31,36 @@
 
 namespace migraphx {
 
+extern "C" __device__ __attribute__((const)) size_t __ockl_get_global_id(uint);
+extern "C" __device__ __attribute__((const)) size_t __ockl_get_local_id(uint);
+extern "C" __device__ __attribute__((const)) size_t __ockl_get_group_id(uint);
+
 struct index
 {
-    index_int global = 0;
-    index_int local  = 0;
-    index_int group  = 0;
+    struct global_read 
+    {
+        __device__ operator index_int() const
+        {
+            return index_int{blockIdx.x} * index_int{blockDim.x} + index_int{threadIdx.x}; // NOLINT
+        }
+    };
+    struct local_read 
+    {
+        __device__ operator index_int() const
+        {
+            return threadIdx.x; // NOLINT
+        }
+    };
+    struct group_read 
+    {
+        __device__ operator index_int() const
+        {
+            return blockIdx.x; // NOLINT
+        }
+    };
+    global_read global{};
+    local_read local{};
+    group_read group{};
 
 #ifdef MIGRAPHX_NGLOBAL
     constexpr index_constant<MIGRAPHX_NGLOBAL> nglobal() const { return {}; }
@@ -98,9 +123,9 @@ struct index
     }
 };
 
-inline __device__ index make_index()
+inline __device__ __attribute__((const)) index make_index()
 {
-    return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
+    return index{};
 }
 
 } // namespace migraphx

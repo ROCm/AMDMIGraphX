@@ -975,8 +975,9 @@ struct find_gemm_pointwise
         return precompile_name("pointwise")(
             match::nargs(3),
             match::all_of[match::inputs()](match::standard_shape()),
-            match::either_arg(0, 1)(match::any().bind("c"),
-                                    match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm")));
+            match::either_arg(0, 1)(
+                match::any().bind("c"),
+                match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm")));
     }
 
     // TODO: Move to matcher.hpp

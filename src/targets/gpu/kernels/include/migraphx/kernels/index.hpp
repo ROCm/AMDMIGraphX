@@ -37,21 +37,21 @@ extern "C" __device__ __attribute__((const)) size_t __ockl_get_group_id(uint);
 
 struct index
 {
-    struct global_read 
+    struct global_read
     {
         __device__ operator index_int() const
         {
             return index_int{blockIdx.x} * index_int{blockDim.x} + index_int{threadIdx.x}; // NOLINT
         }
     };
-    struct local_read 
+    struct local_read
     {
         __device__ operator index_int() const
         {
             return threadIdx.x; // NOLINT
         }
     };
-    struct group_read 
+    struct group_read
     {
         __device__ operator index_int() const
         {
@@ -123,10 +123,7 @@ struct index
     }
 };
 
-inline __device__ __attribute__((const)) index make_index()
-{
-    return index{};
-}
+inline __device__ __attribute__((const)) index make_index() { return index{}; }
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_INDEX_HPP

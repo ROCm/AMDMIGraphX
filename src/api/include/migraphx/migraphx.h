@@ -366,13 +366,7 @@ migraphx_status
 migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options_t options);
 
 migraphx_status
-migraphx_load_buffer(migraphx_program_t* out, const std::vector<char>& buffer, migraphx_file_options_t options);
-
-migraphx_status
 migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t options);
-
-migraphx_status
-migraphx_save_buffer(std::vector<char>* out, migraphx_program_t p, migraphx_file_options_t options);
 
 migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
 

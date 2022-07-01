@@ -465,17 +465,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("format") = "msgpack");
 
     m.def(
-        "load_buffer",
-        [](const std::vector<char>& buffer, const std::string& format) {
-            migraphx::file_options options;
-            options.format = format;
-            return migraphx::load_buffer(buffer, options);
-        },
-        "Load MIGraphX program from string",
-        py::arg("buffer"),
-        py::arg("format") = "msgpack");
-
-    m.def(
         "save",
         [](const migraphx::program& p, const std::string& name, const std::string& format) {
             migraphx::file_options options;
@@ -485,17 +474,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         "Save MIGraphX program",
         py::arg("p"),
         py::arg("filename"),
-        py::arg("format") = "msgpack");
-
-    m.def(
-        "save_buffer",
-        [](const migraphx::program& p, const std::string& format) {
-            migraphx::file_options options;
-            options.format = format;
-            return migraphx::save_buffer(p, options);
-        },
-        "Save MIGraphX program as string",
-        py::arg("p"),
         py::arg("format") = "msgpack");
 
     m.def("get_target", &migraphx::make_target);

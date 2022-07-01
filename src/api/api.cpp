@@ -1426,6 +1426,20 @@ migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options_t
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_load_buffer(migraphx_program_t* out,
+                                                const char* buffer,
+                                                size_t size,
+                                                migraphx_file_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(
+            migraphx::load_buffer((buffer), (size), (options->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t options)
 {
@@ -1435,6 +1449,22 @@ migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t op
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::save((p->object), (name), (options->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_save_buffer(char* out, migraphx_program_t p, migraphx_file_options_t options)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(p == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter p: Null pointer");
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        auto&& api_result = migraphx::save_buffer((p->object), (options->object));
+        std::copy(api_result.begin(), api_result.end(), out);
     });
     return api_error_result;
 }

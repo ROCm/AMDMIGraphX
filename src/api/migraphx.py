@@ -301,11 +301,24 @@ api.add_function('migraphx_load',
                  fname='migraphx::load',
                  returns='migraphx::program')
 
+api.add_function('migraphx_load_buffer',
+                 api.params(buffer='const char*',
+                            size='size_t',
+                            options='migraphx::file_options'),
+                 fname='migraphx::load_buffer',
+                 returns='migraphx::program')
+
 api.add_function('migraphx_save',
                  api.params(p='migraphx::program&',
                             name='const char*',
                             options='migraphx::file_options'),
                  fname='migraphx::save')
+
+api.add_function('migraphx_save_buffer',
+                 api.params(p='migraphx::program',
+                            options='migraphx::file_options'),
+                 fname='migraphx::save_buffer',
+                 returns='std::vector<char>')
 
 
 @auto_handle()

@@ -80,7 +80,11 @@ struct index
             }
             else
             {
-                repeat(max_stride_iterations(n, stride), [&](auto i) { f(start + stride * i); });
+                repeat(max_stride_iterations(n, stride), [&](auto k) { 
+                    auto i = start + stride * k;
+                    if (i < n)
+                        f(i); 
+                });
             }
         }
         else

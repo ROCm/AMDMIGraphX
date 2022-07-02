@@ -1053,11 +1053,11 @@ struct find_gemm_pointwise
             return;
 
         // const-fold input if not standard shape since rocblas can't handle it
-        if (not c_ins->get_shape().standard())
+        if(not c_ins->get_shape().standard())
         {
-            auto c      = op::contiguous{};
+            auto c = op::contiguous{};
             auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-            c_ins = m.add_literal(l.get_shape(), l.data());
+            c_ins  = m.add_literal(l.get_shape(), l.data());
         }
 
         auto inputs = gemm_ins->inputs();

@@ -138,7 +138,7 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
         std::size_t groups     = (n + local - 1) / local;
         std::size_t max_blocks = max_global / local;
         std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
-        return nglobal;
+        return std::min(nglobal, n);
     };
 }
 

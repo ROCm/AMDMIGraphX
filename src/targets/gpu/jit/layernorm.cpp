@@ -61,7 +61,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         }
         auto preloads   = preload::broadcasts(axis, inputs);
         auto relements  = inputs[0].lens()[axis] / vec.size;
-        auto nelements  = inputs.back().elements() / relements;
+        auto nelements  = inputs.back().elements() / inputs[0].lens()[axis];
         auto block_size = compute_block_size(relements, 256);
         hip_compile_options options;
         options.set_launch_params(

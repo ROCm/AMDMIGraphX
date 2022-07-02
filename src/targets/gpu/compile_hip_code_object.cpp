@@ -145,7 +145,7 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
 std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
 {
     const std::size_t min_block_size = 64;
-    auto block_size = (((n - 1) / min_block_size + 1)) * min_block_size;
+    auto block_size                  = (((n - 1) / min_block_size + 1)) * min_block_size;
     return std::min(block_size, max_block_size);
 }
 

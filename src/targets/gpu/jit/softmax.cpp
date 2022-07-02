@@ -52,12 +52,12 @@ struct softmax_compiler : compiler<softmax_compiler>
         auto faxis = find_fast_axis({inputs.front()});
         vectorize vec{};
         // Vectorize if the axis is a reduction axis
-        if(inputs.back().lens()[faxis] == 1)
+        if(faxis == axis)
         {
             vec = vectorize::elements(faxis, inputs);
         }
         auto relements  = inputs[0].lens()[axis] / vec.size;
-        auto nelements  = inputs.back().elements() / relements;
+        auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]) / vec.size;
         auto block_size = compute_block_size(relements, 512);
         hip_compile_options options;
         options.set_launch_params(

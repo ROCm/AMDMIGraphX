@@ -55,7 +55,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         auto faxis = find_fast_axis({inputs.front()});
         vectorize vec{};
         // Vectorize if the axis is a reduction axis
-        if(inputs.back().lens()[faxis] == 1)
+        if(axis == faxis)
         {
             vec = vectorize::elements(faxis, inputs);
         }

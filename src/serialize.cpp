@@ -36,7 +36,7 @@ void raw_data_to_value(value& v, const RawData& rd)
     result["shape"] = migraphx::to_value(rd.get_shape());
     if(rd.get_shape().type() == shape::tuple_type)
         result["sub"] = migraphx::to_value(rd.get_sub_objects());
-    else
+    else if (not rd.empty())
         result["data"] = migraphx::value::binary(rd.data(), rd.get_shape().bytes());
     v = result;
 }
@@ -56,7 +56,7 @@ void migraphx_from_value(const value& v, argument& a)
         literal l = migraphx::from_value<literal>(v);
         a         = l.get_argument();
     }
-    else
+    else if(v.contains("sub"))
     {
         a = migraphx::from_value<std::vector<argument>>(v.at("sub"));
     }

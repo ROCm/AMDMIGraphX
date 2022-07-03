@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
@@ -326,25 +349,27 @@ match::matcher_result find_match(module& modl, M&& m)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 
 /// Find matches for an instruction in the module
-template <class... Ms>
-void find_matches(module& mod, instruction_ref ins, Ms&&... ms)
+template <class Mod, class... Ms>
+void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
 {
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif
-        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
-    bool match     = false;
+        int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
+    bool match    = false;
     each_args(
         [&](auto&& m) {
             if(match)
                 return;
-            auto r = match_instruction(mod, ins, m.matcher());
-            if(r.result == mod.end())
+            if(trace > 1)
+                std::cout << "Match: " << get_type_name(m) << std::endl;
+            auto r = match_instruction(get_module(mod), ins, m.matcher());
+            if(r.result == get_module(mod).end())
                 return;
-            if(trace)
+            if(trace > 0)
             {
                 std::cout << "Matched by " << get_type_name(m) << std::endl;
-                mod.debug_print(ins);
+                get_module(mod).debug_print(ins);
             }
             m.apply(mod, r);
             match = true;
@@ -353,10 +378,10 @@ void find_matches(module& mod, instruction_ref ins, Ms&&... ms)
 }
 
 /// Find matches in a module
-template <class... Ms>
-void find_matches(module& mod, Ms&&... ms)
+template <class Mod, class... Ms>
+void find_matches(Mod& mod, Ms&&... ms)
 {
-    for(auto ins : iterator_for(mod))
+    for(auto ins : iterator_for(get_module(mod)))
     {
         find_matches(mod, ins, ms...);
     }

@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
@@ -97,9 +120,33 @@ struct module
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
     std::vector<instruction_ref>
-    insert_module_instructions(instruction_ref ins,
-                               module_ref m,
-                               std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+    add_instructions(const std::vector<instruction_ref>& instructions,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    add_instructions(const_module_ref m,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    add_instructions(instruction_ref start,
+                     instruction_ref last,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        const std::vector<instruction_ref>& instructions,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        const_module_ref m,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        instruction_ref start,
+                        instruction_ref last,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
@@ -156,11 +203,13 @@ struct module
 
     void print_cpp(std::ostream& os) const;
     std::unordered_map<instruction_ref, std::string>
-    print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const;
+    print_cpp(std::ostream& os,
+              const std::string& mname,
+              std::unordered_map<instruction_ref, std::string> names) const;
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
-    std::vector<module_ref> get_sub_modules() const;
+    std::vector<module_ref> get_sub_modules(bool shallow = false) const;
     module& sort();
     ins_dep_map calc_implicit_deps() const;
 
@@ -177,6 +226,8 @@ struct module
 
     std::unique_ptr<module_impl> impl;
 };
+
+inline module& get_module(module& m) { return m; }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

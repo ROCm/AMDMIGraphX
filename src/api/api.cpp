@@ -236,6 +236,11 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
+{
+    return m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}), {});
+}
+
 struct experimental_custom_op
 {
     std::string name;
@@ -260,7 +265,12 @@ struct custom_operation
         return op.compute_shape(std::move(inputs));
     }
 
-    argument compute(const std::vector<argument>&) const { MIGRAPHX_THROW("Not computable"); }
+    // TODO: Compute method with module_args
+    argument
+    compute(migraphx::context ctx, migraphx::shape output_shape, std::vector<argument> inputs) const
+    {
+        return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
+    }
 };
 
 template <class CustomOp>
@@ -577,6 +587,24 @@ struct migraphx_experimental_custom_op
     manage_generic_ptr<migraphx_experimental_custom_op_copy, migraphx_experimental_custom_op_delete>
         object_ptr = nullptr;
     migraphx::experimental_custom_op xobject;
+    migraphx_experimental_custom_op_compute compute_f = nullptr;
+    migraphx::argument compute(migraphx::context ctx,
+                               migraphx::shape output,
+                               std::vector<migraphx::argument> inputs) const
+    {
+        std::remove_pointer_t<migraphx_argument_t> out;
+        if(compute_f == nullptr)
+            throw std::runtime_error("compute function is missing.");
+        auto api_error_result = compute_f(&out,
+                                          object_ptr.data,
+                                          object_cast<migraphx_context_t>(&(ctx)),
+                                          object_cast<migraphx_shape_t>(&(output)),
+                                          object_cast<migraphx_arguments_t>(&(inputs)));
+        if(api_error_result != migraphx_status_success)
+            throw std::runtime_error("Error in compute.");
+        return (&out)->object;
+    }
+
     migraphx_experimental_custom_op_compute_shape compute_shape_f = nullptr;
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
@@ -1137,6 +1165,21 @@ extern "C" migraphx_status migraphx_module_add_return(migraphx_instruction_t* ou
         if(args == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter args: Null pointer");
         *out = allocate<migraphx_instruction_t>((module->object).add_return((args->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_module_add_allocation(migraphx_instruction_t* out,
+                                                          migraphx_module_t module,
+                                                          const_migraphx_shape_t s)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(module == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter module: Null pointer");
+        if(s == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter s: Null pointer");
+        *out = allocate<migraphx_instruction_t>(
+            migraphx::add_allocation((module->object), (s->object)));
     });
     return api_error_result;
 }
@@ -1769,6 +1812,14 @@ migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experi
         *experimental_custom_op =
             allocate<migraphx_experimental_custom_op_t>((obj), (c), (d), (name));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_experimental_custom_op_set_compute(migraphx_experimental_custom_op_t obj,
+                                            migraphx_experimental_custom_op_compute input)
+{
+    auto api_error_result = migraphx::try_([&] { (obj)->compute_f = (input); });
     return api_error_result;
 }
 

@@ -81,8 +81,9 @@ struct basic_iota_iterator
         index--;
         return it;
     }
-    // TODO: operator->
     reference operator*() const { return f(index); }
+    pointer operator->() const { return &f(index); }
+    reference operator[](int n) const { return f(index + n); }
 };
 
 template <class T, class F>

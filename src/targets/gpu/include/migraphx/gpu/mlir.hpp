@@ -21,47 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/eliminate_workspace.hpp>
-#include <migraphx/gpu/hip.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/pass_config.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
+
+#include <string>
+#include <vector>
+#include <migraphx/config.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+struct module;
 namespace gpu {
 
-void eliminate_workspace::apply(module& m) const
-{
-    std::size_t n = 0;
-    std::vector<instruction_ref> allocs;
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->outputs().size() != 1)
-            continue;
-        if(ins->name() != "hip::allocate")
-            continue;
-        auto&& a = any_cast<hip_allocate>(ins->get_operator());
-        if(a.tag == "workspace")
-        {
-            n = std::max(n, ins->get_shape().bytes());
-            allocs.push_back(ins);
-        }
-    }
-    if(n > 0)
-    {
-        auto ws = m.add_parameter("workspace", shape{shape::int8_type, {n}});
-        for(auto&& a : allocs)
-        {
-            m.replace_instruction(a, ws);
-            m.remove_instruction(a);
-        }
-    }
-}
+std::string dump_mlir(const module& m);
+code_object_op compile_mlir(const context& ctx, const module& m);
+
+instruction_ref insert_mlir(module& m,
+                            instruction_ref ins,
+                            code_object_op co,
+                            const std::vector<instruction_ref>& inputs);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

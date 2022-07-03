@@ -124,7 +124,7 @@ struct module
                      std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     std::vector<instruction_ref>
-    add_instructions(module_ref m,
+    add_instructions(const_module_ref m,
                      std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     std::vector<instruction_ref>
@@ -139,7 +139,7 @@ struct module
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
-                        module_ref m,
+                        const_module_ref m,
                         std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     std::vector<instruction_ref>
@@ -226,6 +226,8 @@ struct module
 
     std::unique_ptr<module_impl> impl;
 };
+
+inline module& get_module(module& m) { return m; }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

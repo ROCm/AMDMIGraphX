@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
@@ -25,6 +48,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
 #include <set>
@@ -312,6 +336,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
 
 auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
+namespace {
 struct find_layernorm
 {
     auto matcher() const { return match::layernorm(&gpu_name); }
@@ -677,6 +702,7 @@ struct miopen_fusion
         return args.back();
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_fusion)
 
 struct miopen_conv_bias
 {
@@ -809,15 +835,6 @@ inline auto precompile_name(std::string s) // NOLINT
         auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
         return (op.name() == s);
     });
-}
-
-template <class... Ms>
-auto conv_bias_pointwise(Ms... ms)
-{
-    return precompile_name("pointwise")(
-        match::either_arg(0, 1)(bias_shape(match::used_once()).bind("bias"),
-                                fusable_conv(match::used_once()).bind("conv")),
-        ms...);
 }
 
 struct find_conv_bias
@@ -988,10 +1005,45 @@ struct find_commutative_broadcast
         m.replace_instruction(ins, ins->get_operator(), args);
     }
 };
+} // namespace
+
+struct find_contiguous
+{
+    auto matcher() const { return match::name("gpu::contiguous"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        m.replace_instruction(
+            ins,
+            make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}),
+            ins->inputs());
+    }
+};
+
+struct find_contiguous_pointwise
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto pw     = ins->inputs().front();
+        auto alloc  = ins->inputs().back();
+        auto args   = pw->inputs();
+        args.back() = alloc;
+
+        m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
+    }
+};
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_gelu{}, find_gelu_new{fast_math});
+    match::find_matches(m, find_contiguous_pointwise{}, find_gelu{}, find_gelu_new{fast_math});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_triadd{});
     match::find_matches(m,
@@ -1013,6 +1065,7 @@ void fuse_ops::apply(module& m) const
                         find_gemm_add{},
                         find_gemm_pointwise{},
                         find_commutative_broadcast{});
+    match::find_matches(m, find_contiguous{});
 }
 
 } // namespace gpu

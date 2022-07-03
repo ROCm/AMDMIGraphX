@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -767,10 +790,17 @@ void program::print_cpp(std::ostream& os) const
 {
     auto vec_modules = this->get_modules();
     std::unordered_map<instruction_ref, std::string> names;
+    os << "migraphx::program p;\n";
     for(auto& mod : vec_modules)
     {
-        os << "module: \"" << mod->name() << "\"" << std::endl;
-        names = mod->print_cpp(os, names);
+        std::string var_name = "m" + mod->name();
+        os << "migraphx::module_ref " << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module();";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_cpp(os, var_name, names);
         os << std::endl;
     }
 }
@@ -843,6 +873,23 @@ std::vector<module*> program::get_modules()
 {
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
+    return result;
+}
+
+template <class Module, class Map>
+void generic_insert_module_tree(Module* pm, Map& m)
+{
+    for(auto* sm : pm->get_sub_modules(true))
+    {
+        m.insert(std::make_pair(sm, pm));
+        generic_insert_module_tree(sm, m);
+    }
+}
+
+std::unordered_multimap<module_ref, module_ref> program::get_module_tree()
+{
+    std::unordered_multimap<module_ref, module_ref> result;
+    generic_insert_module_tree(this->get_main_module(), result);
     return result;
 }
 

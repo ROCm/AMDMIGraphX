@@ -1,3 +1,26 @@
+#####################################################################################
+# The MIT License (MIT)
+#
+# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#####################################################################################
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip /opt/rocm/hcc)
 find_package(miopen)
@@ -140,8 +163,8 @@ add_library(migraphx_gpu
     convolution.cpp
     deconvolution.cpp
     device_name.cpp
-    eliminate_workspace.cpp
     elu.cpp
+    fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp
     gemm_impl.cpp
@@ -154,7 +177,7 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     leaky_relu.cpp
-    mlir_conv.cpp
+    mlir.cpp
     multinomial.cpp
     nonzero.cpp
     pack_args.cpp
@@ -298,16 +321,26 @@ message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR)
-    find_library(LIBMLIRMIOPEN MLIRMIOpenThin REQUIRED)
+    find_library(MLIRAPI_LIBRARY MLIRMIOpen 
+        PATH_SUFFIXES
+        # Workaournd broken mlir install
+        lib/ lib/lib)
     # REQUIRED is not supported before cmake 3.18
-    if(NOT LIBMLIRMIOPEN)
-        message(FATAL_ERROR "libMLIRMIOpenThin not found")
+    if(NOT MLIRAPI_LIBRARY)
+        message(FATAL_ERROR "libMLIRMIOpen not found")
     else()
-        message(STATUS "Build with libMLIRMIOpenThin: " ${LIBMLIRMIOPEN})
+        message(STATUS "Build with libMLIRMIOpen: " ${MLIRAPI_LIBRARY})
     endif()
 
-    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
-    target_link_libraries(migraphx_gpu PUBLIC ${LIBMLIRMIOPEN})
+    find_path(MLIRAPI_HEADERS NAMES mlir-c/Dialect/MIGraphX.h)
+    # Workaround MLIR broken installation
+    find_path(MLIRAPI_HEADERS2 NAMES mlir-c/Registration.h
+        PATH_SUFFIXES 
+        include/external/include external/include)
+
+    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+    target_include_directories(migraphx_gpu SYSTEM PRIVATE ${MLIRAPI_HEADERS} ${MLIRAPI_HEADERS2})
+    target_link_libraries(migraphx_gpu PUBLIC ${MLIRAPI_LIBRARY})
 endif()
 
 set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "")

@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -275,6 +298,96 @@ TEST_CASE(parameter_name_order)
     auto m1     = mm;
     auto names1 = m1.get_parameter_names();
     EXPECT(param_names == names1);
+}
+
+TEST_CASE(insert_instructions_module)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module m1("m1");
+    auto x1   = m1.add_parameter("x1", s);
+    auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), {x1});
+    m1.add_instruction(migraphx::make_op("add"), {sqrt, x1});
+
+    migraphx::module m2("m2");
+    auto x2 = m2.add_parameter("x2", s);
+    m2.add_instruction(migraphx::make_op("sqrt"), {x2});
+
+    m1.insert_instructions(sqrt, &m2, {{x2, x1}});
+
+    EXPECT(std::prev(sqrt)->name() == "sqrt");
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
+    EXPECT(contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
+}
+
+TEST_CASE(add_instructions_module)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module m1("m1");
+    auto x1 = m1.add_parameter("x1", s);
+    m1.add_instruction(migraphx::make_op("sqrt"), {x1});
+
+    migraphx::module m2("m2");
+    auto x2 = m2.add_parameter("x2", s);
+    m2.add_instruction(migraphx::make_op("sqrt"), {x2});
+
+    m1.add_instructions(&m2, {{x2, x1}});
+
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
+    EXPECT(contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
+}
+
+TEST_CASE(add_instructions_range)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module m1("m1");
+    auto x1 = m1.add_parameter("x1", s);
+    m1.add_instruction(migraphx::make_op("sqrt"), {x1});
+
+    migraphx::module m2("m2");
+    auto x2    = m2.add_parameter("x2", s);
+    auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
+
+    m1.add_instructions(sqrt2, m2.end(), {{x2, x1}});
+    EXPECT(std::any_of(
+        m1.begin(), m1.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
+
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
+    EXPECT(contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
+}
+
+TEST_CASE(add_instructions_vector)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module m1("m1");
+    auto x1 = m1.add_parameter("x1", s);
+    m1.add_instruction(migraphx::make_op("sqrt"), {x1});
+
+    migraphx::module m2("m2");
+    auto x2    = m2.add_parameter("x2", s);
+    auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
+
+    m1.add_instructions({sqrt2}, {{x2, x1}});
+    EXPECT(std::any_of(
+        m1.begin(), m1.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
+
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
+    EXPECT(contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
 }
 
 struct check_for_pass_op

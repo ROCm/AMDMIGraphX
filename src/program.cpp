@@ -790,10 +790,17 @@ void program::print_cpp(std::ostream& os) const
 {
     auto vec_modules = this->get_modules();
     std::unordered_map<instruction_ref, std::string> names;
+    os << "migraphx::program p;\n";
     for(auto& mod : vec_modules)
     {
-        os << "module: \"" << mod->name() << "\"" << std::endl;
-        names = mod->print_cpp(os, names);
+        std::string var_name = "m" + mod->name();
+        os << "migraphx::module_ref " << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module();";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_cpp(os, var_name, names);
         os << std::endl;
     }
 }

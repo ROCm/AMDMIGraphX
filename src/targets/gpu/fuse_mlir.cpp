@@ -108,7 +108,7 @@ struct find_conv_pointwise
                            return std::make_pair(pm->get_parameter(name),
                                                  mm->add_parameter(name, input->get_shape()));
                        });
-        mm->add_return(mm->insert_module_instructions(mm->end(), pm, param_map));
+        mm->add_return(mm->insert_instructions(mm->end(), pm, param_map));
 
         std::vector<instruction_ref> inputs;
         std::copy_if(ins->inputs().begin(),

@@ -44,8 +44,8 @@ auto with_char(F f)
     return [=](unsigned char c) -> bool { return f(c); };
 }
 
-inline std::string
-replace_string(std::string subject, const std::string& search, const std::string& replace)
+inline void
+replace_string_inplace(std::string& subject, const std::string& search, const std::string& replace)
 {
     size_t pos = 0;
     while((pos = subject.find(search, pos)) != std::string::npos)
@@ -53,6 +53,12 @@ replace_string(std::string subject, const std::string& search, const std::string
         subject.replace(pos, search.length(), replace);
         pos += replace.length();
     }
+}
+
+inline std::string
+replace_string(std::string subject, const std::string& search, const std::string& replace)
+{
+    replace_string_inplace(subject, search, replace);
     return subject;
 }
 

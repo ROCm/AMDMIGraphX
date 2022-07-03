@@ -478,9 +478,9 @@ struct argument_parser
         {
             std::cout << "Found argument '" << color::fg_yellow << sc.incorrect << color::reset
                       << "'"
-            << " which wasn't expected, or isn't valid in this context" << std::endl;
+                      << " which wasn't expected, or isn't valid in this context" << std::endl;
             std::cout << "       "
-            << "Did you mean " << color::fg_green << sc.correct << color::reset << "?"
+                      << "Did you mean " << color::fg_green << sc.correct << color::reset << "?"
                       << std::endl;
             std::cout << std::endl;
             print_usage_for(*sc.arg, sc.correct);

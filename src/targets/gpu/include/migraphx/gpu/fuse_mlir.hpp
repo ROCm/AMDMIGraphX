@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_MLIR_CONV_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MIOPEN_MLIR_CONV_HPP
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -30,18 +30,19 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
-struct mlir_conv
+
+struct fuse_mlir
 {
-    context* ctx;
-    std::string name() const { return "mlir::convolution"; }
-    void apply(module& m) const;
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::fuse_mlir"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP

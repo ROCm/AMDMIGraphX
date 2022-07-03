@@ -21,45 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
+
+#include <string>
+#include <vector>
+#include <migraphx/config.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/register_op.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+struct module;
 namespace gpu {
 
-MIGRAPHX_REGISTER_OP(code_object_op);
+std::string dump_mlir(const module& m);
+code_object_op compile_mlir(const context& ctx, const module& m);
 
-shape code_object_op::compute_shape(std::vector<shape> inputs) const
-{
-    std::transform(inputs.begin(), inputs.end(), inputs.begin(), [](const shape& s) {
-        return s.normalize_standard();
-    });
-    auto einputs = expected_inputs;
-    std::transform(einputs.begin(), einputs.end(), einputs.begin(), [](const shape& s) {
-        return s.normalize_standard();
-    });
-    if(einputs != inputs)
-        MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" +
-                       to_string_range(inputs) + "]");
-    return output;
-}
-argument
-code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    std::vector<void*> kargs(args.size());
-    std::transform(
-        args.begin(), args.end(), kargs.begin(), [](const argument& a) { return a.data(); });
-    k.launch(ctx.get_stream().get(), global, local, std::move(kargs));
-    return args[get_output_arg(args.size())];
-}
-void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
-{
-    assert(not code_object.empty());
-    k = kernel(code_object, symbol_name);
-}
+instruction_ref insert_mlir(module& m,
+                            instruction_ref ins,
+                            code_object_op co,
+                            const std::vector<instruction_ref>& inputs);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

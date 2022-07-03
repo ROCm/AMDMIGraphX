@@ -399,7 +399,8 @@ module::add_instructions(const std::vector<instruction_ref>& instructions,
 }
 
 std::vector<instruction_ref>
-module::add_instructions(const_module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+module::add_instructions(const_module_ref m,
+                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return this->insert_instructions(this->end(), m, std::move(map_ins));
 }
@@ -420,8 +421,10 @@ module::insert_instructions(instruction_ref ins,
     return insert_generic_instructions(*this, ins, instructions, std::move(map_ins));
 }
 
-std::vector<instruction_ref> module::insert_instructions(
-    instruction_ref ins, const_module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref>
+module::insert_instructions(instruction_ref ins,
+                            const_module_ref m,
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins));
 }

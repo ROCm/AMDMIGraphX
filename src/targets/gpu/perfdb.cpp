@@ -51,9 +51,9 @@ std::string generate_miopen_config(const problem_params& pp)
                             to_string(weights[0]),
                             to_string_range(output.begin() + 2, output.end(), "x"),
                             to_string(input[0]),
-                            to_string_range(padding.begin() + 2, padding.end(), "x"),
-                            to_string_range(stride.begin() + 2, stride.end(), "x"),
-                            to_string_range(dilation.begin() + 2, dilation.end(), "x"),
+                            to_string_range(padding.begin(), padding.end(), "x"),
+                            to_string_range(stride.begin(), stride.end(), "x"),
+                            to_string_range(dilation.begin(), dilation.end(), "x"),
                             std::string{"0"},
                             get_layout(pp.inputs[0], "NCHW"),
                             get_layout(pp.inputs[1], "NCHW"),
@@ -63,14 +63,20 @@ std::string generate_miopen_config(const problem_params& pp)
                            "-");
 }
 
+auto query_miopen_db(const std::string& query)
+{
+    // TODO: Store db as a static variable
+    const auto dbpath = fs::path{"opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
+    auto db           = sqlite::read(dbpath);
+    return db.execute(query);
+}
+
 } // namespace
 
 std::string get_mlir_perf_for_conv(const problem_params& pp)
 {
-    const auto dbpath = fs::path{"opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
-    auto db           = sqlite::read(dbpath);
     std::string query = "select * from perf_db where config=${config}";
-    auto results = db.execute(interpolate_string(query, {{"config", generate_miopen_config(pp)}}));
+    auto results = query_miopen_db(interpolate_string(query, {{"config", generate_miopen_config(pp)}}));
     if(results.empty())
         return "";
     return results.front().at("params");

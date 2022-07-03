@@ -51,7 +51,7 @@ struct unsqueeze
                 MIGRAPHX_THROW("UNSQUEEZE: Input must be a scalar");
         }
 
-        if (steps.size() > axes.size())
+        if(steps.size() > axes.size())
             MIGRAPHX_THROW("UNSQUEEZE: Steps provided with no axis");
 
         std::size_t new_size = old_lens.size() + axes.size();

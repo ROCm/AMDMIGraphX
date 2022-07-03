@@ -132,7 +132,7 @@ migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& i
 bool verify_mlir(const migraphx::module& mmlir)
 {
     migraphx::program ref;
-    ref.get_main_module()->insert_module_instructions(ref.get_main_module()->end(), &mmlir);
+    ref.get_main_module()->insert_instructions(ref.get_main_module()->end(), &mmlir);
 
     auto inputs = generate_params(ref);
 

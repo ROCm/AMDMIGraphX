@@ -489,7 +489,8 @@ struct mlir_program
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
             if(ins->name() == "convolution")
-                pp = problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
+                pp =
+                    problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
 
             std::vector<MlirValue> inputs;
             transform(

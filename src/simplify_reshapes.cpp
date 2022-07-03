@@ -249,7 +249,7 @@ struct find_concat_transpose
 {
     auto matcher() const
     {
-        return match::name("concat")(match::all_of[match::inputs()](match::transpose_shape()));
+        return match::name("concat")(match::all_of[match::inputs()](match::name("transpose")));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

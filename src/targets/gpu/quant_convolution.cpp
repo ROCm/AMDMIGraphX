@@ -158,7 +158,7 @@ void miopen_quant_convolution::finalize(context& ctx,
         auto size = inputs.at(2).bytes();
         auto ws   = find(ctx, output_shape, inputs);
         if(ws.bytes() > size)
-            MIGRAPHX_THROW("MIOpen uant Convolution: workspace has changed during finalization.");
+            MIGRAPHX_THROW("MIOpen Quant Convolution: workspace has changed during finalization.");
     }
 
     auto x_desc = make_tensor(inputs[0], int8_x4_format);

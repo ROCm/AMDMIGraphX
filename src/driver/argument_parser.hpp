@@ -476,10 +476,11 @@ struct argument_parser
         auto sc = spellcheck(inputs);
         if(sc.distance < 5)
         {
-            std::cout << "Found argument '" << color::fg_yellow << sc.incorrect << color::reset << "'";
-            std::cout << " which wasn't expected, or isn't valid in this context" << std::endl;
-            std::cout << "       ";
-            std::cout << "Did you mean " << color::fg_green << sc.correct << color::reset << "?"
+            std::cout << "Found argument '" << color::fg_yellow << sc.incorrect << color::reset
+                      << "'"
+            << " which wasn't expected, or isn't valid in this context" << std::endl;
+            std::cout << "       "
+            << "Did you mean " << color::fg_green << sc.correct << color::reset << "?"
                       << std::endl;
             std::cout << std::endl;
             print_usage_for(*sc.arg, sc.correct);

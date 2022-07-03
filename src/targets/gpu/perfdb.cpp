@@ -76,7 +76,8 @@ auto query_miopen_db(const std::string& query)
 std::string get_mlir_perf_for_conv(const problem_params& pp)
 {
     std::string query = "select * from perf_db where config=${config}";
-    auto results = query_miopen_db(interpolate_string(query, {{"config", generate_miopen_config(pp)}}));
+    auto results =
+        query_miopen_db(interpolate_string(query, {{"config", generate_miopen_config(pp)}}));
     if(results.empty())
         return "";
     return results.front().at("params");

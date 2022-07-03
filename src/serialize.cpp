@@ -36,7 +36,7 @@ void raw_data_to_value(value& v, const RawData& rd)
     result["shape"] = migraphx::to_value(rd.get_shape());
     if(rd.get_shape().type() == shape::tuple_type)
         result["sub"] = migraphx::to_value(rd.get_sub_objects());
-    else if (not rd.empty())
+    else if(not rd.empty())
         result["data"] = migraphx::value::binary(rd.data(), rd.get_shape().bytes());
     v = result;
 }

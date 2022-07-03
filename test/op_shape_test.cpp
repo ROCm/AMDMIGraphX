@@ -1528,7 +1528,7 @@ TEST_CASE(test_unsqueeze_step_non_divisable)
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
 }
 
-TEST_CASE(test_unsqueeze_step_non_zero)
+TEST_CASE(test_unsqueeze_step_zero)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {0}}}), s1);

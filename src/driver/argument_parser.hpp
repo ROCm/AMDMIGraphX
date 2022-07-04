@@ -182,8 +182,10 @@ struct argument_parser
 {
     struct argument
     {
-        using action_function = std::function<bool(argument_parser&, const std::vector<std::string>&)>;
-        using validate_function = std::function<void(const argument_parser&, const std::vector<std::string>&)>;
+        using action_function =
+            std::function<bool(argument_parser&, const std::vector<std::string>&)>;
+        using validate_function =
+            std::function<void(const argument_parser&, const std::vector<std::string>&)>;
         std::vector<std::string> flags;
         action_function action{};
         std::string type          = "";
@@ -191,7 +193,7 @@ struct argument_parser
         std::string metavar       = "";
         std::string default_value = "";
         unsigned nargs            = 1;
-        bool required = true;
+        bool required             = true;
         std::vector<validate_function> validations{};
     };
 
@@ -225,7 +227,7 @@ struct argument_parser
         arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
                                  if(params.empty())
                                      throw std::runtime_error("Flag with no value.");
-                                 if (not is_multi_value<T>{} and params.size() > 1)
+                                 if(not is_multi_value<T>{} and params.size() > 1)
                                      throw std::runtime_error("Too many arguments passed.");
                                  x = value_parser<T>::apply(params.back());
                                  return false;
@@ -297,18 +299,17 @@ struct argument_parser
     MIGRAPHX_DRIVER_STATIC auto validate(F f)
     {
         return [=](const auto& x, auto& arg) {
-            arg.validations.push_back([&, f](auto& self, const std::vector<std::string>& params) {
-                f(self, x, params);
-            });
+            arg.validations.push_back(
+                [&, f](auto& self, const std::vector<std::string>& params) { f(self, x, params); });
         };
     }
 
     MIGRAPHX_DRIVER_STATIC auto file_exist()
     {
         return validate([](auto&, auto&, auto& params) {
-            if (params.empty())
+            if(params.empty())
                 throw std::runtime_error("No argument passed.");
-            if (not fs::exists(params.back()))
+            if(not fs::exists(params.back()))
                 throw std::runtime_error("Path does not exists: " + params.back());
         });
     }
@@ -448,7 +449,7 @@ struct argument_parser
     {
         std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
         std::cout << "    " << exe_name << " ";
-        if (flag.empty())
+        if(flag.empty())
         {
             std::cout << arg.metavar;
         }
@@ -501,7 +502,7 @@ struct argument_parser
         std::string msg = "";
         try
         {
-            for(const auto& v:arg.validations)
+            for(const auto& v : arg.validations)
                 v(*this, inputs);
             return arg.action(*this, inputs);
         }
@@ -560,7 +561,7 @@ struct argument_parser
             generic_parse(std::move(args), [&](const std::string& x) { return keywords[x]; });
         for(auto&& arg : arguments)
         {
-            bool used = false;
+            bool used  = false;
             auto flags = arg.flags;
             if(flags.empty())
                 flags = {""};

@@ -73,7 +73,7 @@ struct loader
 
     void parse(argument_parser& ap)
     {
-        ap(file, {}, ap.metavar("<input file>"));
+        ap(file, {}, ap.metavar("<input file>"), ap.file_exist());
         ap(model, {"--model"}, ap.help("Load model"), ap.type("resnet50|inceptionv3|alexnet"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));

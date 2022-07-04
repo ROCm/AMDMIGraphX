@@ -656,7 +656,7 @@ struct argument_parser
         if(not missing_arguments.empty())
         {
             std::cout << color::fg_red << color::bold << "error: " << color::reset;
-            std::cout << " The following required arguments were not provided:" << std::endl;
+            std::cout << "The following required arguments were not provided:" << std::endl;
             std::cout << "       " << color::fg_red
                       << join_strings(get_argument_usages(std::move(missing_arguments)), " ")
                       << color::reset << std::endl;

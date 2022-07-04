@@ -1050,16 +1050,19 @@ inline program load(const char* filename)
 inline program load_buffer(const std::string& buffer, const file_options& options)
 {
     return program(
-        make<migraphx_program>(&migraphx_load_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
+        make<migraphx_program>(
+            &migraphx_load_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
 }
 
 /// Load a saved migraphx program from buffer
 inline program load_buffer(const std::string& buffer)
 {
-    return program(
-        make<migraphx_program>(&migraphx_load_buffer, buffer.data(), buffer.size(), migraphx::file_options{}.get_handle_ptr()),
-        own{});
+    return program(make<migraphx_program>(&migraphx_load_buffer,
+                                          buffer.data(),
+                                          buffer.size(),
+                                          migraphx::file_options{}.get_handle_ptr()),
+                   own{});
 }
 
 /// Save a program to a file
@@ -1086,7 +1089,10 @@ inline std::vector<char> save_buffer(const program& p, const file_options& optio
 inline std::vector<char> save_buffer(const program& p)
 {
     std::vector<char> buffer;
-    call(&migraphx_save_buffer, buffer.data(), p.get_handle_ptr(), migraphx::file_options{}.get_handle_ptr());
+    call(&migraphx_save_buffer,
+         buffer.data(),
+         p.get_handle_ptr(),
+         migraphx::file_options{}.get_handle_ptr());
     return buffer;
 }
 

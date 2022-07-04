@@ -80,7 +80,7 @@ struct softmax_compiler : compiler<softmax_compiler>
             vec = vectorize::elements(faxis, inputs);
         }
         auto relements  = inputs[0].lens()[axis] / vec.size;
-        auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]) / vec.size;
+        auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);
         auto block_size = compute_block_size(relements, 256);
         hip_compile_options options;
         options.set_launch_params(

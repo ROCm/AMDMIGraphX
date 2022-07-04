@@ -193,7 +193,7 @@ struct argument_parser
         std::string help          = "";
         std::string metavar       = "";
         std::string default_value = "";
-        std::string group = "";
+        std::string group         = "";
         unsigned nargs            = 1;
         bool required             = false;
         std::vector<validate_function> validations{};
@@ -215,11 +215,10 @@ struct argument_parser
         }
         std::string usage() const
         {
-            if (flags.empty())
+            if(flags.empty())
                 return usage("");
             return usage(flags.front());
         }
-
     };
 
     template <class T, MIGRAPHX_REQUIRES(is_multi_value<T>{})>
@@ -357,9 +356,9 @@ struct argument_parser
     std::vector<argument*> find_arguments(F f)
     {
         std::vector<argument*> result;
-        for(auto& arg:arguments)
+        for(auto& arg : arguments)
         {
-            if (not f(arg))
+            if(not f(arg))
                 continue;
             result.push_back(&arg);
         }
@@ -376,14 +375,14 @@ struct argument_parser
         return find_arguments([&](const auto& arg) { return arg.required; });
     }
 
-    template<class SequenceContainer>
+    template <class SequenceContainer>
     std::vector<std::string> get_argument_usages(SequenceContainer args)
     {
         std::vector<std::string> usage_flags;
         std::unordered_set<std::string> found_groups;
         // Remove arguments that belong to a group
         auto it = std::remove_if(args.begin(), args.end(), [&](const argument* arg) {
-            if (arg->group.empty())
+            if(arg->group.empty())
                 return false;
             found_groups.insert(arg->group);
             return true;
@@ -396,9 +395,7 @@ struct argument_parser
             });
             return "(" + join_strings(either_flags, "|") + ")";
         });
-        transform(args, std::back_inserter(usage_flags), [&](auto* arg) {
-            return arg->usage();
-        });
+        transform(args, std::back_inserter(usage_flags), [&](auto* arg) { return arg->usage(); });
         return usage_flags;
     }
 
@@ -648,20 +645,21 @@ struct argument_parser
                     used = true;
                 }
             }
-            if (used and not arg.group.empty())
+            if(used and not arg.group.empty())
                 groups_used.insert(arg.group);
-            if (arg.required and not used)
+            if(arg.required and not used)
                 missing_arguments.push_back(&arg);
         }
         // Remove arguments from a group that is being used
-        missing_arguments.remove_if([&](const argument* arg) {
-            return groups_used.count(arg->group);
-        });
-        if (not missing_arguments.empty())
+        missing_arguments.remove_if(
+            [&](const argument* arg) { return groups_used.count(arg->group); });
+        if(not missing_arguments.empty())
         {
             std::cout << color::fg_red << color::bold << "error: " << color::reset;
             std::cout << " The following required arguments were not provided:" << std::endl;
-            std::cout << "       " << color::fg_red << join_strings(get_argument_usages(std::move(missing_arguments)), " ") << color::reset << std::endl;
+            std::cout << "       " << color::fg_red
+                      << join_strings(get_argument_usages(std::move(missing_arguments)), " ")
+                      << color::reset << std::endl;
             std::cout << std::endl;
             auto required_usages = get_argument_usages(get_required_arguments());
             print_usage(required_usages);

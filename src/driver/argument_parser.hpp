@@ -33,6 +33,7 @@
 #include <sstream>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -192,9 +193,33 @@ struct argument_parser
         std::string help          = "";
         std::string metavar       = "";
         std::string default_value = "";
+        std::string group = "";
         unsigned nargs            = 1;
-        bool required             = true;
+        bool required             = false;
         std::vector<validate_function> validations{};
+
+        std::string usage(const std::string& flag) const
+        {
+            std::stringstream ss;
+            if(flag.empty())
+            {
+                ss << metavar;
+            }
+            else
+            {
+                ss << flag;
+                if(not type.empty())
+                    ss << " [" << type << "]";
+            }
+            return ss.str();
+        }
+        std::string usage() const
+        {
+            if (flags.empty())
+                return usage("");
+            return usage(flags.front());
+        }
+
     };
 
     template <class T, MIGRAPHX_REQUIRES(is_multi_value<T>{})>
@@ -328,16 +353,65 @@ struct argument_parser
         return find_argument(f) != nullptr;
     }
 
-    MIGRAPHX_DRIVER_STATIC auto show_help(const std::string& msg = "")
+    template <class F>
+    std::vector<argument*> find_arguments(F f)
+    {
+        std::vector<argument*> result;
+        for(auto& arg:arguments)
+        {
+            if (not f(arg))
+                continue;
+            result.push_back(&arg);
+        }
+        return result;
+    }
+
+    std::vector<argument*> get_group_arguments(const std::string& group)
+    {
+        return find_arguments([&](const auto& arg) { return arg.group == group; });
+    }
+
+    std::vector<argument*> get_required_arguments()
+    {
+        return find_arguments([&](const auto& arg) { return arg.required; });
+    }
+
+    template<class SequenceContainer>
+    std::vector<std::string> get_argument_usages(SequenceContainer args)
+    {
+        std::vector<std::string> usage_flags;
+        std::unordered_set<std::string> found_groups;
+        // Remove arguments that belong to a group
+        auto it = std::remove_if(args.begin(), args.end(), [&](const argument* arg) {
+            if (arg->group.empty())
+                return false;
+            found_groups.insert(arg->group);
+            return true;
+        });
+        args.erase(it, args.end());
+        transform(found_groups, std::back_inserter(usage_flags), [&](auto&& group) {
+            std::vector<std::string> either_flags;
+            transform(get_group_arguments(group), std::back_inserter(either_flags), [](auto* arg) {
+                return arg->usage();
+            });
+            return "(" + join_strings(either_flags, "|") + ")";
+        });
+        transform(args, std::back_inserter(usage_flags), [&](auto* arg) {
+            return arg->usage();
+        });
+        return usage_flags;
+    }
+
+    auto show_help(const std::string& msg = "")
     {
         return do_action([=](auto& self) {
             argument* input_argument =
                 self.find_argument([](const auto& arg) { return arg.flags.empty(); });
-            std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
-            std::cout << "    " << self.exe_name << " <options> ";
-            if(input_argument)
-                std::cout << input_argument->metavar;
-            std::cout << std::endl;
+            auto required_usages = get_argument_usages(get_required_arguments());
+            if(required_usages.empty() && input_argument)
+                required_usages.push_back(input_argument->metavar);
+            required_usages.insert(required_usages.begin(), "<options>");
+            print_usage(required_usages);
             std::cout << std::endl;
             if(self.find_argument([](const auto& arg) { return arg.nargs == 0; }))
             {
@@ -426,6 +500,11 @@ struct argument_parser
         return [=](auto&, auto& arg) { arg.type = type; };
     }
 
+    MIGRAPHX_DRIVER_STATIC auto group(const std::string& group)
+    {
+        return [=](auto&, auto& arg) { arg.group = group; };
+    }
+
     template <class T>
     MIGRAPHX_DRIVER_STATIC auto set_value(T value)
     {
@@ -445,21 +524,21 @@ struct argument_parser
         actions.push_back([&](const auto& self) { x = self.exe_name; });
     }
 
-    void print_usage_for(const argument& arg, const std::string& flag) const
+    void print_try_help()
+    {
+        if(has_argument([](const auto& a) { return contains(a.flags, "--help"); }))
+        {
+            std::cout << std::endl;
+            std::cout << "For more information try '" << color::fg_green << "--help" << color::reset
+                      << "'" << std::endl;
+        }
+    }
+
+    void print_usage(const std::vector<std::string>& flags) const
     {
         std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
         std::cout << "    " << exe_name << " ";
-        if(flag.empty())
-        {
-            std::cout << arg.metavar;
-        }
-        else
-        {
-            std::cout << flag;
-            if(not arg.type.empty())
-                std::cout << " [" << arg.type << "]";
-        }
-        std::cout << std::endl;
+        std::cout << join_strings(flags, " ") << std::endl;
     }
 
     auto spellcheck(const std::vector<std::string>& inputs)
@@ -525,27 +604,20 @@ struct argument_parser
                       << "Did you mean " << color::fg_green << sc.correct << color::reset << "?"
                       << std::endl;
             std::cout << std::endl;
-            print_usage_for(*sc.arg, sc.correct);
+            print_usage({sc.arg->usage(sc.correct)});
         }
         else
         {
             const auto& flag_name = flag.empty() ? arg.metavar : flag;
             std::cout << "Invalid input to '" << color::fg_yellow;
-            std::cout << flag_name;
-            if(not arg.type.empty())
-                std::cout << " [" << arg.type << "]";
+            std::cout << arg.usage(flag_name);
             std::cout << color::reset << "'" << std::endl;
             std::cout << "       " << msg << std::endl;
             std::cout << std::endl;
-            print_usage_for(arg, flag);
+            print_usage({arg.usage()});
         }
         std::cout << std::endl;
-        if(has_argument([](const auto& a) { return contains(a.flags, "--help"); }))
-        {
-            std::cout << std::endl;
-            std::cout << "For more information try '" << color::fg_green << "--help" << color::reset
-                      << "'" << std::endl;
-        }
+        print_try_help();
         return true;
     }
 
@@ -559,6 +631,8 @@ struct argument_parser
         }
         auto arg_map =
             generic_parse(std::move(args), [&](const std::string& x) { return keywords[x]; });
+        std::list<const argument*> missing_arguments;
+        std::unordered_set<std::string> groups_used;
         for(auto&& arg : arguments)
         {
             bool used  = false;
@@ -574,6 +648,25 @@ struct argument_parser
                     used = true;
                 }
             }
+            if (used and not arg.group.empty())
+                groups_used.insert(arg.group);
+            if (arg.required and not used)
+                missing_arguments.push_back(&arg);
+        }
+        // Remove arguments from a group that is being used
+        missing_arguments.remove_if([&](const argument* arg) {
+            return groups_used.count(arg->group);
+        });
+        if (not missing_arguments.empty())
+        {
+            std::cout << color::fg_red << color::bold << "error: " << color::reset;
+            std::cout << " The following required arguments were not provided:" << std::endl;
+            std::cout << "       " << color::fg_red << join_strings(get_argument_usages(std::move(missing_arguments)), " ") << color::reset << std::endl;
+            std::cout << std::endl;
+            auto required_usages = get_argument_usages(get_required_arguments());
+            print_usage(required_usages);
+            print_try_help();
+            return true;
         }
         for(auto&& action : actions)
             action(*this);

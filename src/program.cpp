@@ -709,19 +709,18 @@ void program::perf_report(std::ostream& os,
     os << std::endl;
     os << "Summary:" << std::endl;
     std::vector<std::tuple<double, std::size_t, std::string>> op_times_sorted;
-    std::transform(op_times.begin(),
-                   op_times.end(),
-                   std::back_inserter(op_times_sorted),
-                   [&](auto p) { 
-                    auto&& name = p.first;
-                    return std::make_tuple(p.second, op_n.at(name), name); 
-                });
+    std::transform(
+        op_times.begin(), op_times.end(), std::back_inserter(op_times_sorted), [&](auto p) {
+            auto&& name = p.first;
+            return std::make_tuple(p.second, op_n.at(name), name);
+        });
     std::sort(op_times_sorted.begin(), op_times_sorted.end(), std::greater<>{});
     for(auto&& [avg, nn, name] : op_times_sorted)
     {
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         double per_ins = avg / nn;
-        os << name << ": " << avg << "ms / " << nn << " = " << per_ins << "ms, " << percent << "%" << std::endl;
+        os << name << ": " << avg << "ms / " << nn << " = " << per_ins << "ms, " << percent << "%"
+           << std::endl;
     }
 
     os << std::endl;

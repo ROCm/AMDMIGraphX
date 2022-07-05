@@ -777,15 +777,26 @@ TEST_CASE(simplify_unit_mult_const)
         m2.add_instruction(migraphx::make_op("identity"), x);
     }
 
-    migraphx::module m3;
-    {
-        auto unit = m3.add_literal(1);
-        auto x    = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m3.add_instruction(migraphx::make_op("mul"), unit, x);
-    }
-    run_pass(m3);
+    EXPECT(m1 == m2);
+}
 
-    EXPECT((m1 == m3) && (m1 == m2));
+TEST_CASE(simplify_unit_mult_const2)
+{
+    migraphx::module m1;
+    {
+        auto unit = m1.add_literal(1);
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m1.add_instruction(migraphx::make_op("mul"), unit, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(simplify_unit_div_const)
@@ -824,15 +835,26 @@ TEST_CASE(simplify_neg_unit_mult_const)
         m2.add_instruction(migraphx::make_op("neg"), x);
     }
 
-    migraphx::module m3;
-    {
-        auto unit = m3.add_literal(-1);
-        auto x    = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m3.add_instruction(migraphx::make_op("mul"), unit, x);
-    }
-    run_pass(m3);
+    EXPECT((m1 == m2));
+}
 
-    EXPECT((m1 == m3) && (m1 == m2));
+TEST_CASE(simplify_neg_unit_mult_const2)
+{
+    migraphx::module m1;
+    {
+        auto unit = m1.add_literal(-1);
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m1.add_instruction(migraphx::make_op("mul"), unit, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT((m1 == m2));
 }
 
 TEST_CASE(simplify_neg_unit_div_const)
@@ -950,16 +972,28 @@ TEST_CASE(simplify_zero_mult_const)
         m2.add_return({zero});
     }
 
-    migraphx::module m3;
-    {
-        auto x       = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero    = m3.add_literal(0);
-        auto mul_ins = m3.add_instruction(migraphx::make_op("mul"), zero, x);
-        m3.add_return({mul_ins});
-    }
-    run_pass(m3);
+    EXPECT(m1 == m2);
+}
 
-    EXPECT((m1 == m2) && (m3 == m2));
+TEST_CASE(simplify_zero_mult_const2)
+{
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero    = m1.add_literal(0);
+        auto mul_ins = m1.add_instruction(migraphx::make_op("mul"), zero, x);
+        m1.add_return({mul_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m2.add_literal(0);
+        m2.add_return({zero});
+    }
+
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(simplify_zero_div_const)

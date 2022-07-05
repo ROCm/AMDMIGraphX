@@ -915,10 +915,10 @@ struct find_zero_ops
 {
     auto matcher() const
     {
-        auto mul_zero = match::name("mul")(match::either_arg(0, 1)(
-            match::has_value(0.0f).bind("x"), match::any()));
-        auto div_zero = match::name("div")(
-            match::has_value(0.0f).bind("x"), match::any());
+        auto mul_zero = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(0.0f).bind("x"), match::any()));
+        auto div_zero =
+            match::name("div")(match::args(match::has_value(0.0f).bind("x"), match::any()));
         return match::any_of(mul_zero, div_zero);
     }
 

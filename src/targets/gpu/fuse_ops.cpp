@@ -342,6 +342,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
 
 auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
+namespace {
 struct find_layernorm
 {
     auto matcher() const { return match::layernorm(&gpu_name); }
@@ -843,15 +844,6 @@ inline auto precompile_name(Strings... names) // NOLINT
     });
 }
 
-template <class... Ms>
-auto conv_bias_pointwise(Ms... ms)
-{
-    return precompile_name("pointwise")(
-        match::either_arg(0, 1)(bias_shape(match::used_once()).bind("bias"),
-                                fusable_conv(match::used_once()).bind("conv")),
-        ms...);
-}
-
 struct find_conv_bias
 {
     context* ctx = nullptr;
@@ -1087,6 +1079,7 @@ struct find_commutative_broadcast
         m.replace_instruction(ins, ins->get_operator(), args);
     }
 };
+} // namespace
 
 struct find_contiguous
 {

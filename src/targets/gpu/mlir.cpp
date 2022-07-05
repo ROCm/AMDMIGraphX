@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/make_op.hpp"
 #include <migraphx/gpu/mlir.hpp>
 
 #ifdef MIGRAPHX_MLIR
@@ -44,7 +45,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/gpu/perfdb.hpp>
+#include <migraphx/permutation.hpp>
 #include <deque>
 #include <variant>
 
@@ -589,8 +590,47 @@ std::string dump_mlir(const module& m)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-code_object_op compile_mlir(const context&, const module& m)
+void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
 {
+    auto names = m.get_parameter_names();
+    std::sort(names.begin(), names.end());
+    for(auto i:range(names.size()))
+    {
+        const auto& name = names[i];
+        const auto& input = inputs[i]->get_shape();
+        auto param = m.get_parameter(name);
+        if (input.standard())
+            continue;
+        auto lens = input.lens();
+        std::vector<operation> ops;
+        if(input.transposed())
+        {
+            auto perm = find_permutation(input);
+            auto iperm = invert_permutation(perm);
+            lens = reorder_dims(lens, iperm);
+            ops.push_back(make_op("transpose", {{"permutation", perm}}));
+        }
+        if (input.broadcasted())
+        {
+            std::transform(lens.begin(), lens.end(), input.strides().begin(), lens.begin(), [](auto len, auto stride) -> std::size_t {
+                if (stride == 0)
+                    return 1;
+                return len;
+            });
+            ops.push_back(make_op("multibroadcast", {{"out_lens", input.lens()}}));
+        }
+        auto new_param = std::accumulate(ops.begin(), ops.end(), m.add_parameter(name+".x", shape{input.type(), lens}), [&](auto x, auto op) {
+            return m.insert_instruction(param, op, x);
+        });
+        assert(new_param.get_shape() == param.get_shape());
+        m.replace_instruction(param, new_param);
+        m.remove_instruction(param);
+    }
+}
+
+code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs)
+{
+    adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
         std::cout << m << std::endl;

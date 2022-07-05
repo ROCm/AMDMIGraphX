@@ -49,7 +49,7 @@ struct mlir_conv
     std::string name() const { return "gpu::mlir_conv"; }
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        check_shapes{inputs, *this}.standard();
+        check_shapes{inputs, *this}.packed_or_broadcasted();
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)

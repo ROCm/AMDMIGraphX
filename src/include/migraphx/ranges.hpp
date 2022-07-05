@@ -198,6 +198,12 @@ void transform(Range&& r, Iterator it, F f)
     std::transform(r.begin(), r.end(), it, f);
 }
 
+template <class Range1, class Range2, class Iterator, class F>
+void transform(Range1&& r1, Range2&& r2, Iterator it, F f)
+{
+    std::transform(r1.begin(), r1.end(), r2.begin(), it, f);
+}
+
 template <class Range>
 auto reverse(Range& r)
 {
@@ -214,6 +220,12 @@ template <class R1, class R2, class... Predicate>
 bool equal(R1&& r1, R2&& r2, Predicate... pred)
 {
     return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end(), pred...);
+}
+
+template <class Range>
+auto distance(Range&& r)
+{
+    return std::distance(r.begin(), r.end());
 }
 
 template <class R>

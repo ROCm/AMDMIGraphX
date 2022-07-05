@@ -32,6 +32,7 @@ namespace migraphx {
 template <class Lens, class Strides>
 struct shape
 {
+    using shape_type  = shape;
     using index_array = typename Lens::base_array;
     Lens lens         = {};
     Strides strides   = {};

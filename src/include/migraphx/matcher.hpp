@@ -784,7 +784,7 @@ auto skip_broadcasts_converts(Ms... ms)
 }
 
 template <class T>
-inline auto has_value(T x, float tolerance = 1e-6)
+inline auto has_value(T x, float tolerance = 1e-12)
 {
     return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "@literal")

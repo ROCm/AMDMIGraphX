@@ -121,7 +121,7 @@ def shape(h):
              invoke='migraphx::equal($@)',
              returns='bool',
              const=True)
-
+    h.method('standard', returns='bool', const=True)
 
 @auto_handle()
 def argument(h):
@@ -442,11 +442,11 @@ def experimental_custom_op(h):
     h.constructor('create',
                   api.params(obj_typename='const char*', name='const char*'))
     h.virtual('compute',
-              api.params(ctx='migraphx::context',
+              api.params(eptr='std::exception_ptr*', ctx='migraphx::context',
                          output='migraphx::shape',
                          inputs='std::vector<migraphx::argument>'),
               returns='migraphx::argument')
     h.virtual('compute_shape',
-              api.params(inputs='std::vector<migraphx::shape>'),
+              api.params(eptr='std::exception_ptr*', inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
     h.method('register', invoke='migraphx::register_custom_op($@)')

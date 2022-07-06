@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <exception>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
@@ -602,8 +603,10 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<migraphx_argument_t> out;
         if(compute_f == nullptr)
             throw std::runtime_error("compute function is missing.");
+        std::exception_ptr eptr = nullptr;
         auto api_error_result = compute_f(&out,
                                           object_ptr.data,
+                                          &eptr,
                                           object_cast<migraphx_context_t>(&(ctx)),
                                           object_cast<migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
@@ -619,11 +622,22 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<migraphx_shape_t> out;
         if(compute_shape_f == nullptr)
             throw std::runtime_error("compute_shape function is missing.");
+        std::exception_ptr eptr = nullptr;
         auto api_error_result =
-            compute_shape_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
-        if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute_shape of: " +
-                                     std::string(object_ptr.obj_typename));
+            compute_shape_f(&out, object_ptr.data, &eptr, object_cast<migraphx_shapes_t>(&(inputs)));
+        if(api_error_result != migraphx_status_success) {
+            std::string msg = "";
+            if(eptr) {
+                try {
+                    std::rethrow_exception(eptr);
+                } catch(std::exception& ex) {
+                    msg += " ";
+                    msg += ex.what();
+                }
+            }
+            throw std::runtime_error("Error in compute_shape of: " + 
+                                     std::string(object_ptr.obj_typename) + msg);
+        }
         return (&out)->object;
     }
 };
@@ -748,6 +762,16 @@ migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_sha
         if(x == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
         *out = migraphx::equal((shape->object), (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).standard();
     });
     return api_error_result;
 }

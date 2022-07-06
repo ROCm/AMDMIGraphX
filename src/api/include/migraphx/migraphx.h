@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_C_API_MIGRAPHX_H
 #define MIGRAPHX_GUARD_C_API_MIGRAPHX_H
 
+#include <exception>
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -132,12 +133,14 @@ typedef const struct migraphx_experimental_custom_op* const_migraphx_experimenta
 
 typedef migraphx_status (*migraphx_experimental_custom_op_compute)(migraphx_argument_t out,
                                                                    void* obj,
+                                                                   std::exception_ptr* eptr,
                                                                    migraphx_context_t ctx,
                                                                    migraphx_shape_t output,
                                                                    migraphx_arguments_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraphx_shape_t out,
                                                                          void* obj,
+                                                                         std::exception_ptr* eptr,
                                                                          migraphx_shapes_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_copy)(void** out, void* input);
@@ -175,6 +178,8 @@ migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape);
 
 migraphx_status
 migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_shape_t x);
+
+migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape);
 
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 

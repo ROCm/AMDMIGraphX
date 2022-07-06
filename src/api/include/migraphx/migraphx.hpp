@@ -339,27 +339,25 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
         this->set_handle(p, std::move(lifetime));                                                  \
     }
 
+
 template <class Base>
 struct interface_base : Base
 {
     interface_base() : Base() {}
-
     protected:
     template <class F>
-    static migraphx_status try_(F f) // NOLINT
+    static migraphx_status try_(F f, std::exception_ptr* eptr = nullptr) // NOLINT
     {
         try
         {
             f();
             return migraphx_status_success;
         }
-        catch(const std::exception& ex)
-        {
-            std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
-            return migraphx_status_unknown_error;
-        }
         catch(...)
         {
+            if(eptr) {
+                *eptr = std::current_exception();
+            }
             return migraphx_status_unknown_error;
         }
     }
@@ -390,9 +388,11 @@ struct interface_base : Base
     {
         static F f = pf;
         (void)f; // avoid warning on gcc
-        call(setter, this->get_handle_ptr(), [](auto... xs) -> migraphx_status {
-            return try_([&] { call_cast_arg<T>(rank<1>{}, f, xs...); });
+        call(setter, this->get_handle_ptr(), [](auto out, void* obj, std::exception_ptr* eptr, auto... xs) -> migraphx_status {
+            auto status = try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, eptr);
+            return status;
         });
+             
     }
 
     template <class T, class Setter, class F>
@@ -563,6 +563,12 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         size_t pout;
         call(&migraphx_shape_bytes, &pout, this->get_handle_ptr());
         return pout;
+    }
+
+    bool standard() const {
+        bool result = false;
+        call(&migraphx_shape_standard, &result, this->get_handle_ptr());
+        return result;
     }
 
     friend bool operator==(const shape& px, const shape& py)

@@ -155,7 +155,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     std::vector<std::string> target_names;
     for(const auto& tname : migraphx::get_targets())
     {
-        if(tname == "ref")
+        if(tname == "ref" || tname == "fpga")
             continue;
 
         // if tests disabled, skip running it

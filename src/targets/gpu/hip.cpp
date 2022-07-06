@@ -90,14 +90,14 @@ struct host_ptr_cache
         return nullptr;
     }
 
-    void put(std::shared_ptr<void> p)
+    void put(const std::shared_ptr<void>& p)
     {
         std::lock_guard<std::mutex> lock(m);
         cache[p.get()] = p;
     }
 };
 
-host_ptr_cache& get_host_ptr_cache()
+static host_ptr_cache& get_host_ptr_cache()
 {
     static host_ptr_cache cache;
     return cache;

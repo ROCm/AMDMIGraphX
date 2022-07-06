@@ -77,7 +77,8 @@ void* get_device_ptr(void* hptr)
     return result;
 }
 
-struct host_ptr_cache {
+struct host_ptr_cache
+{
     static std::unordered_map<void*, std::weak_ptr<void>> cache;
     std::mutex m;
     std::shared_ptr<void> get(void* ptr)
@@ -101,7 +102,6 @@ host_ptr_cache& get_host_ptr_cache()
     static host_ptr_cache cache;
     return cache;
 }
-
 
 std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
@@ -127,7 +127,7 @@ std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 
 std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
 {
-    std::shared_ptr<void> result = get_host_ptr_cache().get(ptr); 
+    std::shared_ptr<void> result = get_host_ptr_cache().get(ptr);
     if(result)
     {
         return result;

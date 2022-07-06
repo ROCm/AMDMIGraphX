@@ -472,7 +472,7 @@ struct mlir_program
                 std::copy(padding.begin(), padding.end(), std::back_inserter(v.at("padding")));
             }
         }
-        else if (op.name() == "multibroadcast")
+        else if(op.name() == "multibroadcast")
         {
             value w;
             w["output_lens"] = v["out_lens"].to_vector<std::size_t>();

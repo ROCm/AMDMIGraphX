@@ -46,7 +46,7 @@ TEST_CASE(host_same_buffer_copy)
     auto stream_sync = mm->add_instruction(migraphx::make_op("hip::sync_stream"), gpu_out);
     auto pass        = mm->add_instruction(unary_pass_op{}, stream_sync);
     auto alloc       = mm->add_instruction(
-        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ss)}, {"tag", ""}}));
+        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ss)}}));
     auto gpu_in = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), pass, alloc);
     auto aab    = mm->add_instruction(migraphx::make_op("add"), gpu_in, b);
     mm->add_return({aab});

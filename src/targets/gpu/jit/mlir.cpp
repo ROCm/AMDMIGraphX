@@ -21,53 +21,38 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANT_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANT_CONVOLUTION_HPP
+#include <migraphx/gpu/compiler.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/gpu/context.hpp>
 
-#include <migraphx/shape.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/mlir.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct context;
-
-struct miopen_quant_convolution
+struct mlir_compiler : compiler<mlir_compiler>
 {
-    op::quant_convolution op;
-    bool int8_x4_format = false;
-    shared<convolution_descriptor> cd;
-    miopenConvFwdAlgorithm_t algo{};
-    uint64_t solution_id = 0;
+    std::vector<std::string> names() const { return {"gpu::mlir_conv"}; }
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
+
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
     {
-        // TODO: Add algo
-        return pack_join(migraphx::reflect(self.op, f),
-                         pack(f(self.int8_x4_format, "int8_x4_format")));
+        auto* smod = ins->module_inputs().front();
+        assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
+        return insert(compile_mlir(ctx, *smod));
     }
 
-    std::string name() const { return "gpu::quant_convolution"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    compiler_replace insert(code_object_op co) const
     {
-        return shapes.size() - 1;
+        return [co = std::move(co)](module& m, instruction_ref ins) {
+            auto mlir = insert_mlir(m, ins, co, ins->inputs());
+            m.replace_instruction(ins, mlir);
+        };
     }
-
-    private:
-    shape pack_int8_shape(const shape& s) const;
 };
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

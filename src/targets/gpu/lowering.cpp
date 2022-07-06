@@ -300,7 +300,7 @@ struct miopen_apply
             auto&& op = any_cast<op::deconvolution>(ins->get_operator());
 
             auto conv = miopen_deconvolution{op, make_deconv(op)};
-            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
@@ -331,7 +331,7 @@ struct miopen_apply
             miopen_quant_convolution conv;
             auto compile_quant_conv_with_format = [&](bool format) {
                 conv = miopen_quant_convolution{op, format, make_conv(op)};
-                ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+                ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
             };
 
             try

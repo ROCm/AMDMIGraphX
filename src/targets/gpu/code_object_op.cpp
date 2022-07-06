@@ -52,7 +52,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     std::transform(
         args.begin(), args.end(), kargs.begin(), [](const argument& a) { return a.data(); });
     k.launch(ctx.get_stream().get(), global, local, std::move(kargs));
-    return args.back();
+    return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {

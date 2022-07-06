@@ -42,13 +42,14 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
 }
 
 using milliseconds = std::chrono::duration<double, std::milli>;
-std::pair<double, double> time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+std::pair<double, double>
+time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
 
     // TODO: Use std::ref
     migraphx::context ctx = ictx;
-    auto& gctx = any_cast<migraphx::gpu::context>(ctx);
-    auto output            = op.compute_shape(inputs);
+    auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
+    auto output           = op.compute_shape(inputs);
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
     auto run  = [&] {
@@ -57,9 +58,9 @@ std::pair<double, double> time_op(context& ictx, operation op, const std::vector
     };
     gctx.enable_perf_measurement();
     run();
-    double host_time = 0.0;
+    double host_time   = 0.0;
     double device_time = 0.0;
-    for(auto i:range(n))
+    for(auto i : range(n))
     {
         (void)i;
         host_time += time<milliseconds>(run);

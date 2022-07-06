@@ -80,7 +80,9 @@ void launch_kernel(hipFunction_t fun,
                    std::size_t global,
                    std::size_t local,
                    void* kernargs,
-                   std::size_t size, hipEvent_t start, hipEvent_t stop)
+                   std::size_t size,
+                   hipEvent_t start,
+                   hipEvent_t stop)
 {
     assert(global > 0);
     assert(local > 0);
@@ -97,11 +99,22 @@ void launch_kernel(hipFunction_t fun,
 #endif
     };
 
-    auto status = hipExtModuleLaunchKernel(
-        fun, global, 1, 1, local, 1, 1, 0, stream, nullptr, reinterpret_cast<void**>(&config), start, stop);
+    auto status = hipExtModuleLaunchKernel(fun,
+                                           global,
+                                           1,
+                                           1,
+                                           local,
+                                           1,
+                                           1,
+                                           0,
+                                           stream,
+                                           nullptr,
+                                           reinterpret_cast<void**>(&config),
+                                           start,
+                                           stop);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
-    if (stop)
+    if(stop)
     {
         status = hipEventSynchronize(stop);
         if(status != hipSuccess)
@@ -112,7 +125,9 @@ void launch_kernel(hipFunction_t fun,
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    std::vector<void*> args, hipEvent_t start, hipEvent_t stop) const
+                    std::vector<void*> args,
+                    hipEvent_t start,
+                    hipEvent_t stop) const
 {
     assert(impl != nullptr);
     void* kernargs   = args.data();
@@ -124,7 +139,9 @@ void kernel::launch(hipStream_t stream,
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    const std::vector<kernel_argument>& args, hipEvent_t start, hipEvent_t stop) const
+                    const std::vector<kernel_argument>& args,
+                    hipEvent_t start,
+                    hipEvent_t stop) const
 {
     assert(impl != nullptr);
     std::vector<char> kernargs = pack_args(args);

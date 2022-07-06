@@ -25,6 +25,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,6 +53,7 @@ struct cpu_literal
         return os;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_literal);
 
 void write_literals::apply(module& m) const
 {

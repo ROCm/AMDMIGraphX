@@ -1231,12 +1231,12 @@ TEST_CASE(transpose_slice_single_transpose)
         auto sqrt1  = m1.add_instruction(migraphx::make_op("sqrt"), slice1);
         auto slice2 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {12}}, {"ends", {24}}}), x);
-        auto transpose2 = m1.add_instruction(
+        auto transpose = m1.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), slice2);
         auto slice3 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {24}}, {"ends", {36}}}), x);
         auto sqrt3 = m1.add_instruction(migraphx::make_op("sqrt"), slice3);
-        m1.add_return({sqrt1, transpose2, sqrt3});
+        m1.add_return({sqrt1, transpose, sqrt3});
     }
     migraphx::module m2 = m1;
     run_pass(m1);

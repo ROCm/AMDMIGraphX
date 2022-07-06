@@ -51,8 +51,9 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     std::vector<void*> kargs(args.size());
     std::transform(
         args.begin(), args.end(), kargs.begin(), [](const argument& a) { return a.data(); });
-    k.launch(ctx.get_stream().get(), global, local, std::move(kargs));
-    return args.back();
+    auto [start, stop] = ctx.get_perf_events();
+    k.launch(ctx.get_stream().get(), global, local, std::move(kargs), start, stop);
+    return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {

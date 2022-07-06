@@ -25,6 +25,7 @@
 #include <cmath>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
+#include <stdexcept>
 #include "test.hpp"
 
 struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
@@ -43,7 +44,9 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        CHECK(inputs.size() == 2);
+        if(inputs.size() != 2) {
+            throw std::runtime_error("need two inputs");
+        }
         CHECK(inputs[0].lengths().size() == 1);
         CHECK(inputs[0].type() == migraphx_shape_float_type);
         CHECK(bool{inputs[0] == inputs[1]});
@@ -66,7 +69,7 @@ TEST_CASE(run_sigmoid_custom_op)
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     auto alloc         = m.add_allocation(s);
-    auto custom_kernel = m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x, alloc});
+    auto custom_kernel = m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x});
     p.compile(migraphx::target("ref"));
     // run program
     migraphx::program_parameters pp;

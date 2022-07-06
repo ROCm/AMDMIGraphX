@@ -79,7 +79,8 @@ void* get_device_ptr(void* hptr)
 
 struct host_ptr_cache
 {
-    static auto& get_cache_map() {
+    static auto& get_cache_map()
+    {
         static std::unordered_map<void*, std::weak_ptr<void>> cache;
         return cache;
     }

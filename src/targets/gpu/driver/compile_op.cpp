@@ -40,7 +40,7 @@ struct compile_op : action<compile_op>
         auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
         auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << host_time << "ms";
-        if (device_time > 0)
+        if(device_time > 0)
             std::cout << ", " << device_time << "ms";
         std::cout << std::endl;
     }

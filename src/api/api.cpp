@@ -604,7 +604,7 @@ struct migraphx_experimental_custom_op
         if(compute_f == nullptr)
             throw std::runtime_error("compute function is missing.");
         std::exception_ptr eptr = nullptr;
-        auto api_error_result = compute_f(&out,
+        auto api_error_result   = compute_f(&out,
                                           object_ptr.data,
                                           &eptr,
                                           object_cast<migraphx_context_t>(&(ctx)),
@@ -623,20 +623,25 @@ struct migraphx_experimental_custom_op
         if(compute_shape_f == nullptr)
             throw std::runtime_error("compute_shape function is missing.");
         std::exception_ptr eptr = nullptr;
-        auto api_error_result =
-            compute_shape_f(&out, object_ptr.data, &eptr, object_cast<migraphx_shapes_t>(&(inputs)));
-        if(api_error_result != migraphx_status_success) {
+        auto api_error_result   = compute_shape_f(
+            &out, object_ptr.data, &eptr, object_cast<migraphx_shapes_t>(&(inputs)));
+        if(api_error_result != migraphx_status_success)
+        {
             std::string msg = "";
-            if(eptr) {
-                try {
+            if(eptr)
+            {
+                try
+                {
                     std::rethrow_exception(eptr);
-                } catch(std::exception& ex) {
+                }
+                catch(std::exception& ex)
+                {
                     msg += " ";
                     msg += ex.what();
                 }
             }
-            throw std::runtime_error("Error in compute_shape of: " + 
-                                     std::string(object_ptr.obj_typename) + msg);
+            throw std::runtime_error(
+                "Error in compute_shape of: " + std::string(object_ptr.obj_typename) + msg);
         }
         return (&out)->object;
     }

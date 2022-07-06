@@ -77,11 +77,31 @@ void* get_device_ptr(void* hptr)
     return result;
 }
 
-static auto& get_malloc_host_ptrs()
-{
+struct host_ptr_cache {
     static std::unordered_map<void*, std::weak_ptr<void>> cache;
+    std::mutex m;
+    std::shared_ptr<void> get(void* ptr)
+    {
+        std::lock_guard<std::mutex> lock(m);
+        auto it = cache.find(ptr);
+        if(it != cache.end())
+            return it->second.lock();
+        return nullptr;
+    }
+
+    void put(std::shared_ptr<void> p)
+    {
+        std::lock_guard<std::mutex> lock(m);
+        cache[p.get()] = p;
+    }
+};
+
+host_ptr_cache& get_host_ptr_cache()
+{
+    static host_ptr_cache cache;
     return cache;
 }
+
 
 std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
@@ -100,34 +120,14 @@ std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
     std::shared_ptr<void> result = share(hip_ptr{alloc_ptr});
     if(host)
     {
-        get_malloc_host_ptrs()[alloc_ptr] = result;
+        get_host_ptr_cache().put(result);
     }
     return result;
 }
 
-static auto& registered_host_ptrs()
-{
-    static std::unordered_map<void*, std::weak_ptr<void>> cache;
-    return cache;
-}
-
 std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
 {
-    static std::mutex m;
-    std::shared_ptr<void> result = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(m);
-        auto it = registered_host_ptrs().find(ptr);
-        if(it != registered_host_ptrs().end())
-        {
-            result = it->second.lock();
-        }
-        it = get_malloc_host_ptrs().find(ptr);
-        if(it != get_malloc_host_ptrs().end())
-        {
-            result = it->second.lock();
-        }
-    }
+    std::shared_ptr<void> result = get_host_ptr_cache().get(ptr); 
     if(result)
     {
         return result;
@@ -136,10 +136,7 @@ std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
     if(status != hipSuccess)
         MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
     result = share(hip_host_ptr{ptr});
-    {
-        std::lock_guard<std::mutex> lock(m);
-        registered_host_ptrs()[ptr] = result;
-    }
+    get_host_ptr_cache().put(result);
     return result;
 }
 

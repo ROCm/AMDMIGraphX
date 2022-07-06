@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -70,14 +93,22 @@ static bool try_compute_shape(instruction_ref ins,
     return try_compute_shape(ins, inputs, mods);
 }
 
-void eliminate_contiguous::apply(module& m) const
+template <class F>
+static void remove_contiguous(const std::string& op_name, module& m, F f)
 {
-    std::vector<instruction_ref> const_instruction;
+    auto last = std::prev(m.end());
+    std::vector<instruction_ref> const_instructions;
 
     for(auto ins : iterator_for(m))
     {
         // return instruction should have inputs with standard shape
         if(ins->name() == "@return")
+            continue;
+
+        if(ins != last and ins->outputs().empty())
+            continue;
+
+        if(not f(ins))
             continue;
 
         // Make a copy so we can modify it while we iterate
@@ -87,35 +118,45 @@ void eliminate_contiguous::apply(module& m) const
 
         for(auto arg : ins->inputs())
         {
-            if(arg->name() == op_name)
+            if(arg->name() != op_name)
+                continue;
+            auto prev = arg->inputs().front();
+            replace(new_args, arg, prev);
+            if(try_compute_shape(ins, new_args, mod_args))
             {
-                auto prev = arg->inputs().front();
-                replace(new_args, arg, prev);
-                if(try_compute_shape(ins, new_args, mod_args))
-                {
-                    instruction::replace_argument(ins, arg, prev);
-                }
-                else if(prev->can_eval())
-                {
-                    const_instruction.push_back(arg);
-                }
+                instruction::replace_argument(ins, arg, prev);
+            }
+            else if(prev->can_eval())
+            {
+                const_instructions.push_back(arg);
             }
         }
     }
 
     // Perform evaluations in parallel
-    std::vector<argument> literals(const_instruction.size());
-    par_for(const_instruction.size(), 1, [&](const auto i) {
+    std::vector<argument> literals(const_instructions.size());
+    par_for(const_instructions.size(), 1, [&](const auto i) {
         auto c      = op::contiguous{};
-        auto prev   = const_instruction[i]->inputs().front();
+        auto prev   = const_instructions[i]->inputs().front();
         literals[i] = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
     });
 
-    for(size_t i = 0; i < const_instruction.size(); i++)
+    for(size_t i = 0; i < const_instructions.size(); i++)
     {
         auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
-        m.replace_instruction(const_instruction[i], l);
+        m.replace_instruction(const_instructions[i], l);
     }
+}
+
+void eliminate_contiguous::apply(module& m) const
+{
+    // Skip contiguous from splits first
+    remove_contiguous(op_name, m, [](auto ins) {
+        if(ins->name() != "slice")
+            return true;
+        return (ins->inputs().front()->outputs().size() == 1);
+    });
+    remove_contiguous(op_name, m, [](auto) { return true; });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

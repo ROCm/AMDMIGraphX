@@ -80,7 +80,7 @@ void* get_device_ptr(void* hptr)
 struct host_ptr_cache
 {
     static std::unordered_map<void*, std::weak_ptr<void>> cache;
-    
+
     std::mutex m;
     std::shared_ptr<void> get(void* ptr)
     {

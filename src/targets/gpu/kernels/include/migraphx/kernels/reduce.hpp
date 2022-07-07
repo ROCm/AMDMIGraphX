@@ -80,19 +80,20 @@ __device__ void dpp_reduce(T& in, Op op)
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix)                                                            \
-    __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64); } \
-    __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32); }  \
-    __device__ inline void dpp_reduce(half& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16); }   \
+    __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f64); } \
+    __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f32); }  \
+    __device__ inline void dpp_reduce(half& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f16); }   \
     __device__ inline void dpp_reduce(int32_t& x, op)                                              \
     {                                                                                              \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32);                                                  \
+        MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_u32);                                                  \
     }                                                                                              \
-    __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32); }
+    __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_u32); } \
+    __device__ inline void dpp_reduce(vec<half, 2>& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_pk_##prefix##_f16); }
 
-MIGRAPHX_DPP_REDUCE(op::sum, v_add)
-MIGRAPHX_DPP_REDUCE(op::max, v_max)
-MIGRAPHX_DPP_REDUCE(op::min, v_min)
-MIGRAPHX_DPP_REDUCE(op::product, v_mul)
+MIGRAPHX_DPP_REDUCE(op::sum, add)
+MIGRAPHX_DPP_REDUCE(op::max, max)
+MIGRAPHX_DPP_REDUCE(op::min, min)
+MIGRAPHX_DPP_REDUCE(op::product, mul)
 
 template <class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)

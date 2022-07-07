@@ -269,8 +269,9 @@ struct custom_operation
     argument
     compute(migraphx::context ctx, migraphx::shape output_shape, std::vector<argument> inputs) const
     {
-        const char* exception_msg = " "; 
-        return op.compute(std::move(&exception_msg), std::move(ctx), std::move(output_shape), std::move(inputs));
+        const char* exception_msg = " ";
+        return op.compute(
+            std::move(&exception_msg), std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 };
 

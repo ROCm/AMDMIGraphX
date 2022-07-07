@@ -55,10 +55,12 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(!inputs[0].standard()) {
+        if(!inputs[0].standard())
+        {
             throw std::runtime_error("first arg must be standard shaped");
         }
-        if(inputs.size() != 2) {
+        if(inputs.size() != 2)
+        {
             throw std::runtime_error("number of inputs must be 2");
         }
         return inputs.back();
@@ -76,10 +78,12 @@ TEST_CASE(run_simple_custom_op)
     auto x             = m.add_parameter("x", s);
     auto neg           = m.add_instruction(migraphx::operation("neg"), x);
     auto alloc         = m.add_allocation(trans_shape);
-    auto neg_trans = m.add_instruction(migraphx::operation("transpose", "{permutation: [1, 0]}"), {neg});
+    auto neg_trans =
+        m.add_instruction(migraphx::operation("transpose", "{permutation: [1, 0]}"), {neg});
     auto neg_cont = m.add_instruction(migraphx::operation("contiguous"), {neg_trans});
-    auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {neg_cont, alloc});
-    auto relu          = m.add_instruction(migraphx::operation("relu"), custom_kernel);
+    auto custom_kernel =
+        m.add_instruction(migraphx::operation("simple_custom_op"), {neg_cont, alloc});
+    auto relu = m.add_instruction(migraphx::operation("relu"), custom_kernel);
     m.add_return({relu});
     migraphx::compile_options options;
     options.set_offload_copy();

@@ -355,12 +355,14 @@ struct interface_base : Base
         }
         catch(std::exception& ex)
         {
-            if(ex_msg) {
+            if(ex_msg)
+            {
                 *ex_msg = ex.what();
             }
             return migraphx_status_unknown_error;
         }
-        catch(...) {
+        catch(...)
+        {
             return migraphx_status_unknown_error;
         }
     }
@@ -394,7 +396,7 @@ struct interface_base : Base
         call(setter,
              this->get_handle_ptr(),
              [](auto out, void* obj, const char** ex_msg, auto... xs) -> migraphx_status {
-                return try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg);
+                 return try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg);
              });
     }
 

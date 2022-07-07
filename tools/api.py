@@ -1140,10 +1140,13 @@ class Interface(Handle):
         this.virtual_read = ['object_ptr.data']
         exception_msg = Parameter('exception_msg', 'char*', hidden=True)
         exception_msg.virtual_read = ['${name}.data()']
-        exception_msg_size = Parameter('exception_msg_size', 'size_t', hidden=True)
+        exception_msg_size = Parameter('exception_msg_size',
+                                       'size_t',
+                                       hidden=True)
         exception_msg_size.virtual_read = ['exception_msg.size()']
         f = Function(name,
-                     params=[this, exception_msg, exception_msg_size] + (params or []),
+                     params=[this, exception_msg, exception_msg_size] +
+                     (params or []),
                      virtual=True,
                      **kwargs)
         self.ifunctions.append(f)

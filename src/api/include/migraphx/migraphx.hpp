@@ -394,8 +394,10 @@ struct interface_base : Base
         (void)f; // avoid warning on gcc
         call(setter,
              this->get_handle_ptr(),
-             [](auto out, void* obj, char* ex_msg, size_t ex_msg_size, auto... xs) -> migraphx_status {
-                 return try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg, ex_msg_size);
+             [](auto out, void* obj, char* ex_msg, size_t ex_msg_size, auto... xs)
+                 -> migraphx_status {
+                 return try_(
+                     [&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg, ex_msg_size);
              });
     }
 

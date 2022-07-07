@@ -1062,8 +1062,9 @@ ${return_type} ${name}(${params}) const
     ${output_decls}
     if (${fname} == nullptr)
         throw std::runtime_error("${name} function is missing.");
+    const char* exception_msg = " ";
     auto api_error_result = ${fname}(${args});
-    const std::string exception_str(*ex_msg); 
+    const std::string exception_str(exception_msg); 
     if (api_error_result != ${success})
         throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.obj_typename) + ": " + exception_str);
     return ${output};
@@ -1085,7 +1086,7 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
         largs += f.returns.virtual_output_args()
         output = f.returns.virtual_output()
     largs += [arg for p in f.params for arg in p.virtual_arg()]
-    lparams += [p.virtual_param() for p in f.params if not p.this]
+    lparams += [p.virtual_param() for p in f.params if not (p.this or p.name == "exception_msg") ]
     args = ', '.join(largs)
     params = ', '.join(lparams)
     return c_api_virtual_impl.substitute(locals())
@@ -1131,9 +1132,11 @@ class Interface(Handle):
 
         # Add this parameter to the function
         this = Parameter('obj', 'void*', this=True)
+        exception_msg = Parameter('exception_msg', 'const char**')
+        exception_msg.virtual_read = ['&${name}']
         this.virtual_read = ['object_ptr.data']
         f = Function(name,
-                     params=[this] + (params or []),
+                     params=[this, exception_msg] + (params or []),
                      virtual=True,
                      **kwargs)
         self.ifunctions.append(f)

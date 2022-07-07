@@ -48,13 +48,16 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
         {
             throw std::runtime_error("need two inputs");
         }
-        if(inputs[0].lengths().size() != 1) {
+        if(inputs[0].lengths().size() != 1)
+        {
             throw std::runtime_error("input arg must be a vector or scalar");
         }
-        if(inputs[0].type() != migraphx_shape_float_type) {
+        if(inputs[0].type() != migraphx_shape_float_type)
+        {
             throw std::runtime_error("input arg must be of type float");
         }
-        if(inputs[0] != inputs[1]) {
+        if(inputs[0] != inputs[1])
+        {
             throw std::runtime_error("input arg and buffer allocation must be of same shape");
         }
         return inputs.back();

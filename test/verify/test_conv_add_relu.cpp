@@ -21,48 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/inline_module.hpp>
+
+#include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/instruction.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-static void inline_submodule(module& m, instruction_ref ins, bool cond)
+struct test_conv_add_relu : verify_program<test_conv_add_relu>
 {
-    const auto& mod_inputs = ins->module_inputs();
-    module_ref smod        = cond ? mod_inputs.at(0) : mod_inputs.at(1);
-    auto mod_outputs       = m.insert_instructions(ins, smod);
-
-    auto ins_outputs = ins->outputs();
-    assert(mod_outputs.size() >= ins_outputs.size());
-    for(const auto& out : ins_outputs)
+    migraphx::program create_program() const
     {
-        auto val = out->get_operator().to_value();
-        assert(val.contains("index"));
-        auto index = val.at("index").to<std::size_t>();
-        m.replace_instruction(out, mod_outputs.at(index));
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto bias_literal = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
+                                              {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto bias         = mm->add_literal(bias_literal);
+        auto conv         = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto bcast_bias   = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
+            bias);
+        auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv, bcast_bias);
+        mm->add_instruction(migraphx::make_op("relu"), bias_add);
+        return p;
     }
-}
-
-void inline_module::apply(module& m) const
-{
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() != "if")
-            continue;
-
-        auto arg_cond = ins->inputs().front()->eval();
-        if(not arg_cond.empty())
-        {
-            bool cond = arg_cond.at<bool>();
-            inline_submodule(m, ins, cond);
-        }
-    }
-}
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+};

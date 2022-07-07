@@ -24,6 +24,7 @@
 #include <rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,6 +66,19 @@ void blas_shape(const shape& s)
     auto batch_shapes = reduce_dims({batch_shape});
     if(batch_shapes.front().lens().size() != 1)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
+}
+
+shape transpose_batch(const shape& s, unsigned trans_batch)
+{
+    if(trans_batch == 0)
+        return s;
+    if(s.lens().size() < 3)
+        return s;
+    auto batch = s.lens().size() - 3;
+    std::vector<int64_t> perm(s.lens().size());
+    std::iota(perm.begin(), perm.end(), 0);
+    std::swap(perm[batch], perm[batch + trans_batch]);
+    return reorder_shape(s, perm);
 }
 
 template <class R, class... Ts, class... Us>

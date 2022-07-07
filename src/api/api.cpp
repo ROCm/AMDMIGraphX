@@ -609,10 +609,12 @@ struct migraphx_experimental_custom_op
                                           object_cast<migraphx_context_t>(&(ctx)),
                                           object_cast<migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
-        const std::string exception_str(exception_msg);
         if(api_error_result != migraphx_status_success)
+        {
+            const std::string exception_str(exception_msg);
             throw std::runtime_error("Error in compute of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
         return (&out)->object;
     }
 
@@ -625,10 +627,12 @@ struct migraphx_experimental_custom_op
         const char* exception_msg = " ";
         auto api_error_result     = compute_shape_f(
             &out, object_ptr.data, &exception_msg, object_cast<migraphx_shapes_t>(&(inputs)));
-        const std::string exception_str(exception_msg);
         if(api_error_result != migraphx_status_success)
+        {
+            const std::string exception_str(exception_msg);
             throw std::runtime_error("Error in compute_shape of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
         return (&out)->object;
     }
 };

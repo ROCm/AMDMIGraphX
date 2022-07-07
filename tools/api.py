@@ -197,7 +197,8 @@ class Parameter:
                  optional: bool = False,
                  returns: bool = False,
                  virtual: bool = False,
-                 this: bool = False) -> None:
+                 this: bool = False, 
+                 hidden: bool = False) -> None:
         self.name = name
         self.type = Type(type)
         self.optional = optional
@@ -211,6 +212,7 @@ class Parameter:
         self.returns = returns
         self.virtual = virtual
         self.this = this
+        self.hidden = hidden
         self.bad_param_check: Optional[BadParam] = None
         self.virtual_read: Optional[List[str]] = None
         self.virtual_write: Optional[str] = None
@@ -1064,9 +1066,10 @@ ${return_type} ${name}(${params}) const
         throw std::runtime_error("${name} function is missing.");
     const char* exception_msg = " ";
     auto api_error_result = ${fname}(${args});
-    const std::string exception_str(exception_msg); 
-    if (api_error_result != ${success})
+    if (api_error_result != ${success}) {
+        const std::string exception_str(exception_msg); 
         throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.obj_typename) + ": " + exception_str);
+    }
     return ${output};
 }
 ''')
@@ -1088,7 +1091,7 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
     largs += [arg for p in f.params for arg in p.virtual_arg()]
     lparams += [
         p.virtual_param() for p in f.params
-        if not (p.this or p.name == "exception_msg")
+        if not (p.this or p.hidden)
     ]
     args = ', '.join(largs)
     params = ', '.join(lparams)
@@ -1135,9 +1138,9 @@ class Interface(Handle):
 
         # Add this parameter to the function
         this = Parameter('obj', 'void*', this=True)
-        exception_msg = Parameter('exception_msg', 'const char**')
-        exception_msg.virtual_read = ['&${name}']
         this.virtual_read = ['object_ptr.data']
+        exception_msg = Parameter('exception_msg', 'const char**', hidden=True)
+        exception_msg.virtual_read = ['&${name}']
         f = Function(name,
                      params=[this, exception_msg] + (params or []),
                      virtual=True,

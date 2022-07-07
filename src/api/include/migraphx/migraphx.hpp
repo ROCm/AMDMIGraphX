@@ -353,11 +353,11 @@ struct interface_base : Base
             f();
             return migraphx_status_success;
         }
-        catch(std::exception& ex)
+        catch(const std::exception& ex)
         {
             if(ex_msg)
             {
-                *ex_msg = std::move(ex.what());
+                *ex_msg = ex.what(); 
             }
             return migraphx_status_unknown_error;
         }

@@ -357,7 +357,7 @@ struct interface_base : Base
         {
             if(ex_msg)
             {
-                *ex_msg = ex.what(); 
+                *ex_msg = ex.what();
             }
             return migraphx_status_unknown_error;
         }

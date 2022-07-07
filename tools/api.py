@@ -197,7 +197,7 @@ class Parameter:
                  optional: bool = False,
                  returns: bool = False,
                  virtual: bool = False,
-                 this: bool = False, 
+                 this: bool = False,
                  hidden: bool = False) -> None:
         self.name = name
         self.type = Type(type)
@@ -1090,8 +1090,7 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
         output = f.returns.virtual_output()
     largs += [arg for p in f.params for arg in p.virtual_arg()]
     lparams += [
-        p.virtual_param() for p in f.params
-        if not (p.this or p.hidden)
+        p.virtual_param() for p in f.params if not (p.this or p.hidden)
     ]
     args = ', '.join(largs)
     params = ', '.join(lparams)

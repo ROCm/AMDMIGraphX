@@ -79,16 +79,31 @@ __device__ void dpp_reduce(T& in, Op op)
 #endif
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix)                                                            \
-    __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f64); } \
-    __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f32); }  \
-    __device__ inline void dpp_reduce(half& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f16); }   \
-    __device__ inline void dpp_reduce(int32_t& x, op)                                              \
-    {                                                                                              \
-        MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_u32);                                                  \
-    }                                                                                              \
-    __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_u32); } \
-    __device__ inline void dpp_reduce(vec<half, 2>& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, v_pk_##prefix##_f16); }
+#define MIGRAPHX_DPP_REDUCE(op, prefix)                    \
+    __device__ inline void dpp_reduce(double& x, op)       \
+    {                                                      \
+        MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f64);      \
+    }                                                      \
+    __device__ inline void dpp_reduce(float& x, op)        \
+    {                                                      \
+        MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f32);      \
+    }                                                      \
+    __device__ inline void dpp_reduce(half& x, op)         \
+    {                                                      \
+        MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_f16);      \
+    }                                                      \
+    __device__ inline void dpp_reduce(int32_t& x, op)      \
+    {                                                      \
+        MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_u32);      \
+    }                                                      \
+    __device__ inline void dpp_reduce(uint32_t& x, op)     \
+    {                                                      \
+        MIGRAPHX_DPP_REDUCE_ASM(x, v_##prefix##_u32);      \
+    }                                                      \
+    __device__ inline void dpp_reduce(vec<half, 2>& x, op) \
+    {                                                      \
+        MIGRAPHX_DPP_REDUCE_ASM(x, v_pk_##prefix##_f16);   \
+    }
 
 MIGRAPHX_DPP_REDUCE(op::sum, add)
 MIGRAPHX_DPP_REDUCE(op::max, max)

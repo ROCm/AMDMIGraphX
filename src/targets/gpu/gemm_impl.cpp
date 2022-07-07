@@ -70,14 +70,14 @@ void blas_shape(const shape& s)
 
 shape transpose_batch(const shape& s, unsigned trans_batch)
 {
-    if (trans_batch == 0)
+    if(trans_batch == 0)
         return s;
-    if (s.lens().size() < 3)
+    if(s.lens().size() < 3)
         return s;
     auto batch = s.lens().size() - 3;
     std::vector<int64_t> perm(s.lens().size());
     std::iota(perm.begin(), perm.end(), 0);
-    std::swap(perm[batch], perm[batch+trans_batch]);
+    std::swap(perm[batch], perm[batch + trans_batch]);
     return reorder_shape(s, perm);
 }
 

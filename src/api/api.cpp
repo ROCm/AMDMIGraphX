@@ -262,7 +262,7 @@ struct custom_operation
     shape compute_shape(std::vector<shape> inputs) const
     {
         const char* exception_msg = " ";
-        return op.compute_shape(std::move(&exception_msg), std::move(inputs));
+        return op.compute_shape(&exception_msg, std::move(inputs));
     }
 
     // TODO: Compute method with module_args
@@ -271,7 +271,7 @@ struct custom_operation
     {
         const char* exception_msg = " ";
         return op.compute(
-            std::move(&exception_msg), std::move(ctx), std::move(output_shape), std::move(inputs));
+            &exception_msg, std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 };
 

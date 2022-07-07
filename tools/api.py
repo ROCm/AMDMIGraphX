@@ -1086,7 +1086,10 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
         largs += f.returns.virtual_output_args()
         output = f.returns.virtual_output()
     largs += [arg for p in f.params for arg in p.virtual_arg()]
-    lparams += [p.virtual_param() for p in f.params if not (p.this or p.name == "exception_msg") ]
+    lparams += [
+        p.virtual_param() for p in f.params
+        if not (p.this or p.name == "exception_msg")
+    ]
     args = ', '.join(largs)
     params = ', '.join(lparams)
     return c_api_virtual_impl.substitute(locals())

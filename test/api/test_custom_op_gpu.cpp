@@ -24,6 +24,7 @@
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
+#include <stdexcept>
 #include "test.hpp"
 
 #define MIGRAPHX_HIP_ASSERT(x) (EXPECT(x == hipSuccess))
@@ -54,6 +55,12 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
+        if(!inputs[0].standard()) {
+            throw std::runtime_error("first arg must be standard shaped");
+        }
+        if(inputs.size() != 2) {
+            throw std::runtime_error("number of inputs must be 2");
+        }
         return inputs.back();
     }
 };
@@ -64,11 +71,14 @@ TEST_CASE(run_simple_custom_op)
     migraphx::register_experimental_custom_op(simple_op);
     migraphx::program p;
     migraphx::shape s{migraphx_shape_int32_type, {4, 3}};
+    migraphx::shape trans_shape{migraphx_shape_int32_type, {3, 4}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     auto neg           = m.add_instruction(migraphx::operation("neg"), x);
-    auto alloc         = m.add_allocation(s);
-    auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {neg, alloc});
+    auto alloc         = m.add_allocation(trans_shape);
+    auto neg_trans = m.add_instruction(migraphx::operation("transpose", "{permutation: [1, 0]}"), {neg});
+    auto neg_cont = m.add_instruction(migraphx::operation("contiguous"), {neg_trans});
+    auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {neg_cont, alloc});
     auto relu          = m.add_instruction(migraphx::operation("relu"), custom_kernel);
     m.add_return({relu});
     migraphx::compile_options options;
@@ -82,7 +92,7 @@ TEST_CASE(run_simple_custom_op)
     auto result_vec = result.as_vector<int>();
     std::vector<int> expected_result(12, 0);
     std::fill(expected_result.begin() + 6, expected_result.end(), 3);
-    EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+    EXPECT(bool{result == migraphx::argument(trans_shape, expected_result.data())});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

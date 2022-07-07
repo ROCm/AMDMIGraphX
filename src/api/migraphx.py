@@ -443,13 +443,13 @@ def experimental_custom_op(h):
     h.constructor('create',
                   api.params(obj_typename='const char*', name='const char*'))
     h.virtual('compute',
-              api.params(eptr='std::exception_ptr*',
+              api.params(ex_msg='const char**',
                          ctx='migraphx::context',
                          output='migraphx::shape',
                          inputs='std::vector<migraphx::argument>'),
               returns='migraphx::argument')
     h.virtual('compute_shape',
-              api.params(eptr='std::exception_ptr*',
+              api.params(ex_msg='const char**',
                          inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
     h.method('register', invoke='migraphx::register_custom_op($@)')

@@ -346,19 +346,21 @@ struct interface_base : Base
 
     protected:
     template <class F>
-    static migraphx_status try_(F f, std::exception_ptr* eptr = nullptr) // NOLINT
+    static migraphx_status try_(F f, const char** ex_msg = nullptr) // NOLINT
     {
         try
         {
             f();
             return migraphx_status_success;
         }
-        catch(...)
+        catch(std::exception& ex)
         {
-            if(eptr)
-            {
-                *eptr = std::current_exception();
+            if(ex_msg) {
+                *ex_msg = ex.what();
             }
+            return migraphx_status_unknown_error;
+        }
+        catch(...) {
             return migraphx_status_unknown_error;
         }
     }
@@ -391,9 +393,8 @@ struct interface_base : Base
         (void)f; // avoid warning on gcc
         call(setter,
              this->get_handle_ptr(),
-             [](auto out, void* obj, std::exception_ptr* eptr, auto... xs) -> migraphx_status {
-                 auto status = try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, eptr);
-                 return status;
+             [](auto out, void* obj, const char** ex_msg, auto... xs) -> migraphx_status {
+                return try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg);
              });
     }
 

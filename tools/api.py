@@ -1063,8 +1063,9 @@ ${return_type} ${name}(${params}) const
     if (${fname} == nullptr)
         throw std::runtime_error("${name} function is missing.");
     auto api_error_result = ${fname}(${args});
+    const std::string exception_str(*ex_msg); 
     if (api_error_result != ${success})
-        throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.obj_typename));
+        throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.obj_typename) + ": " + exception_str);
     return ${output};
 }
 ''')

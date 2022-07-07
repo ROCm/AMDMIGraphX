@@ -132,14 +132,16 @@ typedef const struct migraphx_experimental_custom_op* const_migraphx_experimenta
 
 typedef migraphx_status (*migraphx_experimental_custom_op_compute)(migraphx_argument_t out,
                                                                    void* obj,
-                                                                   const char** exception_msg,
+                                                                   char* exception_msg,
+                                                                   size_t exception_msg_size,
                                                                    migraphx_context_t ctx,
                                                                    migraphx_shape_t output,
                                                                    migraphx_arguments_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraphx_shape_t out,
                                                                          void* obj,
-                                                                         const char** exception_msg,
+                                                                         char* exception_msg,
+                                                                         size_t exception_msg_size,
                                                                          migraphx_shapes_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_copy)(void** out, void* input);

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
 #include "migraphx.h"
+#include <cstring>
 #include <initializer_list>
 #include <migraphx/migraphx.h>
 #include <memory>
@@ -346,7 +347,7 @@ struct interface_base : Base
 
     protected:
     template <class F>
-    static migraphx_status try_(F f, const char** ex_msg = nullptr) // NOLINT
+    static migraphx_status try_(F f, char* ex_msg = nullptr, size_t ex_msg_size = 0) // NOLINT
     {
         try
         {
@@ -356,9 +357,7 @@ struct interface_base : Base
         catch(const std::exception& ex)
         {
             if(ex_msg)
-            {
-                *ex_msg = ex.what();
-            }
+                std::strncpy(ex_msg, ex.what(), ex_msg_size);
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -395,8 +394,8 @@ struct interface_base : Base
         (void)f; // avoid warning on gcc
         call(setter,
              this->get_handle_ptr(),
-             [](auto out, void* obj, const char** ex_msg, auto... xs) -> migraphx_status {
-                 return try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg);
+             [](auto out, void* obj, char* ex_msg, size_t ex_msg_size, auto... xs) -> migraphx_status {
+                 return try_([&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg, ex_msg_size);
              });
     }
 

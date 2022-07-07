@@ -1064,10 +1064,10 @@ ${return_type} ${name}(${params}) const
     ${output_decls}
     if (${fname} == nullptr)
         throw std::runtime_error("${name} function is missing.");
-    const char* exception_msg = " ";
+    std::array<char, 256> exception_msg;
     auto api_error_result = ${fname}(${args});
     if (api_error_result != ${success}) {
-        const std::string exception_str(exception_msg); 
+        const std::string exception_str(exception_msg.data(), 256); 
         throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.obj_typename) + ": " + exception_str);
     }
     return ${output};
@@ -1138,10 +1138,12 @@ class Interface(Handle):
         # Add this parameter to the function
         this = Parameter('obj', 'void*', this=True)
         this.virtual_read = ['object_ptr.data']
-        exception_msg = Parameter('exception_msg', 'const char**', hidden=True)
-        exception_msg.virtual_read = ['&${name}']
+        exception_msg = Parameter('exception_msg', 'char*', hidden=True)
+        exception_msg.virtual_read = ['${name}.data()']
+        exception_msg_size = Parameter('exception_msg_size', 'size_t', hidden=True)
+        exception_msg_size.virtual_read = ['exception_msg.size()']
         f = Function(name,
-                     params=[this, exception_msg] + (params or []),
+                     params=[this, exception_msg, exception_msg_size] + (params or []),
                      virtual=True,
                      **kwargs)
         self.ifunctions.append(f)

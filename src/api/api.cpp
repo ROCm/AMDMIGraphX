@@ -602,16 +602,17 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<migraphx_argument_t> out;
         if(compute_f == nullptr)
             throw std::runtime_error("compute function is missing.");
-        const char* exception_msg = " ";
-        auto api_error_result     = compute_f(&out,
+        std::array<char, 256> exception_msg;
+        auto api_error_result = compute_f(&out,
                                           object_ptr.data,
-                                          &exception_msg,
+                                          exception_msg.data(),
+                                          exception_msg.size(),
                                           object_cast<migraphx_context_t>(&(ctx)),
                                           object_cast<migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
         {
-            const std::string exception_str(exception_msg);
+            const std::string exception_str(exception_msg.data(), 256);
             throw std::runtime_error("Error in compute of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
         }
@@ -624,12 +625,15 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<migraphx_shape_t> out;
         if(compute_shape_f == nullptr)
             throw std::runtime_error("compute_shape function is missing.");
-        const char* exception_msg = " ";
-        auto api_error_result     = compute_shape_f(
-            &out, object_ptr.data, &exception_msg, object_cast<migraphx_shapes_t>(&(inputs)));
+        std::array<char, 256> exception_msg;
+        auto api_error_result = compute_shape_f(&out,
+                                                object_ptr.data,
+                                                exception_msg.data(),
+                                                exception_msg.size(),
+                                                object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
         {
-            const std::string exception_str(exception_msg);
+            const std::string exception_str(exception_msg.data(), 256);
             throw std::runtime_error("Error in compute_shape of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
         }

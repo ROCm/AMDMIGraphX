@@ -82,6 +82,23 @@ struct shape
     {
     };
 
+    struct dynamic_dimension
+    {
+        std::size_t min = 0;
+        std::size_t max = 0;
+        std::size_t opt = 0;
+
+        template <class Self, class F>
+        static auto reflect(Self& self, F f);
+
+        bool is_fixed() const;
+        bool has_optimal() const;
+
+        friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y);
+        friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y);
+        friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x);
+    };
+
     static const std::vector<type_t>& types();
 
     static std::string name(type_t t);
@@ -91,6 +108,12 @@ struct shape
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);
     shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s);
+
+    // Force all calls of the format `shape( type_t, { size_t compatibles } )` to map to
+    // shape(type_t, std::vector<std::size_t> l)
+    shape(type_t t, std::initializer_list<std::size_t> d);
+
+    shape(type_t t, std::vector<dynamic_dimension> dims);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
@@ -112,9 +135,43 @@ struct shape
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
+
+    /*!
+     * Return the number of elements in the tensor.
+     */
     std::size_t elements() const;
+
+    /*!
+     * Return the number of total bytes used for storage of the tensor data; includes subshapes.
+     * For dynamic shape, returns the maximum number of bytes presuming a packed shape.
+     */
     std::size_t bytes() const;
+
+    /*!
+     * Return the size of the type of the main shape.
+     * Returns 0 if there are subshapes.
+     */
     std::size_t type_size() const;
+
+    const std::vector<dynamic_dimension>& dyn_dims() const;
+
+    /*!
+     * Minimum lengths for dynamic shape.
+     * lens() for fixed shape.
+     */
+    std::vector<std::size_t> min_lens() const;
+
+    /*!
+     * Maximum lengths for dynamic shape.
+     * lens() for fixed shape.
+     */
+    std::vector<std::size_t> max_lens() const;
+
+    /*!
+     * Optimum lengths for dynamic shape.
+     * lens() for fixed shape.
+     */
+    std::vector<std::size_t> opt_lens() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;
@@ -136,18 +193,26 @@ struct shape
     std::vector<std::size_t> multi(std::size_t i) const;
     void multi_copy(std::size_t i, std::size_t* start, const std::size_t* end) const;
 
-    /// Returns true if the shape is packed with no padding
+    /// Returns true if the shape is packed (number of elements and buffer size the same) with no
+    /// padding
     bool packed() const;
+
     /// Returns true is the shape has been transposed. That is the strides are not in descending
     /// order
     bool transposed() const;
+
     /// Returns true if the shape is broadcasting a dimension. That is, one of the strides are zero
     bool broadcasted() const;
+
     /// Returns true if the shape is in its standard format. That is, the shape is both packed and
     /// not transposed.
     bool standard() const;
+
     /// Returns true if all strides are equal to 0 (scalar tensor)
     bool scalar() const;
+
+    /// Return true if the shape is dynamic
+    bool dynamic() const;
 
     shape normalize_standard() const;
 
@@ -252,6 +317,11 @@ struct shape
 
     const std::vector<shape>& sub_shapes() const;
 
+    /*!
+     * Returns the number of elements in the data buffer.
+     * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
+     * is packed.
+     */
     std::size_t element_space() const;
 
     private:

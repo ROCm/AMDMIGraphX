@@ -43,6 +43,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG_SYM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
@@ -227,6 +228,8 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     if(params.find("-std=") == std::string::npos)
         params += " --std=c++17";
     params += " -fno-gpu-rdc";
+    if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
+        params += " -g";
     params += " -c";
     if(is_hcc_compiler())
     {

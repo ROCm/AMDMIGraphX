@@ -34,7 +34,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
-void partition(program& p, module& root, const std::unordered_map<instruction_ref, std::string>& assignments);
+void partition(program& p,
+               module& root,
+               const std::unordered_map<instruction_ref, std::string>& assignments);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

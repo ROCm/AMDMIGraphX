@@ -47,7 +47,9 @@ struct module_pass_manager
 
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
-void run_passes(program& prog, module& root const std::vector<pass>& passes, tracer trace = tracer{});
+void run_passes(program& prog,
+                module& root const std::vector<pass>& passes,
+                tracer trace = tracer{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

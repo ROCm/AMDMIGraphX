@@ -11,9 +11,10 @@ struct partition_op
     // TODO: Implement compute_shape and compute
 };
 
-void partition(program& p, module& root, const std::unordered_map<instruction_ref, std::string>& assignments)
+void partition(program& p,
+               module& root,
+               const std::unordered_map<instruction_ref, std::string>& assignments)
 {
-
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -148,5 +148,10 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
     }
 }
 
+void run_passes(program& prog, module& root const std::vector<pass>& passes, tracer trace)
+{
+    // Run passes starting at root module instead of main module
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

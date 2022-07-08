@@ -38,20 +38,20 @@ struct check_shapes
     const shape* begin;
     const shape* end;
     const std::string name;
-    bool dynamic_allowed = false;
+    const bool dynamic_allowed;
 
-    check_shapes(const shape* b, const shape* e, const std::string& n) : begin(b), end(e), name(n)
+    check_shapes(const shape* b, const shape* e, const std::string& n, const bool d = false) : begin(b), end(e), name(n),dynamic_allowed(d)
     {
     }
 
     template <class Op>
-    check_shapes(const shape* b, const shape* e, const Op& op) : begin(b), end(e), name(op.name())
+    check_shapes(const shape* b, const shape* e, const Op& op, const bool d = false) : begin(b), end(e), name(op.name()), dynamic_allowed(d)
     {
     }
 
     template <class Op>
-    check_shapes(const std::vector<shape>& s, const Op& op)
-        : begin(s.data()), end(s.data() + s.size()), name(op.name())
+    check_shapes(const std::vector<shape>& s, const Op& op, const bool d = false)
+        : begin(s.data()), end(s.data() + s.size()), name(op.name()), dynamic_allowed(d)
     {
     }
 
@@ -283,15 +283,6 @@ struct check_shapes
     {
         if(!this->all_of([&](const shape& s) { return batch_not_transposed_strides(s.strides()); }))
             MIGRAPHX_THROW(prefix() + "Batch size is transposed");
-        return *this;
-    }
-
-    /*!
-     * Denotes that the shapes can be dynamic for the operator.
-     */
-    const check_shapes& allow_dynamic()
-    {
-        dynamic_allowed = true;
         return *this;
     }
 

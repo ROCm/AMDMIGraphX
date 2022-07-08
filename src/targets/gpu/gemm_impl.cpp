@@ -78,7 +78,7 @@ shape transpose_batch(const shape& s, unsigned trans_batch)
     std::vector<int64_t> perm(s.lens().size());
     std::iota(perm.begin(), perm.end(), 0);
     std::swap(perm[batch], perm[batch + trans_batch]);
-    return reorder_shape(s, perm);
+    return shape::from_permutation(s.type(), s.lens(), perm);
 }
 
 template <class R, class... Ts, class... Us>

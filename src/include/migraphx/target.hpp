@@ -37,6 +37,8 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/support_metric.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,6 +63,13 @@ struct target
      * @return The context to be used during compilation and execution.
      */
     context get_context() const;
+    /**
+     * @brief Check how well an instruction is supported on a target with the given metric
+     * @param ins Instruction to check if it's supported
+     * @param metric Used to define how the return value should be interpreted
+     * @return The value based on the chosen metric. Negative numbers mean unsupported
+     */
+    float is_supported(T&, instruction_ref ins, support_metric m) const;
     /**
      * @brief copy an argument to the current target.
      *
@@ -105,6 +114,12 @@ argument copy_from_target(T&, const argument& arg)
     return arg;
 }
 
+template <class T>
+float target_is_supported(T&, instruction_ref, support_metric)
+{
+    return 0;
+}
+
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
@@ -116,6 +131,8 @@ struct target
     std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
     //
     context get_context() const;
+    // (optional)
+    float is_supported(instruction_ref ins, support_metric m) const;
     // (optional)
     argument copy_to(const argument& input) const;
     // (optional)
@@ -207,6 +224,12 @@ struct target
         return (*this).private_detail_te_get_handle().get_context();
     }
 
+    float is_supported(instruction_ref ins, support_metric m) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().is_supported(ins, m);
+    }
+
     argument copy_to(const argument& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -242,10 +265,30 @@ struct target
         virtual std::vector<pass> get_passes(context& ctx,
                                              const compile_options& options) const = 0;
         virtual context get_context() const                                        = 0;
+        virtual float is_supported(instruction_ref ins, support_metric m) const    = 0;
         virtual argument copy_to(const argument& input) const                      = 0;
         virtual argument copy_from(const argument& input) const                    = 0;
         virtual argument allocate(const shape& s) const                            = 0;
     };
+
+    template <class T>
+    static auto private_detail_te_default_is_supported(char,
+                                                       T&& private_detail_te_self,
+                                                       instruction_ref ins,
+                                                       support_metric m)
+        -> decltype(private_detail_te_self.is_supported(ins, m))
+    {
+        return private_detail_te_self.is_supported(ins, m);
+    }
+
+    template <class T>
+    static float private_detail_te_default_is_supported(float,
+                                                        T&& private_detail_te_self,
+                                                        instruction_ref ins,
+                                                        support_metric m)
+    {
+        return target_is_supported(private_detail_te_self, ins, m);
+    }
 
     template <class T>
     static auto
@@ -328,6 +371,12 @@ struct target
         }
 
         context get_context() const override { return private_detail_te_value.get_context(); }
+
+        float is_supported(instruction_ref ins, support_metric m) const override
+        {
+
+            return private_detail_te_default_is_supported(char(0), private_detail_te_value, ins, m);
+        }
 
         argument copy_to(const argument& input) const override
         {

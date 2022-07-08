@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/verify_args.hpp>
 #include <set>
 
@@ -57,6 +58,15 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
     return std::async(std::launch::deferred, std::forward<Function>(f));
 }
 
+inline void verify_load_save(const migraphx::program& p)
+{
+    migraphx::tmp_dir td{"migraphx_test"};
+    auto path = td.path / "test.mxr";
+    migraphx::save(p, path.string());
+    auto loaded = migraphx::load(path.string());
+    EXPECT(p == loaded);
+}
+
 inline void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
     auto name   = t.name();
@@ -82,6 +92,8 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
             throw std::runtime_error("Compiling program with " + name + " alters its shape");
         }
     }
+    if(t.name() != "ref")
+        verify_load_save(p);
 }
 
 target_info run_verify::get_target_info(const std::string& name) const
@@ -152,6 +164,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     auto_print::set_terminate_handler(name);
     if(migraphx::enabled(MIGRAPHX_DUMP_TEST{}))
         migraphx::save(p, name + ".mxr");
+    verify_load_save(p);
     std::vector<std::string> target_names;
     for(const auto& tname : migraphx::get_targets())
     {

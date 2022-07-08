@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -1528,7 +1551,7 @@ TEST_CASE(test_unsqueeze_step_non_divisable)
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
 }
 
-TEST_CASE(test_unsqueeze_step_non_zero)
+TEST_CASE(test_unsqueeze_step_zero)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {0}}}), s1);
@@ -1538,6 +1561,12 @@ TEST_CASE(test_unsqueeze_step_at_end)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {3}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_mismatch_step_axis)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2, 3}}}), s1);
 }
 
 TEST_CASE(test_unsqueeze_negative_axis)
@@ -1634,6 +1663,13 @@ TEST_CASE(test_unsqueeze_multiple_axes_4)
     migraphx::shape s1{migraphx::shape::float_type, {3, 4, 5}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 4, 1, 5, 1, 1}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {5, 4, 2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multiple_axes_step)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {3, 4, 10}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4, 2, 5, 1, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2, 4, 5}}, {"steps", {2}}}), s1);
 }
 
 TEST_CASE(transpose_shape)

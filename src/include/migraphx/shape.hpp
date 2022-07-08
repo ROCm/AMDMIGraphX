@@ -318,8 +318,9 @@ struct shape
     const std::vector<shape>& sub_shapes() const;
 
     /*!
-     * Returns size of the data buffer.
-     * Assuming a packed shape, returns maximum size of the data buffer for dynamic shape.
+     * Returns the number of elements in the data buffer.
+     * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
+     * is packed.
      */
     std::size_t element_space() const;
 

@@ -320,7 +320,7 @@ struct check_shapes
     bool any_of(Predicate p) const
     {
         if(begin == end)
-            return true;
+            return false;
         assert(begin != nullptr);
         assert(end != nullptr);
         return std::any_of(begin, end, p);

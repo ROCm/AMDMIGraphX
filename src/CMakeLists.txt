@@ -155,6 +155,7 @@ register_migraphx_ops(
     lstm
     max
     min
+    mod
     mul
     multibroadcast
     multinomial

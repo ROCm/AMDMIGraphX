@@ -159,6 +159,25 @@ instruction_ref program::validate() const
     return mm->validate();
 }
 
+target_assignments program::get_target_assignments(const std::vector<target>& targets,
+                                                   assignment_options options)
+{
+    const auto m = options.metric;
+
+    target_assignments p;
+
+    const auto* mod = get_main_module();
+    for(auto it : iterator_for(*mod))
+    {
+        auto t = std::max_element(
+            targets.begin(), targets.end(), [it, m](const target& lhs, const target& rhs) {
+                return lhs.is_supported(it, m) < rhs.is_supported(it, m);
+            });
+        p.add_assignment(it, t->name());
+    }
+    return p;
+}
+
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
 void program::compile(const target& t, compile_options options)
@@ -542,12 +561,14 @@ static void mod_from_val(module_ref mod,
 
         if(name == "@param")
         {
-            output = mod->add_parameter(fields["parameter"].to<std::string>(),
-                                        migraphx::from_value<shape>(node.at("shape")));
+            output = mod->insert_parameter(mod->end(),
+                                           fields["parameter"].to<std::string>(),
+                                           migraphx::from_value<shape>(node.at("shape")));
         }
         else if(name == "@literal")
         {
-            output = mod->add_literal(migraphx::from_value<literal>(node.at("literal")));
+            output =
+                mod->insert_literal(mod->end(), migraphx::from_value<literal>(node.at("literal")));
         }
         else
         {
@@ -582,11 +603,11 @@ static void mod_from_val(module_ref mod,
             }
             else if(module_inputs.empty())
             {
-                output = mod->add_instruction(op, inputs);
+                output = mod->insert_instruction(mod->end(), op, inputs);
             }
             else
             {
-                output = mod->add_instruction(op, inputs, module_inputs);
+                output = mod->insert_instruction(mod->end(), op, inputs, module_inputs);
             }
         }
         output->set_normalized(normalized);
@@ -828,10 +849,17 @@ void program::print_cpp(std::ostream& os) const
 {
     auto vec_modules = this->get_modules();
     std::unordered_map<instruction_ref, std::string> names;
+    os << "migraphx::program p;\n";
     for(auto& mod : vec_modules)
     {
-        os << "module: \"" << mod->name() << "\"" << std::endl;
-        names = mod->print_cpp(os, names);
+        std::string var_name = "m" + mod->name();
+        os << "migraphx::module_ref " << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module();";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_cpp(os, var_name, names);
         os << std::endl;
     }
 }

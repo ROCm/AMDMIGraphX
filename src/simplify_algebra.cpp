@@ -1091,7 +1091,6 @@ void simplify_algebra::apply(module& m) const
     for(int i = 0; i < 8; i++)
     {
         match::find_matches(m,
-                            find_gelu_erf{},
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
@@ -1101,6 +1100,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_slice_conv{},
                             find_mul_add{},
                             find_div_const{},
+                            find_gelu_erf{},
                             find_sub_const{},
                             find_rsqrt{},
                             find_concat_op{},

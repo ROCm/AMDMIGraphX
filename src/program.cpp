@@ -159,6 +159,25 @@ instruction_ref program::validate() const
     return mm->validate();
 }
 
+target_assignments program::get_target_assignments(const std::vector<target>& targets,
+                                                   assignment_options options)
+{
+    const auto m = options.metric;
+
+    target_assignments p;
+
+    const auto* mod = get_main_module();
+    for(auto it : iterator_for(*mod))
+    {
+        auto t = std::max_element(
+            targets.begin(), targets.end(), [it, m](const target& lhs, const target& rhs) {
+                return lhs.is_supported(it, m) < rhs.is_supported(it, m);
+            });
+        p.add_assignment(it, t->name());
+    }
+    return p;
+}
+
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
 void program::compile(const target& t, compile_options options)

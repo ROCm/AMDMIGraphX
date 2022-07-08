@@ -853,13 +853,19 @@ struct find_div_const
 
 struct find_gelu_erf
 {
+    static auto match_div()
+    {
+        return match::name("div")(
+            args(match::any().bind("x"), match::skip_broadcasts(match::is_constant())));
+    }
+
     static auto match_mul1()
     {
         return match::name("mul")(
             args(match::any().bind("x"), match::skip_broadcasts(match::name("recip"))));
     }
 
-    static auto match_erf() { return match::name("erf")(match::arg(0)(match_mul1())); }
+    static auto match_erf() { return match::name("erf")(match::arg(0)(match_div())); }
 
     static auto match_add2()
     {

@@ -18,9 +18,9 @@ void partition(program& p,
                const std::unordered_map<instruction_ref, std::string>& assignments)
 {
     // Group instructions based on label
-    
+
     // TODO: Recurse traverse submodule from root
-    for(auto ins:iterator_for(root))
+    for(auto ins : iterator_for(root))
     {
         // Rough idea of inserting submodules
         std::string label;

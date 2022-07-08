@@ -256,6 +256,10 @@ struct shape
 
         std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
+        auto is_integral() const { return std::is_integral<type>{}; }
+        auto is_signed() const { return std::is_signed<type>{}; }
+        auto is_unsigned() const { return std::is_unsigned<type>{}; }
+
         template <class U>
         type* from(U* buffer, std::size_t n = 0) const
         {
@@ -314,8 +318,9 @@ struct shape
     const std::vector<shape>& sub_shapes() const;
 
     /*!
-     * Returns size of the data buffer.
-     * Assuming a packed shape, returns maximum size of the data buffer for dynamic shape.
+     * Returns the number of elements in the data buffer.
+     * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
+     * is packed.
      */
     std::size_t element_space() const;
 

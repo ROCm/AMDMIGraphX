@@ -856,12 +856,13 @@ struct find_zero_div_const
     auto matcher() const
     {
         return match::name("div")(
-            match::arg(1)(match::skip_broadcasts_converts(match::has_value(0.0f))));
+            match::arg(1)(match::skip_broadcasts_converts(match::has_value(0.0f).bind("c"))));
     }
 
-    [[noreturn]] void apply(module&, const match::matcher_result&) const
+    void apply(module& m, const match::matcher_result& r) const
     {
-        MIGRAPHX_THROW("ERROR: Matched division by zero in pass");
+        auto ins = r.result;
+        m.replace_instruction(ins, make_op("divzero"));
     }
 };
 

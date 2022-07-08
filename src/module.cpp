@@ -628,6 +628,29 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
+bool is_div_zero(instruction_ref ins)
+{
+    const auto& op = instruction::get_output_alias(ins)->name();
+    return op == "@divzero";
+}
+
+instruction_ref module::find_division_by_zero() const
+{
+    auto last = std::prev(end());
+    if(last->name() == "@divzero")
+    {
+        auto div_zero = std::find_if(
+            last->inputs().begin(), last->inputs().end(), [](auto x) { return is_div_zero(x); });
+        if(div_zero != last->inputs().end())
+            return *div_zero;
+    }
+    else if(is_div_zero(last))
+    {
+        return last;
+    }
+    return end();
+}
+
 void module::finalize(context& ctx)
 {
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});

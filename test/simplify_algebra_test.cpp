@@ -1105,17 +1105,14 @@ TEST_CASE(simplify_div_zero_const)
         m1.add_instruction(migraphx::make_op("div"), x, unit);
     }
 
-    bool result = false;
-    try
+    migraphx::module m2;
     {
-        run_pass(m1);
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("divzero"), x, unit);
     }
-    catch(const std::runtime_error& e)
-    {
-        (void)e;
-        result = true;
-    }
-    EXPECT(result);
+
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(simplify_sub_const)

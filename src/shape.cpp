@@ -26,6 +26,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
 #include <numeric>
 #include <algorithm>
 #include <functional>
@@ -65,12 +66,20 @@ struct shape_impl
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
 
+    shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
+        : m_type(t), m_dyn_dims(std::move(dims))
+    {
+    }
+
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
+
     shape::type_t m_type;
     std::vector<std::size_t> m_lens    = {};
     std::vector<std::size_t> m_strides = {};
     std::vector<shape> m_shapes        = {};
     bool m_standard                    = false;
+
+    std::vector<shape::dynamic_dimension> m_dyn_dims = {};
 
     void calculate_strides()
     {
@@ -87,6 +96,12 @@ struct shape_impl
 
     std::size_t element_space() const
     {
+        if(not m_dyn_dims.empty())
+        {
+            auto maxes = max_lens();
+            return std::accumulate(maxes.begin(), maxes.end(), std::size_t{1}, std::multiplies<>());
+        }
+
         assert(m_lens.size() == m_strides.size());
         if(m_lens.empty())
             return 0;
@@ -101,6 +116,11 @@ struct shape_impl
 
     std::size_t elements() const
     {
+        if(not m_dyn_dims.empty())
+        {
+            MIGRAPHX_THROW("SHAPE: elements() called on dynamic shape");
+        }
+
         assert(m_lens.size() == m_strides.size());
         if(m_lens.empty())
             return 0;
@@ -108,6 +128,35 @@ struct shape_impl
             m_lens.begin(), m_lens.end(), std::size_t{1}, std::multiplies<std::size_t>());
     }
 
+    std::vector<std::size_t> min_lens() const
+    {
+        std::vector<std::size_t> ret(m_dyn_dims.size());
+        std::transform(m_dyn_dims.cbegin(),
+                       m_dyn_dims.cend(),
+                       ret.begin(),
+                       [](shape::dynamic_dimension x) { return x.min; });
+        return ret;
+    }
+
+    std::vector<std::size_t> max_lens() const
+    {
+        std::vector<std::size_t> ret(m_dyn_dims.size());
+        std::transform(m_dyn_dims.cbegin(),
+                       m_dyn_dims.cend(),
+                       ret.begin(),
+                       [](shape::dynamic_dimension x) { return x.max; });
+        return ret;
+    }
+
+    std::vector<std::size_t> opt_lens() const
+    {
+        std::vector<std::size_t> ret(m_dyn_dims.size());
+        std::transform(m_dyn_dims.cbegin(),
+                       m_dyn_dims.cend(),
+                       ret.begin(),
+                       [](shape::dynamic_dimension x) { return x.opt; });
+        return ret;
+    }
     // Does the shape skip over elements?
     bool skips() const
     {
@@ -165,6 +214,16 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 {
 }
 
+shape::shape(type_t t, std::initializer_list<std::size_t> d)
+    : shape::shape(t, std::vector<std::size_t>{d.begin(), d.end()})
+{
+}
+
+shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
+    : impl(std::make_shared<shape_impl>(t, std::move(dims)))
+{
+}
+
 shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
 shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
@@ -180,9 +239,13 @@ shape shape::from_permutation(type_t t,
 }
 
 shape::type_t shape::type() const { return impl->m_type; }
+
 const std::vector<std::size_t>& shape::lens() const { return impl->m_lens; }
+
 const std::vector<std::size_t>& shape::strides() const { return impl->m_strides; }
+
 std::size_t shape::elements() const { return impl->elements(); }
+
 std::size_t shape::bytes() const
 {
     if(this->sub_shapes().empty())
@@ -199,6 +262,7 @@ std::size_t shape::bytes() const
                                [&](auto x, auto y) { return x + y.bytes(); });
     }
 }
+
 std::size_t shape::type_size() const
 {
     std::size_t n = 0;
@@ -206,20 +270,35 @@ std::size_t shape::type_size() const
         this->visit_type([&](auto as) { n = as.size(); });
     return n;
 }
+
 std::size_t shape::index(std::initializer_list<std::size_t> l) const
 {
+    if(this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: index() called on dynamic shape");
+    }
     assert(l.size() <= this->lens().size());
     assert(this->lens().size() == this->strides().size());
     return std::inner_product(l.begin(), l.end(), this->strides().begin(), std::size_t{0});
 }
+
 std::size_t shape::index(const std::vector<std::size_t>& l) const
 {
+    if(this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: index() called on dynamic shape");
+    }
     assert(l.size() <= this->lens().size());
     assert(this->lens().size() == this->strides().size());
     return std::inner_product(l.begin(), l.end(), this->strides().begin(), std::size_t{0});
 }
+
 std::size_t shape::index(std::size_t i) const
 {
+    if(this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: index() called on dynamic shape");
+    }
     assert(this->lens().size() == this->strides().size());
     if(this->standard())
         return i;
@@ -267,12 +346,20 @@ void shape::multi_copy(std::size_t i, std::size_t* start, const std::size_t* end
 
 bool shape::packed() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     return this->sub_shapes().empty() and not impl->skips() and
            this->elements() == this->element_space();
 }
 
 bool shape::transposed() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     if(this->broadcasted())
     {
         // TODO: Use a filter_iterator instead
@@ -292,6 +379,10 @@ bool shape::transposed() const
 
 bool shape::broadcasted() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     assert(this->lens().size() == this->strides().size());
     return std::any_of(
         this->strides().begin(), this->strides().end(), [](auto x) { return x == 0; });
@@ -299,6 +390,10 @@ bool shape::broadcasted() const
 
 bool shape::scalar() const
 {
+    if(this->dynamic())
+    {
+        return false;
+    }
     assert(this->lens().size() == this->strides().size());
     // if any stride > 0, then accumulate will return false
     return this->sub_shapes().empty() and
@@ -317,6 +412,10 @@ shape shape::normalize_standard() const
 
 shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 {
+    if(this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: with_lens() called on dynamic shape");
+    }
     assert(l.size() == this->lens().size());
     auto perm = find_permutation(*this);
     return shape::from_permutation(t, l, perm);
@@ -324,6 +423,10 @@ shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 
 shape shape::with_lens(const std::vector<std::size_t>& l) const
 {
+    if(this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: with_lens() called on dynamic shape");
+    }
     return this->with_lens(this->type(), l);
 }
 
@@ -338,20 +441,80 @@ std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }
 
+bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
+
+const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
+
+std::vector<std::size_t> shape::min_lens() const
+{
+    return this->dynamic() ? impl->min_lens() : this->lens();
+}
+
+std::vector<std::size_t> shape::max_lens() const
+{
+    return this->dynamic() ? impl->max_lens() : this->lens();
+}
+
+std::vector<std::size_t> shape::opt_lens() const
+{
+    return this->dynamic() ? impl->opt_lens() : this->lens();
+}
+
+bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max; }
+
+bool shape::dynamic_dimension::has_optimal() const { return opt != 0; }
+
+template <class Self, class F>
+auto shape::dynamic_dimension::reflect(Self& self, F f)
+{
+    return pack(f(self.min, "min"), f(self.max, "max"), f(self.opt, "opt"));
+}
+
+bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
+{
+    return (x.min == y.min and x.max == y.max and x.opt == y.opt);
+}
+
+bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
+{
+    return !(x == y);
+}
+std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
+{
+    os << "[" << x.min << ", " << x.max << ", " << x.opt << "]";
+    return os;
+}
+
 bool operator==(const shape& x, const shape& y)
 {
-    return x.impl == y.impl or (x.type() == y.type() and x.lens() == y.lens() and
-                                x.strides() == y.strides() and x.sub_shapes() == y.sub_shapes());
+    if(x.dynamic() and y.dynamic())
+    {
+        return x.impl == y.impl or (x.type() == y.type() and x.dyn_dims() == y.dyn_dims() and
+                                    x.sub_shapes() == y.sub_shapes());
+    }
+    return x.impl == y.impl or
+           (x.dynamic() == y.dynamic() and x.type() == y.type() and x.lens() == y.lens() and
+            x.strides() == y.strides() and x.sub_shapes() == y.sub_shapes());
 }
+
 bool operator!=(const shape& x, const shape& y) { return !(x == y); }
 
 std::ostream& operator<<(std::ostream& os, const shape& x)
 {
     if(x.sub_shapes().empty())
     {
-        os << x.type_string() << ", ";
-        os << "{" << to_string_range(x.lens()) << "}, ";
-        os << "{" << to_string_range(x.strides()) << "}";
+        if(x.dynamic())
+        {
+            os << "dynamic, ";
+            os << x.type_string() << ", ";
+            os << "{" << to_string_range(x.dyn_dims()) << "}";
+        }
+        else
+        {
+            os << x.type_string() << ", ";
+            os << "{" << to_string_range(x.lens()) << "}, ";
+            os << "{" << to_string_range(x.strides()) << "}";
+        }
     }
     else
     {
@@ -375,12 +538,14 @@ const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
 void migraphx_to_value(value& v, const shape& s)
 {
     value result;
-    result["type"]       = migraphx::to_value(s.type_string());
-    result["lens"]       = migraphx::to_value(s.lens());
-    result["strides"]    = migraphx::to_value(s.strides());
-    result["sub_shapes"] = migraphx::to_value(s.sub_shapes());
-    v                    = result;
+    result["type"]               = migraphx::to_value(s.type_string());
+    result["lens"]               = migraphx::to_value(s.lens());
+    result["strides"]            = migraphx::to_value(s.strides());
+    result["sub_shapes"]         = migraphx::to_value(s.sub_shapes());
+    result["dynamic_dimensions"] = migraphx::to_value(s.dyn_dims());
+    v                            = result;
 }
+
 void migraphx_from_value(const value& v, shape& s)
 {
     auto t = v.at("type").get_string();
@@ -390,9 +555,25 @@ void migraphx_from_value(const value& v, shape& s)
     }
     else
     {
-        s = shape{shape::parse_type(t),
-                  v.at("lens").to_vector<std::size_t>(),
-                  v.at("strides").to_vector<std::size_t>()};
+        if(v.at("dynamic_dimensions").empty())
+        {
+            s = shape{shape::parse_type(t),
+                      v.at("lens").to_vector<std::size_t>(),
+                      v.at("strides").to_vector<std::size_t>()};
+        }
+        else
+        {
+            auto v_dd = v.at("dynamic_dimensions");
+            std::vector<shape::dynamic_dimension> dyn_dims(v.at("dynamic_dimensions").size());
+            std::transform(v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](migraphx::value x) {
+                auto x_min = x.at("min").template to<size_t>();
+                auto x_max = x.at("max").template to<size_t>();
+                auto x_opt = x.at("opt").template to<size_t>();
+                return shape::dynamic_dimension{x_min, x_max, x_opt};
+            });
+
+            s = shape{shape::parse_type(t), dyn_dims};
+        }
     }
 }
 

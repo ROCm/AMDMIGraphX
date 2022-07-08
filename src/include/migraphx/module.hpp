@@ -120,9 +120,33 @@ struct module
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
     std::vector<instruction_ref>
-    insert_module_instructions(instruction_ref ins,
-                               module_ref m,
-                               std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+    add_instructions(const std::vector<instruction_ref>& instructions,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    add_instructions(const_module_ref m,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    add_instructions(instruction_ref start,
+                     instruction_ref last,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        const std::vector<instruction_ref>& instructions,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        const_module_ref m,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        instruction_ref start,
+                        instruction_ref last,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
@@ -139,6 +163,10 @@ struct module
     instruction_ref add_return(std::vector<instruction_ref> args);
 
     instruction_ref replace_return(std::vector<instruction_ref> args);
+
+    instruction_ref insert_literal(instruction_ref ins, literal l);
+
+    instruction_ref insert_parameter(instruction_ref ins, std::string name, shape s);
 
     std::vector<std::string> get_parameter_names() const;
 
@@ -202,6 +230,8 @@ struct module
 
     std::unique_ptr<module_impl> impl;
 };
+
+inline module& get_module(module& m) { return m; }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

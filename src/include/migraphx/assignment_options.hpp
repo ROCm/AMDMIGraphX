@@ -21,50 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/cpu/write_literals.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/register_op.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_ASSIGNMENT_OPTIONS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_ASSIGNMENT_OPTIONS_HPP
+
+#include <migraphx/support_metric.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace cpu {
 
-struct cpu_literal
+struct assignment_options
 {
-    argument data;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.data, "data"));
-    }
-
-    std::string name() const { return "cpu::literal"; }
-
-    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
-
-    argument compute(const shape&, const std::vector<argument>&) const { return data; }
-
-    friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
-    {
-        os << x.name();
-        return os;
-    }
+    support_metric metric = support_metric::latency;
 };
-MIGRAPHX_REGISTER_OP(cpu_literal);
 
-void write_literals::apply(module& m) const
-{
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() != "@literal")
-            continue;
-        m.replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
-    }
-}
-
-} // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_RTGLIB_ASSIGNMENT_OPTIONS_HPP

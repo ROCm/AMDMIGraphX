@@ -21,26 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_WORKSPACE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_WORKSPACE_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/target_assignments.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct module;
 
-namespace gpu {
-
-struct eliminate_workspace
+void target_assignments::add_assignment(instruction_ref ins, const std::string& target)
 {
-    std::string name() const { return "eliminate_workspace"; }
-    void apply(module& m) const;
-};
-} // namespace gpu
+    assignments.emplace(ins, target);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

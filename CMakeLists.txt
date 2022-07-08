@@ -221,14 +221,6 @@ rocm_enable_cppcheck(
 enable_testing()
 
 include(ROCMCreatePackage)
-rocm_create_package(
-    NAME MIGraphX
-    DESCRIPTION "AMD's graph optimizer"
-    MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
-    LDCONFIG
-    PTH
-    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
-)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -245,3 +237,12 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
+
+rocm_create_package(
+    NAME MIGraphX
+    DESCRIPTION "AMD's graph optimizer"
+    MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
+    LDCONFIG
+    PTH
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
+)

@@ -71,6 +71,11 @@ struct check_shapes
         return end - begin;
     }
 
+    /*!
+     * Check if the number of shape objects is equal to atleast one of the
+     * given sizes.
+     * \param ns template parameter pack of sizes to check against
+     */
     template <class... Ts>
     const check_shapes& has(Ts... ns) const
     {

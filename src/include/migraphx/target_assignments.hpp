@@ -21,53 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANT_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANT_CONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
 
-#include <migraphx/shape.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include <unordered_map>
+
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct miopen_quant_convolution
+struct target_assignments
 {
-    op::quant_convolution op;
-    bool int8_x4_format = false;
-    shared<convolution_descriptor> cd;
-    miopenConvFwdAlgorithm_t algo{};
-    uint64_t solution_id = 0;
+    void add_assignment(instruction_ref ins, const std::string& target);
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        // TODO: Add algo
-        return pack_join(migraphx::reflect(self.op, f),
-                         pack(f(self.int8_x4_format, "int8_x4_format")));
-    }
-
-    std::string name() const { return "gpu::quant_convolution"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
+    auto begin() const { return assignments.cbegin(); }
+    auto end() const { return assignments.cend(); }
 
     private:
-    shape pack_int8_shape(const shape& s) const;
+    std::unordered_map<instruction_ref, std::string> assignments;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP

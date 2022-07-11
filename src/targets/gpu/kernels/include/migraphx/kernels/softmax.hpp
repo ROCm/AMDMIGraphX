@@ -21,50 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/cpu/write_literals.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/register_op.hpp>
+#ifndef MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
+#define MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
+
+#include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/ops.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace cpu {
 
-struct cpu_literal
+template <index_int Axis, class Input, class Output>
+__device__ void softmax(Input input, Output output)
 {
-    argument data;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.data, "data"));
-    }
-
-    std::string name() const { return "cpu::literal"; }
-
-    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
-
-    argument compute(const shape&, const std::vector<argument>&) const { return data; }
-
-    friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
-    {
-        os << x.name();
-        return os;
-    }
-};
-MIGRAPHX_REGISTER_OP(cpu_literal);
-
-void write_literals::apply(module& m) const
-{
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() != "@literal")
-            continue;
-        m.replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
-    }
+    reduce::block::run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
+        auto batch_max = r.reduce(op::max{}, lowest{}, op::id{})(input);
+        auto batch_sum =
+            r.reduce(op::sum{}, 0, [&](auto x) { return migraphx::exp(x - batch_max); })(input);
+        r.inner([&](auto& y, auto x) { y = migraphx::exp(x - batch_max) / batch_sum; })(output,
+                                                                                        input);
+    });
 }
 
-} // namespace cpu
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP

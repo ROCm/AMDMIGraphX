@@ -21,50 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/cpu/write_literals.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/register_op.hpp>
+#include "test.hpp"
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace cpu {
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/ref/target.hpp>
+#include <migraphx/target_assignments.hpp>
 
-struct cpu_literal
+migraphx::program create_program()
 {
-    argument data;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto z    = mm->add_parameter("z", s);
+    auto diff = mm->add_instruction(migraphx::make_op("div"), x, y);
+    mm->add_instruction(migraphx::make_op("div"), diff, z);
+    return p;
+}
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.data, "data"));
-    }
-
-    std::string name() const { return "cpu::literal"; }
-
-    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
-
-    argument compute(const shape&, const std::vector<argument>&) const { return data; }
-
-    friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
-    {
-        os << x.name();
-        return os;
-    }
-};
-MIGRAPHX_REGISTER_OP(cpu_literal);
-
-void write_literals::apply(module& m) const
+TEST_CASE(is_supported)
 {
-    for(auto ins : iterator_for(m))
+    auto p       = create_program();
+    auto targets = migraphx::get_targets();
+    EXPECT(!targets.empty());
+    auto first_target = targets[0];
+    auto t            = migraphx::make_target(first_target);
+
+    const auto assignments = p.get_target_assignments({t});
+    for(const auto& [ins, target] : assignments)
     {
-        if(ins->name() != "@literal")
-            continue;
-        m.replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
+        (void)ins;
+        EXPECT(target == first_target);
     }
 }
 
-} // namespace cpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

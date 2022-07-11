@@ -33,8 +33,8 @@ struct find_gelu_erf
 {
     static auto match_div()
     {
-        return match::name("div")(
-            match::either_arg(0, 1)(match::any().bind("x"), match::skip_broadcasts(match::has_value(1.414f, 1e-3))));
+        return match::name("div")(match::either_arg(0, 1)(
+            match::any().bind("x"), match::skip_broadcasts(match::has_value(1.414f, 1e-3))));
     }
 
     static auto match_erf() { return match::name("erf")(match::arg(0)(match_div())); }
@@ -45,7 +45,10 @@ struct find_gelu_erf
             match::either_arg(0, 1)(match_erf(), match::skip_broadcasts(match::has_value(1.0f))));
     }
 
-    static auto match_mul() { return match::name("mul")(match::either_arg(0, 1)(match::any(), match_add())); }
+    static auto match_mul()
+    {
+        return match::name("mul")(match::either_arg(0, 1)(match::any(), match_add()));
+    }
 
     auto matcher() const
     {
@@ -63,7 +66,7 @@ struct find_gelu_erf
             ins, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
         mul      = m.insert_instruction(ins, make_op("mul"), x, mul);
         auto sig = m.insert_instruction(ins, make_op("neg"), mul);
-        sig = m.insert_instruction(ins, make_op("exp"), sig);
+        sig      = m.insert_instruction(ins, make_op("exp"), sig);
         auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
         one      = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), one);
@@ -74,10 +77,7 @@ struct find_gelu_erf
     }
 };
 
-void rewrite_gelu::apply(module& m) const
-{
-    match::find_matches(m, find_gelu_erf{});
-}
+void rewrite_gelu::apply(module& m) const { match::find_matches(m, find_gelu_erf{}); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

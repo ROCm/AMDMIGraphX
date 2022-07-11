@@ -37,7 +37,6 @@
 
 #include <migraphx/verify.hpp>
 
-
 TEST_CASE(bias_gelu)
 {
     migraphx::shape s1{migraphx::shape::half_type, {2, 4, 8}};
@@ -92,10 +91,10 @@ TEST_CASE(non_bias_gelu)
     migraphx::shape s2{migraphx::shape::half_type};
     migraphx::module m1;
     {
-        auto a    = m1.add_parameter("a", s1);
-        auto b    = m1.add_parameter("b", s1);
+        auto a   = m1.add_parameter("a", s1);
+        auto b   = m1.add_parameter("b", s1);
         auto sub = m1.add_instruction(migraphx::make_op("sub"), a, b);
-        auto l1   = m1.add_literal(migraphx::literal{s2, {1.4140625f}});
+        auto l1  = m1.add_literal(migraphx::literal{s2, {1.4140625f}});
         l1 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), l1);
         auto div = m1.add_instruction(migraphx::make_op("div"), sub, l1);
         auto erf = m1.add_instruction(migraphx::make_op("erf"), div);

@@ -216,7 +216,7 @@ static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& da
         std::fill(data_vals.begin(), data_vals.end(), data[0]);
     }
     else
-        copy(data.begin(), data.end(), std::back_inserter(data_vals));
+        copy(data.begin(), data.end(), data_vals.begin());
     return data_vals;
 }
 
@@ -355,7 +355,13 @@ void tf_parser::parse_node(const std::string& name)
             }
             else
             {
-                args.push_back(instructions.at(input));
+                std::string iname;
+                // input was from a node with multiple outputs
+                if(contains(input, ':'))
+                {
+                    iname = input.substr(0, input.find(':'));
+                }
+                args.push_back(instructions.at(iname));
             }
         }
         std::vector<instruction_ref> result;

@@ -399,7 +399,8 @@ module::add_instructions(const std::vector<instruction_ref>& instructions,
 }
 
 std::vector<instruction_ref>
-module::add_instructions(module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+module::add_instructions(const_module_ref m,
+                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return this->insert_instructions(this->end(), m, std::move(map_ins));
 }
@@ -420,8 +421,10 @@ module::insert_instructions(instruction_ref ins,
     return insert_generic_instructions(*this, ins, instructions, std::move(map_ins));
 }
 
-std::vector<instruction_ref> module::insert_instructions(
-    instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref>
+module::insert_instructions(instruction_ref ins,
+                            const_module_ref m,
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins));
 }
@@ -436,11 +439,7 @@ module::insert_instructions(instruction_ref ins,
     return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins));
 }
 
-instruction_ref module::add_literal(literal l)
-{
-    impl->emplace_front(std::move(l));
-    return impl->instructions.begin();
-}
+instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
 
 instruction_ref module::add_outline(const shape& s)
 {
@@ -450,10 +449,7 @@ instruction_ref module::add_outline(const shape& s)
 
 instruction_ref module::add_parameter(std::string name, shape s)
 {
-    assert(get_parameter_shape(name) == shape{});
-    impl->push_front({builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
-    impl->nparams++;
-    return impl->instructions.begin();
+    return insert_parameter(begin(), std::move(name), std::move(s));
 }
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
@@ -464,6 +460,20 @@ instruction_ref module::add_return(std::vector<instruction_ref> args)
     assert(result->valid(begin()));
 
     return result;
+}
+
+instruction_ref module::insert_literal(instruction_ref ins, literal l)
+{
+    impl->emplace(ins, std::move(l));
+    return std::prev(ins);
+}
+
+instruction_ref module::insert_parameter(instruction_ref ins, std::string name, shape s)
+{
+    assert(get_parameter_shape(name) == shape{});
+    impl->insert(ins, {builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
+    impl->nparams++;
+    return std::prev(ins);
 }
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)

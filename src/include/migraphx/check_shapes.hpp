@@ -40,12 +40,14 @@ struct check_shapes
     const std::string name;
     const bool dynamic_allowed;
 
-    check_shapes(const shape* b, const shape* e, const std::string& n, const bool d = false) : begin(b), end(e), name(n),dynamic_allowed(d)
+    check_shapes(const shape* b, const shape* e, const std::string& n, const bool d = false)
+        : begin(b), end(e), name(n), dynamic_allowed(d)
     {
     }
 
     template <class Op>
-    check_shapes(const shape* b, const shape* e, const Op& op, const bool d = false) : begin(b), end(e), name(op.name()), dynamic_allowed(d)
+    check_shapes(const shape* b, const shape* e, const Op& op, const bool d = false)
+        : begin(b), end(e), name(op.name()), dynamic_allowed(d)
     {
     }
 

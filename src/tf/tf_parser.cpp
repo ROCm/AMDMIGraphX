@@ -336,10 +336,11 @@ void tf_parser::parse_node(const std::string& name)
             if(contains(input, "^"))
                 continue;
             std::string input_name = input;
-            // if input has trailing `:0` index then remove it 
+            // if input has trailing `:0` index then remove it
             auto multi_out_idx = input.find(':');
-            if(multi_out_idx != std::string::npos && input.substr(multi_out_idx+1) == "0") {
-                input_name  = input.substr(0, multi_out_idx);
+            if(multi_out_idx != std::string::npos && input.substr(multi_out_idx + 1) == "0")
+            {
+                input_name = input.substr(0, multi_out_idx);
             }
             if(nodes.count(input_name) > 0)
             {

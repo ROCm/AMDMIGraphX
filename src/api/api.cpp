@@ -54,7 +54,9 @@ migraphx_status try_(F f, bool output = true) // NOLINT
     if(disable_exception_catch)
     {
         f();
-    } else {
+    }
+    else
+    {
         try
         {
             f();

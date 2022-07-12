@@ -33,6 +33,8 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/target_assignments.hpp>
+#include <migraphx/assignment_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
@@ -84,6 +86,9 @@ struct program
 
     instruction_ref validate() const;
 
+    target_assignments get_target_assignments(const std::vector<target>& targets,
+                                              assignment_options options = assignment_options{});
+
     void compile(const target& t, compile_options options = compile_options{});
 
     bool is_compiled() const;
@@ -131,6 +136,8 @@ struct program
 
     std::vector<const module*> get_modules() const;
     std::vector<module*> get_modules();
+
+    std::unordered_multimap<module_ref, module_ref> get_module_tree();
 
     void remove_module(const std::string& name);
     void remove_unused_modules();

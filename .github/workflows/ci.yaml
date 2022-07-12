@@ -133,6 +133,7 @@ jobs:
               -o -iname '*.hpp.in' \
               -o -iname '*.cpp.in' \
               -o -iname '*.cl' \
+              -o -iname '*.c' \
           | grep -v 'build/' \
           | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
           find . -iname '*.py' \
@@ -159,6 +160,20 @@ jobs:
         pyflakes examples/ tools/ src/ test/ doc/
         mypy --version
         mypy tools/api.py
+
+  licensing:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: run License Check
+      run: python3 tools/check_stamped.py
 
   linux:
 

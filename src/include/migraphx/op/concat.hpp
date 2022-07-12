@@ -36,7 +36,6 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
-#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

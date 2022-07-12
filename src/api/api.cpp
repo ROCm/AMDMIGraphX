@@ -41,7 +41,7 @@
 #include <cstdarg>
 namespace migraphx {
 
-static thread_local bool disable_exception_catch = false; // NOLINT
+static thread_local bool disable_exception_catch = false;
 
 extern "C" void migraphx_test_private_disable_exception_catch(bool b)
 {
@@ -54,10 +54,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
     if(disable_exception_catch)
     {
         f();
-        return migraphx_status_success;
-    }
-    else
-    {
+    } else {
         try
         {
             f();
@@ -81,8 +78,8 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         {
             return migraphx_status_unknown_error;
         }
-        return migraphx_status_success;
     }
+    return migraphx_status_success;
 }
 
 shape::type_t to_shape_type(migraphx_shape_datatype_t t)

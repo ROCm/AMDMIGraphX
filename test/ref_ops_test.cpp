@@ -3030,21 +3030,58 @@ TEST_CASE(min_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(fmod_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {3}};
+    auto l0       = mm->add_literal(migraphx::literal{s, {-7, 8, -3}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {2, 4, 6}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {7, 5, 9}});
+    auto curr_mod = mm->add_instruction(migraphx::make_op("fmod"), l0, l1);
+    mm->add_instruction(migraphx::make_op("fmod"), curr_mod, l2);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{-1, 0, -3};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(fmod_floatingPoint_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l0       = mm->add_literal(migraphx::literal{s, {-7.2f, 8.5f, -3.3f}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {2.0f, 4.0f, 6.0f}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {7.0f, 5.0f, 9.0f}});
+    auto curr_mod = mm->add_instruction(migraphx::make_op("fmod"), l0, l1);
+    mm->add_instruction(migraphx::make_op("fmod"), curr_mod, l2);
+
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{-1.2f, 0.5f, -3.3f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(mod_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::int32_type, {3}};
-    auto l0       = mm->add_literal(migraphx::literal{s, {-7, 8, 3}});
-    auto l1       = mm->add_literal(migraphx::literal{s, {2, 4, 6}});
-    auto l2       = mm->add_literal(migraphx::literal{s, {7, 5, 9}});
+    auto l0       = mm->add_literal(migraphx::literal{s, {-3, 8, -7}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {3, 3, 3}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {10, 2, 9}});
     auto curr_mod = mm->add_instruction(migraphx::make_op("mod"), l0, l1);
     mm->add_instruction(migraphx::make_op("mod"), curr_mod, l2);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{-1, 0, 3};
+    std::vector<float> gold{0, 0, 2};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -3053,17 +3090,17 @@ TEST_CASE(mod_floatingPoint_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l0       = mm->add_literal(migraphx::literal{s, {7.2f, 8.5f, 3.3f}});
-    auto l1       = mm->add_literal(migraphx::literal{s, {2.0f, 4.0f, 6.0f}});
-    auto l2       = mm->add_literal(migraphx::literal{s, {7.0f, 5.0f, 9.0f}});
-    auto curr_mod = mm->add_instruction(migraphx::make_op("mod", {{"fmod_flag", true}}), l0, l1);
-    mm->add_instruction(migraphx::make_op("mod", {{"fmod_flag", true}}), curr_mod, l2);
+    auto l0       = mm->add_literal(migraphx::literal{s, {-3.0f, 8.5f, -7.0f}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {2.0f, 3.0f, 3.0f}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {3.0f, 3.0f, 4.0f}});
+    auto curr_mod = mm->add_instruction(migraphx::make_op("mod"), l0, l1);
+    mm->add_instruction(migraphx::make_op("mod"), curr_mod, l2);
 
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.2f, 0.5f, 3.3f};
+    std::vector<float> gold{1.0f, 2.5f, 2.0f};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

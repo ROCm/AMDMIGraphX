@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_mod : verify_program<test_mod>
+struct test_fmod : verify_program<test_fmod>
 {
     migraphx::program create_program() const
     {
@@ -36,7 +36,7 @@ struct test_mod : verify_program<test_mod>
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto x = mm->add_parameter("x", s);
         auto y = mm->add_parameter("y", s);
-        mm->add_instruction(migraphx::make_op("mod"), x, y);
+        mm->add_instruction(migraphx::make_op("fmod"), x, y);
         return p;
     }
 };

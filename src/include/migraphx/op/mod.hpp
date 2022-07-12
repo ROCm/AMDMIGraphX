@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MUL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MUL_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
+#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
 #include <array>
 #include <migraphx/op/binary.hpp>
@@ -39,30 +39,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
-
-template <typename T>
-T mod_op(T x, T y)
-{
-    return (x % y);
-}
-
-template <>
-float mod_op<float>(float x, float y)
-{
-    return std::fmod(x, y);
-}
-
-template <>
-double mod_op<double>(double x, double y)
-{
-    return std::fmod(x, y);
-}
-
-template <>
-half_float::half mod_op<half_float::half>(half_float::half x, half_float::half y)
-{
-    return half_float::fmod(x, y);
-}
 
 struct mod : binary<mod>
 {
@@ -81,41 +57,10 @@ struct mod : binary<mod>
         return a;
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, (*this)}.has(2).same_type().same_dims();
-        auto s0 = inputs.at(0);
-        auto s1 = inputs.at(1);
-
-        if((s0.type() == shape::float_type || s0.type() == shape::double_type ||
-            s0.type() == shape::half_type) &&
-           (fmod_flag == false))
-        {
-            MIGRAPHX_THROW("fmod must be true for floating data types");
-        }
-
-        if(s0 == s1 and s0.packed())
-        {
-            return s0;
-        }
-        else if(s0.packed() != s1.packed())
-        {
-            return s0.packed() ? s0 : s1;
-        }
-        else if(s0.broadcasted() != s1.broadcasted())
-        {
-            return s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
-        }
-        else
-        {
-            return {s0.type(), s0.lens()};
-        }
-    }
-
     std::string point_function() const { return "mod"; }
     auto apply() const
     {
-        return [&](auto x, auto y) { return mod_op<decltype(x)>(x, y); };
+        return [&](auto x, auto y) { return std::fmod((std::fmod(x, y) + y), y); };
     }
 
     mod(bool fmod = false) : fmod_flag{fmod} {}

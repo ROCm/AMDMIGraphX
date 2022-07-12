@@ -21,22 +21,42 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_mod : verify_program<test_mod>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
+
+struct parse_mod : op_parser<parse_mod>
 {
-    migraphx::program create_program() const
+    std::vector<op_desc> operators() const { return {{"Mod"}}; }
+
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& parser,
+                          onnx_parser::node_info info,
+                          std::vector<instruction_ref> args) const
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3}};
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        mm->add_instruction(migraphx::make_op("mod"), x, y);
-        return p;
+        int fmod_flag = 0;
+
+        if(contains(info.attributes, "fmod"))
+        {
+            fmod_flag = parser.parse_value(info.attributes.at("fmod")).at<int>();
+        }
+
+        if(fmod_flag == 1)
+        {
+            return info.add_common_op("fmod", args[0], args[1]);
+        }
+        else
+        {
+            return info.add_common_op("mod", args[0], args[1]);
+        }
     }
 };
+
+} // namespace onnx
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

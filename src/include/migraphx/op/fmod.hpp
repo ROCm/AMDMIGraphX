@@ -21,22 +21,53 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_OPERATORS_FMOD_HPP
+#define MIGRAPHX_GUARD_OPERATORS_FMOD_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <array>
+#include <migraphx/op/binary.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/shape_for_each.hpp>
+#include <migraphx/config.hpp>
+#include <cmath>
+#include <utility>
+#include <type_traits>
 
-struct test_mod : verify_program<test_mod>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
+
+struct fmod : binary<fmod>
 {
-    migraphx::program create_program() const
+    bool fmod_flag;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3}};
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        mm->add_instruction(migraphx::make_op("mod"), x, y);
-        return p;
+        return pack(f(self.fmod_flag, "fmod_flag"));
     }
+
+    value attributes() const
+    {
+        auto a         = base_attributes();
+        a["fmod_flag"] = fmod_flag;
+        return a;
+    }
+
+    std::string point_function() const { return "fmod(${0}, ${1})"; }
+    auto apply() const
+    {
+        return [&](auto x, auto y) { return std::fmod(x, y); };
+    }
+
+    fmod(bool fmod = true) : fmod_flag{fmod} {}
 };
+
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

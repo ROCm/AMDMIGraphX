@@ -27,6 +27,7 @@
 #include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
@@ -53,29 +54,51 @@ struct index
         return blockDim.x; // NOLINT
     }
 #endif
-
-    template <class F>
-    __device__ void global_stride(index_int n, F f) const
+    template <class N, class Stride>
+    static constexpr auto max_stride_iterations(N n, Stride stride)
     {
-        const auto stride = nglobal();
-        for(index_int i = global; i < n; i += stride)
+        return (n - _c<1>) / stride + _c<1>;
+    }
+
+    template <class F, class N, class Stride>
+    static constexpr void for_stride(index_int start, N n, Stride stride, F f)
+    {
+        if constexpr(not is_integral<N>{} and not is_integral<Stride>{} and
+                     max_stride_iterations(n, stride) == 1)
         {
-            f(i);
+            if constexpr(stride > n)
+            {
+                if(start < n)
+                    f(start);
+            }
+            else
+            {
+                f(start);
+            }
+        }
+        else
+        {
+            for(index_int i = start; i < n; i += stride)
+            {
+                f(i);
+            }
         }
     }
 
-    template <class F>
-    __device__ void local_stride(index_int n, F f) const
+    template <class F, class N>
+    __device__ void global_stride(N n, F f) const
     {
-        const auto stride = nlocal();
-        for(index_int i = local; i < n; i += stride)
-        {
-            f(i);
-        }
+        for_stride(global, n, nglobal(), f);
+    }
+
+    template <class F, class N>
+    __device__ void local_stride(N n, F f) const
+    {
+        for_stride(local, n, nlocal(), f);
     }
 };
 
-inline __device__ index make_index()
+inline __device__ __attribute__((const)) index make_index()
 {
     return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }

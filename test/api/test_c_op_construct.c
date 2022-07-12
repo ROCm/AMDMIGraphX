@@ -21,21 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-#define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+#include <migraphx/migraphx.h>
+#include <string.h>
 
-#include <migraphx/config.hpp>
-#include <string>
+void expect_equal(const char* x, const char* y)
+{
+    if(strcmp(x, y) != 0)
+        abort();
+}
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-std::string get_device_name();
-
-int get_device_id();
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
+int main()
+{
+    char name[1024];
+    migraphx_operation_t op;
+    migraphx_operation_create(&op, "add", 0);
+    migraphx_operation_name(name, 1024, op);
+    migraphx_operation_destroy(op);
+    expect_equal(name, "add");
+}

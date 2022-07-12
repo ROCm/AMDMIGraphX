@@ -631,6 +631,55 @@ TEST_CASE(mean_integral_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(mod_test)
+{
+    migraphx::program p = migraphx::parse_onnx("mod_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+
+    std::vector<float> data = {
+        3.0, 2.0, -3.0, 2.0, 9.0, 5.0, -9.0, 5.0, 0.0, 10.0, -0.0, 5.0, 6.0, 9.0};
+
+    migraphx::parameter_map p_map;
+    p_map["x"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(p_map).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{1.0, 1.0, 4.0, 4.0, 0.0, 0.0, 6.0};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(mod_test_fmod)
+{
+    migraphx::program p = migraphx::parse_onnx("mod_test_fmod.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+
+    std::vector<float> data = {
+        3.0, 2.0, -3.0, 2.0, 9.0, 5.0, -9.0, 5.0, 0.0, 10.0, -0.0, 5.0, 6.0, 9.0};
+
+    migraphx::parameter_map p_map;
+    p_map["x"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(p_map).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    for(auto i : result_vector)
+    {
+        std::cout << i;
+        std::cout << " ";
+    }
+    std::cout << std::endl;
+
+    std::vector<float> gold{1.0, -1.0, 4.0, -4.0, 0.0, 0.0, 6.0};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(nonzero_test)
 {
     migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");

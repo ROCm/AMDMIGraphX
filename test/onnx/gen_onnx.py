@@ -5,7 +5,7 @@
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
+# in the Software without rest?mod_riction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
@@ -3229,6 +3229,33 @@ def min_test():
     )
 
     return ([node], [a, b, c], [y])
+
+
+@onnx_test
+def mod_test():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2])
+    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
+def mod_test_fmod():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2])
+    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node(
+        'Mod',
+        inputs=['0', '1'],
+        outputs=['2'],
+        fmod=1  #fmod flag = 1
+    )
+
+    return ([node], [a, b], [y])
 
 
 @onnx_test

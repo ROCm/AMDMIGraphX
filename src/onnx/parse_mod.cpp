@@ -39,21 +39,18 @@ struct parse_mod : op_parser<parse_mod>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        int fmod_flag = 0;
+        if(args.size() < 2)
+            MIGRAPHX_THROW("mod operators should have 2 operands");
 
+        std::string mod = "mod";
         if(contains(info.attributes, "fmod"))
         {
-            fmod_flag = parser.parse_value(info.attributes.at("fmod")).at<int>();
+            if(parser.parse_value(info.attributes.at("fmod")).at<int>() == 1)
+            {
+                mod = "fmod";
+            }
         }
-
-        if(fmod_flag == 1)
-        {
-            return info.add_common_op("fmod", args[0], args[1]);
-        }
-        else
-        {
-            return info.add_common_op("mod", args[0], args[1]);
-        }
+        return info.add_common_op(mod, args[0], args[1]);
     }
 };
 

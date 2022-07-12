@@ -356,9 +356,10 @@ struct interface_base : Base
         }
         catch(const std::exception& ex)
         {
-            if(ex_msg) {
+            if(ex_msg)
+            {
                 std::strncpy(ex_msg, ex.what(), ex_msg_size);
-                ex_msg[ex_msg_size-1] = '\0';
+                ex_msg[ex_msg_size - 1] = '\0';
             }
             return migraphx_status_unknown_error;
         }

@@ -51,10 +51,13 @@ extern "C" void migraphx_test_private_disable_exception_catch(bool b)
 template <class F>
 migraphx_status try_(F f, bool output = true) // NOLINT
 {
-    if (disable_exception_catch) {
+    if(disable_exception_catch)
+    {
         f();
-        return migraphx_status_success; 
-    } else {
+        return migraphx_status_success;
+    }
+    else
+    {
         try
         {
             f();

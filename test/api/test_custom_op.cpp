@@ -99,14 +99,16 @@ TEST_CASE(run_sigmoid_custom_op)
 
 extern "C" void migraphx_test_private_disable_exception_catch(bool b);
 
-TEST_CASE(run_sigmoid_with_incorrect_shape) {
+TEST_CASE(run_sigmoid_with_incorrect_shape)
+{
     migraphx::program p;
     migraphx::shape s{migraphx_shape_float_type, {12}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     migraphx_test_private_disable_exception_catch(true);
-    EXPECT(test::throws<std::exception>([&] {
-        m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x});}, "Error in compute_shape of: sigmoid_custom_op: op must have two inputs"));
+    EXPECT(test::throws<std::exception>(
+        [&] { m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x}); },
+        "Error in compute_shape of: sigmoid_custom_op: op must have two inputs"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

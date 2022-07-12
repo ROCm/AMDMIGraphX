@@ -79,17 +79,13 @@ void* get_device_ptr(void* hptr)
 
 struct host_ptr_cache
 {
-    static auto& get_cache_map()
-    {
-        static std::unordered_map<void*, std::weak_ptr<void>> cache;
-        return cache;
-    }
+    std::unordered_map<void*, std::weak_ptr<void>> cache;
     std::mutex m;
     std::shared_ptr<void> get(void* ptr)
     {
         std::lock_guard<std::mutex> lock(m);
-        auto it = get_cache_map().find(ptr);
-        if(it != get_cache_map().end())
+        auto it = cache.find(ptr);
+        if(it != cache.end())
             return it->second.lock();
         return nullptr;
     }
@@ -97,7 +93,7 @@ struct host_ptr_cache
     void put(const std::shared_ptr<void>& p)
     {
         std::lock_guard<std::mutex> lock(m);
-        get_cache_map()[p.get()] = p;
+        cache[p.get()] = p;
     }
 };
 

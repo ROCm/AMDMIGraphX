@@ -41,7 +41,7 @@
 #include <cstdarg>
 namespace migraphx {
 
-static thread_local bool disable_exception_catch = false;
+static thread_local bool disable_exception_catch = false; // NOLINT
 
 extern "C" void migraphx_test_private_disable_exception_catch(bool b)
 {

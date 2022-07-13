@@ -83,7 +83,11 @@ struct parse_convolution : op_parser<parse_convolution>
 
         if(contains(info.attributes, "auto_pad"))
         {
-            auto weight_lens = weights->get_shape().max_lens();
+            if(l0_shape.dynamic() or weights->get_shape().dynamic())
+            {
+                MIGRAPHX_THROW("PARSE_CONV: auto_pad and dynamic input shapes not supported");
+            }
+            auto weight_lens = weights->get_shape().lens();
             std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
             cal_auto_padding_size(info,
                                   values,

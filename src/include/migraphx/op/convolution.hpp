@@ -75,7 +75,7 @@ struct convolution
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
+        check_shapes{inputs, *this, true}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
         // num of dims of input and attribute should match
         const auto input_size   = inputs[0].max_lens().size();

@@ -3232,6 +3232,33 @@ def min_test():
 
 
 @onnx_test
+def mod_test():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2])
+    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
+def mod_test_fmod():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2])
+    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node(
+        'Mod',
+        inputs=['0', '1'],
+        outputs=['2'],
+        fmod=1  #fmod flag = 1
+    )
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
 def multinomial_test():
     sample_size = 10
     seed = 0.0

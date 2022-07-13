@@ -162,6 +162,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_MaxPool[1-9]d.*')
         backend_test.include(r'.*test_mean.*')
         backend_test.include(r'.*test_min.*')
+        backend_test.include(r'.*test_mod.*')
+        backend_test.include(r'.*test_fmod.*')
         backend_test.include(r'.*test_mul.*')
         backend_test.include(r'.*test_multinomial.*')
         backend_test.include(r'.*test_Multinomial.*')

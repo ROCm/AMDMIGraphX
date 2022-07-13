@@ -3378,7 +3378,8 @@ def nms_dynamic_batch_test():
                                      'iou_threshold', 'score_threshold'
                                  ],
                                  outputs=['selected_indices'],
-                                 center_point_box=1)
+                                 center_point_box=1,
+                                 use_dynamic=1)
 
     return ([node], [b, s, mo, iou, st], [out])
 

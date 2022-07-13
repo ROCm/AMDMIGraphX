@@ -3111,7 +3111,7 @@ TEST_CASE(nms_test)
     auto st = mm->add_parameter("score_threshold", sst);
 
     auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}), b, s, mo, iou, st);
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}), b, s, mo, iou, st);
     mm->add_return({ret});
 
     auto prog = migraphx::parse_onnx("nms_test.onnx");
@@ -3133,7 +3133,12 @@ TEST_CASE(nms_dynamic_batch_test)
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st  = mm->add_parameter("score_threshold", sst);
     auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}), b, s, mo, iou, st);
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        b,
+        s,
+        mo,
+        iou,
+        st);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

@@ -186,7 +186,8 @@ __device__ auto auto_preload(index idx)
 {
     return make_transform([=](auto f, auto... xs) {
         auto invoke = [=](auto... ys) {
-            __syncthreads();
+            if constexpr((Bs or ...))
+                __syncthreads();
             f(ys...);
         };
         join(invoke, preload_copy<Bs>(idx, xs)...);

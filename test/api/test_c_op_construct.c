@@ -21,33 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
+#include <migraphx/migraphx.h>
+#include <string.h>
 
-#include <migraphx/config.hpp>
-#include <migraphx/op/binary.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct equal : binary<equal>
+void expect_equal(const char* x, const char* y)
 {
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = true;
-        return a;
-    }
-    std::string point_function() const { return "=="; }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return float_equal(x, y); };
-    }
-};
+    if(strcmp(x, y) != 0)
+        abort();
+}
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+int main()
+{
+    char name[1024];
+    migraphx_operation_t op;
+    migraphx_operation_create(&op, "add", 0);
+    migraphx_operation_name(name, 1024, op);
+    migraphx_operation_destroy(op);
+    expect_equal(name, "add");
+}

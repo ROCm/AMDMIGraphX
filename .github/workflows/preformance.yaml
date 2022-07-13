@@ -14,7 +14,7 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '5.1'
+        default: '5.2'
       performance_reports_repo:
         description: Result repository
         required: true

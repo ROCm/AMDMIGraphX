@@ -42,28 +42,11 @@ namespace op {
 
 struct mod : binary<mod>
 {
-    bool fmod_flag;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.fmod_flag, "fmod_flag"));
-    }
-
-    value attributes() const
-    {
-        auto a         = base_attributes();
-        a["fmod_flag"] = fmod_flag;
-        return a;
-    }
-
     std::string point_function() const { return "mod"; }
     auto apply() const
     {
-        return [&](auto x, auto y) { return std::fmod((std::fmod(x, y) + y), y); };
+        return [](auto x, auto y) { return std::fmod((std::fmod(x, y) + y), y); };
     }
-
-    mod(bool fmod = false) : fmod_flag{fmod} {}
 };
 
 } // namespace op

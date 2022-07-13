@@ -41,7 +41,7 @@ struct miopen_quant_convolution
     bool int8_x4_format = false;
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
-    miopenHandle_t handle = nullptr;
+    uint64_t solution_id = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -55,7 +55,7 @@ struct miopen_quant_convolution
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    shape compile(context& ctx, const shape& output_shape, std::vector<shape> inputs);
+    shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {

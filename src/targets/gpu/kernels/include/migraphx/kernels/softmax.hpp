@@ -21,33 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
+#define MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/op/binary.hpp>
+#include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/ops.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct equal : binary<equal>
+template <index_int Axis, class Input, class Output>
+__device__ void softmax(Input input, Output output)
 {
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = true;
-        return a;
-    }
-    std::string point_function() const { return "=="; }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return float_equal(x, y); };
-    }
-};
+    reduce::block::run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
+        auto batch_max = r.reduce(op::max{}, lowest{}, op::id{})(input);
+        auto batch_sum =
+            r.reduce(op::sum{}, 0, [&](auto x) { return migraphx::exp(x - batch_max); })(input);
+        r.inner([&](auto& y, auto x) { y = migraphx::exp(x - batch_max) / batch_sum; })(output,
+                                                                                        input);
+    });
+}
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP

@@ -14,7 +14,7 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '5.1'
+        default: '5.2'
       performance_reports_repo:
         description: Result repository
         required: true
@@ -34,7 +34,7 @@ jobs:
   release:
     uses: migraphx-benchmark/actions/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release || '5.1' }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.2' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}
       flags: ${{ github.event.inputs.flags || '-s' }} 
       performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'migraphx-benchmark/migraphx-reports' }} 

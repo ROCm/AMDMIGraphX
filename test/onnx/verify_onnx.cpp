@@ -657,26 +657,27 @@ TEST_CASE(mod_test_fmod)
     migraphx::program p = migraphx::parse_onnx("mod_test_fmod.onnx");
     p.compile(migraphx::ref::target{});
 
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape s{migraphx::shape::float_type, {3, 3, 3}};
 
-    std::vector<float> data = {
-        3.0, 2.0, -3.0, 2.0, 9.0, 5.0, -9.0, 5.0, 0.0, 10.0, -0.0, 5.0, 6.0, 9.0};
+    std::vector<float> a = {1.0,  -2.0, 3.0,  4.0,   -5.0,  6.0,   7.0,  -8.0, 9.0,
+                            10.0, 11.0, 12.0, 13.0,  -14.0, 15.0,  16.0, 17.0, 18.0,
+                            19.0, 20.0, 21.0, -22.0, 23.0,  -24.0, 25.0, 26.0, 27.0};
+
+    std::vector<float> b = {30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
+                            16, 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4};
 
     migraphx::parameter_map p_map;
-    p_map["x"] = migraphx::argument(s, data.data());
+    p_map["0"] = migraphx::argument(s, a.data());
+    p_map["1"] = migraphx::argument(s, b.data());
 
     auto result = p.eval(p_map).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    for(auto i : result_vector)
-    {
-        std::cout << i;
-        std::cout << " ";
-    }
-    std::cout << std::endl;
+    std::vector<float> gold{1.0,  -2.0, 3.0,  4.0,  -5.0,  6.0,  7.0, -8.0, 9.0,
+                            10.0, 11.0, 12.0, 13.0, -14.0, 15.0, 1.0, 3.0,  5.0,
+                            7.0,  9.0,  1.0,  -4.0, 7.0,   -3.0, 1.0, 1.0,  3.0};
 
-    std::vector<float> gold{1.0, -1.0, 4.0, -4.0, 0.0, 0.0, 6.0};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

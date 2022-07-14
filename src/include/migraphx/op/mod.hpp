@@ -42,6 +42,12 @@ namespace op {
 
 struct mod : binary<mod>
 {
+    value attributes() const
+    {
+        auto a           = base_attributes();
+        a["commutative"] = false;
+        return a;
+    }
     std::string point_function() const { return "mod"; }
     auto apply() const
     {

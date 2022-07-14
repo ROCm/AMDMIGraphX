@@ -279,56 +279,6 @@ void preview_argument(std::ostream& os, const argument& a)
         });
 }
 
-template <class Ins, class T, class F>
-void process_op(context& ctx,
-                Ins ins,
-                T trace,
-                F make_trace,
-                std::vector<argument>& values,
-                std::unordered_map<instruction_ref, argument>& results)
-{
-    values.resize(ins->inputs().size());
-    std::transform(
-        ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
-            assert(results.find(i) != results.end());
-            return results[i];
-        });
-
-    shape output_shape;
-    auto ins_shape = ins->get_shape();
-    if(ins_shape.dynamic())
-    {
-        // Make into a std::vector<instruction_ref> of inputs
-        auto to_shapes = [](std::vector<argument> args) {
-            std::vector<shape> shapes(args.size());
-            std::transform(args.begin(), args.end(), shapes.begin(), [](const argument& i) {
-                return i.get_shape();
-            });
-            return shapes;
-        };
-        // TODO: Consider how this will be handled when memoized.
-        // Could memoize these output shapes into a map so not recalculating
-        // TODO: Issue with possibly wanting to use new padding/strides/dilation
-        output_shape = ins->get_operator().compute_shape(to_shapes(values));
-    }
-    else
-    {
-        output_shape = ins_shape;
-    }
-
-    const auto& mod_args = ins->module_inputs();
-    auto module_eval     = [&](module_ref smod,
-                           const std::unordered_map<std::string, argument>& inputs) {
-        auto ssctx = ctx;
-        return generic_eval(smod, ssctx, inputs, results, make_trace);
-    };
-
-    results.emplace(ins, trace(ins, [&] {
-                        return ins->normalized_operator().compute(
-                            ctx, output_shape, values, mod_args, module_eval);
-                    }));
-}
-
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    context& ctx,
@@ -356,12 +306,13 @@ std::vector<argument> generic_eval(const module* mod,
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
-
                     auto param = params[param_name];
                     // TODO: may want to check correct number of dimensions and/or was within bounds
                     if(not ins->get_shape().dynamic() and param.get_shape() != ins->get_shape())
+                    {
                         MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
                                        "} for parameter: " + param_name);
+                    }
                     return param;
                 }));
         }
@@ -384,7 +335,24 @@ std::vector<argument> generic_eval(const module* mod,
         }
         else
         {
-            process_op(ctx, ins, trace, make_trace, values, results);
+            values.resize(ins->inputs().size());
+            std::transform(
+                ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
+                    assert(results.find(i) != results.end());
+                    return results[i];
+                });
+
+            const auto& mod_args = ins->module_inputs();
+            auto module_eval     = [&](module_ref smod,
+                                   const std::unordered_map<std::string, argument>& inputs) {
+                auto ssctx = ctx;
+                return generic_eval(smod, ssctx, inputs, results, make_trace);
+            };
+
+            results.emplace(ins, trace(ins, [&] {
+                                return ins->normalized_operator().compute(
+                                    ctx, ins->get_shape(), values, mod_args, module_eval);
+                            }));
         }
         assert(results.find(ins) != results.end());
         if(not ins->get_shape().dynamic())

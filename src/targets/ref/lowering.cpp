@@ -231,11 +231,13 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
     {
         return op.normalize_compute_shape(inputs);
     }
+
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         if(output_shape.dynamic())
         {
-            op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
+            output_shape =
+                op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
         }
         argument result{output_shape};
         visit_quantize(result, args[0], args[1])([&](auto output, auto input, auto weights) {

@@ -59,7 +59,7 @@ struct fpga_vitis_op
         return xmodel_.get_shape();
     }
 
-    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
+    argument compute(const context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
         std::cout << "The context is " << ctx.foo << std::endl;
         return ::vitis_ai::execute(xmodel_, output_shape, args);

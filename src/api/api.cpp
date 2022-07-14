@@ -41,14 +41,9 @@
 #include <cstdarg>
 namespace migraphx {
 
-static thread_local bool disable_exception_catch = false; // NOLINT
+static bool disable_exception_catch = false; // NOLINT
 
-extern "C" void migraphx_test_private_disable_exception_catch(bool b);
-
-void migraphx_test_private_disable_exception_catch(bool b)
-{
-    disable_exception_catch = b;
-}
+extern "C" void migraphx_test_private_disable_exception_catch(bool b) { disable_exception_catch = b; }
 
 template <class F>
 migraphx_status try_(F f, bool output = true) // NOLINT

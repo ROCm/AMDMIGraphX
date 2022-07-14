@@ -2832,7 +2832,9 @@ TEST_CASE(max_test)
     auto l0     = mm->add_instruction(migraphx::make_op("max"), input0, input1);
     mm->add_instruction(migraphx::make_op("max"), l0, input2);
 
-    optimize_onnx("max_test.onnx");
+    auto p_onnx = optimize_onnx("max_test.onnx");
+
+    EXPECT(p == p_onnx);
 }
 
 TEST_CASE(maxpool_notset_test)

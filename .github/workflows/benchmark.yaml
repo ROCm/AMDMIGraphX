@@ -7,6 +7,7 @@ jobs:
   benchmark:
     uses: migraphx-benchmark/actions/.github/workflows/benchmarks.yml@main
     with:
+      rocm_version: 5.2
       script_repo: migraphx-benchmark/benchmark-utils
       result_path: /usr/share/migraphx/test-results
       result_repo: "migraphx-benchmark/comparison-results"

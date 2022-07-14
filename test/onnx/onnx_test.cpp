@@ -2947,7 +2947,9 @@ TEST_CASE(min_test)
     auto l0     = mm->add_instruction(migraphx::make_op("min"), input0, input1);
     mm->add_instruction(migraphx::make_op("min"), l0, input2);
 
-    optimize_onnx("min_test.onnx");
+    auto onnx_p = optimize_onnx("min_test.onnx");
+
+    EXPECT(p == onnx_p);
 }
 
 TEST_CASE(multinomial_test)

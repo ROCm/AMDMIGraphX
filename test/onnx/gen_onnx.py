@@ -3220,7 +3220,7 @@ def min_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
     c = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
 
     node = onnx.helper.make_node(
         'Min',

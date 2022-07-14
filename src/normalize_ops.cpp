@@ -45,7 +45,7 @@ void normalize_ops::apply(module& m) const
 
         auto s                       = inputs[0]->get_shape();
         migraphx::operation tuned_op = ins->get_operator();
-        if(normalize_attributes(tuned_op, s))
+        if(normalize_attributes(tuned_op, s.max_lens()))
         {
             m.replace_instruction(ins, tuned_op, inputs);
             ins->set_normalized();

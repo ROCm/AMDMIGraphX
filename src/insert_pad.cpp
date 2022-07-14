@@ -40,6 +40,7 @@ static void update_op(const instruction_ref& input, const instruction_ref& ins, 
     auto val        = op.to_value();
     auto op_padding = val.at("padding").to_vector<size_t>();
 
+    // skip if shape is dynamic
     if(input->get_shape().dynamic())
     {
         return;

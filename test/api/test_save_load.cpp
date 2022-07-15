@@ -57,4 +57,32 @@ TEST_CASE(load_save_json)
     std::remove(filename.c_str());
 }
 
+TEST_CASE(load_save_buffer)
+{
+    auto p1 = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto s1 = p1.get_output_shapes();
+
+    auto buffer = migraphx::save_buffer(p1);
+    auto p2     = migraphx::load_buffer(std::string(buffer.begin(), buffer.end()));
+    auto s2     = p2.get_output_shapes();
+    EXPECT(s1.size() == s2.size());
+    EXPECT(bool{s1.front() == s2.front()});
+    EXPECT(bool{p1.sort() == p2.sort()});
+}
+
+TEST_CASE(load_save_buffer_json)
+{
+    auto p1 = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto s1 = p1.get_output_shapes();
+    migraphx::file_options options;
+    options.set_file_format("json");
+
+    auto buffer = migraphx::save_buffer(p1, options);
+    auto p2     = migraphx::load_buffer(std::string(buffer.begin(), buffer.end()), options);
+    auto s2     = p2.get_output_shapes();
+    EXPECT(s1.size() == s2.size());
+    EXPECT(bool{s1.front() == s2.front()});
+    EXPECT(bool{p1.sort() == p2.sort()});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

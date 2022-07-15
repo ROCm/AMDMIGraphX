@@ -638,12 +638,13 @@ TEST_CASE(mod_test)
 
     migraphx::shape s{migraphx::shape::float_type, {3, 3, 3}};
 
-    std::vector<float> a = {1.0,  -2.0, 3.0,  4.0,   -5.0,  6.0,   7.0,  -8.0, 9.0,
-                            10.0, 11.0, 12.0, 13.0,  -14.0, 15.0,  16.0, 17.0, 18.0,
-                            19.0, 20.0, 21.0, -22.0, 23.0,  -24.0, 25.0, 26.0, 27.0};
+    std::vector<float> a = {-4.0, 7.0,  5.0, 4.0,  -7.0, 8.0, -4.0, 7.0,  5.0,
+                            4.0,  -7.0, 8.0, -4.0, 7.0,  5.0, 4.0,  -7.0, 8.0,
+                            -4.0, 7.0,  5.0, 4.0,  -7.0, 8.0, -4.0, 7.0,  5.0};
 
-    std::vector<float> b = {30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
-                            16, 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4};
+    std::vector<float> b = {2.0,  -3.0, 8.0, -2.0, 3.0,  5.0, 2.0,  -3.0, 8.0,
+                            -2.0, 3.0,  5.0, 2.0,  -3.0, 8.0, -2.0, 3.0,  5.0,
+                            2.0,  -3.0, 8.0, -2.0, 3.0,  5.0, 2.0,  -3.0, 8.0};
 
     migraphx::parameter_map p_map;
     p_map["0"] = migraphx::argument(s, a.data());
@@ -653,9 +654,10 @@ TEST_CASE(mod_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold{1.0,  2.0,  3.0,  4.0,  5.0,  6.0,  7.0, 8.0, 9.0,
-                            10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 1.0, 3.0, 5.0,
-                            7.0,  9.0,  1.0,  4.0,  7.0,  3.0,  1.0, 1.0, 3.0};
+    std::vector<float> gold = {0.0, -2.0, 5.0, 0.0, 2.0,  3.0, 0.0, -2.0, 5.0,
+                               0.0, 2.0,  3.0, 0.0, -2.0, 5.0, 0.0, 2.0,  3.0,
+                               0.0, -2.0, 5.0, 0.0, 2.0,  3.0, 0.0, -2.0, 5.0};
+
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
@@ -667,12 +669,12 @@ TEST_CASE(mod_test_different_types)
     migraphx::shape s_float{migraphx::shape::float_type, {3, 3, 3}};
     migraphx::shape s_int{migraphx::shape::int32_type, {3, 3, 3}};
 
-    std::vector<float> a = {1.0,  -2.0, 3.0,  4.0,   -5.0,  6.0,   7.0,  -8.0, 9.0,
-                            10.0, 11.0, 12.0, 13.0,  -14.0, 15.0,  16.0, 17.0, 18.0,
-                            19.0, 20.0, 21.0, -22.0, 23.0,  -24.0, 25.0, 26.0, 27.0};
+    std::vector<float> a = {-4.0, 7.0,  5.0, 4.0,  -7.0, 8.0, -4.0, 7.0,  5.0,
+                            4.0,  -7.0, 8.0, -4.0, 7.0,  5.0, 4.0,  -7.0, 8.0,
+                            -4.0, 7.0,  5.0, 4.0,  -7.0, 8.0, -4.0, 7.0,  5.0};
 
-    std::vector<int32_t> b = {30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
-                              16, 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4};
+    std::vector<int32_t> b = {2, -3, 8, -2, 3, 5,  2, -3, 8, -2, 3, 5,  2, -3,
+                              8, -2, 3, 5,  2, -3, 8, -2, 3, 5,  2, -3, 8};
 
     migraphx::parameter_map p_map;
     p_map["0"] = migraphx::argument(s_float, a.data());
@@ -682,9 +684,9 @@ TEST_CASE(mod_test_different_types)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold{1.0,  2.0,  3.0,  4.0,  5.0,  6.0,  7.0, 8.0, 9.0,
-                            10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 1.0, 3.0, 5.0,
-                            7.0,  9.0,  1.0,  4.0,  7.0,  3.0,  1.0, 1.0, 3.0};
+    std::vector<float> gold = {0.0, -2.0, 5.0, 0.0, 2.0,  3.0, 0.0, -2.0, 5.0,
+                               0.0, 2.0,  3.0, 0.0, -2.0, 5.0, 0.0, 2.0,  3.0,
+                               0.0, -2.0, 5.0, 0.0, 2.0,  3.0, 0.0, -2.0, 5.0};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

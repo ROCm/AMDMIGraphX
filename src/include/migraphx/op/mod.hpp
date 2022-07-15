@@ -51,7 +51,7 @@ struct mod : binary<mod>
     std::string point_function() const { return "mod"; }
     auto apply() const
     {
-        return [](auto x, auto y) { return std::fmod((std::abs(std::fmod(x, y)) + y), y); };
+        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
     }
 };
 

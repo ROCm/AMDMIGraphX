@@ -25,8 +25,8 @@
 #define MIGRAPHX_GUARD_RTGLIB_UNDEFINED_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

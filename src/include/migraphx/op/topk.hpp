@@ -31,6 +31,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

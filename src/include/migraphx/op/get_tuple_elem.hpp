@@ -28,8 +28,8 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
 #include <utility>
 
 namespace migraphx {

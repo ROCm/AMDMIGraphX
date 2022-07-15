@@ -25,10 +25,10 @@
 #define MIGRAPHX_GUARD_OPERATORS_STEP_HPP
 
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

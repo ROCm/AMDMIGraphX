@@ -25,9 +25,9 @@
 #define MIGRAPHX_GUARD_OPERATORS_MULTINOMIAL_HPP
 
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/reflect.hpp>
+#include <migraphx/argument.hpp>
 #include <random>
 
 namespace migraphx {

@@ -28,10 +28,10 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/int_divide.hpp>
+#include <migraphx/argument.hpp>
 #include <cmath>
 #include <utility>
 

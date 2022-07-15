@@ -489,8 +489,16 @@ struct mlir_program
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
             if(ins->name() == "convolution")
+            {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
+                std::string tuned = get_tune_params();
+                if(!tuned.empty())
+                    ops.add_attributes({{"perf_config", tuned}});
+                // check if HW supports xdlops
+                if(target_name.compare("gfx908") == 0 || target_name.compare("gfx90a") == 0)
+                    ops.add_attributes({{"xdlopsV2", true}});
+            }
 
             std::vector<MlirValue> inputs;
             transform(
@@ -512,14 +520,7 @@ struct mlir_program
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm.get());
         // 2nd pipeline to call
-        std::string tname = get_device_name();
-        // HACK: Since MLIR can't handle the full target name
-        auto hacked_tname = tname.substr(0, tname.find(':'));
-        if(tname.size() != hacked_tname.size())
-            std::cout
-                << "*************** WARNING: MLIR may not compile the correct target features for: "
-                << tname << std::endl;
-        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str(), "amdgcn-amd-amdhsa", "");
+        mlirMIGraphXAddBackendPipeline(pm.get(), target_name.c_str(), "amdgcn-amd-amdhsa", "");
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op{};
@@ -527,6 +528,17 @@ struct mlir_program
         op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
         return op;
+    }
+
+    void find_target()
+    {
+        std::string tname = get_device_name();
+        // HACK: Since MLIR can't handle the full target name
+        target_name = tname.substr(0, tname.find(':'));
+        if(tname.size() != target_name.size())
+            std::cout
+                << "*************** WARNING: MLIR may not compile the correct target features for: "
+                << tname << std::endl;
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -556,6 +568,7 @@ struct mlir_program
     mlir_module mmodule;
     problem_params pp;
     std::deque<std::string> strings{};
+    std::string target_name;
 };
 
 std::string dump_mlir(const module& m)

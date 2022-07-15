@@ -44,23 +44,23 @@ std::string generate_miopen_config(const problem_params& pp)
     auto dilation = v["dilation"].to_vector<std::size_t>();
     if(padding.size() != stride.size())
         padding.erase(padding.begin() + padding.size() / 2, padding.end());
-
-    return to_string_range({to_string(input[1]),
-                            to_string_range(input.begin() + 2, input.end(), "x"),
-                            to_string_range(weights.begin() + 2, weights.end(), "x"),
-                            to_string(weights[0]),
-                            to_string_range(output.begin() + 2, output.end(), "x"),
-                            to_string(input[0]),
-                            to_string_range(padding.begin(), padding.end(), "x"),
-                            to_string_range(stride.begin(), stride.end(), "x"),
-                            to_string_range(dilation.begin(), dilation.end(), "x"),
-                            std::string{"0"},
-                            get_layout(pp.inputs[0], "NCHW"),
-                            get_layout(pp.inputs[1], "NCHW"),
-                            get_layout(pp.output, "NCHW"),
-                            get_type(pp.inputs[0]),
-                            std::string{"F"}},
-                           "-");
+    return to_string_range({std::string{" C.in_channels="},       to_string(input[1]),
+                            std::string{" AND C.in_h="},          to_string(input[2]),
+                            std::string{" AND C.in_w="},          to_string(input[3]),
+                            std::string{" AND C.fil_h="},         to_string(weights[2]),
+                            std::string{" AND C.fil_w="},         to_string(weights[3]),
+                            std::string{" AND C.out_channels="},  to_string(weights[0]),
+                            std::string{" AND C.batchsize="},     to_string(input[0]),
+                            std::string{" AND C.pad_h="},         to_string(padding[0]),
+                            std::string{" AND C.pad_w="},         to_string(padding[2]),
+                            std::string{" AND C.dilation_h="},    to_string(dilation[0]),
+                            std::string{" AND C.dilation_w="},    to_string(dilation[1]),
+                            std::string{" AND C.conv_stride_h="}, to_string(stride[0]),
+                            std::string{" AND C.conv_stride_w="}, to_string(stride[1]),
+                            std::string{" AND C.layout="},        std::string{"'NCHW'"},
+                            std::string{" AND C.data_type="},     std::string{"'FP32'"},
+                            std::string{" AND C.direction="},     std::string{"'F'"}},
+                           " ");
 }
 
 auto query_miopen_db(const std::string& query)
@@ -75,7 +75,12 @@ auto query_miopen_db(const std::string& query)
 
 std::string get_mlir_perf_for_conv(const problem_params& pp)
 {
-    std::string query = "select * from perf_db where config=${config}";
+    std::string query = "select P.* \
+                             from perf_db P, config C \
+                             where P.config = C.id AND \
+                             P.solver = 'ConvMlirIgemmFwdXdlops' AND \
+                             ${config}";
+
     auto results =
         query_miopen_db(interpolate_string(query, {{"config", generate_miopen_config(pp)}}));
     if(results.empty())

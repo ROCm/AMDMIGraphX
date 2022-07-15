@@ -585,6 +585,7 @@ code_object_op compile_mlir(const context&, const module& m)
     if(trace)
         std::cout << m << std::endl;
     mlir_program mp;
+    mp.find_target();
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)

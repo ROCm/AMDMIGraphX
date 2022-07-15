@@ -32,20 +32,20 @@
 
 namespace vitis_ai {
 
-class XModel
+class x_model
 {
+    migraphx::shape shape;
+
     public:
     migraphx::shape get_shape() const;
     void set_shape(migraphx::shape);
-
-    private:
-    migraphx::shape shape_;
 };
 
-XModel create_xmodel(migraphx::module_ref mod);
+x_model create_xmodel(migraphx::module_ref mod);
 
-migraphx::argument
-execute(XModel xmodel, const migraphx::shape& output_shape, std::vector<migraphx::argument>& args);
+migraphx::argument execute(const x_model& xmodel,
+                           const migraphx::shape& output_shape,
+                           std::vector<migraphx::argument>& args);
 
 } // namespace vitis_ai
 

@@ -71,7 +71,16 @@ MIGRAPHX_REGISTER_OP(fpga_placeholder_op)
 bool is_fpga_instr(migraphx::instruction_ref it)
 {
     // assuming all instructions that aren't @param, @literal, or input data are fpga instrs
-    return (!it->inputs().empty()) || (migraphx::starts_with(it->name(), "@"));
+    if(migraphx::starts_with(it->name(), "@"))
+    {
+        return false;
+    }
+    // no inputs to the instr means it's input data
+    if(it->inputs().empty())
+    {
+        return false;
+    }
+    return true;
 }
 
 void subgraph::apply(module_pass_manager& mpm) const

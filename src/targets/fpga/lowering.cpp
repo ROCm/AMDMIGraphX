@@ -39,30 +39,31 @@ namespace fpga {
 struct fpga_vitis_op
 {
     fpga_vitis_op() = default;
-    explicit fpga_vitis_op(vitis_ai::XModel xmodel) : xmodel_(xmodel){};
+    explicit fpga_vitis_op(vitis_ai::x_model model) : xmodel(std::move(model)){};
 
-    vitis_ai::XModel xmodel_;
+    vitis_ai::x_model xmodel;
     int dummy = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        // return pack(f(self.xmodel_, "xmodel"));
+        // return pack(f(self.xmodel, "xmodel"));
         return pack(f(self.dummy, "dummy"));
     }
 
     std::string name() const { return "fpga::vitis_ai"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         (void)inputs;
-        return xmodel_.get_shape();
+        return xmodel.get_shape();
     }
 
-    argument compute(const context& ctx, const shape& output_shape, std::vector<argument> args) const
+    argument
+    compute(const context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        std::cout << "The context is " << ctx.foo << std::endl;
-        return ::vitis_ai::execute(xmodel_, output_shape, args);
+        std::cout << "The context is " << ctx.id << std::endl;
+        return ::vitis_ai::execute(xmodel, output_shape, args);
     }
 };
 MIGRAPHX_REGISTER_OP(fpga_vitis_op)
@@ -72,7 +73,7 @@ void lowering::apply(module& m) const
     auto* mod = &m;
 
     // test modifying the context from a pass
-    ctx->foo = 2;
+    ctx->id = 2;
 
     for(auto it : iterator_for(*mod))
     {

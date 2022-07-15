@@ -33,7 +33,7 @@ namespace fpga {
 
 struct context
 {
-    int foo = 0;
+    int id = 0;
 
     void finish() const {}
 };

@@ -29,20 +29,21 @@
 #include "migraphx/stringutils.hpp"
 namespace vitis_ai {
 
-migraphx::shape XModel::get_shape() const { return shape_; };
+migraphx::shape x_model::get_shape() const { return shape; };
 
-void XModel::set_shape(migraphx::shape shape) { shape_ = shape; }
+void x_model::set_shape(migraphx::shape s) { shape = s; }
 
-XModel create_xmodel(migraphx::module_ref mod)
+x_model create_xmodel(const migraphx::module_ref mod)
 {
     std::cout << "Calling an external function: create_xmodel!\n";
-    XModel xmodel;
-    xmodel.set_shape(std::prev(mod->end())->get_shape());
+    x_model xmodel;
+    xmodel.set_shape(mod->get_output_shapes());
     return xmodel;
 }
 
-migraphx::argument
-execute(XModel xmodel, const migraphx::shape& output_shape, std::vector<migraphx::argument>& args)
+migraphx::argument execute(const x_model& xmodel,
+                           const migraphx::shape& output_shape,
+                           std::vector<migraphx::argument>& args)
 {
     (void)xmodel;
 

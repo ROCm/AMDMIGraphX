@@ -39,7 +39,7 @@ struct parse_mod : op_parser<parse_mod>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(args.size() < 2)
+        if(args.size() != 2)
             MIGRAPHX_THROW("mod operators should have 2 operands");
 
         std::string mod = "mod";

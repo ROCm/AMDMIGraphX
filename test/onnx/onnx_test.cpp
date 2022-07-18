@@ -5509,7 +5509,7 @@ TEST_CASE(variable_batch_user_input_test5)
 {
     // Error using default_dim_value and default_dyn_dim_value
     migraphx::onnx_options options;
-    options.default_dim_value = 2;
+    options.default_dim_value     = 2;
     options.default_dyn_dim_value = {1, 2, 0};
 
     EXPECT(test::throws([&] { migraphx::parse_onnx("variable_batch_test.onnx", options); }));
@@ -5520,7 +5520,7 @@ TEST_CASE(variable_batch_user_input_test6)
     // Error using both map_dyn_input_dims and map_input_dims
     migraphx::onnx_options options;
     options.map_dyn_input_dims["0"] = {{2, 5, 0}, {3, 3, 0}, {16, 16, 0}, {16, 16, 0}};
-    options.map_input_dims["0"] = {2, 3, 16, 16};
+    options.map_input_dims["0"]     = {2, 3, 16, 16};
 
     EXPECT(test::throws([&] { migraphx::parse_onnx("variable_batch_test.onnx", options); }));
 }

@@ -60,7 +60,7 @@ struct check_shapes
         check_dynamic();
     }
 
-    void check_dynamic()
+    void check_dynamic() const
     {
         if(not dynamic_allowed and this->any_of([&](const shape& s) { return s.dynamic(); }))
         {

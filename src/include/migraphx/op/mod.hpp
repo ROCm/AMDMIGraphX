@@ -42,6 +42,7 @@ namespace op {
 
 struct mod : binary<mod>
 {
+    std::string name() const { return "mod"; }
     value attributes() const
     {
         auto a           = base_attributes();

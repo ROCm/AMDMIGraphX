@@ -42,6 +42,7 @@ namespace op {
 
 struct fmod : binary<fmod>
 {
+    std::string name() const { return "fmod"; }
     value attributes() const
     {
         auto a           = base_attributes();

@@ -24,14 +24,9 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_BROADCAST_HPP
 #define MIGRAPHX_GUARD_OPERATORS_BROADCAST_HPP
 
-#include <array>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/lifetime.hpp>
-#include <cmath>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -66,7 +66,7 @@ std::string generate_miopen_config(const problem_params& pp)
 auto query_miopen_db(const std::string& query)
 {
     // TODO: Store db as a static variable
-    const auto dbpath = fs::path{"opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
+    const auto dbpath = fs::path{"/opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
     auto db           = sqlite::read(dbpath);
     return db.execute(query);
 }

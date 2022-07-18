@@ -862,7 +862,7 @@ struct find_zero_div_const
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        m.replace_instruction(ins, make_op("divzero"));
+        m.replace_instruction(ins, make_op("divzero"), ins->inputs());
     }
 };
 

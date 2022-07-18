@@ -37,6 +37,10 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/pass_manager.hpp>
+
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"
@@ -46,6 +50,11 @@
 float sigmoid(float x) { return 1 / (1 + expf(-x)); }
 
 float elu(float a, float x) { return x > 0 ? x : a * std::expm1(x); }
+
+void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+}
 
 TEST_CASE(abs_test)
 {
@@ -1328,6 +1337,49 @@ TEST_CASE(div_test)
     std::vector<float> gold(data1.size());
     std::transform(data1.begin(), data1.end(), data2.begin(), gold.begin(), std::divides<float>());
     EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(div_zero_compile_trap_after_no_passes)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto zero = mm->add_literal(0);
+    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
+    mm->add_instruction(migraphx::make_op("divzero"), x, zero);
+
+    bool result = false;
+    try
+    {
+        p.compile(migraphx::ref::target{});
+    }
+    catch(const std::runtime_error& e)
+    {
+        (void)e;
+        result = true;
+    }
+    EXPECT(result);
+}
+
+TEST_CASE(div_zero_compile_trap_after_passes)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto zero = mm->add_literal(0);
+    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
+    mm->add_instruction(migraphx::make_op("div"), x, zero);
+    run_pass(*mm);
+
+    bool result = false;
+    try
+    {
+        p.compile(migraphx::ref::target{});
+    }
+    catch(const std::runtime_error& e)
+    {
+        (void)e;
+        result = true;
+    }
+    EXPECT(result);
 }
 
 TEST_CASE(elu_test)

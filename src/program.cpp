@@ -195,6 +195,8 @@ void program::compile(const target& t, compile_options options)
                            std::to_string(index));
         }
 
+        std::cout << "find div by zero" << std::endl;
+        std::cout << *mod << std::endl;
         auto divide_by_zero = mod->find_division_by_zero();
         if(divide_by_zero != mod->end())
         {

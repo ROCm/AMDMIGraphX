@@ -29,10 +29,10 @@
 #include <cmath>
 #include <utility>
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

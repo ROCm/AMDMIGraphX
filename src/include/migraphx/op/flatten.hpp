@@ -25,9 +25,9 @@
 #define MIGRAPHX_GUARD_OPERATORS_FLATTEN_HPP
 
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 
 namespace migraphx {

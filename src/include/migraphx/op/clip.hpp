@@ -26,10 +26,10 @@
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/argument.hpp>
 #include <cmath>
 
 namespace migraphx {

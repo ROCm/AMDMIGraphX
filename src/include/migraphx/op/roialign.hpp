@@ -28,11 +28,11 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape_for_each.hpp>
-#include <migraphx/argument.hpp>
 #include <cmath>
 #include <numeric>
 #include <utility>

@@ -26,12 +26,12 @@
 
 #include <algorithm>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

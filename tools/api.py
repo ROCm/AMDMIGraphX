@@ -938,6 +938,7 @@ def vector_c_wrap(p: Parameter) -> None:
     else:
         p.write = ['std::copy(${result}.begin(), ${result}.end(), ${name})']
 
+
 @cwrap('std::ptrdiff_t')
 def ptrdiff_c_wrap(p: Parameter) -> None:
     t = Type('int*')
@@ -955,6 +956,7 @@ def ptrdiff_c_wrap(p: Parameter) -> None:
     p.read = '${type}(${name})'
     p.cpp_write = '${type}(${name})'
     p.virtual_read = ['${name}']
+
 
 @cwrap('std::string')
 def string_c_wrap(p: Parameter) -> None:
@@ -981,8 +983,6 @@ def string_c_wrap(p: Parameter) -> None:
             'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'
             '*it = \'\\0\''
         ]
-
-
 
 
 class Handle:

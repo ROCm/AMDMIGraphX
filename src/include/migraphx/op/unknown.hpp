@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_UNKNOWN_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
 
 namespace migraphx {

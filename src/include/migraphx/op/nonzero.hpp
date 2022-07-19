@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/argument.hpp>
 #include <cmath>
 #include <utility>
 

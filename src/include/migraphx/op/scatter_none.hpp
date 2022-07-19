@@ -25,16 +25,8 @@
 #define MIGRAPHX_GUARD_OPERATORS_SCATTER_NONE_HPP
 
 #include <array>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/op/scatter.hpp>
-#include <cmath>
-#include <utility>
 
 // Scatter op. with "none" as the reduction function (just copies the value).  This is identical to
 // the previously existing Scatter op.

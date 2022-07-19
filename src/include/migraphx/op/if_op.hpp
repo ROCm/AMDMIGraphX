@@ -26,7 +26,6 @@
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/module.hpp>

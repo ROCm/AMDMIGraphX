@@ -38,17 +38,17 @@ std::string get_layout(const shape& s, std::string labels)
     auto result = labels;
     auto p      = find_permutation(s);
     std::transform(p.begin(), p.end(), result.begin(), [&](auto i) { return labels[i]; });
-    return result;
+    return "'" + result + "'";
 }
 
 std::string get_type(const shape& s)
 {
     static const std::unordered_map<shape::type_t, std::string> m = {
-        {shape::float_type, "FP32"},
-        {shape::half_type, "FP16"},
-        {shape::double_type, "FP64"},
-        {shape::int8_type, "INT8"},
-        {shape::int32_type, "INT32"},
+        {shape::float_type, "'FP32'"},
+        {shape::half_type, "'FP16'"},
+        {shape::double_type, "'FP64'"},
+        {shape::int8_type, "'INT8'"},
+        {shape::int32_type, "'INT32'"},
     };
     auto it = m.find(s.type());
     if(it == m.end())
@@ -61,7 +61,6 @@ std::string generate_miopen_config(const problem_params& pp)
     value v       = pp.op.to_value();
     auto input    = pp.inputs[0].lens();
     auto weights  = pp.inputs[1].lens();
-    auto output   = pp.output.lens();
     auto padding  = v["padding"].to_vector<std::size_t>();
     auto stride   = v["stride"].to_vector<std::size_t>();
     auto dilation = v["dilation"].to_vector<std::size_t>();
@@ -80,8 +79,8 @@ std::string generate_miopen_config(const problem_params& pp)
                             std::string{" AND C.dilation_w="},    to_string(dilation[1]),
                             std::string{" AND C.conv_stride_h="}, to_string(stride[0]),
                             std::string{" AND C.conv_stride_w="}, to_string(stride[1]),
-                            std::string{" AND C.layout="},        std::string{"'NCHW'"},
-                            std::string{" AND C.data_type="},     std::string{"'FP32'"},
+                            std::string{" AND C.layout="},        get_layout(pp.inputs[0], "NCHW"),
+                            std::string{" AND C.data_type="},     get_type(pp.inputs[0]),
                             std::string{" AND C.direction="},     std::string{"'F'"}},
                            " ");
 }

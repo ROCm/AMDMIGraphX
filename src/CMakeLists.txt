@@ -126,7 +126,6 @@ register_migraphx_ops(
     deconvolution
     dequantizelinear
     div
-    divzero
     dot
     elu
     equal

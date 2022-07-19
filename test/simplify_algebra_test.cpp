@@ -1110,7 +1110,7 @@ TEST_CASE(simplify_div_zero_const)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        m2.add_instruction(migraphx::make_op("divzero"), x, zero);
+        m2.add_divzero({x, zero});
     }
 
     EXPECT(m1 == m2);

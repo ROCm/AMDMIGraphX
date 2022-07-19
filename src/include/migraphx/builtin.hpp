@@ -97,6 +97,37 @@ struct returns
     }
 };
 
+struct divzero
+{
+    std::string name() const { return "@divzero"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    { // taken from the binary.hpp. We're replacing op so don't need the check
+        // check_shapes{inputs, static_cast<const Derived&>(*this)}.has(2).same_type().same_dims();
+        auto s0 = inputs.at(0);
+        auto s1 = inputs.at(1);
+        if(s0 == s1 and s0.packed())
+        {
+            return s0;
+        }
+        else if(s0.packed() != s1.packed())
+        {
+            return s0.packed() ? s0 : s1;
+        }
+        else if(s0.broadcasted() != s1.broadcasted())
+        {
+            return s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
+        }
+        else
+        {
+            return {s0.type(), s0.lens()};
+        }
+    }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        MIGRAPHX_THROW("builtin");
+    }
+};
+
 } // namespace builtin
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

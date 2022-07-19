@@ -1344,8 +1344,8 @@ TEST_CASE(div_zero_compile_trap_after_no_passes)
     migraphx::program p;
     auto* mm  = p.get_main_module();
     auto zero = mm->add_literal(0);
-    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
-    mm->add_instruction(migraphx::make_op("divzero"), x, zero);
+    auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1}});
+    mm->add_divzero({x, zero});
 
     bool result = false;
     try
@@ -1364,13 +1364,15 @@ TEST_CASE(div_zero_compile_trap_long_program_no_passes)
 {
     migraphx::program p;
     auto* mm  = p.get_main_module();
-    auto zero = mm->add_literal(0);
-    auto one  = mm->add_literal(1);
-    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
-    auto y    = mm->add_parameter("y", {migraphx::shape::int32_type, {1}});
-    auto div0 = mm->add_instruction(migraphx::make_op("divzero"), x, zero);
-    auto mul  = mm->add_instruction(migraphx::make_op("mul"), one, div0);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), y, mul);
+    auto zero = mm->add_literal(0.0f);
+    auto one  = mm->add_literal(1.0f);
+    auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1}});
+    auto y    = mm->add_parameter("y", {migraphx::shape::float_type, {1}});
+    auto div0 = mm->add_divzero({x, zero});
+    std::cout << *mm << std::endl;
+
+    auto mul = mm->add_instruction(migraphx::make_op("mul"), one, div0);
+    auto add = mm->add_instruction(migraphx::make_op("add"), y, mul);
     mm->add_instruction(migraphx::make_op("sub"), y, add);
 
     bool result = false;
@@ -1391,7 +1393,7 @@ TEST_CASE(div_zero_compile_trap_after_passes)
     migraphx::program p;
     auto* mm  = p.get_main_module();
     auto zero = mm->add_literal(0);
-    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
+    auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1}});
     mm->add_instruction(migraphx::make_op("div"), x, zero);
     run_pass(*mm);
 
@@ -1412,10 +1414,10 @@ TEST_CASE(div_zero_compile_trap_long_program_after_passes)
 {
     migraphx::program p;
     auto* mm  = p.get_main_module();
-    auto zero = mm->add_literal(0);
-    auto two  = mm->add_literal(2);
-    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
-    auto y    = mm->add_parameter("y", {migraphx::shape::int32_type, {1}});
+    auto zero = mm->add_literal(0.0);
+    auto two  = mm->add_literal(2.0f);
+    auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1}});
+    auto y    = mm->add_parameter("y", {migraphx::shape::float_type, {1}});
     auto div0 = mm->add_instruction(migraphx::make_op("div"), x, zero);
     auto mul  = mm->add_instruction(migraphx::make_op("mul"), two, div0);
     auto add  = mm->add_instruction(migraphx::make_op("add"), y, mul);

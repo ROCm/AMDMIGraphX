@@ -164,6 +164,10 @@ struct module
 
     instruction_ref replace_return(std::vector<instruction_ref> args);
 
+    instruction_ref add_divzero(std::vector<instruction_ref> args);
+
+    instruction_ref replace_divzero(instruction_ref ins, std::vector<instruction_ref> args);
+
     std::vector<std::string> get_parameter_names() const;
 
     shape get_parameter_shape(std::string name) const;

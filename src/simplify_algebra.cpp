@@ -855,14 +855,15 @@ struct find_zero_div_const
 {
     auto matcher() const
     {
-        return match::name("div")(
-            match::arg(1)(match::skip_broadcasts_converts(match::has_value(0.0f).bind("c"))));
+        return match::name("div")(match::arg(1)(match::has_value(0.0f).bind("c")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        m.replace_instruction(ins, make_op("divzero"), ins->inputs());
+        auto ins   = r.result;
+        auto c_ins = r.instructions["c"];
+
+        m.replace_divzero(c_ins, ins->inputs());
     }
 };
 

@@ -480,6 +480,25 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
     return last;
 }
 
+instruction_ref module::add_divzero(std::vector<instruction_ref> args)
+{
+    impl->push_back({builtin::divzero{}, {}, std::move(args)});
+    auto result = std::prev(impl->instructions.end());
+    instruction::backreference(result);
+    assert(result->valid(begin()));
+
+    return result;
+}
+
+instruction_ref module::replace_divzero(instruction_ref ins,
+                                        std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
+{
+    auto prev   = std::prev(ins);
+    shape r     = compute_shape(prev->get_operator(), args);
+    auto result = instruction::replace(builtin::divzero{}, ins->get_operator(), r, std::move(args));
+    return result;
+}
+
 shape module::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
@@ -628,9 +647,7 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
-// bool is_div_zero(instruction_ref ins) {return
-// instruction::get_output_alias(ins)->get_operator().name() == "divzero";}
-bool is_div_zero(instruction ins) { return ins.name() == "divzero"; }
+bool is_div_zero(instruction ins) { return ins.name() == "@divzero"; }
 
 instruction_ref module::flag_division_by_zero() const
 {

@@ -198,7 +198,9 @@ void program::compile(const target& t, compile_options options)
         auto divide_by_zero = mod->flag_division_by_zero();
         if(divide_by_zero != mod->end())
         {
-            MIGRAPHX_THROW("Division by zero reference in module " + mod->name() + "");
+            auto index = std::distance(mod->begin(), divide_by_zero);
+            MIGRAPHX_THROW("Division by zero in module " + mod->name() + "from instruction" +
+                           std::to_string(index));
         }
 
         mod->finalize(this->impl->ctx);

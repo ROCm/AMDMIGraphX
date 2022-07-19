@@ -26,7 +26,6 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/argument.hpp>
 #include <cmath>
 
 namespace migraphx {

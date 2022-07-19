@@ -28,7 +28,6 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/op/prefix_scan_op.hpp>
 
 namespace migraphx {

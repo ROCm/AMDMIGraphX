@@ -140,7 +140,7 @@ typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraph
                                                                          void* obj,
                                                                          migraphx_shapes_t inputs);
 
-typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(std::ptrdiff_t* out,
+typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(int* out,
                                                                         void* obj,
                                                                         migraphx_shapes_t inputs);
 

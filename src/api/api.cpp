@@ -628,14 +628,14 @@ struct migraphx_experimental_custom_op
     migraphx_experimental_custom_op_output_alias output_alias_f = nullptr;
     std::ptrdiff_t output_alias(std::vector<migraphx::shape> inputs) const
     {
-        std::remove_pointer_t<std::ptrdiff_t*> out;
+        std::remove_pointer_t<int*> out;
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
         auto api_error_result =
             output_alias_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
             throw std::runtime_error("Error in output_alias.");
-        return out;
+        return std::ptrdiff_t(out);
     }
 
     migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;

@@ -43,6 +43,7 @@
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
+#include <migraphx/op/divzero.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>
@@ -695,6 +696,7 @@ struct ref_apply
         apply_map["softmax"]    = extend_op<ref_softmax<op::softmax>, op::softmax>();
         apply_map["rnn_var_sl_last_output"] =
             extend_op<ref_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();
+        apply_map["divzero"] = simple_op<op::divzero>();
     }
 
     void apply()

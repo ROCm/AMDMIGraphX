@@ -628,35 +628,14 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
-bool is_div_zero(instruction_ref ins)
+instruction_ref module::flag_division_by_zero() const
 {
-    const auto& op = instruction::get_output_alias(ins)->get_operator();
-    std::cout << op.name() << std::endl;
-    return op.name().find("divzero") != std::string::npos;
-}
-
-instruction_ref module::find_division_by_zero() const
-{
-    std::cout << "start search" << std::endl;
     auto last = std::prev(end());
-    if(last->name() == "divzero")
-    {
-        std::cout << "search" << std::endl;
-        auto div_zero = std::find_if(
-            last->inputs().begin(), last->inputs().end(), [](auto x) { return is_div_zero(x); });
-        if(div_zero != last->inputs().end())
-        {
-            std::cout << "found divzero" << std::endl;
-            return *div_zero;
-        }
+    auto ins = end();
+    if (last->name() == "divzero") {
+        ins = begin();
     }
-    else if(is_div_zero(last))
-    {
-        std::cout << "check last ref" << std::endl;
-        return last;
-    }
-    std::cout << "End ref" << std::endl;
-    return end();
+    return ins;
 }
 
 void module::finalize(context& ctx)

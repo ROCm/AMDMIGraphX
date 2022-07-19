@@ -1360,6 +1360,32 @@ TEST_CASE(div_zero_compile_trap_after_no_passes)
     EXPECT(result);
 }
 
+TEST_CASE(div_zero_compile_trap_long_program_no_passes)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto zero = mm->add_literal(0);
+    auto one  = mm->add_literal(1);
+    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
+    auto y    = mm->add_parameter("y", {migraphx::shape::int32_type, {1}});
+    auto div0 = mm->add_instruction(migraphx::make_op("divzero"), x, zero);
+    auto mul  = mm->add_instruction(migraphx::make_op("mul"), one, div0);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), y, mul);
+    mm->add_instruction(migraphx::make_op("sub"), y, add);
+
+    bool result = false;
+    try
+    {
+        p.compile(migraphx::ref::target{});
+    }
+    catch(const std::runtime_error& e)
+    {
+        (void)e;
+        result = true;
+    }
+    EXPECT(result);
+}
+
 TEST_CASE(div_zero_compile_trap_after_passes)
 {
     migraphx::program p;
@@ -1367,6 +1393,34 @@ TEST_CASE(div_zero_compile_trap_after_passes)
     auto zero = mm->add_literal(0);
     auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
     mm->add_instruction(migraphx::make_op("div"), x, zero);
+    run_pass(*mm);
+
+    bool result = false;
+    try
+    {
+        p.compile(migraphx::ref::target{});
+    }
+    catch(const std::runtime_error& e)
+    {
+        (void)e;
+        result = true;
+    }
+    EXPECT(result);
+}
+
+TEST_CASE(div_zero_compile_trap_long_program_after_passes)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto zero = mm->add_literal(0);
+    auto two  = mm->add_literal(2);
+    auto x    = mm->add_parameter("x", {migraphx::shape::int32_type, {1}});
+    auto y    = mm->add_parameter("y", {migraphx::shape::int32_type, {1}});
+    auto div0 = mm->add_instruction(migraphx::make_op("div"), x, zero);
+    auto mul  = mm->add_instruction(migraphx::make_op("mul"), two, div0);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), y, mul);
+    mm->add_instruction(migraphx::make_op("sub"), y, add);
+
     run_pass(*mm);
 
     bool result = false;

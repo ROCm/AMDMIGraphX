@@ -628,14 +628,17 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
+// bool is_div_zero(instruction_ref ins) {return
+// instruction::get_output_alias(ins)->get_operator().name() == "divzero";}
+bool is_div_zero(instruction ins) { return ins.name() == "divzero"; }
+
 instruction_ref module::flag_division_by_zero() const
 {
-    auto last = std::prev(end());
-    auto ins = end();
-    if (last->name() == "divzero") {
-        ins = begin();
-    }
-    return ins;
+    auto divzero = std::count_if(begin(), end(), [](auto x) { return is_div_zero(x); });
+    if(divzero > 0)
+        return begin();
+
+    return end();
 }
 
 void module::finalize(context& ctx)

@@ -21,33 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/op/binary.hpp>
+#include <unordered_map>
+
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct equal : binary<equal>
+struct target_assignments
 {
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = true;
-        return a;
-    }
-    std::string point_function() const { return "=="; }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return float_equal(x, y); };
-    }
+    void add_assignment(instruction_ref ins, const std::string& target);
+
+    auto begin() const { return assignments.cbegin(); }
+    auto end() const { return assignments.cend(); }
+
+    private:
+    std::unordered_map<instruction_ref, std::string> assignments;
 };
 
-} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP

@@ -186,6 +186,9 @@ struct check_shapes
     {
         if(!this->same([](const shape& s) { return s.max_lens(); }))
             MIGRAPHX_THROW(prefix() + "Dimensions do not match");
+        if(this->any_of([&](const shape& s) { return s.dynamic(); }))
+            if(!this->same([](const shape& s) { return s.min_lens(); }))
+                MIGRAPHX_THROW(prefix() + "Min dynamic dimensions do not match");
         return *this;
     }
 

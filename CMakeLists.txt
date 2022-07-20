@@ -273,7 +273,7 @@ configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
-    MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
+    MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
     DEPENDS miopen-hip rocblas hip-rocclr hip-base half

@@ -168,6 +168,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     std::vector<std::string> target_names;
     for(const auto& tname : migraphx::get_targets())
     {
+        // TODO(varunsh): once verify tests can run, remove this
         if(tname == "ref" || tname == "fpga")
             continue;
 

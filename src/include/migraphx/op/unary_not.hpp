@@ -24,10 +24,9 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_UNARY_NOT_HPP
 #define MIGRAPHX_GUARD_OPERATORS_UNARY_NOT_HPP
 
-#include <migraphx/op/unary.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/unary.hpp>
+#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

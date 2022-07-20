@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_C_API_MIGRAPHX_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 // Add new types here
 // clang-format off

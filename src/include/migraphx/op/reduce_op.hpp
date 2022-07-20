@@ -27,6 +27,7 @@
 #include <migraphx/op/name.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/tensor_view.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>

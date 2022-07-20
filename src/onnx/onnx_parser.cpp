@@ -257,6 +257,11 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
+    if(not map_input_dims.empty() and not map_dyn_input_dims.empty())
+    {
+        MIGRAPHX_THROW("PARSE_GRAPH: both map_input_dims and map_dyn_input_dims non-empty, only"
+                       "one should be used");
+    }
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {

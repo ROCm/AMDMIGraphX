@@ -26,8 +26,8 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

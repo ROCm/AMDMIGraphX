@@ -36,6 +36,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/output_iterator.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

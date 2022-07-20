@@ -84,8 +84,9 @@ sqlite sqlite::read(const fs::path& p)
 sqlite sqlite::write(const fs::path& p)
 {
     sqlite r;
+    uint32_t flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
     r.impl = std::make_shared<sqlite_impl>();
-    r.impl->open(p, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
+    r.impl->open(p, flags);
     return r;
 }
 

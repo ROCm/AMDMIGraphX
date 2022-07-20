@@ -25,20 +25,20 @@
 #include <migraphx/tmp_dir.hpp>
 #include <test.hpp>
 
-const std::string create_table = R"__migraphx__(
-CREATE TABLE IF NOT EXISTS test_db (
-    id INTEGER PRIMARY KEY ASC,
-    data TEXT NOT NULL
-);
-INSERT INTO test_db (id, data) VALUES (1, "a");
-)__migraphx__";
-
-const std::string select_all = R"__migraphx__(
-SELECT * FROM test_db;
-)__migraphx__";
-
 TEST_CASE(read_write)
 {
+    const std::string create_table = R"__migraphx__(
+    CREATE TABLE IF NOT EXISTS test_db (
+    id INTEGER PRIMARY KEY ASC,
+    data TEXT NOT NULL
+    );
+    INSERT INTO test_db (id, data) VALUES (1, "a");
+    )__migraphx__";
+
+    const std::string select_all = R"__migraphx__(
+    SELECT * FROM test_db;
+    )__migraphx__";
+
     migraphx::tmp_dir td{};
     auto db_path = td.path / "test.db";
     {

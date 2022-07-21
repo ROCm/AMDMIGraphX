@@ -863,7 +863,7 @@ struct find_zero_div_const
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
 
-        m.replace_divzero(c_ins, ins->inputs());
+        m.add_divzero({ins, c_ins});
     }
 };
 

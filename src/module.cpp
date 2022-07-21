@@ -486,16 +486,6 @@ instruction_ref module::add_divzero(std::vector<instruction_ref> args)
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
-
-    return result;
-}
-
-instruction_ref module::replace_divzero(instruction_ref ins,
-                                        std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
-{
-    auto prev   = std::prev(ins);
-    shape r     = compute_shape(prev->get_operator(), args);
-    auto result = instruction::replace(builtin::divzero{}, ins->get_operator(), r, std::move(args));
     return result;
 }
 

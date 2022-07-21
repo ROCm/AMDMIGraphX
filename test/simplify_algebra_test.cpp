@@ -1092,7 +1092,6 @@ TEST_CASE(simplify_sub_neg_zero_const_vec)
         auto x = m2.add_parameter("x", outer);
         m2.add_instruction(migraphx::make_op("neg"), x);
     }
-
     EXPECT(m1 == m2);
 }
 
@@ -1110,9 +1109,33 @@ TEST_CASE(simplify_div_zero_const)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m2.add_literal(0);
-        m2.add_divzero({x, zero});
+        auto div0 = m2.add_instruction(migraphx::make_op("div"), x, zero);
+        m2.add_divzero({div0, zero});
     }
+    EXPECT(m1 == m2);
+}
 
+TEST_CASE(simplify_div_zero_const_middle)
+{ // May looks strange but intent here is to generate a zero via
+  // simplify algebra passes that causes division by zero
+    migraphx::module m1;
+    {
+        auto zero = m1.add_literal(0);
+        auto two  = m1.add_literal(2);
+        auto mul  = m1.add_instruction(migraphx::make_op("mul"), zero, two);
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto div0 = m1.add_instruction(migraphx::make_op("div"), x, mul);
+        m1.add_instruction(migraphx::make_op("mul"), div0, two);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto zero = m2.add_literal(0);
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto div0 = m2.add_instruction(migraphx::make_op("div"), x, zero);
+        m2.add_divzero({div0, zero});
+    }
     EXPECT(m1 == m2);
 }
 

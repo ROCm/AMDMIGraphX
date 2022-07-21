@@ -146,6 +146,12 @@ std::string mlir_print(F f, T x)
     return ss.str();
 }
 
+const std::unordered_set<std::string>& get_xdlops_archs()
+{
+    static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
+    return supported_archs;
+}
+
 struct mlir_program
 {
     mlir_program()
@@ -496,7 +502,7 @@ struct mlir_program
                 if(!tuned.empty())
                     ops.add_attributes({{"perf_config", tuned}});
                 // check if HW supports xdlops
-                if(target_name.compare("gfx908") == 0 || target_name.compare("gfx90a") == 0)
+                if(contains(get_xdlops_archs(), target_name))
                     ops.add_attributes({{"xdlopsV2", true}});
             }
 
@@ -534,7 +540,7 @@ struct mlir_program
     {
         std::string tname = get_device_name();
         // HACK: Since MLIR can't handle the full target name
-        target_name = tname.substr(0, tname.find(':'));
+        target_name = trim(split_string(tname, ':').front());
         if(tname.size() != target_name.size())
             std::cout
                 << "*************** WARNING: MLIR may not compile the correct target features for: "

@@ -109,7 +109,7 @@ void subgraph::apply(module_pass_manager& mpm) const
             last = it;
         }
     }
-    
+
     // TODO(varunsh): this code may be replaceable by code in the fuse_pointwise pass
 
     // assuming all FPGA instructions are in one contiguous range

@@ -31,21 +31,24 @@
 
 using migraphx::shape;
 
-TEST_CASE(fail_dynamic_shape)
+bool create_shapes(bool dynamic_allowed)
 {
-    shape a{shape::int64_type, {3}};
-    shape b{shape::float_type, {{3, 6, 0}, {4, 4, 0}}};
-    auto op = migraphx::make_op("add");
-    EXPECT(test::throws([&] { migraphx::check_shapes{{a, b}, op}; }));
+    try
+    {
+        shape a{shape::int64_type, {3}};
+        shape b{shape::float_type, {{3, 6, 0}, {4, 4, 0}}};
+        auto op = migraphx::make_op("add");
+        migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
+        return true;
+    }
+    catch(...)
+    {
+        return false;
+    }
 }
 
-TEST_CASE(allow_dynamic_shape)
-{
-    shape a{shape::int64_type, {3}};
-    shape b{shape::float_type, {{3, 6, 0}, {4, 4, 0}}};
-    auto op = migraphx::make_op("add");
-    migraphx::check_shapes{{a, b}, op, true};
-    // Should have no exceptions
-}
+TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
+
+TEST_CASE(fail_dynamic_shape) { EXPECT(!create_shapes(false)); }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

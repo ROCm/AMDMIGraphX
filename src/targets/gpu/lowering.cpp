@@ -40,6 +40,8 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/mod.hpp>
+#include <migraphx/op/fmod.hpp>
 
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
@@ -138,6 +140,7 @@ struct miopen_apply
         add_generic_op("erf");
         add_generic_op("exp");
         add_generic_op("floor");
+        add_generic_op("fmod");
         add_generic_op("greater");
         add_generic_op("less");
         add_generic_op("log");
@@ -146,6 +149,7 @@ struct miopen_apply
         add_generic_op("logical_xor");
         add_generic_op("max");
         add_generic_op("min");
+        add_generic_op("mod");
         add_generic_op("mul");
         add_generic_op("not");
         add_generic_op("pow");

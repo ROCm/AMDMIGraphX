@@ -43,6 +43,8 @@
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
+#include <migraphx/op/mod.hpp>
+#include <migraphx/op/fmod.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>

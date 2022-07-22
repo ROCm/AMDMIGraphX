@@ -2954,8 +2954,8 @@ TEST_CASE(mod_test)
 {
     migraphx::program p;
     auto* mm    = p.get_main_module();
-    auto input0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3, 3}});
-    auto input1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 3, 3}});
+    auto input0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::int32_type, {3, 3, 3}});
+    auto input1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::int32_type, {3, 3, 3}});
     mm->add_instruction(migraphx::make_op("mod"), input0, input1);
 
     auto prog = optimize_onnx("mod_test.onnx");
@@ -2965,22 +2965,24 @@ TEST_CASE(mod_test)
 
 TEST_CASE(mod_test_half)
 {
-    migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto input0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::half_type, {3, 3, 3}});
-    auto input1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::half_type, {3, 3, 3}});
-    mm->add_instruction(migraphx::make_op("mod"), input0, input1);
-
-    auto prog = optimize_onnx("mod_test_half.onnx");
-
-    EXPECT(p == prog);
+    bool result = false;
+    try
+    {
+        auto prog = optimize_onnx("mod_test_half.onnx");
+    }
+    catch(std::exception& e)
+    {
+        (void)e;
+        result = true;
+    }
+    EXPECT(result);
 }
 
 TEST_CASE(mod_test_different_dtypes)
 {
     migraphx::program p;
     auto* mm    = p.get_main_module();
-    auto input0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3, 3}});
+    auto input0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::int16_type, {3, 3, 3}});
     auto input1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::int32_type, {3, 3, 3}});
     add_common_op(*mm, migraphx::make_op("mod"), {input0, input1});
 

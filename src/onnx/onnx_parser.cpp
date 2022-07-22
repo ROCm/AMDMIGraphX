@@ -497,7 +497,7 @@ bool is_type_float(int dtype)
     return r;
 }
 
-bool is_type_float(shape::type_t d_type)
+bool is_type_float(shape::type_t dtype)
 {
     bool r = false;
     if(dtype == shape::float_type || dtype == shape::double_type || dtype == shape::half_type)

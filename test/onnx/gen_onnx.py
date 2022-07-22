@@ -3234,9 +3234,9 @@ def min_test():
 
 @onnx_test
 def mod_test():
-    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3, 3])
-    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 3, 3])
-    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 3, 3])
+    a = helper.make_tensor_value_info('0', TensorProto.INT32, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.INT32, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.INT32, [3, 3, 3])
 
     node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
 
@@ -3256,9 +3256,9 @@ def mod_test_half():
 
 @onnx_test
 def mod_test_different_dtypes():
-    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3, 3])
+    a = helper.make_tensor_value_info('0', TensorProto.INT16, [3, 3, 3])
     b = helper.make_tensor_value_info('1', TensorProto.INT32, [3, 3, 3])
-    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.INT32, [3, 3, 3])
 
     node = onnx.helper.make_node(
         'Mod',

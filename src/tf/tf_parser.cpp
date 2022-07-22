@@ -216,7 +216,7 @@ static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& da
         std::fill(data_vals.begin(), data_vals.end(), data[0]);
     }
     else
-        copy(data.begin(), data.end(), std::back_inserter(data_vals));
+        copy(data.begin(), data.end(), data_vals.begin());
     return data_vals;
 }
 
@@ -329,33 +329,37 @@ void tf_parser::parse_node(const std::string& name)
         auto&& node = nodes.at(name);
         if(not is_valid_op(node))
             return;
-
         std::vector<instruction_ref> args;
-
         for(auto&& input : node.input())
         {
             // control dependencies (signified by ^ before the name) are ignored
             if(contains(input, "^"))
                 continue;
-            if(nodes.count(input) > 0)
+            std::string input_name = input;
+            // if input has trailing `:0` index then remove it
+            auto multi_out_idx = input.find(':');
+            if(multi_out_idx != std::string::npos && input.substr(multi_out_idx + 1) == "0")
             {
-                std::string iname;
+                input_name = input.substr(0, multi_out_idx);
+            }
+            if(nodes.count(input_name) > 0)
+            {
                 // input was from a node with multiple outputs
-                if(contains(input, ':'))
+                if(contains(input_name, ':'))
                 {
-                    iname = input.substr(0, input.find(':'));
+                    input_name = input_name.substr(0, input.find(':'));
                 }
                 else
                 {
-                    iname = get_name(nodes.at(input));
+                    input_name = get_name(nodes.at(input_name));
                 }
-                assert(name != iname);
-                this->parse_node(iname);
-                args.push_back(instructions.at(input));
+                assert(name != input_name);
+                this->parse_node(input_name);
+                args.push_back(instructions.at(input_name));
             }
             else
             {
-                args.push_back(instructions.at(input));
+                args.push_back(instructions.at(input_name));
             }
         }
         std::vector<instruction_ref> result;

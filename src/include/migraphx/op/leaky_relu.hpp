@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_LEAKY_RELU_HPP
 
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

@@ -187,6 +187,10 @@ void module::assign(const module& m)
             {
                 copy_ins = add_return(copy_inputs);
             }
+            else if(ins->name() == "@divzero")
+            {
+                copy_ins = add_divzero(copy_inputs, {ins->get_shape()});
+            }
             else
             {
                 copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
@@ -480,13 +484,18 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
     return last;
 }
 
-instruction_ref module::add_divzero(std::vector<instruction_ref> args)
+instruction_ref
+module::insert_divzero(instruction_ref pos, std::vector<instruction_ref> args, shape s)
 {
-    impl->push_back({builtin::divzero{}, {}, std::move(args)});
-    auto result = std::prev(impl->instructions.end());
+    auto result = impl->insert(pos, {builtin::divzero{}, {std::move(s)}, std::move(args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
+}
+
+instruction_ref module::add_divzero(std::vector<instruction_ref> args, shape s)
+{
+    return insert_divzero(impl->instructions.end(), args, s);
 }
 
 shape module::get_parameter_shape(std::string name) const

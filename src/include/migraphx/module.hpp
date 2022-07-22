@@ -164,7 +164,9 @@ struct module
 
     instruction_ref replace_return(std::vector<instruction_ref> args);
 
-    instruction_ref add_divzero(std::vector<instruction_ref> args);
+    instruction_ref insert_divzero(instruction_ref pos, std::vector<instruction_ref> args, shape s);
+
+    instruction_ref add_divzero(std::vector<instruction_ref> args, shape s);
 
     std::vector<std::string> get_parameter_names() const;
 

@@ -100,7 +100,7 @@ struct returns
 struct divzero
 {
     std::string name() const { return "@divzero"; }
-    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    shape compute_shape(const std::vector<shape>&) const { MIGRAPHX_THROW("builtin"); }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPHX_THROW("builtin");

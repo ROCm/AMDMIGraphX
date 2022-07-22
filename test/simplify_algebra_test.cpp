@@ -1101,16 +1101,17 @@ TEST_CASE(simplify_div_zero_const)
     {
         auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto zero = m1.add_literal(0);
-        m1.add_instruction(migraphx::make_op("div"), x, zero);
+        auto div  = m1.add_instruction(migraphx::make_op("div"), x, zero);
+        m1.add_return({div});
     }
     run_pass(m1);
-
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto zero = m2.add_literal(0);
-        auto div0 = m2.add_instruction(migraphx::make_op("div"), x, zero);
-        m2.add_divzero({div0, zero});
+        auto x       = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero    = m2.add_literal(0);
+        auto s       = migraphx::make_op("div").compute_shape({x->get_shape(), zero->get_shape()});
+        auto divzero = m2.add_divzero({x, zero}, s);
+        m2.add_return({divzero});
     }
     EXPECT(m1 == m2);
 }
@@ -1128,13 +1129,14 @@ TEST_CASE(simplify_div_zero_const_middle)
         m1.add_instruction(migraphx::make_op("mul"), div0, two);
     }
     run_pass(m1);
-
     migraphx::module m2;
     {
         auto zero = m2.add_literal(0);
+        auto two  = m2.add_literal(2);
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto div0 = m2.add_instruction(migraphx::make_op("div"), x, zero);
-        m2.add_divzero({div0, zero});
+        auto s    = migraphx::make_op("div").compute_shape({x->get_shape(), zero->get_shape()});
+        auto div0 = m2.add_divzero({x, zero}, s);
+        m2.add_instruction(migraphx::make_op("mul"), div0, two);
     }
     EXPECT(m1 == m2);
 }

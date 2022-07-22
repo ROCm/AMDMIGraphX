@@ -122,6 +122,10 @@ bool instruction::valid() const
     {
         computed = result;
     }
+    else if(op.name() == "@divzero")
+    {
+        computed = result;
+    }
     else if(op.name() == "@return")
     {
         computed = {};

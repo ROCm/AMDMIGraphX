@@ -40,6 +40,14 @@ struct parse_mod : op_parser<parse_mod>
                           std::vector<instruction_ref> args) const
     {
         std::string mod = "mod";
+        if(parser.is_type_float(arg[0]) || parser.is_type_float(arg[1]))
+        {
+            if(!contains(info.attributes, "fmod"))
+            {
+                MIGRAPHX_THROW("Mod operator with float args and fmod=0 invalid");
+            }
+        }
+
         if(contains(info.attributes, "fmod"))
         {
             if(parser.parse_value(info.attributes.at("fmod")).at<int>() == 1)

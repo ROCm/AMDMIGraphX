@@ -118,6 +118,8 @@ struct onnx_parser
 };
 
 shape::type_t get_type(int dtype);
+bool is_type_float(int dtype);
+bool is_type_float(shape::type_t dtype);
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

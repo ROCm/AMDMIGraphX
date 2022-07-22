@@ -21,33 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
+#include "test.hpp"
 
-#include <migraphx/config.hpp>
-#include <migraphx/op/binary.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/ref/target.hpp>
+#include <migraphx/target_assignments.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct equal : binary<equal>
+migraphx::program create_program()
 {
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = true;
-        return a;
-    }
-    std::string point_function() const { return "=="; }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return float_equal(x, y); };
-    }
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto z    = mm->add_parameter("z", s);
+    auto diff = mm->add_instruction(migraphx::make_op("div"), x, y);
+    mm->add_instruction(migraphx::make_op("div"), diff, z);
+    return p;
+}
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+TEST_CASE(is_supported)
+{
+    auto p       = create_program();
+    auto targets = migraphx::get_targets();
+    EXPECT(!targets.empty());
+    auto first_target = targets[0];
+    auto t            = migraphx::make_target(first_target);
 
-#endif
+    const auto assignments = p.get_target_assignments({t});
+    for(const auto& [ins, target] : assignments)
+    {
+        (void)ins;
+        EXPECT(target == first_target);
+    }
+}
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

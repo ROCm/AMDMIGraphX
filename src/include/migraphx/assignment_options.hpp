@@ -21,33 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_ASSIGNMENT_OPTIONS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_ASSIGNMENT_OPTIONS_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/op/binary.hpp>
+#include <migraphx/support_metric.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct equal : binary<equal>
+struct assignment_options
 {
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = true;
-        return a;
-    }
-    std::string point_function() const { return "=="; }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return float_equal(x, y); };
-    }
+    support_metric metric = support_metric::latency;
 };
 
-} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_RTGLIB_ASSIGNMENT_OPTIONS_HPP

@@ -35,9 +35,11 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
 namespace onnx {
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
@@ -255,6 +257,11 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
+    if(not map_input_dims.empty() and not map_dyn_input_dims.empty())
+    {
+        MIGRAPHX_THROW("PARSE_GRAPH: both map_input_dims and map_dyn_input_dims non-empty, only"
+                       "one should be used");
+    }
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
@@ -268,7 +275,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         // input not in initializer_data, so it is a real input
         if(!contains(mod_insts, name))
         {
-            // ONNX specification does not specify hwo to deal with the
+            // ONNX specification does not specify how to deal with the
             // scenario that a nested subgraph contains a parameter with the
             // name existed in its parent graph.
             // In the current implementation, MIGraphX throws an exception for that.
@@ -278,13 +285,22 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
                                "\" existing in parent graph!");
             }
 
+            shape s;
             std::vector<std::size_t> dims;
             if(map_input_dims.count(name) > 0)
             {
                 dims = map_input_dims.at(name);
+                s    = parse_type(input.type(), dims);
             }
-
-            shape s         = parse_type(input.type(), dims);
+            else if(map_dyn_input_dims.count(name) > 0)
+            {
+                shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
+                s                        = {shape_type, map_dyn_input_dims.at(name)};
+            }
+            else
+            {
+                s = parse_type(input.type(), dims);
+            }
             mod_insts[name] = mod->add_parameter(name, s);
         }
     }
@@ -439,30 +455,41 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
         return {shape_type, input_dims};
     }
 
-    std::vector<std::size_t> dims;
+    std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
     std::transform(tensor_dims.begin(),
                    tensor_dims.end(),
-                   std::back_inserter(dims),
-                   [&](auto&& d) -> std::size_t {
+                   std::back_inserter(dynamic_dims),
+                   [&](auto&& d) -> shape::dynamic_dimension {
                        if(d.has_dim_value())
                        {
                            if(static_cast<int>(d.dim_value()) <= 0)
                            {
-                               return default_dim_value;
+                               return default_dyn_dim_value;
                            }
-                           return d.dim_value();
+                           std::size_t tmp = d.dim_value();
+                           return {tmp, tmp, 0};
                        }
                        else
                        {
-                           return default_dim_value;
+                           return default_dyn_dim_value;
                        }
                    });
 
-    if(dims.empty())
+    if(dynamic_dims.empty())
+    {
         return {shape_type};
-
-    return {shape_type, dims};
+    }
+    if(std::all_of(dynamic_dims.begin(), dynamic_dims.end(), [](auto dd) { return dd.is_fixed(); }))
+    {
+        std::vector<std::size_t> dims;
+        std::transform(dynamic_dims.begin(),
+                       dynamic_dims.end(),
+                       std::back_inserter(dims),
+                       [](auto d) { return d.max; });
+        return {shape_type, dims};
+    }
+    return {shape_type, dynamic_dims};
 }
 
 shape::type_t get_type(int dtype)

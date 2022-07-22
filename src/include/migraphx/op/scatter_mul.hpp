@@ -25,15 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_SCATTER_MUL_HPP
 
 #include <array>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
-#include <cmath>
-#include <utility>
 #include <migraphx/op/scatter.hpp>
 
 // Scatter op. with "multiply" as the reduction function.

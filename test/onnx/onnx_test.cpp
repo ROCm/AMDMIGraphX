@@ -2969,17 +2969,7 @@ TEST_CASE(mod_test)
 
 TEST_CASE(mod_test_half)
 {
-    bool result = false;
-    try
-    {
-        auto prog = optimize_onnx("mod_test_half.onnx");
-    }
-    catch(std::exception& e)
-    {
-        (void)e;
-        result = true;
-    }
-    EXPECT(result);
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mod_test_half.onnx"); }));
 }
 
 TEST_CASE(mod_test_different_dtypes)

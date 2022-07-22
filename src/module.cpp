@@ -639,13 +639,11 @@ instruction_ref module::find_dangling_reference() const
 
 bool is_div_zero(instruction ins) { return ins.name() == "@divzero"; }
 
-instruction_ref module::flag_division_by_zero() const
+instruction_ref module::find_division_by_zero() const
 {
-    auto divzero = std::count_if(begin(), end(), [](auto x) { return is_div_zero(x); });
-    if(divzero > 0)
-        return begin();
+    auto divzero = std::find_if(begin(), end(), [](auto x) { return is_div_zero(x); });
 
-    return end();
+    return divzero;
 }
 
 void module::finalize(context& ctx)

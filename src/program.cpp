@@ -195,7 +195,7 @@ void program::compile(const target& t, compile_options options)
                            std::to_string(index));
         }
 
-        auto divide_by_zero = mod->flag_division_by_zero();
+        auto divide_by_zero = mod->find_division_by_zero();
         if(divide_by_zero != mod->end())
         {
             auto index = std::distance(mod->begin(), divide_by_zero);

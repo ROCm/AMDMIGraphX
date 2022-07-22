@@ -184,7 +184,7 @@ struct module
 
     instruction_ref validate() const;
     instruction_ref find_dangling_reference() const;
-    instruction_ref flag_division_by_zero() const;
+    instruction_ref find_division_by_zero() const;
 
     void finalize(context& ctx);
 

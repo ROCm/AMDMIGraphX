@@ -1,0 +1,44 @@
+name: MIGraphX Performance Tests
+
+on:
+  push:
+    branches: [develop]
+
+  pull_request:
+    branches: [develop]
+  schedule:
+    - cron: "0 5 * * 1-6"
+
+  workflow_dispatch:
+    inputs:
+      rocm_release:
+        description: ROCm Version
+        required: true
+        default: '5.2'
+      performance_reports_repo:
+        description: Result repository
+        required: true
+        default: 'ROCmSoftwarePlatform/migraphx-reports'
+      result_number:
+        description: Last N results
+        required: true
+        default: '10'
+      flags:
+        description: -m for Max value; -s for Std dev; -r for Threshold file
+        required: true
+        default: '-s'
+
+concurrency: benchmark
+
+jobs:
+  release:
+    uses: ROCmSoftwarePlatform/actions/.github/workflows/perf-test.yml@main
+    with:
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.2' }}
+      result_number: ${{ github.event.inputs.result_number || '10' }}
+      flags: ${{ github.event.inputs.flags || '-s' }} 
+      performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }} 
+    secrets:
+      gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+      mail_user: ${{ secrets.MAIL_USERNAME }}
+      mail_pass: ${{ secrets.MAIL_PASSWORD }}

@@ -91,12 +91,19 @@ struct convolution
            input.lens().at(1) != (weights.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
 
-        auto calc_output_lens =
-            [this, &num_spatial_dims, &padding_size](std::vector<std::size_t> i_lens,
-                                                     std::vector<std::size_t> w_lens) {
-                std::vector<size_t> ret = {};
-                // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
-                for(size_t i = 0; i < num_spatial_dims; i++)
+        auto calc_output_lens = [this, &num_spatial_dims, &padding_size](
+                                    std::vector<std::size_t> i_lens,
+                                    std::vector<std::size_t> w_lens) {
+            std::vector<size_t> ret = {};
+            // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
+            for(size_t i = 0; i < num_spatial_dims; i++)
+            {
+                if(i_lens.at(i) == 0 or w_lens.at(i) == 0)
+                {
+                    // for handling when a dimension = 0 (opt of dynamic_dimension)
+                    ret.push_back(0);
+                }
+                else
                 {
                     auto padding_factor = 2 * padding[i];
                     if(padding_size == 2 * num_spatial_dims)
@@ -110,8 +117,9 @@ struct convolution
                                 stride[i] +
                             1)));
                 }
-                return ret;
-            };
+            }
+            return ret;
+        };
 
         if(input.dynamic() or weights.dynamic())
         {

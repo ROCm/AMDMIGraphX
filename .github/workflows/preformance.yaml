@@ -32,7 +32,7 @@ concurrency: benchmark
 
 jobs:
   release:
-    uses: migraphx-benchmark/actions/.github/workflows/perf-test.yml@main
+    uses: ROCmSoftwarePlatform/actions/.github/workflows/perf-test.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || '5.2' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}

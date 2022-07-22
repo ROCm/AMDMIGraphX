@@ -118,11 +118,7 @@ bool instruction::valid() const
     {
         computed = lit.get_shape();
     }
-    else if(op.name() == "@param")
-    {
-        computed = result;
-    }
-    else if(op.name() == "@divzero")
+    else if(op.name() == "@param" || op.name() == "@divzero")
     {
         computed = result;
     }

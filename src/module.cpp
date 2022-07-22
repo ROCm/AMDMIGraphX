@@ -495,7 +495,7 @@ module::insert_divzero(instruction_ref pos, std::vector<instruction_ref> args, s
 
 instruction_ref module::add_divzero(std::vector<instruction_ref> args, shape s)
 {
-    return insert_divzero(impl->instructions.end(), args, s);
+    return insert_divzero(impl->instructions.end(), std::move(args), s);
 }
 
 shape module::get_parameter_shape(std::string name) const
@@ -646,7 +646,7 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
-bool is_div_zero(instruction ins) { return ins.name() == "@divzero"; }
+bool is_div_zero(const instruction& ins) { return ins.name() == "@divzero"; }
 
 instruction_ref module::find_division_by_zero() const
 {

@@ -42,7 +42,7 @@ struct parse_mod : op_parser<parse_mod>
         std::string mod = "mod";
         if(is_type_float(args[0]->get_shape().type()) || is_type_float(args[1]->get_shape().type()))
         {
-            if(contains(info.attributes, "fmod") == false)
+            if(!contains(info.attributes, "fmod"))
             {
                 MIGRAPHX_THROW("Mod operator with float args and fmod=0 invalid");
             }

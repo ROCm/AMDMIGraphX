@@ -2993,7 +2993,6 @@ def matmul_bmbm_test():
 
 @onnx_test
 def matmul_bmv_test():
-
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 6])

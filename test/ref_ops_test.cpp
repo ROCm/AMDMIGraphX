@@ -3085,7 +3085,7 @@ TEST_CASE(mod_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(mod_floatingPoint_test)
+TEST_CASE(mod_float_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

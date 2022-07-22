@@ -514,16 +514,6 @@ shape::type_t get_type(int dtype)
     }
 }
 
-bool is_type_float(int dtype)
-{
-    bool r = false;
-    if(dtype == 1 || dtype == 10 || dtype == 11)
-    {
-        r = true;
-    }
-    return r;
-}
-
 bool is_type_float(shape::type_t dtype)
 {
     bool r = false;

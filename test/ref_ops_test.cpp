@@ -1409,41 +1409,6 @@ TEST_CASE(conv3d_test)
     EXPECT(migraphx::verify_range(results_vector, s));
 }
 
-TEST_CASE(conv_input_attr_shape_error)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape input_dyn_shape{migraphx::shape::float_type,
-                                    {{1, 100, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}, {5, 5, 0}}};
-    migraphx::shape weights_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-
-    auto input   = mm->add_parameter("X", input_dyn_shape);
-    auto weights = mm->add_parameter("W", weights_shape);
-    EXPECT(test::throws([&] {
-        mm->add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
-            input,
-            weights);
-    }));
-}
-
-TEST_CASE(conv_channel_numbers_error)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape input_dyn_shape{migraphx::shape::float_type, {2, 8, 4, 4}};
-    migraphx::shape weights_shape{migraphx::shape::float_type, {2, 6, 3, 3}};
-
-    auto input   = mm->add_parameter("X", input_dyn_shape);
-    auto weights = mm->add_parameter("W", weights_shape);
-    EXPECT(test::throws([&] {
-        mm->add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
-            input,
-            weights);
-    }));
-}
-
 TEST_CASE(cos_test)
 {
     migraphx::program p;

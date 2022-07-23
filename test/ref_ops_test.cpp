@@ -1389,6 +1389,62 @@ TEST_CASE(div_zero_compile_trap_long_program_after_passes)
     EXPECT(result);
 }
 
+TEST_CASE(div_zero_eval_fails)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto zero = mm->add_literal(0.0f);
+    auto two  = mm->add_literal(2.0f);
+    auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1}});
+    auto y    = mm->add_parameter("y", {migraphx::shape::float_type, {1}});
+    auto div0 = mm->add_instruction(migraphx::make_op("div"), x, zero);
+    auto mul  = mm->add_instruction(migraphx::make_op("mul"), two, div0);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), y, mul);
+    mm->add_instruction(migraphx::make_op("sub"), y, add);
+
+    run_pass(*mm);
+
+    bool result = false;
+    try
+    {
+        p.eval({}).back();
+    }
+    catch(const std::runtime_error& e)
+    {
+        (void)e;
+        result = true;
+    }
+    EXPECT(result);
+}
+
+TEST_CASE(div_zero_compute_shape_fails)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto zero = mm->add_literal(0.0f);
+    auto two  = mm->add_literal(2.0f);
+    auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1}});
+    auto y    = mm->add_parameter("y", {migraphx::shape::float_type, {1}});
+    auto div0 = mm->add_instruction(migraphx::make_op("div"), x, zero);
+    auto mul  = mm->add_instruction(migraphx::make_op("mul"), two, div0);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), y, mul);
+    mm->add_instruction(migraphx::make_op("sub"), y, add);
+
+    run_pass(*mm);
+
+    bool result = false;
+    try
+    {
+        div0->recompute_shape();
+    }
+    catch(const std::runtime_error& e)
+    {
+        (void)e;
+        result = true;
+    }
+    EXPECT(result);
+}
+
 TEST_CASE(elu_test)
 {
     migraphx::program p;

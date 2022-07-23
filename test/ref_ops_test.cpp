@@ -1422,13 +1422,8 @@ TEST_CASE(div_zero_compute_shape_fails)
     migraphx::program p;
     auto* mm  = p.get_main_module();
     auto zero = mm->add_literal(0.0f);
-    auto two  = mm->add_literal(2.0f);
     auto x    = mm->add_parameter("x", {migraphx::shape::float_type, {1}});
-    auto y    = mm->add_parameter("y", {migraphx::shape::float_type, {1}});
-    auto div0 = mm->add_instruction(migraphx::make_op("div"), x, zero);
-    auto mul  = mm->add_instruction(migraphx::make_op("mul"), two, div0);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), y, mul);
-    mm->add_instruction(migraphx::make_op("sub"), y, add);
+    auto div0 = mm->add_divzero({x, zero}, {migraphx::shape::float_type, {1}});
 
     run_pass(*mm);
 

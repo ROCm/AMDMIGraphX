@@ -134,6 +134,7 @@ register_migraphx_ops(
     exp
     flatten
     floor
+    fmod
     gather
     gathernd
     get_tuple_elem
@@ -156,6 +157,7 @@ register_migraphx_ops(
     lstm
     max
     min
+    mod
     mul
     multibroadcast
     multinomial

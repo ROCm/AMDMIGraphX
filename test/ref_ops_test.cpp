@@ -3439,7 +3439,6 @@ TEST_CASE(nms_dynamic_out_test)
 
 TEST_CASE(nms_dynamic_batch_test)
 {
-    // dynamic input shape also
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 3, 0}, {6, 6, 0}, {4, 4, 0}}};
@@ -3475,99 +3474,97 @@ TEST_CASE(nms_dynamic_batch_test)
     migraphx::parameter_map params0;
     params0["boxes"]  = migraphx::argument(input_fixed_shape0, boxes_vec.data());
     params0["scores"] = migraphx::argument(input_fixed_shape1, scores_vec.data());
-    auto output       = p.eval({}).back();
+    auto output       = p.eval(params0).back();
 
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 3, 0, 0, 0, 0, 0, 5};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 1, 0, 3, 1, 0, 0, 1, 0, 5};
     EXPECT(migraphx::verify_range(result, gold));
 }
 
-TEST_CASE(nms_fixed_shape_error_tests)
+TEST_CASE(nms_dynamic_boxes_test)
 {
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-        std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,   1.0, 1.0,
-                                        0.5, 0.4,  1.0, 1.0, 0.5, 10.5,  1.0, 1.0,
-                                        0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1, 0}, {4, 20, 0}, {4, 4, 0}}};
 
-        migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 4}};
-        std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95};
+    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {4, 20, 0}}};
 
-        auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
-        auto max_out_l       = mm->add_literal(int64_t{4});
-        auto iou_threshold   = mm->add_literal(0.5f);
-        auto score_threshold = mm->add_literal(0.0f);
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
 
-        EXPECT(test::throws([&] {
-            mm->add_instruction(
-                migraphx::make_op("nonmaxsuppression",
-                                  {{"center_point_box", true}, {"use_dynamic", true}}),
-                boxes_l,
-                scores_l,
-                max_out_l,
-                iou_threshold,
-                score_threshold);
-        }));
-    }
+    auto r = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        boxes_p,
+        scores_p,
+        max_out_l,
+        iou_threshold,
+        score_threshold);
+    mm->add_return({r});
 
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-        std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,   1.0, 1.0,
-                                        0.5, 0.4,  1.0, 1.0, 0.5, 10.5,  1.0, 1.0,
-                                        0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    p.compile(migraphx::ref::target{});
 
-        migraphx::shape scores_s{migraphx::shape::float_type, {2, 1, 6}};
-        std::vector<float> scores_vec = {
-            0.9, 0.75, 0.6, 0.95, 0.5, 0.3, 0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+    std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
 
-        auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
-        auto max_out_l       = mm->add_literal(int64_t{4});
-        auto iou_threshold   = mm->add_literal(0.5f);
-        auto score_threshold = mm->add_literal(0.0f);
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, 1, 6}};
+    migraphx::parameter_map params0;
+    params0["boxes"]  = migraphx::argument(input_fixed_shape0, boxes_vec.data());
+    params0["scores"] = migraphx::argument(input_fixed_shape1, scores_vec.data());
+    auto output       = p.eval(params0).back();
 
-        EXPECT(test::throws([&] {
-            mm->add_instruction(
-                migraphx::make_op("nonmaxsuppression",
-                                  {{"center_point_box", true}, {"use_dynamic", true}}),
-                boxes_l,
-                scores_l,
-                max_out_l,
-                iou_threshold,
-                score_threshold);
-        }));
-    }
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    EXPECT(migraphx::verify_range(result, gold));
 }
 
-TEST_CASE(nms_dynamic_shape_error_tests)
+TEST_CASE(nms_dynamic_classes_test)
 {
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1, 0}, {6, 8, 0}, {4, 4, 0}}};
-        migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {4, 6, 0}}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1, 0}, {6, 6, 0}, {4, 4, 0}}};
 
-        auto boxes_p         = mm->add_parameter("boxes", boxes_s);
-        auto scores_p        = mm->add_parameter("scores", scores_s);
-        auto max_out_l       = mm->add_literal(int64_t{4});
-        auto iou_threshold   = mm->add_literal(0.5f);
-        auto score_threshold = mm->add_literal(0.0f);
+    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1, 0}, {1, 3, 0}, {6, 6, 0}}};
 
-        auto r = mm->add_instruction(
-            migraphx::make_op("nonmaxsuppression",
-                              {{"center_point_box", true}, {"use_dynamic", true}}),
-            boxes_p,
-            scores_p,
-            max_out_l,
-            iou_threshold,
-            score_threshold);
-    }
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{2});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto r = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        boxes_p,
+        scores_p,
+        max_out_l,
+        iou_threshold,
+        score_threshold);
+    mm->add_return({r});
+
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> boxes_vec  = {0.0, 0.0,  1.0, 1.0,  0.0, 0.1,   1.0, 1.1,
+                                    0.0, -0.1, 1.0, 0.9,  0.0, 10.0,  1.0, 11.0,
+                                    0.0, 10.1, 1.0, 11.1, 0.0, 100.0, 1.0, 101.0};
+    std::vector<float> scores_vec = {
+        0.9, 0.75, 0.6, 0.95, 0.5, 0.3, 0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, 2, 6}};
+    migraphx::parameter_map params0;
+    params0["boxes"]  = migraphx::argument(input_fixed_shape0, boxes_vec.data());
+    params0["scores"] = migraphx::argument(input_fixed_shape1, scores_vec.data());
+    auto output       = p.eval(params0).back();
+
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 1, 3, 0, 1, 0};
+    EXPECT(migraphx::verify_range(result, gold));
 }
 
 TEST_CASE(nms_not_center_test)

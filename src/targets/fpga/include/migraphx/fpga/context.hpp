@@ -21,27 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_MLIR_CONV_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MIOPEN_MLIR_CONV_HPP
+
+#ifndef MIGRAPHX_GUARD_FPGA_CONTEXT_HPP
+#define MIGRAPHX_GUARD_FPGA_CONTEXT_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace fpga {
 
-struct module;
-
-namespace gpu {
-struct mlir_conv
+struct context
 {
-    context* ctx;
-    std::string name() const { return "mlir::convolution"; }
-    void apply(module& m) const;
+    int id = 0;
+
+    void finish() const {}
 };
 
-} // namespace gpu
+} // namespace fpga
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_FPGA_CONTEXT_HPP

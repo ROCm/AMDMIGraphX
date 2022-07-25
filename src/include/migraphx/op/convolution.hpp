@@ -143,8 +143,8 @@ struct convolution
                 output_dyn_dims.push_back({l, l, 0});
             }
 
-            auto min_spatial_dims = calc_output_lens(input.min_lens(), weights.min_lens());
-            auto max_spatial_dims = calc_output_lens(input.max_lens(), weights.max_lens());
+            auto min_spatial_dims = calc_output_lens(input.min_lens(), weights.max_lens());
+            auto max_spatial_dims = calc_output_lens(input.max_lens(), weights.min_lens());
             auto opt_spatial_dims = calc_output_lens(input.opt_lens(), weights.opt_lens());
             for(size_t i = 0; i < num_spatial_dims; ++i)
             {

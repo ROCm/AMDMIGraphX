@@ -60,7 +60,9 @@ struct nonmaxsuppression
     {
         // requires at least 2 inputs
         check_shapes{{inputs.at(0), inputs.at(1)}, *this, true}.only_dims(3).same_ndims();
-        const auto max_num_boxes = inputs.at(0).max_lens().at(1);
+        auto boxes_max_lens = inputs.at(0).max_lens();
+        // num batches * num boxes
+        const auto max_num_boxes = boxes_max_lens.at(0) * boxes_max_lens.at(1);
 
         auto fixed_shape_error_check = [&]() {
             auto lens = inputs.front().lens();

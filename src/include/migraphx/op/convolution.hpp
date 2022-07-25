@@ -91,8 +91,7 @@ struct convolution
            input.lens().at(1) != (weights.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
 
-        auto calc_output_lens = [this, &num_spatial_dims, &padding_size](
-                                    std::vector<std::size_t> i_lens,
+        auto calc_output_lens = [&](std::vector<std::size_t> i_lens,
                                     std::vector<std::size_t> w_lens) {
             std::vector<size_t> ret = {};
             // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1

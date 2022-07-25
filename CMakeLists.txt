@@ -82,6 +82,9 @@ endif()
 # Disable cpu backend by default
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
+# Disable fpga backend by default
+set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
+
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 

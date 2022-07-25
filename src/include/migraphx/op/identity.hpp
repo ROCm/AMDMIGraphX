@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
 
 #include <migraphx/op/unary.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

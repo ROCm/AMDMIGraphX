@@ -21,27 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_SINH_HPP
-#define MIGRAPHX_GUARD_OPERATORS_SINH_HPP
+#include "test.hpp"
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/op/unary.hpp>
-#include <migraphx/config.hpp>
-#include <cmath>
+/*!
+ * Tests for check_shapes object handling dynamic shapes
+ */
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+using migraphx::shape;
 
-struct sinh : unary<sinh>
+bool create_shapes(bool dynamic_allowed)
 {
-    auto apply() const
+    try
     {
-        return [](auto x) { return std::sinh(x); };
+        shape a{shape::int64_type, {3}};
+        shape b{shape::float_type, {{3, 6, 0}, {4, 4, 0}}};
+        auto op = migraphx::make_op("add");
+        migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
+        return true;
     }
-};
+    catch(...)
+    {
+        return false;
+    }
+}
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
 
-#endif
+TEST_CASE(fail_dynamic_shape) { EXPECT(!create_shapes(false)); }
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

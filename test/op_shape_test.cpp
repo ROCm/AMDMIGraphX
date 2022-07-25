@@ -208,6 +208,42 @@ TEST_CASE(convolution_shape)
                  input_dyn_shape,
                  weights_shape);
 
+    // dynamic weights
+    input_dyn_shape  = {migraphx::shape::float_type, {1, 3, 10, 10}};
+    weights_shape    = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}};
+    output_dyn_shape = {migraphx::shape::float_type,
+                        {{
+                             1,
+                             1,
+                             0,
+                         },
+                         {1, 1, 0},
+                         {7, 9, 0},
+                         {7, 9, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // dynamic img and weights
+    input_dyn_shape = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {5, 20, 0}, {5, 20, 0}}};
+    weights_shape   = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}};
+    output_dyn_shape = {migraphx::shape::float_type,
+                        {{
+                             1,
+                             1,
+                             0,
+                         },
+                         {1, 1, 0},
+                         {2, 19, 0},
+                         {2, 19, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+
     // input attr shape mismatch
     input_dyn_shape = {migraphx::shape::float_type,
                        {{1, 100, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}, {5, 5, 0}}};

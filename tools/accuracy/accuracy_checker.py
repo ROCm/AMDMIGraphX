@@ -112,7 +112,6 @@ def main():
 
     model.compile(migraphx.get_target('gpu'), offload_copy=False)
 
-    in_shape = []
     params = {}
     test_inputs = {}
     for name, shape in model.get_parameter_shapes().items():

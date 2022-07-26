@@ -134,6 +134,7 @@ register_migraphx_ops(
     exp
     flatten
     floor
+    fmod
     gather
     gathernd
     get_tuple_elem
@@ -156,6 +157,7 @@ register_migraphx_ops(
     lstm
     max
     min
+    mod
     mul
     multibroadcast
     multinomial
@@ -266,6 +268,11 @@ list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
+endif()
+if(MIGRAPHX_ENABLE_FPGA)
+add_subdirectory(targets/fpga)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
+target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
 endif()
 
 if(HAVE_HALF_EXPR)

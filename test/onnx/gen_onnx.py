@@ -2523,6 +2523,7 @@ def instance_norm_type_mismatch_test():
 
     return ([node], [x, scale, bias], [y])
 
+
 @onnx_test
 def instance_norm_invalid_type_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT32, [1, 2, 3, 3])

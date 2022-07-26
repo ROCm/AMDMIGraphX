@@ -38,7 +38,11 @@ def parse_args():
                           type=str,
                           required=True,
                           help='path to onnx file')
-
+    req_args.add_argument('--provider',
+                          type=str,
+                          default='CPUExecutionProvider',
+                          help='execution provider for onnx runtime \
+                                (default = CPUExecutionProvider)')
     parser.add_argument('--batch',
                         type=int,
                         default=1,
@@ -126,7 +130,7 @@ def main():
 
     pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
 
-    sess = ort.InferenceSession(model_name)
+    sess = ort.InferenceSession(model_name, providers=[args.provider])
 
     ort_params = {}
     for input in sess.get_inputs():

@@ -1,6 +1,6 @@
 # AMD MIGraphX Accuracy checker
 ## Instructions
-First ensure requirements and MIGraphX's python libary are installed. Refer to MIGraphX instructions at the root directory to install the python library.
+First ensure requirements and MIGraphX's python library are installed. Refer to MIGraphX instructions at the root directory to install the python library.
 Use the command below to install remaining dependencies:
 ```
 pip install -r requirements.txt
@@ -21,3 +21,5 @@ For models that support variable batch sizes, use `--batch [batch_size]` to modi
 
 Random values are assigned to the model's inputs. However, they can be set to only contain 1s if the `--fill1` flag is passed in.
 This is useful for verifying models such as bert which use integer datatypes.
+
+By default, the CPU Execution Provider is used when running onnx runtime. If building onnx runtime with a different version, specify the provider using `--provider`.

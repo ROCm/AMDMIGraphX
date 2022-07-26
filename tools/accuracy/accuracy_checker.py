@@ -123,7 +123,7 @@ def main():
             test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
         params[name] = migraphx.to_gpu(migraphx.argument(test_input))
-        
+
     pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
 
     sess = ort.InferenceSession(model_name)
@@ -136,13 +136,12 @@ def main():
 
     is_correct = check_correctness(pred_ort, pred_migx, args.tolerance,
                                    args.tolerance, args.verbose)
-    verbose_string = ' Rerun with --verbose for detailed information.' if not args.verbose else ''
+    verbose_string = ' Rerun with --verbose for detailed information.' \
+            if not args.verbose else ''
     if is_correct:
         print('PASSED: MIGraphX meets tolerance')
     else:
-        print(
-            'FAILED: MIGraphX is not within tolerance.' + verbose_string
-        )
+        print('FAILED: MIGraphX is not within tolerance.' + verbose_string)
 
 
 if __name__ == '__main__':

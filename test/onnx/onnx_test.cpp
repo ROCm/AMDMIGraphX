@@ -2370,8 +2370,9 @@ TEST_CASE(instance_norm_test)
     auto l0       = mm->add_instruction(migraphx::make_op("sqdiff"), x, mean_bcast);
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
     auto l1       = mm->add_instruction(migraphx::make_op("sub"), x, mean_bcast);
-    auto epsilon_literal = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
-    auto epsilon_bcast   = mm->add_instruction(
+    auto epsilon_literal =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
+    auto epsilon_bcast = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
     auto variance_bcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), variance);
@@ -2408,8 +2409,9 @@ TEST_CASE(instance_norm_half_test)
     auto l0       = mm->add_instruction(migraphx::make_op("sqdiff"), x, mean_bcast);
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
     auto l1       = mm->add_instruction(migraphx::make_op("sub"), x, mean_bcast);
-    auto epsilon_literal = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {1e-5}});
-    auto epsilon_bcast   = mm->add_instruction(
+    auto epsilon_literal =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {1e-5}});
+    auto epsilon_bcast = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
     auto variance_bcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), variance);

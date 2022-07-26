@@ -2495,6 +2495,7 @@ def instance_norm_test():
 
     return ([node], [x, scale, bias], [y])
 
+
 @onnx_test
 def instance_norm_half_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [1, 2, 3, 3])
@@ -2508,6 +2509,7 @@ def instance_norm_half_test():
 
     return ([node], [x, scale, bias], [y])
 
+
 @onnx_test
 def instance_norm_wrong_type_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 3, 3])
@@ -2520,6 +2522,7 @@ def instance_norm_wrong_type_test():
                                  outputs=['3'])
 
     return ([node], [x, scale, bias], [y])
+
 
 @onnx_test
 def instance_norm_nonbroadcastable_test():

@@ -32,9 +32,12 @@ namespace onnx {
 
 struct parse_instancenorm : op_parser<parse_instancenorm>
 {
+    const std::set<shape::type_t> valid_types = {
+         shape::float_type, shape::half_type, shape::double_type};
+
     std::vector<op_desc> operators() const { return {{"InstanceNormalization"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
@@ -53,6 +56,10 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto bias  = args[2];
         auto dims  = x->get_shape().lens();
         auto dtype = x->get_shape().type();
+        if(not contains(valid_types, dtype))
+            MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(dtype) +
+                           ". Valid types are 1 (float), 10 (half), and 11 (double).");
+
         auto ndims = dims.size();
         assert(ndims >= 2);
         auto kdims = ndims - 2;

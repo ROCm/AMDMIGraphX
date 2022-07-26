@@ -110,41 +110,38 @@ def main():
 
     in_shape = []
     params = {}
-    test_input = None
-    test_inputs = []
-    for key, value in model.get_parameter_shapes().items():
+    test_inputs = {}
+    for name, shape in model.get_parameter_shapes().items():
         if args.verbose:
-            print('Parameter {} -> {}'.format(key, value))
-        if not 'output' in key:
-            in_shape = value.lens()
-            in_type = value.type_string()
-            if not args.fill1:
-                test_input = np.random.rand(*(in_shape)).astype(
-                    get_np_datatype(in_type))
-            else:
-                test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
-            test_inputs.append(test_input)
-            params[key] = migraphx.to_gpu(migraphx.argument(test_input))
+            print('Parameter {} -> {}'.format(name, shape))
+        in_shape = shape.lens()
+        in_type = shape.type_string()
+        if not args.fill1:
+            test_input = np.random.rand(*(in_shape)).astype(
+                get_np_datatype(in_type))
         else:
-            params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
-
+            test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
+        test_inputs[name] = test_input
+        params[name] = migraphx.to_gpu(migraphx.argument(test_input))
+        
     pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
 
     sess = ort.InferenceSession(model_name)
 
     ort_params = {}
-    for i, input in enumerate(sess.get_inputs()):
-        ort_params[input.name] = test_inputs[i]
+    for input in sess.get_inputs():
+        ort_params[input.name] = test_inputs[input.name]
 
     pred_ort = sess.run(None, ort_params)[-1]
 
     is_correct = check_correctness(pred_ort, pred_migx, args.tolerance,
                                    args.tolerance, args.verbose)
+    verbose_string = ' Rerun with --verbose for detailed information.' if not args.verbose else ''
     if is_correct:
         print('PASSED: MIGraphX meets tolerance')
     else:
         print(
-            'FAILED: MIGraphX is not within tolerance. Rerun with --verbose for detailed information.'
+            'FAILED: MIGraphX is not within tolerance.' + verbose_string
         )
 
 

@@ -31,7 +31,8 @@ namespace device {
 
 void mod(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
-    nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ { return 0; });
+    nary(stream, result, arg1, arg2)([](auto x, auto y)
+                                         __device__ { return fmodf((remainderf(x, y) + y, y)); });
 }
 
 } // namespace device

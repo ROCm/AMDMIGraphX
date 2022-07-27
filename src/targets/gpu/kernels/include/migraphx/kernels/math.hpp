@@ -111,6 +111,8 @@ MIGRAPHX_DEVICE_MATH(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH(sqrt, ::sqrt)
 MIGRAPHX_DEVICE_MATH(tan, ::tan)
 MIGRAPHX_DEVICE_MATH(tanh, ::tanh)
+MIGRAPHX_DEVICE_MATH(mod, ::mod)
+MIGRAPHX_DEVICE_MATH(fmod, ::fmod)
 
 // Float overloads
 MIGRAPHX_DEVICE_MATH_FOR(float, acos, ::acosf)
@@ -126,6 +128,8 @@ MIGRAPHX_DEVICE_MATH_FOR(float, sin, ::sinf)
 MIGRAPHX_DEVICE_MATH_FOR(float, sinh, ::sinhf)
 MIGRAPHX_DEVICE_MATH_FOR(float, tan, ::tanf)
 MIGRAPHX_DEVICE_MATH_FOR(float, tanh, ::tanhf)
+MIGRAPHX_DEVICE_MATH(float, mod, ::mod)
+MIGRAPHX_DEVICE_MATH(float, fmod, ::fmod)
 
 // Builtin half functions
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
@@ -153,6 +157,8 @@ MIGRAPHX_DEVICE_MATH_HALF(sin, ::sin)
 MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
+MIGRAPHX_DEVICE_MATH_HALF(mod, ::mod)
+MIGRAPHX_DEVICE_MATH_HALF(fmod, ::fmod)
 
 // Map math functions to hip half2 functions
 // The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
@@ -226,9 +232,11 @@ MIGRAPHX_DEVICE_MATH_VEC(cosh)
 MIGRAPHX_DEVICE_MATH_VEC(erf)
 MIGRAPHX_DEVICE_MATH_VEC(exp)
 MIGRAPHX_DEVICE_MATH_VEC(floor)
+MIGRAPHX_DEVICE_MATH_VEC(fmod)
 MIGRAPHX_DEVICE_MATH_VEC(isnan)
 MIGRAPHX_DEVICE_MATH_VEC(log)
 MIGRAPHX_DEVICE_MATH_VEC(max)
+MIGRAPHX_DEVICE_MATH_VEC(mod)
 MIGRAPHX_DEVICE_MATH_VEC(min)
 MIGRAPHX_DEVICE_MATH_VEC(pow)
 MIGRAPHX_DEVICE_MATH_VEC(round)

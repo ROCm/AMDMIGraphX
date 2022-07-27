@@ -21,20 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/device/fmod.hpp>
-#include <migraphx/gpu/device/nary.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_MUL_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MUL_HPP
+
+#include <migraphx/gpu/oper.hpp>
+#include <migraphx/gpu/device/mod.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-namespace device {
 
-void fmod(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
+struct hip_mod : binary_device<hip_mod, device::mod>
 {
-    nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ { return fmodf(x, y); });
-}
+};
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

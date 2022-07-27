@@ -247,8 +247,15 @@ insert_generic_instructions(module& m,
                 mod_outputs = copy_inputs;
                 break;
             }
-
-            copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+            else if(sins->name() == "@divzero")
+            {
+                shape s  = sins->get_shape();
+                copy_ins = m.add_divzero(inputs, {s});
+            }
+            else
+            {
+                copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+            }
         }
         map_ins[sins] = copy_ins;
     }

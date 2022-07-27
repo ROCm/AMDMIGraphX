@@ -1348,17 +1348,7 @@ TEST_CASE(div_zero_compile_trap_after_passes)
     mm->add_instruction(migraphx::make_op("div"), x, zero);
     run_pass(*mm);
 
-    bool result = false;
-    try
-    {
-        p.compile(migraphx::ref::target{});
-    }
-    catch(const std::runtime_error& e)
-    {
-        (void)e;
-        result = true;
-    }
-    EXPECT(result);
+    EXPECT(test::throws([&] { p.compile(migraphx::ref::target{}); }));
 }
 
 TEST_CASE(div_zero_compile_trap_long_program_after_passes)
@@ -1375,18 +1365,7 @@ TEST_CASE(div_zero_compile_trap_long_program_after_passes)
     mm->add_instruction(migraphx::make_op("sub"), y, add);
 
     run_pass(*mm);
-
-    bool result = false;
-    try
-    {
-        p.compile(migraphx::ref::target{});
-    }
-    catch(const std::runtime_error& e)
-    {
-        (void)e;
-        result = true;
-    }
-    EXPECT(result);
+    EXPECT(test::throws([&] { p.compile(migraphx::ref::target{}); }));
 }
 
 TEST_CASE(div_zero_eval_fails)
@@ -1403,18 +1382,7 @@ TEST_CASE(div_zero_eval_fails)
     mm->add_instruction(migraphx::make_op("sub"), y, add);
 
     run_pass(*mm);
-
-    bool result = false;
-    try
-    {
-        p.eval({}).back();
-    }
-    catch(const std::runtime_error& e)
-    {
-        (void)e;
-        result = true;
-    }
-    EXPECT(result);
+    EXPECT(test::throws([&] { p.eval({}).back(); }));
 }
 
 TEST_CASE(div_zero_compute_shape_fails)
@@ -1426,18 +1394,7 @@ TEST_CASE(div_zero_compute_shape_fails)
     auto div0 = mm->add_divzero({x, zero}, {migraphx::shape::float_type, {1}});
 
     run_pass(*mm);
-
-    bool result = false;
-    try
-    {
-        div0->recompute_shape();
-    }
-    catch(const std::runtime_error& e)
-    {
-        (void)e;
-        result = true;
-    }
-    EXPECT(result);
+    EXPECT(test::throws([&] { div0->recompute_shape(); }));
 }
 
 TEST_CASE(elu_test)

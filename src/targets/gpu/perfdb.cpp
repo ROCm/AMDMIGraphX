@@ -90,10 +90,13 @@ auto query_miopen_db(const std::string& query)
     // TODO: Store db as a static variable
     const auto dbpath = fs::path{"/opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
     // Check if db file exists.
-    if(FILE* file = fopen(dbpath.c_str(), "r"))
+    if(auto file = fopen(dbpath.c_str(), "r"))
         fclose(file);
     else
-        return "";
+    {
+        std::vector<std::unordered_map<std::string, std::string>> empty;
+        return empty;
+    }
 
     auto db = sqlite::read(dbpath);
     return db.execute(query);

@@ -250,7 +250,7 @@ insert_generic_instructions(module& m,
             else if(sins->name() == "@divzero")
             {
                 shape s  = sins->get_shape();
-                copy_ins = m.add_divzero(inputs, {s});
+                copy_ins = m.add_divzero(copy_inputs, {s});
             }
             else
             {

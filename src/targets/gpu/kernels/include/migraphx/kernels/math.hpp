@@ -128,8 +128,8 @@ MIGRAPHX_DEVICE_MATH_FOR(float, sin, ::sinf)
 MIGRAPHX_DEVICE_MATH_FOR(float, sinh, ::sinhf)
 MIGRAPHX_DEVICE_MATH_FOR(float, tan, ::tanf)
 MIGRAPHX_DEVICE_MATH_FOR(float, tanh, ::tanhf)
-MIGRAPHX_DEVICE_MATH(float, mod, ::mod)
-MIGRAPHX_DEVICE_MATH(float, fmod, ::fmod)
+MIGRAPHX_DEVICE_MATH_FOR(float, mod, ::mod)
+MIGRAPHX_DEVICE_MATH_FOR(float, fmod, ::fmod)
 
 // Builtin half functions
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)

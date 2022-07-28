@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_PAR_DFOR_HPP
 
 #include <migraphx/par_for.hpp>
+#include <migraphx/dfor.hpp>
 #include <migraphx/functional.hpp>
 #include <array>
 #include <numeric>

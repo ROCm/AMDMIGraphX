@@ -24,10 +24,9 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_LESS_HPP
 #define MIGRAPHX_GUARD_OPERATORS_LESS_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/binary.hpp>
+#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -82,8 +82,11 @@ endif()
 # Disable cpu backend by default
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
+# Disable fpga backend by default
+set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
+
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options(-std=c++17)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 
 if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
     set(CONFIGURE_DEPENDS)
@@ -253,14 +256,6 @@ rocm_enable_cppcheck(
 enable_testing()
 
 include(ROCMCreatePackage)
-rocm_create_package(
-    NAME MIGraphX
-    DESCRIPTION "AMD's graph optimizer"
-    MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
-    LDCONFIG
-    PTH
-    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
-)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -277,3 +272,12 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
+
+rocm_create_package(
+    NAME MIGraphX
+    DESCRIPTION "AMD's graph optimizer"
+    MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
+    LDCONFIG
+    PTH
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
+)

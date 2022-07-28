@@ -242,6 +242,11 @@ bool equal(const T& x, const T& y)
 }
 
 std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
+std::vector<argument>
+run_async(program& p, const parameter_map& params, const execution_environment& exec_env)
+{
+    return p.eval(params, exec_env);
+}
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 

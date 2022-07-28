@@ -76,8 +76,13 @@ struct context
     value to_value() const;
     // (optional)
     void from_value(const value& v);
+
     // (optional)
     any_ptr get_queue();
+
+    // Used for async streams
+    void wait_for(any_ptr queue);
+    void finish_on(any_ptr queue);
     //
     void finish() const;
 };
@@ -163,6 +168,16 @@ struct context
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().get_queue();
+    }
+
+    void wait_for(any_ptr queue)
+    {
+        // TODO
+    }
+
+    void finish_on(any_ptr queue)
+    {
+        // TODO
     }
 
     void finish() const

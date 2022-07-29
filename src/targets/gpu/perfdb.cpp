@@ -90,8 +90,11 @@ auto query_miopen_db(const std::string& query)
     // TODO: Store db as a static variable
     const auto dbpath = fs::path{"/opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
     // Check if db file exists.
-    if(FILE * file = fopen(dbpath.c_str(), "r"))
-        fclose(file);
+    ifstream dbs(dbpath);
+    if(dbs.is_open())
+    {
+        dbs.close();
+    }
     else
     {
         std::vector<std::unordered_map<std::string, std::string>> empty;

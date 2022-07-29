@@ -92,12 +92,18 @@ def check_correctness(gold_outputs,
 
 def get_np_datatype(in_type):
     datatypes = {
-        'float64_type': np.float64,
+        'double_type': np.float64,
         'float_type': np.float32,
         'half_type': np.half,
         'int64_type': np.int64,
+        'uint64_type': np.uint64,
         'int32_type': np.int32,
-        'int8_type': np.int8
+        'uint32_type': np.uint32,
+        'int16_type': np.int16,
+        'uint16_type': np.uint16,
+        'int8_type': np.int8,
+        'uint8_type': np.uint8,
+        'bool_type': np.bool_
     }
     return datatypes[in_type]
 

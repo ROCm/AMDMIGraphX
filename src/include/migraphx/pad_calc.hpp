@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_PAD_CALC_HPP
 #define MIGRAPHX_GUARD_OPERATORS_PAD_CALC_HPP
 
-#include <utility>
+#include <migraphx/config.hpp>
 #include <cstdint>
 #include <vector>
 

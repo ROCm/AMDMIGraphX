@@ -59,10 +59,10 @@ struct squeeze
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
         auto old_strides = input_shape.strides();
-        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
+        /*if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
         {
             MIGRAPHX_THROW("squeeze axis dimension should be equal to 1");
-        }
+        } */
         std::vector<std::size_t> new_lens;
         std::vector<std::size_t> new_strides;
         if(axes.empty())

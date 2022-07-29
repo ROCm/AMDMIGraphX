@@ -43,7 +43,8 @@ struct parse_constant : op_parser<parse_constant>
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
-            return info.add_literal(literal{});
+            shape s{shape::int64_type, {31702968, 1}, {1, 1}};
+            return info.add_literal(literal(s, {0}));
         }
 
         auto dim_size = info.attributes.at("value").t().dims_size();

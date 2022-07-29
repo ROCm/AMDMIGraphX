@@ -68,7 +68,8 @@ struct parse_split : op_parser<parse_split>
             if((lens[tuned_axis] % info.num_outputs) != 0)
             {
                 MIGRAPHX_THROW("PARSE_SPLIT: input cannot be equally divided into " +
-                               std::to_string(info.num_outputs) + " splits!");
+                               std::to_string(info.num_outputs) + " splits! " +
+                               std::to_string(tuned_axis));
             }
             auto dl = lens[tuned_axis] / info.num_outputs;
             vec_splits.resize(info.num_outputs, dl);

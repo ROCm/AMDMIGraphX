@@ -51,6 +51,8 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/pad_calc.hpp>
+
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -239,6 +241,20 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
             output_shape =
                 op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
         }
+        std::vector<std::size_t> padding;
+        if(op.use_dynamic_same_auto_pad)
+        {
+            auto input_lens = args[0].get_shape().lens();
+            std::vector<std::size_t> img_lens{input_lens.begin() + 2, input_lens.end()};
+            auto weights_lens = args[1].get_shape().lens();
+            std::vector<std::size_t> k_lens{weights_lens.begin() + 2, weights_lens.end()};
+            padding = calc_dyn_auto_pad(img_lens, k_lens, op.stride, op.dilation);
+        }
+        else
+        {
+            padding = op.padding;
+        }
+
         argument result{output_shape};
         visit_quantize(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             auto in_lens = input.get_shape().lens();
@@ -258,7 +274,7 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
                 {
                     auto d_2 = dim - 2;
                     win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
-                                        std::ptrdiff_t(op.padding[d_2]));
+                                        std::ptrdiff_t(padding[d_2]));
                 }
                 const auto group_id = w / (wei_n / op.group);
 

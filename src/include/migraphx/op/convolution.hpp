@@ -41,8 +41,9 @@ struct convolution
     std::vector<std::size_t> stride   = {1, 1};
     std::vector<std::size_t> dilation = {1, 1};
 
-    int group                   = 1;
-    padding_mode_t padding_mode = default_;
+    int group                      = 1;
+    padding_mode_t padding_mode    = default_;
+    bool use_dynamic_same_auto_pad = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -51,7 +52,8 @@ struct convolution
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
                     f(self.group, "group"),
-                    f(self.padding_mode, "padding_mode"));
+                    f(self.padding_mode, "padding_mode"),
+                    f(self.use_dynamic_same_auto_pad, "use_dynamic_same_auto_pad"));
     }
 
     std::string name() const { return "convolution"; }
@@ -91,6 +93,13 @@ struct convolution
            input.lens().at(1) != (weights.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
 
+        std::vector<op::padding_mode_t> dyn_pad_modes = {op::padding_mode_t::same_upper,
+                                                         op::padding_mode_t::same_lower};
+        if(use_dynamic_same_auto_pad and not contains(dyn_pad_modes, padding_mode))
+        {
+            MIGRAPHX_THROW("CONVOLUTION: use_dynamic_same_auto_pad set with invalid padding mode");
+        }
+
         auto calc_output_lens = [&](std::vector<std::size_t> i_lens,
                                     std::vector<std::size_t> w_lens) {
             std::vector<size_t> ret = {};
@@ -120,9 +129,9 @@ struct convolution
             return ret;
         };
 
+        std::vector<shape::dynamic_dimension> output_dyn_dims = {};
         if(input.dynamic() or weights.dynamic())
         {
-            std::vector<shape::dynamic_dimension> output_dyn_dims = {};
             if(input.dynamic())
             {
                 output_dyn_dims.push_back(input.dyn_dims().at(0));
@@ -143,13 +152,27 @@ struct convolution
                 output_dyn_dims.push_back({l, l, 0});
             }
 
-            auto min_spatial_dims = calc_output_lens(input.min_lens(), weights.max_lens());
-            auto max_spatial_dims = calc_output_lens(input.max_lens(), weights.min_lens());
-            auto opt_spatial_dims = calc_output_lens(input.opt_lens(), weights.opt_lens());
-            for(size_t i = 0; i < num_spatial_dims; ++i)
+            if(use_dynamic_same_auto_pad)
             {
-                output_dyn_dims.push_back(shape::dynamic_dimension{
-                    min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
+                for(std::size_t i = 0; i < num_spatial_dims; ++i)
+                {
+                    auto s        = stride[i];
+                    auto w        = input.dyn_dims()[i];
+                    auto ceil_div = [](std::size_t x, std::size_t y) { return (x + y - 1) / y; };
+                    output_dyn_dims.push_back(shape::dynamic_dimension{
+                        ceil_div(w.min, s), ceil_div(w.max, s), ceil_div(w.opt, s)});
+                }
+            }
+            else
+            {
+                auto min_spatial_dims = calc_output_lens(input.min_lens(), weights.max_lens());
+                auto max_spatial_dims = calc_output_lens(input.max_lens(), weights.min_lens());
+                auto opt_spatial_dims = calc_output_lens(input.opt_lens(), weights.opt_lens());
+                for(size_t i = 0; i < num_spatial_dims; ++i)
+                {
+                    output_dyn_dims.push_back(shape::dynamic_dimension{
+                        min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
+                }
             }
             return shape{input.type(), output_dyn_dims};
         }

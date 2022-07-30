@@ -26,6 +26,7 @@
 #include <migraphx/sqlite.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/permutation.hpp>
+#include <fstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

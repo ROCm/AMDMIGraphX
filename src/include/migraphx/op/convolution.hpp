@@ -156,11 +156,19 @@ struct convolution
             {
                 for(std::size_t i = 0; i < num_spatial_dims; ++i)
                 {
-                    auto s        = stride[i];
-                    auto w        = input.dyn_dims()[i];
                     auto ceil_div = [](std::size_t x, std::size_t y) { return (x + y - 1) / y; };
-                    output_dyn_dims.push_back(shape::dynamic_dimension{
-                        ceil_div(w.min, s), ceil_div(w.max, s), ceil_div(w.opt, s)});
+                    auto s        = stride[i];
+                    if(input.dynamic())
+                    {
+                        auto w = input.dyn_dims()[i];
+                        output_dyn_dims.push_back(shape::dynamic_dimension{
+                            ceil_div(w.min, s), ceil_div(w.max, s), ceil_div(w.opt, s)});
+                    }
+                    else
+                    {
+                        auto od = ceil_div(input.lens()[i], s);
+                        output_dyn_dims.push_back(shape::dynamic_dimension{od, od, 0});
+                    }
                 }
             }
             else

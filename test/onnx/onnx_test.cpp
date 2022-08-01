@@ -882,6 +882,84 @@ TEST_CASE(conv_dynamic_img_and_weights_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(conv_dynamic_batch_same_upper)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0", {migraphx::shape::float_type, {{1, 10, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}});
+    auto l1 = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
+    auto c0 =
+        mm->add_instruction(migraphx::make_op("convolution",
+                                              {{"padding", {1, 1, 1, 1}},
+                                               {"stride", {1, 1}},
+                                               {"dilation", {1, 1}},
+                                               {"padding_mode", migraphx::op::padding_mode_t::same},
+                                               {"use_dynamic_same_auto_pad", false}}),
+                            l0,
+                            l1);
+    mm->add_return({c0});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10, 0};
+
+    auto prog = migraphx::parse_onnx("conv_dynamic_batch_same_upper_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_dynamic_img_same_upper)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0", {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {5, 10, 0}, {5, 10, 0}}});
+    auto l1 = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
+    auto c0 = mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {0, 0}},
+                           {"stride", {1, 1}},
+                           {"dilation", {1, 1}},
+                           {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                           {"use_dynamic_same_auto_pad", true}}),
+        l0,
+        l1);
+    mm->add_return({c0});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {5, 10, 0};
+
+    auto prog = migraphx::parse_onnx("conv_dynamic_img_same_upper_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_dynamic_kernel_same_lower)
+{
+    std::cout << "here1\n";
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5}});
+    auto l1  = mm->add_parameter(
+        "1", {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}});
+    std::cout << "here2\n";
+    auto c0 = mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {0, 0}},
+                           {"stride", {1, 1}},
+                           {"dilation", {1, 1}},
+                           {"padding_mode", migraphx::op::padding_mode_t::same_lower},
+                           {"use_dynamic_same_auto_pad", true}}),
+        l0,
+        l1);
+    std::cout << "here3\n";
+    mm->add_return({c0});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 4, 0};
+    std::cout << "here\n";
+    auto prog = migraphx::parse_onnx("conv_dynamic_kernel_same_lower_test.onnx", options);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(conv_relu_maxpool_test)
 {
     migraphx::program p;

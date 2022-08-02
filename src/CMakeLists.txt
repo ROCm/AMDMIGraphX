@@ -80,6 +80,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     simplify_qdq.cpp
+    sqlite.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
@@ -135,6 +136,7 @@ register_migraphx_ops(
     exp
     flatten
     floor
+    fmod
     gather
     gathernd
     get_tuple_elem
@@ -157,6 +159,7 @@ register_migraphx_ops(
     lstm
     max
     min
+    mod
     mul
     multibroadcast
     multinomial
@@ -240,6 +243,13 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
+find_package(nlohmann_json 3.8.0 REQUIRED)
+target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
+
+find_package(PkgConfig)
+pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
+target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
+
 find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
@@ -267,6 +277,11 @@ list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
+endif()
+if(MIGRAPHX_ENABLE_FPGA)
+add_subdirectory(targets/fpga)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
+target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
 endif()
 
 if(HAVE_HALF_EXPR)

@@ -65,13 +65,39 @@ struct parse_if : op_parser<parse_if>
 
         auto then_out_shapes = then_mdl->get_output_shapes();
         auto else_out_shapes = else_mdl->get_output_shapes();
-        if(not std::equal(then_out_shapes.begin(),
-                          then_out_shapes.end(),
-                          else_out_shapes.begin(),
-                          else_out_shapes.end()))
+
+        assert(then_out_shapes.size() == else_out_shapes.size());
+
+        // Must have the same type for both if/else blocks by onnx spec
+        if(then_out_shapes.at(0).type() != else_out_shapes.at(0).type())
         {
             MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                           " then and else sub_grahps must have same output shapes!");
+                           " then and else sub_grahps must have same output type! " +
+                           std::to_string(then_out_shapes.at(0).type()) + " vs " +
+                           std::to_string(else_out_shapes.at(0).type()));
+        }
+
+        // Need to check static shapes result
+        if(not then_out_shapes.at(0).dynamic() && not else_out_shapes.at(0).dynamic())
+        {
+            if(then_out_shapes.at(0).scalar())
+            {
+                if(then_out_shapes.at(0).lens().at(0) != else_out_shapes.at(0).lens().at(0) ||
+                   then_out_shapes.at(0).strides().at(0) != 1)
+                {
+                    MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                                   "then out incompatible output shape with else");
+                }
+            }
+            else if(else_out_shapes.at(0).scalar())
+            {
+                if(else_out_shapes.at(0).lens().at(0) != else_out_shapes.at(0).lens().at(0) ||
+                   else_out_shapes.at(0).strides().at(0) == 1)
+                {
+                    MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                                   "else out incompatible output shape with then");
+                }
+            }
         }
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});

@@ -173,13 +173,13 @@ struct convolution
                 auto s        = stride[i];
                 if(x_shape.dynamic())
                 {
-                    auto w = x_shape.dyn_dims()[i];
+                    auto x = x_shape.dyn_dims()[i + 2];
                     output_dyn_dims.push_back(shape::dynamic_dimension{
-                        ceil_div(w.min, s), ceil_div(w.max, s), ceil_div(w.opt, s)});
+                        ceil_div(x.min, s), ceil_div(x.max, s), ceil_div(x.opt, s)});
                 }
                 else
                 {
-                    auto od = ceil_div(x_shape.lens()[i], s);
+                    auto od = ceil_div(x_shape.lens()[i + 2], s);
                     output_dyn_dims.push_back(shape::dynamic_dimension{od, od, 0});
                 }
             }

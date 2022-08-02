@@ -77,26 +77,28 @@ struct parse_if : op_parser<parse_if>
                            std::to_string(else_out_shapes.at(0).type()));
         }
 
-            if(then_out_shapes.at(0).scalar())
+        if(then_out_shapes.at(0).scalar())
         {
             if(then_out_shapes.at(0).lens().at(0) != else_out_shapes.at(0).lens().at(0) ||
-                then_out_shapes.at(0).strides().at(0) != 1)
+               then_out_shapes.at(0).strides().at(0) != 1)
             {
                 MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                                "then out incompatible output shape with else");
+                               "then out incompatible output shape with else");
             }
-            migraphx::shape s(then_out_shapes.at(0).type(), {then_out_shapes.at(0).lens().at(0), 1} , {1, 1});
+            migraphx::shape s(
+                then_out_shapes.at(0).type(), {then_out_shapes.at(0).lens().at(0), 1}, {1, 1});
             then_mdl->add_outline(s);
         }
         else if(else_out_shapes.at(0).scalar())
         {
             if(else_out_shapes.at(0).lens().at(0) != else_out_shapes.at(0).lens().at(0) ||
-                else_out_shapes.at(0).strides().at(0) == 1)
+               else_out_shapes.at(0).strides().at(0) == 1)
             {
                 MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                                "else out incompatible output shape with then");
+                               "else out incompatible output shape with then");
             }
-            migraphx::shape s(else_out_shapes.at(0).type(), {else_out_shapes.at(0).lens().at(0), 1} , {1, 1});
+            migraphx::shape s(
+                else_out_shapes.at(0).type(), {else_out_shapes.at(0).lens().at(0), 1}, {1, 1});
             else_mdl->add_outline(s);
         }
 

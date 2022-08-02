@@ -40,13 +40,16 @@ struct parse_constant : op_parser<parse_constant>
                           const std::vector<instruction_ref>& /*args*/) const
     {
         literal v = parser.parse_value(info.attributes.at("value"));
+
+        auto dim_size  = info.attributes.at("value").t().dims_size();
+        auto dim_param = info.attributes.at("value").t().dims();
+
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
-            return info.add_literal(literal{});
+            return info.add_literal(literal{dim_param.at(0)});
         }
 
-        auto dim_size = info.attributes.at("value").t().dims_size();
         // if dim_size is 0, it is a scalar
         if(dim_size == 0)
         {

@@ -470,7 +470,6 @@ struct interface_base : Base
     void auto_assign(rank<0>, T* out, U x)
     {
         *out = x;
-        return;
     }
 
     template <class T, class U>

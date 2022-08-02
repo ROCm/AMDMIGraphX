@@ -137,6 +137,22 @@ if(MIGRAPHX_ENABLE_GPU)
     endforeach()
 endif()
 
+if(MIGRAPHX_ENABLE_FPGA)
+    # fpga tests
+    file(GLOB FPGA_TESTS ${CONFIGURE_DEPENDS} fpga/*.cpp)
+
+    foreach(TEST ${FPGA_TESTS})
+        get_filename_component(BASE_NAME ${TEST} NAME_WE)
+        add_test_executable(test_fpga_${BASE_NAME} ${TEST})
+        rocm_clang_tidy_check(test_fpga_${BASE_NAME})
+        set_tests_properties(test_fpga_${BASE_NAME} PROPERTIES 
+            COST 10 
+            RESOURCE_LOCK fpga
+        )
+        target_link_libraries(test_fpga_${BASE_NAME} migraphx_fpga)
+    endforeach()
+endif()
+
 # Onnx test
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
 file (GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)

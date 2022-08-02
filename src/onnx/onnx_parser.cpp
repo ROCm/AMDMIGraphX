@@ -514,6 +514,16 @@ shape::type_t get_type(int dtype)
     }
 }
 
+bool is_type_float(shape::type_t dtype)
+{
+    bool r = false;
+    if(dtype == shape::float_type || dtype == shape::double_type || dtype == shape::half_type)
+    {
+        r = true;
+    }
+    return r;
+}
+
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

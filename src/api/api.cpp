@@ -39,34 +39,47 @@
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
 #include <cstdarg>
-
 namespace migraphx {
+
+static thread_local bool disable_exception_catch = false; // NOLINT
+
+extern "C" void migraphx_test_private_disable_exception_catch(bool b)
+{
+    disable_exception_catch = b;
+}
 
 template <class F>
 migraphx_status try_(F f, bool output = true) // NOLINT
 {
-    try
+    if(disable_exception_catch)
     {
         f();
     }
-    catch(const migraphx::exception& ex)
+    else
     {
-        if(output)
-            std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
-        if(ex.error > 0)
-            return migraphx_status(ex.error);
-        else
+        try
+        {
+            f();
+        }
+        catch(const migraphx::exception& ex)
+        {
+            if(output)
+                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+            if(ex.error > 0)
+                return migraphx_status(ex.error);
+            else
+                return migraphx_status_unknown_error;
+        }
+        catch(const std::exception& ex)
+        {
+            if(output)
+                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
-    }
-    catch(const std::exception& ex)
-    {
-        if(output)
-            std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
-        return migraphx_status_unknown_error;
-    }
-    catch(...)
-    {
-        return migraphx_status_unknown_error;
+        }
+        catch(...)
+        {
+            return migraphx_status_unknown_error;
+        }
     }
     return migraphx_status_success;
 }
@@ -312,6 +325,7 @@ void destroy(T* x)
 {
     delete x; // NOLINT
 }
+
 // TODO: Move to interface preamble
 template <class C, class D>
 struct manage_generic_ptr
@@ -320,30 +334,35 @@ struct manage_generic_ptr
 
     manage_generic_ptr(std::nullptr_t) {}
 
-    manage_generic_ptr(void* pdata, C pcopier, D pdeleter)
-        : data(nullptr), copier(pcopier), deleter(pdeleter)
+    manage_generic_ptr(void* pdata, const char* obj_tname, C pcopier, D pdeleter)
+        : data(nullptr), obj_typename(obj_tname), copier(pcopier), deleter(pdeleter)
     {
         copier(&data, pdata);
     }
 
     manage_generic_ptr(const manage_generic_ptr& rhs)
-        : data(nullptr), copier(rhs.copier), deleter(rhs.deleter)
+        : data(nullptr), obj_typename(rhs.obj_typename), copier(rhs.copier), deleter(rhs.deleter)
     {
         if(copier)
             copier(&data, rhs.data);
     }
 
     manage_generic_ptr(manage_generic_ptr&& other) noexcept
-        : data(other.data), copier(other.copier), deleter(other.deleter)
+        : data(other.data),
+          obj_typename(other.obj_typename),
+          copier(other.copier),
+          deleter(other.deleter)
     {
-        other.data    = nullptr;
-        other.copier  = nullptr;
-        other.deleter = nullptr;
+        other.data         = nullptr;
+        other.obj_typename = "";
+        other.copier       = nullptr;
+        other.deleter      = nullptr;
     }
 
     manage_generic_ptr& operator=(manage_generic_ptr rhs)
     {
         std::swap(data, rhs.data);
+        std::swap(obj_typename, rhs.obj_typename);
         std::swap(copier, rhs.copier);
         std::swap(deleter, rhs.deleter);
         return *this;
@@ -355,9 +374,10 @@ struct manage_generic_ptr
             deleter(data);
     }
 
-    void* data = nullptr;
-    C copier   = nullptr;
-    D deleter  = nullptr;
+    void* data               = nullptr;
+    const char* obj_typename = "";
+    C copier                 = nullptr;
+    D deleter                = nullptr;
 };
 
 extern "C" struct migraphx_shape;
@@ -587,8 +607,9 @@ struct migraphx_experimental_custom_op
     migraphx_experimental_custom_op(void* p,
                                     migraphx_experimental_custom_op_copy c,
                                     migraphx_experimental_custom_op_delete d,
+                                    const char* obj_typename,
                                     Ts&&... xs)
-        : object_ptr(p, c, d), xobject(std::forward<Ts>(xs)...)
+        : object_ptr(p, obj_typename, c, d), xobject(std::forward<Ts>(xs)...)
     {
     }
     manage_generic_ptr<migraphx_experimental_custom_op_copy, migraphx_experimental_custom_op_delete>
@@ -602,13 +623,21 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<migraphx_argument_t> out;
         if(compute_f == nullptr)
             throw std::runtime_error("compute function is missing.");
+        std::array<char, 256> exception_msg;
+        exception_msg.front() = '\0';
         auto api_error_result = compute_f(&out,
                                           object_ptr.data,
+                                          exception_msg.data(),
+                                          exception_msg.size(),
                                           object_cast<migraphx_context_t>(&(ctx)),
                                           object_cast<migraphx_shape_t>(&(output)),
                                           object_cast<migraphx_arguments_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute.");
+        {
+            const std::string exception_str(exception_msg.data());
+            throw std::runtime_error("Error in compute of: " +
+                                     std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
         return (&out)->object;
     }
 
@@ -618,10 +647,19 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<migraphx_shape_t> out;
         if(compute_shape_f == nullptr)
             throw std::runtime_error("compute_shape function is missing.");
-        auto api_error_result =
-            compute_shape_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
+        std::array<char, 256> exception_msg;
+        exception_msg.front() = '\0';
+        auto api_error_result = compute_shape_f(&out,
+                                                object_ptr.data,
+                                                exception_msg.data(),
+                                                exception_msg.size(),
+                                                object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in compute_shape.");
+        {
+            const std::string exception_str(exception_msg.data());
+            throw std::runtime_error("Error in compute_shape of: " +
+                                     std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
         return (&out)->object;
     }
 
@@ -771,6 +809,16 @@ migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_sha
         if(x == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
         *out = migraphx::equal((shape->object), (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).standard();
     });
     return api_error_result;
 }
@@ -1838,11 +1886,12 @@ migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experi
                                        void* obj,
                                        migraphx_experimental_custom_op_copy c,
                                        migraphx_experimental_custom_op_delete d,
+                                       const char* obj_typename,
                                        const char* name)
 {
     auto api_error_result = migraphx::try_([&] {
         *experimental_custom_op =
-            allocate<migraphx_experimental_custom_op_t>((obj), (c), (d), (name));
+            allocate<migraphx_experimental_custom_op_t>((obj), (c), (d), (obj_typename), (name));
     });
     return api_error_result;
 }

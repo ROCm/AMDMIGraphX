@@ -23,8 +23,10 @@
  */
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
+#include <stdexcept>
 #include "test.hpp"
 
 struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
@@ -43,10 +45,22 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        CHECK(inputs.size() == 2);
-        CHECK(inputs[0].lengths().size() == 1);
-        CHECK(inputs[0].type() == migraphx_shape_float_type);
-        CHECK(bool{inputs[0] == inputs[1]});
+        if(inputs.size() != 2)
+        {
+            throw std::runtime_error("op must have two inputs");
+        }
+        if(inputs[0].lengths().size() != 1)
+        {
+            throw std::runtime_error("input arg must be a vector or scalar");
+        }
+        if(inputs[0].type() != migraphx_shape_float_type)
+        {
+            throw std::runtime_error("input arg must be of type float");
+        }
+        if(inputs[0] != inputs[1])
+        {
+            throw std::runtime_error("input arg and buffer allocation must be of same shape");
+        }
         return inputs.back();
     }
 };
@@ -81,6 +95,20 @@ TEST_CASE(run_sigmoid_custom_op)
                    expected_result.begin(),
                    [](auto y) { return 1.f / (1.f + std::exp(-y)); });
     EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+}
+
+extern "C" void migraphx_test_private_disable_exception_catch(bool b);
+
+TEST_CASE(run_sigmoid_with_incorrect_shape)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx_shape_float_type, {12}};
+    migraphx::module m = p.get_main_module();
+    auto x             = m.add_parameter("x", s);
+    migraphx_test_private_disable_exception_catch(true);
+    EXPECT(test::throws<std::exception>(
+        [&] { m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x}); },
+        "Error in compute_shape of: sigmoid_custom_op: op must have two inputs"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

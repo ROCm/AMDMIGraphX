@@ -132,12 +132,16 @@ typedef const struct migraphx_experimental_custom_op* const_migraphx_experimenta
 
 typedef migraphx_status (*migraphx_experimental_custom_op_compute)(migraphx_argument_t out,
                                                                    void* obj,
+                                                                   char* exception_msg,
+                                                                   size_t exception_msg_size,
                                                                    migraphx_context_t ctx,
                                                                    migraphx_shape_t output,
                                                                    migraphx_arguments_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraphx_shape_t out,
                                                                          void* obj,
+                                                                         char* exception_msg,
+                                                                         size_t exception_msg_size,
                                                                          migraphx_shapes_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(int* out,
@@ -182,6 +186,8 @@ migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape);
 
 migraphx_status
 migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_shape_t x);
+
+migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape);
 
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
@@ -493,6 +499,7 @@ migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experi
                                        void* obj,
                                        migraphx_experimental_custom_op_copy c,
                                        migraphx_experimental_custom_op_delete d,
+                                       const char* obj_typename,
                                        const char* name);
 
 migraphx_status

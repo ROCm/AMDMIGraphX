@@ -197,7 +197,8 @@ class Parameter:
                  optional: bool = False,
                  returns: bool = False,
                  virtual: bool = False,
-                 this: bool = False) -> None:
+                 this: bool = False,
+                 hidden: bool = False) -> None:
         self.name = name
         self.type = Type(type)
         self.optional = optional
@@ -211,6 +212,7 @@ class Parameter:
         self.returns = returns
         self.virtual = virtual
         self.this = this
+        self.hidden = hidden
         self.bad_param_check: Optional[BadParam] = None
         self.virtual_read: Optional[List[str]] = None
         self.virtual_write: Optional[str] = None
@@ -744,6 +746,8 @@ void destroy(T* x)
 {
     delete x; // NOLINT
 }
+
+
 // TODO: Move to interface preamble
 template <class C, class D>
 struct manage_generic_ptr
@@ -754,23 +758,24 @@ struct manage_generic_ptr
     {
     }
 
-    manage_generic_ptr(void* pdata, C pcopier, D pdeleter)
-        : data(nullptr), copier(pcopier), deleter(pdeleter)
+    manage_generic_ptr(void* pdata, const char* obj_tname, C pcopier, D pdeleter)
+        : data(nullptr), obj_typename(obj_tname), copier(pcopier), deleter(pdeleter)
     {
         copier(&data, pdata);
     }
 
     manage_generic_ptr(const manage_generic_ptr& rhs)
-        : data(nullptr), copier(rhs.copier), deleter(rhs.deleter)
+        : data(nullptr), obj_typename(rhs.obj_typename), copier(rhs.copier), deleter(rhs.deleter)
     {
         if(copier)
             copier(&data, rhs.data);
     }
 
     manage_generic_ptr(manage_generic_ptr&& other) noexcept
-        : data(other.data), copier(other.copier), deleter(other.deleter)
+        : data(other.data), obj_typename(other.obj_typename), copier(other.copier), deleter(other.deleter)
     {
         other.data    = nullptr;
+        other.obj_typename = "";
         other.copier  = nullptr;
         other.deleter = nullptr;
     }
@@ -778,6 +783,7 @@ struct manage_generic_ptr
     manage_generic_ptr& operator=(manage_generic_ptr rhs)
     {
         std::swap(data, rhs.data);
+        std::swap(obj_typename, rhs.obj_typename);
         std::swap(copier, rhs.copier);
         std::swap(deleter, rhs.deleter);
         return *this;
@@ -790,6 +796,7 @@ struct manage_generic_ptr
     }
 
     void* data = nullptr;
+    const char* obj_typename = "";
     C copier   = nullptr;
     D deleter  = nullptr;
 };
@@ -1061,8 +1068,8 @@ interface_handle_definition = Template('''
 extern "C" struct ${ctype};
 struct ${ctype} {
     template<class... Ts>
-    ${ctype}(void* p, ${copier} c, ${deleter} d, Ts&&... xs)
-    : object_ptr(p, c, d), xobject(std::forward<Ts>(xs)...)
+    ${ctype}(void* p, ${copier} c, ${deleter} d,  const char* obj_typename, Ts&&... xs)
+    : object_ptr(p, obj_typename, c, d), xobject(std::forward<Ts>(xs)...)
     {}
     manage_generic_ptr<${copier}, ${deleter}> object_ptr = nullptr;
     ${cpptype} xobject;
@@ -1076,9 +1083,13 @@ ${return_type} ${name}(${params}) const
     ${output_decls}
     if (${fname} == nullptr)
         throw std::runtime_error("${name} function is missing.");
+    std::array<char, 256> exception_msg;
+    exception_msg.front() = '\\0';
     auto api_error_result = ${fname}(${args});
-    if (api_error_result != ${success})
-        throw std::runtime_error("Error in ${name}.");
+    if (api_error_result != ${success}) {
+        const std::string exception_str(exception_msg.data()); 
+        throw std::runtime_error("Error in ${name} of: " + std::string(object_ptr.obj_typename) + ": " + exception_str);
+    }
     return ${output};
 }
 ''')
@@ -1098,7 +1109,9 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
         largs += f.returns.virtual_output_args()
         output = f.returns.virtual_output()
     largs += [arg for p in f.params for arg in p.virtual_arg()]
-    lparams += [p.virtual_param() for p in f.params if not p.this]
+    lparams += [
+        p.virtual_param() for p in f.params if not (p.this or p.hidden)
+    ]
     args = ', '.join(largs)
     params = ', '.join(lparams)
     return c_api_virtual_impl.substitute(locals())
@@ -1145,8 +1158,15 @@ class Interface(Handle):
         # Add this parameter to the function
         this = Parameter('obj', 'void*', this=True)
         this.virtual_read = ['object_ptr.data']
+        exception_msg = Parameter('exception_msg', 'char*', hidden=True)
+        exception_msg.virtual_read = ['${name}.data()']
+        exception_msg_size = Parameter('exception_msg_size',
+                                       'size_t',
+                                       hidden=True)
+        exception_msg_size.virtual_read = ['exception_msg.size()']
         f = Function(name,
-                     params=[this] + (params or []),
+                     params=[this, exception_msg, exception_msg_size] +
+                     (params or []),
                      virtual=True,
                      **kwargs)
         self.ifunctions.append(f)

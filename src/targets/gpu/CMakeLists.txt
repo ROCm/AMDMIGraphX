@@ -184,6 +184,7 @@ add_library(migraphx_gpu
     pack_int8_args.cpp
     prefuse_ops.cpp
     pad.cpp
+    perfdb.cpp
     pooling.cpp
     quant_convolution.cpp
     reverse.cpp

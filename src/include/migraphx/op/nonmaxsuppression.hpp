@@ -45,13 +45,13 @@ namespace op {
 struct nonmaxsuppression
 {
     bool center_point_box = false;
-    bool use_dynamic      = false;
+    bool use_dyn_output   = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.center_point_box, "center_point_box"),
-                    f(self.use_dynamic, "use_dynamic"));
+                    f(self.use_dyn_output, "use_dyn_output"));
     }
 
     std::string name() const { return "nonmaxsuppression"; }
@@ -78,7 +78,7 @@ struct nonmaxsuppression
             }
         };
 
-        if(use_dynamic)
+        if(use_dyn_output)
         {
             if(inputs.at(0).dynamic())
             {
@@ -318,7 +318,7 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        if(use_dynamic)
+        if(use_dyn_output)
         {
             return result.reshape({output_shape.type(), {num_selected, 3}});
         }

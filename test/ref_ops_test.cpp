@@ -3421,7 +3421,8 @@ TEST_CASE(nms_dynamic_out_test)
     auto score_threshold = mm->add_literal(0.0f);
 
     auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        migraphx::make_op("nonmaxsuppression",
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
         boxes_l,
         scores_l,
         max_out_l,
@@ -3452,7 +3453,8 @@ TEST_CASE(nms_dynamic_batch_test)
     auto score_threshold = mm->add_literal(0.0f);
 
     auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        migraphx::make_op("nonmaxsuppression",
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
         boxes_p,
         scores_p,
         max_out_l,
@@ -3497,7 +3499,8 @@ TEST_CASE(nms_dynamic_boxes_test)
     auto score_threshold = mm->add_literal(0.0f);
 
     auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        migraphx::make_op("nonmaxsuppression",
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
         boxes_p,
         scores_p,
         max_out_l,
@@ -3539,7 +3542,8 @@ TEST_CASE(nms_dynamic_classes_test)
     auto score_threshold = mm->add_literal(0.0f);
 
     auto r = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        migraphx::make_op("nonmaxsuppression",
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
         boxes_p,
         scores_p,
         max_out_l,
@@ -3585,13 +3589,14 @@ TEST_CASE(nms_not_center_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    // set use_dynamic back to false in operator map
-    auto r = mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dynamic", false}}),
-                                 boxes_l,
-                                 scores_l,
-                                 max_out_l,
-                                 iou_threshold,
-                                 score_threshold);
+    // set use_dyn_output back to false in operator map
+    auto r =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", false}}),
+                            boxes_l,
+                            scores_l,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
     mm->add_return({r});
 
     p.compile(migraphx::ref::target{});

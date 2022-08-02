@@ -164,6 +164,10 @@ struct module
 
     instruction_ref replace_return(std::vector<instruction_ref> args);
 
+    instruction_ref insert_literal(instruction_ref ins, literal l);
+
+    instruction_ref insert_parameter(instruction_ref ins, std::string name, shape s);
+
     std::vector<std::string> get_parameter_names() const;
 
     shape get_parameter_shape(std::string name) const;

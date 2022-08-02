@@ -24,11 +24,8 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
 #define MIGRAPHX_GUARD_OPERATORS_EQUAL_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/float_equal.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/binary.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

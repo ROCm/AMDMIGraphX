@@ -144,25 +144,21 @@ struct convolution
     shape dynamic_compute_shape(shape x_shape, shape w_shape) const
     {
         std::vector<shape::dynamic_dimension> output_dyn_dims = {};
-        if(x_shape.dynamic())
-        {
-            output_dyn_dims.push_back(x_shape.dyn_dims().at(0));
-        }
-        else
-        {
-            auto l = x_shape.lens().at(0);
-            output_dyn_dims.push_back({l, l, 0});
-        }
 
-        if(w_shape.dynamic())
-        {
-            output_dyn_dims.push_back(w_shape.dyn_dims().at(0));
-        }
-        else
-        {
-            auto l = w_shape.lens().at(0);
-            output_dyn_dims.push_back({l, l, 0});
-        }
+        auto dynamic_shape_push_back = [&](const shape& input_shape) {
+            if(input_shape.dynamic())
+            {
+                output_dyn_dims.push_back(input_shape.dyn_dims().at(0));
+            }
+            else
+            {
+                auto l = input_shape.lens().at(0);
+                output_dyn_dims.push_back({l, l, 0});
+            }
+        };
+
+        dynamic_shape_push_back(x_shape);
+        dynamic_shape_push_back(w_shape);
 
         const size_t num_spatial_dims = x_shape.max_lens().size() - 2;
         if(use_dynamic_same_auto_pad)

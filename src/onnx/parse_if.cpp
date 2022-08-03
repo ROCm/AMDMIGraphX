@@ -92,19 +92,21 @@ struct parse_if : op_parser<parse_if>
 
             if(then_out_strides.size() > else_out_strides.size())
             {
-                else_mdl->insert_instruction(
+                auto reshape_ins = else_mdl->insert_instruction(
                     std::prev(else_mdl->end()),
-                    migraphx::make_op(
-                        "reshape", {{"dims", {{else_out_shapes.at(0).lens().at(0), 1}, {1, 1}}}}),
+                    migraphx::make_op("reshape",
+                                      {{"dims", {else_out_shapes.at(0).lens().at(0), 1}}}),
                     std::prev(else_mdl->end())->inputs().front());
+                else_mdl->replace_return({reshape_ins});
             }
             else if(then_out_strides.size() < else_out_strides.size())
             {
-                then_mdl->insert_instruction(
+                auto reshape_ins = then_mdl->insert_instruction(
                     std::prev(then_mdl->end()),
-                    migraphx::make_op(
-                        "reshape", {{"dims", {{then_out_shapes.at(0).lens().at(0), 1}, {1, 1}}}}),
+                    migraphx::make_op("reshape",
+                                      {{"dims", {then_out_shapes.at(0).lens().at(0), 1}}}),
                     std::prev(then_mdl->end())->inputs().front());
+                then_mdl->replace_return({reshape_ins});
             }
         }
 

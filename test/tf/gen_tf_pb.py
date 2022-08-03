@@ -1,3 +1,26 @@
+#####################################################################################
+# The MIT License (MIT)
+#
+# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#####################################################################################
 # This script generates tf pb files for MIGraphX tf operator tests.
 # To generate an individual pb file, you can use the following
 # command: python -c "import gen_tf_pb; gen_tf_pb.{test_name}_test()"
@@ -472,6 +495,15 @@ def relu6_test(g1):
 
 
 @tf_test
+def relu6_mismatch_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float16,
+                                            shape=(1, 3, 13, 37),
+                                            name='0')
+        tf.nn.relu6(g1_input, 'relu6')
+
+
+@tf_test
 def reshape_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32, shape=(16), name='0')
@@ -676,6 +708,7 @@ if __name__ == '__main__':
     pow_test()
     relu_test()
     relu6_test()
+    relu6_mismatch_test()
     reshape_test()
     rsqrt_test()
     shape_test()

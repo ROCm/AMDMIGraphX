@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_PARSER_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_PARSER_HPP
 
@@ -70,9 +93,10 @@ struct onnx_parser
         onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog                  = program();
-    std::size_t default_dim_value = 1;
+    program prog                                   = program();
+    shape::dynamic_dimension default_dyn_dim_value = {1, 1, 0};
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+    std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
     bool skip_unknown_operators = false;
     int64_t max_loop_iterations = 10;
     int64_t opset_version       = 13;
@@ -95,6 +119,7 @@ struct onnx_parser
 };
 
 shape::type_t get_type(int dtype);
+bool is_type_float(shape::type_t dtype);
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

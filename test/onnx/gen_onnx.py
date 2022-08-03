@@ -1,3 +1,26 @@
+#####################################################################################
+# The MIT License (MIT)
+#
+# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#####################################################################################
 # This script generates onnx files for MIGraphX onnx operator tests.
 # To generate an individual onnx file, you can use the following
 # command: python -c "import gen_onnx; gen_onnx.{test_name}_test()"
@@ -2495,6 +2518,62 @@ def instance_norm_test():
 
 
 @onnx_test
+def instance_norm_half_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [1, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test
+def instance_norm_type_mismatch_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test
+def instance_norm_invalid_type_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT32, [1, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test
+def instance_norm_nonbroadcastable_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test
 def instance_norm_val_test():
     x = np.array([[[[0, 1, 2], [3, 4, 5], [6, 7, 8]],
                    [[0, 1, 2], [3, 4, 5], [6, 7, 8]]]])
@@ -3101,7 +3180,7 @@ def max_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
     c = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
 
     node = onnx.helper.make_node(
         'Max',
@@ -3235,7 +3314,7 @@ def min_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
     c = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
 
     node = onnx.helper.make_node(
         'Min',
@@ -3244,6 +3323,89 @@ def min_test():
     )
 
     return ([node], [a, b, c], [y])
+
+
+@onnx_test
+def mod_test():
+    a = helper.make_tensor_value_info('0', TensorProto.INT32, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.INT32, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.INT32, [3, 3, 3])
+
+    node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
+def mod_test_half():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [3, 3, 3])
+
+    node = onnx.helper.make_node('Mod', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
+def mod_test_different_dtypes():
+    a = helper.make_tensor_value_info('0', TensorProto.INT16, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.INT32, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.INT32, [3, 3, 3])
+
+    node = onnx.helper.make_node(
+        'Mod',
+        inputs=['0', '1'],
+        outputs=['2'],
+    )
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
+def mod_test_fmod():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 3, 3])
+
+    node = onnx.helper.make_node(
+        'Mod',
+        inputs=['0', '1'],
+        outputs=['2'],
+        fmod=1  #fmod flag = 1
+    )
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
+def mod_test_fmod_half():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [3, 3, 3])
+
+    node = onnx.helper.make_node('Mod',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 fmod=1)
+
+    return ([node], [a, b], [y])
+
+
+@onnx_test
+def mod_test_fmod_different_dtypes():
+    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3, 3])
+    b = helper.make_tensor_value_info('1', TensorProto.INT32, [3, 3, 3])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 3, 3])
+
+    node = onnx.helper.make_node(
+        'Mod',
+        inputs=['0', '1'],
+        outputs=['2'],
+        fmod=1  #fmod flag = 1
+    )
+
+    return ([node], [a, b], [y])
 
 
 @onnx_test

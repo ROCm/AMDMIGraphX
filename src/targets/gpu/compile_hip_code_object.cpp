@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
@@ -28,9 +51,9 @@ static const char* const make_tensor_template = R"__migraphx__(
 template<>
 struct make_tensor<${n}>
 {
-    static __device__ auto apply(void* p)
+    static __device__ auto apply(void* __restrict__ p)
     {
-        return make_tensor_view(reinterpret_cast<${type}*>(p), make_shape(${lens}, ${strides}));
+        return make_tensor_view(reinterpret_cast<${type}* __restrict__>(p), make_shape(${lens}, ${strides}));
     }
 };
 )__migraphx__";
@@ -119,8 +142,21 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     };
 }
 
+std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
+{
+    size_t block_size = 128;
+    while(block_size <= max_block_size and block_size <= n)
+        block_size *= 2;
+    return block_size / 2;
+}
+
 operation compile_hip_code_object(const std::string& content, hip_compile_options options)
 {
+    assert(options.global > 0);
+    assert(options.local > 0);
+    assert(not options.inputs.empty());
+    assert(options.inputs.size() == options.virtual_inputs.size() or
+           options.virtual_inputs.empty());
     std::vector<src_file> srcs;
     std::transform(migraphx_kernels().begin(),
                    migraphx_kernels().end(),

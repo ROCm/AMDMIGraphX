@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -134,6 +157,25 @@ instruction_ref program::validate() const
 {
     const auto* mm = this->get_main_module();
     return mm->validate();
+}
+
+target_assignments program::get_target_assignments(const std::vector<target>& targets,
+                                                   assignment_options options)
+{
+    const auto m = options.metric;
+
+    target_assignments p;
+
+    const auto* mod = get_main_module();
+    for(auto it : iterator_for(*mod))
+    {
+        auto t = std::max_element(
+            targets.begin(), targets.end(), [it, m](const target& lhs, const target& rhs) {
+                return lhs.is_supported(it, m) < rhs.is_supported(it, m);
+            });
+        p.add_assignment(it, t->name());
+    }
+    return p;
 }
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
@@ -481,12 +523,14 @@ static void mod_from_val(module_ref mod,
 
         if(name == "@param")
         {
-            output = mod->add_parameter(fields["parameter"].to<std::string>(),
-                                        migraphx::from_value<shape>(node.at("shape")));
+            output = mod->insert_parameter(mod->end(),
+                                           fields["parameter"].to<std::string>(),
+                                           migraphx::from_value<shape>(node.at("shape")));
         }
         else if(name == "@literal")
         {
-            output = mod->add_literal(migraphx::from_value<literal>(node.at("literal")));
+            output =
+                mod->insert_literal(mod->end(), migraphx::from_value<literal>(node.at("literal")));
         }
         else
         {
@@ -521,11 +565,11 @@ static void mod_from_val(module_ref mod,
             }
             else if(module_inputs.empty())
             {
-                output = mod->add_instruction(op, inputs);
+                output = mod->insert_instruction(mod->end(), op, inputs);
             }
             else
             {
-                output = mod->add_instruction(op, inputs, module_inputs);
+                output = mod->insert_instruction(mod->end(), op, inputs, module_inputs);
             }
         }
         output->set_normalized(normalized);
@@ -658,11 +702,13 @@ void program::perf_report(std::ostream& os,
     double overhead_percent       = overhead_time * 100.0 / total_time;
     double total_instruction_time = 0.0;
     std::unordered_map<std::string, double> op_times;
+    std::unordered_map<std::string, std::size_t> op_n;
     for(auto&& p : ins_vec)
     {
         double avg = common_average(p.second);
         op_times[perf_group(p.first->get_operator())] += avg;
         total_instruction_time += avg;
+        op_n[perf_group(p.first->get_operator())]++;
     }
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
@@ -683,18 +729,19 @@ void program::perf_report(std::ostream& os,
 
     os << std::endl;
     os << "Summary:" << std::endl;
-    std::vector<std::pair<double, std::string>> op_times_sorted;
-    std::transform(op_times.begin(),
-                   op_times.end(),
-                   std::back_inserter(op_times_sorted),
-                   [](auto p) { return std::make_pair(p.second, p.first); });
+    std::vector<std::tuple<double, std::size_t, std::string>> op_times_sorted;
+    std::transform(
+        op_times.begin(), op_times.end(), std::back_inserter(op_times_sorted), [&](auto p) {
+            auto&& name = p.first;
+            return std::make_tuple(p.second, op_n.at(name), name);
+        });
     std::sort(op_times_sorted.begin(), op_times_sorted.end(), std::greater<>{});
-    for(auto&& p : op_times_sorted)
+    for(auto&& [avg, nn, name] : op_times_sorted)
     {
-        auto&& name    = p.second;
-        double avg     = p.first;
         double percent = std::ceil(100.0 * avg / total_instruction_time);
-        os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
+        double per_ins = avg / nn;
+        os << name << ": " << avg << "ms / " << nn << " = " << per_ins << "ms, " << percent << "%"
+           << std::endl;
     }
 
     os << std::endl;
@@ -767,10 +814,17 @@ void program::print_cpp(std::ostream& os) const
 {
     auto vec_modules = this->get_modules();
     std::unordered_map<instruction_ref, std::string> names;
+    os << "migraphx::program p;\n";
     for(auto& mod : vec_modules)
     {
-        os << "module: \"" << mod->name() << "\"" << std::endl;
-        names = mod->print_cpp(os, names);
+        std::string var_name = "m" + mod->name();
+        os << "migraphx::module_ref " << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module();";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_cpp(os, var_name, names);
         os << std::endl;
     }
 }
@@ -843,6 +897,23 @@ std::vector<module*> program::get_modules()
 {
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
+    return result;
+}
+
+template <class Module, class Map>
+void generic_insert_module_tree(Module* pm, Map& m)
+{
+    for(auto* sm : pm->get_sub_modules(true))
+    {
+        m.insert(std::make_pair(sm, pm));
+        generic_insert_module_tree(sm, m);
+    }
+}
+
+std::unordered_multimap<module_ref, module_ref> program::get_module_tree()
+{
+    std::unordered_multimap<module_ref, module_ref> result;
+    generic_insert_module_tree(this->get_main_module(), result);
     return result;
 }
 

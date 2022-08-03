@@ -77,7 +77,7 @@ struct parse_if : op_parser<parse_if>
                            else_out_shapes.at(0).type_string());
         }
 
-        if(not then_out_shapes.at(0).scalar() && not else_out_shapes.at(0).scalar())
+        if(not then_out_shapes.at(0).dynamic() && not else_out_shapes.at(0).dynamic())
         {
             // First dimension must agree
             if(then_out_shapes.at(0).lens().at(0) != else_out_shapes.at(0).lens().at(0))

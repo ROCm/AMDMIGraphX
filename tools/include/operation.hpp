@@ -56,7 +56,7 @@ struct operation
     std::string name() const;
     /// An optional method that can be used to finalize the operator before running
     void finalize(context& ctx);
-    /// An optional method that can be used to set offload copy for a target
+    /// An optional method that indicates whether operation runs on the offload target device or on the host 
     bool runs_on_offload_target();
     /// This is used to compute the resulting shape from an operation. If an
     /// operation cannot be run with input shapes, then it should throw an
@@ -429,9 +429,7 @@ auto runs_on_offload_target(rank<1>, T& x)
 }
 
 template <class T>
-auto runs_on_offload_target(rank<0>, T&) -> std::false_type
-{
-}
+auto runs_on_offload_target(rank<0>, T&) -> std::false_type;
 
 template <class T>
 auto runs_on_offload_target(T& x) -> decltype(runs_on_offload_target(rank<1>{}, x))

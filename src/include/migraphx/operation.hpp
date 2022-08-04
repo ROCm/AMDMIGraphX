@@ -56,7 +56,8 @@ struct operation
     std::string name() const;
     /// An optional method that can be used to finalize the operator before running
     void finalize(context& ctx);
-    /// An optional method that can be used to set offload copy for a target
+    /// An optional method that indicates whether operation runs on the offload target device or on
+    /// the host
     bool runs_on_offload_target();
     /// This is used to compute the resulting shape from an operation. If an
     /// operation cannot be run with input shapes, then it should throw an

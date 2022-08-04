@@ -1079,7 +1079,7 @@ TEST_CASE(conv_dynamic_img_shape_test)
     EXPECT(migraphx::verify_range(results_vector, sol));
 }
 
-TEST_CASE(conv_dynamic_weights_shape)
+TEST_CASE(conv_dynamic_weights_shape_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -1153,6 +1153,153 @@ TEST_CASE(conv_dynamic_weights_shape)
     result = p.eval(params1).back();
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
+    EXPECT(migraphx::verify_range(results_vector, sol));
+}
+
+TEST_CASE(conv_dynamic_img_same_upper_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type,
+                                    {{1, 1, 0}, {3, 3, 0}, {4, 6, 0}, {4, 6, 0}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {1, 3, 3, 3}};
+
+    auto input   = mm->add_parameter("X", input_dyn_shape);
+    auto weights = mm->add_parameter("W", weights_shape);
+    mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"stride", {1, 1}},
+                           {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                           {"use_dynamic_same_auto_pad", true}}),
+        input,
+        weights);
+
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> a = {0.63321185, 0.6466339,  0.8515352,  0.44240063, 0.5018913,  0.5068494,
+                            0.75330657, 0.7383877,  0.15870683, 0.8171611,  0.56118083, 0.87004256,
+                            0.24401724, 0.8815178,  0.4222333,  0.27191755,
+
+                            0.41633207, 0.2460619,  0.32004243, 0.6962248,  0.12284133, 0.2620491,
+                            0.96931046, 0.6030955,  0.7623861,  0.2395751,  0.61440414, 0.577285,
+                            0.80087787, 0.12776066, 0.26566318, 0.46569306,
+
+                            0.96701574, 0.3850145,  0.14165345, 0.5887347,  0.7152134,  0.5295342,
+                            0.6303507,  0.4037548,  0.18556239, 0.79416305, 0.29107493, 0.18770285,
+                            0.6870904,  0.30701008, 0.314684,   0.91075855};
+
+    std::vector<float> c = {
+        2.8150102e-01, 3.3198616e-01, 9.5149356e-01, 7.4039467e-02, 9.6555042e-01,
+        2.8815505e-01, 2.5100240e-01, 5.2186239e-01, 2.3850012e-01,
+
+        8.2963020e-01, 3.0763101e-04, 6.7026985e-01, 1.4260857e-01, 9.7517288e-01,
+        3.6847427e-02, 8.5804445e-01, 7.3440993e-01, 6.7948365e-01,
+
+        7.9253986e-02, 7.3943835e-01, 1.7813577e-01, 1.0780835e-01, 4.2304707e-01,
+        4.0084350e-01, 1.1114500e-01, 4.4846520e-01, 5.0109702e-01};
+
+    std::vector<float> sol = {3.013387,
+                              3.7111127,
+                              4.2946506,
+                              3.579301,
+                              4.5306826,
+                              6.1262493,
+                              6.332169,
+                              4.495293,
+                              4.46013,
+                              6.0938954,
+                              5.848162,
+                              4.514299,
+                              2.9587686,
+                              4.117671,
+                              3.5187216,
+                              2.3236327};
+
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 3, 4, 4}};
+
+    migraphx::parameter_map params0;
+    params0["X"] = migraphx::argument(input_fixed_shape0, a.data());
+    params0["W"] = migraphx::argument(weights_shape, c.data());
+
+    auto result = p.eval(params0).back();
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, sol));
+}
+
+TEST_CASE(conv_dynamic_kernel_same_lower_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 3, 4, 4}};
+    migraphx::shape weights_shape{migraphx::shape::float_type,
+                                  {{1, 1, 0}, {3, 3, 0}, {2, 3, 0}, {2, 3, 0}}};
+
+    auto input   = mm->add_parameter("X", input_shape);
+    auto weights = mm->add_parameter("W", weights_shape);
+    mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"stride", {1, 1}},
+                           {"padding_mode", migraphx::op::padding_mode_t::same_lower},
+                           {"use_dynamic_same_auto_pad", true}}),
+        input,
+        weights);
+
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> a   = {0.63321185, 0.6466339,  0.8515352,  0.44240063, 0.5018913,  0.5068494,
+                            0.75330657, 0.7383877,  0.15870683, 0.8171611,  0.56118083, 0.87004256,
+                            0.24401724, 0.8815178,  0.4222333,  0.27191755,
+
+                            0.41633207, 0.2460619,  0.32004243, 0.6962248,  0.12284133, 0.2620491,
+                            0.96931046, 0.6030955,  0.7623861,  0.2395751,  0.61440414, 0.577285,
+                            0.80087787, 0.12776066, 0.26566318, 0.46569306,
+
+                            0.96701574, 0.3850145,  0.14165345, 0.5887347,  0.7152134,  0.5295342,
+                            0.6303507,  0.4037548,  0.18556239, 0.79416305, 0.29107493, 0.18770285,
+                            0.6870904,  0.30701008, 0.314684,   0.91075855};
+    std::vector<float> c   = {2.8150102e-01,
+                            3.3198616e-01,
+                            9.5149356e-01,
+                            7.4039467e-02,
+
+                            9.6555042e-01,
+                            2.8815505e-01,
+                            2.5100240e-01,
+                            5.2186239e-01,
+
+                            2.3850012e-01,
+                            8.2963020e-01,
+                            3.0763101e-04,
+                            6.7026985e-01};
+    std::vector<float> sol = {2.453681,
+                              2.536207,
+                              3.0187201,
+                              1.7912633,
+                              2.1738236,
+                              2.9695358,
+                              3.2319589,
+                              1.859269,
+                              2.5953722,
+                              2.50734,
+                              2.7736917,
+                              1.2229807,
+                              1.5900216,
+                              0.9225286,
+                              1.43048,
+                              0.74341124};
+
+    migraphx::shape weight_fixed_shape0{migraphx::shape::float_type, {1, 3, 2, 2}};
+
+    migraphx::parameter_map params0;
+    params0["X"] = migraphx::argument(input_shape, a.data());
+    params0["W"] = migraphx::argument(weight_fixed_shape0, c.data());
+
+    auto result = p.eval(params0).back();
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, sol));
 }
 
@@ -3310,6 +3457,80 @@ TEST_CASE(min_test)
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1, 4, 3};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(fmod_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {3}};
+    auto l0       = mm->add_literal(migraphx::literal{s, {-7, 8, -3}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {2, 4, 6}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {7, 5, 9}});
+    auto curr_mod = mm->add_instruction(migraphx::make_op("fmod"), l0, l1);
+    mm->add_instruction(migraphx::make_op("fmod"), curr_mod, l2);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{-1, 0, -3};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(fmod_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l0       = mm->add_literal(migraphx::literal{s, {-7.2f, 8.5f, -3.3f}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {2.0f, 4.0f, 6.0f}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {7.0f, 5.0f, 9.0f}});
+    auto curr_mod = mm->add_instruction(migraphx::make_op("fmod"), l0, l1);
+    mm->add_instruction(migraphx::make_op("fmod"), curr_mod, l2);
+
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{-1.2f, 0.5f, -3.3f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(mod_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {3}};
+    auto l0       = mm->add_literal(migraphx::literal{s, {-3, 8, -7}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {3, 3, 3}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {10, 2, 9}});
+    auto curr_mod = mm->add_instruction(migraphx::make_op("mod"), l0, l1);
+    mm->add_instruction(migraphx::make_op("mod"), curr_mod, l2);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0, 0, 2};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(mod_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l0       = mm->add_literal(migraphx::literal{s, {-3.0f, 8.5f, -7.0f}});
+    auto l1       = mm->add_literal(migraphx::literal{s, {2.0f, 3.0f, 3.0f}});
+    auto l2       = mm->add_literal(migraphx::literal{s, {3.0f, 3.0f, 4.0f}});
+    auto curr_mod = mm->add_instruction(migraphx::make_op("mod"), l0, l1);
+    mm->add_instruction(migraphx::make_op("mod"), curr_mod, l2);
+
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.0f, 2.5f, 2.0f};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

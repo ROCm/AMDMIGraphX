@@ -52,6 +52,7 @@ struct parse_convolution : op_parser<parse_convolution>
         auto l0       = args[0];
         auto weights  = args[1];
         auto l0_shape = l0->get_shape();
+        auto w_shape  = weights->get_shape();
         auto in_lens  = l0_shape.max_lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
@@ -80,25 +81,65 @@ struct parse_convolution : op_parser<parse_convolution>
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
             check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
         }
-
         if(contains(info.attributes, "auto_pad"))
         {
-            if(l0_shape.dynamic() or weights->get_shape().dynamic())
-            {
-                MIGRAPHX_THROW("PARSE_CONV: auto_pad and dynamic input shapes not supported");
-            }
-            auto weight_lens = weights->get_shape().lens();
-            std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
-            cal_auto_padding_size(info,
-                                  values,
-                                  k_lens,
-                                  values["dilation"].to_vector<std::size_t>(),
-                                  in_lens,
-                                  padding);
-            auto auto_pad = info.attributes["auto_pad"].s();
+            bool is_same_padding = false;
+            auto auto_pad        = info.attributes["auto_pad"].s();
             if(auto_pad.find("SAME") != std::string::npos)
             {
-                values["padding_mode"] = to_value(op::padding_mode_t::same);
+                is_same_padding = true;
+            }
+
+            // check if image shape is dynamic
+            bool image_shape_dynamic = false;
+            if(l0_shape.dynamic())
+            {
+                auto dyn_dims = l0_shape.dyn_dims();
+                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](auto dyn_dim) {
+                    if(not dyn_dim.is_fixed())
+                    {
+                        image_shape_dynamic = true;
+                    }
+                });
+            }
+
+            // check if kernel shape is dynamic
+            bool kernel_shape_dynamic = false;
+            if(w_shape.dynamic())
+            {
+                auto dyn_dims = w_shape.dyn_dims();
+                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](auto dyn_dim) {
+                    if(not dyn_dim.is_fixed())
+                    {
+                        kernel_shape_dynamic = true;
+                    }
+                });
+            }
+
+            if(is_same_padding)
+            {
+                if(image_shape_dynamic or kernel_shape_dynamic)
+                {
+                    // must calculate "same" padding with input shape data
+                    bool is_same_upper     = (auto_pad.find("SAME_UPPER") != std::string::npos);
+                    values["padding_mode"] = is_same_upper
+                                                 ? to_value(op::padding_mode_t::same_upper)
+                                                 : to_value(op::padding_mode_t::same_lower);
+                    values["use_dynamic_same_auto_pad"] = true;
+                }
+                else
+                {
+                    values["padding_mode"] = to_value(op::padding_mode_t::same);
+                    // kernel shape will be fixed, so max_lens() == min_len() for kernel lengths
+                    auto weight_lens = weights->get_shape().max_lens();
+                    std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
+                    cal_auto_padding_size(info,
+                                          values,
+                                          k_lens,
+                                          values["dilation"].to_vector<std::size_t>(),
+                                          in_lens,
+                                          padding);
+                }
             }
         }
         values["padding"] = std::vector<size_t>(padding.begin(), padding.end());

@@ -61,8 +61,6 @@ check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
 set(CMAKE_REQUIRED_INCLUDES)
 set(CMAKE_EXTRA_INCLUDE_FILES)
 
-find_package(nlohmann_json 3.8.0 REQUIRED)
-
 include(ROCMSetupVersion)
 
 rocm_setup_version(VERSION 2.3)
@@ -81,6 +79,9 @@ endif()
 
 # Disable cpu backend by default
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
+
+# Disable fpga backend by default
+set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
@@ -273,7 +274,7 @@ configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
-    MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
+    MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
     DEPENDS miopen-hip rocblas hip-rocclr hip-base half

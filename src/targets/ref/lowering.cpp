@@ -51,6 +51,8 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/pad_calc.hpp>
+
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -234,11 +236,28 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
 
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        if(output_shape.dynamic())
+        std::vector<std::size_t> padding;
+        if(op.use_dynamic_same_auto_pad)
         {
+            auto input_lens = args[0].get_shape().lens();
+            std::vector<std::size_t> img_lens{input_lens.begin() + 2, input_lens.end()};
+            auto weights_lens = args[1].get_shape().lens();
+            std::vector<std::size_t> k_lens{weights_lens.begin() + 2, weights_lens.end()};
+            padding = calc_dyn_auto_pad(img_lens, k_lens, op.stride, op.dilation);
+            std::cout << "[ ";
             output_shape =
-                op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
+                compute_padded_shape({args.at(0).get_shape(), args.at(1).get_shape()}, padding);
         }
+        else
+        {
+            padding = op.padding;
+            if(output_shape.dynamic())
+            {
+                output_shape =
+                    op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
+            }
+        }
+
         argument result{output_shape};
         visit_quantize(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             auto in_lens = input.get_shape().lens();
@@ -258,7 +277,7 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
                 {
                     auto d_2 = dim - 2;
                     win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
-                                        std::ptrdiff_t(op.padding[d_2]));
+                                        std::ptrdiff_t(padding[d_2]));
                 }
                 const auto group_id = w / (wei_n / op.group);
 
@@ -294,6 +313,34 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
             });
         });
         return result;
+    }
+
+    private:
+    /*!
+     * Used for dynamic auto padding since padding needs to be computed at evaulation time.
+     * \param inputs two fixed shape inputs [input_tensor, weights]
+     * \param padding from auto_pad calculation
+     */
+    shape compute_padded_shape(const std::vector<shape>& inputs,
+                               const std::vector<std::size_t>& padding) const
+    {
+        const shape& input            = inputs.at(0);
+        const shape& weights          = inputs.at(1);
+        const size_t num_spatial_dims = input.lens().size() - 2;
+
+        std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
+        // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
+        for(size_t i = 0; i < num_spatial_dims; i++)
+        {
+            auto padding_factor = padding[i] + padding[i + num_spatial_dims];
+            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                1,
+                (input.lens()[i + 2] - (1 + op.dilation[i] * (weights.lens()[i + 2] - 1)) +
+                 padding_factor) /
+                        op.stride[i] +
+                    1)));
+        }
+        return inputs[0].with_lens(output_lens);
     }
 };
 

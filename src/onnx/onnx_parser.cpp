@@ -28,7 +28,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/pad_calc.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
@@ -515,6 +514,16 @@ shape::type_t get_type(int dtype)
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }
     }
+}
+
+bool is_type_float(shape::type_t dtype)
+{
+    bool r = false;
+    if(dtype == shape::float_type || dtype == shape::double_type || dtype == shape::half_type)
+    {
+        r = true;
+    }
+    return r;
 }
 
 } // namespace onnx

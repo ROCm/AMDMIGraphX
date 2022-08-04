@@ -44,7 +44,7 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
         MIGRAPHX_HIP_ASSERT(hipHostMalloc(&h_output, input_bytes));
         MIGRAPHX_HIP_ASSERT(hipMemcpyAsync(
-            h_output, d_output, input_bytes, hipMemcpyDeviceToHost, ctx.get_queue<hipStream_t>()));
+            h_output, d_output, input_bytes, hipMemcpyHostToDevice, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
         MIGRAPHX_HIP_ASSERT(hipMemset(h_output, 0, copy_bytes));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());

@@ -272,9 +272,9 @@ struct miopen_apply
         if(not custom_op.runs_on_offload_target())
         {
             auto s      = ins->get_shape();
-            auto output = insert_allocation(ins, s);
             std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();
+            auto output = inputs.back();
             std::transform(
                 inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
                     return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);

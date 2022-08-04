@@ -217,7 +217,7 @@ def attention_test():
     weights = helper.make_tensor_value_info('weights', TensorProto.FLOAT,
                                             [768, 2304])
     bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2304])
-    mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT64,
+    mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT32,
                                                [2, 384])
     result = helper.make_tensor_value_info('result', TensorProto.FLOAT,
                                            [2, 384, 768])
@@ -227,6 +227,7 @@ def attention_test():
                             outputs=['result'],
                             num_heads=12,
                             name="Attention_0")
+    node.domain = "com.microsoft"
 
     return ([node], [input, weights, bias, mask_index], [result])
 

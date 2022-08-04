@@ -450,7 +450,7 @@ def experimental_custom_op(h):
     h.virtual('compute_shape',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
-    # TODO(umang) : If output aliasing then, runs_on_offload_flag must be false
+    # TODO(umang) : If output aliasing then, runs_on_offload_flag must be true
     h.virtual('output_alias',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='std::ptrdiff_t')

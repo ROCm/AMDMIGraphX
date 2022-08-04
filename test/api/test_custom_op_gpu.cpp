@@ -32,25 +32,27 @@
 struct simple_custom_op final : migraphx::experimental_custom_op_base
 {
     virtual std::string name() const override { return "simple_custom_op"; }
+
+    virtual bool runs_on_offload_target() const override { return false; }
+
     virtual migraphx::argument
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
-        // sets first half size_bytes of the input 0, and rest of the half bytes are copied.
-        int* h_output    = nullptr;
-        auto* d_output   = reinterpret_cast<int*>(inputs[0].data());
+        // This custom op simply sets first half size_bytes of the input 0, and rest of the half bytes are copied.
+        // for this custom_op, it does its computation on the host. 
+        // Therefore, `runs_on_offload_target()` is set to false. 
+        // MIGraphX would inject necessary buffer copies to and from GPU to Host based 
+        // on `runs_on_offload_targe()` flag for input buffers as well as the output buffers 
+        auto* input_buffer_ptr  = inputs[0].data();
+        auto* output_buffer_ptr = inputs[1].data();
         auto input_bytes = inputs[0].get_shape().bytes();
-        auto* output_ptr = inputs[1].data();
         auto copy_bytes  = input_bytes / 2;
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
-        MIGRAPHX_HIP_ASSERT(hipHostMalloc(&h_output, input_bytes));
         MIGRAPHX_HIP_ASSERT(hipMemcpyAsync(
-            h_output, d_output, input_bytes, hipMemcpyHostToDevice, ctx.get_queue<hipStream_t>()));
+            output_buffer_ptr, input_buffer_ptr, input_bytes, hipMemcpyHostToHost, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
-        MIGRAPHX_HIP_ASSERT(hipMemset(h_output, 0, copy_bytes));
+        MIGRAPHX_HIP_ASSERT(hipMemset(output_buffer_ptr, 0, copy_bytes));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
-        MIGRAPHX_HIP_ASSERT(hipMemcpy(output_ptr, h_output, input_bytes, hipMemcpyHostToDevice));
-        MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
-        MIGRAPHX_HIP_ASSERT(hipHostFree(h_output));
         return inputs[1];
     }
 
@@ -66,8 +68,6 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
         }
         return inputs.back();
     }
-
-    virtual bool runs_on_offload_target() const override { return false; }
 };
 struct transpose_custom_op final : migraphx::experimental_custom_op_base
 {

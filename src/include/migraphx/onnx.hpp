@@ -54,13 +54,7 @@ struct onnx_options
     /// Max iter num for the loop operator
     int64_t max_loop_iterations = 10;
     /*!
-     * Force use the dynamic output option for applicable operators. If true, all operators
-     * that have the use_dyn_output attribute (ex: nonzero, NMS, TopK) will have that
-     * attribute set to true.
-     */
-    bool force_use_dyn_output = false;
-    /*!
-     * Set the use_dyn_output attribute for specific node.
+     * Set or create the use_dyn_output attribute for a specific operator type
      */
     std::unordered_map<std::string, bool> map_use_dyn_output = {};
 };

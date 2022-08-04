@@ -1081,9 +1081,9 @@ struct ${ctype} {
 c_api_virtual_impl = Template('''
 ${return_type} ${name}(${params}) const
 {
-    ${output_decls}
     if (${fname} == nullptr)
         throw std::runtime_error("${name} function is missing.");
+    ${output_decls}
     std::array<char, 256> exception_msg;
     exception_msg.front() = '\\0';
     auto api_error_result = ${fname}(${args});

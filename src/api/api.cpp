@@ -620,9 +620,9 @@ struct migraphx_experimental_custom_op
                                migraphx::shape output,
                                std::vector<migraphx::argument> inputs) const
     {
-        std::remove_pointer_t<migraphx_argument_t> out;
         if(compute_f == nullptr)
             throw std::runtime_error("compute function is missing.");
+        std::remove_pointer_t<migraphx_argument_t> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = compute_f(&out,
@@ -644,9 +644,9 @@ struct migraphx_experimental_custom_op
     migraphx_experimental_custom_op_compute_shape compute_shape_f = nullptr;
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
-        std::remove_pointer_t<migraphx_shape_t> out;
         if(compute_shape_f == nullptr)
             throw std::runtime_error("compute_shape function is missing.");
+        std::remove_pointer_t<migraphx_shape_t> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = compute_shape_f(&out,
@@ -666,9 +666,9 @@ struct migraphx_experimental_custom_op
     migraphx_experimental_custom_op_output_alias output_alias_f = nullptr;
     std::ptrdiff_t output_alias(std::vector<migraphx::shape> inputs) const
     {
-        std::remove_pointer_t<int64_t*> out;
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
+        std::remove_pointer_t<int64_t*> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = output_alias_f(&out,
@@ -688,9 +688,9 @@ struct migraphx_experimental_custom_op
     migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;
     bool runs_on_offload_target() const
     {
-        std::remove_pointer_t<bool*> out;
         if(runs_on_offload_target_f == nullptr)
             throw std::runtime_error("runs_on_offload_target function is missing.");
+        std::remove_pointer_t<bool*> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = runs_on_offload_target_f(

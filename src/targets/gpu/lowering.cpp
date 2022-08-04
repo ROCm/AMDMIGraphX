@@ -271,7 +271,7 @@ struct miopen_apply
         const auto& custom_op = ins->get_operator();
         if(not custom_op.runs_on_offload_target())
         {
-            auto s      = ins->get_shape();
+            auto s = ins->get_shape();
             std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();
             auto output = inputs.back();

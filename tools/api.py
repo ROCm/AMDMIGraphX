@@ -957,11 +957,13 @@ def ptrdiff_c_wrap(p: Parameter) -> None:
         p.bad_param('${name} == nullptr', 'Null pointer')
     else:
         p.add_param(t)
-        p.bad_param('${name} == nullptr', 'Null pointer')
     p.read = '${type}(${name})'
     p.cpp_write = '${type}(${name})'
     p.virtual_read = ['${name}']
-    p.write = ['${name} = ${result}']
+    if p.type.is_reference():
+        p.write = ['*${name} = *${result}']
+    else:
+        p.write = ['${name} = ${result}']
 
 
 @cwrap('std::string')

@@ -21,7 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import string, sys, re, runpy
+import string
+import sys
+import re
+import runpy
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -948,21 +951,17 @@ def vector_c_wrap(p: Parameter) -> None:
 
 @cwrap('std::ptrdiff_t')
 def ptrdiff_c_wrap(p: Parameter) -> None:
-    t = Type('int*')
+    t = Type('int64_t')
     if p.returns:
-        if p.type.is_reference():
-            p.add_param(t.add_pointer())
-            p.bad_param('${name} == nullptr', 'Null pointer')
-        else:
-            p.add_param(t)
-            p.bad_param('${name} == nullptr', 'Null pointer')
+        p.add_param(t.add_pointer())
+        p.bad_param('${name} == nullptr', 'Null pointer')
     else:
         p.add_param(t)
         p.bad_param('${name} == nullptr', 'Null pointer')
-
     p.read = '${type}(${name})'
     p.cpp_write = '${type}(${name})'
     p.virtual_read = ['${name}']
+    p.write = ['${name} = ${result}']
 
 
 @cwrap('std::string')

@@ -666,7 +666,7 @@ struct migraphx_experimental_custom_op
     migraphx_experimental_custom_op_output_alias output_alias_f = nullptr;
     std::ptrdiff_t output_alias(std::vector<migraphx::shape> inputs) const
     {
-        std::remove_pointer_t<int*> out;
+        std::remove_pointer_t<int64_t*> out;
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
         std::array<char, 256> exception_msg;

@@ -75,7 +75,7 @@ struct transpose_custom_op final : migraphx::experimental_custom_op_base
     virtual migraphx::argument
     compute(migraphx::context, migraphx::shape out_shape, migraphx::arguments inputs) const override
     {
-        return migraphx::argument(out_shape, inputs[0].data());
+        return {out_shape, inputs[0].data()};
     }
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override

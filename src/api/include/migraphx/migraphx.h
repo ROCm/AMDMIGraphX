@@ -144,8 +144,11 @@ typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraph
                                                                          size_t exception_msg_size,
                                                                          migraphx_shapes_t inputs);
 
-typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(
-    int* out, void* obj, char* exception_msg, size_t exception_msg_size, migraphx_shapes_t inputs);
+typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(int64_t* out,
+                                                                        void* obj,
+                                                                        char* exception_msg,
+                                                                        size_t exception_msg_size,
+                                                                        migraphx_shapes_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_runs_on_offload_target)(
     bool* out, void* obj, char* exception_msg, size_t exception_msg_size);

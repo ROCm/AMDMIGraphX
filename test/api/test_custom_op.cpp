@@ -43,6 +43,10 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
         return inputs[1];
     }
 
+    virtual bool runs_on_offload_target() const override {
+        return true;
+    }
+
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
         if(inputs.size() != 2)

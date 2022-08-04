@@ -3181,7 +3181,8 @@ TEST_CASE(nms_dynamic_batch_test)
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st  = mm->add_parameter("score_threshold", sst);
     auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}, {"use_dynamic", true}}),
+        migraphx::make_op("nonmaxsuppression",
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
         b,
         s,
         mo,

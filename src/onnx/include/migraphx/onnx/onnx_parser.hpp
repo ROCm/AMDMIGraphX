@@ -100,6 +100,8 @@ struct onnx_parser
     bool skip_unknown_operators = false;
     int64_t max_loop_iterations = 10;
     int64_t opset_version       = 13;
+    std::unordered_map<std::string, bool> map_use_dyn_output;
+    bool force_use_dyn_output = false;
 
     std::unordered_map<std::string, op_func> ops;
 

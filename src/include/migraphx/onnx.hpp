@@ -53,6 +53,16 @@ struct onnx_options
     bool print_program_on_error = false;
     /// Max iter num for the loop operator
     int64_t max_loop_iterations = 10;
+    /*!
+     * Force use the dynamic output option for applicable operators. If true, all operators
+     * that have the use_dyn_output attribute (ex: nonzero, NMS, TopK) will have that
+     * attribute set to true.
+     */
+    bool force_use_dyn_output = false;
+    /*!
+     * Set the use_dyn_output attribute for specific node.
+     */
+    std::unordered_map<std::string, bool> map_use_dyn_output = {};
 };
 
 /// Create a program from an onnx file

@@ -257,11 +257,6 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
-    if(not map_input_dims.empty() and not map_dyn_input_dims.empty())
-    {
-        MIGRAPHX_THROW("PARSE_GRAPH: both map_input_dims and map_dyn_input_dims non-empty, only"
-                       "one should be used");
-    }
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
@@ -335,9 +330,17 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         }
         else
         {
+            auto node_attributes = get_attributes(node);
+            if(map_use_dyn_output.count(node.name()) > 0 or force_use_dyn_output)
+            {
+                onnx::AttributeProto ap;
+                ap.set_type(onnx::AttributeProto::INT);
+                ap.set_i(1);
+                node_attributes["use_dyn_output"] = ap;
+            }
             std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
-            result                = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+            result =
+                ops[node.op_type()](*this, {node_attributes, output_num, node_name, mod}, args);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

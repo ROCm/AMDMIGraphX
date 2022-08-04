@@ -113,10 +113,11 @@ TEST_CASE(run_simple_custom_op)
     auto alloc2        = m.add_allocation(migraphx::shape(migraphx_shape_float_type, {3, 4}));
     auto custom_kernel = m.add_instruction(migraphx::operation("simple_custom_op"), {neg, alloc});
     auto custom_transpose =
-        m.add_instruction(migraphx::operation("transpose_custom_op"), {custom_kernel});
+    m.add_instruction(migraphx::operation("transpose_custom_op"), {custom_kernel});
     auto relu = m.add_instruction(migraphx::operation("relu"), custom_transpose);
+    auto cont_ins = m.add_instruction(migraphx::operation("contiguous"), relu);
     auto custom_kernel2 =
-        m.add_instruction(migraphx::operation("simple_custom_op"), {relu, alloc2});
+        m.add_instruction(migraphx::operation("simple_custom_op"), {cont_ins, alloc2});
     auto neg2 = m.add_instruction(migraphx::operation("neg"), custom_kernel2);
     m.add_return({neg2});
     migraphx::compile_options options;

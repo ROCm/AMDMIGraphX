@@ -429,7 +429,9 @@ auto runs_on_offload_target(rank<1>, T& x)
 }
 
 template <class T>
-auto runs_on_offload_target(rank<0>, T&) -> std::false_type;
+auto runs_on_offload_target(rank<0>, T&) -> std::false_type
+{
+}
 
 template <class T>
 auto runs_on_offload_target(T& x) -> decltype(runs_on_offload_target(rank<1>{}, x))

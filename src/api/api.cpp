@@ -669,10 +669,19 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<int*> out;
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
-        auto api_error_result =
-            output_alias_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
+        std::array<char, 256> exception_msg;
+        exception_msg.front() = '\0';
+        auto api_error_result = output_alias_f(&out,
+                                               object_ptr.data,
+                                               exception_msg.data(),
+                                               exception_msg.size(),
+                                               object_cast<migraphx_shapes_t>(&(inputs)));
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in output_alias.");
+        {
+            const std::string exception_str(exception_msg.data());
+            throw std::runtime_error("Error in output_alias of: " +
+                                     std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
         return std::ptrdiff_t(out);
     }
 
@@ -682,9 +691,16 @@ struct migraphx_experimental_custom_op
         std::remove_pointer_t<bool*> out;
         if(runs_on_offload_target_f == nullptr)
             throw std::runtime_error("runs_on_offload_target function is missing.");
-        auto api_error_result = runs_on_offload_target_f(&out, object_ptr.data);
+        std::array<char, 256> exception_msg;
+        exception_msg.front() = '\0';
+        auto api_error_result = runs_on_offload_target_f(
+            &out, object_ptr.data, exception_msg.data(), exception_msg.size());
         if(api_error_result != migraphx_status_success)
-            throw std::runtime_error("Error in runs_on_offload_target.");
+        {
+            const std::string exception_str(exception_msg.data());
+            throw std::runtime_error("Error in runs_on_offload_target of: " +
+                                     std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
         return out;
     }
 };

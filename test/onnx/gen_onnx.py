@@ -630,7 +630,7 @@ def constant_scalar_test():
 @onnx_test
 def constant_scalar_test2():
     x = np.array([]).astype(np.int64)
-    y = helper.make_tensor_value_info('0', TensorProto.INT64, [1])
+    y = helper.make_tensor_value_info('0', TensorProto.INT64, [0])
 
     node = onnx.helper.make_node(
         'Constant',

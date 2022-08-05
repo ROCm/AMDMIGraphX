@@ -636,6 +636,16 @@ TEST_CASE(constant_scalar_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(constant_scalar_test2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {0}});
+    auto prog = optimize_onnx("constant_scalar_test2.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;

@@ -39,13 +39,11 @@ struct parse_constant : op_parser<parse_constant>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& /*args*/) const
     {
-
         literal v = parser.parse_value(info.attributes.at("value"));
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
-            auto dim_param = info.attributes.at("value").t().dims();
-            return info.add_literal(literal{dim_param.at(0)});
+            return info.add_literal(literal{});
         }
 
         auto dim_size = info.attributes.at("value").t().dims_size();

@@ -85,7 +85,7 @@ struct half_copy_device final : migraphx::experimental_custom_op_base
     {
         // This custom op simply sets first half size_bytes of the input 0, and rest of the half
         // bytes are copied. for this custom_op, it does its computation on the "GPU". Therefore,
-        // `runs_on_offload_target()` is set to "true".         
+        // `runs_on_offload_target()` is set to "true".
         auto* input_buffer_ptr  = inputs[0].data();
         auto* output_buffer_ptr = inputs[1].data();
         auto input_bytes        = inputs[0].get_shape().bytes();
@@ -128,10 +128,10 @@ struct half_copy_device_same_buffer final : migraphx::experimental_custom_op_bas
     {
         // This custom op simply sets first half size_bytes of the input 0, and rest of the half
         // bytes are copied. for this custom_op, it does its computation on the "device". Therefore,
-        // `runs_on_offload_target()` is set to "true"        
-        auto* buffer_ptr  = inputs[0].data();
-        auto input_bytes        = inputs[0].get_shape().bytes();
-        auto copy_bytes         = input_bytes / 2;
+        // `runs_on_offload_target()` is set to "true"
+        auto* buffer_ptr = inputs[0].data();
+        auto input_bytes = inputs[0].get_shape().bytes();
+        auto copy_bytes  = input_bytes / 2;
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
         MIGRAPHX_HIP_ASSERT(hipMemset(buffer_ptr, 0, copy_bytes));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
@@ -166,16 +166,18 @@ TEST_CASE(register_half_copy_op)
     EXPECT(op.name() == "half_copy_device_same_buffer");
 }
 
-TEST_CASE(half_copy_custom_op_test) {
+TEST_CASE(half_copy_custom_op_test)
+{
     auto run_test_prog = [](std::string op_name, bool buffer_alloc) {
         migraphx::program p;
         migraphx::module m = p.get_main_module();
         migraphx::shape s{migraphx_shape_float_type, {4, 3}};
-        auto x             = m.add_parameter("x", s);
+        auto x                        = m.add_parameter("x", s);
         migraphx::instructions inputs = {x};
-        if(buffer_alloc) {
-            auto alloc         = m.add_allocation(s);
-            inputs = {x, alloc};
+        if(buffer_alloc)
+        {
+            auto alloc = m.add_allocation(s);
+            inputs     = {x, alloc};
         }
         auto half_copy_ins = m.add_instruction(migraphx::operation(op_name.c_str()), inputs);
         m.add_return({half_copy_ins});
@@ -194,7 +196,7 @@ TEST_CASE(half_copy_custom_op_test) {
         EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
     };
 
-    //register all the ops
+    // register all the ops
     half_copy_host hch;
     migraphx::register_experimental_custom_op(hch);
 
@@ -204,8 +206,12 @@ TEST_CASE(half_copy_custom_op_test) {
     half_copy_device_same_buffer hcdsb;
     migraphx::register_experimental_custom_op(hcdsb);
 
-    std::vector<std::pair<std::string, bool>> tests_config = {{"half_copy_host", true}, {"half_copy_device", true}, {"half_copy_device_same_buffer", false}};
-    for(const auto& i : tests_config) {
+    std::vector<std::pair<std::string, bool>> tests_config = {
+        {"half_copy_host", true},
+        {"half_copy_device", true},
+        {"half_copy_device_same_buffer", false}};
+    for(const auto& i : tests_config)
+    {
         run_test_prog(i.first, i.second);
     }
 }
@@ -225,16 +231,18 @@ struct stride_two final : migraphx::experimental_custom_op_base
         {
             throw std::runtime_error("stride_two op must have only one input argument");
         };
-        if(!inputs[0].standard()) {
+        if(!inputs[0].standard())
+        {
             throw std::runtime_error("stride_two op only works on the standard input shapes");
         }
-        migraphx::shape input_s     = inputs[0];
-        std::vector<size_t> dims    = input_s.lengths();
+        migraphx::shape input_s  = inputs[0];
+        std::vector<size_t> dims = input_s.lengths();
         std::vector<size_t> new_dims;
         std::vector<size_t> strides = input_s.strides();
         std::vector<size_t> new_strides;
-        std::for_each(dims.begin(), dims.end(), [&](auto i) {new_dims.push_back(i/2);});
-        std::for_each(strides.begin(), strides.end(), [&](auto i){new_strides.push_back(i*2);});
+        std::for_each(dims.begin(), dims.end(), [&](auto i) { new_dims.push_back(i / 2); });
+        std::for_each(
+            strides.begin(), strides.end(), [&](auto i) { new_strides.push_back(i * 2); });
         migraphx::shape output_shape{input_s.type(), new_dims, new_strides};
         return output_shape;
     }
@@ -259,7 +267,8 @@ struct std_identity final : migraphx::experimental_custom_op_base
         {
             throw std::runtime_error("std_identity op must have only one input argument");
         };
-        if(!inputs[0].standard()) {
+        if(!inputs[0].standard())
+        {
             throw std::runtime_error("std_identity op only works on the standard input shapes");
         }
         return inputs.front();
@@ -268,7 +277,8 @@ struct std_identity final : migraphx::experimental_custom_op_base
     virtual std::ptrdiff_t output_alias(migraphx::shapes) const override { return 0; };
 };
 
-TEST_CASE(stride_two_custom_op_test) {
+TEST_CASE(stride_two_custom_op_test)
+{
     stride_two st;
     migraphx::register_experimental_custom_op(st);
     std_identity si;
@@ -277,9 +287,9 @@ TEST_CASE(stride_two_custom_op_test) {
     migraphx::program p;
     migraphx::module m = p.get_main_module();
     migraphx::shape s{migraphx_shape_float_type, {4, 4, 4}};
-    auto x             = m.add_parameter("x", s);
+    auto x              = m.add_parameter("x", s);
     auto stride_two_ins = m.add_instruction(migraphx::operation("stride_two"), {x});
-    auto cont_ins = m.add_instruction(migraphx::operation("contiguous"), {stride_two_ins});
+    auto cont_ins       = m.add_instruction(migraphx::operation("contiguous"), {stride_two_ins});
     // insert std_identity so that contiguous is not removed
     auto identity_ins = m.add_instruction(migraphx::operation("std_identity"), {cont_ins});
     m.add_return({identity_ins});
@@ -290,11 +300,12 @@ TEST_CASE(stride_two_custom_op_test) {
     std::vector<float> x_data(64);
     std::iota(x_data.begin(), x_data.end(), 0);
     pp.add("x", migraphx::argument(s, x_data.data()));
-    auto results    = p.eval(pp);
-    auto result     = results[0];
-    auto result_vec = result.as_vector<float>();
+    auto results                       = p.eval(pp);
+    auto result                        = results[0];
+    auto result_vec                    = result.as_vector<float>();
     std::vector<float> expected_result = {0, 2, 8, 10, 32, 34, 40, 42};
-    EXPECT(bool{result == migraphx::argument(migraphx::shape{s.type(), {2, 2, 2}}, expected_result.data())});
+    EXPECT(bool{result ==
+                migraphx::argument(migraphx::shape{s.type(), {2, 2, 2}}, expected_result.data())});
 }
 
 TEST_CASE(custom_op_with_pre_and_post_subgraph_test)
@@ -313,20 +324,20 @@ TEST_CASE(custom_op_with_pre_and_post_subgraph_test)
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
     // pre-subgraph
-    auto neg_ins           = m.add_instruction(migraphx::operation("neg"), x);
+    auto neg_ins = m.add_instruction(migraphx::operation("neg"), x);
     auto trans_ins =
         m.add_instruction(migraphx::operation("transpose", "{permutation: [1, 0]}"), {neg_ins});
     auto cont_ins = m.add_instruction(migraphx::operation("contiguous"), {trans_ins});
     // custom_op
     migraphx::shape trans_shape{migraphx_shape_float_type, {6, 4}};
-    auto alloc         = m.add_allocation(trans_shape);
+    auto alloc = m.add_allocation(trans_shape);
     auto half_copy_ins =
         m.add_instruction(migraphx::operation("half_copy_host"), {cont_ins, alloc});
     // post-subgraph
     auto abs_ins = m.add_instruction(migraphx::operation("abs"), {half_copy_ins});
     // another custom_op
-    auto stride_two_ins = m.add_instruction(migraphx::operation("stride_two"), {abs_ins});
-    auto cont_ins2 = m.add_instruction(migraphx::operation("contiguous"), {stride_two_ins});
+    auto stride_two_ins   = m.add_instruction(migraphx::operation("stride_two"), {abs_ins});
+    auto cont_ins2        = m.add_instruction(migraphx::operation("contiguous"), {stride_two_ins});
     auto std_identity_ins = m.add_instruction(migraphx::operation("std_identity"), {cont_ins2});
     // post-subgraph
     auto relu_ins = m.add_instruction(migraphx::operation("relu"), {std_identity_ins});
@@ -335,15 +346,15 @@ TEST_CASE(custom_op_with_pre_and_post_subgraph_test)
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
     migraphx::program_parameters pp;
-    std::vector<float> x_data(s.bytes()/sizeof(s.type()));
+    std::vector<float> x_data(s.bytes() / sizeof(s.type()));
     std::iota(x_data.begin(), x_data.end(), 0);
     pp.add("x", migraphx::argument(s, x_data.data()));
-    auto results    = p.eval(pp);
-    auto result     = results[0];
-    auto result_vec = result.as_vector<float>();
+    auto results                       = p.eval(pp);
+    auto result                        = results[0];
+    auto result_vec                    = result.as_vector<float>();
     std::vector<float> expected_result = {0, 0, 0, 0, 4, 16};
-    EXPECT(bool{result == migraphx::argument(migraphx::shape{migraphx_shape_float_type, {3, 2}}, expected_result.data())});
+    EXPECT(bool{result == migraphx::argument(migraphx::shape{migraphx_shape_float_type, {3, 2}},
+                                             expected_result.data())});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

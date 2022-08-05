@@ -191,6 +191,8 @@ migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_sha
 
 migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape);
 
+migraphx_status migraphx_shape_index(size_t* out, const_migraphx_shape_t shape, size_t i);
+
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
 migraphx_status migraphx_argument_assign_to(migraphx_argument_t output,

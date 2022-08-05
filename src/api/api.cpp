@@ -839,6 +839,16 @@ extern "C" migraphx_status migraphx_shape_standard(bool* out, const_migraphx_sha
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_shape_index(size_t* out, const_migraphx_shape_t shape, size_t i)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).index((i));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_argument_destroy(migraphx_argument_t argument)
 {
     auto api_error_result = migraphx::try_([&] { destroy((argument)); });

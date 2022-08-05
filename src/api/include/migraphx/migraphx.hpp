@@ -29,6 +29,7 @@
 #include <initializer_list>
 #include <migraphx/migraphx.h>
 #include <memory>
+#include <numeric>
 #include <exception>
 #include <vector>
 #include <cassert>
@@ -581,6 +582,13 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return result;
     }
 
+    // map element index to space index
+    size_t index(size_t i) const {
+        size_t result;
+        call(&migraphx_shape_index, &result, this->get_handle_ptr(), i);
+        return result;
+    }
+
     friend bool operator==(const shape& px, const shape& py)
     {
         bool pout;
@@ -628,9 +636,16 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     template <typename T>
     std::vector<T> as_vector() const
     {
-        size_t vector_len = this->get_shape().bytes() / sizeof(T);
+        auto ss = this->get_shape();
+        auto lens = ss.lengths();
+        auto num_elements = std::accumulate(lens.begin(), lens.end(), size_t{1}, std::multiplies<>());
+        std::vector<T> res(num_elements);
         T* buffer_ptr     = reinterpret_cast<T*>(this->data());
-        return {buffer_ptr, buffer_ptr + vector_len};
+        for(size_t i = 0; i < num_elements; i++) {
+            size_t space_index = ss.index(i);
+            res[i] = *(buffer_ptr + space_index);
+        }
+        return res;
     }
 
     /// Generate an argument using random data

@@ -122,6 +122,7 @@ def shape(h):
              returns='bool',
              const=True)
     h.method('standard', returns='bool', const=True)
+    h.method('index', returns='size_t', const=True)
 
 
 @auto_handle()
@@ -450,7 +451,7 @@ def experimental_custom_op(h):
     h.virtual('compute_shape',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
-    # TODO(umang) : If output aliasing then, runs_on_offload_flag must be true
+    # TODO : If output aliasing then, runs_on_offload_flag must be true
     h.virtual('output_alias',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='std::ptrdiff_t')

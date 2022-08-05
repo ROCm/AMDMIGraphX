@@ -168,7 +168,7 @@ TEST_CASE(register_half_copy_op)
 
 TEST_CASE(half_copy_custom_op_test)
 {
-    auto run_test_prog = [](std::string op_name, bool buffer_alloc) {
+    auto run_test_prog = [](const std::string& op_name, bool buffer_alloc) {
         migraphx::program p;
         migraphx::module m = p.get_main_module();
         migraphx::shape s{migraphx_shape_float_type, {4, 3}};

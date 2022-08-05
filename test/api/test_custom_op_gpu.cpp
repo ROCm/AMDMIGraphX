@@ -301,7 +301,7 @@ TEST_CASE(custom_op_with_pre_and_post_subgraph_test)
     // post-subgraph
     auto abs_ins = m.add_instruction(migraphx::operation("abs"), {half_copy_ins});
     // another custom_op
-    auto stride_two_ins   = m.add_instruction(migraphx::operation("stride_two"), {abs_ins});
+    auto stride_two_ins = m.add_instruction(migraphx::operation("stride_two"), {abs_ins});
     // post-subgraph
     auto relu_ins = m.add_instruction(migraphx::operation("relu"), {stride_two_ins});
     m.add_return({relu_ins});

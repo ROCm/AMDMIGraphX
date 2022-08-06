@@ -122,7 +122,7 @@ def shape(h):
              returns='bool',
              const=True)
     h.method('standard', returns='bool', const=True)
-    h.method('index', returns='size_t', const=True)
+    h.method('index', api.params(i='size_t'), returns='size_t', const=True)
 
 
 @auto_handle()

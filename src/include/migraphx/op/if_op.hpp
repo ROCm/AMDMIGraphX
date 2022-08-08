@@ -51,12 +51,12 @@ struct if_op
 
         auto out_shapes0 = mods[0]->get_output_shapes();
         auto out_shapes1 = mods[1]->get_output_shapes();
-        if(not std::equal(
+        /*if(not std::equal(
                out_shapes1.begin(), out_shapes1.end(), out_shapes0.begin(), out_shapes0.end()))
         {
             MIGRAPHX_THROW("IF:" + mods[0]->name() + " & " + mods[1]->name() +
-                           " output shapes of submodules must be the same.");
-        }
+                           " output types of submodules must be the same.");
+        }*/
 
         return {out_shapes0};
     }

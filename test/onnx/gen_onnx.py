@@ -31,7 +31,6 @@ from onnx import TensorProto
 
 
 def onnx_test(op_test):
-
     def run_test():
         op_info = op_test()
         if len(op_info) > 3:
@@ -628,7 +627,7 @@ def constant_scalar_test():
 
 
 @onnx_test
-def constant_scalar_test2():
+def constant_empty_scalar_int64_test():
     x = np.array([]).astype(np.int64)
     y = helper.make_tensor_value_info('0', TensorProto.INT64, [0])
 
@@ -648,7 +647,7 @@ def constant_scalar_test2():
 
 
 @onnx_test
-def constant_scalar_test3():
+def constant_one_val_int64_test():
     x = np.array([1]).astype(np.int64)
     y = helper.make_tensor_value_info('0', TensorProto.INT64, [0])
 

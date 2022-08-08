@@ -479,6 +479,12 @@ std::vector<argument> program::eval(parameter_map params) const
     }
 }
 
+std::vector<argument> eval(parameter_map params, execution_environment exec_env) const
+{
+    std::vector<argument> arg;
+    return arg;
+}
+
 const int program_file_version = 5;
 
 value program::to_value() const

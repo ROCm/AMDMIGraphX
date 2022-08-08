@@ -972,8 +972,16 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     }
 
     /// Run the program using the inputs passed in
+    arguments eval(const program_parameters& pparams) const
+    {
+        migraphx_arguments_t pout;
+        call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
+        return arguments(pout, own{});
+    }
+
+    /// Overloaded to allow for excecuction_environment input
     arguments eval(const program_parameters& pparams,
-                   const execution_environment& e = {nullptr, false}) const
+                   const migraphx::gpu::execution_environment& e) const
     {
         migraphx_arguments_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());

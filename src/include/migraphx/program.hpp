@@ -77,7 +77,8 @@ struct program
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     std::vector<argument> eval(parameter_map params) const;
-    std::vector<argument> eval(parameter_map params, execution_environment exec_env) const;
+    std::vector<argument> eval(parameter_map params,
+                               migraphx::execution_environment exec_env) const;
 
     std::size_t size() const;
 

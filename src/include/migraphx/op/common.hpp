@@ -37,7 +37,9 @@ enum padding_mode_t
 {
     default_, // NOLINT
     same,
-    valid
+    valid,
+    same_lower,
+    same_upper
 };
 
 // The pooling modes must correspond 1-1 to the operators defined for struct parse_pooling.

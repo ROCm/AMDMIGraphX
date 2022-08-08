@@ -892,6 +892,96 @@ def conv_bn_relu_maxpool_test():
 
 
 @onnx_test
+def conv_dynamic_batch_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                        [None, 1, 3, 3])
+
+    node = onnx.helper.make_node('Conv', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, y], [out])
+
+
+@onnx_test
+def conv_dynamic_img_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, 3, None, None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                        [1, 1, None, None])
+
+    node = onnx.helper.make_node('Conv', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, y], [out])
+
+
+@onnx_test
+def conv_dynamic_weights_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                      [1, 3, None, None])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                        [1, 1, None, None])
+
+    node = onnx.helper.make_node('Conv', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, y], [out])
+
+
+@onnx_test
+def conv_dynamic_img_and_weights_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, 3, None, None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                      [1, 3, None, None])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                        [1, 1, None, None])
+
+    node = onnx.helper.make_node('Conv', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, y], [out])
+
+
+@onnx_test
+def conv_dynamic_batch_same_upper_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('Conv',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 auto_pad='SAME_UPPER')
+    return ([node], [x, y], [out])
+
+
+@onnx_test
+def conv_dynamic_img_same_upper_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, 3, None, None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                        [1, 1, None, None])
+
+    node = onnx.helper.make_node('Conv',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 auto_pad='SAME_UPPER')
+    return ([node], [x, y], [out])
+
+
+@onnx_test
+def conv_dynamic_kernel_same_lower_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                      [1, 3, None, None])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('Conv',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 auto_pad='SAME_LOWER')
+    return ([node], [x, y], [out])
+
+
+@onnx_test
 def conv_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])

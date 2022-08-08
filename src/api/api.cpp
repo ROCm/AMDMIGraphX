@@ -1353,6 +1353,22 @@ extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
+                                                      migraphx_program_t program,
+                                                      migraphx_program_parameters_t params,
+                                                      migraphx_excecution_environment_t e)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        if(params == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+        *out = allocate<migraphx_arguments_t>(
+            migraphx::run_async((program->object), (params->object), e));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x)
 {

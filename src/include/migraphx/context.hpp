@@ -172,12 +172,14 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        // TODO
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().wait_for(queue);
     }
 
     void finish_on(any_ptr queue)
     {
-        // TODO
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
     void finish() const
@@ -199,10 +201,12 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual value to_value() const          = 0;
-        virtual void from_value(const value& v) = 0;
-        virtual any_ptr get_queue()             = 0;
-        virtual void finish() const             = 0;
+        virtual value to_value() const              = 0;
+        virtual void from_value(const value& v)     = 0;
+        virtual any_ptr get_queue()                 = 0;
+        virtual void wait_for(any_ptr queue) const  = 0;
+        virtual void finish_on(any_ptr queue) const = 0;
+        virtual void finish() const                 = 0;
     };
 
     template <class T>
@@ -291,6 +295,10 @@ struct context
 
             return private_detail_te_default_get_queue(char(0), private_detail_te_value);
         }
+
+        void wait_for(any_ptr queue) const override { private_detail_te_value.wait_for(queue); }
+
+        void finish_on(any_ptr queue) const override { private_detail_te_value.finish_on(queue); }
 
         void finish() const override { private_detail_te_value.finish(); }
 

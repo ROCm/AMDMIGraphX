@@ -167,13 +167,27 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     target_assignments p;
 
     const auto* mod = get_main_module();
-    for(auto it : iterator_for(*mod))
-    {
-        auto t = std::max_element(
-            targets.begin(), targets.end(), [it, m](const target& lhs, const target& rhs) {
-                return lhs.is_supported(it, m) < rhs.is_supported(it, m);
-            });
-        p.add_assignment(it, t->name());
+    std::vector<std::vector<iterator_range<instruction_ref>>> subgraphs;
+    subgraphs.reserve(targets.size());
+    for(const auto& t : targets){
+        subgraphs.emplace_back(t.is_supported(mod, m));
+    }
+
+    auto next = mod->begin();
+    while(next != mod->end()){
+        for(auto i = 0U; i < subgraphs.size(); ++i){
+            const auto& subgraph = subgraphs[i];
+            const auto& target = targets[i];
+            for(const auto& range : subgraph){
+                if(range.begin() == next){
+                    for(const auto ins : iterator_for(range)){
+                        p.add_assignment(ins, target.name());
+                    }
+                    next = range.end();
+                    break;
+                }
+            }
+        }
     }
     return p;
 }

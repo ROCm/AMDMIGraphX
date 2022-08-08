@@ -39,6 +39,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/support_metric.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -115,9 +116,9 @@ argument copy_from_target(T&, const argument& arg)
 }
 
 template <class T>
-float target_is_supported(T&, instruction_ref, support_metric)
+std::vector<iterator_range<instruction_ref>> target_is_supported(T&, const module*, support_metric)
 {
-    return 0;
+    return {};
 }
 
 <%
@@ -125,7 +126,7 @@ interface('target',
      virtual('name', returns='std::string', const=True),
      virtual('get_passes', ctx='context&', options='const compile_options&', returns='std::vector<pass>', const=True),
      virtual('get_context', returns='context', const=True),
-     virtual('is_supported', returns='float', ins='instruction_ref', m='support_metric', const=True, default='target_is_supported'),
+     virtual('is_supported', returns='std::vector<iterator_range<instruction_ref>>', mod='const module*', m='support_metric', const=True, default='target_is_supported'),
      virtual('copy_to',
              returns = 'argument',
              input   = 'const argument&',

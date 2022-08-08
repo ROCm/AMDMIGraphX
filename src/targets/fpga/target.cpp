@@ -34,6 +34,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/normalize_ops.hpp>
+#include <migraphx/iterator_for.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -62,12 +63,15 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
-float is_supported(instruction_ref ins, support_metric m)
+std::vector<iterator_range<instruction_ref>> target::is_supported(const module* mod,
+                                                              support_metric m) const
 {
-    // for now, not using the ins and metric to return a value
-    (void)ins;
-    (void)m;
-    return 1.0;
+    (void) m;
+    auto begin = mod->begin();
+    auto end = mod->end();
+
+    auto range = iterator_range<instruction_ref>{begin, end};
+    return {range};
 }
 
 MIGRAPHX_REGISTER_TARGET(target);

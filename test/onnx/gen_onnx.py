@@ -636,7 +636,7 @@ def constant_empty_scalar_int64_test():
         inputs=[],
         outputs=['0'],
         value=onnx.helper.make_tensor(
-            name='empty_tensor',
+            name='one_element_tensor',
             data_type=TensorProto.INT64,
             dims=x.shape,
             vals=x.flatten().astype(np.int64),

@@ -21,37 +21,38 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <unordered_set>
-#include <migraphx/normalize_attributes.hpp>
-#include <migraphx/normalize_ops.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/auto_any_cast.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/sqlite.hpp>
+#include <migraphx/tmp_dir.hpp>
+#include <test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-void normalize_ops::apply(module& m) const
+TEST_CASE(read_write)
 {
-    for(auto ins : iterator_for(m))
-    {
-        auto inputs = ins->inputs();
-        if(inputs.empty())
-            continue;
+    const std::string create_table = R"__migraphx__(
+    CREATE TABLE IF NOT EXISTS test_db (
+    id INTEGER PRIMARY KEY ASC,
+    data TEXT NOT NULL
+    );
+    INSERT INTO test_db (id, data) VALUES (1, "a");
+    )__migraphx__";
 
-        auto s                       = inputs[0]->get_shape();
-        migraphx::operation tuned_op = ins->get_operator();
-        if(normalize_attributes(tuned_op, s.max_lens()))
-        {
-            m.replace_instruction(ins, tuned_op, inputs);
-            ins->set_normalized();
-        }
+    const std::string select_all = R"__migraphx__(
+    SELECT * FROM test_db;
+    )__migraphx__";
+
+    migraphx::tmp_dir td{};
+    auto db_path = td.path / "test.db";
+    {
+        auto db = migraphx::sqlite::write(db_path);
+        db.execute(create_table);
+    }
+    {
+        auto db   = migraphx::sqlite::read(db_path);
+        auto rows = db.execute(select_all);
+        EXPECT(rows.size() == 1);
+        auto row = rows.front();
+        EXPECT(row.at("data") == "a");
+        EXPECT(row.at("id") == "1");
     }
 }
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

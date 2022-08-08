@@ -21,12 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_PAD_CALC_HPP
-#define MIGRAPHX_GUARD_OPERATORS_PAD_CALC_HPP
-
-#include <migraphx/config.hpp>
-#include <cstdint>
-#include <vector>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,25 +32,59 @@ void calculate_padding(int64_t idx,
                        int64_t stride,
                        int64_t dilation,
                        int64_t weight_dim,
-                       bool is_same_upper = true);
+                       bool is_same_upper)
+{
+    int64_t output_dim     = (input_dim + stride - 1) / stride; // round up result
+    int64_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
+    int64_t pad =
+        std::max(static_cast<int64_t>(0), (output_dim - 1) * stride + new_weight_dim - input_dim);
+    auto pad_ndims = pads.size() / 2;
 
-/*!
- * Calculate the padding for auto_padding. Used for dynamic shapes
- * where the padding calculation must be done at evaluation time.
- * \param tensor_lens input tensor image shape
- * \param k_lens weights kernel shape
- * \param strides strides for the kernel
- * \param dilations dilations for the kernel
- * \param use_upper put odd padding on upper or lower side
- * \return padding in the form of {x0_begin, x1_begin, ... x0_end , x1_end, ...}
- */
+    if(is_same_upper)
+    {
+        pads[idx]             = pad / 2;
+        pads[idx + pad_ndims] = pad - pad / 2;
+    }
+    else
+    {
+        pads[idx + pad_ndims] = pad / 2;
+        pads[idx]             = pad - pad / 2;
+    }
+}
+
 std::vector<std::size_t> calc_dyn_auto_pad(std::vector<std::size_t> tensor_lens,
                                            std::vector<std::size_t> k_lens,
                                            std::vector<std::size_t> strides,
                                            std::vector<std::size_t> dilations,
-                                           bool use_upper = true);
+                                           bool use_upper)
+{
+    std::vector<std::size_t> padding;
+    padding.resize(2 * k_lens.size());
+    for(size_t i = 0; i < padding.size() / 2; i++)
+    {
+        std::ptrdiff_t input_dim      = tensor_lens[i];
+        std::ptrdiff_t stride         = strides[i];
+        std::ptrdiff_t weight_dim     = k_lens[i];
+        std::ptrdiff_t dilation       = dilations[i];
+        std::ptrdiff_t output_dim     = (input_dim + stride - 1) / stride; // round up result
+        std::ptrdiff_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
+        std::size_t pad               = std::max(static_cast<std::ptrdiff_t>(0),
+                                   (output_dim - 1) * stride + new_weight_dim - input_dim);
+        auto pad_ndims                = padding.size() / 2;
+
+        if(use_upper)
+        {
+            padding[i]             = pad / 2;
+            padding[i + pad_ndims] = pad - pad / 2;
+        }
+        else
+        {
+            padding[i + pad_ndims] = pad / 2;
+            padding[i]             = pad - pad / 2;
+        }
+    }
+    return padding;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

@@ -82,8 +82,8 @@ typedef const struct migraphx_program_parameter_shapes* const_migraphx_program_p
 typedef struct migraphx_program_parameters* migraphx_program_parameters_t;
 typedef const struct migraphx_program_parameters* const_migraphx_program_parameters_t;
 
-typedef struct migraphx_execution_environment* migraphx_excecution_environment_t;
-typedef const struct migraphx_execution_environment* const_migraphx_excecution_environment_t;
+typedef struct migraphx_execution_environment* migraphx_execution_environment_t;
+typedef const struct migraphx_execution_environment* const_migraphx_execution_environment_t;
 
 typedef struct migraphx_arguments* migraphx_arguments_t;
 typedef const struct migraphx_arguments* const_migraphx_arguments_t;
@@ -350,7 +350,7 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
                                            migraphx_program_t program,
                                            migraphx_program_parameters_t params,
-                                           migraphx_exceuction_environment_t e);
+                                           const migraphx_execution_environment_t e);
 
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);

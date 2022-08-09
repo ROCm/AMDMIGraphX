@@ -194,12 +194,6 @@ struct hip_device
     std::unordered_map<std::string, argument> preallocations{};
 };
 
-struct excecution_environment
-{
-    any_ptr queue = nullptr;
-    bool async    = false;
-};
-
 struct context
 {
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
@@ -280,8 +274,8 @@ struct context
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }
 
-    void wait_for(any_ptr queue) {}
-    void finish_on(any_ptr queue) {}
+    void wait_for(any_ptr /*queue*/) {}
+    void finish_on(any_ptr /*queue*/) {}
 
     any_ptr get_queue() { return get_stream().get(); }
 

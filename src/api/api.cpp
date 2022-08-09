@@ -242,6 +242,7 @@ bool equal(const T& x, const T& y)
 }
 
 std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
+
 std::vector<argument>
 run_async(program& p, const parameter_map& params, const execution_environment& exec_env)
 {
@@ -1356,7 +1357,7 @@ extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
                                                       migraphx_program_t program,
                                                       migraphx_program_parameters_t params,
-                                                      migraphx_excecution_environment_t e)
+                                                      const migraphx_execution_environment_t e)
 {
     auto api_error_result = migraphx::try_([&] {
         if(program == nullptr)

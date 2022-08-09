@@ -479,9 +479,12 @@ std::vector<argument> program::eval(parameter_map params) const
     }
 }
 
-std::vector<argument> eval(parameter_map params, execution_environment exec_env) const
+std::vector<argument> program::eval(parameter_map params,
+                                    const execution_environment exec_env) const
 {
     std::vector<argument> arg;
+    (void)params;
+    (void)exec_env;
     return arg;
 }
 

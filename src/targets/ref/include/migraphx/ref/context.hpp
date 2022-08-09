@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/any_ptr.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,6 +33,8 @@ namespace ref {
 
 struct context
 {
+    void wait_for(any_ptr) const {}
+    void finish_on(any_ptr) const {}
     void finish() const {}
 };
 

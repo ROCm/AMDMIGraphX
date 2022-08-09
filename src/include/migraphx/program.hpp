@@ -40,6 +40,8 @@
 #include <algorithm>
 #include <iostream>
 
+#include <migraphx/any_ptr.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -49,6 +51,12 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 struct program_impl;
 
 struct marker;
+
+struct execution_environment
+{
+    any_ptr queue;
+    bool async = false;
+};
 
 /**
  * @brief Stores the instruction stream
@@ -77,8 +85,7 @@ struct program
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     std::vector<argument> eval(parameter_map params) const;
-    std::vector<argument> eval(parameter_map params,
-                               migraphx::execution_environment exec_env) const;
+    std::vector<argument> eval(parameter_map params, const execution_environment exec_env) const;
 
     std::size_t size() const;
 
@@ -119,7 +126,7 @@ struct program
     void print_cpp(std::ostream& os) const;
 
     void dry_run(parameter_map params) const;
-
+    //
     void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
 
     program& sort();

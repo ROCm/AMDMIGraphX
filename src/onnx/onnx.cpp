@@ -41,8 +41,25 @@ template <class... Ts>
 program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx::onnx_parser parser;
-    parser.map_input_dims         = options.map_input_dims;
-    parser.default_dim_value      = options.default_dim_value;
+    parser.map_input_dims     = options.map_input_dims;
+    parser.map_dyn_input_dims = options.map_dyn_input_dims;
+    auto dim_val              = options.default_dim_value;
+    if(dim_val != 0)
+    {
+        if(options.default_dyn_dim_value != shape::dynamic_dimension{1, 1, 0})
+        {
+            MIGRAPHX_THROW("PARSE_ONNX_FROM: both default_dim_value and default_dyn_dim_value"
+                           "set to non-default value");
+        }
+        else
+        {
+            parser.default_dyn_dim_value = {dim_val, dim_val, 0};
+        }
+    }
+    else
+    {
+        parser.default_dyn_dim_value = options.default_dyn_dim_value;
+    }
     parser.skip_unknown_operators = options.skip_unknown_operators;
     parser.max_loop_iterations    = options.max_loop_iterations;
 

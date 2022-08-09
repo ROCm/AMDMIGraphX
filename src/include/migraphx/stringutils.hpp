@@ -174,27 +174,27 @@ inline std::string interpolate_string(const std::string& input,
 }
 
 template <class Iterator>
-inline std::string to_string_range(Iterator start, Iterator last)
+inline std::string to_string_range(Iterator start, Iterator last, const char* delim = ", ")
 {
     std::stringstream ss;
     if(start != last)
     {
         ss << *start;
-        std::for_each(std::next(start), last, [&](auto&& x) { ss << ", " << x; });
+        std::for_each(std::next(start), last, [&](auto&& x) { ss << delim << x; });
     }
     return ss.str();
 }
 
 template <class Range>
-inline std::string to_string_range(const Range& r)
+inline std::string to_string_range(const Range& r, const char* delim = ", ")
 {
-    return to_string_range(r.begin(), r.end());
+    return to_string_range(r.begin(), r.end(), delim);
 }
 
 template <class T>
-inline std::string to_string_range(const std::initializer_list<T>& r)
+inline std::string to_string_range(const std::initializer_list<T>& r, const char* delim = ", ")
 {
-    return to_string_range(r.begin(), r.end());
+    return to_string_range(r.begin(), r.end(), delim);
 }
 
 template <class T>

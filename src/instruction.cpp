@@ -445,8 +445,8 @@ operation instruction::normalized_operator() const
     operation o = this->get_operator();
     if(this->need_normalization())
     {
-        auto lens = this->inputs().front()->get_shape().lens();
-        if(!normalize_attributes(o, lens))
+        auto s = this->inputs().front()->get_shape();
+        if(!normalize_attributes(o, s.max_lens()))
             return this->get_operator();
     }
     return o;

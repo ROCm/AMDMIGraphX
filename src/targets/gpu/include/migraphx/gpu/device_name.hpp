@@ -33,6 +33,8 @@ namespace gpu {
 
 std::string get_device_name();
 
+int get_device_id();
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

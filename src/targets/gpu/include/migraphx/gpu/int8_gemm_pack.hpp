@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_INT8_GEMM_PACK_HPP
 #define MIGRAPHX_GUARD_RTGLIB_INT8_GEMM_PACK_HPP
 
+#include <migraphx/argument.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/config.hpp>
 #include <utility>

@@ -149,7 +149,6 @@ struct miopen_apply
         add_generic_op("logical_xor");
         add_generic_op("max");
         add_generic_op("min");
-        add_generic_op("mod");
         add_generic_op("mul");
         add_generic_op("not");
         add_generic_op("pow");

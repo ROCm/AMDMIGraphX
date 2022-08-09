@@ -40,8 +40,6 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/mod.hpp>
-#include <migraphx/op/fmod.hpp>
 
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>

@@ -83,7 +83,7 @@ void visit_py(T x, F f)
     {
         f(x.template cast<bool>());
     }
-    else if(py::isinstance<py::int_>(x))
+    else if(py::isinstance<py::int_>(x) || py::hasattr(x, "__index__"))
     {
         f(x.template cast<int>());
     }
@@ -382,11 +382,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("average", migraphx::op::pooling_mode::average)
         .value("max", migraphx::op::pooling_mode::max)
         .value("lpnorm", migraphx::op::pooling_mode::lpnorm);
-
-    py::enum_<migraphx::op::padding_mode_t>(op, "padding_mode_t")
-        .value("default_", migraphx::op::padding_mode_t::default_)
-        .value("same", migraphx::op::padding_mode_t::same)
-        .value("valid", migraphx::op::padding_mode_t::valid);
 
     py::enum_<migraphx::op::rnn_direction>(op, "rnn_direction")
         .value("forward", migraphx::op::rnn_direction::forward)

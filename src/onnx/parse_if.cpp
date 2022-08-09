@@ -47,7 +47,8 @@ struct parse_if : op_parser<parse_if>
 
         if(args.front()->get_shape().elements() != 1)
         {
-            MIGRAPHX_THROW("PARSE_IF: condition input can have only one element!");
+            MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                           " condition input can have only one element!");
         }
 
         std::string then_name = info.name + "_if";
@@ -69,7 +70,8 @@ struct parse_if : op_parser<parse_if>
                           else_out_shapes.begin(),
                           else_out_shapes.end()))
         {
-            MIGRAPHX_THROW("PARSE_IF: then and else sub_grahps must have same output shapes!");
+            MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                           " then and else sub_grahps must have same output shapes!");
         }
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});

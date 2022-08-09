@@ -49,7 +49,6 @@ struct fmod : binary<fmod>
         a["commutative"] = false;
         return a;
     }
-    std::string point_function() const { return "fmod"; }
     auto apply() const
     {
         return [](auto x, auto y) { return std::fmod(x, y); };

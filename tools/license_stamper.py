@@ -22,11 +22,12 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 #####################################################################################
-import subprocess
+import subprocess, os
 
 #Debug flag
 debug = False
 
+__repo_dir__ = os.path.normpath(os.path.join(os.path.realpath(__file__), '..', '..'))
 
 # Markdown code blob we should use to insert into notebook files
 def getipynb_markdownBlockAsList():
@@ -222,14 +223,15 @@ def getDelimiter(filename):
 
 def main():
 
-    message = open('LICENSE').read()
+    message = open(os.path.join(__repo_dir__, 'LICENSE')).read()
 
     #Get a list of all the files in our git repo
     #bashCommand = "git ls-files --exclude-standard"
     #print (bashCommand.split())
     proc = subprocess.run("git ls-files --exclude-standard",
                           shell=True,
-                          stdout=subprocess.PIPE)
+                          stdout=subprocess.PIPE,
+                          cwd=__repo_dir__)
     fileList = proc.stdout.decode().split('\n')
     message = message.split('\n')
 
@@ -237,7 +239,8 @@ def main():
         print("Target file list:\n" + str(fileList))
         print("Output Message:\n" + str(message))
 
-    for file in fileList:
+    for rfile in fileList:
+        file = os.path.join(__repo_dir__, rfile)
         #print(file)
         commentDelim = getDelimiter(file)
         if commentDelim is not None:

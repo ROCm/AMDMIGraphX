@@ -87,14 +87,13 @@ migraphx_status try_(F f, bool output = true) // NOLINT
 shape::type_t to_shape_type(migraphx_shape_datatype_t t)
 {
     switch(t)
-
-        void wait_for() const
-        {call(&
+    {
     case migraphx_shape_tuple_type: return shape::tuple_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case migraphx_shape_##x: return shape::x;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT) #undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
-        }
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
+#undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
+    }
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 

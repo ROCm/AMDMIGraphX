@@ -119,7 +119,7 @@ argument copy_from_target(T&, const argument& arg)
 template <class T>
 supported_instructions target_is_supported(T&, const module*, support_metric)
 {
-    return supported_instructions();
+    return {};
 }
 
 #ifdef TYPE_ERASED_DECLARATION

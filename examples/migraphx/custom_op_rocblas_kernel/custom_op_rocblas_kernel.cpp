@@ -57,12 +57,12 @@ struct sscal_custom_op final : migraphx::experimental_custom_op_base
     {
         // create rocblas stream handle
         auto rb_handle = create_rocblas_handle_ptr(ctx);
-	    MIGRAPHX_ROCBLAS_ASSERT(rocblas_set_pointer_mode(rb_handle, rocblas_pointer_mode_device));
-        rocblas_int n       = args[1].get_shape().lengths()[0];
-        float* alpha        = reinterpret_cast<float*>(args[0].data());
-        float* vec_ptr      = reinterpret_cast<float*>(args[1].data());
+        MIGRAPHX_ROCBLAS_ASSERT(rocblas_set_pointer_mode(rb_handle, rocblas_pointer_mode_device));
+        rocblas_int n  = args[1].get_shape().lengths()[0];
+        float* alpha   = reinterpret_cast<float*>(args[0].data());
+        float* vec_ptr = reinterpret_cast<float*>(args[1].data());
         MIGRAPHX_ROCBLAS_ASSERT(rocblas_sscal(rb_handle, n, alpha, vec_ptr, 1));
-	    MIGRAPHX_ROCBLAS_ASSERT(rocblas_destroy_handle(rb_handle));
+        MIGRAPHX_ROCBLAS_ASSERT(rocblas_destroy_handle(rb_handle));
         return args[1];
     }
 

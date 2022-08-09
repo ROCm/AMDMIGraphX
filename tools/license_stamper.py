@@ -27,7 +27,9 @@ import subprocess, os
 #Debug flag
 debug = False
 
-__repo_dir__ = os.path.normpath(os.path.join(os.path.realpath(__file__), '..', '..'))
+__repo_dir__ = os.path.normpath(
+    os.path.join(os.path.realpath(__file__), '..', '..'))
+
 
 # Markdown code blob we should use to insert into notebook files
 def getipynb_markdownBlockAsList():

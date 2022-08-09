@@ -90,6 +90,7 @@ add_library(migraphx
     shape.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    supported_instructions.cpp
     target_assignments.cpp
     tmp_dir.cpp
     value.cpp

@@ -39,7 +39,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/support_metric.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/ranges.hpp>
+#include <migraphx/supported_instructions.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,12 +65,13 @@ struct target
      */
     context get_context() const;
     /**
-     * @brief Check how well an instruction is supported on a target with the given metric
-     * @param ins Instruction to check if it's supported
-     * @param metric Used to define how the return value should be interpreted
-     * @return The value based on the chosen metric. Negative numbers mean unsupported
+     * @brief Get the ranges of instructions that are supported on a target
+     * @param module Module to check for supported instructions
+     * @param metric Used to define how the quality of the support should be measured
+     * @return an object holding vectors of ranges and metrics for the instructions that are
+     * supported
      */
-    float is_supported(T&, instruction_ref ins, support_metric m) const;
+    supported_instructions target_is_supported(T&, const module* mod, support_metric metric) const;
     /**
      * @brief copy an argument to the current target.
      *
@@ -116,9 +117,9 @@ argument copy_from_target(T&, const argument& arg)
 }
 
 template <class T>
-std::vector<iterator_range<instruction_ref>> target_is_supported(T&, const module*, support_metric)
+supported_instructions target_is_supported(T&, const module*, support_metric)
 {
-    return {};
+    return supported_instructions();
 }
 
 <%
@@ -126,7 +127,7 @@ interface('target',
      virtual('name', returns='std::string', const=True),
      virtual('get_passes', ctx='context&', options='const compile_options&', returns='std::vector<pass>', const=True),
      virtual('get_context', returns='context', const=True),
-     virtual('is_supported', returns='std::vector<iterator_range<instruction_ref>>', mod='const module*', m='support_metric', const=True, default='target_is_supported'),
+     virtual('is_supported', returns='supported_instructions', mod='const module*', m='support_metric', const=True, default='target_is_supported'),
      virtual('copy_to',
              returns = 'argument',
              input   = 'const argument&',

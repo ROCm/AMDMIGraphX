@@ -22,37 +22,27 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_FPGA_TARGET_HPP
-#define MIGRAPHX_GUARD_FPGA_TARGET_HPP
-
-#include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/compile_options.hpp>
-#include <migraphx/fpga/context.hpp>
-#include <migraphx/config.hpp>
 #include <migraphx/supported_instructions.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct pass;
-namespace fpga {
 
-struct target
+using ranges  = std::vector<iterator_range<instruction_ref>>;
+using metrics = std::vector<float>;
+
+void supported_instructions::add(iterator_range<instruction_ref> range, float metric)
 {
-    std::string name() const;
-    std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
-    migraphx::context get_context() const { return context{}; }
-    supported_instructions is_supported(const module* mod, support_metric m) const;
+    r.emplace_back(range);
+    m.emplace_back(metric);
+}
 
-    argument copy_to(const argument& arg) const { return arg; }
-    argument copy_from(const argument& arg) const { return arg; }
-    argument allocate(const shape& s) const;
-};
+const ranges& supported_instructions::get_ranges() const& { return r; }
 
-MIGRAPHX_REGISTER_TARGET(target);
+ranges supported_instructions::get_ranges() && { return r; }
 
-} // namespace fpga
+const metrics& supported_instructions::get_metrics() const& { return m; }
+
+metrics supported_instructions::get_metrics() && { return m; }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif // MIGRAPHX_GUARD_FPGA_TARGET_HPP

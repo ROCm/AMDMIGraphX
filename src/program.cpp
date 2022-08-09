@@ -37,6 +37,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
+#include <migraphx/supported_instructions.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -167,20 +168,26 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     target_assignments p;
 
     const auto* mod = get_main_module();
-    std::vector<std::vector<iterator_range<instruction_ref>>> subgraphs;
+    std::vector<supported_instructions> subgraphs;
     subgraphs.reserve(targets.size());
-    for(const auto& t : targets){
+    for(const auto& t : targets)
+    {
         subgraphs.emplace_back(t.is_supported(mod, m));
     }
 
     auto next = mod->begin();
-    while(next != mod->end()){
-        for(auto i = 0U; i < subgraphs.size(); ++i){
+    while(next != mod->end())
+    {
+        for(auto i = 0U; i < subgraphs.size(); ++i)
+        {
             const auto& subgraph = subgraphs[i];
-            const auto& target = targets[i];
-            for(const auto& range : subgraph){
-                if(range.begin() == next){
-                    for(const auto ins : iterator_for(range)){
+            const auto& target   = targets[i];
+            for(const auto& [range, metric] : subgraph)
+            {
+                if(range.begin() == next)
+                {
+                    for(const auto ins : iterator_for(range))
+                    {
                         p.add_assignment(ins, target.name());
                     }
                     next = range.end();

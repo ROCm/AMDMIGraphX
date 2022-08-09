@@ -39,7 +39,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/support_metric.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/ranges.hpp>
+#include <migraphx/supported_instructions.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,12 +65,13 @@ struct target
      */
     context get_context() const;
     /**
-     * @brief Check how well an instruction is supported on a target with the given metric
-     * @param ins Instruction to check if it's supported
-     * @param metric Used to define how the return value should be interpreted
-     * @return The value based on the chosen metric. Negative numbers mean unsupported
+     * @brief Get the ranges of instructions that are supported on a target
+     * @param module Module to check for supported instructions
+     * @param metric Used to define how the quality of the support should be measured
+     * @return an object holding vectors of ranges and metrics for the instructions that are
+     * supported
      */
-    float is_supported(T&, instruction_ref ins, support_metric m) const;
+    supported_instructions target_is_supported(T&, const module* mod, support_metric metric) const;
     /**
      * @brief copy an argument to the current target.
      *
@@ -116,9 +117,9 @@ argument copy_from_target(T&, const argument& arg)
 }
 
 template <class T>
-std::vector<iterator_range<instruction_ref>> target_is_supported(T&, const module*, support_metric)
+supported_instructions target_is_supported(T&, const module*, support_metric)
 {
-    return {};
+    return supported_instructions();
 }
 
 #ifdef TYPE_ERASED_DECLARATION
@@ -133,8 +134,7 @@ struct target
     //
     context get_context() const;
     // (optional)
-    std::vector<iterator_range<instruction_ref>> is_supported(const module* mod,
-                                                              support_metric m) const;
+    supported_instructions is_supported(const module* mod, support_metric m) const;
     // (optional)
     argument copy_to(const argument& input) const;
     // (optional)
@@ -226,8 +226,7 @@ struct target
         return (*this).private_detail_te_get_handle().get_context();
     }
 
-    std::vector<iterator_range<instruction_ref>> is_supported(const module* mod,
-                                                              support_metric m) const
+    supported_instructions is_supported(const module* mod, support_metric m) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().is_supported(mod, m);
@@ -264,15 +263,14 @@ struct target
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                           = 0;
+        virtual std::string name() const                                                       = 0;
         virtual std::vector<pass> get_passes(context& ctx,
-                                             const compile_options& options) const = 0;
-        virtual context get_context() const                                        = 0;
-        virtual std::vector<iterator_range<instruction_ref>>
-        is_supported(const module* mod, support_metric m) const = 0;
-        virtual argument copy_to(const argument& input) const   = 0;
-        virtual argument copy_from(const argument& input) const = 0;
-        virtual argument allocate(const shape& s) const         = 0;
+                                             const compile_options& options) const             = 0;
+        virtual context get_context() const                                                    = 0;
+        virtual supported_instructions is_supported(const module* mod, support_metric m) const = 0;
+        virtual argument copy_to(const argument& input) const                                  = 0;
+        virtual argument copy_from(const argument& input) const                                = 0;
+        virtual argument allocate(const shape& s) const                                        = 0;
     };
 
     template <class T>
@@ -286,8 +284,10 @@ struct target
     }
 
     template <class T>
-    static std::vector<iterator_range<instruction_ref>> private_detail_te_default_is_supported(
-        float, T&& private_detail_te_self, const module* mod, support_metric m)
+    static supported_instructions private_detail_te_default_is_supported(float,
+                                                                         T&& private_detail_te_self,
+                                                                         const module* mod,
+                                                                         support_metric m)
     {
         return target_is_supported(private_detail_te_self, mod, m);
     }
@@ -374,8 +374,7 @@ struct target
 
         context get_context() const override { return private_detail_te_value.get_context(); }
 
-        std::vector<iterator_range<instruction_ref>> is_supported(const module* mod,
-                                                                  support_metric m) const override
+        supported_instructions is_supported(const module* mod, support_metric m) const override
         {
 
             return private_detail_te_default_is_supported(char(0), private_detail_te_value, mod, m);

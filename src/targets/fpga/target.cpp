@@ -63,15 +63,17 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
-std::vector<iterator_range<instruction_ref>> target::is_supported(const module* mod,
-                                                              support_metric m) const
+supported_instructions target::is_supported(const module* mod, support_metric m) const
 {
-    (void) m;
+    (void)m;
     auto begin = mod->begin();
-    auto end = mod->end();
+    auto end   = mod->end();
 
     auto range = iterator_range<instruction_ref>{begin, end};
-    return {range};
+
+    supported_instructions instrs;
+    instrs.add(range, 1);
+    return instrs;
 }
 
 MIGRAPHX_REGISTER_TARGET(target);

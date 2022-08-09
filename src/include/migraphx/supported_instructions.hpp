@@ -47,7 +47,7 @@ struct supported_instructions_iterator_read
         assert(view != nullptr);
         const auto& ranges  = view->get_ranges();
         const auto& metrics = view->get_metrics();
-        return std::pair<iterator_range<instruction_ref>, float>{ranges[n], metrics[n]};
+        return std::make_pair(std::ref(ranges.at(n)), std::ref(metrics.at(n)));
     }
 };
 

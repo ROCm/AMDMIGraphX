@@ -182,7 +182,7 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
         {
             const auto& subgraph = subgraphs[i];
             const auto& target   = targets[i];
-            for(const auto& [range, metric] : subgraph)
+            for(const auto [range, metric] : subgraph)
             {
                 if(range.begin() == next)
                 {

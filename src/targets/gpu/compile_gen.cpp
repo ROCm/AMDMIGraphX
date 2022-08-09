@@ -85,7 +85,9 @@ preload preload::broadcasts(std::size_t axis, const std::vector<shape>& inputs)
     std::vector<bool> result(inputs.size());
     std::vector<std::size_t> preloaded;
     auto idxs = range(inputs.size());
-    std::copy_if(idxs.begin(), idxs.end(), std::back_inserter(preloaded), [&](auto i){ return inputs[i].strides()[axis] == 0; });
+    std::copy_if(idxs.begin(), idxs.end(), std::back_inserter(preloaded), [&](auto i) {
+        return inputs[i].strides()[axis] == 0;
+    });
     std::sort(preloaded.begin(), preloaded.end(), by(std::less<>{}, [&](auto i) {
                   return inputs[i].bytes();
               }));

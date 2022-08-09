@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <rocblas/rocblas.h>
+#include <rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
 

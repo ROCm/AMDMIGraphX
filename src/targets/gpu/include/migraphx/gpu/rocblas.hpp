@@ -26,7 +26,7 @@
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/config.hpp>
-#include <rocblas/rocblas.h>
+#include <rocblas.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -737,7 +737,7 @@ struct find_transpose_slice
         perm.insert(perm.begin(), preaxis + 1);
         auto transpose =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), unsqueeze);
-        // Slice and sqeeze
+        // Slice and squeeze
         for(auto s : slices)
         {
             auto op        = any_cast<op::slice>(s->get_operator());

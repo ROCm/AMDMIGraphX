@@ -722,7 +722,7 @@ struct find_transpose_slice
                        ins->get_shape().lens().begin() + axis,
                        [](auto x) { return x == 1; }))
             return;
-        // Compute axis before transpose to use for unsqueeeze
+        // Compute axis before transpose to use for unsqueeze
         auto perm    = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
         auto preaxis = std::find(perm.begin(), perm.end(), axis) - perm.begin();
         // Make unsqeeze

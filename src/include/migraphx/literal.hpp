@@ -45,6 +45,11 @@ struct literal : raw_data<literal>
 {
     literal() {}
 
+    /*!
+     * Empty literal with a specific shape type
+     */
+    explicit literal(shape::type_t shape_type) : m_shape(shape_type, {}) {}
+
     template <class U, class T = deduce<U>, shape::type_t ShapeType = shape::get_type<T>{}>
     literal(U x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(ShapeType)
     {

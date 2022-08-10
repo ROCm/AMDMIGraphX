@@ -307,9 +307,12 @@ std::vector<argument> generic_eval(const module* mod,
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
                     auto param = params[param_name];
-                    if(param.get_shape() != ins->get_shape())
+                    // TODO: may want to check correct number of dimensions and/or was within bounds
+                    if(not ins->get_shape().dynamic() and param.get_shape() != ins->get_shape())
+                    {
                         MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
                                        "} for parameter: " + param_name);
+                    }
                     return param;
                 }));
         }
@@ -352,7 +355,10 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
-        assert(results.at(ins).get_shape() == ins->get_shape());
+        if(not ins->get_shape().dynamic())
+        {
+            assert(results.at(ins).get_shape() == ins->get_shape());
+        }
     }
     return {results.at(std::prev(mod->end()))};
 }

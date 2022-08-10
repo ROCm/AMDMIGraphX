@@ -39,34 +39,47 @@
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
 #include <cstdarg>
-
 namespace migraphx {
+
+static thread_local bool disable_exception_catch = false; // NOLINT
+
+extern "C" void migraphx_test_private_disable_exception_catch(bool b)
+{
+    disable_exception_catch = b;
+}
 
 template <class F>
 migraphx_status try_(F f, bool output = true) // NOLINT
 {
-    try
+    if(disable_exception_catch)
     {
         f();
     }
-    catch(const migraphx::exception& ex)
+    else
     {
-        if(output)
-            std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
-        if(ex.error > 0)
-            return migraphx_status(ex.error);
-        else
+        try
+        {
+            f();
+        }
+        catch(const migraphx::exception& ex)
+        {
+            if(output)
+                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+            if(ex.error > 0)
+                return migraphx_status(ex.error);
+            else
+                return migraphx_status_unknown_error;
+        }
+        catch(const std::exception& ex)
+        {
+            if(output)
+                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
-    }
-    catch(const std::exception& ex)
-    {
-        if(output)
-            std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
-        return migraphx_status_unknown_error;
-    }
-    catch(...)
-    {
-        return migraphx_status_unknown_error;
+        }
+        catch(...)
+        {
+            return migraphx_status_unknown_error;
+        }
     }
     return migraphx_status_success;
 }

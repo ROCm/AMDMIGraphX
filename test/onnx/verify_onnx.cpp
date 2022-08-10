@@ -631,6 +631,120 @@ TEST_CASE(mean_integral_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(mod_test)
+{
+    migraphx::program p = migraphx::parse_onnx("mod_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+
+    std::vector<int32_t> a = {-4, 7, 5,  4, -7, 8, -4, 7, 5,  4, -7, 8, -4, 7,
+                              5,  4, -7, 8, -4, 7, 5,  4, -7, 8, -4, 7, 5};
+
+    std::vector<int32_t> b = {2, -3, 8, -2, 3, 5,  2, -3, 8, -2, 3, 5,  2, -3,
+                              8, -2, 3, 5,  2, -3, 8, -2, 3, 5,  2, -3, 8};
+
+    migraphx::parameter_map p_map;
+    p_map["0"] = migraphx::argument(s, a.data());
+    p_map["1"] = migraphx::argument(s, b.data());
+
+    auto result = p.eval(p_map).back();
+    std::vector<int32_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int32_t> gold = {0, -2, 5, 0, 2, 3,  0, -2, 5, 0, 2, 3,  0, -2,
+                                 5, 0,  2, 3, 0, -2, 5, 0,  2, 3, 0, -2, 5};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(mod_test_different_types)
+{
+    migraphx::program p = migraphx::parse_onnx("mod_test_different_dtypes.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s_int16{migraphx::shape::int16_type, {3, 3, 3}};
+    migraphx::shape s_int32{migraphx::shape::int32_type, {3, 3, 3}};
+
+    std::vector<int16_t> a = {-4, 7, 5,  4, -7, 8, -4, 7, 5,  4, -7, 8, -4, 7,
+                              5,  4, -7, 8, -4, 7, 5,  4, -7, 8, -4, 7, 5};
+
+    std::vector<int32_t> b = {2, -3, 8, -2, 3, 5,  2, -3, 8, -2, 3, 5,  2, -3,
+                              8, -2, 3, 5,  2, -3, 8, -2, 3, 5,  2, -3, 8};
+
+    migraphx::parameter_map p_map;
+    p_map["0"] = migraphx::argument(s_int16, a.data());
+    p_map["1"] = migraphx::argument(s_int32, b.data());
+
+    auto result = p.eval(p_map).back();
+    std::vector<int32_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int32_t> gold = {0, -2, 5, 0, 2, 3,  0, -2, 5, 0, 2, 3,  0, -2,
+                                 5, 0,  2, 3, 0, -2, 5, 0,  2, 3, 0, -2, 5};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(mod_test_fmod)
+{
+    migraphx::program p = migraphx::parse_onnx("mod_test_fmod.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {3, 3, 3}};
+
+    std::vector<float> a = {1.2,  -2.2, 3.3,  4.1,   -5.4,  6.7,   7.8,  -8.4, 9.9,
+                            10.7, 11.2, 12.3, 13.9,  -14.2, 15.8,  16.6, 17.9, 18.2,
+                            19.0, 20.0, 21.0, -22.0, 23.0,  -24.0, 25.2, 26.3, 27.1};
+
+    std::vector<float> b = {30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
+                            16, 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4};
+
+    migraphx::parameter_map p_map;
+    p_map["0"] = migraphx::argument(s, a.data());
+    p_map["1"] = migraphx::argument(s, b.data());
+
+    auto result = p.eval(p_map).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{1.2,  -2.2, 3.3,  4.1,  -5.4,  6.7,  7.8, -8.4, 9.9,
+                            10.7, 11.2, 12.3, 13.9, -14.2, 15.8, 1.6, 3.9,  5.2,
+                            7.0,  9.0,  1.0,  -4.0, 7.0,   -3.0, 1.2, 1.3,  3.1};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(mod_test_fmod_different_types)
+{
+    migraphx::program p = migraphx::parse_onnx("mod_test_fmod_different_dtypes.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s_float{migraphx::shape::float_type, {3, 3, 3}};
+    migraphx::shape s_int{migraphx::shape::int32_type, {3, 3, 3}};
+
+    std::vector<float> a = {1.2,  -2.2, 3.3,  4.1,   -5.4,  6.7,   7.8,  -8.4, 9.9,
+                            10.7, 11.2, 12.3, 13.9,  -14.2, 15.8,  16.6, 17.9, 18.2,
+                            19.0, 20.0, 21.0, -22.0, 23.0,  -24.0, 25.2, 26.3, 27.1};
+
+    std::vector<int32_t> b = {30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
+                              16, 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4};
+
+    migraphx::parameter_map p_map;
+    p_map["0"] = migraphx::argument(s_float, a.data());
+    p_map["1"] = migraphx::argument(s_int, b.data());
+
+    auto result = p.eval(p_map).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{1.2,  -2.2, 3.3,  4.1,  -5.4,  6.7,  7.8, -8.4, 9.9,
+                            10.7, 11.2, 12.3, 13.9, -14.2, 15.8, 1.6, 3.9,  5.2,
+                            7.0,  9.0,  1.0,  -4.0, 7.0,   -3.0, 1.2, 1.3,  3.1};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(nonzero_test)
 {
     migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");

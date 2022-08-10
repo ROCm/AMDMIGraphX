@@ -1141,6 +1141,38 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(transpose_unsqueeze_concat)
+{
+    migraphx::module m1;
+    {
+        auto l0 = m1.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+        auto lt0 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
+        auto l1 = m1.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+        auto lt1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l1);
+        auto l2 = m1.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+        auto lt2 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l2);
+        std::vector<migraphx::instruction_ref> args{lt0, lt1, lt2};
+        std::vector<migraphx::instruction_ref> unsqueezed_args;
+        int64_t axis = 3;
+
+        std::transform(
+            args.begin(),
+            args.end(),
+            std::back_inserter(unsqueezed_args),
+            [&](migraphx::instruction_ref arg) {
+                return m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
+            });
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
+    }
+    // TODO: This could be simplified to a single transpose after concat
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(transpose_slice)
 {
     migraphx::module m1;

@@ -160,6 +160,33 @@ instruction_ref program::validate() const
     return mm->validate();
 }
 
+instruction_ref add_assignments(const std::vector<supported_instructions>& target_subgraphs,
+                                const std::vector<target>& targets,
+                                instruction_ref start,
+                                target_assignments* assignments)
+{
+    for(auto i = 0U; i < target_subgraphs.size(); ++i)
+    {
+        const auto& subgraph = target_subgraphs[i];
+        const auto& target   = targets[i];
+        for(const auto [range, metric] : subgraph)
+        {
+            (void)metric;
+            if(range.begin() == start)
+            {
+                for(const auto ins : iterator_for(range))
+                {
+                    assignments->add_assignment(ins, target.name());
+                }
+                return range.end();
+            }
+        }
+    }
+
+    // should not get here assuming a CPU/ref implementation for every instruction exists
+    assert(false);
+}
+
 target_assignments program::get_target_assignments(const std::vector<target>& targets,
                                                    assignment_options options)
 {
@@ -168,34 +195,17 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     target_assignments p;
 
     const auto* mod = get_main_module();
-    std::vector<supported_instructions> subgraphs;
-    subgraphs.reserve(targets.size());
+    std::vector<supported_instructions> target_subgraphs;
+    target_subgraphs.reserve(targets.size());
     for(const auto& t : targets)
     {
-        subgraphs.emplace_back(t.is_supported(mod, m));
+        target_subgraphs.emplace_back(t.is_supported(mod, m));
     }
 
     auto next = mod->begin();
     while(next != mod->end())
     {
-        for(auto i = 0U; i < subgraphs.size(); ++i)
-        {
-            const auto& subgraph = subgraphs[i];
-            const auto& target   = targets[i];
-            for(const auto [range, metric] : subgraph)
-            {
-                (void)metric;
-                if(range.begin() == next)
-                {
-                    for(const auto ins : iterator_for(range))
-                    {
-                        p.add_assignment(ins, target.name());
-                    }
-                    next = range.end();
-                    break;
-                }
-            }
-        }
+        next = add_assignments(target_subgraphs, targets, next, &p);
     }
     return p;
 }

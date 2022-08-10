@@ -28,6 +28,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/fpga/target.hpp>
 #include <migraphx/target_assignments.hpp>
+#include <migraphx/iterator_for.hpp>
 
 migraphx::program create_program()
 {
@@ -50,9 +51,12 @@ TEST_CASE(is_supported)
     auto t = migraphx::make_target("fpga");
 
     const auto assignments = p.get_target_assignments({t});
-    for(const auto& [ins, target] : assignments)
+    const auto* mod        = p.get_main_module();
+    EXPECT(mod->size() == assignments.size());
+
+    for(const auto ins : iterator_for(*mod))
     {
-        (void)ins;
+        const auto& target = assignments.at(ins);
         EXPECT(target == "fpga");
     }
 }

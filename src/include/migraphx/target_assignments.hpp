@@ -35,6 +35,9 @@ struct target_assignments
 {
     void add_assignment(instruction_ref ins, const std::string& target);
 
+    auto size() const { return assignments.size(); }
+    auto& at(instruction_ref ins) const { return assignments.at(ins); }
+
     auto begin() const { return assignments.cbegin(); }
     auto end() const { return assignments.cend(); }
 

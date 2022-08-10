@@ -185,6 +185,7 @@ instruction_ref add_assignments(const std::vector<supported_instructions>& targe
 
     // should not get here assuming a CPU/ref implementation for every instruction exists
     assert(false);
+    return start;
 }
 
 target_assignments program::get_target_assignments(const std::vector<target>& targets,

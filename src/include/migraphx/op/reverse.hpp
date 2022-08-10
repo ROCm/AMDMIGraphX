@@ -30,10 +30,8 @@
 #include <utility>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/par_for.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/shape_for_each.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/value.hpp>
 
 namespace migraphx {

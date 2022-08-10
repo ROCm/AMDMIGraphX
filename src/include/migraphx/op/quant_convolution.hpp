@@ -24,15 +24,10 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 
-#include <array>
 #include <migraphx/op/common.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -46,8 +41,9 @@ struct quant_convolution
     std::vector<std::size_t> stride   = {1, 1};
     std::vector<std::size_t> dilation = {1, 1};
 
-    padding_mode_t padding_mode = default_;
-    int group                   = 1;
+    padding_mode_t padding_mode    = default_;
+    int group                      = 1;
+    bool use_dynamic_same_auto_pad = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -56,7 +52,8 @@ struct quant_convolution
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
                     f(self.padding_mode, "padding_mode"),
-                    f(self.group, "group"));
+                    f(self.group, "group"),
+                    f(self.use_dynamic_same_auto_pad, "use_dynamic_same_auto_pad"));
     }
 
     value attributes() const

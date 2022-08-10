@@ -53,6 +53,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -162,7 +163,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const { return context{}; }
+migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
 
 argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
 

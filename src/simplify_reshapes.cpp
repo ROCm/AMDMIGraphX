@@ -697,7 +697,7 @@ struct find_transpose_slice
                return s.axes != slice.axes or slice_distance(s) != sdistance;
            }))
             return;
-        // Check distances are divisible by axes
+        // Check distances are divisible by lens of corresponding axes
         auto mod_by_distance = [&](const auto& v, auto f) {
             return std::inner_product(v.begin(),
                                       v.end(),

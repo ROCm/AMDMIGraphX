@@ -224,6 +224,18 @@ struct block
                 idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
             });
         }
+
+        template<class Input>
+        constexpr auto elements() const
+        {
+            using reduce_type = decltype(slicer(Input{}));
+            using value_type = typename Input::type;
+            constexpr auto relements = get_shape_c<reduce_type>{}.elements();
+            if constexpr(vec_size<value_type>() > 1)
+                return relements * vec_size<value_type>();
+            else
+                return relements;
+        }
     };
 
     template <class Slicer>
@@ -280,6 +292,13 @@ struct lane
                     f(x[j], xs[j]...);
                 }
             });
+        }
+
+        template<class Input>
+        constexpr auto elements() const
+        {
+            using reduce_type = decltype(slicer(Input{}));
+            return get_shape_c<reduce_type>{}.elements();
         }
     };
 

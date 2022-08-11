@@ -41,9 +41,9 @@ __device__ void generic_binary_layernorm(
 {
     using reduce_output = reduce::with_axis<Input1, Axis>;
     reduce::block::run<reduce_output>([&](auto, auto r) {
-        using value_type = typename Input1::type;
+        using value_type         = typename Input1::type;
         constexpr auto relements = r.template elements<Input1>();
-        auto mean        = [&](auto f) {
+        auto mean                = [&](auto f) {
             return r.reduce(op::sum{}, 0, [&](auto x1, auto x2) {
                 return f(x1, x2) / value_type{relements};
             })(input1, input2);

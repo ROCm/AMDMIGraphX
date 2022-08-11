@@ -225,11 +225,11 @@ struct block
             });
         }
 
-        template<class Input>
+        template <class Input>
         constexpr auto elements() const
         {
-            using reduce_type = decltype(slicer(Input{}));
-            using value_type = typename Input::type;
+            using reduce_type        = decltype(slicer(Input{}));
+            using value_type         = typename Input::type;
             constexpr auto relements = get_shape_c<reduce_type>{}.elements();
             if constexpr(vec_size<value_type>() > 1)
                 return relements * vec_size<value_type>();
@@ -294,7 +294,7 @@ struct lane
             });
         }
 
-        template<class Input>
+        template <class Input>
         constexpr auto elements() const
         {
             using reduce_type = decltype(slicer(Input{}));

@@ -804,11 +804,42 @@ struct find_conv_dot_horiz_fusion
             if(name == "dot")
             {
                 axis        = int(args.front()->get_shape().lens().size() - 1);
-                concat_axis = axis;
+                concat_axis = axis - 1;
+                for(auto& arg : args)
+                {
+                    arg = arg->inputs().front();
+                    m.move_instructions(arg, input);
+                }
+                // TODO: Check if axises match
+                auto concat =
+                    m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
+                auto batch_size      = input->get_shape().lens().front();
+                auto sequence_length = input->get_shape().lens().at(1);
+                auto hidden_size     = input->get_shape().lens().at(2);
+                auto reshape = m.insert_instruction(std::next(input), make_op("reshape", {{"dims", {batch_size * sequence_length, hidden_size}}}), input);
+                auto fused     = m.insert_instruction(std::next(reshape), op, reshape, concat);
+                int64_t offset = 0;
+                for(auto arg : range(start, last))
+                {
+                    fused = m.insert_instruction(
+                        std::next(fused),
+                        make_op("reshape", {{"dims", {batch_size, sequence_length, hidden_size*3}}}),
+                        fused);
+                    int64_t len = arg->get_shape().lens()[axis];
+                    m.replace_instruction(
+                        arg,
+                        make_op("slice",
+                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                        fused);
+                    offset += len;
+                }
+
+                return;
             }
 
             for(auto arg : args)
                 m.move_instructions(arg, input);
+
             // TODO: Check if axises match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);

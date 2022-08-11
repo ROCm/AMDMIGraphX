@@ -48,7 +48,7 @@
 #include <deque>
 #include <variant>
 
-#if defined(MLIR_MIGRAPHX_API_VERSION) && MLIR_MIGRAPHX_API_VERSION >= 2
+#if defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) && MLIR_MIGRAPHX_DIALECT_API_VERSION >= 2
 #define MIGRAPHX_MLIR_BARE_POINTER
 #endif
 

@@ -39,6 +39,15 @@ void run_pass(migraphx::module& m)
     migraphx::run_passes(m, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
 }
 
+inline std::vector<std::vector<std::size_t>> to_lens(const std::vector<migraphx::shape>& shapes)
+{
+    std::vector<std::vector<std::size_t>> result;
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(result), [&](const auto& s) {
+        return s.lens();
+    });
+    return result;
+}
+
 TEST_CASE(double_contig)
 {
     migraphx::program p;
@@ -1329,7 +1338,7 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
     }
     auto output_shapes = m1.get_output_shapes();
     run_pass(m1);
-    EXPECT(m1.get_output_shapes() == output_shapes);
+    EXPECT(to_lens(m1.get_output_shapes()) == to_lens(output_shapes));
     migraphx::module m2;
     {
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});

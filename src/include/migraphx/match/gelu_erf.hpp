@@ -74,11 +74,10 @@ struct bert_gelu_erf_matcher
     F f;
     auto erf_fn() const
     {
-        return f("erf")(
-            used_once(),
-            arg(0)(used_once(),
-                   f("div")(either_arg(0, 1)(none_of(has_value(1.414f, 1e-3)).bind("x"),
-                                             has_value(1.414f, 1e-3)))));
+        return f("erf")(used_once(),
+                        arg(0)(used_once(),
+                               f("div")(either_arg(0, 1)(none_of(has_value(1.414f, 1e-3)).bind("x"),
+                                                         has_value(1.414f, 1e-3)))));
     }
 
     auto add_erf() const

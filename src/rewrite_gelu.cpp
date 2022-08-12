@@ -32,10 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct find_gelu_erf
 {
-    auto matcher() const
-    {
-        return match::bert_gelu_erf();
-    }
+    auto matcher() const { return match::bert_gelu_erf(); }
 
     void apply(module& m, const match::matcher_result& r) const
     {

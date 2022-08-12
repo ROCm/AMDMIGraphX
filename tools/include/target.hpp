@@ -39,7 +39,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/support_metric.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/supported_instructions.hpp>
+#include <migraphx/supported_segments.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -68,10 +68,9 @@ struct target
      * @brief Get the ranges of instructions that are supported on a target
      * @param module Module to check for supported instructions
      * @param metric Used to define how the quality of the support should be measured
-     * @return an object holding vectors of ranges and metrics for the instructions that are
-     * supported
+     * @return the supported segments of the graph
      */
-    supported_instructions target_is_supported(T&, const module* mod, support_metric metric) const;
+    supported_segments target_is_supported(T&, const module* mod, support_metric metric) const;
     /**
      * @brief copy an argument to the current target.
      *
@@ -117,7 +116,7 @@ argument copy_from_target(T&, const argument& arg)
 }
 
 template <class T>
-supported_instructions target_is_supported(T&, const module*, support_metric)
+supported_segments target_find_supported(T&, const module*, support_metric)
 {
     return {};
 }
@@ -127,7 +126,7 @@ interface('target',
      virtual('name', returns='std::string', const=True),
      virtual('get_passes', ctx='context&', options='const compile_options&', returns='std::vector<pass>', const=True),
      virtual('get_context', returns='context', const=True),
-     virtual('is_supported', returns='supported_instructions', mod='const module*', m='support_metric', const=True, default='target_is_supported'),
+     virtual('find_supported', returns='supported_segments', mod='const module*', m='support_metric', const=True, default='target_find_supported'),
      virtual('copy_to',
              returns = 'argument',
              input   = 'const argument&',

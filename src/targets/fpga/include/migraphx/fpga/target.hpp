@@ -30,7 +30,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/fpga/context.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/supported_instructions.hpp>
+#include <migraphx/supported_segments.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,7 +42,7 @@ struct target
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
     migraphx::context get_context() const { return context{}; }
-    supported_instructions is_supported(const module* mod, support_metric m) const;
+    supported_segments find_supported(const module* mod, support_metric m) const;
 
     argument copy_to(const argument& arg) const { return arg; }
     argument copy_from(const argument& arg) const { return arg; }

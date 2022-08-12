@@ -37,7 +37,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
-#include <migraphx/supported_instructions.hpp>
+#include <migraphx/supported_segments.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -160,34 +160,6 @@ instruction_ref program::validate() const
     return mm->validate();
 }
 
-instruction_ref add_assignments(const std::vector<supported_instructions>& target_subgraphs,
-                                const std::vector<target>& targets,
-                                instruction_ref start,
-                                target_assignments* assignments)
-{
-    for(auto i = 0U; i < target_subgraphs.size(); ++i)
-    {
-        const auto& subgraph = target_subgraphs[i];
-        const auto& target   = targets[i];
-        for(const auto [range, metric] : subgraph)
-        {
-            (void)metric;
-            if(range.begin() == start)
-            {
-                for(const auto ins : iterator_for(range))
-                {
-                    assignments->add_assignment(ins, target.name());
-                }
-                return range.end();
-            }
-        }
-    }
-
-    // should not get here assuming a CPU/ref implementation for every instruction exists
-    assert(false);
-    return start;
-}
-
 target_assignments program::get_target_assignments(const std::vector<target>& targets,
                                                    assignment_options options)
 {
@@ -196,17 +168,37 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     target_assignments p;
 
     const auto* mod = get_main_module();
-    std::vector<supported_instructions> target_subgraphs;
+    std::vector<supported_segments> target_subgraphs;
     target_subgraphs.reserve(targets.size());
     for(const auto& t : targets)
     {
-        target_subgraphs.emplace_back(t.is_supported(mod, m));
+        target_subgraphs.emplace_back(t.find_supported(mod, m));
     }
 
-    auto next = mod->begin();
-    while(next != mod->end())
+    for(const auto ins : iterator_for(*mod))
     {
-        next = add_assignments(target_subgraphs, targets, next, &p);
+        if(p.has(ins))
+        {
+            continue;
+        }
+
+        for(auto i = 0U; i < target_subgraphs.size(); ++i)
+        {
+            const auto& subgraph = target_subgraphs[i];
+            const auto& target   = targets[i];
+            for(const auto& segment : subgraph)
+            {
+                const auto& instructions = segment.instructions;
+                if(instructions.find(ins) == instructions.end())
+                {
+                    continue;
+                }
+                for(const auto instr : instructions)
+                {
+                    p.add_assignment(instr, target.name());
+                }
+            }
+        }
     }
     return p;
 }

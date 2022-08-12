@@ -37,6 +37,7 @@ struct target_assignments
 
     auto size() const { return assignments.size(); }
     auto& at(instruction_ref ins) const { return assignments.at(ins); }
+    bool has(instruction_ref ins) const { return assignments.find(ins) != assignments.end(); }
 
     auto begin() const { return assignments.cbegin(); }
     auto end() const { return assignments.cend(); }

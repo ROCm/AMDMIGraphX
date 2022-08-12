@@ -39,7 +39,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/support_metric.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/supported_instructions.hpp>
+#include <migraphx/supported_segments.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -68,10 +68,9 @@ struct target
      * @brief Get the ranges of instructions that are supported on a target
      * @param module Module to check for supported instructions
      * @param metric Used to define how the quality of the support should be measured
-     * @return an object holding vectors of ranges and metrics for the instructions that are
-     * supported
+     * @return the supported segments of the graph
      */
-    supported_instructions target_is_supported(T&, const module* mod, support_metric metric) const;
+    supported_segments target_is_supported(T&, const module* mod, support_metric metric) const;
     /**
      * @brief copy an argument to the current target.
      *
@@ -117,7 +116,7 @@ argument copy_from_target(T&, const argument& arg)
 }
 
 template <class T>
-supported_instructions target_is_supported(T&, const module*, support_metric)
+supported_segments target_find_supported(T&, const module*, support_metric)
 {
     return {};
 }
@@ -134,7 +133,7 @@ struct target
     //
     context get_context() const;
     // (optional)
-    supported_instructions is_supported(const module* mod, support_metric m) const;
+    supported_segments find_supported(const module* mod, support_metric m) const;
     // (optional)
     argument copy_to(const argument& input) const;
     // (optional)
@@ -226,10 +225,10 @@ struct target
         return (*this).private_detail_te_get_handle().get_context();
     }
 
-    supported_instructions is_supported(const module* mod, support_metric m) const
+    supported_segments find_supported(const module* mod, support_metric m) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().is_supported(mod, m);
+        return (*this).private_detail_te_get_handle().find_supported(mod, m);
     }
 
     argument copy_to(const argument& input) const
@@ -263,33 +262,33 @@ struct target
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                                       = 0;
+        virtual std::string name() const                                                     = 0;
         virtual std::vector<pass> get_passes(context& ctx,
-                                             const compile_options& options) const             = 0;
-        virtual context get_context() const                                                    = 0;
-        virtual supported_instructions is_supported(const module* mod, support_metric m) const = 0;
-        virtual argument copy_to(const argument& input) const                                  = 0;
-        virtual argument copy_from(const argument& input) const                                = 0;
-        virtual argument allocate(const shape& s) const                                        = 0;
+                                             const compile_options& options) const           = 0;
+        virtual context get_context() const                                                  = 0;
+        virtual supported_segments find_supported(const module* mod, support_metric m) const = 0;
+        virtual argument copy_to(const argument& input) const                                = 0;
+        virtual argument copy_from(const argument& input) const                              = 0;
+        virtual argument allocate(const shape& s) const                                      = 0;
     };
 
     template <class T>
-    static auto private_detail_te_default_is_supported(char,
-                                                       T&& private_detail_te_self,
-                                                       const module* mod,
-                                                       support_metric m)
-        -> decltype(private_detail_te_self.is_supported(mod, m))
+    static auto private_detail_te_default_find_supported(char,
+                                                         T&& private_detail_te_self,
+                                                         const module* mod,
+                                                         support_metric m)
+        -> decltype(private_detail_te_self.find_supported(mod, m))
     {
-        return private_detail_te_self.is_supported(mod, m);
+        return private_detail_te_self.find_supported(mod, m);
     }
 
     template <class T>
-    static supported_instructions private_detail_te_default_is_supported(float,
-                                                                         T&& private_detail_te_self,
-                                                                         const module* mod,
-                                                                         support_metric m)
+    static supported_segments private_detail_te_default_find_supported(float,
+                                                                       T&& private_detail_te_self,
+                                                                       const module* mod,
+                                                                       support_metric m)
     {
-        return target_is_supported(private_detail_te_self, mod, m);
+        return target_find_supported(private_detail_te_self, mod, m);
     }
 
     template <class T>
@@ -374,10 +373,11 @@ struct target
 
         context get_context() const override { return private_detail_te_value.get_context(); }
 
-        supported_instructions is_supported(const module* mod, support_metric m) const override
+        supported_segments find_supported(const module* mod, support_metric m) const override
         {
 
-            return private_detail_te_default_is_supported(char(0), private_detail_te_value, mod, m);
+            return private_detail_te_default_find_supported(
+                char(0), private_detail_te_value, mod, m);
         }
 
         argument copy_to(const argument& input) const override

@@ -21,28 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP
 
-#include <migraphx/supported_instructions.hpp>
+#include <unordered_set>
+
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using ranges  = std::vector<iterator_range<instruction_ref>>;
-using metrics = std::vector<float>;
-
-void supported_instructions::add(iterator_range<instruction_ref> range, float metric)
+struct supported_segment
 {
-    r.emplace_back(range);
-    m.emplace_back(metric);
-}
+    std::unordered_set<instruction_ref> instructions;
+    float metric;
+};
 
-const ranges& supported_instructions::get_ranges() const& { return r; }
-
-ranges supported_instructions::get_ranges() && { return r; }
-
-const metrics& supported_instructions::get_metrics() const& { return m; }
-
-metrics supported_instructions::get_metrics() && { return m; }
+using supported_segments = std::vector<supported_segment>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP

@@ -125,6 +125,11 @@ struct nonmaxsuppression
         }
         else
         {
+            if(inputs.at(0).dynamic() or inputs.at(1).dynamic())
+            {
+                MIGRAPHX_THROW(
+                    "NonMaxSuppression: dynamic input shape with use_dyn_output set to false");
+            }
             fixed_shape_error_check();
             std::vector<std::size_t> out_lens = {max_num_boxes, 3};
             return {shape::int64_type, out_lens};

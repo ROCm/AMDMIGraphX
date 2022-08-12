@@ -1190,6 +1190,15 @@ TEST_CASE(nms_shape)
                  iou_thres_s,
                  score_thres_s);
 
+    // use_dyn_output false with dynamic input shape
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
     // dynamic classes
     boxes_s  = {migraphx::shape::float_type, {{1, 1, 0}, {6, 6, 0}, {4, 4, 0}}};
     scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 3, 0}, {6, 6, 0}}};

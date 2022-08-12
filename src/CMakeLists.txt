@@ -119,6 +119,7 @@ register_migraphx_ops(
     broadcast
     capture
     ceil
+    ck_gemm
     clip
     concat
     contiguous

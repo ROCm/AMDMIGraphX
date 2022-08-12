@@ -70,7 +70,7 @@ std::vector<argument> run_target(program p,
     return output;
 }
 
-void verify_program(const std::string& name,
+bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options,
@@ -81,11 +81,13 @@ void verify_program(const std::string& name,
     auto x = run_ref(p, inputs);
     auto y = run_target(p, t, options, quantize, inputs);
 
+    bool passed = true;
     std::size_t output_num = x.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        verify_args(name, x[i], y[i], tolerance);
+        passed &= verify_args(name, x[i], y[i], tolerance);
     }
+    return passed;
 }
 
 void verify_instructions(const program& prog,

@@ -31,7 +31,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void verify_program(const std::string& name,
+bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options     = compile_options{},

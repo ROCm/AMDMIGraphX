@@ -636,11 +636,31 @@ TEST_CASE(constant_scalar_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(constant_empty_scalar_int64_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
+    auto prog = optimize_onnx("constant_empty_scalar_int64_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_one_val_int64_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+    auto prog = optimize_onnx("constant_one_val_int64_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal());
+    mm->add_literal(migraphx::literal(migraphx::shape::int32_type));
     migraphx::shape s(migraphx::shape::int64_type, {1}, {0});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
@@ -4185,7 +4205,7 @@ TEST_CASE(reducesum_empty_axes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal({});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
     auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     auto l1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2, 3}}}), x);
     auto r  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1, 2, 3}}}), l1);
@@ -4200,7 +4220,7 @@ TEST_CASE(reducesum_noop_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal({});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
     auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     mm->add_return({x});
     auto prog = migraphx::parse_onnx("reducesum_noop_test.onnx");
@@ -5410,7 +5430,7 @@ TEST_CASE(squeeze_empty_axes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal({});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
     auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
     auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), l0);
     mm->add_return({l1});

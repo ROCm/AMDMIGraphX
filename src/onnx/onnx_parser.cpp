@@ -59,7 +59,7 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
     {
-        return {};
+        return literal{shape_type};
     }
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
@@ -76,7 +76,7 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
     {
-        return {};
+        return literal{shape_type};
     }
 
     // scalar input

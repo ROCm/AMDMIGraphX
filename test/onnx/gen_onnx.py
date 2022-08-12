@@ -627,6 +627,46 @@ def constant_scalar_test():
 
 
 @onnx_test
+def constant_empty_scalar_int64_test():
+    x = np.array([]).astype(np.int64)
+    y = helper.make_tensor_value_info('0', TensorProto.INT64, [0])
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['0'],
+        value=onnx.helper.make_tensor(
+            name='one_element_tensor',
+            data_type=TensorProto.INT64,
+            dims=x.shape,
+            vals=x.flatten().astype(np.int64),
+        ),
+    )
+
+    return ([node], [], [y])
+
+
+@onnx_test
+def constant_one_val_int64_test():
+    x = np.array([1]).astype(np.int64)
+    y = helper.make_tensor_value_info('0', TensorProto.INT64, [0])
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['0'],
+        value=onnx.helper.make_tensor(
+            name='empty_tensor',
+            data_type=TensorProto.INT64,
+            dims=x.shape,
+            vals=x.flatten().astype(np.int64),
+        ),
+    )
+
+    return ([node], [], [y])
+
+
+@onnx_test
 def const_of_shape_empty_input_test():
     tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
                                          [10])

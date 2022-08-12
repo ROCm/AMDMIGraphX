@@ -25,35 +25,16 @@
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/match/gelu_erf.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct find_gelu_erf
 {
-    static auto match_div()
-    {
-        return match::name("div")(match::either_arg(0, 1)(
-            match::any().bind("x"), match::skip_broadcasts(match::has_value(1.414f, 1e-3))));
-    }
-
-    static auto match_erf() { return match::name("erf")(match::arg(0)(match_div())); }
-
-    static auto match_add()
-    {
-        return match::name("add")(
-            match::either_arg(0, 1)(match_erf(), match::skip_broadcasts(match::has_value(1.0f))));
-    }
-
-    static auto match_mul()
-    {
-        return match::name("mul")(match::either_arg(0, 1)(match::any(), match_add()));
-    }
-
     auto matcher() const
     {
-        return match::name("mul")(
-            match::either_arg(0, 1)(match_mul(), match::skip_broadcasts(match::has_value(0.5f))));
+        return match::bert_gelu_erf();
     }
 
     void apply(module& m, const match::matcher_result& r) const

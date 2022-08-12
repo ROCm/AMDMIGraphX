@@ -814,8 +814,8 @@ struct find_conv_dot_horiz_fusion
                         m.move_instructions(arg, input);
                     }
                     // TODO: Check if axises match
-                    auto concat =
-                        m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
+                    auto concat = m.insert_instruction(
+                        input, make_op("concat", {{"axis", concat_axis}}), args);
                     auto batch_size      = input->get_shape().lens().front();
                     auto sequence_length = input->get_shape().lens().at(1);
                     auto hidden_size     = input->get_shape().lens().at(2);
@@ -840,10 +840,11 @@ struct find_conv_dot_horiz_fusion
                                     {{"dims", {batch_size, sequence_length, hidden_size * 3}}}),
                             fused);
                         int64_t len = arg->get_shape().lens()[axis];
-                         m.replace_instruction(
+                        m.replace_instruction(
                             arg,
-                            make_op("slice",
-                                    {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                            make_op(
+                                "slice",
+                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
                             fused);
                         offset += len;
                     }

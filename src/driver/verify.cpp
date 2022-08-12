@@ -81,7 +81,7 @@ bool verify_program(const std::string& name,
     auto x = run_ref(p, inputs);
     auto y = run_target(p, t, options, quantize, inputs);
 
-    bool passed = true;
+    bool passed            = true;
     std::size_t output_num = x.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {

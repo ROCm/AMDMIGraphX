@@ -44,8 +44,13 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/gpu/perfdb.hpp>
 #include <deque>
 #include <variant>
+
+#if defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) && MLIR_MIGRAPHX_DIALECT_API_VERSION >= 2
+#define MIGRAPHX_MLIR_BARE_POINTER
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -143,6 +148,12 @@ std::string mlir_print(F f, T x)
     std::stringstream ss;
     mlir_print(f, x, [&](auto s) { ss << s; });
     return ss.str();
+}
+
+const std::unordered_set<std::string>& get_xdlops_archs()
+{
+    static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
+    return supported_archs;
 }
 
 struct mlir_program
@@ -487,6 +498,17 @@ struct mlir_program
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
+            if(ins->name() == "convolution")
+            {
+                pp =
+                    problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
+                std::string tuned = get_tune_params();
+                if(!tuned.empty())
+                    ops.add_attributes({{"perf_config", tuned}});
+                // check if HW supports xdlops
+                if(contains(get_xdlops_archs(), target_name))
+                    ops.add_attributes({{"xdlopsV2", true}});
+            }
 
             std::vector<MlirValue> inputs;
             transform(
@@ -508,14 +530,7 @@ struct mlir_program
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm.get());
         // 2nd pipeline to call
-        std::string tname = get_device_name();
-        // HACK: Since MLIR can't handle the full target name
-        auto hacked_tname = tname.substr(0, tname.find(':'));
-        if(tname.size() != hacked_tname.size())
-            std::cout
-                << "*************** WARNING: MLIR may not compile the correct target features for: "
-                << tname << std::endl;
-        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str(), "amdgcn-amd-amdhsa", "");
+        mlirMIGraphXAddBackendPipeline(pm.get(), target_name.c_str(), "amdgcn-amd-amdhsa", "");
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op{};
@@ -523,6 +538,17 @@ struct mlir_program
         op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
         return op;
+    }
+
+    void find_target()
+    {
+        std::string tname = get_device_name();
+        // HACK: Since MLIR can't handle the full target name
+        target_name = trim(split_string(tname, ':').front());
+        if(tname.size() != target_name.size())
+            std::cout
+                << "*************** WARNING: MLIR may not compile the correct target features for: "
+                << tname << std::endl;
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -545,10 +571,14 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
+    std::string get_tune_params() { return get_mlir_perf_for_conv(pp); }
+
     mlir_context ctx;
     MlirLocation location;
     mlir_module mmodule;
+    problem_params pp;
     std::deque<std::string> strings{};
+    std::string target_name;
 };
 
 std::string dump_mlir(const module& m)
@@ -565,6 +595,7 @@ code_object_op compile_mlir(const context&, const module& m)
     if(trace)
         std::cout << m << std::endl;
     mlir_program mp;
+    mp.find_target();
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
@@ -579,9 +610,15 @@ instruction_ref insert_mlir(module& m,
                             code_object_op co,
                             const std::vector<instruction_ref>& inputs)
 {
-    std::vector<instruction_ref> refs;
-    refs.reserve(inputs.size() * 15);
 
+    std::vector<instruction_ref> refs;
+    std::size_t last = 0;
+#ifdef MIGRAPHX_MLIR_BARE_POINTER
+    refs.reserve(inputs.size());
+    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
+    last = refs.size() - 1;
+#else
+    refs.reserve(inputs.size() * 15);
     std::unordered_map<uint64_t, instruction_ref> literal_map{};
     auto get_literal = [&](uint64_t value) {
         auto fi = literal_map.find(value);
@@ -592,7 +629,6 @@ instruction_ref insert_mlir(module& m,
         return lit;
     };
 
-    std::size_t last = 0;
     for(auto input : inputs)
     {
         const size_t offset = 0;
@@ -616,6 +652,7 @@ instruction_ref insert_mlir(module& m,
                        [&](const auto& lval) { return get_literal(lval); });
         // refs.push_back(get_literal(1)); // G
     }
+#endif
     co.expected_inputs = to_shapes(refs);
     co.output_arg      = last;
     return m.insert_instruction(ins, co, refs);

@@ -93,9 +93,10 @@ struct onnx_parser
         onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog                  = program();
-    std::size_t default_dim_value = 1;
+    program prog                                   = program();
+    shape::dynamic_dimension default_dyn_dim_value = {1, 1, 0};
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+    std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
     bool skip_unknown_operators = false;
     int64_t max_loop_iterations = 10;
     int64_t opset_version       = 13;
@@ -118,6 +119,7 @@ struct onnx_parser
 };
 
 shape::type_t get_type(int dtype);
+bool is_type_float(shape::type_t dtype);
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

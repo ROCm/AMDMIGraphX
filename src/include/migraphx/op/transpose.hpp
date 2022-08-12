@@ -24,14 +24,11 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_TRANSPOSE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_TRANSPOSE_HPP
 
-#include <array>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/lifetime.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

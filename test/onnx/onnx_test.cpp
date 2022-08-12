@@ -3492,19 +3492,13 @@ TEST_CASE(nms_overwrite_use_dyn_output_test)
     auto st = mm->add_parameter("score_threshold", sst);
 
     auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
-        b,
-        s,
-        mo,
-        iou,
-        st);
+        migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}), b, s, mo, iou, st);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.map_use_dyn_output["NonMaxSuppression"] = true;
 
-    auto prog = migraphx::parse_onnx("nms_test.onnx", options);
+    auto prog = migraphx::parse_onnx("nms_use_dyn_output_false_test.onnx", options);
     EXPECT(p == prog);
 }
 

@@ -48,6 +48,10 @@
 #include <deque>
 #include <variant>
 
+#if defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) && MLIR_MIGRAPHX_DIALECT_API_VERSION >= 2
+#define MIGRAPHX_MLIR_BARE_POINTER
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -606,9 +610,15 @@ instruction_ref insert_mlir(module& m,
                             code_object_op co,
                             const std::vector<instruction_ref>& inputs)
 {
-    std::vector<instruction_ref> refs;
-    refs.reserve(inputs.size() * 15);
 
+    std::vector<instruction_ref> refs;
+    std::size_t last = 0;
+#ifdef MIGRAPHX_MLIR_BARE_POINTER
+    refs.reserve(inputs.size());
+    std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
+    last = refs.size() - 1;
+#else
+    refs.reserve(inputs.size() * 15);
     std::unordered_map<uint64_t, instruction_ref> literal_map{};
     auto get_literal = [&](uint64_t value) {
         auto fi = literal_map.find(value);
@@ -619,7 +629,6 @@ instruction_ref insert_mlir(module& m,
         return lit;
     };
 
-    std::size_t last = 0;
     for(auto input : inputs)
     {
         const size_t offset = 0;
@@ -643,6 +652,7 @@ instruction_ref insert_mlir(module& m,
                        [&](const auto& lval) { return get_literal(lval); });
         // refs.push_back(get_literal(1)); // G
     }
+#endif
     co.expected_inputs = to_shapes(refs);
     co.output_arg      = last;
     return m.insert_instruction(ins, co, refs);

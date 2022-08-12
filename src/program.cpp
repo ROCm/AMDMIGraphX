@@ -170,10 +170,10 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     const auto* mod = get_main_module();
     std::vector<supported_segments> target_subgraphs;
     target_subgraphs.reserve(targets.size());
-    for(const auto& t : targets)
-    {
-        target_subgraphs.emplace_back(t.find_supported(mod, m));
-    }
+    std::transform(targets.begin(),
+                   targets.end(),
+                   std::back_inserter(target_subgraphs),
+                   [mod, m](const auto& t) { return t.find_supported(mod, m); });
 
     for(const auto ins : iterator_for(*mod))
     {

@@ -32,7 +32,6 @@ namespace migraphx {
 template <class T, class U, class V>
 __device__ void ck_gemm(const T& /* data_t */, const U& /* indices_t */, const V& /* output_t */)
 {
-    
 }
 
 } // namespace migraphx

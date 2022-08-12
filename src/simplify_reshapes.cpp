@@ -153,7 +153,7 @@ struct find_transpose
     {
         auto output_not_transpose =
             match::none_of(match::skip_output(match::name("contiguous"))(match::name("transpose")));
-        auto input_has_transpose = match::skip(match::name("contiguous"))(match::name("transpose"));
+        auto input_has_transpose = match::args(match::skip(match::name("contiguous"))(match::name("transpose")));
         return match::name("transpose")(output_not_transpose, input_has_transpose);
     }
 

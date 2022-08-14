@@ -65,6 +65,7 @@ add_library(migraphx
     operation.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
+    pad_calc.cpp
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp
@@ -79,6 +80,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     simplify_qdq.cpp
+    sqlite.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
@@ -134,6 +136,7 @@ register_migraphx_ops(
     exp
     flatten
     floor
+    fmod
     gather
     gathernd
     get_tuple_elem
@@ -156,6 +159,7 @@ register_migraphx_ops(
     lstm
     max
     min
+    mod
     mul
     multibroadcast
     multinomial
@@ -238,6 +242,13 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 
 find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
+
+find_package(nlohmann_json 3.8.0 REQUIRED)
+target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
+
+find_package(PkgConfig)
+pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
+target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
 
 find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)

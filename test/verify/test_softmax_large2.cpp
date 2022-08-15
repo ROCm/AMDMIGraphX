@@ -33,10 +33,10 @@ struct test_softmax_large2 : verify_program<test_softmax_large2>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+        auto* mm   = p.get_main_module();
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
         auto large = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {-10000}});
-        auto add = migraphx::add_common_op(*mm, migraphx::make_op("add"), {x, large});
+        auto add   = migraphx::add_common_op(*mm, migraphx::make_op("add"), {x, large});
         mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), add);
         return p;
     }

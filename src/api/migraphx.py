@@ -451,9 +451,8 @@ def experimental_custom_op(h):
     h.virtual('compute_shape',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
-    # TODO : If output aliasing then, runs_on_offload_flag must be true
     h.virtual('output_alias',
               api.params(inputs='std::vector<migraphx::shape>'),
-              returns='std::ptrdiff_t')
+              returns='std::vector<std::ptrdiff_t>')
     h.virtual('runs_on_offload_target', returns='bool')
     h.method('register', invoke='migraphx::register_custom_op($@)')

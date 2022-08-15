@@ -697,9 +697,14 @@ def generate_cpp_header() -> str:
                           [c.generate() for c in cpp_classes])
 
 
-def cwrap(name: str) -> Callable:
+c_type_map: Dict[str, Type] = {}
+
+
+def cwrap(name: str, c_type: Optional[str] = None) -> Callable:
     def with_cwrap(f):
         type_map[name] = f
+        if c_type:
+            c_type_map[name] = Type(c_type)
 
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -917,6 +922,8 @@ def add_handle(name: str,
 @cwrap('std::vector')
 def vector_c_wrap(p: Parameter) -> None:
     inner = p.type.inner_type()
+    if inner.str() in c_type_map:
+        inner = c_type_map[inner.str()]
     # Not a generic type
     if not inner:
         return
@@ -930,6 +937,10 @@ def vector_c_wrap(p: Parameter) -> None:
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
                         'Null pointer')
+        elif p.virtual:
+            p.add_param(t)
+            p.add_size_param()
+            p.bad_param('${name} == nullptr and ${size} != 0', 'Null pointer')
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
@@ -949,7 +960,7 @@ def vector_c_wrap(p: Parameter) -> None:
         p.write = ['std::copy(${result}.begin(), ${result}.end(), ${name})']
 
 
-@cwrap('std::ptrdiff_t')
+@cwrap('std::ptrdiff_t', 'int64_t')
 def ptrdiff_c_wrap(p: Parameter) -> None:
     t = Type('int64_t')
     if p.returns:
@@ -966,7 +977,7 @@ def ptrdiff_c_wrap(p: Parameter) -> None:
         p.write = ['${name} = ${result}']
 
 
-@cwrap('std::string')
+@cwrap('std::string', 'char*')
 def string_c_wrap(p: Parameter) -> None:
     t = Type('char*')
     if p.returns:

@@ -287,7 +287,8 @@ struct custom_operation
 
     std::ptrdiff_t output_alias(std::vector<shape> inputs) const
     {
-        return op.output_alias(std::move(inputs));
+        // TODO: For now, only support one output alias
+        return op.output_alias(std::move(inputs)).front();
     }
 
     bool runs_on_offload_target() const { return op.runs_on_offload_target(); }

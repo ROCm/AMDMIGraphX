@@ -1273,7 +1273,7 @@ struct experimental_custom_op_base
     virtual std::string name() const                                            = 0;
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
     virtual shape compute_shape(shapes inputs) const                            = 0;
-    virtual std::ptrdiff_t output_alias(shapes) const { return -1; }
+    virtual std::vector<std::ptrdiff_t> output_alias(shapes) const { return {-1}; }
     virtual bool runs_on_offload_target() const = 0;
     virtual ~experimental_custom_op_base()      = default;
 };

@@ -783,7 +783,7 @@ static std::string to_c_id(const std::string& name, char rep = '_')
 
 static std::string cpp_var_name(const std::string& name)
 {
-    return to_c_id("\"x_\"" + replace_string(name, ":", "_module_"));
+    return to_c_id("x_" + replace_string(name, ":", "_module_"));
 }
 
 static void print_make_op(std::ostream& os, const operation& op)

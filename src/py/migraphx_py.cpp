@@ -382,12 +382,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("bidirectional", migraphx::op::rnn_direction::bidirectional);
 
     m.def(
-    "argument_from_pointer",
-    [](const migraphx::shape shape, const int64_t address) {
-        return migraphx::argument(shape, reinterpret_cast<void*>(address));
-    },
-    py::arg("shape"),
-    py::arg("address"));
+        "argument_from_pointer",
+        [](const migraphx::shape shape, const int64_t address) {
+            return migraphx::argument(shape, reinterpret_cast<void*>(address));
+        },
+        py::arg("shape"),
+        py::arg("address"));
 
     m.def(
         "parse_tf",

@@ -269,13 +269,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  py::buffer_info info = b.request();
                  new(&x) migraphx::argument(to_shape(info), info.ptr);
              })
-        .def(
-            "__init__",
-            [](migraphx::argument& x, const migraphx::shape shape, const int64_t address) {
-                new(&x) migraphx::argument(shape, reinterpret_cast<void*>(address));
-            },
-            py::arg("shape"),
-            py::arg("address"))
         .def("get_shape", &migraphx::argument::get_shape)
         .def("tolist",
              [](migraphx::argument& x) {
@@ -387,6 +380,14 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("forward", migraphx::op::rnn_direction::forward)
         .value("reverse", migraphx::op::rnn_direction::reverse)
         .value("bidirectional", migraphx::op::rnn_direction::bidirectional);
+
+    m.def(
+    "argument_from_pointer",
+    [](const migraphx::shape shape, const int64_t address) {
+        return migraphx::argument(shape, reinterpret_cast<void*>(address));
+    },
+    py::arg("shape"),
+    py::arg("address"));
 
     m.def(
         "parse_tf",

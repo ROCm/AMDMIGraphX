@@ -241,6 +241,13 @@ migraphx_status migraphx_program_parameters_add(migraphx_program_parameters_t pr
                                                 const char* name,
                                                 const_migraphx_argument_t argument);
 
+migraphx_status migraphx_execution_environment_create(migraphx_execution_environment_t * execution_env);
+
+migraphx_status migraphx_execution_environment_update(migraphx_execution_environment_t execution_env, 
+                                                      bool is_asyncronous, void * queue);
+
+migraphx_status migraphx_execution_environment_destroy(migraphx_execution_environment_t exec_env);
+
 migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments);
 
 migraphx_status migraphx_arguments_assign_to(migraphx_arguments_t output,
@@ -350,7 +357,7 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
                                            migraphx_program_t program,
                                            migraphx_program_parameters_t params,
-                                           const migraphx_execution_environment_t e);
+                                           migraphx_execution_environment_t e);
 
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);

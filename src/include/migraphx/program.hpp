@@ -37,10 +37,9 @@
 #include <migraphx/assignment_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/execution_environment.hpp>
 #include <algorithm>
 #include <iostream>
-
-#include <migraphx/any_ptr.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,11 +51,6 @@ struct program_impl;
 
 struct marker;
 
-struct execution_environment
-{
-    any_ptr queue;
-    bool async = false;
-};
 
 /**
  * @brief Stores the instruction stream

@@ -1408,6 +1408,8 @@ extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         if(params == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+         if(e == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter e: Null pointer");
         *out = allocate<migraphx_arguments_t>(
             migraphx::run_async((program->object), (params->object), (e->object)));
     });

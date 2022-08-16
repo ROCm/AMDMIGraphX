@@ -47,15 +47,99 @@ static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>
 
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
+using F16 = ck::half_t;
+using F32 = float;
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+using ADataType        = F16;
+using BDataType        = F16;
+using AccDataType      = F32;
+using CShuffleDataType = F32;
+using CDataType        = F16;
+
+using ALayout = Row;
+using BLayout = Col;
+using CLayout = Row;
+
+using AElementOp = PassThrough;
+using BElementOp = PassThrough;
+using CElementOp = PassThrough;
+
 namespace migraphx {
 
 extern "C" {
 
-__global__ void ck_gemm_kernel(void* in_data, void* in_indices, void* output) 
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
+    // clang-format off
+//######|     AData|     BData|     CData|     AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
+//######|      Type|      Type|      Type|        Type|        |        |        | Elementwise| Elementwise| Elementwise|Spacialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
+//######|          |          |          |            |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
+//######|          |          |          |            |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |
+        < ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,  AElementOp,  BElementOp,  CElementOp,   GemmDefault,   256,   256,   128,     4,  8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1>;
+// clang-format on
+
+__global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p) 
 {
-    make_tensors()(in_data, in_indices, output)([](auto&&... xs) { 
-        ck_gemm(xs...); 
-    });
+    // GEMM shape
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
+
+    ck::index_t StrideA = 4096;
+    ck::index_t StrideB = 4096;
+    ck::index_t StrideC = 4096;
+
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
+    auto c_element_op = CElementOp{};
+
+    auto gemm     = DeviceGemmInstance{};
+    auto invoker  = gemm.MakeInvoker();
+    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_p),
+                                    static_cast<BDataType*>(b_p),
+                                    static_cast<CDataType*>(c_p),
+                                    M,
+                                    N,
+                                    K,
+                                    StrideA,
+                                    StrideB,
+                                    StrideC,
+                                    a_element_op,
+                                    b_element_op,
+                                    c_element_op);
+
+    // make_tensors()(a_p, b_p, c_p)([&](auto a, auto b, auto c) { 
+    //     auto gemm     = DeviceGemmInstance{};
+    //     auto invoker  = gemm.MakeInvoker();
+    //     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a),
+    //                                   static_cast<BDataType*>(b),
+    //                                   static_cast<CDataType*>(c),
+    //                                   M,
+    //                                   N,
+    //                                   K,
+    //                                   StrideA,
+    //                                   StrideB,
+    //                                   StrideC,
+    //                                   a_element_op,
+    //                                   b_element_op,
+    //                                   c_element_op);
+    // });
 }
 
 }

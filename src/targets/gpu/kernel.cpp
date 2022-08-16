@@ -114,7 +114,7 @@ void launch_kernel(hipFunction_t fun,
                                            stop);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
-    if(stop)
+    if(stop != nullptr)
     {
         status = hipEventSynchronize(stop);
         if(status != hipSuccess)

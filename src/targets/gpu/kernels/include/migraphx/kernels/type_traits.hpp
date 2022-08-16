@@ -192,9 +192,13 @@ struct common_type<T, U, Us...>
 template <class... Ts>
 using common_type_t = typename common_type<Ts...>::type;
 
+#define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
+
 constexpr unsigned long int_max(unsigned long n) { return (1u << (n * 8)) - 1; }
 
-template <class T>
+template <class T,
+          MIGRAPHX_REQUIRES(is_integral<T>{} or is_floating_point<T>{} or
+                            is_same<T, migraphx::half>{})>
 constexpr T numeric_max()
 {
     if constexpr(is_integral<T>{})
@@ -229,8 +233,6 @@ constexpr T numeric_lowest()
         return -numeric_max<T>();
     }
 }
-
-#define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
 
 } // namespace migraphx
 

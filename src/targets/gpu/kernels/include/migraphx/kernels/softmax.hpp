@@ -33,9 +33,10 @@ template <index_int Axis, class Input, class Output>
 __device__ void softmax(Input input, Output output)
 {
     reduce::block::run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
-        const auto c = vec_at(r.slice(input)[0], 0);
-        auto batch_sum = r.reduce(
-            op::sum{}, 0, [&](auto x) { return migraphx::convert<float>(migraphx::exp(x - c)); })(input);
+        const auto c   = vec_at(r.slice(input)[0], 0);
+        auto batch_sum = r.reduce(op::sum{}, 0, [&](auto x) {
+            return migraphx::convert<float>(migraphx::exp(x - c));
+        })(input);
         r.inner([&](auto& y, auto x) { y = migraphx::exp(x - c) / batch_sum; })(output, input);
     });
 }

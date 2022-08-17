@@ -971,8 +971,8 @@ def ptrdiff_c_wrap(p: Parameter) -> None:
     p.read = '${type}(${name})'
     p.cpp_write = '${type}(${name})'
     p.virtual_read = ['${name}']
-    if p.type.is_reference():
-        p.write = ['*${name} = *${result}']
+    if p.type.is_pointer:
+        p.write = ['*${name} = ${result}']
     else:
         p.write = ['${name} = ${result}']
 

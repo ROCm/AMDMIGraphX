@@ -205,8 +205,10 @@ def shapes(h):
 
 @api.handle('migraphx_ptrdiffs', 'std::vector<std::ptrdiff_t>')
 def vector_ptrdiff(h):
-    h.constructor('create', api.params(ptr='const int64_t*', size='size_t'),
-                  fname='migraphx::to_objptr_vector_fundamental_type<std::ptrdiff_t>')
+    h.constructor(
+        'create',
+        api.params(ptr='const int64_t*', size='size_t'),
+        fname='migraphx::to_objptr_vector_fundamental_type<std::ptrdiff_t>')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),

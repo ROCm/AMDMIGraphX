@@ -68,7 +68,7 @@ struct test_layernorm : verify_program<test_layernorm>
     {
         migraphx::program p;
         auto* mm                 = p.get_main_module();
-        std::vector<size_t> dims = {1, 1, 5};
+        std::vector<size_t> dims = {1, 2, 5};
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         add_layernorm(*mm, x, dims);
         return p;

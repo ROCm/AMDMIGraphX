@@ -922,11 +922,12 @@ def add_handle(name: str,
 @cwrap('std::vector')
 def vector_c_wrap(p: Parameter) -> None:
     inner = p.type.inner_type()
-    if inner.str() in c_type_map:
-        inner = c_type_map[inner.str()]
     # Not a generic type
     if not inner:
         return
+    if inner.str() in c_type_map:
+        inner = c_type_map[inner.str()]
+
     t = inner.add_pointer()
     if p.type.is_reference():
         if p.type.is_const():

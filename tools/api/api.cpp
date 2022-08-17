@@ -122,7 +122,7 @@ template <class T, class U>
 auto to_objptr_vector_fundamental_type(const U* x, std::size_t n)
 {
     std::vector<T> result;
-    std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return *y; });
+    std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y; });
     return result;
 }
 

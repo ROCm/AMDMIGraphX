@@ -398,7 +398,8 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, make_trace);
 }
 
-std::vector<argument> program::eval(parameter_map params) const
+std::vector<argument> program::eval(parameter_map params,
+                                    const execution_environment exec_env) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -434,39 +435,78 @@ std::vector<argument> program::eval(parameter_map params) const
             ins_out[x] = ss.str();
         });
 
-        return generic_eval(*this,
-                            ctx,
-                            std::move(params),
-                            with_check_context([&](auto& ins, auto f, auto&& check_context) {
-                                ctx.finish();
-                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                                timer t{};
-                                auto result = check_context(f);
-                                double t1   = t.record<milliseconds>();
-                                ctx.finish();
-                                double t2 = t.record<milliseconds>();
-                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                                if(trace_level > 1 and ins->name().front() != '@' and
-                                   ins->name() != "load" and not result.empty())
-                                {
-                                    target tgt  = make_target(this->impl->target_name);
-                                    auto buffer = tgt.copy_from(result);
-                                    if(trace_level == 2)
+        if (exec_env.async) 
+        {
+            return generic_eval(*this,
+                                ctx,
+                                std::move(params),
+                                with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                                    ctx.wait_for(exec_env.queue);
+                                    std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                                    timer t{};
+                                    auto result = check_context(f);
+                                    double t1   = t.record<milliseconds>();
+                                    ctx.finish_on(exec_env.queue);
+                                    double t2 = t.record<milliseconds>();
+                                    std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                                    if(trace_level > 1 and ins->name().front() != '@' and
+                                    ins->name() != "load" and not result.empty())
                                     {
-                                        std::cout << "Output has "
-                                                  << to_string_range(classify_argument(buffer))
-                                                  << std::endl;
-                                        std::cout << "Output: ";
-                                        preview_argument(std::cout, buffer);
-                                        std::cout << std::endl;
+                                        target tgt  = make_target(this->impl->target_name);
+                                        auto buffer = tgt.copy_from(result);
+                                        if(trace_level == 2)
+                                        {
+                                            std::cout << "Output has "
+                                                    << to_string_range(classify_argument(buffer))
+                                                    << std::endl;
+                                            std::cout << "Output: ";
+                                            preview_argument(std::cout, buffer);
+                                            std::cout << std::endl;
+                                        }
+                                        else
+                                        {
+                                            std::cout << "Output: " << buffer << std::endl;
+                                        }
                                     }
-                                    else
+                                    return result;
+                               }));
+        }
+        else 
+        {
+            return generic_eval(*this,
+                                ctx,
+                                std::move(params),
+                                with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                                    ctx.finish();
+                                    std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                                    timer t{};
+                                    auto result = check_context(f);
+                                    double t1   = t.record<milliseconds>();
+                                    ctx.finish();
+                                    double t2 = t.record<milliseconds>();
+                                    std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                                    if(trace_level > 1 and ins->name().front() != '@' and
+                                    ins->name() != "load" and not result.empty())
                                     {
-                                        std::cout << "Output: " << buffer << std::endl;
+                                        target tgt  = make_target(this->impl->target_name);
+                                        auto buffer = tgt.copy_from(result);
+                                        if(trace_level == 2)
+                                        {
+                                            std::cout << "Output has "
+                                                    << to_string_range(classify_argument(buffer))
+                                                    << std::endl;
+                                            std::cout << "Output: ";
+                                            preview_argument(std::cout, buffer);
+                                            std::cout << std::endl;
+                                        }
+                                        else
+                                        {
+                                            std::cout << "Output: " << buffer << std::endl;
+                                        }
                                     }
-                                }
-                                return result;
-                            }));
+                                    return result;
+                               }));
+        }
     }
     else
     {
@@ -477,15 +517,8 @@ std::vector<argument> program::eval(parameter_map params) const
                                 return check_context(f);
                             }));
     }
-}
 
-std::vector<argument> program::eval(parameter_map params,
-                                    const execution_environment exec_env) const
-{
-    std::vector<argument> arg;
-    (void)params;
-    (void)exec_env;
-    return arg;
+
 }
 
 const int program_file_version = 5;

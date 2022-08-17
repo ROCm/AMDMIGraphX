@@ -109,37 +109,70 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
-    auto gemm     = DeviceGemmInstance{};
-    auto invoker  = gemm.MakeInvoker();
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_p),
-                                    static_cast<BDataType*>(b_p),
-                                    static_cast<CDataType*>(c_p),
-                                    M,
-                                    N,
-                                    K,
-                                    StrideA,
-                                    StrideB,
-                                    StrideC,
-                                    a_element_op,
-                                    b_element_op,
-                                    c_element_op);
+    using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1));
+    using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1));
+    using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
-    // make_tensors()(a_p, b_p, c_p)([&](auto a, auto b, auto c) { 
-    //     auto gemm     = DeviceGemmInstance{};
-    //     auto invoker  = gemm.MakeInvoker();
-    //     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a),
-    //                                   static_cast<BDataType*>(b),
-    //                                   static_cast<CDataType*>(c),
-    //                                   M,
-    //                                   N,
-    //                                   K,
-    //                                   StrideA,
-    //                                   StrideB,
-    //                                   StrideC,
-    //                                   a_element_op,
-    //                                   b_element_op,
-    //                                   c_element_op);
-    // });
+    // GridwiseGemm
+    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
+        ADataType, // TODO: distinguish A/B datatype
+        AccDataType,
+        CShuffleDataType,
+        CDataType,
+        AElementOp,
+        BElementOp,
+        CElementOp,
+        ck::InMemoryDataOperationEnum::Set,
+        AGridDesc_AK0_M_AK1,
+        BGridDesc_BK0_N_BK1,
+        CGridDesc_M_N,
+        NumGemmKPrefetchStage,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        LoopSched>;
+    
+    const auto kernel = kernel_gemm_xdlops_v2r3<
+                    GridwiseGemm,
+                    ADataType, // TODO: distiguish A/B datatype
+                    CDataType,
+                    remove_reference_t<DeviceGemmXdl::AGridDesc_K0_M_K1>,
+                    remove_reference_t<DeviceGemmXdl::BGridDesc_K0_N_K1>,
+                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    AElementOp,
+                    BElementOp,
+                    CElementOp,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    true>;
+    
+    kernel<<<1, 1, 1, 0>>>(p_a, p_b, p_c);
 }
 
 }
@@ -161,6 +194,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.output         = out_s;
         options.kernel_name    = "ck_gemm_kernel";
         options.virtual_inputs = inputs;
+
+        
 
         return compile_hip_code_object(ck_gemm_kernel, options);
     }

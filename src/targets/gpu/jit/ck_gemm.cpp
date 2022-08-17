@@ -195,8 +195,6 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.kernel_name    = "ck_gemm_kernel";
         options.virtual_inputs = inputs;
 
-        
-
         return compile_hip_code_object(ck_gemm_kernel, options);
     }
 

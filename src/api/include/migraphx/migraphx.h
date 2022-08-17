@@ -88,6 +88,9 @@ typedef const struct migraphx_arguments* const_migraphx_arguments_t;
 typedef struct migraphx_shapes* migraphx_shapes_t;
 typedef const struct migraphx_shapes* const_migraphx_shapes_t;
 
+typedef struct migraphx_ptrdiffs* migraphx_ptrdiffs_t;
+typedef const struct migraphx_ptrdiffs* const_migraphx_ptrdiffs_t;
+
 typedef struct migraphx_instruction* migraphx_instruction_t;
 typedef const struct migraphx_instruction* const_migraphx_instruction_t;
 
@@ -144,8 +147,7 @@ typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraph
                                                                          size_t exception_msg_size,
                                                                          migraphx_shapes_t inputs);
 
-typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(int64_t* out,
-                                                                        size_t* out_size,
+typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(migraphx_ptrdiffs_t out,
                                                                         void* obj,
                                                                         char* exception_msg,
                                                                         size_t exception_msg_size,
@@ -268,6 +270,18 @@ migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes);
 
 migraphx_status
 migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_t idx);
+
+migraphx_status migraphx_ptrdiffs_destroy(migraphx_ptrdiffs_t vector_ptrdiff);
+
+migraphx_status migraphx_ptrdiffs_assign_to(migraphx_ptrdiffs_t output,
+                                            const_migraphx_ptrdiffs_t input);
+
+migraphx_status
+migraphx_ptrdiffs_create(migraphx_ptrdiffs_t* vector_ptrdiff, const int64_t* ptr, size_t size);
+
+migraphx_status migraphx_ptrdiffs_size(size_t* out, migraphx_ptrdiffs_t vector_ptrdiff);
+
+migraphx_status migraphx_ptrdiffs_get(int64_t* out, migraphx_ptrdiffs_t vector_ptrdiff, size_t idx);
 
 migraphx_status migraphx_instruction_destroy(migraphx_instruction_t instruction);
 

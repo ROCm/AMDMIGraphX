@@ -119,6 +119,14 @@ auto to_obj_vector(const T* x, std::size_t n)
 }
 
 template <class T, class U>
+auto to_objptr_vector_fundamental_type(const U* x, std::size_t n)
+{
+    std::vector<T> result;
+    std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y; });
+    return result;
+}
+
+template <class T, class U>
 auto to_objptr_vector(const U* x, std::size_t n)
 {
     std::vector<T> result;
@@ -287,6 +295,7 @@ struct custom_operation
 
     std::ptrdiff_t output_alias(std::vector<shape> inputs) const
     {
+        // TODO: For now, only support one output alias
         return op.output_alias(std::move(inputs)).front();
     }
 
@@ -455,6 +464,17 @@ struct migraphx_shapes
     {
     }
     std::vector<migraphx::shape> object;
+};
+
+extern "C" struct migraphx_ptrdiffs;
+struct migraphx_ptrdiffs
+{
+    template <class... Ts>
+    migraphx_ptrdiffs(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::vector<std::ptrdiff_t> object;
 };
 
 extern "C" struct migraphx_instruction;
@@ -668,12 +688,10 @@ struct migraphx_experimental_custom_op
     {
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
-        std::remove_pointer_t<int64_t*> out;
-        std::remove_pointer_t<size_t*> out_size;
+        std::remove_pointer_t<migraphx_ptrdiffs_t> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = output_alias_f(&out,
-                                               &out_size,
                                                object_ptr.data,
                                                exception_msg.data(),
                                                exception_msg.size(),
@@ -684,7 +702,7 @@ struct migraphx_experimental_custom_op
             throw std::runtime_error("Error in output_alias of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
         }
-        return std::vector<std::ptrdiff_t>(out, out + out_size);
+        return (&out)->object;
     }
 
     migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;
@@ -1106,6 +1124,52 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
         if(shapes == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shapes: Null pointer");
         *out = object_cast<const_migraphx_shape_t>(&((shapes->object).at((idx))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_ptrdiffs_destroy(migraphx_ptrdiffs_t vector_ptrdiff)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((vector_ptrdiff)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_ptrdiffs_assign_to(migraphx_ptrdiffs_t output,
+                                                       const_migraphx_ptrdiffs_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_ptrdiffs_create(migraphx_ptrdiffs_t* vector_ptrdiff, const int64_t* ptr, size_t size)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *vector_ptrdiff = object_cast<migraphx_ptrdiffs_t>(allocate<std::vector<std::ptrdiff_t>>(
+            migraphx::to_objptr_vector_fundamental_type<std::ptrdiff_t>((ptr), (size))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_ptrdiffs_size(size_t* out, migraphx_ptrdiffs_t vector_ptrdiff)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(vector_ptrdiff == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter vector_ptrdiff: Null pointer");
+        *out = (vector_ptrdiff->object).size();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_ptrdiffs_get(int64_t* out, migraphx_ptrdiffs_t vector_ptrdiff, size_t idx)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(vector_ptrdiff == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter vector_ptrdiff: Null pointer");
+        *out = (vector_ptrdiff->object).at((idx));
     });
     return api_error_result;
 }

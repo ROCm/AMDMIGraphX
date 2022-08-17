@@ -636,11 +636,31 @@ TEST_CASE(constant_scalar_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(constant_empty_scalar_int64_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
+    auto prog = optimize_onnx("constant_empty_scalar_int64_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_one_val_int64_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+    auto prog = optimize_onnx("constant_one_val_int64_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal());
+    mm->add_literal(migraphx::literal(migraphx::shape::int32_type));
     migraphx::shape s(migraphx::shape::int64_type, {1}, {0});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
@@ -934,13 +954,11 @@ TEST_CASE(conv_dynamic_img_same_upper)
 
 TEST_CASE(conv_dynamic_kernel_same_lower)
 {
-    std::cout << "here1\n";
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5}});
     auto l1  = mm->add_parameter(
         "1", {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}});
-    std::cout << "here2\n";
     auto c0 = mm->add_instruction(
         migraphx::make_op("convolution",
                           {{"padding", {0, 0}},
@@ -950,12 +968,10 @@ TEST_CASE(conv_dynamic_kernel_same_lower)
                            {"use_dynamic_same_auto_pad", true}}),
         l0,
         l1);
-    std::cout << "here3\n";
     mm->add_return({c0});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {2, 4, 0};
-    std::cout << "here\n";
     auto prog = migraphx::parse_onnx("conv_dynamic_kernel_same_lower_test.onnx", options);
     EXPECT(p == prog);
 }
@@ -4066,7 +4082,7 @@ TEST_CASE(reducesum_empty_axes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal({});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
     auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     auto l1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2, 3}}}), x);
     auto r  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1, 2, 3}}}), l1);
@@ -4081,7 +4097,7 @@ TEST_CASE(reducesum_noop_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal({});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
     auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     mm->add_return({x});
     auto prog = migraphx::parse_onnx("reducesum_noop_test.onnx");
@@ -5291,7 +5307,7 @@ TEST_CASE(squeeze_empty_axes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal({});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
     auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
     auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), l0);
     mm->add_return({l1});

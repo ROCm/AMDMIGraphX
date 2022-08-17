@@ -31,6 +31,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct execution_environment
 {
+    execution_environment() = default;
+
     any_ptr queue;
     bool async = false;
 };

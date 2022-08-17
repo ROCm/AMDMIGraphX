@@ -108,15 +108,7 @@ struct function
 };
 
 template <class Stream, class Iterator>
-inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
-{
-    if(start != last)
-    {
-        s << *start;
-        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
-    }
-    return s;
-}
+Stream& stream_range(Stream& s, Iterator start, Iterator last);
 
 template <class Stream>
 inline Stream& operator<<(Stream& s, std::nullptr_t)
@@ -133,6 +125,17 @@ inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.
     s << "{ ";
     stream_range(s, v.begin(), v.end());
     s << "}";
+    return s;
+}
+
+template <class Stream, class Iterator>
+inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
+{
+    if(start != last)
+    {
+        s << *start;
+        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
+    }
     return s;
 }
 

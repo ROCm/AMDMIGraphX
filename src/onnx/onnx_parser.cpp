@@ -329,18 +329,9 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         }
         else
         {
-            auto node_attributes = get_attributes(node);
-            if(contains(map_use_dyn_output, node.op_type()))
-            {
-                onnx::AttributeProto ap;
-                ap.set_type(onnx::AttributeProto::INT);
-                ap.set_i(
-                    static_cast<google::protobuf::int64>(map_use_dyn_output.at(node.op_type())));
-                node_attributes["use_dyn_output"] = ap;
-            }
             std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
-            result =
-                ops[node.op_type()](*this, {node_attributes, output_num, node_name, mod}, args);
+            result                = ops[node.op_type()](
+                *this, {get_attributes(node), output_num, node_name, mod}, args);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

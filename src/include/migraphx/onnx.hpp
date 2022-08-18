@@ -54,9 +54,9 @@ struct onnx_options
     /// Max iter num for the loop operator
     int64_t max_loop_iterations = 10;
     /*!
-     * Set or create the use_dyn_output attribute for a specific operator type
+     * Set the use_dyn_output attribute to true for all pertinent operators
      */
-    std::unordered_map<std::string, bool> map_use_dyn_output = {};
+    bool force_use_dyn_output = false;
 };
 
 /// Create a program from an onnx file

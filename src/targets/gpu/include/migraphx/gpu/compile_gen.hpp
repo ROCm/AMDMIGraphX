@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/module_ref.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,6 +62,10 @@ std::string make_transformer_args(Ts... xs)
 {
     return make_transformer_args({xs.str()...});
 }
+
+std::string generate_pointwise(const module& pm, const std::string& name);
+
+std::string generate_name_from_ops(const module& m);
 
 } // namespace gen
 } // namespace gpu

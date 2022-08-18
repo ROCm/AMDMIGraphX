@@ -40,6 +40,7 @@ struct miopen_convolution
     shared<convolution_descriptor> cd = nullptr;
     miopenConvFwdAlgorithm_t algo{};
     uint64_t solution_id = 0;
+    value::binary solution_object{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -49,7 +50,8 @@ struct miopen_convolution
                     f(self.op.dilation, "dilation"),
                     f(self.op.group, "group"),
                     f(self.op.padding_mode, "padding_mode"),
-                    f(self.solution_id, "solution_id"));
+                    f(self.solution_id, "solution_id"), 
+                    f(self.solution_object, "solution_object"));
     }
 
     std::string name() const { return "gpu::convolution"; }

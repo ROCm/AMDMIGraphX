@@ -59,18 +59,22 @@ argument miopen_convolution::compute(context& ctx,
                                      const shape& output_shape,
                                      const std::vector<argument>& args) const
 {
-    auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()));
-    auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
-    auto y_desc = make_tensor(reshape_if_1d(output_shape));
-    auto miopen_handle = ctx.get_stream().get_miopen();
+    auto x_desc         = make_tensor(reshape_if_1d(args[0].get_shape()));
+    auto w_desc         = make_tensor(reshape_if_1d(args[1].get_shape()));
+    auto y_desc         = make_tensor(reshape_if_1d(output_shape));
+    auto miopen_handle  = ctx.get_stream().get_miopen();
     auto workspace_size = args[2].get_shape().bytes();
-    if(enabled(MIGRAPHX_MIOPEN_FIND_2{})) {
+    if(enabled(MIGRAPHX_MIOPEN_FIND_2{}))
+    {
         miopenSolution_t solution;
-        auto status = miopenLoadSolution(&solution, reinterpret_cast<const char*>(solution_object.data()), solution_object.size());
-        miopenTensorArgumentId_t names[3] = {miopenTensorConvolutionX, miopenTensorConvolutionW, miopenTensorConvolutionY};
+        auto status                       = miopenLoadSolution(&solution,
+                                         reinterpret_cast<const char*>(solution_object.data()),
+                                         solution_object.size());
+        miopenTensorArgumentId_t names[3] = {
+            miopenTensorConvolutionX, miopenTensorConvolutionW, miopenTensorConvolutionY};
         void* buffers[3] = {args[0].implicit(), args[1].implicit(), args[3].implicit()};
         miopenTensorDescriptor_t descriptors[3] = {x_desc.get(), w_desc.get(), y_desc.get()};
-        auto arguments = std::make_unique<miopenTensorArgument_t[]>(3);
+        auto arguments                          = std::make_unique<miopenTensorArgument_t[]>(3);
 
         for(auto i = 0; i < 3; ++i)
         {
@@ -78,7 +82,8 @@ argument miopen_convolution::compute(context& ctx,
             arguments[i].descriptor = &descriptors[i];
             arguments[i].buffer     = buffers[i];
         }
-        status = miopenRunSolution(miopen_handle, solution, 3, arguments.get(), args[2].implicit(), workspace_size);
+        status = miopenRunSolution(
+            miopen_handle, solution, 3, arguments.get(), args[2].implicit(), workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: running convolution using find_2.0 failed");
         std::cout << "Hurray, it is using find_2.0 API\n";
@@ -109,9 +114,9 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
     shape workspace_shape{};
     auto miopen_handle = ctx.get_stream().get_miopen();
 
-    auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
-    auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
-    auto y_desc = make_tensor(reshape_if_1d(output_shape));
+    auto x_desc                = make_tensor(reshape_if_1d(inputs[0]));
+    auto w_desc                = make_tensor(reshape_if_1d(inputs[1]));
+    auto y_desc                = make_tensor(reshape_if_1d(output_shape));
     std::size_t workspace_size = 0;
     miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
                                              w_desc.get(),
@@ -147,16 +152,19 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
         MIGRAPHX_THROW("MIOpen Convolution: find convolution failed");
     algo = perf.fwd_algo;
 
-    if(enabled(MIGRAPHX_MIOPEN_FIND_2{})) {
+    if(enabled(MIGRAPHX_MIOPEN_FIND_2{}))
+    {
         miopenProblem_t conv_problem;
         status = miopenCreateConvProblem(&conv_problem, cd.get(), miopenProblemDirectionForward);
-        if(status != miopenStatusSuccess) {
+        if(status != miopenStatusSuccess)
+        {
             MIGRAPHX_THROW("conv problem creation failed");
         }
         auto set_tensor_descriptor = [conv_problem](miopenTensorArgumentId_t name,
                                                     tensor_descriptor& desc) {
             auto status = miopenSetProblemTensorDescriptor(conv_problem, name, desc.get());
-            if(status != miopenStatusSuccess) {
+            if(status != miopenStatusSuccess)
+            {
                 MIGRAPHX_THROW("setting problem tensor description failed");
             }
         };
@@ -165,14 +173,14 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
         set_tensor_descriptor(miopenTensorConvolutionW, w_desc);
         set_tensor_descriptor(miopenTensorConvolutionY, y_desc);
 
-        auto solutions = std::vector<miopenSolution_t>{};
+        auto solutions    = std::vector<miopenSolution_t>{};
         std::size_t found = 0;
         solutions.resize(100);
 
         // TODO: create managed pointer for find_options
         miopenFindOptions_t options;
 
-        // add checks for return statues  later        
+        // add checks for return statues  later
         status = miopenCreateFindOptions(&options);
         // not sure which tuning option to select
         status = miopenSetFindOptionTuning(options, 1);
@@ -181,30 +189,32 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
         // not sure if i should be using workspace size from GetWorkSpaceSize() call from earlier
         status = miopenSetFindOptionWorkspaceLimit(options, workspace_size);
 
-        status = miopenFindSolutions(miopen_handle, conv_problem, options, solutions.data(), &found, solutions.size());
+        status = miopenFindSolutions(
+            miopen_handle, conv_problem, options, solutions.data(), &found, solutions.size());
         // TODO: let manage pointer handle destruction
         status = miopenDestroyFindOptions(options);
         assert(found >= 0); // should it be throwing ?
         solutions.resize(found);
         // get the workspace size of the selected solution
         auto solution = solutions.front();
-        status = miopenGetSolutionWorkspaceSize(solution, &workspace_size);
+        status        = miopenGetSolutionWorkspaceSize(solution, &workspace_size);
         // save solution
         std::size_t solution_size;
         status = miopenGetSolutionSize(solution, &solution_size);
 
         auto solution_binary = std::vector<char>{};
         solution_binary.resize(solution_size);
-        status = miopenSaveSolution(solution, solution_binary.data());
+        status          = miopenSaveSolution(solution, solution_binary.data());
         solution_object = value::binary{solution_binary.data(), solution_size};
 
         status = miopenDestroySolution(solution);
-        // which  of the workspace sizes it should return ? from GetSolutionWorkspaceSize or from ForwardGetWorkspaceSize
+        // which  of the workspace sizes it should return ? from GetSolutionWorkspaceSize or from
+        // ForwardGetWorkspaceSize
         return shape{shape::int8_type, {workspace_size}};
-    }  
+    }
 
-    // else use immediate find mode    
-    
+    // else use immediate find mode
+
     size_t solution_count;
 
     status = miopenConvolutionForwardGetSolutionCount(ctx.get_stream().get_miopen(),
@@ -238,32 +248,33 @@ void miopen_convolution::finalize(context& ctx,
                                   const shape& output_shape,
                                   std::vector<shape> inputs)
 {
-    if(disabled(MIGRAPHX_MIOPEN_FIND_2{})) {
+    if(disabled(MIGRAPHX_MIOPEN_FIND_2{}))
+    {
         if(cd == nullptr)
-                cd = make_conv(op);
-            if(solution_id == 0)
-            {
-                // Check that workspace hasn't changed
-                auto size = inputs.at(2).bytes();
-                auto ws   = find(ctx, output_shape, inputs);
-                if(ws.bytes() > size)
-                    MIGRAPHX_THROW("MIOpen Convolution: workspace has changed during finalization.");
-            }
-
-            auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
-            auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
-            auto y_desc = make_tensor(reshape_if_1d(output_shape));
-
-            auto status = miopenConvolutionForwardCompileSolution(ctx.get_stream().get_miopen(),
-                                                                w_desc.get(),
-                                                                x_desc.get(),
-                                                                cd.get(),
-                                                                y_desc.get(),
-                                                                solution_id);
-            if(status != miopenStatusSuccess)
-                MIGRAPHX_THROW("MIOpen Convolution: compile solution failed");
+            cd = make_conv(op);
+        if(solution_id == 0)
+        {
+            // Check that workspace hasn't changed
+            auto size = inputs.at(2).bytes();
+            auto ws   = find(ctx, output_shape, inputs);
+            if(ws.bytes() > size)
+                MIGRAPHX_THROW("MIOpen Convolution: workspace has changed during finalization.");
         }
+
+        auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+        auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
+        auto y_desc = make_tensor(reshape_if_1d(output_shape));
+
+        auto status = miopenConvolutionForwardCompileSolution(ctx.get_stream().get_miopen(),
+                                                              w_desc.get(),
+                                                              x_desc.get(),
+                                                              cd.get(),
+                                                              y_desc.get(),
+                                                              solution_id);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Convolution: compile solution failed");
     }
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

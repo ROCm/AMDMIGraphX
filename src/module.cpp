@@ -791,10 +791,9 @@ static void print_make_op(std::ostream& os, const operation& op)
     auto v = op.to_value();
     if(not v.empty())
     {
-            os << "migraphx::make_json_op(" << enclose_name(op.name());
-        os << ", "
-           << enclose_name(to_json_string(v));
-    }        
+        os << "migraphx::make_json_op(" << enclose_name(op.name());
+        os << ", " << enclose_name(to_json_string(v));
+    }
     else
     {
         os << "migraphx::make_op(" << enclose_name(op.name());

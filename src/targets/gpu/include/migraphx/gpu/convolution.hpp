@@ -50,7 +50,7 @@ struct miopen_convolution
                     f(self.op.dilation, "dilation"),
                     f(self.op.group, "group"),
                     f(self.op.padding_mode, "padding_mode"),
-                    f(self.solution_id, "solution_id"), 
+                    f(self.solution_id, "solution_id"),
                     f(self.solution_object, "solution_object"));
     }
 

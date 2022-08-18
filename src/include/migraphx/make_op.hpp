@@ -48,7 +48,7 @@ operation make_op(const std::string& name, const Value& v)
     return make_op_from_value(name, v);
 }
 
-operation make_json_op(const std::string& name, const std::string& str);
+operation make_json_op(const std::string& name, const std::string& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

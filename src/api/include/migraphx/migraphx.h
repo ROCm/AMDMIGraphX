@@ -248,6 +248,9 @@ migraphx_status migraphx_execution_environment_update(migraphx_execution_environ
 
 migraphx_status migraphx_execution_environment_destroy(migraphx_execution_environment_t exec_env);
 
+migraphx_status migraphx_execution_environment_assign_to(migraphx_execution_environment_t output,
+                                                    const_migraphx_execution_environment_t input);
+
 migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments);
 
 migraphx_status migraphx_arguments_assign_to(migraphx_arguments_t output,

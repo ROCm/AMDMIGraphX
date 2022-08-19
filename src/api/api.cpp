@@ -1031,6 +1031,12 @@ extern "C" migraphx_status migraphx_execution_environment_destroy(migraphx_execu
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_execution_environment_assign_to(migraphx_execution_environment_t output,
+                                                               const_migraphx_execution_environment_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
 
 extern "C" migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments)
 {

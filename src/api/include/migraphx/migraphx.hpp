@@ -720,16 +720,14 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     }
 };
 
-
 struct execution_environment : MIGRAPHX_HANDLE_BASE(execution_environment)
 {
-    execution_environment() {false, nullptr};
+    //execution_environment() {false, nullptr};
     MIGRAPHX_HANDLE_CONSTRUCTOR(execution_environment);
 
-    execution_environment(migraphx_execution_environment* e) {this->set_handle(e, borrow{}); } 
-
-
-}
+    execution_environment() { this->make_handle(&migraphx_execution_environment_create); }
+    execution_environment(migraphx_execution_environment* e) {this->set_handle(e, own{}); } 
+};
 
 struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
@@ -995,7 +993,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
                    const execution_environment& e) const
     {
         migraphx_arguments_t pout;
-        call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
+        call(&migraphx_program_run_async, &pout, this->get_handle_ptr(), pparams.get_handle_ptr(), e.get_handle_ptr());
         return arguments(pout, own{});
     }
 

@@ -63,7 +63,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
-supported_segments target::find_supported(const module* mod, support_metric m) const
+supported_segments target::find_supported(const_module_ref mod, support_metric m) const
 {
     (void)m;
 

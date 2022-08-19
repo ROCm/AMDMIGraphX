@@ -297,10 +297,12 @@ struct custom_operation
     {
         auto alias_vec = op.output_alias(std::move(inputs));
         // TODO: For now, only support one output alias
-        if(alias_vec.empty()) {
+        if(alias_vec.empty())
+        {
             return -1;
         }
-        if(alias_vec.size() > 1) {
+        if(alias_vec.size() > 1)
+        {
             MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
         }
         return alias_vec.front();

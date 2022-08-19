@@ -119,7 +119,7 @@ struct identity_custom_op final : migraphx::experimental_custom_op_base
     virtual migraphx::argument
     compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override
     {
-        return inputs[0];         
+        return inputs[0];
     }
 
     virtual bool runs_on_offload_target() const override { return true; }
@@ -133,9 +133,7 @@ struct identity_custom_op final : migraphx::experimental_custom_op_base
         return inputs.back();
     }
 
-    virtual migraphx::size_t_vec output_alias(migraphx::shapes) const override {
-        return {0U, 1U};
-    }
+    virtual migraphx::size_t_vec output_alias(migraphx::shapes) const override { return {0U, 1U}; }
 };
 
 TEST_CASE(run_custom_op_with_invalid_output_alias)
@@ -149,9 +147,11 @@ TEST_CASE(run_custom_op_with_invalid_output_alias)
     migraphx::shape s{migraphx_shape_float_type, {12}};
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", s);
-    auto i_ins = m.add_instruction(migraphx::operation("identity_custom_op"), {x});
+    auto i_ins         = m.add_instruction(migraphx::operation("identity_custom_op"), {x});
     migraphx_test_private_disable_exception_catch(true);
-    EXPECT(test::throws<std::exception>([&]{p.compile(migraphx::target("ref"));},  "Currently, CustomOps in MIGraphX only supports one output_alias"));
+    EXPECT(test::throws<std::exception>(
+        [&] { p.compile(migraphx::target("ref")); },
+        "Currently, CustomOps in MIGraphX only supports one output_alias"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

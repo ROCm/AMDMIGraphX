@@ -205,7 +205,7 @@ struct block
                                                op,
                                                init,
                                                x.get_shape().elements(),
-                                               [&](auto j) { return vec_reduce(read(x[j], xs[j]...), op); });
+                                            [&](auto j) { return vec_reduce(read(x[j], xs[j]...), op); });
             });
         }
 

@@ -776,28 +776,28 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     }
 };
 
-struct ptrdiffs : MIGRAPHX_HANDLE_BASE(ptrdiffs), array_base<ptrdiffs>
+struct size_t_vec : MIGRAPHX_HANDLE_BASE(size_t_vec), array_base<size_t_vec>
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(ptrdiffs);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(size_t_vec)
 
     template <class... Ts>
-    ptrdiffs(Ts... xs)
+    size_t_vec(Ts... xs)
     {
-        std::array<int64_t, sizeof...(Ts)> a{xs...};
-        this->make_handle(&migraphx_ptrdiffs_create, a.data(), a.size());
+        std::array<size_t, sizeof...(Ts)> a{xs...};
+        this->make_handle(&migraphx_size_t_vec_create, a.data(), a.size());
     }
 
     size_t size() const
     {
         size_t pout;
-        call(&migraphx_ptrdiffs_size, &pout, this->get_handle_ptr());
+        call(&migraphx_size_t_vec_size, &pout, this->get_handle_ptr());
         return pout;
     }
 
-    std::ptrdiff_t operator[](size_t pidx) const
+    std::size_t operator[](size_t pidx) const
     {
-        int64_t pout;
-        call(&migraphx_ptrdiffs_get, &pout, this->get_handle_ptr(), pidx);
+        size_t pout;
+        call(&migraphx_size_t_vec_get, &pout, this->get_handle_ptr(), pidx);
         return pout;
     }
 };
@@ -1299,7 +1299,7 @@ struct experimental_custom_op_base
     virtual std::string name() const                                            = 0;
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
     virtual shape compute_shape(shapes inputs) const                            = 0;
-    virtual ptrdiffs output_alias(shapes) const { return {-1}; }
+    virtual size_t_vec output_alias(shapes) const { return {};}
     virtual bool runs_on_offload_target() const = 0;
     virtual ~experimental_custom_op_base()      = default;
 };

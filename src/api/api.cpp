@@ -295,8 +295,17 @@ struct custom_operation
 
     std::ptrdiff_t output_alias(std::vector<shape> inputs) const
     {
+        auto alias_vec = op.output_alias(std::move(inputs));
         // TODO: For now, only support one output alias
-        return op.output_alias(std::move(inputs)).front();
+        if(alias_vec.empty())
+        {
+            return -1;
+        }
+        if(alias_vec.size() > 1)
+        {
+            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
+        }
+        return alias_vec.front();
     }
 
     bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
@@ -466,15 +475,15 @@ struct migraphx_shapes
     std::vector<migraphx::shape> object;
 };
 
-extern "C" struct migraphx_ptrdiffs;
-struct migraphx_ptrdiffs
+extern "C" struct migraphx_size_t_vec;
+struct migraphx_size_t_vec
 {
     template <class... Ts>
-    migraphx_ptrdiffs(Ts&&... xs)
+    migraphx_size_t_vec(Ts&&... xs)
         : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
-    std::vector<std::ptrdiff_t> object;
+    std::vector<std::size_t> object;
 };
 
 extern "C" struct migraphx_instruction;
@@ -684,11 +693,11 @@ struct migraphx_experimental_custom_op
     }
 
     migraphx_experimental_custom_op_output_alias output_alias_f = nullptr;
-    std::vector<std::ptrdiff_t> output_alias(std::vector<migraphx::shape> inputs) const
+    std::vector<std::size_t> output_alias(std::vector<migraphx::shape> inputs) const
     {
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
-        std::remove_pointer_t<migraphx_ptrdiffs_t> out;
+        std::remove_pointer_t<migraphx_size_t_vec_t> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = output_alias_f(&out,
@@ -1128,48 +1137,46 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_ptrdiffs_destroy(migraphx_ptrdiffs_t vector_ptrdiff)
+extern "C" migraphx_status migraphx_size_t_vec_destroy(migraphx_size_t_vec_t size_t_vec)
 {
-    auto api_error_result = migraphx::try_([&] { destroy((vector_ptrdiff)); });
+    auto api_error_result = migraphx::try_([&] { destroy((size_t_vec)); });
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_ptrdiffs_assign_to(migraphx_ptrdiffs_t output,
-                                                       const_migraphx_ptrdiffs_t input)
+extern "C" migraphx_status migraphx_size_t_vec_assign_to(migraphx_size_t_vec_t output,
+                                                         const_migraphx_size_t_vec_t input)
 {
     auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
 extern "C" migraphx_status
-migraphx_ptrdiffs_create(migraphx_ptrdiffs_t* vector_ptrdiff, const int64_t* ptr, size_t size)
+migraphx_size_t_vec_create(migraphx_size_t_vec_t* size_t_vec, const uint64_t* ptr, size_t size)
 {
     auto api_error_result = migraphx::try_([&] {
-        *vector_ptrdiff = object_cast<migraphx_ptrdiffs_t>(allocate<std::vector<std::ptrdiff_t>>(
-            migraphx::to_objptr_vector_fundamental_type<std::ptrdiff_t>((ptr), (size))));
+        *size_t_vec = object_cast<migraphx_size_t_vec_t>(allocate<std::vector<std::size_t>>(
+            migraphx::to_objptr_vector_fundamental_type<std::size_t>((ptr), (size))));
     });
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_ptrdiffs_size(size_t* out, migraphx_ptrdiffs_t vector_ptrdiff)
+extern "C" migraphx_status migraphx_size_t_vec_size(size_t* out, migraphx_size_t_vec_t size_t_vec)
 {
     auto api_error_result = migraphx::try_([&] {
-        if(vector_ptrdiff == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter vector_ptrdiff: Null pointer");
-        *out = (vector_ptrdiff->object).size();
+        if(size_t_vec == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter size_t_vec: Null pointer");
+        *out = (size_t_vec->object).size();
     });
     return api_error_result;
 }
 
 extern "C" migraphx_status
-migraphx_ptrdiffs_get(int64_t* out, migraphx_ptrdiffs_t vector_ptrdiff, size_t idx)
+migraphx_size_t_vec_get(std::size_t* out, migraphx_size_t_vec_t size_t_vec, size_t idx)
 {
     auto api_error_result = migraphx::try_([&] {
-        if(out == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
-        if(vector_ptrdiff == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter vector_ptrdiff: Null pointer");
-        *out = (vector_ptrdiff->object).at((idx));
+        if(size_t_vec == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter size_t_vec: Null pointer");
+        *out = (size_t_vec->object).at((idx));
     });
     return api_error_result;
 }

@@ -203,18 +203,18 @@ def shapes(h):
              returns='const migraphx::shape&')
 
 
-@api.handle('migraphx_ptrdiffs', 'std::vector<std::ptrdiff_t>')
-def vector_ptrdiff(h):
+@api.handle('migraphx_size_t_vec', 'std::vector<std::size_t>')
+def size_t_vec(h):
     h.constructor(
         'create',
-        api.params(ptr='const int64_t*', size='size_t'),
-        fname='migraphx::to_objptr_vector_fundamental_type<std::ptrdiff_t>')
+        api.params(ptr='const uint64_t*', size='size_t'),
+        fname='migraphx::to_objptr_vector_fundamental_type<std::size_t>')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),
              fname='at',
              cpp_name='operator[]',
-             returns='std::ptrdiff_t')
+             returns='std::size_t')
 
 
 @api.handle('migraphx_instruction', 'migraphx::instruction_ref')
@@ -467,6 +467,6 @@ def experimental_custom_op(h):
               returns='migraphx::shape')
     h.virtual('output_alias',
               api.params(inputs='std::vector<migraphx::shape>'),
-              returns='std::vector<std::ptrdiff_t>')
+              returns='std::vector<std::size_t>')
     h.virtual('runs_on_offload_target', returns='bool')
     h.method('register', invoke='migraphx::register_custom_op($@)')

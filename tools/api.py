@@ -961,23 +961,6 @@ def vector_c_wrap(p: Parameter) -> None:
         p.write = ['std::copy(${result}.begin(), ${result}.end(), ${name})']
 
 
-@cwrap('std::ptrdiff_t', 'int64_t')
-def ptrdiff_c_wrap(p: Parameter) -> None:
-    t = Type('int64_t')
-    if p.returns:
-        p.add_param(t.add_pointer())
-        p.bad_param('${name} == nullptr', 'Null pointer')
-    else:
-        p.add_param(t)
-    p.read = '${type}(${name})'
-    p.cpp_write = '${type}(${name})'
-    p.virtual_read = ['${name}']
-    if p.type.is_pointer:
-        p.write = ['*${name} = ${result}']
-    else:
-        p.write = ['${name} = ${result}']
-
-
 @cwrap('std::string', 'char*')
 def string_c_wrap(p: Parameter) -> None:
     t = Type('char*')

@@ -36,6 +36,8 @@ struct id_target
     struct context
     {
         void finish() const {}
+        void finish_on(migraphx::any_ptr) const {}
+        void wait_for(migraphx::any_ptr) const {}
     };
     migraphx::context ctx = context{};
     std::string name() const { return "id"; }

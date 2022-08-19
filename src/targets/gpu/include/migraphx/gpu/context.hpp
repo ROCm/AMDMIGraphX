@@ -274,8 +274,8 @@ struct context
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }
 
-    void wait_for(any_ptr queue) { queue.wait();}
-    void finish_on(any_ptr queue) { queue.wait();}
+    void wait_for(any_ptr queue)  { reinterpret_cast<hip_device::stream&>(queue).wait();}
+    void finish_on(any_ptr queue) { reinterpret_cast<hip_device::stream&>(queue).wait();}
 
     any_ptr get_queue() { return get_stream().get(); }
 

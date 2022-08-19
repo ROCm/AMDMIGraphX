@@ -35,8 +35,8 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
     {
         auto op = parser.load(opd.op_name, info);
         op.from_value({{"use_dyn_output", parser.use_dyn_output}});

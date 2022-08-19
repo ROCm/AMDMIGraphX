@@ -211,6 +211,27 @@ def atanh_test():
 
 
 @onnx_test
+def attention_test():
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT,
+                                          [2, 384, 768])
+    weights = helper.make_tensor_value_info('weights', TensorProto.FLOAT,
+                                            [768, 2304])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2304])
+    mask_index = helper.make_tensor_value_info('mask_index', TensorProto.INT64,
+                                               [2, 384])
+    result = helper.make_tensor_value_info('result', TensorProto.FLOAT,
+                                           [2, 384, 768])
+
+    node = helper.make_node('Attention',
+                            inputs=['input', 'weights', 'bias', 'mask_index'],
+                            outputs=['result'],
+                            num_heads=12,
+                            name="Attention_0")
+
+    return ([node], [input, weights, bias, mask_index], [result])
+
+
+@onnx_test
 def averagepool_1d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5])
     out = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3])
@@ -2829,6 +2850,23 @@ def layernorm_test():
 
     return ([mean, sub_mean, sub_pow, var, add, sqrt, div, mul,
              bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
+
+
+@onnx_test
+def layernorm_op_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [3])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [3])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 2, 3])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'w', 'b'],
+                                 outputs=["output"],
+                                 epsilon=1e-5,
+                                 axis=-1)
+
+    return ([node], [x, w, b], [output])
 
 
 @onnx_test

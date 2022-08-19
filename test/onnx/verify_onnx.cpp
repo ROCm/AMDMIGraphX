@@ -32,6 +32,32 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
+TEST_CASE(attention_test)
+{
+    auto p = migraphx::parse_onnx("attention_test.onnx");
+    p.compile(migraphx::ref::target{});
+    migraphx::shape s_i{migraphx::shape::float_type, {2, 384, 768}};
+    migraphx::shape s_w{migraphx::shape::float_type, {768, 2304}};
+    migraphx::shape s_b{migraphx::shape::float_type, {2304}};
+    migraphx::shape s_m{migraphx::shape::int64_type, {2, 384}};
+    std::vector<float> input_v(2 * 384 * 768, 1);
+    std::vector<float> weights_v(768 * 2304, 1);
+    std::vector<float> bias_v(2304, 1);
+    std::vector<int64_t> mask_index_v(2 * 384, 1);
+    migraphx::parameter_map pp;
+    pp["input"]      = migraphx::argument(s_i, input_v.data());
+    pp["weights"]    = migraphx::argument(s_w, weights_v.data());
+    pp["bias"]       = migraphx::argument(s_b, bias_v.data());
+    pp["mask_index"] = migraphx::argument(s_m, mask_index_v.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold(2 * 384 * 768, 769);
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(averagepool_notset_test)
 {
     auto p = migraphx::parse_onnx("averagepool_notset_test.onnx");
@@ -465,6 +491,31 @@ TEST_CASE(instance_norm_3d_test)
                                2.30931,
                                3.18218,
                                4.05505};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(layernorm_op_test)
+{
+    migraphx::program p = migraphx::parse_onnx("layernorm_op_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 2, 3}};
+    migraphx::shape swb{migraphx::shape::float_type, {3}};
+    std::vector<float> x_vec{1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    std::vector<float> w_vec{1.0, 1.0, 1.0};
+    std::vector<float> b_vec{0.0, 0.0, 0.0};
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(sx, x_vec.data());
+    pp["w"] = migraphx::argument(swb, w_vec.data());
+    pp["b"] = migraphx::argument(swb, b_vec.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector(6);
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{-1.22474f, 0.0f, 1.22474f, -1.22474f, 0.0f, 1.22474f};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

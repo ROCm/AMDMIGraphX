@@ -3411,6 +3411,7 @@ TEST_CASE(nms_dynamic_batch_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10, 0};
+    options.use_dyn_output        = true;
 
     auto prog = migraphx::parse_onnx("nms_dynamic_batch_test.onnx", options);
     EXPECT(p == prog);
@@ -3436,7 +3437,7 @@ TEST_CASE(nms_dynamic_boxes_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {6, 20, 0};
-    options.force_use_dyn_output  = true;
+    options.use_dyn_output        = true;
 
     auto prog = migraphx::parse_onnx("nms_dynamic_boxes_test.onnx", options);
     EXPECT(p == prog);
@@ -3462,7 +3463,7 @@ TEST_CASE(nms_dynamic_classes_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10, 0};
-    options.force_use_dyn_output  = true;
+    options.use_dyn_output        = true;
 
     auto prog = migraphx::parse_onnx("nms_dynamic_classes_test.onnx", options);
     EXPECT(p == prog);
@@ -3492,7 +3493,7 @@ TEST_CASE(nms_overwrite_use_dyn_output_test)
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    options.force_use_dyn_output = true;
+    options.use_dyn_output = true;
 
     auto prog = migraphx::parse_onnx("nms_use_dyn_output_false_test.onnx", options);
     EXPECT(p == prog);

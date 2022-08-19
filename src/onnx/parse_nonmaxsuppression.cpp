@@ -38,14 +38,8 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(parser.force_use_dyn_output)
-        {
-            onnx::AttributeProto ap;
-            ap.set_type(onnx::AttributeProto::INT);
-            ap.set_i(static_cast<google::protobuf::int64>(1));
-            info.attributes["use_dyn_output"] = ap;
-        }
         auto op = parser.load(opd.op_name, info);
+        op.from_value({{"use_dyn_output", parser.use_dyn_output}});
         return info.add_instruction(op, args);
     }
 };

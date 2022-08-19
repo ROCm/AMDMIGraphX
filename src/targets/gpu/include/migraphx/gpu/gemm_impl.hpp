@@ -38,14 +38,16 @@ void gemm(context& ctx,
           float alpha,
           float beta,
           bool int8_x4_format,
-          bool compute_fp32);
+          bool compute_fp32,
+          bool can_unbatch);
 void gemm(context& ctx,
           const shape& output_shape,
           const std::vector<argument>& args,
           int32_t alpha,
           int32_t beta,
           bool int8_x4_format,
-          bool compute_fp32);
+          bool compute_fp32,
+          bool can_unbatch);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

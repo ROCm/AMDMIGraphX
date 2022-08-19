@@ -51,6 +51,7 @@ struct rocblas_gemm
     float beta          = 0;
     bool int8_x4_format = true;
     bool compute_fp32   = false;
+    bool can_unbatch = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -108,7 +109,7 @@ struct rocblas_gemm
     {
         if(this->name() == "gpu::gemm")
         {
-            gemm(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
+            gemm(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32, can_unbatch);
         }
         else
         {
@@ -118,7 +119,8 @@ struct rocblas_gemm
                  int32_t(alpha),
                  int32_t(beta),
                  int8_x4_format,
-                 compute_fp32);
+                 compute_fp32,
+                 can_unbatch);
         }
         return args.back();
     }

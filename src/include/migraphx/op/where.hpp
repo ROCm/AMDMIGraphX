@@ -24,18 +24,11 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_WHERE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_WHERE_HPP
 
-#include <array>
-#include <migraphx/argument.hpp>
-#include <migraphx/par_for.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/par_for.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -50,6 +50,9 @@ static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
 
 vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs)
 {
+    if(std::all_of(
+           inputs.begin(), inputs.end(), [&](const auto& s) { return s.lens()[axis] == 1; }))
+        return {1, axis};
     auto sizes = vector_sizes(inputs);
     std::vector<std::size_t> max_vec_size;
     std::transform(inputs.begin(),
@@ -81,11 +84,10 @@ preload preload::broadcasts(std::size_t axis, const std::vector<shape>& inputs)
     const std::size_t max_lds_bytes = 4096;
     std::vector<bool> result(inputs.size());
     std::vector<std::size_t> preloaded;
-    for(auto i : range(inputs.size()))
-    {
-        if(inputs[i].strides()[axis] == 0)
-            preloaded.push_back(i);
-    }
+    auto idxs = range(inputs.size());
+    std::copy_if(idxs.begin(), idxs.end(), std::back_inserter(preloaded), [&](auto i) {
+        return inputs[i].strides()[axis] == 0;
+    });
     std::sort(preloaded.begin(), preloaded.end(), by(std::less<>{}, [&](auto i) {
                   return inputs[i].bytes();
               }));

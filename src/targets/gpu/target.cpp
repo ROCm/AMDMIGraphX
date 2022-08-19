@@ -53,10 +53,11 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
@@ -128,7 +129,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
         dead_code_elimination{},
-        mlir_conv{&ctx},
+        fuse_mlir{&ctx},
+        dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
@@ -161,7 +163,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const { return context{}; }
+migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
 
 argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
 

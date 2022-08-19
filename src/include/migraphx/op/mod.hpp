@@ -21,26 +21,42 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_MLIR_CONV_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MIOPEN_MLIR_CONV_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
+#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
+#include <array>
+#include <migraphx/op/binary.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <cmath>
+#include <utility>
+#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
 
-struct module;
-
-namespace gpu {
-struct mlir_conv
+struct mod : binary<mod>
 {
-    context* ctx;
-    std::string name() const { return "mlir::convolution"; }
-    void apply(module& m) const;
+    std::string name() const { return "mod"; }
+    value attributes() const
+    {
+        auto a           = base_attributes();
+        a["commutative"] = false;
+        return a;
+    }
+    std::string point_function() const { return "mod"; }
+    auto apply() const
+    {
+        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
+    }
 };
 
-} // namespace gpu
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

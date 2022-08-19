@@ -51,9 +51,9 @@ static const char* const make_tensor_template = R"__migraphx__(
 template<>
 struct make_tensor<${n}>
 {
-    static __device__ auto apply(void* p)
+    static __device__ auto apply(void* __restrict__ p)
     {
-        return make_tensor_view(reinterpret_cast<${type}*>(p), make_shape(${lens}, ${strides}));
+        return make_tensor_view(reinterpret_cast<${type}* __restrict__>(p), make_shape(${lens}, ${strides}));
     }
 };
 )__migraphx__";

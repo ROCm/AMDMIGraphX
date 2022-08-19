@@ -29,6 +29,12 @@
 
 namespace migraphx {
 
+template <class T, index_int N, class Op>
+constexpr auto vec_reduce(const array<T, N>& a, Op op)
+{
+    return a.apply([&](auto x) { return vec_reduce(x, op); });
+}
+
 template <index_int Axis,
           class F,
           class BinOp,
@@ -43,23 +49,19 @@ __device__ void generic_binary_layernorm(
     reduce::block::run<reduce_output>([&](auto, auto r) {
         using value_type         = typename Input1::type;
         constexpr auto relements = r.template elements<Input1>();
-        auto mean                = [&](auto f) {
-            return r.reduce(op::sum{}, 0, [&](auto x1, auto x2) {
-                return f(x1, x2) / value_type{relements};
-            })(input1, input2);
-        };
-        // mean(x)
-        auto mean_x = mean(op);
-        // mean(m ^ 2)
-        auto mean_m2 = mean([&](auto x1, auto x2) {
-            auto m = op(x1, x2) - mean_x;
-            return m * m;
-        });
+        auto means = r.reduce(op::sum{}, make_array<value_type>(0, 0), [&](auto x1, auto x2) {
+            auto x = op(x1, x2);
+            return make_array(x, x * x) / value_type{relements};
+        })(input1, input2);
+
+        auto mean_x  = means[0];
+        auto mean_x2 = means[1];
 
         r.inner([&](auto& y, auto x1, auto x2, auto... xs) {
-            auto m = op(x1, x2) - mean_x;
+            auto x = op(x1, x2);
+            auto m = x - mean_x;
             // m * rsqrt(mean(m ^ 2) + 1e-12)
-            y = compute(m * rsqrt(mean_m2 + value_type{1e-12}), xs...);
+            y = compute(m * rsqrt(mean_x2 - mean_x + value_type{1e-12}), xs...);
         })(output, input1, input2, inputs...);
     });
 }

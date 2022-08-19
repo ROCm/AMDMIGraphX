@@ -134,6 +134,15 @@ struct array
         return result;
     }
 
+    template <class F>
+    constexpr auto apply(F f) const
+    {
+        array<decltype(f(d[0])), N> result;
+        for(index_int i = 0; i < N; i++)
+            result[i] = f(d[i]);
+        return result;
+    }
+
     MIGRAPHX_DEVICE_ARRAY_OP(+=, +)
     MIGRAPHX_DEVICE_ARRAY_OP(-=, -)
     MIGRAPHX_DEVICE_ARRAY_OP(*=, *)
@@ -201,6 +210,11 @@ struct array
     }
 };
 
+template <class T, class... Ts>
+constexpr array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
+{
+    return {x, static_cast<T>(xs)...};
+}
 template <class T, T... Xs>
 struct integral_const_array : array<T, sizeof...(Xs)>
 {

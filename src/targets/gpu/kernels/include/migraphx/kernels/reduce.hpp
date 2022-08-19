@@ -201,12 +201,11 @@ struct block
         __device__ auto reduce(Op op, T init, Read read) const
         {
             return sliced(slicer, [=](auto x, auto... xs) {
-                return vec_reduce(block_reduce(idx,
+                return block_reduce(idx,
                                                op,
                                                init,
                                                x.get_shape().elements(),
-                                               [&](auto j) { return read(x[j], xs[j]...); }),
-                                  op);
+                                               [&](auto j) { return vec_reduce(read(x[j], xs[j]...), op); });
             });
         }
 

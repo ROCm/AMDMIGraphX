@@ -168,35 +168,34 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     target_assignments p;
 
     const auto* mod = get_main_module();
-    std::vector<supported_segments> target_subgraphs;
+    std::vector<std::pair<target, supported_segments>> target_subgraphs;
     target_subgraphs.reserve(targets.size());
     std::transform(targets.begin(),
                    targets.end(),
                    std::back_inserter(target_subgraphs),
-                   [mod, m](const auto& t) { return t.find_supported(mod, m); });
+                   [&](const auto& t) { return std::make_pair(t, t.find_supported(mod, m)); });
 
     for(const auto ins : iterator_for(*mod))
     {
-        if(p.has(ins))
+        if(contains(p, ins))
         {
             continue;
         }
 
-        for(auto i = 0U; i < target_subgraphs.size(); ++i)
+        for(const auto& [target, subgraph] : target_subgraphs)
         {
-            const auto& subgraph = target_subgraphs[i];
-            const auto& target   = targets[i];
+            const auto& t = target;
             for(const auto& segment : subgraph)
             {
                 const auto& instructions = segment.instructions;
-                if(instructions.find(ins) == instructions.end())
+                if(not contains(instructions, ins))
                 {
                     continue;
                 }
-                for(const auto instr : instructions)
-                {
-                    p.add_assignment(instr, target.name());
-                }
+                std::transform(instructions.begin(),
+                               instructions.end(),
+                               std::inserter(p, p.end()),
+                               [&](auto instr) { return std::make_pair(instr, t.name()); });
             }
         }
     }

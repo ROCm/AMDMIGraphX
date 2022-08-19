@@ -48,8 +48,10 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/clip.hpp>
+#include <migraphx/op/contiguous.hpp>
 #include <cmath>
 #include <set>
 
@@ -279,6 +281,11 @@ MIGRAPHX_REGISTER_OP(hip_layernorm)
 
 struct hip_triadd_layernorm : ternary_device<hip_triadd_layernorm, &device::triadd_layernorm>
 {
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4).standard();
+        return inputs[0];
+    }
     // Empty finalize to skip dimension reduction
     void finalize(context&, const shape&, const std::vector<shape>&) {}
 };
@@ -960,11 +967,66 @@ struct find_gemm_pointwise
 {
     auto matcher() const
     {
-        return pointwise_name("add")(
+        return precompile_name("pointwise")(
             match::nargs(3),
-            match::all_of[match::inputs()](match::standard_shape()),
-            match::either_arg(0, 1)(match::used_once().bind("c"),
-                                    match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
+            match::either_arg(0, 1)(
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"),
+                match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm")));
+    }
+
+    // TODO: Move to matcher.hpp
+    static auto match_param(const std::string& name)
+    {
+        return match::make_basic_pred_matcher([=](auto ins) {
+            if(ins->name() != "@param")
+                return false;
+            auto p = any_cast<builtin::param>(ins->get_operator());
+            return p.parameter == name;
+        });
+    }
+
+    template <class M>
+    static auto match_mul_const(M m, const std::string& var)
+    {
+        return match::name("mul")(match::either_arg(0, 1)(match::name("@literal").bind(var), m))
+            .bind(var + "_mul");
+    }
+
+    static auto match_add(const std::string& input, const std::string& output)
+    {
+        auto param     = match::name("@param");
+        auto add       = match::name("add")(match::args(param, param));
+        auto inner_mul = match::any_of(match_mul_const(match_param(input), "alpha"),
+                                       match_mul_const(match_param(output), "beta"));
+        auto mul_add   = match::name("add")(match::either_arg(0, 1)(inner_mul, param));
+        auto add_mul   = match_mul_const(add, "gamma");
+        return match::name("@return")(match::args(match::any_of(add, mul_add, add_mul)));
+    }
+
+    static float get_float(instruction_ref ins) { return ins->get_literal().at<float>(); }
+
+    template <class Gemm>
+    static bool update_gemm(Gemm& gemm, module_ref pm, unsigned input)
+    {
+        auto names = pm->get_parameter_names();
+        if(names.size() != 2)
+            return false;
+        std::sort(names.begin(), names.end());
+        unsigned output = input == 0 ? 1 : 0;
+        auto mr         = match::match_instruction(
+            *pm, std::prev(pm->end()), match_add(names[input], names[output]));
+        if(mr.result == pm->end())
+            return false;
+        if(contains(mr.instructions, "alpha_mul"))
+            gemm.alpha *= get_float(mr.instructions["alpha"]);
+        else if(contains(mr.instructions, "beta_mul"))
+            gemm.beta *= get_float(mr.instructions["beta"]);
+        else if(contains(mr.instructions, "gamma_mul"))
+        {
+            gemm.alpha *= get_float(mr.instructions["gamma"]);
+            gemm.beta *= get_float(mr.instructions["gamma"]);
+        }
+        return true;
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -978,6 +1040,19 @@ struct find_gemm_pointwise
         // Already fused gemm
         if(not float_equal(gemm.beta, 0))
             return;
+        gemm.beta = 1;
+
+        if(not update_gemm(
+               gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
+            return;
+
+        // const-fold input if not standard shape since rocblas can't handle it
+        if(not c_ins->get_shape().standard())
+        {
+            auto c = op::contiguous{};
+            auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
+            c_ins  = m.add_literal(l.get_shape(), l.data());
+        }
 
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
@@ -985,8 +1060,65 @@ struct find_gemm_pointwise
         inputs.push_back(c_ins);
         inputs.push_back(ins->inputs().back());
 
-        gemm.beta = 1;
         m.replace_instruction(ins, gemm, inputs);
+    }
+};
+
+struct find_contiguous_tranpose_gemm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(
+            match::name("transpose")(
+                match::arg(0)(match::name("gpu::gemm")(match::used_once()).bind("gemm")))
+                .bind("transpose")));
+    }
+
+    template <class Vector>
+    static bool is_swapped(const Vector& perm, std::size_t i, std::size_t j)
+    {
+        if(i >= perm.size() or j >= perm.size())
+            return false;
+        auto perm2 = perm;
+        std::iota(perm2.begin(), perm2.end(), 0);
+        std::swap(perm2[i], perm2[j]);
+        return perm2 == perm;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto gemm      = r.instructions["gemm"];
+        auto alloc     = gemm->inputs().back();
+        auto transpose = r.instructions["transpose"];
+        auto perm      = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto iperm     = invert_permutation(perm);
+
+        if(perm.size() < 3)
+            return;
+
+        if(not is_swapped(perm, perm.size() - 3, perm.size() - 2))
+            return;
+
+        auto lens = gemm->get_shape().lens();
+        if(lens.size() > 3 and
+           not std::all_of(lens.begin(), lens.end() - 3, [](auto i) { return i == 1; }))
+            return;
+
+        auto gemmv           = gemm->get_operator().to_value();
+        gemmv["trans_batch"] = 1;
+
+        auto s = shape{alloc->get_shape().type(), reorder_dims(alloc->get_shape().lens(), iperm)};
+        auto new_alloc = m.insert_instruction(gemm, make_op("allocate", {{"shape", to_value(s)}}));
+        auto alloc_transpose =
+            m.insert_instruction(gemm, make_op("transpose", {{"permutation", perm}}), new_alloc);
+
+        auto inputs        = gemm->inputs();
+        inputs.back()      = alloc_transpose;
+        auto new_gemm      = m.insert_instruction(gemm, make_op("gpu::gemm", gemmv), inputs);
+        auto gemm_transpoe = m.insert_instruction(gemm, transpose->get_operator(), new_gemm);
+
+        m.replace_instruction(ins, gemm_transpoe);
     }
 };
 
@@ -1091,6 +1223,7 @@ void fuse_ops::apply(module& m) const
                         find_gemm_add{},
                         find_layernorm_pointwise{},
                         find_gemm_pointwise{},
+                        find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});
 }

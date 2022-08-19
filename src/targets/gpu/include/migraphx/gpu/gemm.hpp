@@ -51,7 +51,7 @@ struct rocblas_gemm
     float beta          = 0;
     bool int8_x4_format = true;
     bool compute_fp32   = false;
-    bool can_unbatch = false;
+    bool can_unbatch    = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

@@ -95,7 +95,7 @@ void gemm_impl(context& ctx,
                T alpha,
                T beta,
                bool int8_x4_format,
-               bool compute_fp32, 
+               bool compute_fp32,
                bool can_unbatch)
 {
     bool transa     = is_transposed(args[0].get_shape());
@@ -163,7 +163,7 @@ void gemm_impl(context& ctx,
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         if(num_matrices == 1 or can_unbatch)
         {
-            if (can_unbatch)
+            if(can_unbatch)
             {
                 m *= num_matrices;
             }

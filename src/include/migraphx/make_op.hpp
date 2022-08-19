@@ -27,6 +27,8 @@
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/convert_to_json.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,6 +47,8 @@ operation make_op(const std::string& name, const Value& v)
 {
     return make_op_from_value(name, v);
 }
+
+operation make_json_op(const std::string& name, const std::string& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

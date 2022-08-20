@@ -37,45 +37,50 @@ namespace migraphx {
     template <class U>                                                             \
     constexpr array& operator op(const array<U, N>& x)                             \
     {                                                                              \
-        for(index_int i = 0; i < N; i++)                                           \
-            d[i] op x[i];                                                          \
+        array_for_each(*this, x)([](auto& sy, auto sx) { sy op sx; });                                           \
         return *this;                                                              \
     }                                                                              \
     template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                  \
     constexpr array& operator op(const U& x)                                       \
     {                                                                              \
-        for(index_int i = 0; i < N; i++)                                           \
-            d[i] op x;                                                             \
+        array_for_each(*this)([&](auto& sy) { sy op x; });                                           \
         return *this;                                                              \
     }                                                                              \
     template <class U>                                                             \
     friend constexpr auto operator binary_op(const array& x, const array<U, N>& y) \
     {                                                                              \
         array<decltype(T {} binary_op U{}), N> z{};                                \
-        for(index_int i = 0; i < N; i++)                                           \
-            z[i] = x[i] binary_op y[i];                                            \
+        array_for_each(z, x, y)([&](auto& sz, auto sx, auto sy) { sz = sx binary_op sy; });                                           \
         return z;                                                                  \
     }                                                                              \
     template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                  \
     friend constexpr auto operator binary_op(const array& x, const U& y)           \
     {                                                                              \
         array<decltype(T {} binary_op U{}), N> z{};                                \
-        for(index_int i = 0; i < N; i++)                                           \
-            z[i] = x[i] binary_op y;                                               \
+        array_for_each(z, x)([&](auto& sz, auto sx) { sz = sx binary_op y; });                                           \
         return z;                                                                  \
     }                                                                              \
     template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                  \
     friend constexpr auto operator binary_op(const U& x, const array& y)           \
     {                                                                              \
         array<decltype(T {} binary_op U{}), N> z{};                                \
-        for(index_int i = 0; i < N; i++)                                           \
-            z[i] = x binary_op y[i];                                               \
+        array_for_each(z, y)([&](auto& sz, auto sy) { sz = x binary_op sy; });                                           \
         return z;                                                                  \
     }
+
+template<class T, class... Ts>
+constexpr auto array_for_each(T& x, Ts&... xs)
+{
+    return [&](auto f) {
+        for(index_int i = 0; i < x.size(); i++)
+            f(x[i], xs[i]...);
+    };
+}
 
 template <class T, index_int N>
 struct array
 {
+    using value_type = T;
     T d[N];
     constexpr T& operator[](index_int i)
     {

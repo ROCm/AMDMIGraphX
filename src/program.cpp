@@ -184,6 +184,7 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 
         for(const auto& [target, subgraph] : target_subgraphs)
         {
+            // can't pass a structured binding into lambda in C++17 so create a variable for it
             const auto& t = target;
             for(const auto& segment : subgraph)
             {

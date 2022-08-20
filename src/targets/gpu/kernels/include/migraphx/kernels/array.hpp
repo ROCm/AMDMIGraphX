@@ -68,23 +68,23 @@ namespace migraphx {
         return z;                                                                           \
     }
 
-template<class T>
+template <class T>
 constexpr auto is_vectorizable()
 {
     return not is_same<T, bool>{} and (is_fundamental<T>{} or is_same<T, half>{});
 }
 
-template<class T>
+template <class T>
 constexpr auto array2vec(T x)
 {
-    using value_type = typename T::value_type;
+    using value_type    = typename T::value_type;
     constexpr auto size = decltype(x.size()){};
-    using type = vec<value_type, size>;
+    using type          = vec<value_type, size>;
     static_assert(size != 3, "Wrong size");
     return __builtin_bit_cast(type, x);
 }
 
-template<class T, class U, index_int N>
+template <class T, class U, index_int N>
 constexpr void vec2array(T& x, vec<U, N> v)
 {
     if constexpr(not is_const<T>{})
@@ -97,8 +97,9 @@ constexpr auto array_for_each(T& x, Ts&... xs)
     MIGRAPHX_ASSERT((x.size() == xs.size() and ...));
     return [&](auto f) {
         constexpr auto size = decltype(x.size()){};
-        if constexpr((is_vectorizable<typename T::value_type>() or (is_vectorizable<typename Ts::value_type>() or ...)) and 
-            size <= 8 and size > 1 and (size % 2 == 0))
+        if constexpr((is_vectorizable<typename T::value_type>() or
+                      (is_vectorizable<typename Ts::value_type>() or ...)) and
+                     size <= 8 and size > 1 and (size % 2 == 0))
         {
             [&](auto v, auto... vs) {
                 f(v, vs...);

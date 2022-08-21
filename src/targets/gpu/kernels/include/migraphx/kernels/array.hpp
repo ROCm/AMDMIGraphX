@@ -96,7 +96,7 @@ constexpr auto array_for_each(T& x, Ts&... xs)
                       (is_vectorizable<typename Ts::value_type>() or ...)) and
                      size <= 8 and size > 1 and (size % 2 == 0))
         {
-            if (__builtin_is_constant_evaluated())
+            if(__builtin_is_constant_evaluated())
             {
                 for(index_int i = 0; i < size; i++)
                     f(x[i], xs[i]...);

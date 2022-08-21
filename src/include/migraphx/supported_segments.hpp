@@ -21,41 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP
 
-#include <migraphx/make_op.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/ref/target.hpp>
-#include <migraphx/target_assignments.hpp>
+#include <unordered_set>
 
-migraphx::program create_program()
+#include <migraphx/instruction_ref.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct supported_segment
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto x    = mm->add_parameter("x", s);
-    auto y    = mm->add_parameter("y", s);
-    auto z    = mm->add_parameter("z", s);
-    auto diff = mm->add_instruction(migraphx::make_op("div"), x, y);
-    mm->add_instruction(migraphx::make_op("div"), diff, z);
-    return p;
-}
+    std::unordered_set<instruction_ref> instructions;
+    float metric;
+};
 
-TEST_CASE(is_supported)
-{
-    auto p       = create_program();
-    auto targets = migraphx::get_targets();
-    EXPECT(!targets.empty());
-    auto first_target = targets[0];
-    auto t            = migraphx::make_target(first_target);
+using supported_segments = std::vector<supported_segment>;
 
-    const auto assignments = p.get_target_assignments({t});
-    for(const auto& [ins, target] : assignments)
-    {
-        (void)ins;
-        EXPECT(target == first_target);
-    }
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP

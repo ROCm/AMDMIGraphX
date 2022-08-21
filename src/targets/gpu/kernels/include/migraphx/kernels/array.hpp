@@ -75,20 +75,15 @@ constexpr auto is_vectorizable()
 }
 
 template <class T>
-constexpr auto array2vec(T x)
+__device__ auto& array2vec(T& x)
 {
     using value_type    = typename T::value_type;
     constexpr auto size = decltype(x.size()){};
     using type          = vec<value_type, size>;
-    static_assert(size != 3, "Wrong size");
-    return __builtin_bit_cast(type, x);
-}
-
-template <class T, class U, index_int N>
-constexpr void vec2array(T& x, vec<U, N> v)
-{
-    if constexpr(not is_const<T>{})
-        x = __builtin_bit_cast(T, v);
+    if constexpr(is_const<T>{})
+        return reinterpret_cast<const type&>(x);
+    else
+        return reinterpret_cast<type&>(x);
 }
 
 template <class T, class... Ts>
@@ -101,11 +96,15 @@ constexpr auto array_for_each(T& x, Ts&... xs)
                       (is_vectorizable<typename Ts::value_type>() or ...)) and
                      size <= 8 and size > 1 and (size % 2 == 0))
         {
-            [&](auto v, auto... vs) {
-                f(v, vs...);
-                vec2array(x, v);
-                swallow{(vec2array(xs, vs), 0)...};
-            }(array2vec(x), array2vec(xs)...);
+            if(__builtin_is_constant_evaluated())
+            {
+                for(index_int i = 0; i < size; i++)
+                    f(x[i], xs[i]...);
+            }
+            else
+            {
+                f(array2vec(x), array2vec(xs)...);
+            }
         }
         else
         {

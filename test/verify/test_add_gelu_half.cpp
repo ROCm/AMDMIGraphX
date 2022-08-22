@@ -34,12 +34,12 @@ struct test_add_gelu_half : verify_program<test_add_gelu_half>
         migraphx::program p;
         auto* mm = p.get_main_module();
         std::vector<size_t> input_lens{1, 1, 5};
-        auto x           = mm->add_parameter("x", {migraphx::shape::half_type, input_lens});
-        auto y           = mm->add_parameter("y", {migraphx::shape::half_type, input_lens});
-        auto half        = mm->add_literal(migraphx::literal{{migraphx::shape::half_type}, {0.5f}});
-        auto one         = mm->add_literal(migraphx::literal{{migraphx::shape::half_type}, {1.0f}});
-        auto sqrt2       = mm->add_literal(migraphx::literal{{migraphx::shape::half_type}, {M_SQRT2}});
-        auto add         = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto x     = mm->add_parameter("x", {migraphx::shape::half_type, input_lens});
+        auto y     = mm->add_parameter("y", {migraphx::shape::half_type, input_lens});
+        auto half  = mm->add_literal(migraphx::literal{{migraphx::shape::half_type}, {0.5f}});
+        auto one   = mm->add_literal(migraphx::literal{{migraphx::shape::half_type}, {1.0f}});
+        auto sqrt2 = mm->add_literal(migraphx::literal{{migraphx::shape::half_type}, {M_SQRT2}});
+        auto add   = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto half_mbcast = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), half);
         auto mul_half     = mm->add_instruction(migraphx::make_op("mul"), add, half_mbcast);

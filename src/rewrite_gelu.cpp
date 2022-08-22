@@ -38,7 +38,7 @@ struct find_gelu_erf
     {
         auto ins = r.result;
         auto x   = r.instructions["x"];
-        if (x->get_shape().type() != migraphx::shape::half_type)
+        if(x->get_shape().type() != migraphx::shape::half_type)
             return;
 
         auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});

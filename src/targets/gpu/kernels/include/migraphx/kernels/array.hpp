@@ -150,18 +150,13 @@ struct array
 
     constexpr T dot(const array& x) const
     {
-        T result = 0;
-        for(index_int i = 0; i < N; i++)
-            result += x[i] * d[i];
-        return result;
+        auto r = x * (*this);
+        return r.reduce([](auto a, auto b) { return a + b; }, 0);
     }
 
     constexpr T product() const
     {
-        T result = 1;
-        for(index_int i = 0; i < N; i++)
-            result *= d[i];
-        return result;
+        return reduce([](auto x, auto y) { return x * y; }, 1);
     }
 
     constexpr T single(index_int width = 100) const
@@ -182,6 +177,15 @@ struct array
         array<decltype(f(d[0])), N> result;
         for(index_int i = 0; i < N; i++)
             result[i] = f(d[i]);
+        return result;
+    }
+
+    template <class F>
+    constexpr auto reduce(F f, T init) const
+    {
+        T result = init;
+        for(index_int i = 0; i < N; i++)
+            result = f(result, d[i]);
         return result;
     }
 

@@ -362,9 +362,9 @@ TEST_CASE(simplify_dot_add)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
-        auto one  = m1.add_literal(get_2x2());
-        auto two  = m1.add_literal(get_2x2(1));
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one = m1.add_literal(get_2x2());
+        auto two = m1.add_literal(get_2x2(1));
         auto sum = m1.add_instruction(migraphx::make_op("add"), one, x);
         auto dot = m1.add_instruction(migraphx::make_op("dot"), sum, two);
         m1.add_instruction(pass_op{}, dot);

@@ -244,7 +244,6 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
             auto weights_lens = args[1].get_shape().lens();
             std::vector<std::size_t> k_lens{weights_lens.begin() + 2, weights_lens.end()};
             padding = calc_dyn_auto_pad(img_lens, k_lens, op.stride, op.dilation);
-            std::cout << "[ ";
             output_shape =
                 compute_padded_shape({args.at(0).get_shape(), args.at(1).get_shape()}, padding);
         }

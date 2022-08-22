@@ -475,17 +475,6 @@ struct migraphx_shapes
     std::vector<migraphx::shape> object;
 };
 
-extern "C" struct migraphx_size_t_vec;
-struct migraphx_size_t_vec
-{
-    template <class... Ts>
-    migraphx_size_t_vec(Ts&&... xs)
-        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
-    {
-    }
-    std::vector<std::size_t> object;
-};
-
 extern "C" struct migraphx_instruction;
 struct migraphx_instruction
 {
@@ -693,14 +682,16 @@ struct migraphx_experimental_custom_op
     }
 
     migraphx_experimental_custom_op_output_alias output_alias_f = nullptr;
-    std::vector<std::size_t> output_alias(std::vector<migraphx::shape> inputs) const
+    std::vector<size_t> output_alias(std::vector<migraphx::shape> inputs) const
     {
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
-        std::remove_pointer_t<migraphx_size_t_vec_t> out;
+        std::remove_pointer_t<size_t**> out;
+        std::remove_pointer_t<size_t*> out_size;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = output_alias_f(&out,
+                                               &out_size,
                                                object_ptr.data,
                                                exception_msg.data(),
                                                exception_msg.size(),
@@ -711,7 +702,7 @@ struct migraphx_experimental_custom_op
             throw std::runtime_error("Error in output_alias of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
         }
-        return (&out)->object;
+        return std::vector<size_t>(out, out + out_size);
     }
 
     migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;
@@ -1133,50 +1124,6 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
         if(shapes == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shapes: Null pointer");
         *out = object_cast<const_migraphx_shape_t>(&((shapes->object).at((idx))));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_size_t_vec_destroy(migraphx_size_t_vec_t size_t_vec)
-{
-    auto api_error_result = migraphx::try_([&] { destroy((size_t_vec)); });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_size_t_vec_assign_to(migraphx_size_t_vec_t output,
-                                                         const_migraphx_size_t_vec_t input)
-{
-    auto api_error_result = migraphx::try_([&] { *output = *input; });
-    return api_error_result;
-}
-
-extern "C" migraphx_status
-migraphx_size_t_vec_create(migraphx_size_t_vec_t* size_t_vec, const uint64_t* ptr, size_t size)
-{
-    auto api_error_result = migraphx::try_([&] {
-        *size_t_vec = object_cast<migraphx_size_t_vec_t>(allocate<std::vector<std::size_t>>(
-            migraphx::to_objptr_vector_fundamental_type<std::size_t>((ptr), (size))));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_size_t_vec_size(size_t* out, migraphx_size_t_vec_t size_t_vec)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(size_t_vec == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter size_t_vec: Null pointer");
-        *out = (size_t_vec->object).size();
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status
-migraphx_size_t_vec_get(std::size_t* out, migraphx_size_t_vec_t size_t_vec, size_t idx)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(size_t_vec == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter size_t_vec: Null pointer");
-        *out = (size_t_vec->object).at((idx));
     });
     return api_error_result;
 }

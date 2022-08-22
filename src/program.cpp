@@ -399,7 +399,7 @@ std::vector<argument> generic_eval(const program& p,
 }
 
 std::vector<argument> program::eval(parameter_map params,
-                                    const execution_environment exec_env) const
+                            execution_environment exec_env) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG

@@ -21,16 +21,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "test.hpp"
 
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/fpga/target.hpp>
 #include <migraphx/target_assignments.hpp>
+#include <migraphx/iterator_for.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-void target_assignments::add_assignment(instruction_ref ins, const std::string& target)
+migraphx::program create_program()
 {
-    assignments.emplace(ins, target);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto z    = mm->add_parameter("z", s);
+    auto diff = mm->add_instruction(migraphx::make_op("add"), x, y);
+    mm->add_instruction(migraphx::make_op("add"), diff, z);
+    return p;
 }
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+TEST_CASE(is_supported)
+{
+    auto p       = create_program();
+    auto targets = migraphx::get_targets();
+    EXPECT(!targets.empty());
+    auto t = migraphx::make_target("fpga");
+
+    const auto assignments = p.get_target_assignments({t});
+    const auto* mod        = p.get_main_module();
+    EXPECT(mod->size() == assignments.size());
+
+    for(const auto ins : iterator_for(*mod))
+    {
+        const auto& target = assignments.at(ins);
+        EXPECT(target == "fpga");
+    }
+}
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

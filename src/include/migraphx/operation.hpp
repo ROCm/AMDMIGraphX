@@ -40,7 +40,6 @@
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/lifetime.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

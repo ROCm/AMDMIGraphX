@@ -70,8 +70,7 @@ struct parse_if : op_parser<parse_if>
 
         // Must have the same type for both if/else blocks by onnx spec
         // Add exception for empty constant scalars
-        if(then_out_shapes.at(0).type() != else_out_shapes.at(0).type() &&
-           (then_out_shapes.at(0).elements() > 0) && (else_out_shapes.at(0).elements() > 0))
+        if(then_out_shapes.at(0).type() != else_out_shapes.at(0).type())
         {
             MIGRAPHX_THROW("PARSE_IF: " + info.name +
                            " then and else sub_grahps must have same output type! " +

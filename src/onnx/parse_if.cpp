@@ -98,7 +98,7 @@ struct parse_if : op_parser<parse_if>
                                   else_out_shapes.at(0).lens(),
                                   else_out_shapes.at(0).strides()};
                 auto reshape_ins = then_mdl->insert_instruction(
-                    convert_ins, migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), convert_ins);
+                    convert_ins, migraphx::make_op("unsqueeze", {{"axes", {1}}}), convert_ins);
 
                 then_mdl->replace_return({reshape_ins});
             }
@@ -119,7 +119,7 @@ struct parse_if : op_parser<parse_if>
                                   then_out_shapes.at(0).lens(),
                                   then_out_shapes.at(0).strides()};
                 auto reshape_ins = then_mdl->insert_instruction(
-                    convert_ins, migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), convert_ins);
+                    convert_ins, migraphx::make_op("unsqueeze", {{"axes", {1}}}), convert_ins);
 
                 else_mdl->replace_return({reshape_ins});
             }

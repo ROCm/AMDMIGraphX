@@ -35,6 +35,7 @@ add_library(migraphx_cpu
     dnnl.cpp
     eltwise.cpp
     erf.cpp
+    fmod.cpp
     fuse_ops.cpp
     gather.cpp
     gemm.cpp
@@ -42,6 +43,7 @@ add_library(migraphx_cpu
     logsoftmax.cpp
     lowering.cpp
     lrn.cpp
+    mod.cpp
     preallocate.cpp
     pooling.cpp
     reduction.cpp

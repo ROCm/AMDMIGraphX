@@ -949,19 +949,6 @@ struct find_gemm_add
     }
 };
 
-auto pointwise_name(const std::string& s)
-{
-    return precompile_name("pointwise")(match::make_basic_pred_matcher([=](auto ins) {
-        module_ref pm = ins->module_inputs().front();
-        auto n = std::count_if(pm->begin(), pm->end(), [&](auto& i) { return i.name() == s; });
-        if(n != 1)
-            return false;
-        return std::all_of(pm->begin(), pm->end(), [&](auto& i) {
-            return starts_with(i.name(), "@") or i.name() == s;
-        });
-    }));
-}
-
 struct find_gemm_pointwise
 {
     auto matcher() const

@@ -933,15 +933,11 @@ def vector_c_wrap(p: Parameter) -> None:
         if p.type.is_const():
             t = t.add_const()
     if p.returns:
-        if p.type.is_reference():
+        if p.type.is_reference() or p.virtual:
             p.add_param(t.add_pointer())
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
                         'Null pointer')
-        elif p.virtual:
-            p.add_param(t)
-            p.add_size_param()
-            p.bad_param('${name} == nullptr and ${size} != 0', 'Null pointer')
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')

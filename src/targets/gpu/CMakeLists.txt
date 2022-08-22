@@ -227,7 +227,6 @@ register_migraphx_gpu_ops(hip_
     erf
     exp
     floor
-    fmod
     gather
     greater
     less
@@ -239,7 +238,6 @@ register_migraphx_gpu_ops(hip_
     loop
     max
     min
-    mod
     mul
     multinomial
     nonzero

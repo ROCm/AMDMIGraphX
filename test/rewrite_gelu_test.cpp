@@ -77,8 +77,7 @@ TEST_CASE(bias_gelu)
         auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
         l2 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), l2);
         sig = m2.add_instruction(migraphx::make_op("add"), sig, l2);
-        sig = m2.add_instruction(migraphx::make_op("div"), l2, sig);
-        sig = m2.add_instruction(migraphx::make_op("mul"), add, sig);
+        sig = m2.add_instruction(migraphx::make_op("div"), add, sig);
         m2.add_return({sig});
     }
 
@@ -125,8 +124,7 @@ TEST_CASE(non_bias_gelu)
         auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
         l2 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), l2);
         sig = m2.add_instruction(migraphx::make_op("add"), sig, l2);
-        sig = m2.add_instruction(migraphx::make_op("div"), l2, sig);
-        sig = m2.add_instruction(migraphx::make_op("mul"), sub, sig);
+        sig = m2.add_instruction(migraphx::make_op("div"), sub, sig);
         m2.add_return({sig});
     }
 

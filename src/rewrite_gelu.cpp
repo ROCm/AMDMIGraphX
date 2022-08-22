@@ -51,8 +51,7 @@ struct find_gelu_erf
         one      = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), one);
         sig = m.insert_instruction(ins, make_op("add"), sig, one);
-        sig = m.insert_instruction(ins, make_op("div"), one, sig);
-        sig = m.insert_instruction(ins, make_op("mul"), x, sig);
+        sig = m.insert_instruction(ins, make_op("div"), x, sig);
         m.replace_instruction(ins, sig);
     }
 };

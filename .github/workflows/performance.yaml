@@ -1,11 +1,9 @@
 name: MIGraphX Performance Tests
 
 on:
-  push:
-    branches: [develop]
-
   pull_request:
     branches: [develop]
+    types: [opened, synchronize, closed]
   schedule:
     - cron: "0 5 * * 1-6"
 

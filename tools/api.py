@@ -316,7 +316,6 @@ class Parameter:
         for t, n, in self.cparams:
             if not decl_list and (container_type == "std::vector"
                                   or container_type == "vector"):
-                inner_t = self.type.inner_type().str()
                 decl_list.append('{prefix}{n}.data()'.format(prefix=prefix
                                                              or '',
                                                              n=n))
@@ -961,7 +960,7 @@ def vector_c_wrap(p: Parameter) -> None:
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
                         'Null pointer')
-            p.virtual_write = '${type}(${name}.data(), ${name}.data()+${size})'
+            p.virtual_write = '{${name}.data(), ${name}.data()+${size}}'
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')

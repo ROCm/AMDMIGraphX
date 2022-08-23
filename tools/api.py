@@ -312,7 +312,7 @@ class Parameter:
 
     def virtual_output_args(self, prefix: Optional[str] = None) -> List[str]:
         container_type = self.type.remove_generic().basic().str()
-        decl_list : Optional[str] = []
+        decl_list: Optional[str] = []
         for t, n, in self.cparams:
             if not decl_list and (container_type == "std::vector"
                                   or container_type == "vector"):
@@ -327,7 +327,7 @@ class Parameter:
     def virtual_output_declarations(self,
                                     prefix: Optional[str] = None) -> List[str]:
         container_type = self.type.remove_generic().basic().str()
-        decl_list : Optional[str] = []
+        decl_list: Optional[str] = []
         for t, n, in self.cparams:
             if not decl_list and (container_type == "std::vector"
                                   or container_type == "vector"):

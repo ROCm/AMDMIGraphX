@@ -24,7 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,28 +36,60 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+                          const onnx_parser::node_info& info,
+                          std::vector<instruction_ref> args) const
     {
         float epsilon                                     = 1e-5f;
-        float momentum                                    = 0.9f;
-        op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
-        if(contains(info.attributes, "momentum"))
+        auto X_lens = args[0]->get_shape().lens();
+        auto X_type = args[0]->get_shape().type();
+
+        if(X_lens.size() == 1)
         {
-            momentum = parser.parse_value(info.attributes.at("momentum")).at<float>();
+            auto n0 = info.add_broadcastable_binary_op("sub", args[0], args[3]);
+            auto l0 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
+            auto l1 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
+            auto d0 = info.add_broadcastable_binary_op("add", args[4], l1);
+            auto d1 = info.add_broadcastable_binary_op("pow", d0, l0);
+            auto div0 = info.add_broadcastable_binary_op("div", n0, d1);
+            auto r0 = info.add_broadcastable_binary_op("mul", div0, args[1]);
+            return info.add_broadcastable_binary_op("add", r0, args[2]); 
         }
-        if(contains(info.attributes, "spatial"))
+        else if(X_lens.size() > 2)
         {
-            bn_mode = (parser.parse_value(info.attributes.at("spatial")).at<uint64_t>() > 0)
-                          ? op::batch_norm_inference::spatial
-                          : op::batch_norm_inference::per_activation;
+            // unsqueeze tensors of shape (C) to broadcast correctly
+            std::vector<int64_t> unsqueeze_axes(X_lens.size() - 2);
+            int64_t i = 1;
+            std::generate(
+                unsqueeze_axes.begin(),
+                unsqueeze_axes.end(),
+                [&]{
+                    return i++;
+                }
+            );
+            auto scale_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
+            auto bias_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[2]);
+            auto mean_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[3]);
+            auto var_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[4]);
+            auto n0 = info.add_broadcastable_binary_op("sub", args[0], mean_unsqueeze);
+            auto l0 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
+            auto l1 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
+            auto d0 = info.add_broadcastable_binary_op("add", var_unsqueeze, l1);
+            auto d1 = info.add_broadcastable_binary_op("pow", d0, l0);
+            auto div0 = info.add_broadcastable_binary_op("div", n0, d1);
+            auto r0 = info.add_broadcastable_binary_op("mul", div0, scale_unsqueeze);
+            return info.add_broadcastable_binary_op("add", r0, bias_unsqueeze); 
         }
-        op::batch_norm_inference op{epsilon, momentum, bn_mode};
-        return info.add_instruction(op, args);
+        else
+        {
+            // num dims in [0 , 2]
+            std::ostringstream oss;
+            oss << "BATCHNORM: rank " << X_lens.size() << " input tensor, unhandled data format";
+            MIGRAPHX_THROW(oss.str());
+        }
     }
 };
 

@@ -534,7 +534,7 @@ struct interface_base : Base
         x.assign_to_handle(out);
     }
 
-    template <class T1, class T2, class U>
+    template <class T1, class T2, class U, class = std::enable_if_t<std::is_same<T2, size_t>{}>>
     auto auto_assign(rank<2>, T1* out_ptr, T2* out_size, U x)
     {
         std::copy_n(x.begin(), x.size(), out_ptr);

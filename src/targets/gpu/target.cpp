@@ -63,6 +63,7 @@
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/rewrite_batched_gemms.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -125,6 +126,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
+        rewrite_batched_gemms{},
+        dead_code_elimination{},
         propagate_constant{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),

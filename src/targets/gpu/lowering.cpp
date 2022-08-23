@@ -138,7 +138,6 @@ struct miopen_apply
         add_generic_op("erf");
         add_generic_op("exp");
         add_generic_op("floor");
-        add_generic_op("fmod");
         add_generic_op("greater");
         add_generic_op("less");
         add_generic_op("log");

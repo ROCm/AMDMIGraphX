@@ -103,7 +103,8 @@ constexpr auto array_for_each(T& x, Ts&... xs)
             }
             else
             {
-                f(array2vec(x), array2vec(xs)...);
+                using vec_type = std::remove_reference_t<decltype(array2vec(x))>;
+                f(array2vec(x), __builtin_convertvector(array2vec(xs), vec_type)...);
             }
         }
         else

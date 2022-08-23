@@ -61,8 +61,8 @@ __device__ void generic_binary_layernorm(
         r.inner([&](auto& y, auto x1, auto x2, auto... xs) {
             auto x = op(x1, x2);
             auto m = x - mean_x;
-            // m * rsqrt(mean(m ^ 2) + 1e-12)
-            y = compute(m * rsqrt(mean_x2 - mean_x + value_type{1e-12}), xs...);
+            // m * rsqrt(mean(m ^ 2) + 1.00136e-05)
+            y = compute(m * rsqrt(mean_x2 - mean_x + value_type{1.00136e-05}), xs...);
         })(output, input1, input2, inputs...);
     });
 }

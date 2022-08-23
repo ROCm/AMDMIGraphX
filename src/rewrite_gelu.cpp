@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,15 +43,11 @@ struct find_gelu_erf
             return;
 
         auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
-        auto mul = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lit);
-        mul      = m.insert_instruction(ins, make_op("mul"), x, mul);
+        auto mul      = insert_common_op(m, ins, make_op("mul"), {x, lit});
         auto sig = m.insert_instruction(ins, make_op("neg"), mul);
         sig      = m.insert_instruction(ins, make_op("exp"), sig);
         auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
-        one      = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), one);
-        sig = m.insert_instruction(ins, make_op("add"), sig, one);
+        sig = insert_common_op(m, ins, make_op("add"), {sig, one});
         sig = m.insert_instruction(ins, make_op("div"), x, sig);
         m.replace_instruction(ins, sig);
     }

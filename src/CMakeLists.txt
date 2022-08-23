@@ -81,6 +81,7 @@ add_library(migraphx
     replace_allocate.cpp
     simplify_qdq.cpp
     sqlite.cpp
+    rewrite_batched_gemms.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp

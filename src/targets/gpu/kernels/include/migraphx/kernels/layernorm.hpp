@@ -55,8 +55,8 @@ __device__ void generic_binary_layernorm(
                 return make_array(x, x * x) * vec_type<value_type>{1.0 / relements};
             })(input1, input2);
 
-        auto mean_x  = means[0];
-        auto mean_x2 = means[1];
+        auto mean_x   = means[0];
+        auto mean_x2  = means[1];
         auto variance = mean_x2 - (mean_x * mean_x);
 
         r.inner([&](auto& y, auto x1, auto x2, auto... xs) {

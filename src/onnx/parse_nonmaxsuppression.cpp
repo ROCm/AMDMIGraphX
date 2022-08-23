@@ -21,62 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
-#define MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/op/unary.hpp>
-#include <cmath>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace onnx {
 
-struct convert : unary<convert>
+struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
 {
-    shape::type_t target_type = shape::half_type;
+    std::vector<op_desc> operators() const { return {{"NonMaxSuppression", "nonmaxsuppression"}}; }
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    instruction_ref parse(const op_desc& opd,
+                          const onnx_parser& parser,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
     {
-        return pack(f(self.target_type, "target_type"));
+        auto op = parser.load(opd.op_name, info);
+        op.from_value({{"use_dyn_output", parser.use_dyn_output}});
+        return info.add_instruction(op, args);
     }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        auto input = inputs.at(0);
-        if(input.dynamic())
-        {
-            return {target_type, input.dyn_dims()};
-        }
-        else
-        {
-            return {target_type, input.lens(), input.strides()};
-        }
-    }
-
-    std::string point_op() const
-    {
-        return "${function:convert}<" + shape::cpp_type(target_type) + ">(${0})";
-    }
-
-    auto apply() const
-    {
-        auto type = target_type;
-        return [type](auto x) {
-            auto y = x;
-            shape::visit(type, [&](auto as) { y = std::min(std::max(as(x), as.min()), as.max()); });
-            return y;
-        };
-    }
-
-    convert(shape::type_t t) : target_type{t} {}
-    convert() {}
 };
 
-} // namespace op
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

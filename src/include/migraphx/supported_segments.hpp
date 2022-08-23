@@ -21,37 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP
 
-#include <unordered_map>
+#include <unordered_set>
 
 #include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct target_assignments
+struct supported_segment
 {
-    using iterator   = std::unordered_map<instruction_ref, std::string>::const_iterator;
-    using value_type = std::pair<instruction_ref, std::string>;
-
-    auto size() const { return assignments.size(); }
-    auto& at(instruction_ref ins) const { return assignments.at(ins); }
-
-    auto insert(iterator it, const std::pair<instruction_ref, std::string>& assignment)
-    {
-        return assignments.insert(it, assignment);
-    }
-    auto find(instruction_ref ins) const { return assignments.find(ins); }
-
-    auto begin() const { return assignments.begin(); }
-    auto end() const { return assignments.end(); }
-
-    private:
-    std::unordered_map<instruction_ref, std::string> assignments;
+    std::unordered_set<instruction_ref> instructions;
+    float metric;
 };
+
+using supported_segments = std::vector<supported_segment>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SUPPORTED_SEGMENTS_HPP

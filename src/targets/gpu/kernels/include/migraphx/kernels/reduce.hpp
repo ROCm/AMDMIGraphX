@@ -94,8 +94,8 @@ MIGRAPHX_DPP_REDUCE(op::max, v_max)
 MIGRAPHX_DPP_REDUCE(op::min, v_min)
 MIGRAPHX_DPP_REDUCE(op::product, v_mul)
 
-template <class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <class Op, class T, class Index, class F>
+__device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     constexpr index_int lanes_per_thread = 16;
@@ -123,8 +123,8 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
     return y;
 }
 #else
-template <class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <class Op, class T, class Index, class F>
+__device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
 
     using type = decltype(f(0));

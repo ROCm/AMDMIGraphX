@@ -33,41 +33,43 @@
 namespace migraphx {
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                             \
-    template <class U>                                                                      \
-    constexpr array& operator op(const array<U, N>& x)                                      \
-    {                                                                                       \
-        array_for_each(*this, x)([](auto& sy, auto sx) { sy op sx; });                      \
-        return *this;                                                                       \
-    }                                                                                       \
-    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                           \
-    constexpr array& operator op(const U& x)                                                \
-    {                                                                                       \
-        array_for_each (*this)([&](auto& sy) { sy op x; });                                 \
-        return *this;                                                                       \
-    }                                                                                       \
-    template <class U>                                                                      \
-    friend constexpr auto operator binary_op(const array& x, const array<U, N>& y)          \
-    {                                                                                       \
-        array<decltype(T {} binary_op U{}), N> z{};                                         \
-        array_for_each(z, x, y)([&](auto& sz, auto sx, auto sy) { sz = sx binary_op sy; }); \
-        return z;                                                                           \
-    }                                                                                       \
-    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                           \
-    friend constexpr auto operator binary_op(const array& x, const U& y)                    \
-    {                                                                                       \
-        array<decltype(T {} binary_op U{}), N> z{};                                         \
-        array_for_each(z, x)([&](auto& sz, auto sx) { sz = sx binary_op y; });              \
-        return z;                                                                           \
-    }                                                                                       \
-    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                           \
-    friend constexpr auto operator binary_op(const U& x, const array& y)                    \
-    {                                                                                       \
-        array<decltype(T {} binary_op U{}), N> z{};                                         \
-        array_for_each(z, y)([&](auto& sz, auto sy) { sz = x binary_op sy; });              \
-        return z;                                                                           \
+#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                              \
+    template <class U>                                                                       \
+    constexpr array& operator op(const array<U, N>& x)                                       \
+    {                                                                                        \
+        array_detail::array_for_each(*this, x)([](auto& sy, auto sx) { sy op sx; });         \
+        return *this;                                                                        \
+    }                                                                                        \
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                            \
+    constexpr array& operator op(const U& x)                                                 \
+    {                                                                                        \
+        array_detail::array_for_each (*this)([&](auto& sy) { sy op x; });                    \
+        return *this;                                                                        \
+    }                                                                                        \
+    template <class U>                                                                       \
+    friend constexpr auto operator binary_op(const array& x, const array<U, N>& y)           \
+    {                                                                                        \
+        array<decltype(T {} binary_op U{}), N> z{};                                          \
+        array_detail::array_for_each(z, x, y)(                                               \
+            [&](auto& sz, auto sx, auto sy) { sz = sx binary_op sy; });                      \
+        return z;                                                                            \
+    }                                                                                        \
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                            \
+    friend constexpr auto operator binary_op(const array& x, const U& y)                     \
+    {                                                                                        \
+        array<decltype(T {} binary_op U{}), N> z{};                                          \
+        array_detail::array_for_each(z, x)([&](auto& sz, auto sx) { sz = sx binary_op y; }); \
+        return z;                                                                            \
+    }                                                                                        \
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                            \
+    friend constexpr auto operator binary_op(const U& x, const array& y)                     \
+    {                                                                                        \
+        array<decltype(T {} binary_op U{}), N> z{};                                          \
+        array_detail::array_for_each(z, y)([&](auto& sz, auto sy) { sz = x binary_op sy; }); \
+        return z;                                                                            \
     }
 
+namespace array_detail {
 template <class T>
 constexpr auto is_vectorizable()
 {
@@ -75,20 +77,15 @@ constexpr auto is_vectorizable()
 }
 
 template <class T>
-constexpr auto array2vec(T x)
+__device__ auto& array2vec(T& x)
 {
     using value_type    = typename T::value_type;
     constexpr auto size = decltype(x.size()){};
     using type          = vec<value_type, size>;
-    static_assert(size != 3, "Wrong size");
-    return __builtin_bit_cast(type, x);
-}
-
-template <class T, class U, index_int N>
-constexpr void vec2array(T& x, vec<U, N> v)
-{
-    if constexpr(not is_const<T>{})
-        x = __builtin_bit_cast(T, v);
+    if constexpr(is_const<T>{})
+        return reinterpret_cast<const type&>(x);
+    else
+        return reinterpret_cast<type&>(x);
 }
 
 template <class T, class... Ts>
@@ -101,11 +98,16 @@ constexpr auto array_for_each(T& x, Ts&... xs)
                       (is_vectorizable<typename Ts::value_type>() or ...)) and
                      size <= 8 and size > 1 and (size % 2 == 0))
         {
-            [&](auto v, auto... vs) {
-                f(v, vs...);
-                vec2array(x, v);
-                swallow{(vec2array(xs, vs), 0)...};
-            }(array2vec(x), array2vec(xs)...);
+            if(__builtin_is_constant_evaluated())
+            {
+                for(index_int i = 0; i < size; i++)
+                    f(x[i], xs[i]...);
+            }
+            else
+            {
+                using vec_type = std::remove_reference_t<decltype(array2vec(x))>;
+                f(array2vec(x), __builtin_convertvector(array2vec(xs), vec_type)...);
+            }
         }
         else
         {
@@ -114,6 +116,7 @@ constexpr auto array_for_each(T& x, Ts&... xs)
         }
     };
 }
+} // namespace array_detail
 
 template <class T, index_int N>
 struct array
@@ -151,18 +154,13 @@ struct array
 
     constexpr T dot(const array& x) const
     {
-        T result = 0;
-        for(index_int i = 0; i < N; i++)
-            result += x[i] * d[i];
-        return result;
+        auto r = x * (*this);
+        return r.reduce([](auto a, auto b) { return a + b; }, 0);
     }
 
     constexpr T product() const
     {
-        T result = 1;
-        for(index_int i = 0; i < N; i++)
-            result *= d[i];
-        return result;
+        return reduce([](auto x, auto y) { return x * y; }, 1);
     }
 
     constexpr T single(index_int width = 100) const
@@ -183,6 +181,15 @@ struct array
         array<decltype(f(d[0])), N> result;
         for(index_int i = 0; i < N; i++)
             result[i] = f(d[i]);
+        return result;
+    }
+
+    template <class F>
+    constexpr auto reduce(F f, T init) const
+    {
+        T result = init;
+        for(index_int i = 0; i < N; i++)
+            result = f(result, d[i]);
         return result;
     }
 

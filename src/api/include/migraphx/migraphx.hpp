@@ -343,8 +343,8 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     }
 
 template <size_t N>
-struct out_params{
-
+struct out_params
+{
 };
 
 template <class Base>
@@ -397,8 +397,6 @@ struct interface_base : Base
         this->make_handle(f, &obj, copy, del, std::forward<Ts>(xs)...);
     }
 
-    
-
     template <class T, class Setter, class F>
     void set_fp(Setter setter, F pf, out_params<2>)
     {
@@ -408,8 +406,9 @@ struct interface_base : Base
              this->get_handle_ptr(),
              [](auto out1, auto out2, void* obj, char* ex_msg, size_t ex_msg_size, auto... xs)
                  -> migraphx_status {
-                 return try_(
-                     [&] { call_cast_arg<T>(rank<2>{}, f, out1, out2, obj, xs...); }, ex_msg, ex_msg_size);
+                 return try_([&] { call_cast_arg<T>(rank<2>{}, f, out1, out2, obj, xs...); },
+                             ex_msg,
+                             ex_msg_size);
              });
     }
 
@@ -434,9 +433,8 @@ struct interface_base : Base
         (void)f; // avoid warning on gcc
         call(setter,
              this->get_handle_ptr(),
-             [](void* obj, char* ex_msg, size_t ex_msg_size, auto... xs)
-                 -> migraphx_status {
-                                 return try_(
+             [](void* obj, char* ex_msg, size_t ex_msg_size, auto... xs) -> migraphx_status {
+                 return try_(
                      [&] { call_cast_arg<T>(rank<0>{}, f, obj, xs...); }, ex_msg, ex_msg_size);
              });
     }
@@ -444,9 +442,12 @@ struct interface_base : Base
     template <class T, class Setter, class F, class Out>
     void set_auto_fp(Setter setter, F f, Out nums)
     {
-        return set_fp<T>(setter, [=](T& obj, auto out1, auto out2, auto... xs) {
-            auto_invoke(f, out1, out2, obj, auto_convert_param(rank<2>{}, xs)...);
-        }, nums);
+        return set_fp<T>(
+            setter,
+            [=](T& obj, auto out1, auto out2, auto... xs) {
+                auto_invoke(f, out1, out2, obj, auto_convert_param(rank<2>{}, xs)...);
+            },
+            nums);
     }
 
     struct no_out_arg
@@ -542,9 +543,11 @@ struct interface_base : Base
 };
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_INTERFACE_LIFT(T, prefix, name, out_params)          \
-    this->set_auto_fp<T>(&migraphx_##prefix##_set_##name, \
-                         [](T& x, auto... xs) { return x.name(xs...); }, out_params)
+#define MIGRAPHX_INTERFACE_LIFT(T, prefix, name, out_params) \
+    this->set_auto_fp<T>(                                    \
+        &migraphx_##prefix##_set_##name,                     \
+        [](T& x, auto... xs) { return x.name(xs...); },      \
+        out_params)
 
 template <class Base, class T>
 using require_interface =

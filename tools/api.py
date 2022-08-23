@@ -312,7 +312,7 @@ class Parameter:
 
     def virtual_output_args(self, prefix: Optional[str] = None) -> List[str]:
         container_type = self.type.remove_generic().basic().str()
-        decl_list = []
+        decl_list : Optional[str] = []
         for t, n, in self.cparams:
             if not decl_list and (container_type == "std::vector"
                                   or container_type == "vector"):
@@ -327,14 +327,15 @@ class Parameter:
     def virtual_output_declarations(self,
                                     prefix: Optional[str] = None) -> List[str]:
         container_type = self.type.remove_generic().basic().str()
-        decl_list = []
+        decl_list : Optional[str] = []
         for t, n, in self.cparams:
             if not decl_list and (container_type == "std::vector"
                                   or container_type == "vector"):
-                inner_t = self.type.inner_type().str()
-                decl_list.append(
-                    'std::vector<{inner_t}> {prefix}{n}(1024);'.format(
-                        inner_t=inner_t, prefix=prefix or '', n=n))
+                inner_t = self.type.inner_type()
+                if inner_t:
+                    decl_list.append(
+                        'std::vector<{inner_t}> {prefix}{n}(1024);'.format(
+                            inner_t=inner_t.str(), prefix=prefix or '', n=n))
             else:
                 decl_list.append(
                     'std::remove_pointer_t<{type}> {prefix}{n};'.format(

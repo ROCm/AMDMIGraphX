@@ -48,13 +48,13 @@ TEST_CASE(bias_gelu)
         auto b    = m1.add_parameter("b", s1);
         auto add1 = m1.add_instruction(migraphx::make_op("add"), a, b);
         auto l1   = m1.add_literal(migraphx::literal{s2, {1.4140625f}});
-        auto div = add_common_op(m1, migraphx::make_op("div"), {add1, l1});
-        auto erf = m1.add_instruction(migraphx::make_op("erf"), div);
-        auto l2  = m1.add_literal(migraphx::literal{s2, {1.0f}});
+        auto div  = add_common_op(m1, migraphx::make_op("div"), {add1, l1});
+        auto erf  = m1.add_instruction(migraphx::make_op("erf"), div);
+        auto l2   = m1.add_literal(migraphx::literal{s2, {1.0f}});
         auto add2 = add_common_op(m1, migraphx::make_op("add"), {erf, l2});
         auto mul  = m1.add_instruction(migraphx::make_op("mul"), add1, add2);
         auto l3   = m1.add_literal(migraphx::literal{s2, {0.5f}});
-        mul = add_common_op(m1, migraphx::make_op("mul"), {mul, l3});
+        mul       = add_common_op(m1, migraphx::make_op("mul"), {mul, l3});
         m1.add_return({mul});
     }
     migraphx::rewrite_gelu pass;
@@ -72,8 +72,8 @@ TEST_CASE(bias_gelu)
         auto sig = m2.add_instruction(migraphx::make_op("neg"), mul);
         sig      = m2.add_instruction(migraphx::make_op("exp"), sig);
         auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
-        sig = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
-        sig = m2.add_instruction(migraphx::make_op("div"), add, sig);
+        sig      = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
+        sig      = m2.add_instruction(migraphx::make_op("div"), add, sig);
         m2.add_return({sig});
     }
 
@@ -86,17 +86,17 @@ TEST_CASE(non_bias_gelu)
     migraphx::shape s2{migraphx::shape::half_type};
     migraphx::module m1;
     {
-        auto a   = m1.add_parameter("a", s1);
-        auto b   = m1.add_parameter("b", s1);
-        auto sub = m1.add_instruction(migraphx::make_op("sub"), a, b);
-        auto l1  = m1.add_literal(migraphx::literal{s2, {1.4140625f}});
-        auto div = add_common_op(m1, migraphx::make_op("div"), {sub, l1});
-        auto erf = m1.add_instruction(migraphx::make_op("erf"), div);
-        auto l2  = m1.add_literal(migraphx::literal{s2, {1.0f}});
+        auto a    = m1.add_parameter("a", s1);
+        auto b    = m1.add_parameter("b", s1);
+        auto sub  = m1.add_instruction(migraphx::make_op("sub"), a, b);
+        auto l1   = m1.add_literal(migraphx::literal{s2, {1.4140625f}});
+        auto div  = add_common_op(m1, migraphx::make_op("div"), {sub, l1});
+        auto erf  = m1.add_instruction(migraphx::make_op("erf"), div);
+        auto l2   = m1.add_literal(migraphx::literal{s2, {1.0f}});
         auto add2 = add_common_op(m1, migraphx::make_op("add"), {erf, l2});
         auto mul  = m1.add_instruction(migraphx::make_op("mul"), sub, add2);
         auto l3   = m1.add_literal(migraphx::literal{s2, {0.5f}});
-        mul = add_common_op(m1, migraphx::make_op("mul"), {mul, l3});
+        mul       = add_common_op(m1, migraphx::make_op("mul"), {mul, l3});
         m1.add_return({mul});
     }
     migraphx::rewrite_gelu pass;
@@ -114,8 +114,8 @@ TEST_CASE(non_bias_gelu)
         auto sig = m2.add_instruction(migraphx::make_op("neg"), mul);
         sig      = m2.add_instruction(migraphx::make_op("exp"), sig);
         auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
-        sig = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
-        sig = m2.add_instruction(migraphx::make_op("div"), sub, sig);
+        sig      = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
+        sig      = m2.add_instruction(migraphx::make_op("div"), sub, sig);
         m2.add_return({sig});
     }
 

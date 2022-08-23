@@ -43,12 +43,12 @@ struct find_gelu_erf
             return;
 
         auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
-        auto mul      = insert_common_op(m, ins, make_op("mul"), {x, lit});
+        auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});
         auto sig = m.insert_instruction(ins, make_op("neg"), mul);
         sig      = m.insert_instruction(ins, make_op("exp"), sig);
         auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
-        sig = insert_common_op(m, ins, make_op("add"), {sig, one});
-        sig = m.insert_instruction(ins, make_op("div"), x, sig);
+        sig      = insert_common_op(m, ins, make_op("add"), {sig, one});
+        sig      = m.insert_instruction(ins, make_op("div"), x, sig);
         m.replace_instruction(ins, sig);
     }
 };

@@ -686,11 +686,11 @@ struct migraphx_experimental_custom_op
     {
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
-        std::remove_pointer_t<size_t**> out;
+        std::vector<size_t> out(1024);
         std::remove_pointer_t<size_t*> out_size;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
-        auto api_error_result = output_alias_f(&out,
+        auto api_error_result = output_alias_f(out.data(),
                                                &out_size,
                                                object_ptr.data,
                                                exception_msg.data(),
@@ -702,7 +702,7 @@ struct migraphx_experimental_custom_op
             throw std::runtime_error("Error in output_alias of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
         }
-        return std::vector<size_t>(out, out + out_size);
+        return std::vector<size_t>(out.data(), out.data() + out_size);
     }
 
     migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;

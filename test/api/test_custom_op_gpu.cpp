@@ -248,7 +248,7 @@ struct stride_two final : migraphx::experimental_custom_op_base
     }
 
     virtual bool runs_on_offload_target() const override { return true; }
-    virtual migraphx::size_t_vec output_alias(migraphx::shapes) const override { return {0U}; };
+    virtual std::vector<size_t> output_alias(migraphx::shapes) const override { return {0U}; };
 };
 
 TEST_CASE(stride_two_custom_op_test)

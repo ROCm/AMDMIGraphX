@@ -311,18 +311,36 @@ class Parameter:
         return self.substitute('${type} ${name}', prefix=prefix)
 
     def virtual_output_args(self, prefix: Optional[str] = None) -> List[str]:
-        return [
-            '&{prefix}{n}'.format(prefix=prefix or '', n=n)
-            for t, n in self.cparams
-        ]
+        container_type = self.type.remove_generic().basic().str()
+        decl_list = []
+        for t, n, in self.cparams:
+            if not decl_list and (container_type == "std::vector"
+                                  or container_type == "vector"):
+                inner_t = self.type.inner_type().str()
+                decl_list.append('{prefix}{n}.data()'.format(prefix=prefix
+                                                             or '',
+                                                             n=n))
+            else:
+                decl_list.append('&{prefix}{n}'.format(prefix=prefix or '',
+                                                       n=n))
+        return decl_list
 
     def virtual_output_declarations(self,
                                     prefix: Optional[str] = None) -> List[str]:
-        return [
-            'std::remove_pointer_t<{type}> {prefix}{n};'.format(
-                type=Type(t).str(), prefix=prefix or '', n=n)
-            for t, n in self.cparams
-        ]
+        container_type = self.type.remove_generic().basic().str()
+        decl_list = []
+        for t, n, in self.cparams:
+            if not decl_list and (container_type == "std::vector"
+                                  or container_type == "vector"):
+                inner_t = self.type.inner_type().str()
+                decl_list.append(
+                    'std::vector<{inner_t}> {prefix}{n}(1024);'.format(
+                        inner_t=inner_t, prefix=prefix or '', n=n))
+            else:
+                decl_list.append(
+                    'std::remove_pointer_t<{type}> {prefix}{n};'.format(
+                        type=Type(t).str(), prefix=prefix or '', n=n))
+        return decl_list
 
     def virtual_output(self, prefix: Optional[str] = None) -> str:
         write = self.virtual_write
@@ -933,11 +951,17 @@ def vector_c_wrap(p: Parameter) -> None:
         if p.type.is_const():
             t = t.add_const()
     if p.returns:
-        if p.type.is_reference() or p.virtual:
+        if p.type.is_reference():
             p.add_param(t.add_pointer())
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
                         'Null pointer')
+        elif p.virtual:
+            p.add_param(t)
+            p.add_size_param()
+            p.bad_param('${name} == nullptr or ${size} == nullptr',
+                        'Null pointer')
+            p.virtual_write = '${type}(${name}.data(), ${name}.data()+${size})'
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')

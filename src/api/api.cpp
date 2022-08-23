@@ -702,7 +702,7 @@ struct migraphx_experimental_custom_op
             throw std::runtime_error("Error in output_alias of: " +
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
         }
-        return {out.data(), out.data() + out_size};
+        return {out.begin(), out.begin() + out_size}; // cppcheck-suppress returnDanglingLifetime;
     }
 
     migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;

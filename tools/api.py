@@ -960,7 +960,7 @@ def vector_c_wrap(p: Parameter) -> None:
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
                         'Null pointer')
-            p.virtual_write = '{${name}.data(), ${name}.data()+${size}}'
+            p.virtual_write = '{${name}.begin(), ${name}.begin()+${size}}; // cppcheck-suppress returnDanglingLifetime'
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')

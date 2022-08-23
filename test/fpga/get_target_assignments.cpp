@@ -26,8 +26,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/fpga/target.hpp>
 #include <migraphx/target_assignments.hpp>
+#include <migraphx/iterator_for.hpp>
 
 migraphx::program create_program()
 {
@@ -37,8 +38,8 @@ migraphx::program create_program()
     auto x    = mm->add_parameter("x", s);
     auto y    = mm->add_parameter("y", s);
     auto z    = mm->add_parameter("z", s);
-    auto diff = mm->add_instruction(migraphx::make_op("div"), x, y);
-    mm->add_instruction(migraphx::make_op("div"), diff, z);
+    auto diff = mm->add_instruction(migraphx::make_op("add"), x, y);
+    mm->add_instruction(migraphx::make_op("add"), diff, z);
     return p;
 }
 
@@ -47,14 +48,16 @@ TEST_CASE(is_supported)
     auto p       = create_program();
     auto targets = migraphx::get_targets();
     EXPECT(!targets.empty());
-    auto first_target = targets[0];
-    auto t            = migraphx::make_target(first_target);
+    auto t = migraphx::make_target("fpga");
 
     const auto assignments = p.get_target_assignments({t});
-    for(const auto& [ins, target] : assignments)
+    const auto* mod        = p.get_main_module();
+    EXPECT(mod->size() == assignments.size());
+
+    for(const auto ins : iterator_for(*mod))
     {
-        (void)ins;
-        EXPECT(target == first_target);
+        const auto& target = assignments.at(ins);
+        EXPECT(target == "fpga");
     }
 }
 

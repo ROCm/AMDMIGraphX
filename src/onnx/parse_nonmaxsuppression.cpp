@@ -21,16 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include <migraphx/target_assignments.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-void target_assignments::add_assignment(instruction_ref ins, const std::string& target)
+struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
 {
-    assignments.emplace(ins, target);
-}
+    std::vector<op_desc> operators() const { return {{"NonMaxSuppression", "nonmaxsuppression"}}; }
 
+    instruction_ref parse(const op_desc& opd,
+                          const onnx_parser& parser,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
+    {
+        auto op = parser.load(opd.op_name, info);
+        op.from_value({{"use_dyn_output", parser.use_dyn_output}});
+        return info.add_instruction(op, args);
+    }
+};
+
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

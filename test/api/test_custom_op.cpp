@@ -133,7 +133,7 @@ struct identity_custom_op final : migraphx::experimental_custom_op_base
         return inputs.back();
     }
 
-    virtual std::vector<size_t> output_alias(migraphx::shapes) const override { return {0U, 1U}; }
+    virtual std::vector<size_t> output_alias(migraphx::shapes) const override { return {0, 1}; }
 };
 
 TEST_CASE(run_custom_op_with_invalid_output_alias)

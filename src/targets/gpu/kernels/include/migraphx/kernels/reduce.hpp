@@ -94,8 +94,8 @@ MIGRAPHX_DPP_REDUCE(op::max, v_max)
 MIGRAPHX_DPP_REDUCE(op::min, v_min)
 MIGRAPHX_DPP_REDUCE(op::product, v_mul)
 
-template <class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <class Op, class T, class Index, class F>
+__device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     constexpr index_int lanes_per_thread = 16;
@@ -123,8 +123,8 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
     return y;
 }
 #else
-template <class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <class Op, class T, class Index, class F>
+__device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
 
     using type = decltype(f(0));
@@ -200,13 +200,10 @@ struct block
         template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
-            return sliced(slice, [=](auto x, auto... xs) {
-                return vec_reduce(block_reduce(idx,
-                                               op,
-                                               init,
-                                               x.get_shape().elements(),
-                                               [&](auto j) { return read(x[j], xs[j]...); }),
-                                  op);
+            return sliced(slicer, [=](auto x, auto... xs) {
+                return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) {
+                    return vec_reduce(read(x[j], xs[j]...), op);
+                });
             });
         }
 

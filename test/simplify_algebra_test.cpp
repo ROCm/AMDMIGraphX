@@ -1915,7 +1915,7 @@ TEST_CASE_REGISTER(reorder_reshape_slice<8, false>);
 template <std::size_t batch_size>
 void reorder_reshape_slice_move_axis1()
 {
-    migraphx::module m1; 
+    migraphx::module m1;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
@@ -1946,7 +1946,7 @@ void reorder_reshape_slice_move_axis1()
         m1.add_return({ret});
     };
 
-    migraphx::module m2; 
+    migraphx::module m2;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
@@ -1956,13 +1956,16 @@ void reorder_reshape_slice_move_axis1()
         auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
         auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {32}}}), rsp);
-        auto t0 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc0);
+        auto t0 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc0);
         auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {32}}, {"ends", {64}}}), rsp);
-        auto t1 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc1);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc1);
         auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {96}}}), rsp);
-        auto t2 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm1}}), slc2);
+        auto t2 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm1}}), slc2);
 
         auto sum = m2.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m2.add_instruction(migraphx::make_op("dot"), sum, t2);
@@ -1977,7 +1980,7 @@ TEST_CASE_REGISTER(reorder_reshape_slice_move_axis1<8>);
 
 TEST_CASE(reorder_reshape_slice_move_axis2)
 {
-    migraphx::module m1; 
+    migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {128, 96}};
         auto input = m1.add_parameter("input", s);
@@ -2002,7 +2005,7 @@ TEST_CASE(reorder_reshape_slice_move_axis2)
         m1.add_return({ret});
     };
 
-    migraphx::module m2; 
+    migraphx::module m2;
     {
         auto s                    = migraphx::shape{migraphx::shape::float_type, {128, 96}};
         auto input                = m2.add_parameter("input", s);
@@ -2062,7 +2065,7 @@ TEST_CASE(reorder_reshape_slice_not_apply)
 template <std::size_t batch_size>
 void reorder_reshape_slice_diff_dims()
 {
-    migraphx::module m1; 
+    migraphx::module m1;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 96, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
@@ -2123,7 +2126,7 @@ void reorder_slice_trans()
         m1.add_return({ret});
     };
 
-    migraphx::module m2; 
+    migraphx::module m2;
     {
         auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         auto input = m2.add_parameter("input", s);
@@ -2148,10 +2151,10 @@ void reorder_slice_trans()
 TEST_CASE_REGISTER(reorder_slice_trans<1>);
 TEST_CASE_REGISTER(reorder_slice_trans<8>);
 
-template<std::size_t batch_size>
+template <std::size_t batch_size>
 void reorder_slice_trans_diff_perm()
 {
-    migraphx::module m1; 
+    migraphx::module m1;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         std::vector<int64_t> perm0 = {0, 2, 1};

@@ -1829,7 +1829,7 @@ void reorder_reshape_slice()
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};
     std::vector<int64_t> perm1 = {0, 2, 3, 1};
-    migraphx::module m1; 
+    migraphx::module m1;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         if(input_transpose)
@@ -1865,7 +1865,7 @@ void reorder_reshape_slice()
         m1.add_return({ret});
     };
 
-    migraphx::module m2; 
+    migraphx::module m2;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         if(input_transpose)
@@ -1904,12 +1904,13 @@ void reorder_reshape_slice()
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE_REGISTER(reorder_reshape_slice<1,true>); // test if contiguous is added as necessary if input is transposed
-TEST_CASE_REGISTER(reorder_reshape_slice<4,true>);
-TEST_CASE_REGISTER(reorder_reshape_slice<8,true>);
-TEST_CASE_REGISTER(reorder_reshape_slice<1,false>);
-TEST_CASE_REGISTER(reorder_reshape_slice<4,false>);
-TEST_CASE_REGISTER(reorder_reshape_slice<8,false>);
+TEST_CASE_REGISTER(reorder_reshape_slice<1, true>); // test if contiguous is added as necessary if
+                                                    // input is transposed
+TEST_CASE_REGISTER(reorder_reshape_slice<4, true>);
+TEST_CASE_REGISTER(reorder_reshape_slice<8, true>);
+TEST_CASE_REGISTER(reorder_reshape_slice<1, false>);
+TEST_CASE_REGISTER(reorder_reshape_slice<4, false>);
+TEST_CASE_REGISTER(reorder_reshape_slice<8, false>);
 
 TEST_CASE(reorder_reshape_slice_move_axis1)
 {

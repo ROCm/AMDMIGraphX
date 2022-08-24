@@ -1823,12 +1823,14 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
     }
     EXPECT(m1.sort() == m2.sort());
 }
-TEST_CASE(reorder_reshape_slice)
+
+template <size_t batch_size, bool input_transpose>
+void reorder_reshape_slice()
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};
     std::vector<int64_t> perm1 = {0, 2, 3, 1};
-    auto create_m1             = [&](std::size_t batch_size, bool input_transpose) {
-        migraphx::module m1;
+    migraphx::module m1; 
+    {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         if(input_transpose)
         {
@@ -1861,12 +1863,10 @@ TEST_CASE(reorder_reshape_slice)
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("dot"), sum, t2);
         m1.add_return({ret});
-
-        return m1;
     };
 
-    auto create_m2 = [&](std::size_t batch_size, bool input_transpose) {
-        migraphx::module m2;
+    migraphx::module m2; 
+    {
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         if(input_transpose)
         {
@@ -1899,24 +1899,17 @@ TEST_CASE(reorder_reshape_slice)
         auto sum = m2.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m2.add_instruction(migraphx::make_op("dot"), sum, t2);
         m2.add_return({ret});
-
-        return m2;
     };
-
-    auto test = [&](std::size_t batch_size, bool input_transpose) {
-        auto m1 = create_m1(batch_size, input_transpose);
-        run_pass(m1);
-        auto m2 = create_m2(batch_size, input_transpose);
-        EXPECT(m1.sort() == m2.sort());
-    };
-
-    test(1, true); // check if contiguous is added as necessary if input is transposed
-    test(1, false);
-    test(4, true);
-    test(4, false);
-    test(8, true);
-    test(8, false);
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
+
+TEST_CASE_REGISTER(reorder_reshape_slice<1,true>); // test if contiguous is added as necessary if input is transposed
+TEST_CASE_REGISTER(reorder_reshape_slice<4,true>);
+TEST_CASE_REGISTER(reorder_reshape_slice<8,true>);
+TEST_CASE_REGISTER(reorder_reshape_slice<1,false>);
+TEST_CASE_REGISTER(reorder_reshape_slice<4,false>);
+TEST_CASE_REGISTER(reorder_reshape_slice<8,false>);
 
 TEST_CASE(reorder_reshape_slice_move_axis1)
 {

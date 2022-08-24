@@ -1834,8 +1834,7 @@ void reorder_reshape_slice()
         auto s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
         if(InTrans)
         {
-            s = migraphx::shape{
-                migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
+            s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
         }
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
@@ -1870,8 +1869,7 @@ void reorder_reshape_slice()
         auto s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
         if(InTrans)
         {
-            s = migraphx::shape{
-                migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
+            s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
         }
         auto input     = m2.add_parameter("input", s);
         auto rsp_input = input;
@@ -1917,7 +1915,7 @@ void reorder_reshape_slice_move_axis1()
 {
     migraphx::module m1;
     {
-        auto s = migraphx::shape{migraphx::shape::float_type, {BS, 256, 96}};
+        auto s                     = migraphx::shape{migraphx::shape::float_type, {BS, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
         auto input                 = m1.add_parameter("input", s);
@@ -1948,7 +1946,7 @@ void reorder_reshape_slice_move_axis1()
 
     migraphx::module m2;
     {
-        auto s = migraphx::shape{migraphx::shape::float_type, {BS, 256, 96}};
+        auto s                     = migraphx::shape{migraphx::shape::float_type, {BS, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
         auto input                 = m2.add_parameter("input", s);
@@ -2067,9 +2065,9 @@ void reorder_reshape_slice_diff_dims()
 {
     migraphx::module m1;
     {
-        auto s = migraphx::shape{migraphx::shape::float_type, {BS, 96, 96}};
-        auto input                 = m1.add_parameter("input", s);
-        auto slc0                  = m1.add_instruction(
+        auto s     = migraphx::shape{migraphx::shape::float_type, {BS, 96, 96}};
+        auto input = m1.add_parameter("input", s);
+        auto slc0  = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {32}}}), input);
         auto slc1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {32}}, {"ends", {64}}}), input);
@@ -2154,7 +2152,7 @@ void reorder_slice_trans_diff_perm()
 {
     migraphx::module m1;
     {
-        auto s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
+        auto s                     = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
         std::vector<int64_t> perm0 = {0, 2, 1};
         std::vector<int64_t> perm1 = {0, 1, 2};
         auto input                 = m1.add_parameter("input", s);

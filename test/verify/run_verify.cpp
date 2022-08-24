@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include "run_verify.hpp"
 #include "auto_print.hpp"
 #include "verify_program.hpp"
@@ -7,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/verify_args.hpp>
 #include <set>
 
@@ -34,6 +58,15 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
     return std::async(std::launch::deferred, std::forward<Function>(f));
 }
 
+inline void verify_load_save(const migraphx::program& p)
+{
+    migraphx::tmp_dir td{"migraphx_test"};
+    auto path = td.path / "test.mxr";
+    migraphx::save(p, path.string());
+    auto loaded = migraphx::load(path.string());
+    EXPECT(p == loaded);
+}
+
 inline void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
     auto name   = t.name();
@@ -59,6 +92,8 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
             throw std::runtime_error("Compiling program with " + name + " alters its shape");
         }
     }
+    if(t.name() != "ref")
+        verify_load_save(p);
 }
 
 target_info run_verify::get_target_info(const std::string& name) const
@@ -129,11 +164,12 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     auto_print::set_terminate_handler(name);
     if(migraphx::enabled(MIGRAPHX_DUMP_TEST{}))
         migraphx::save(p, name + ".mxr");
-    std::vector<std::pair<std::string, result_future>> results;
+    verify_load_save(p);
     std::vector<std::string> target_names;
     for(const auto& tname : migraphx::get_targets())
     {
-        if(tname == "ref")
+        // TODO(varunsh): once verify tests can run, remove fpga
+        if(tname == "ref" || tname == "fpga")
             continue;
 
         // if tests disabled, skip running it
@@ -145,6 +181,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     }
     if(not target_names.empty())
     {
+        std::vector<std::pair<std::string, result_future>> results;
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {

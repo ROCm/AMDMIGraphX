@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -121,6 +144,7 @@ TEST_CASE(convolution_shape)
     throws_shape(migraphx::make_op("convolution"), input2, weights2);
     throws_shape(migraphx::make_op("convolution"), input2, weights);
 
+    // 1D convolution
     migraphx::shape output_1d{migraphx::shape::float_type, {4, 4, 1}};
     migraphx::shape input_1d{migraphx::shape::float_type, {4, 3, 3}};
     migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
@@ -130,6 +154,11 @@ TEST_CASE(convolution_shape)
         input_1d,
         weights_1d);
 
+    // channel numbers mismatch
+    weights_1d = {migraphx::shape::float_type, {4, 8, 3}};
+    throws_shape(migraphx::make_op("convolution"), input_1d, weights_1d);
+
+    // 3D convolution
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
     migraphx::shape weights_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
@@ -141,6 +170,130 @@ TEST_CASE(convolution_shape)
         weights_3d);
 
     throws_shape(migraphx::make_op("convolution"), input_3d, weights_3d);
+
+    // dynamic batch
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type,
+                                    {{1, 100, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {1, 3, 3, 3}};
+    migraphx::shape output_dyn_shape{migraphx::shape::float_type,
+                                     {{
+                                          1,
+                                          100,
+                                          0,
+                                      },
+                                      {1, 1, 0},
+                                      {3, 3, 0},
+                                      {3, 3, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // dynamic image
+    input_dyn_shape = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {5, 20, 0}, {5, 20, 0}}};
+    weights_shape   = {migraphx::shape::float_type, {1, 3, 3, 3}};
+    output_dyn_shape = {migraphx::shape::float_type,
+                        {{
+                             1,
+                             1,
+                             0,
+                         },
+                         {1, 1, 0},
+                         {3, 18, 0},
+                         {3, 18, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // dynamic weights
+    input_dyn_shape  = {migraphx::shape::float_type, {1, 3, 10, 10}};
+    weights_shape    = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}};
+    output_dyn_shape = {migraphx::shape::float_type,
+                        {{
+                             1,
+                             1,
+                             0,
+                         },
+                         {1, 1, 0},
+                         {7, 9, 0},
+                         {7, 9, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // dynamic img and weights
+    input_dyn_shape = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {5, 20, 0}, {5, 20, 0}}};
+    weights_shape   = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}};
+    output_dyn_shape = {migraphx::shape::float_type,
+                        {{
+                             1,
+                             1,
+                             0,
+                         },
+                         {1, 1, 0},
+                         {2, 19, 0},
+                         {2, 19, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // input attr shape mismatch
+    input_dyn_shape = {migraphx::shape::float_type,
+                       {{1, 100, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}, {5, 5, 0}}};
+    weights_shape   = {migraphx::shape::float_type, {1, 3, 3, 3, 3}};
+    throws_shape(migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // auto_pad dynamic batch
+    input_dyn_shape  = {migraphx::shape::float_type, {{1, 10, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}};
+    weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
+    output_dyn_shape = {migraphx::shape::float_type, {{1, 10, 0}, {1, 1, 0}, {5, 5, 0}, {5, 5, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"stride", {1, 1}},
+                                    {"dilation", {1, 1}},
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                                    {"use_dynamic_same_auto_pad", true}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // auto_pad dynamic img
+    input_dyn_shape = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {5, 10, 0}, {5, 10, 0}}};
+    weights_shape   = {migraphx::shape::float_type, {1, 3, 3, 3}};
+    output_dyn_shape = {migraphx::shape::float_type,
+                        {{1, 1, 0}, {1, 1, 0}, {5, 10, 0}, {5, 10, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"stride", {1, 1}},
+                                    {"dilation", {1, 1}},
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                                    {"use_dynamic_same_auto_pad", true}}),
+                 input_dyn_shape,
+                 weights_shape);
+
+    // auto_pad dynamic kernel
+    input_dyn_shape  = {migraphx::shape::float_type,
+                       {{1, 1, 0}, {3, 3, 0}, {10, 10, 0}, {10, 10, 0}}};
+    weights_shape    = {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}};
+    output_dyn_shape = {migraphx::shape::float_type,
+                        {{1, 1, 0}, {1, 1, 0}, {10, 10, 0}, {10, 10, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"stride", {1, 1}},
+                                    {"dilation", {1, 1}},
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_lower},
+                                    {"use_dynamic_same_auto_pad", true}}),
+                 input_dyn_shape,
+                 weights_shape);
 }
 
 TEST_CASE(contiguous_shape)
@@ -958,7 +1111,8 @@ TEST_CASE(multibroadcast)
     }
     {
         std::vector<std::size_t> lens{4, 1, 3};
-        migraphx::shape input{migraphx::shape::float_type, {}};
+        std::vector<std::size_t> empt = {};
+        migraphx::shape input{migraphx::shape::float_type, empt};
         throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
     {
@@ -979,6 +1133,149 @@ TEST_CASE(multinomial)
     int dtype = 0;
 
     throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s, s);
+}
+
+TEST_CASE(nms_shape)
+{
+    // use_dyn_output == false
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    migraphx::shape max_out_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape iou_thres_s{migraphx::shape::float_type, {1}};
+    migraphx::shape score_thres_s{migraphx::shape::float_type, {1}};
+    migraphx::shape output_s{migraphx::shape::int64_type, {6, 3}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // use_dyn_output == true
+    output_s = {migraphx::shape::int64_type, {{0, 6, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic batches
+    boxes_s  = {migraphx::shape::float_type, {{1, 3, 0}, {6, 6, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 3, 0}, {1, 1, 0}, {6, 6, 0}}};
+    output_s = {migraphx::shape::int64_type, {{0, 18, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic num boxes
+    boxes_s  = {migraphx::shape::float_type, {{1, 1, 0}, {6, 20, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {6, 20, 0}}};
+    output_s = {migraphx::shape::int64_type, {{0, 20, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // use_dyn_output false with dynamic input shape
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic classes
+    boxes_s  = {migraphx::shape::float_type, {{1, 1, 0}, {6, 6, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 3, 0}, {6, 6, 0}}};
+    output_s = {migraphx::shape::int64_type, {{0, 6, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // fixed mismatch batches
+    boxes_s  = {migraphx::shape::float_type, {2, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {1, 1, 6}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // fixed mismatch num boxes
+    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {1, 1, 4}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic mismatch batches
+    boxes_s  = {migraphx::shape::float_type, {{1, 4, 0}, {6, 6, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{2, 8, 0}, {1, 1, 0}, {6, 6, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic mismatch num boxes
+    boxes_s  = {migraphx::shape::float_type, {{1, 1, 0}, {6, 8, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {3, 9, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic number of classes, fixed boxes_s, mismatch batches
+    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {{1, 3, 0}, {1, 3, 0}, {6, 6, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+    // dynamic number of classes, fixed boxes_s, mismatch num boxes
+    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 3, 0}, {4, 8, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
 }
 
 TEST_CASE(pooling_shape)
@@ -1510,15 +1807,46 @@ TEST_CASE(test_squeeze_wrong_axis)
 
 TEST_CASE(test_unsqueeze)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 5, 1, 3}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_step)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 5, 2, 6}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_step_non_divisable)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_step_zero)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {0}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_step_at_end)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {3}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_mismatch_step_axis)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2, 3}}}), s1);
 }
 
 TEST_CASE(test_unsqueeze_negative_axis)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 5, 1, 3}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-2}}}), s1);
 }
 
@@ -1544,21 +1872,28 @@ TEST_CASE(test_unsqueeze_scalar_tensor2)
 TEST_CASE(test_unsqueeze_transpose)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 4, 3}, {12, 1, 4}};
-    migraphx::shape s2{migraphx::shape::float_type, {4, 4, 1, 3}, {12, 1, 1, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 4, 1, 3}, {12, 1, 12, 4}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_transpose_step)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 4, 6}, {24, 1, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 4, 2, 3}, {24, 1, 12, 4}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
 }
 
 TEST_CASE(test_unsqueeze_multibroadcast)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}, {0, 1, 0}};
-    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {0, 1, 1, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {0, 1, 0, 0}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
 }
 
 TEST_CASE(test_unsqueeze_slice)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}, {108, 36, 1}};
-    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {108, 36, 36, 1}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {108, 36, 4, 1}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
 }
 
@@ -1588,6 +1923,27 @@ TEST_CASE(test_unsqueeze_multiple_axes_2)
     migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 1, 2, 3, 4}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multiple_axes_3)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {3, 4, 5}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4, 1, 5, 1, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2, 4, 5}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multiple_axes_4)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {3, 4, 5}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4, 1, 5, 1, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {5, 4, 2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multiple_axes_step)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {3, 4, 10}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4, 2, 5, 1, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2, 4, 5}}, {"steps", {2}}}), s1);
 }
 
 TEST_CASE(transpose_shape)

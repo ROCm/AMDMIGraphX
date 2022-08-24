@@ -30,7 +30,6 @@
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
-
 #include <test.hpp>
 
 void run_pass(migraphx::module& m)
@@ -1477,6 +1476,45 @@ TEST_CASE(simplify_dot_horiz_flipped)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// test if contiguous is added as necessary for reshapes
+TEST_CASE(simplify_dot_horiz_reshape)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 4, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto a     = m1.add_literal(migraphx::generate_literal(s, 0));
+        auto b     = m1.add_literal(migraphx::generate_literal(s, 1));
+        auto x     = m1.add_instruction(migraphx::make_op("dot"), input, a);
+        auto y     = m1.add_instruction(migraphx::make_op("dot"), input, b);
+        auto x_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x);
+        auto y_rsp   = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y); 
+        auto sum = m1.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto input  = m2.add_parameter("input", s);
+        auto a      = m2.add_literal(migraphx::generate_literal(s, 0));
+        auto b      = m2.add_literal(migraphx::generate_literal(s, 1));
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, b);
+        auto dot    = m2.add_instruction(migraphx::make_op("dot"), input, concat);
+        auto x      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), dot);
+        auto y = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {4}}, {"ends", {8}}}), dot);
+        auto x_cont = m2.add_instruction(migraphx::make_op("contiguous"), x);
+        auto x_rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x_cont);
+        auto y_rsp   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y); 
+        auto sum = m2.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});
+        m2.add_instruction(pass_op{}, sum);
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_conv_horiz)
 {
     auto s  = migraphx::shape{migraphx::shape::int32_type, {8, 3, 64, 64}};
@@ -1786,9 +1824,12 @@ TEST_CASE(reorder_reshape_slice)
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};
     std::vector<int64_t> perm1 = {0, 2, 3, 1};
-    auto create_m1             = [&](std::size_t batch_size) {
+    auto create_m1             = [&](std::size_t batch_size, bool input_transpose) {
         migraphx::module m1;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        if(input_transpose) {
+            s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}, {165120, 1, 128}};
+        }
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {640}}}), input);
@@ -1819,12 +1860,19 @@ TEST_CASE(reorder_reshape_slice)
         return m1;
     };
 
-    auto create_m2 = [&](std::size_t batch_size) {
+    auto create_m2 = [&](std::size_t batch_size, bool input_transpose) {
         migraphx::module m2;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        if(input_transpose) {
+            s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}, {165120, 1, 128}};
+        }
         auto input = m2.add_parameter("input", s);
+        auto rsp_input = input;
+        if(input_transpose) {
+            rsp_input = m2.add_instruction(migraphx::make_op("contiguous"), {input});
+        } 
         std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 128, 30, 64};
-        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
+        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), rsp_input);
 
         auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {10}}}), r);
@@ -1847,16 +1895,19 @@ TEST_CASE(reorder_reshape_slice)
         return m2;
     };
 
-    auto test = [&](std::size_t batch_size) {
-        auto m1 = create_m1(batch_size);
+    auto test = [&](std::size_t batch_size, bool input_transpose) {
+        auto m1 = create_m1(batch_size, input_transpose);
         run_pass(m1);
-        auto m2 = create_m2(batch_size);
+        auto m2 = create_m2(batch_size, input_transpose);
         EXPECT(m1.sort() == m2.sort());
     };
 
-    test(1);
-    test(4);
-    test(8);
+    test(1, true); // check if contiguous is added as necessary if input is transposed
+    test(1, false);
+    test(4, true);
+    test(4, false);
+    test(8, true);
+    test(8, false);
 }
 
 TEST_CASE(reorder_reshape_slice_move_axis1)

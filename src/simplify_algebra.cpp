@@ -582,8 +582,7 @@ struct find_splits
                     {
                         if(output->name() != "reshape")
                             continue;
-                        auto x =
-                            m.insert_instruction(output, make_op("contiguous"), i);
+                        auto x = m.insert_instruction(output, make_op("contiguous"), i);
                         m.replace_instruction(output, output->get_operator(), x);
                     }
 
@@ -821,11 +820,10 @@ struct find_conv_dot_horiz_fusion
                 {
                     if(output->name() != "reshape")
                         continue;
-                    auto x =
-                        m.insert_instruction(output, make_op("contiguous"), arg);
+                    auto x = m.insert_instruction(output, make_op("contiguous"), arg);
                     m.replace_instruction(output, output->get_operator(), x);
                 }
-                
+
                 int64_t len = arg->get_shape().lens()[axis];
                 m.replace_instruction(
                     arg,
@@ -969,7 +967,8 @@ struct find_split_reshape
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
         // insert the reshape instruction and add contiguous if needed
-        if(!input->get_shape().standard()) {
+        if(!input->get_shape().standard())
+        {
             input = m.insert_instruction(std::next(input), make_op("contiguous"), input);
         }
         auto rsp_ins = m.insert_instruction(

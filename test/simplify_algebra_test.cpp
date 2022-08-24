@@ -1488,7 +1488,8 @@ TEST_CASE(simplify_dot_horiz_reshape)
         auto x     = m1.add_instruction(migraphx::make_op("dot"), input, a);
         auto y     = m1.add_instruction(migraphx::make_op("dot"), input, b);
         auto x_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x);
-        auto y_rsp   = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y); 
+        auto y_rsp =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y);
         auto sum = m1.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});
         m1.add_instruction(pass_op{}, sum);
     }
@@ -1506,8 +1507,10 @@ TEST_CASE(simplify_dot_horiz_reshape)
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {4}}, {"ends", {8}}}), dot);
         auto x_cont = m2.add_instruction(migraphx::make_op("contiguous"), x);
-        auto x_rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x_cont);
-        auto y_rsp   = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y); 
+        auto x_rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x_cont);
+        auto y_rsp =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y);
         auto sum = m2.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});
         m2.add_instruction(pass_op{}, sum);
     }
@@ -1827,8 +1830,10 @@ TEST_CASE(reorder_reshape_slice)
     auto create_m1             = [&](std::size_t batch_size, bool input_transpose) {
         migraphx::module m1;
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
-        if(input_transpose) {
-            s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}, {165120, 1, 128}};
+        if(input_transpose)
+        {
+            s = migraphx::shape{
+                migraphx::shape::float_type, {batch_size, 128, 1920}, {165120, 1, 128}};
         }
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
@@ -1863,14 +1868,17 @@ TEST_CASE(reorder_reshape_slice)
     auto create_m2 = [&](std::size_t batch_size, bool input_transpose) {
         migraphx::module m2;
         auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
-        if(input_transpose) {
-            s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}, {165120, 1, 128}};
+        if(input_transpose)
+        {
+            s = migraphx::shape{
+                migraphx::shape::float_type, {batch_size, 128, 1920}, {165120, 1, 128}};
         }
-        auto input = m2.add_parameter("input", s);
+        auto input     = m2.add_parameter("input", s);
         auto rsp_input = input;
-        if(input_transpose) {
+        if(input_transpose)
+        {
             rsp_input = m2.add_instruction(migraphx::make_op("contiguous"), {input});
-        } 
+        }
         std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 128, 30, 64};
         auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), rsp_input);
 

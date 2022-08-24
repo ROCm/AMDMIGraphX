@@ -370,33 +370,48 @@ TEST_CASE(averagepool_same_upper_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(batchnorm_1d_test)
+TEST_CASE(batch_norm_flat_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
-    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {3}});
-    auto l2  = mm->add_parameter("2", {migraphx::shape::float_type, {3}});
-    auto l3  = mm->add_parameter("3", {migraphx::shape::float_type, {3}});
-    auto l4  = mm->add_parameter("4", {migraphx::shape::float_type, {3}});
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {10}});
+    auto l1  = mm->add_parameter("scale", {migraphx::shape::float_type, {1}});
+    auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {1}});
+    auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {1}});
+    auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {1}});
     mm->add_instruction(migraphx::make_op("batch_norm_inference"), l0, l1, l2, l3, l4);
 
-    auto prog = optimize_onnx("batchnorm_1d_test.onnx");
+    auto prog = optimize_onnx("batch_norm_flat_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(batchnorm_3d_test)
+TEST_CASE(batch_norm_1d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
-    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {3}});
-    auto l2  = mm->add_parameter("2", {migraphx::shape::float_type, {3}});
-    auto l3  = mm->add_parameter("3", {migraphx::shape::float_type, {3}});
-    auto l4  = mm->add_parameter("4", {migraphx::shape::float_type, {3}});
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
+    auto l1  = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
+    auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
+    auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
+    auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
     mm->add_instruction(migraphx::make_op("batch_norm_inference"), l0, l1, l2, l3, l4);
 
-    auto prog = optimize_onnx("batchnorm_3d_test.onnx");
+    auto prog = optimize_onnx("batch_norm_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(batch_norm_3d_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+    auto l1  = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
+    auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
+    auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
+    auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
+    mm->add_instruction(migraphx::make_op("batch_norm_inference"), l0, l1, l2, l3, l4);
+
+    auto prog = optimize_onnx("batch_norm_3d_test.onnx");
     EXPECT(p == prog);
 }
 

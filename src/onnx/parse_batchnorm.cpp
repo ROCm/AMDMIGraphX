@@ -39,7 +39,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        float epsilon                                     = 1e-5f;
+        float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
@@ -49,39 +49,37 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
 
         if(X_lens.size() == 1)
         {
-            auto n0 = info.add_broadcastable_binary_op("sub", args[0], args[3]);
-            auto l0 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
-            auto l1 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
-            auto d0 = info.add_broadcastable_binary_op("add", args[4], l1);
-            auto d1 = info.add_broadcastable_binary_op("pow", d0, l0);
+            auto n0   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
+            auto l0   = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
+            auto l1   = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
+            auto d0   = info.add_broadcastable_binary_op("add", args[4], l1);
+            auto d1   = info.add_broadcastable_binary_op("pow", d0, l0);
             auto div0 = info.add_broadcastable_binary_op("div", n0, d1);
-            auto r0 = info.add_broadcastable_binary_op("mul", div0, args[1]);
-            return info.add_broadcastable_binary_op("add", r0, args[2]); 
+            auto r0   = info.add_broadcastable_binary_op("mul", div0, args[1]);
+            return info.add_broadcastable_binary_op("add", r0, args[2]);
         }
         else if(X_lens.size() > 2)
         {
             // unsqueeze tensors of shape (C) to broadcast correctly
             std::vector<int64_t> unsqueeze_axes(X_lens.size() - 2);
             int64_t i = 1;
-            std::generate(
-                unsqueeze_axes.begin(),
-                unsqueeze_axes.end(),
-                [&]{
-                    return i++;
-                }
-            );
-            auto scale_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
-            auto bias_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[2]);
-            auto mean_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[3]);
-            auto var_unsqueeze = info.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[4]);
-            auto n0 = info.add_broadcastable_binary_op("sub", args[0], mean_unsqueeze);
-            auto l0 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
-            auto l1 = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
-            auto d0 = info.add_broadcastable_binary_op("add", var_unsqueeze, l1);
-            auto d1 = info.add_broadcastable_binary_op("pow", d0, l0);
+            std::generate(unsqueeze_axes.begin(), unsqueeze_axes.end(), [&] { return i++; });
+            auto scale_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
+            auto bias_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[2]);
+            auto mean_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[3]);
+            auto var_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[4]);
+            auto n0   = info.add_broadcastable_binary_op("sub", args[0], mean_unsqueeze);
+            auto l0   = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
+            auto l1   = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
+            auto d0   = info.add_broadcastable_binary_op("add", var_unsqueeze, l1);
+            auto d1   = info.add_broadcastable_binary_op("pow", d0, l0);
             auto div0 = info.add_broadcastable_binary_op("div", n0, d1);
-            auto r0 = info.add_broadcastable_binary_op("mul", div0, scale_unsqueeze);
-            return info.add_broadcastable_binary_op("add", r0, bias_unsqueeze); 
+            auto r0   = info.add_broadcastable_binary_op("mul", div0, scale_unsqueeze);
+            return info.add_broadcastable_binary_op("add", r0, bias_unsqueeze);
         }
         else
         {

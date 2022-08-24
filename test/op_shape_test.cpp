@@ -1135,6 +1135,149 @@ TEST_CASE(multinomial)
     throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s, s);
 }
 
+TEST_CASE(nms_shape)
+{
+    // use_dyn_output == false
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    migraphx::shape max_out_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape iou_thres_s{migraphx::shape::float_type, {1}};
+    migraphx::shape score_thres_s{migraphx::shape::float_type, {1}};
+    migraphx::shape output_s{migraphx::shape::int64_type, {6, 3}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // use_dyn_output == true
+    output_s = {migraphx::shape::int64_type, {{0, 6, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic batches
+    boxes_s  = {migraphx::shape::float_type, {{1, 3, 0}, {6, 6, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 3, 0}, {1, 1, 0}, {6, 6, 0}}};
+    output_s = {migraphx::shape::int64_type, {{0, 18, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic num boxes
+    boxes_s  = {migraphx::shape::float_type, {{1, 1, 0}, {6, 20, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {6, 20, 0}}};
+    output_s = {migraphx::shape::int64_type, {{0, 20, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // use_dyn_output false with dynamic input shape
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic classes
+    boxes_s  = {migraphx::shape::float_type, {{1, 1, 0}, {6, 6, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 3, 0}, {6, 6, 0}}};
+    output_s = {migraphx::shape::int64_type, {{0, 6, 0}, {3, 3, 0}}};
+    expect_shape(output_s,
+                 migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // fixed mismatch batches
+    boxes_s  = {migraphx::shape::float_type, {2, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {1, 1, 6}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // fixed mismatch num boxes
+    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {1, 1, 4}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic mismatch batches
+    boxes_s  = {migraphx::shape::float_type, {{1, 4, 0}, {6, 6, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{2, 8, 0}, {1, 1, 0}, {6, 6, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic mismatch num boxes
+    boxes_s  = {migraphx::shape::float_type, {{1, 1, 0}, {6, 8, 0}, {4, 4, 0}}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {3, 9, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+
+    // dynamic number of classes, fixed boxes_s, mismatch batches
+    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {{1, 3, 0}, {1, 3, 0}, {6, 6, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+    // dynamic number of classes, fixed boxes_s, mismatch num boxes
+    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
+    scores_s = {migraphx::shape::float_type, {{1, 1, 0}, {1, 3, 0}, {4, 8, 0}}};
+    throws_shape(migraphx::make_op("nonmaxsuppression",
+                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+                 boxes_s,
+                 scores_s,
+                 max_out_s,
+                 iou_thres_s,
+                 score_thres_s);
+}
+
 TEST_CASE(pooling_shape)
 {
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};

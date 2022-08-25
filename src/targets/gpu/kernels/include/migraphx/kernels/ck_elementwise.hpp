@@ -30,7 +30,8 @@
 namespace migraphx {
 
 template <class T, class U, class V>
-__device__ void ck_elementwise(const T& /* data_t */, const U& /* indices_t */, const V& /* output_t */)
+__device__ void
+ck_elementwise(const T& /* data_t */, const U& /* indices_t */, const V& /* output_t */)
 {
 }
 

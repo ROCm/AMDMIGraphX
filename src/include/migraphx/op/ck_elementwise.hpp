@@ -63,9 +63,8 @@ struct ck_elementwise
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            par_for(output_shape.elements(), [&](const auto i) {
-                output[i] = input1[i] + input2[i];
-            });
+            par_for(output_shape.elements(),
+                    [&](const auto i) { output[i] = input1[i] + input2[i]; });
         });
         return result;
     }

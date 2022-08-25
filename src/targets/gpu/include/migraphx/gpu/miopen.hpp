@@ -72,8 +72,11 @@ Result make_obj(F f, Ts... xs)
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
 using miopen_find_options = MIGRAPHX_MANAGE_PTR(miopenFindOptions_t, miopenDestroyFindOptions);
-using miopen_problem = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
-inline void set_tensor_descriptor(miopenTensorArgumentId_t name, tensor_descriptor& desc, miopen_problem& problem_ptr) {
+using miopen_problem      = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
+inline void set_tensor_descriptor(miopenTensorArgumentId_t name,
+                                  tensor_descriptor& desc,
+                                  miopen_problem& problem_ptr)
+{
     auto status = miopenSetProblemTensorDescriptor(problem_ptr.get(), name, desc.get());
     if(status != miopenStatusSuccess)
     {
@@ -81,8 +84,6 @@ inline void set_tensor_descriptor(miopenTensorArgumentId_t name, tensor_descript
     }
 }
 #endif
-
-
 
 inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = false)
 {

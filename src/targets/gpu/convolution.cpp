@@ -60,11 +60,11 @@ argument miopen_convolution::compute(context& ctx,
                                      const shape& output_shape,
                                      const std::vector<argument>& args) const
 {
-    auto x_desc               = make_tensor(reshape_if_1d(args[0].get_shape()));
-    auto w_desc               = make_tensor(reshape_if_1d(args[1].get_shape()));
-    auto y_desc               = make_tensor(reshape_if_1d(output_shape));
+    auto x_desc                = make_tensor(reshape_if_1d(args[0].get_shape()));
+    auto w_desc                = make_tensor(reshape_if_1d(args[1].get_shape()));
+    auto y_desc                = make_tensor(reshape_if_1d(output_shape));
     auto* miopen_stream_handle = ctx.get_stream().get_miopen();
-    auto workspace_size       = args[2].get_shape().bytes();
+    auto workspace_size        = args[2].get_shape().bytes();
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
     {
@@ -73,7 +73,7 @@ argument miopen_convolution::compute(context& ctx,
                                          reinterpret_cast<const char*>(solution_object.data()),
                                          solution_object.size());
 
-        if(status != miopenStatusSuccess) 
+        if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution : Failed  loading solution");
 
         miopenTensorArgumentId_t names[3] = {
@@ -150,8 +150,8 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 
         auto find_options = make_obj<miopen_find_options>(&miopenCreateFindOptions);
 
-        auto* miopen_stream_handle  = ctx.get_stream().get_miopen();
-        auto status = miopenFindSolutions(miopen_stream_handle,
+        auto* miopen_stream_handle = ctx.get_stream().get_miopen();
+        auto status                = miopenFindSolutions(miopen_stream_handle,
                                           conv_problem.get(),
                                           find_options.get(),
                                           solutions.data(),
@@ -269,7 +269,7 @@ void miopen_convolution::finalize(context& ctx,
     }
 #endif
 #ifdef MIGRAPHX_HAS_FIND_MODE_API
-    {         
+    {
         if(cd == nullptr)
             cd = make_conv(op);
         if(solution_id == 0)

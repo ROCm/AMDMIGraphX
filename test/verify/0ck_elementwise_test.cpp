@@ -27,18 +27,18 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct ck_gemm : verify_program<ck_gemm>
+struct ck_elementwise : verify_program<ck_elementwise>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::float_type, {10, 20}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {20, 10}};
+        //migraphx::shape m2_shape{migraphx::shape::float_type, {20, 10}};
         auto l1 = mm->add_parameter("1", m1_shape);
-        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l2 = mm->add_parameter("2", m1_shape);
 
-        mm->add_instruction(migraphx::make_op("ck_gemm"), l1, l2);
+        mm->add_instruction(migraphx::make_op("ck_elementwise"), l1, l2);
 
         return p;
     }

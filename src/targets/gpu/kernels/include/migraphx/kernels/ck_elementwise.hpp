@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
-#define MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_CK_ELEMENTWISE_HPP
+#define MIGRAPHX_GUARD_KERNELS_CK_ELEMENTWISE_HPP
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
@@ -30,9 +30,10 @@
 namespace migraphx {
 
 template <class T, class U, class V>
-__device__ void ck_gemm(const T& /* data_t */, const U& /* indices_t */, const V& /* output_t */)
+__device__ void ck_elementwise(const T& /* data_t */, const U& /* indices_t */, const V& /* output_t */)
 {
 }
 
 } // namespace migraphx
+
 #endif

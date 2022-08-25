@@ -954,13 +954,11 @@ TEST_CASE(conv_dynamic_img_same_upper)
 
 TEST_CASE(conv_dynamic_kernel_same_lower)
 {
-    std::cout << "here1\n";
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5}});
     auto l1  = mm->add_parameter(
         "1", {migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 4, 0}, {2, 4, 0}}});
-    std::cout << "here2\n";
     auto c0 = mm->add_instruction(
         migraphx::make_op("convolution",
                           {{"padding", {0, 0}},
@@ -970,12 +968,10 @@ TEST_CASE(conv_dynamic_kernel_same_lower)
                            {"use_dynamic_same_auto_pad", true}}),
         l0,
         l1);
-    std::cout << "here3\n";
     mm->add_return({c0});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {2, 4, 0};
-    std::cout << "here\n";
     auto prog = migraphx::parse_onnx("conv_dynamic_kernel_same_lower_test.onnx", options);
     EXPECT(p == prog);
 }
@@ -3382,10 +3378,124 @@ TEST_CASE(nms_test)
     auto st = mm->add_parameter("score_threshold", sst);
 
     auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}), b, s, mo, iou, st);
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}), b, s, mo, iou, st);
     mm->add_return({ret});
 
     auto prog = migraphx::parse_onnx("nms_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nms_dynamic_batch_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::float_type, {{1, 10, 0}, {6, 6, 0}, {4, 4, 0}}};
+    auto b = mm->add_parameter("boxes", sb);
+    migraphx::shape ss{migraphx::shape::float_type, {{1, 10, 0}, {1, 1, 0}, {6, 6, 0}}};
+    auto s = mm->add_parameter("scores", ss);
+    migraphx::shape smo{migraphx::shape::int64_type, {1}};
+    auto mo = mm->add_parameter("max_output_boxes_per_class", smo);
+    migraphx::shape siou{migraphx::shape::float_type, {1}};
+    auto iou = mm->add_parameter("iou_threshold", siou);
+    migraphx::shape sst{migraphx::shape::float_type, {1}};
+    auto st  = mm->add_parameter("score_threshold", sst);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression",
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
+        b,
+        s,
+        mo,
+        iou,
+        st);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10, 0};
+    options.use_dyn_output        = true;
+
+    auto prog = migraphx::parse_onnx("nms_dynamic_batch_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nms_dynamic_boxes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::float_type, {{1, 1, 0}, {6, 20, 0}, {4, 4, 0}}};
+    auto b = mm->add_parameter("boxes", sb);
+    migraphx::shape ss{migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {6, 20, 0}}};
+    auto s = mm->add_parameter("scores", ss);
+    migraphx::shape smo{migraphx::shape::int64_type, {1}};
+    auto mo = mm->add_parameter("max_output_boxes_per_class", smo);
+    migraphx::shape siou{migraphx::shape::float_type, {1}};
+    auto iou = mm->add_parameter("iou_threshold", siou);
+    migraphx::shape sst{migraphx::shape::float_type, {1}};
+    auto st  = mm->add_parameter("score_threshold", sst);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}), b, s, mo, iou, st);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {6, 20, 0};
+    options.use_dyn_output        = true;
+
+    auto prog = migraphx::parse_onnx("nms_dynamic_boxes_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nms_dynamic_classes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::float_type, {1, 6, 4}};
+    auto b = mm->add_parameter("boxes", sb);
+    migraphx::shape ss{migraphx::shape::float_type, {{1, 1, 0}, {1, 10, 0}, {6, 6, 0}}};
+    auto s = mm->add_parameter("scores", ss);
+    migraphx::shape smo{migraphx::shape::int64_type, {1}};
+    auto mo = mm->add_parameter("max_output_boxes_per_class", smo);
+    migraphx::shape siou{migraphx::shape::float_type, {1}};
+    auto iou = mm->add_parameter("iou_threshold", siou);
+    migraphx::shape sst{migraphx::shape::float_type, {1}};
+    auto st  = mm->add_parameter("score_threshold", sst);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}), b, s, mo, iou, st);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10, 0};
+    options.use_dyn_output        = true;
+
+    auto prog = migraphx::parse_onnx("nms_dynamic_classes_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nms_overwrite_use_dyn_output_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::float_type, {1, 6, 4}};
+    auto b = mm->add_parameter("boxes", sb);
+
+    migraphx::shape ss{migraphx::shape::float_type, {1, 1, 6}};
+    auto s = mm->add_parameter("scores", ss);
+
+    migraphx::shape smo{migraphx::shape::int64_type, {1}};
+    auto mo = mm->add_parameter("max_output_boxes_per_class", smo);
+
+    migraphx::shape siou{migraphx::shape::float_type, {1}};
+    auto iou = mm->add_parameter("iou_threshold", siou);
+
+    migraphx::shape sst{migraphx::shape::float_type, {1}};
+    auto st = mm->add_parameter("score_threshold", sst);
+
+    auto ret = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}), b, s, mo, iou, st);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.use_dyn_output = true;
+
+    auto prog = migraphx::parse_onnx("nms_use_dyn_output_false_test.onnx", options);
     EXPECT(p == prog);
 }
 

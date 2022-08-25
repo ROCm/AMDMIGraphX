@@ -21,37 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
 
-#include <unordered_map>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/common.hpp>
 
-#include <migraphx/instruction_ref.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct target_assignments
+struct test_softmax_large2 : verify_program<test_softmax_large2>
 {
-    using iterator   = std::unordered_map<instruction_ref, std::string>::const_iterator;
-    using value_type = std::pair<instruction_ref, std::string>;
-
-    auto size() const { return assignments.size(); }
-    auto& at(instruction_ref ins) const { return assignments.at(ins); }
-
-    auto insert(iterator it, const std::pair<instruction_ref, std::string>& assignment)
+    migraphx::program create_program() const
     {
-        return assignments.insert(it, assignment);
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+        auto large = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {-10000}});
+        auto add   = migraphx::add_common_op(*mm, migraphx::make_op("add"), {x, large});
+        mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), add);
+        return p;
     }
-    auto find(instruction_ref ins) const { return assignments.find(ins); }
-
-    auto begin() const { return assignments.begin(); }
-    auto end() const { return assignments.end(); }
-
-    private:
-    std::unordered_map<instruction_ref, std::string> assignments;
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP

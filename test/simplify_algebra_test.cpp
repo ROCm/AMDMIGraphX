@@ -1824,7 +1824,7 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
     EXPECT(m1.sort() == m2.sort());
 }
 
-template <std::size_t BS, bool InTrans>
+template <std::size_t BS, bool TransposeInput>
 void reorder_reshape_slice()
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};
@@ -1832,7 +1832,7 @@ void reorder_reshape_slice()
     migraphx::module m1;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
-        if(InTrans)
+        if(TransposeInput)
         {
             s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
         }
@@ -1867,13 +1867,13 @@ void reorder_reshape_slice()
     migraphx::module m2;
     {
         auto s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
-        if(InTrans)
+        if(TransposeInput)
         {
             s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
         }
         auto input     = m2.add_parameter("input", s);
         auto rsp_input = input;
-        if(InTrans)
+        if(TransposeInput)
         {
             rsp_input = m2.add_instruction(migraphx::make_op("contiguous"), {input});
         }
@@ -1971,6 +1971,7 @@ void reorder_reshape_slice_move_axis1()
     };
 
     run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE_REGISTER(reorder_reshape_slice_move_axis1<4>);

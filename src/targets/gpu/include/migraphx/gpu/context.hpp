@@ -274,8 +274,25 @@ struct context
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }
 
-    void wait_for(any_ptr queue)  { reinterpret_cast<hip_device::stream&>(queue).wait();}
-    void finish_on(any_ptr queue) { reinterpret_cast<hip_device::stream&>(queue).wait();}
+    void wait_for(any_ptr queue)  
+    {
+        hip_event_ptr event = create_event();
+        hipStream_t *sPtr = queue.get<hipStream_t *>();
+        
+        sPtr->events.emplace_back(event);
+
+        auto status = hipEventRecord(event, sPtr);
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("wait_for: Failed to record.");
+    }
+
+    void finish_on(any_ptr queue) 
+    { 
+        hipStream_t *sPtr = queue.get<hipStream_t*>();
+        auto status = hipEventSyncrhonize(sPtr->events.begin());
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("finish_on: Failed to syncronize on event");
+    }
 
     any_ptr get_queue() { return get_stream().get(); }
 

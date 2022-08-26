@@ -276,22 +276,29 @@ struct context
 
     void wait_for(any_ptr queue)  
     {
-        hip_event_ptr event = create_event();
-        hipStream_t *sPtr = queue.get<hipStream_t *>();
-        
-        sPtr->events.emplace_back(event);
+        hipEvent_t event;
+        auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to create event");
 
-        auto status = hipEventRecord(event, sPtr);
+        hipStream_t * sPtr = queue.get<hipStream_t *>();
+        
+        events.emplace_back(hip_event_ptr{event});
+
+        status = hipEventRecord(event, *sPtr);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("wait_for: Failed to record.");
+        status = hipEventSynchronize(event);
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("wait_for: Failed syncronize event.");
     }
 
     void finish_on(any_ptr queue) 
     { 
-        hipStream_t *sPtr = queue.get<hipStream_t*>();
-        auto status = hipEventSyncrhonize(sPtr->events.begin());
+        hipStream_t *sPtr = queue.get<hipStream_t *>();
+        auto status = hipStreamSynchronize(*sPtr);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("finish_on: Failed to syncronize on event");
+                MIGRAPHX_THROW("finish_on: Failed to syncronize stream");
     }
 
     any_ptr get_queue() { return get_stream().get(); }

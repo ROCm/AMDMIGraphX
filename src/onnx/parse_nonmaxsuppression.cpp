@@ -21,38 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
-
-#include <unordered_map>
-#include <string>
-
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-struct target_assignments
+struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
 {
-    using iterator   = std::unordered_map<instruction_ref, std::string>::const_iterator;
-    using value_type = std::pair<instruction_ref, std::string>;
+    std::vector<op_desc> operators() const { return {{"NonMaxSuppression", "nonmaxsuppression"}}; }
 
-    auto size() const { return assignments.size(); }
-    auto& at(instruction_ref ins) const { return assignments.at(ins); }
-
-    auto insert(iterator it, const std::pair<instruction_ref, std::string>& assignment)
+    instruction_ref parse(const op_desc& opd,
+                          const onnx_parser& parser,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
     {
-        return assignments.insert(it, assignment);
+        auto op = parser.load(opd.op_name, info);
+        op.from_value({{"use_dyn_output", parser.use_dyn_output}});
+        return info.add_instruction(op, args);
     }
-    auto find(instruction_ref ins) const { return assignments.find(ins); }
-
-    auto begin() const { return assignments.begin(); }
-    auto end() const { return assignments.end(); }
-
-    private:
-    std::unordered_map<instruction_ref, std::string> assignments;
 };
 
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP

@@ -35,17 +35,13 @@ struct onnx_options
 {
     /// Old way to set default fixed dimension size
     std::size_t default_dim_value = 0;
-    /*!
-     * Default dynamic dimension size (if both default_dim_value and default_dyn_dim_value
-     * set parser throws)
-     */
+    /// Default dynamic dimension size (if both default_dim_value and default_dyn_dim_value set
+    /// parser throws)
     shape::dynamic_dimension default_dyn_dim_value = {1, 1, 0};
     /// Explicitly specify the dims of an input
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
-    /*!
-     * Explicitly specify dynamic dims of an input (if both map_input_dims and
-     * map_dyn_input_dims set parser throws)
-     */
+    /// Explicitly specify dynamic dims of an input (if both map_input_dims and map_dyn_input_dims
+    /// set parser throws)
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims = {};
     /// Continue parsing onnx file if an unknown operator is found
     bool skip_unknown_operators = false;
@@ -53,6 +49,8 @@ struct onnx_options
     bool print_program_on_error = false;
     /// Max iter num for the loop operator
     int64_t max_loop_iterations = 10;
+    /// Use dynamic output for operators when available
+    bool use_dyn_output = false;
 };
 
 /// Create a program from an onnx file

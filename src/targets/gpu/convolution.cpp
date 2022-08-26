@@ -76,10 +76,10 @@ argument miopen_convolution::compute(context& ctx,
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution : Failed  loading solution");
 
-        miopenTensorArgumentId_t names[3] = {
+        const miopenTensorArgumentId_t names[3] = {
             miopenTensorConvolutionX, miopenTensorConvolutionW, miopenTensorConvolutionY};
 
-        void* buffers[3] = {args[0].implicit(), args[1].implicit(), args[3].implicit()};
+        const void* buffers[3] = {args[0].implicit(), args[1].implicit(), args[3].implicit()};
 
         miopenTensorDescriptor_t descriptors[3] = {x_desc.get(), w_desc.get(), y_desc.get()};
 

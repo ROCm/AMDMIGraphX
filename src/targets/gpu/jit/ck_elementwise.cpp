@@ -47,50 +47,15 @@ static const char* const ck_elementwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>
 
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
 namespace migraphx {
+
+
 
 extern "C" {
 
 __global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p) 
 {
-    using F16 = ck::half_t;
-    using F32 = float;
-
-    using ABDataType             = F16;
-    using CDataType              = F16;
-    using EltwiseComputeDataType = F32;
-
-    using Add = ck::tensor_operation::element_wise::Add;
-
-    using DeviceElementwiseAddInstance =
-        ck::tensor_operation::device::DeviceBinaryElementwise<ABDataType,
-                                                            ABDataType,
-                                                            CDataType,
-                                                            EltwiseComputeDataType,
-                                                            Add,
-                                                            1,
-                                                            8,
-                                                            8,
-                                                            8,
-                                                            8>;
-    ck::index_t M = 1024;
-    std::array<const void*, 2> input = {a_p,
-                                        b_p};
-    std::array<void*, 1> output      = {c_p};
-
-    std::vector<ck::index_t> a_strides = {1};
-    std::vector<ck::index_t> b_strides = {1};
-    std::vector<ck::index_t> c_strides = {1};
-
-    auto broadcastAdd = DeviceElementwiseAddInstance{};
-    auto argument     = broadcastAdd.MakeArgumentPointer(
-        input, output, {M}, {{a_strides}, b_strides}, {c_strides}, Add{});
+    ck_elementwise(a_p, b_p, c_p);
 }
 
 }

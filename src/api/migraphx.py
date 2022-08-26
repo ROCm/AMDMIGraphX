@@ -317,10 +317,20 @@ api.add_function('migraphx_save',
 @api.handle('migraphx_execution_environment',
             'migraphx::execution_environment')
 def execution_environment(h):
+    # if users are not allowed to change stream after creation of this object then, we should pass those
+    # parameters in the constructor itself  and make this "const"
     h.constructor('create')
-    h.method('set_stream',
-             api.params(queue='void*'),
-             invoke='migraphx::set_execution_stream($@)')
+    # NOTE: not sure if users are  allowed to set stream themselves,
+    # if not we should remove these methods.
+    # if users are not allowed then, how execution_environment should be built ?
+    # Is there dependence between `set_stream` and `async_flag`, if not we can set both of them through single
+    # method instead of having two separate methods.
+    h.method(
+        'set_stream',
+        api.params(
+            queue='void*'
+        ),  #this is `void*` but  needs type checking, we also need type checking in `get_context()`, there is way now after that error message PR. 
+        invoke='migraphx::set_execution_stream($@)')
     h.method('set_async_flag',
              api.params(flag='bool'),
              invoke='migraphx::set_run_async_flag($@)')

@@ -31,35 +31,33 @@
 
 namespace migraphx {
 
-template<index_int Axis, class Output, class Input, class Start>
+template <index_int Axis, class Output, class Input, class Start>
 constexpr auto concat_slice(Output out, Input, Start)
 {
-    constexpr auto lens = get_shape_c<Input>{}.lens;
+    constexpr auto lens    = get_shape_c<Input>{}.lens;
     constexpr auto strides = get_shape_c<Output>{}.strides;
-    constexpr auto offset = return_c([] {
+    constexpr auto offset  = return_c([] {
         constexpr auto output_shape = get_shape_c<Output>{};
         return Start{} * output_shape.strides[Axis];
     });
-    constexpr auto s = make_shape(lens, strides);
+    constexpr auto s       = make_shape(lens, strides);
     return make_tensor_view(&out[offset], s);
 }
 
-template<index_int Axis, class Input>
+template <index_int Axis, class Input>
 constexpr auto concat_ends(Input)
 {
     constexpr auto lens = get_shape_c<Input>{}.lens;
     return _c<lens[Axis]>;
 }
 
-template<index_int Axis, class Output, class... Inputs>
+template <index_int Axis, class Output, class... Inputs>
 __device__ void concat(Output output, Inputs... inputs)
 {
     auto idx = make_index();
     fold([&](auto start, auto input) {
         auto y = concat_slice<Axis>(output, input, start);
-        idx.global_stride(input.get_shape().elements(), [&](auto i) {
-            y[i] = input[i];
-        });
+        idx.global_stride(input.get_shape().elements(), [&](auto i) { y[i] = input[i]; });
         return start + concat_ends<Axis>(input);
     })(_c<0>, inputs...);
 }

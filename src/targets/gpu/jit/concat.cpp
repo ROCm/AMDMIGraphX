@@ -63,9 +63,8 @@ struct concat_compiler : compiler<concat_compiler>
 
     static std::size_t get_min_elements(const std::vector<shape>& inputs)
     {
-        auto it = std::min_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](auto s) {
-            return s.elements();
-        }));
+        auto it = std::min_element(
+            inputs.begin(), inputs.end(), by(std::less<>{}, [](auto s) { return s.elements(); }));
         return it->elements();
     }
 
@@ -80,15 +79,13 @@ struct concat_compiler : compiler<concat_compiler>
         auto vec               = vectorize::elements(axis, options.virtual_inputs);
         options.kernel_name    = v.get("kernel", "concat_kernel");
         options.set_launch_params(
-            v,
-            compute_global_for(ctx,
-                               get_min_elements(options.inputs) / vec.size, 256));
+            v, compute_global_for(ctx, get_min_elements(options.inputs) / vec.size, 256));
         auto src = interpolate_string(concat_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"transformers", make_transformer_args(vec)},
-                                        {"axis", v.at("axis").to<std::string>()}});
+                                       {"axis", v.at("axis").to<std::string>()}});
         return compile_hip_code_object(src, options);
     }
 

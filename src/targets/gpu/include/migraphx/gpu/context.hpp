@@ -278,20 +278,25 @@ struct context
 
     void wait_for(any_ptr queue)  
     {
-        hip_device::stream * user_q = queue.get<hip_device::stream *>();
+        hipStream_t sPtr = queue.get<hipStream_t>();
         hip_device::stream ctx_q  = get_stream();
 
-        user_q->record(start_event.get());
+        auto status = hipEventRecord(start_event.get(), sPtr);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("wait_for: Failed to record event.");
+
         ctx_q.wait(start_event.get());
      }
 
     void finish_on(any_ptr queue) 
     { 
-        hip_device::stream * user_q = queue.get<hip_device::stream *>();
+        hipStream_t sPtr = queue.get<hipStream_t>();
         hip_device::stream ctx_q  = get_stream();
-
         ctx_q.record(finish_event.get());
-        user_q->wait(finish_event.get());
+
+        auto status = hipStreamWaitEvent(sPtr, finish_event.get(), 0);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("finish_on: Failed to wait on event.");
     }
 
     any_ptr get_queue() { return get_stream().get(); }

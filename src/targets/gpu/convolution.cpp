@@ -186,7 +186,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 
         return shape{shape::int8_type, {workspace_size}};
     }
-#else     
+#else
     // else use immediate find mode
     auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
                                                            w_desc.get(),

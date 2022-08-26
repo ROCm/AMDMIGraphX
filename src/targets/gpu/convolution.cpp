@@ -187,12 +187,12 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 #endif
     // else use immediate find mode
     auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
-                                             w_desc.get(),
-                                             x_desc.get(),
-                                             cd.get(),
-                                             y_desc.get(),
-                                             &workspace_size);
-    if(status !=  miopenStatusSuccess)
+                                                           w_desc.get(),
+                                                           x_desc.get(),
+                                                           cd.get(),
+                                                           y_desc.get(),
+                                                           &workspace_size);
+    if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Convolution: Failed to get forward workspace size");
 
     workspace_shape = shape{shape::int8_type, {workspace_size}};
@@ -205,19 +205,19 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
     int algo_count = 1;
     miopenConvAlgoPerf_t perf;
     status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
-                                                        x_desc.get(),
-                                                        x.implicit(),
-                                                        w_desc.get(),
-                                                        w.implicit(),
-                                                        cd.get(),
-                                                        y_desc.get(),
-                                                        y.implicit(),
-                                                        1,
-                                                        &algo_count,
-                                                        &perf,
-                                                        workspace.implicit(),
-                                                        workspace_size,
-                                                        false);
+                                                   x_desc.get(),
+                                                   x.implicit(),
+                                                   w_desc.get(),
+                                                   w.implicit(),
+                                                   cd.get(),
+                                                   y_desc.get(),
+                                                   y.implicit(),
+                                                   1,
+                                                   &algo_count,
+                                                   &perf,
+                                                   workspace.implicit(),
+                                                   workspace_size,
+                                                   false);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Convolution: find convolution failed");
     algo = perf.fwd_algo;
@@ -268,7 +268,7 @@ void miopen_convolution::finalize(context& ctx,
             MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
     }
 #endif
-// Use immediate mode API
+    // Use immediate mode API
     {
         if(cd == nullptr)
             cd = make_conv(op);

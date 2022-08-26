@@ -199,6 +199,8 @@ struct context
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n))
     {
+        start_event  = create_event();
+        finish_event = create_event();
     }
 
     hip_device& get_current_device()
@@ -276,29 +278,20 @@ struct context
 
     void wait_for(any_ptr queue)  
     {
-        hipEvent_t event;
-        auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to create event");
+        hip_device::stream * user_q = queue.get<hip_device::stream *>();
+        hip_device::stream ctx_q  = get_stream();
 
-        hipStream_t * sPtr = queue.get<hipStream_t *>();
-        
-        events.emplace_back(hip_event_ptr{event});
-
-        status = hipEventRecord(event, *sPtr);
-            if(status != hipSuccess)
-                MIGRAPHX_THROW("wait_for: Failed to record.");
-        status = hipEventSynchronize(event);
-            if(status != hipSuccess)
-                MIGRAPHX_THROW("wait_for: Failed syncronize event.");
-    }
+        user_q->record(start_event.get());
+        ctx_q.wait(start_event.get());
+     }
 
     void finish_on(any_ptr queue) 
     { 
-        hipStream_t *sPtr = queue.get<hipStream_t *>();
-        auto status = hipStreamSynchronize(*sPtr);
-            if(status != hipSuccess)
-                MIGRAPHX_THROW("finish_on: Failed to syncronize stream");
+        hip_device::stream * user_q = queue.get<hip_device::stream *>();
+        hip_device::stream ctx_q  = get_stream();
+
+        ctx_q.record(finish_event.get());
+        user_q->wait(finish_event.get());
     }
 
     any_ptr get_queue() { return get_stream().get(); }

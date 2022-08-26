@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/errors.hpp"
 #include <migraphx/env.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -68,18 +67,10 @@ argument miopen_convolution::compute(context& ctx,
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
     {
-        miopenSolution_t solution; // need to create managed ptr
-        auto status = miopenLoadSolution(&solution,
-                                         reinterpret_cast<const char*>(solution_object.data()),
-                                         solution_object.size());
-
-        if(status != miopenStatusSuccess)
-            MIGRAPHX_THROW("MIOpen Convolution : Failed  loading solution");
-
         const miopenTensorArgumentId_t names[3] = {
             miopenTensorConvolutionX, miopenTensorConvolutionW, miopenTensorConvolutionY};
 
-        const void* buffers[3] = {args[0].implicit(), args[1].implicit(), args[3].implicit()};
+        void* buffers[3] = {args[0].implicit(), args[1].implicit(), args[3].implicit()};
 
         miopenTensorDescriptor_t descriptors[3] = {x_desc.get(), w_desc.get(), y_desc.get()};
 
@@ -92,14 +83,19 @@ argument miopen_convolution::compute(context& ctx,
             arguments[i].buffer     = buffers[i];
         }
 
-        status = miopenRunSolution(
-            miopen_stream_handle, solution, 3, arguments.get(), args[2].implicit(), workspace_size);
+        auto status = miopenRunSolution(miopen_stream_handle,
+                                        solution_ptr,
+                                        3,
+                                        arguments.get(),
+                                        args[2].implicit(),
+                                        workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: running convolution using find_2.0 failed");
 
-        std::cout << "Hurray, it is using find_2.0 API\n";
+        std::cout << "Hurray, it is using find_2.0 API\n"; // TODO, Remove this at before merging,
+                                                           // this is here debugging purposes.
 
-        status = miopenDestroySolution(solution);
+        status = miopenDestroySolution(solution_ptr);
         if(status != miopenStatusSuccess)
         {
             MIGRAPHX_THROW("MIOpen Convolution : Destroying Solution Failed");
@@ -107,6 +103,7 @@ argument miopen_convolution::compute(context& ctx,
         return args[3];
     }
 #endif
+#ifdef MIGRAPHX_HAS_FIND_MODE_API
     if(solution_id == 0)
         MIGRAPHX_THROW("MIOpen Convolution: invalid solution ID");
 
@@ -125,6 +122,7 @@ argument miopen_convolution::compute(context& ctx,
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Convolution: running convolution failed");
     return args[3];
+#endif
 }
 
 shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vector<shape> inputs)
@@ -188,8 +186,8 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
         return shape{shape::int8_type, {workspace_size}};
     }
 #endif
-
     // else use immediate find mode
+#ifdef MIGRAPHX_HAS_FIND_MODE_API
     miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
                                              w_desc.get(),
                                              x_desc.get(),
@@ -251,14 +249,18 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
     solution_id = solutions.front().solution_id;
 
     return shape{shape::int8_type, {perf.memory}};
+#endif
 }
 
 void miopen_convolution::finalize(context& ctx,
                                   const shape& output_shape,
-                                  std::vector<shape> inputs)
+                                  const std::vector<shape>& inputs)
 {
 #ifdef MIGRAPHX_HAS_FIND_2_API
     {
+        (void)(ctx); // avoid warnings
+        (void)(output_shape);
+        (void)(inputs);
         // need to create managed_ptr
         auto status = miopenLoadSolution(&solution_ptr,
                                          reinterpret_cast<const char*>(solution_object.data()),
@@ -268,6 +270,7 @@ void miopen_convolution::finalize(context& ctx,
         return;
     }
 #endif
+// Use immediate mode API
 #ifdef MIGRAPHX_HAS_FIND_MODE_API
     {
         if(cd == nullptr)

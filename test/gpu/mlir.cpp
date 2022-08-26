@@ -37,10 +37,6 @@
 #include <migraphx/functional.hpp>
 #include <test.hpp>
 
-using migraphx::trim;
-
-// m test_gpu_mlir && ./bin/test_gpu_mlir
-
 struct mlir_gpu_target : migraphx::gpu::target
 {
     std::string name() const { return "mlir"; }

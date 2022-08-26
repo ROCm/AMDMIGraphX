@@ -384,10 +384,10 @@ check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_
 
 if(HAS_FIND_2_API) 
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
-    message(STATUS "MIOpen has Find_2.0 API")
+    message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
 elseif(HAS_FIND_MODE_API)
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_MODE_API)
-    message(STATUS "MIOpen has find mode api")
+    message(STATUS "MIGraphx is using Find Mode API of MIOpen")
 else()
     message(STATUS "MIOpen does not have find mode api")
 endif()

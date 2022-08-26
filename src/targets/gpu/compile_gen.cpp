@@ -95,7 +95,7 @@ preload preload::broadcasts(std::size_t axis, const std::vector<shape>& inputs)
     std::size_t bytes = 0;
     for(auto i : preloaded)
     {
-        auto input = inputs[i];
+        const auto& input = inputs[i];
         bytes += input.bytes();
         if(bytes > max_lds_bytes)
             break;

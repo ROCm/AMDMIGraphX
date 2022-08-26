@@ -70,6 +70,7 @@ argument miopen_convolution::compute(context& ctx,
         const miopenTensorArgumentId_t names[3] = {
             miopenTensorConvolutionX, miopenTensorConvolutionW, miopenTensorConvolutionY};
 
+        // cppcheck-suppress constVariable
         void* buffers[3] = {args[0].implicit(), args[1].implicit(), args[3].implicit()};
 
         miopenTensorDescriptor_t descriptors[3] = {x_desc.get(), w_desc.get(), y_desc.get()};
@@ -103,7 +104,6 @@ argument miopen_convolution::compute(context& ctx,
         return args[3];
     }
 #endif
-#ifdef MIGRAPHX_HAS_FIND_MODE_API
     if(solution_id == 0)
         MIGRAPHX_THROW("MIOpen Convolution: invalid solution ID");
 
@@ -122,7 +122,6 @@ argument miopen_convolution::compute(context& ctx,
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Convolution: running convolution failed");
     return args[3];
-#endif
 }
 
 shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vector<shape> inputs)
@@ -187,13 +186,14 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
     }
 #endif
     // else use immediate find mode
-#ifdef MIGRAPHX_HAS_FIND_MODE_API
-    miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
+    auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
                                              w_desc.get(),
                                              x_desc.get(),
                                              cd.get(),
                                              y_desc.get(),
                                              &workspace_size);
+    if(status !=  miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen Convolution: Failed to get forward workspace size");
 
     workspace_shape = shape{shape::int8_type, {workspace_size}};
 
@@ -204,7 +204,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 
     int algo_count = 1;
     miopenConvAlgoPerf_t perf;
-    auto status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
+    status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
                                                         x_desc.get(),
                                                         x.implicit(),
                                                         w_desc.get(),
@@ -249,7 +249,6 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
     solution_id = solutions.front().solution_id;
 
     return shape{shape::int8_type, {perf.memory}};
-#endif
 }
 
 void miopen_convolution::finalize(context& ctx,
@@ -267,11 +266,9 @@ void miopen_convolution::finalize(context& ctx,
                                          solution_object.size());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
-        return;
     }
 #endif
 // Use immediate mode API
-#ifdef MIGRAPHX_HAS_FIND_MODE_API
     {
         if(cd == nullptr)
             cd = make_conv(op);
@@ -297,7 +294,6 @@ void miopen_convolution::finalize(context& ctx,
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: compile solution failed");
     }
-#endif
 }
 
 } // namespace gpu

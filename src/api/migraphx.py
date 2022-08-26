@@ -181,10 +181,6 @@ def program_parameters(h):
                         argument='const migraphx::argument&'),
              invoke='${program_parameters}[${name}] = ${argument}')
 
-@api.handle('migraphx_execution_environment',
-            'std::unordered_map<std::string, migraphx::argument>')
-def program_parameters(h):
-    h.constructor('create')
 
 @api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')
 def arguments(h):
@@ -280,7 +276,8 @@ def program(h):
              returns='std::vector<migraphx::argument>')
     h.method('run_async',
              api.params(
-                 params='std::unordered_map<std::string, migraphx::argument>', exec_env='{true, $@}'),
+                 params='std::unordered_map<std::string, migraphx::argument>',
+                 exec_env='migraphx::execution_environment'),
              invoke='migraphx::run_async($@)',
              returns='std::vector<migraphx::argument>')
     h.method('equal',
@@ -315,6 +312,18 @@ api.add_function('migraphx_save',
                             name='const char*',
                             options='migraphx::file_options'),
                  fname='migraphx::save')
+
+
+@api.handle('migraphx_execution_environment',
+            'migraphx::execution_environment')
+def execution_environment(h):
+    h.constructor('create')
+    h.method('set_stream',
+             api.params(queue='void*'),
+             invoke='migraphx::set_execution_stream($@)')
+    h.method('set_async_flag',
+             api.params(flag='bool'),
+             invoke='migraphx::set_run_async_flag($@)')
 
 
 @auto_handle()

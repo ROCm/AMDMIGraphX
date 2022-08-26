@@ -722,11 +722,18 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 
 struct execution_environment : MIGRAPHX_HANDLE_BASE(execution_environment)
 {
-    //execution_environment() {false, nullptr};
-    MIGRAPHX_HANDLE_CONSTRUCTOR(execution_environment);
+    execution_envirionment() { this->make_handle(&migraphx_execution_environment_create); }
 
-    execution_environment() { this->make_handle(&migraphx_execution_environment_create); }
-    execution_environment(migraphx_execution_environment* e) {this->set_handle(e, own{}); } 
+    MIGRAPHX_HANDLE_CONSTRUCTOR(execution_environment)
+
+    void set_execution_stream(void* stream) { // TODO : do type checkign for the stream
+        call(&migraphx_execution_environment_set_stream, this->get_handle_ptr(), queue);
+    }
+
+    void set_run_async_flag(bool flag) {
+        call(&migraphx_execution_environment_set_async_flag, this->get_handle_ptr(), flag);
+    }
+
 };
 
 struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>

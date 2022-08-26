@@ -21,11 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/execution_environment.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/execution_environment.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -167,6 +167,16 @@ void set_output_names(tf_options& options, std::vector<const char*> names)
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
 
+void set_execution_stream(execution_environment& exec, void* stream) { exec.queue = stream; }
+
+void set_run_async_flag(execution_environment& exec, bool flag) { exec.async = flag; }
+
+std::vector<argument>
+run_async(program& p, const parameter_map& params, const execution_environment& exec_env)
+{
+    return p.eval(params, exec_env);
+}
+
 template <class Value>
 std::vector<const char*> get_names(const std::unordered_map<std::string, Value>& m)
 {
@@ -243,12 +253,6 @@ bool equal(const T& x, const T& y)
 }
 
 std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
-
-std::vector<argument>
-run_async(program& p, const parameter_map& params, const execution_environment& exec_env)
-{
-    return p.eval(params, exec_env);
-}
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
@@ -413,17 +417,6 @@ struct migraphx_target
     migraphx::target object;
 };
 
-extern "C" struct migraphx_execution_environment;
-struct migraphx_execution_environment
-{
-    template <class... Ts>
-    migraphx_execution_environment(Ts&&... xs)
-        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
-    {
-    }
-    migraphx::execution_environment object;
-};
-
 extern "C" struct migraphx_program_parameter_shapes;
 struct migraphx_program_parameter_shapes
 {
@@ -532,6 +525,17 @@ struct migraphx_operation
     {
     }
     migraphx::operation object;
+};
+
+extern "C" struct migraphx_execution_environment;
+struct migraphx_execution_environment
+{
+    template <class... Ts>
+    migraphx_execution_environment(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::execution_environment object;
 };
 
 extern "C" struct migraphx_onnx_options;
@@ -1000,44 +1004,6 @@ migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters
     return api_error_result;
 }
 
-extern "C" migraphx_status
-migraphx_execution_environment_create(migraphx_execution_environment_t* execution_env)
-{
-    auto api_error_result = migraphx::try_([&] {
-        *execution_env = object_cast<migraphx_execution_environment_t>(
-            allocate<migraphx::execution_environment>());
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_execution_environment_update(migraphx_execution_environment_t execution_env,
-                                                                 bool is_asyncronous, void * queue)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(execution_env == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter execution_environment: Null pointer");
-        if(queue == nullptr && is_asyncronous)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter queue: Null pointer");
-        (execution_env->object).async = is_asyncronous;
-        (execution_env->object).queue = queue;
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_execution_environment_destroy(migraphx_execution_environment_t exec_env)
-{
-    auto api_error_result = migraphx::try_([&] { destroy((exec_env)); });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_execution_environment_assign_to(migraphx_execution_environment_t output,
-                                                               const_migraphx_execution_environment_t input)
-{
-    auto api_error_result = migraphx::try_([&] { *output = *input; });
-    return api_error_result;
-}
-
 extern "C" migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments)
 {
     auto api_error_result = migraphx::try_([&] { destroy((arguments)); });
@@ -1407,17 +1373,17 @@ extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
                                                       migraphx_program_t program,
                                                       migraphx_program_parameters_t params,
-                                                      migraphx_execution_environment_t e)
+                                                      migraphx_execution_environment_t exec_env)
 {
     auto api_error_result = migraphx::try_([&] {
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         if(params == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
-         if(e == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter e: Null pointer");
+        if(exec_env == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter exec_env: Null pointer");
         *out = allocate<migraphx_arguments_t>(
-            migraphx::run_async((program->object), (params->object), (e->object)));
+            migraphx::run_async((program->object), (params->object), (exec_env->object)));
     });
     return api_error_result;
 }
@@ -1509,6 +1475,56 @@ migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t op
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::save((p->object), (name), (options->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_execution_environment_destroy(migraphx_execution_environment_t execution_environment)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((execution_environment)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_execution_environment_assign_to(migraphx_execution_environment_t output,
+                                         const_migraphx_execution_environment_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_execution_environment_create(migraphx_execution_environment_t* execution_environment)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *execution_environment = object_cast<migraphx_execution_environment_t>(
+            allocate<migraphx::execution_environment>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_execution_environment_set_stream(migraphx_execution_environment_t execution_environment,
+                                          void* queue)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(execution_environment == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter execution_environment: Null pointer");
+        migraphx::set_execution_stream((execution_environment->object), (queue));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_execution_environment_set_async_flag(
+    migraphx_execution_environment_t execution_environment, bool flag)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(execution_environment == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter execution_environment: Null pointer");
+        migraphx::set_run_async_flag((execution_environment->object), (flag));
     });
     return api_error_result;
 }

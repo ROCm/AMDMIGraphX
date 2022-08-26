@@ -181,6 +181,10 @@ def program_parameters(h):
                         argument='const migraphx::argument&'),
              invoke='${program_parameters}[${name}] = ${argument}')
 
+@api.handle('migraphx_execution_environment',
+            'std::unordered_map<std::string, migraphx::argument>')
+def program_parameters(h):
+    h.constructor('create')
 
 @api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')
 def arguments(h):
@@ -273,6 +277,11 @@ def program(h):
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),
              invoke='migraphx::run($@)',
+             returns='std::vector<migraphx::argument>')
+    h.method('run_async',
+             api.params(
+                 params='std::unordered_map<std::string, migraphx::argument>', exec_env='{true, $@}'),
+             invoke='migraphx::run_async($@)',
              returns='std::vector<migraphx::argument>')
     h.method('equal',
              api.params(x='const migraphx::program&'),

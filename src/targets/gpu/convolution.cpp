@@ -103,7 +103,8 @@ argument miopen_convolution::compute(context& ctx,
         }
         return args[3];
     }
-#endif
+#else
+    // else use immediate mode
     if(solution_id == 0)
         MIGRAPHX_THROW("MIOpen Convolution: invalid solution ID");
 
@@ -122,6 +123,7 @@ argument miopen_convolution::compute(context& ctx,
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Convolution: running convolution failed");
     return args[3];
+#endif
 }
 
 shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vector<shape> inputs)
@@ -184,7 +186,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 
         return shape{shape::int8_type, {workspace_size}};
     }
-#endif
+#else     
     // else use immediate find mode
     auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
                                                            w_desc.get(),
@@ -249,6 +251,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
     solution_id = solutions.front().solution_id;
 
     return shape{shape::int8_type, {perf.memory}};
+#endif
 }
 
 void miopen_convolution::finalize(context& ctx,
@@ -267,7 +270,7 @@ void miopen_convolution::finalize(context& ctx,
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
     }
-#endif
+#else
     // Use immediate mode API
     {
         if(cd == nullptr)
@@ -294,6 +297,7 @@ void miopen_convolution::finalize(context& ctx,
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: compile solution failed");
     }
+#endif
 }
 
 } // namespace gpu

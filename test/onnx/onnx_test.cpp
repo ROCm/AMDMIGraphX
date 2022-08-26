@@ -374,12 +374,24 @@ TEST_CASE(batch_norm_flat_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {10}});
-    auto l1  = mm->add_parameter("scale", {migraphx::shape::float_type, {1}});
-    auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {1}});
-    auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {1}});
-    auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {1}});
-    mm->add_instruction(migraphx::make_op("batch_norm_inference"), l0, l1, l2, l3, l4);
+
+    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
+    auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
+    auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
+
+    auto half_pow = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto eps      = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+    auto mb_mean =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10}}}), mean);
+    auto n0   = mm->add_instruction("sub", X, mb_mean);
+    auto d0   = mm->add_broadcastable_binary_op("add", args[4], l1);
+    auto d1   = mm->add_broadcastable_binary_op("pow", d0, l0);
+    auto div0 = mm->add_broadcastable_binary_op("div", n0, d1);
+    auto r0   = mm->add_broadcastable_binary_op("mul", div0, args[1]);
+    return info.add_broadcastable_binary_op("add", r0, args[2]);
 
     auto prog = optimize_onnx("batch_norm_flat_test.onnx");
     EXPECT(p == prog);
@@ -394,7 +406,6 @@ TEST_CASE(batch_norm_1d_test)
     auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
     auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
     auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
-    mm->add_instruction(migraphx::make_op("batch_norm_inference"), l0, l1, l2, l3, l4);
 
     auto prog = optimize_onnx("batch_norm_1d_test.onnx");
     EXPECT(p == prog);
@@ -409,7 +420,6 @@ TEST_CASE(batch_norm_3d_test)
     auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
     auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
     auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
-    mm->add_instruction(migraphx::make_op("batch_norm_inference"), l0, l1, l2, l3, l4);
 
     auto prog = optimize_onnx("batch_norm_3d_test.onnx");
     EXPECT(p == prog);

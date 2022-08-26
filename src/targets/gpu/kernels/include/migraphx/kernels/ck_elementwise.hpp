@@ -52,8 +52,7 @@ namespace migraphx {
 //                                                     ck::Sequence<8, 8>,
 //                                                     ck::Sequence<8>>;
 
-__host__ __device__ void
-ck_elementwise(void* /* a_p */, void* /* b_p */, void* /* c_p */)
+__host__ __device__ void ck_elementwise(void* /* a_p */, void* /* b_p */, void* /* c_p */)
 {
     // ck::index_t M = 1024;
     // std::array<const void*, 2> input = {a_p,

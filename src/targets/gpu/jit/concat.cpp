@@ -67,9 +67,6 @@ struct concat_compiler : compiler<concat_compiler>
             return x + s.elements();
         });
         return total / inputs.size();
-        // auto it = std::min_element(
-        //     inputs.begin(), inputs.end(), by(std::less<>{}, [](auto s) { return s.elements(); }));
-        // return it->elements();
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const

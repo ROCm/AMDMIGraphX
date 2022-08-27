@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
 
@@ -45,8 +68,10 @@ struct operation
      *
      * @param ctx This is the context created by the `target` during compilation. Implementations
      * can use the target's `context` class rather than the `context` interface class.
-     * @param output This is the output shape. It is equivalent to running `compute_shape` with each
-     * `shape` of the `argument`.
+     * @param output Equivalent to running `compute_shape` with each `shape` of the `argument`.
+     * For a fixed shape, the returned argument will have the same shape as `output`.
+     * For a dynamic shape, the returned `argument` will be a fixed shape within the bounds
+     * set in the dynamic shape `output`.
      * @param input This is the `argument` result from the previous instruction's computation.
      * @return Return an `argument` of the result computation. The `shape` of `argument` should be
      * the same the `output` shape.
@@ -114,7 +139,7 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs))
 {
     dependent_type<operation, T> y = x;
-    normalize_attributes(y, inputs[0].lens());
+    normalize_attributes(y, inputs[0].max_lens());
     return any_cast<T>(y).normalize_compute_shape(inputs);
 }
 

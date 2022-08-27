@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_RTGLIB_COMMAND_HPP
 #define MIGRAPHX_GUARD_RTGLIB_COMMAND_HPP
 
@@ -18,7 +41,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 inline auto& get_commands()
 {
     // NOLINTNEXTLINE
-    static std::unordered_map<std::string, std::function<void(std::vector<std::string> args)>> m;
+    static std::unordered_map<
+        std::string,
+        std::function<void(const std::string& exe_name, std::vector<std::string> args)>>
+        m;
     return m;
 }
 
@@ -42,10 +68,11 @@ const std::string& command_name()
 }
 
 template <class T>
-void run_command(std::vector<std::string> args, bool add_help = false)
+void run_command(const std::string& exe_name, std::vector<std::string> args, bool add_help = false)
 {
     T x;
     argument_parser ap;
+    ap.set_exe_name(exe_name + " " + command_name<T>());
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
@@ -58,7 +85,9 @@ template <class T>
 int auto_register_command()
 {
     auto& m              = get_commands();
-    m[command_name<T>()] = [](std::vector<std::string> args) { run_command<T>(args, true); };
+    m[command_name<T>()] = [](const std::string& exe_name, std::vector<std::string> args) {
+        run_command<T>(exe_name, args, true);
+    };
     return 0;
 }
 

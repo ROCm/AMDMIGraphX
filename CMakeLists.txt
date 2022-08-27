@@ -1,3 +1,26 @@
+#####################################################################################
+# The MIT License (MIT)
+#
+# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#####################################################################################
 cmake_minimum_required(VERSION 3.5)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
@@ -38,8 +61,6 @@ check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
 set(CMAKE_REQUIRED_INCLUDES)
 set(CMAKE_EXTRA_INCLUDE_FILES)
 
-find_package(nlohmann_json 3.8.0 REQUIRED)
-
 include(ROCMSetupVersion)
 
 rocm_setup_version(VERSION 2.3)
@@ -59,8 +80,11 @@ endif()
 # Disable cpu backend by default
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
+# Disable fpga backend by default
+set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
+
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options(-std=c++17)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 
 if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
     set(CONFIGURE_DEPENDS)
@@ -203,6 +227,8 @@ rocm_enable_cppcheck(
         useSmartPointer:*make_shared_array.hpp
         constParameter:*src/targets/gpu/*.cpp
         constParameter:*src/targets/gpu/*.hpp
+        # Suppress mlir_conv.cpp since this file will be deleted
+        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -228,14 +254,6 @@ rocm_enable_cppcheck(
 enable_testing()
 
 include(ROCMCreatePackage)
-rocm_create_package(
-    NAME MIGraphX
-    DESCRIPTION "AMD's graph optimizer"
-    MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
-    LDCONFIG
-    PTH
-    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
-)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -252,3 +270,12 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
+
+rocm_create_package(
+    NAME MIGraphX
+    DESCRIPTION "AMD's graph optimizer"
+    MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
+    LDCONFIG
+    PTH
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
+)

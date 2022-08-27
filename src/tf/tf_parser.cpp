@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <graph.pb.h>
@@ -79,7 +102,13 @@ instruction_ref tf_parser::node_info::add_broadcastable_binary_op(const std::str
                                                                   instruction_ref arg0,
                                                                   instruction_ref arg1) const
 {
-    return add_common_op(*mm, make_op(op_name), {arg0, arg1});
+    return this->add_common_op(op_name, arg0, arg1);
+}
+
+instruction_ref tf_parser::node_info::add_common_op(const std::string& op_name,
+                                                    std::vector<instruction_ref> inputs) const
+{
+    return migraphx::add_common_op(*mm, make_op(op_name), std::move(inputs));
 }
 
 int64_t tf_parser::parse_axis(const int64_t dim, const size_t num_dims) const
@@ -187,7 +216,7 @@ static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& da
         std::fill(data_vals.begin(), data_vals.end(), data[0]);
     }
     else
-        copy(data.begin(), data.end(), std::back_inserter(data_vals));
+        copy(data.begin(), data.end(), data_vals.begin());
     return data_vals;
 }
 
@@ -300,33 +329,37 @@ void tf_parser::parse_node(const std::string& name)
         auto&& node = nodes.at(name);
         if(not is_valid_op(node))
             return;
-
         std::vector<instruction_ref> args;
-
         for(auto&& input : node.input())
         {
             // control dependencies (signified by ^ before the name) are ignored
             if(contains(input, "^"))
                 continue;
-            if(nodes.count(input) > 0)
+            std::string input_name = input;
+            // if input has trailing `:0` index then remove it
+            auto multi_out_idx = input.find(':');
+            if(multi_out_idx != std::string::npos && input.substr(multi_out_idx + 1) == "0")
             {
-                std::string iname;
+                input_name = input.substr(0, multi_out_idx);
+            }
+            if(nodes.count(input_name) > 0)
+            {
                 // input was from a node with multiple outputs
-                if(contains(input, ':'))
+                if(contains(input_name, ':'))
                 {
-                    iname = input.substr(0, input.find(':'));
+                    input_name = input_name.substr(0, input.find(':'));
                 }
                 else
                 {
-                    iname = get_name(nodes.at(input));
+                    input_name = get_name(nodes.at(input_name));
                 }
-                assert(name != iname);
-                this->parse_node(iname);
-                args.push_back(instructions.at(input));
+                assert(name != input_name);
+                this->parse_node(input_name);
+                args.push_back(instructions.at(input_name));
             }
             else
             {
-                args.push_back(instructions.at(input));
+                args.push_back(instructions.at(input_name));
             }
         }
         std::vector<instruction_ref> result;

@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include "verify.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
@@ -50,8 +73,12 @@ struct loader
 
     void parse(argument_parser& ap)
     {
-        ap(file, {}, ap.metavar("<input file>"));
-        ap(model, {"--model"}, ap.help("Load model"), ap.type("resnet50|inceptionv3|alexnet"));
+        ap(file, {}, ap.metavar("<input file>"), ap.file_exist(), ap.required(), ap.group("input"));
+        ap(model,
+           {"--model"},
+           ap.help("Load model"),
+           ap.type("resnet50|inceptionv3|alexnet"),
+           ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
@@ -187,6 +214,9 @@ struct loader
             auto last = std::prev(mm->end(), trim);
             mm->remove_instructions(last, mm->end());
         }
+        // Remove unused variable when exporting to cpp
+        if(output_type == "cpp")
+            migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
         if(optimize)
         {
             migraphx::run_passes(*p.get_main_module(),
@@ -552,26 +582,62 @@ struct onnx : command<onnx>
 
 struct main_command
 {
-    static std::string get_command_help()
+    static std::string get_command_help(const std::string& title = colorize(color::fg_yellow,
+                                                                            "COMMANDS:"))
     {
-        std::string result = "Commands:\n";
-        return std::accumulate(get_commands().begin(),
-                               get_commands().end(),
-                               result,
-                               [](auto r, auto&& p) { return r + "    " + p.first + "\n"; });
+        std::string result = title + "\n";
+        std::vector<std::string> commands(get_commands().size());
+        std::transform(get_commands().begin(),
+                       get_commands().end(),
+                       commands.begin(),
+                       [](const auto& p) { return colorize(color::fg_green, p.first); });
+        std::sort(commands.begin(), commands.end());
+        return std::accumulate(commands.begin(), commands.end(), result, [](auto r, auto&& s) {
+            return r + "    " + s + "\n";
+        });
     }
     void parse(argument_parser& ap)
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
                                   "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+        ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
+
+        // Trim command off of exe name
+        ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
+        ap.set_exe_name_to(exe_name);
     }
 
-    void run() {}
+    std::vector<std::string> wrong_commands{};
+    std::string exe_name = "<exe>";
+
+    void run()
+    {
+        std::cout << color::fg_red << color::bold << "error: " << color::reset;
+        auto it = std::find_if(wrong_commands.begin(), wrong_commands.end(), [](const auto& c) {
+            return get_commands().count(c) > 0;
+        });
+        if(it == wrong_commands.end())
+        {
+            std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset
+                      << "' is not a valid command." << std::endl;
+            std::cout << get_command_help("Available commands:") << std::endl;
+        }
+        else
+        {
+            std::cout << "command '" << color::fg_yellow << *it << color::reset
+                      << "' must be first argument" << std::endl;
+            std::cout << std::endl;
+
+            std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
+            std::cout << "    " << exe_name << " " << *it << " <options>" << std::endl;
+        }
+        std::cout << std::endl;
+    }
 };
 
 } // namespace MIGRAPHX_INLINE_NS
@@ -593,11 +659,11 @@ int main(int argc, const char* argv[])
     auto cmd = args.front();
     if(m.count(cmd) > 0)
     {
-        m.at(cmd)({args.begin() + 1, args.end()});
+        m.at(cmd)(argv[0], {args.begin() + 1, args.end()});
     }
     else
     {
-        run_command<main_command>(args);
+        run_command<main_command>(argv[0], args);
     }
 
     return 0;

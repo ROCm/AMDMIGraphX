@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
@@ -25,7 +48,10 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/op/clip.hpp>
+#include <migraphx/op/contiguous.hpp>
 #include <cmath>
 #include <set>
 
@@ -255,6 +281,11 @@ MIGRAPHX_REGISTER_OP(hip_layernorm)
 
 struct hip_triadd_layernorm : ternary_device<hip_triadd_layernorm, &device::triadd_layernorm>
 {
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4).standard();
+        return inputs[0];
+    }
     // Empty finalize to skip dimension reduction
     void finalize(context&, const shape&, const std::vector<shape>&) {}
 };
@@ -312,6 +343,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
 
 auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
+namespace {
 struct find_layernorm
 {
     auto matcher() const { return match::layernorm(&gpu_name); }
@@ -677,11 +709,12 @@ struct miopen_fusion
         return args.back();
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_fusion)
 
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
 
@@ -705,19 +738,19 @@ struct miopen_conv_bias
         float beta  = 0;
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
 
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        if(not f.compile(ctx))
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        if(not fp.compile(ctx))
             MIGRAPHX_THROW("Failed to compile fusion plan");
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -728,7 +761,7 @@ MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f          = {};
+    fusion fp         = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
     fusion::op_t relu = {};
@@ -754,18 +787,18 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
-        return f.execute(ctx, fargs, args[0], args[4]);
+        return fp.execute(ctx, fargs, args[0], args[4]);
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
-        conv = f.create_conv(op, inputs[1]);
-        bias = f.create_bias(inputs[3]);
-        relu = f.create_relu();
-        f.compile(ctx);
+        fp   = fusion(inputs[0]);
+        conv = fp.create_conv(op, inputs[1]);
+        bias = fp.create_bias(inputs[3]);
+        relu = fp.create_relu();
+        fp.compile(ctx);
     }
 
-    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
+    shape get_workspace(context& ctx) { return fp.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
@@ -801,23 +834,15 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     m.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
-inline auto precompile_name(std::string s) // NOLINT
+template <class... Strings>
+inline auto precompile_name(Strings... names) // NOLINT
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "gpu::precompile_op")
             return false;
         auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
-        return (op.name() == s);
+        return (contains({names...}, op.name()));
     });
-}
-
-template <class... Ms>
-auto conv_bias_pointwise(Ms... ms)
-{
-    return precompile_name("pointwise")(
-        match::either_arg(0, 1)(bias_shape(match::used_once()).bind("bias"),
-                                fusable_conv(match::used_once()).bind("conv")),
-        ms...);
 }
 
 struct find_conv_bias
@@ -875,7 +900,6 @@ struct find_conv_pointwise
         {
             if(i.name()[0] == '@')
                 continue;
-            auto inputs = to_shapes(i.inputs());
             op.ops.push_back({{i.get_operator()}});
         }
         std::vector<instruction_ref> inputs = {input_ins, weights_ins, bias_ins, alloc_ins};
@@ -926,28 +950,70 @@ struct find_gemm_add
     }
 };
 
-auto pointwise_name(const std::string& s)
-{
-    return precompile_name("pointwise")(match::make_basic_pred_matcher([=](auto ins) {
-        module_ref pm = ins->module_inputs().front();
-        auto n = std::count_if(pm->begin(), pm->end(), [&](auto& i) { return i.name() == s; });
-        if(n != 1)
-            return false;
-        return std::all_of(pm->begin(), pm->end(), [&](auto& i) {
-            return starts_with(i.name(), "@") or i.name() == s;
-        });
-    }));
-}
-
 struct find_gemm_pointwise
 {
     auto matcher() const
     {
-        return pointwise_name("add")(
+        return precompile_name("pointwise")(
             match::nargs(3),
-            match::all_of[match::inputs()](match::standard_shape()),
-            match::either_arg(0, 1)(match::used_once().bind("c"),
-                                    match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
+            match::either_arg(0, 1)(
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"),
+                match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm")));
+    }
+
+    // TODO: Move to matcher.hpp
+    static auto match_param(const std::string& name)
+    {
+        return match::make_basic_pred_matcher([=](auto ins) {
+            if(ins->name() != "@param")
+                return false;
+            auto p = any_cast<builtin::param>(ins->get_operator());
+            return p.parameter == name;
+        });
+    }
+
+    template <class M>
+    static auto match_mul_const(M m, const std::string& var)
+    {
+        return match::name("mul")(match::either_arg(0, 1)(match::name("@literal").bind(var), m))
+            .bind(var + "_mul");
+    }
+
+    static auto match_add(const std::string& input, const std::string& output)
+    {
+        auto param     = match::name("@param");
+        auto add       = match::name("add")(match::args(param, param));
+        auto inner_mul = match::any_of(match_mul_const(match_param(input), "alpha"),
+                                       match_mul_const(match_param(output), "beta"));
+        auto mul_add   = match::name("add")(match::either_arg(0, 1)(inner_mul, param));
+        auto add_mul   = match_mul_const(add, "gamma");
+        return match::name("@return")(match::args(match::any_of(add, mul_add, add_mul)));
+    }
+
+    static float get_float(instruction_ref ins) { return ins->get_literal().at<float>(); }
+
+    template <class Gemm>
+    static bool update_gemm(Gemm& gemm, module_ref pm, unsigned input)
+    {
+        auto names = pm->get_parameter_names();
+        if(names.size() != 2)
+            return false;
+        std::sort(names.begin(), names.end());
+        unsigned output = input == 0 ? 1 : 0;
+        auto mr         = match::match_instruction(
+            *pm, std::prev(pm->end()), match_add(names[input], names[output]));
+        if(mr.result == pm->end())
+            return false;
+        if(contains(mr.instructions, "alpha_mul"))
+            gemm.alpha *= get_float(mr.instructions["alpha"]);
+        else if(contains(mr.instructions, "beta_mul"))
+            gemm.beta *= get_float(mr.instructions["beta"]);
+        else if(contains(mr.instructions, "gamma_mul"))
+        {
+            gemm.alpha *= get_float(mr.instructions["gamma"]);
+            gemm.beta *= get_float(mr.instructions["gamma"]);
+        }
+        return true;
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -961,15 +1027,85 @@ struct find_gemm_pointwise
         // Already fused gemm
         if(not float_equal(gemm.beta, 0))
             return;
+        gemm.beta = 1;
+
+        if(not update_gemm(
+               gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
+            return;
+
+        // const-fold input if not standard shape since rocblas can't handle it
+        if(not c_ins->get_shape().standard())
+        {
+            auto c = op::contiguous{};
+            auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
+            c_ins  = m.add_literal(l.get_shape(), l.data());
+        }
 
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
 
         inputs.push_back(c_ins);
-        inputs.push_back(gemm_ins->inputs().back());
+        inputs.push_back(ins->inputs().back());
 
-        gemm.beta = 1;
         m.replace_instruction(ins, gemm, inputs);
+    }
+};
+
+struct find_contiguous_tranpose_gemm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(
+            match::name("transpose")(
+                match::arg(0)(match::name("gpu::gemm")(match::used_once()).bind("gemm")))
+                .bind("transpose")));
+    }
+
+    template <class Vector>
+    static bool is_swapped(const Vector& perm, std::size_t i, std::size_t j)
+    {
+        if(i >= perm.size() or j >= perm.size())
+            return false;
+        auto perm2 = perm;
+        std::iota(perm2.begin(), perm2.end(), 0);
+        std::swap(perm2[i], perm2[j]);
+        return perm2 == perm;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto gemm      = r.instructions["gemm"];
+        auto alloc     = gemm->inputs().back();
+        auto transpose = r.instructions["transpose"];
+        auto perm      = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto iperm     = invert_permutation(perm);
+
+        if(perm.size() < 3)
+            return;
+
+        if(not is_swapped(perm, perm.size() - 3, perm.size() - 2))
+            return;
+
+        auto lens = gemm->get_shape().lens();
+        if(lens.size() > 3 and
+           not std::all_of(lens.begin(), lens.end() - 3, [](auto i) { return i == 1; }))
+            return;
+
+        auto gemmv           = gemm->get_operator().to_value();
+        gemmv["trans_batch"] = 1;
+
+        auto s = shape{alloc->get_shape().type(), reorder_dims(alloc->get_shape().lens(), iperm)};
+        auto new_alloc = m.insert_instruction(gemm, make_op("allocate", {{"shape", to_value(s)}}));
+        auto alloc_transpose =
+            m.insert_instruction(gemm, make_op("transpose", {{"permutation", perm}}), new_alloc);
+
+        auto inputs        = gemm->inputs();
+        inputs.back()      = alloc_transpose;
+        auto new_gemm      = m.insert_instruction(gemm, make_op("gpu::gemm", gemmv), inputs);
+        auto gemm_transpoe = m.insert_instruction(gemm, transpose->get_operator(), new_gemm);
+
+        m.replace_instruction(ins, gemm_transpoe);
     }
 };
 
@@ -989,10 +1125,70 @@ struct find_commutative_broadcast
         m.replace_instruction(ins, ins->get_operator(), args);
     }
 };
+} // namespace
+
+struct find_contiguous
+{
+    auto matcher() const { return match::name("gpu::contiguous"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        m.replace_instruction(
+            ins,
+            make_op("gpu::precompile_op", {{"op", to_value(make_op("contiguous"))}}),
+            ins->inputs());
+    }
+};
+
+struct find_contiguous_pointwise
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto pw     = ins->inputs().front();
+        auto alloc  = ins->inputs().back();
+        auto args   = pw->inputs();
+        args.back() = alloc;
+
+        m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
+    }
+};
+
+struct find_layernorm_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(match::arg(0)(
+            precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto layernorm = r.instructions["layernorm"];
+        auto* pm       = ins->module_inputs().front();
+
+        if(not layernorm->module_inputs().empty())
+            return;
+
+        auto inputs = layernorm->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
+
+        m.replace_instruction(ins, layernorm->get_operator(), inputs, {pm});
+    }
+};
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_gelu{}, find_gelu_new{fast_math});
+    match::find_matches(m, find_contiguous_pointwise{}, find_gelu{}, find_gelu_new{fast_math});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_triadd{});
     match::find_matches(m,
@@ -1012,8 +1208,11 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m,
                         find_triadd_layernorm{},
                         find_gemm_add{},
+                        find_layernorm_pointwise{},
                         find_gemm_pointwise{},
+                        find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
+    match::find_matches(m, find_contiguous{});
 }
 
 } // namespace gpu

@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -335,7 +358,33 @@ TEST_CASE(simplify_mul_add)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(simplify_inner_broadcast)
+TEST_CASE(simplify_dot_add)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one = m1.add_literal(get_2x2());
+        auto two = m1.add_literal(get_2x2(1));
+        auto sum = m1.add_instruction(migraphx::make_op("add"), one, x);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), sum, two);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one  = m2.add_literal(get_2x2());
+        auto two  = m2.add_literal(get_2x2(1));
+        auto dot1 = m2.add_instruction(migraphx::make_op("dot"), x, two);
+        auto dot2 = m2.add_instruction(migraphx::make_op("dot"), one, two);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_inner_broadcast1)
 {
     auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};
     migraphx::module m1;
@@ -353,6 +402,31 @@ TEST_CASE(simplify_inner_broadcast)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto sumb = m2.add_instruction(b, sum);
+        m2.add_instruction(pass_op{}, sumb);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_inner_broadcast2)
+{
+    auto b = migraphx::op::multibroadcast{{2, 1, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto xb  = m1.add_instruction(b, x);
+        auto yb  = m1.add_instruction(b, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), xb, yb);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1, 1, 1}});
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, y);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);

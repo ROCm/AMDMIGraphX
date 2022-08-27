@@ -200,7 +200,6 @@ hip::copy_from_gpu
 hip::copy_to_gpu
 hip::hip_allocate_memory
 hip::hip_copy_literal
-hip::sync_device
 identity
 im2col
 leaky_relu

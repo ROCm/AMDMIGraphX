@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_STRINGUTILS_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_STRINGUTILS_HPP
 
@@ -21,8 +44,8 @@ auto with_char(F f)
     return [=](unsigned char c) -> bool { return f(c); };
 }
 
-inline std::string
-replace_string(std::string subject, const std::string& search, const std::string& replace)
+inline void
+replace_string_inplace(std::string& subject, const std::string& search, const std::string& replace)
 {
     size_t pos = 0;
     while((pos = subject.find(search, pos)) != std::string::npos)
@@ -30,6 +53,12 @@ replace_string(std::string subject, const std::string& search, const std::string
         subject.replace(pos, search.length(), replace);
         pos += replace.length();
     }
+}
+
+inline std::string
+replace_string(std::string subject, const std::string& search, const std::string& replace)
+{
+    replace_string_inplace(subject, search, replace);
     return subject;
 }
 
@@ -145,27 +174,27 @@ inline std::string interpolate_string(const std::string& input,
 }
 
 template <class Iterator>
-inline std::string to_string_range(Iterator start, Iterator last)
+inline std::string to_string_range(Iterator start, Iterator last, const char* delim = ", ")
 {
     std::stringstream ss;
     if(start != last)
     {
         ss << *start;
-        std::for_each(std::next(start), last, [&](auto&& x) { ss << ", " << x; });
+        std::for_each(std::next(start), last, [&](auto&& x) { ss << delim << x; });
     }
     return ss.str();
 }
 
 template <class Range>
-inline std::string to_string_range(const Range& r)
+inline std::string to_string_range(const Range& r, const char* delim = ", ")
 {
-    return to_string_range(r.begin(), r.end());
+    return to_string_range(r.begin(), r.end(), delim);
 }
 
 template <class T>
-inline std::string to_string_range(const std::initializer_list<T>& r)
+inline std::string to_string_range(const std::initializer_list<T>& r, const char* delim = ", ")
 {
-    return to_string_range(r.begin(), r.end());
+    return to_string_range(r.begin(), r.end(), delim);
 }
 
 template <class T>

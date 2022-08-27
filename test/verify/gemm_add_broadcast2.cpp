@@ -21,38 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
 
-#include <unordered_map>
-#include <string>
-
-#include <migraphx/instruction_ref.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct target_assignments
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
+struct gemm_add_broadcast2 : verify_program<gemm_add_broadcast2>
 {
-    using iterator   = std::unordered_map<instruction_ref, std::string>::const_iterator;
-    using value_type = std::pair<instruction_ref, std::string>;
-
-    auto size() const { return assignments.size(); }
-    auto& at(instruction_ref ins) const { return assignments.at(ins); }
-
-    auto insert(iterator it, const std::pair<instruction_ref, std::string>& assignment)
+    migraphx::program create_program() const
     {
-        return assignments.insert(it, assignment);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{migraphx::shape::float_type, {1, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {1, 3, 4}};
+        migraphx::shape m3_shape{migraphx::shape::float_type, {1, 2, 1}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
+        auto l3_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), l3);
+
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3_b);
+        return p;
     }
-    auto find(instruction_ref ins) const { return assignments.find(ins); }
-
-    auto begin() const { return assignments.begin(); }
-    auto end() const { return assignments.end(); }
-
-    private:
-    std::unordered_map<instruction_ref, std::string> assignments;
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP

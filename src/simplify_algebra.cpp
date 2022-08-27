@@ -208,6 +208,42 @@ struct find_mul_add
     }
 };
 
+struct find_dot_add
+{
+    auto matcher() const
+    {
+        return match::name("dot")(match::either_arg(0, 1)(
+            match::name("add")(
+                match::either_arg(0, 1)(match::any().bind("x"),
+                                        match::any_of(match::is_constant()).bind("b")),
+                match::none_of(match::args(match::is_constant(), match::is_constant())),
+                match::used_once()),
+            match::is_constant().bind("a")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
+        auto x_ins = r.instructions["x"];
+        assert(x_ins != b_ins);
+
+        const bool flipped = a_ins == ins->inputs().back();
+
+        auto insert_dot = [&](auto x, auto y) {
+            if(flipped)
+                return m.insert_instruction(ins, make_op("dot"), y, x);
+            else
+                return m.insert_instruction(ins, make_op("dot"), x, y);
+        };
+
+        auto ax_ins = insert_dot(a_ins, x_ins);
+        auto ab_ins = insert_dot(a_ins, b_ins);
+        m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+    }
+};
+
 struct find_add_lit_broadcast
 {
     auto matcher() const
@@ -267,28 +303,26 @@ struct find_double_add_lit_broadcast
 
 struct find_inner_broadcast
 {
-    auto matcher() const
-    {
-        return pointwise(
-            match::nargs(2),
-            match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
-    }
+    auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
-        auto x_ins = r.instructions["x"];
-        auto y_ins = r.instructions["y"];
-
-        auto xbroadcast = any_cast<op::broadcast>(x_ins->get_operator());
-        auto ybroadcast = any_cast<op::broadcast>(y_ins->get_operator());
-
-        if(xbroadcast.axis != ybroadcast.axis)
+        auto ins        = r.result;
+        auto broadcasts = ins->inputs();
+        if(broadcasts.empty())
+            return;
+        std::vector<instruction_ref> inputs;
+        std::transform(broadcasts.begin(),
+                       broadcasts.end(),
+                       std::back_inserter(inputs),
+                       [](auto i) { return i->inputs().front(); });
+        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
+               return i->get_shape() != inputs.front()->get_shape();
+           }))
             return;
 
-        auto op = m.insert_instruction(
-            ins, ins->get_operator(), x_ins->inputs().front(), y_ins->inputs().front());
-        m.replace_instruction(ins, xbroadcast, op);
+        auto op = m.insert_instruction(ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }
 };
 
@@ -416,8 +450,9 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](match::name("slice")(
-            match::any_of[match::outputs()](match::pointwise(), reduction()))));
+        return match::any(
+            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
+                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
@@ -1048,6 +1083,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_add{},
+                            find_dot_add{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

@@ -64,12 +64,7 @@ add_library(migraphx
     normalize_ops.cpp
     op_enums.cpp
     operation.cpp
-<<<<<<< HEAD
-=======
-    opt/memory_coloring.cpp
-    opt/memory_coloring_impl.cpp
     pad_calc.cpp
->>>>>>> develop
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp

@@ -508,9 +508,9 @@ struct allocation_color
 static std::size_t find_max_alignmen(const module& m, const std::string& allocation_op)
 {
     std::size_t alignment = 1;
-    for(auto ins:iterator_for(m))
+    for(auto ins : iterator_for(m))
     {
-        if (ins->name() != allocation_op)
+        if(ins->name() != allocation_op)
             continue;
         alignment = std::max(allocation_segment::compute_alignment(ins), alignment);
     }

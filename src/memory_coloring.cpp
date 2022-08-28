@@ -505,9 +505,21 @@ struct allocation_color
     }
 };
 
+static std::size_t find_max_alignmen(const module& m, const std::string& allocation_op)
+{
+    std::size_t alignment = 1;
+    for(auto ins:iterator_for(m))
+    {
+        if (ins->name() != allocation_op)
+            continue;
+        alignment = std::max(allocation_segment::compute_alignment(ins), alignment);
+    }
+    return alignment;
+}
+
 void memory_coloring::apply(module& m) const
 {
-    const std::size_t alignment = 8;
+    const std::size_t alignment = find_max_alignmen(m, allocation_op);
     auto conflict_table         = build_conflict_table(m, allocation_op);
     auto as                     = allocation_segment::build(conflict_table, alignment);
 

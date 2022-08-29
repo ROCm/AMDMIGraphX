@@ -23,6 +23,7 @@
  */
 #include <migraphx/tf/op_parser.hpp>
 #include <migraphx/tf/tf_parser.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -38,16 +39,59 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
                           tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+                          std::vector<instruction_ref> args) const
     {
-        float epsilon  = 1e-5f;
-        float momentum = 0.9f;
+        float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = info.attributes.at("epsilon").f();
         }
-        auto op = make_op("batch_norm_inference", {{"epsilon", epsilon}, {"momentum", momentum}});
-        return info.add_instruction(op, args);
+
+        auto x_lens = args[0]->get_shape().lens();
+        auto x_type = args[0]->get_shape().type();
+
+        if(x_lens.size() == 1)
+        {
+            auto rt   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
+            auto eps  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto n0   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
+            auto d0   = info.add_broadcastable_binary_op("add", args[4], eps);
+            auto d1   = info.add_broadcastable_binary_op("pow", d0, rt);
+            auto div0 = info.add_broadcastable_binary_op("div", n0, d1);
+            auto r0   = info.add_broadcastable_binary_op("mul", div0, args[1]);
+            return info.add_broadcastable_binary_op("add", r0, args[2]);
+        }
+        else if(x_lens.size() > 2)
+        {
+            // unsqueeze tensors of shape (C) to broadcast correctly
+            std::vector<int64_t> unsqueeze_axes(x_lens.size() - 2);
+            int64_t i = 1;
+            std::generate(unsqueeze_axes.begin(), unsqueeze_axes.end(), [&] { return i++; });
+            auto rt  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
+            auto eps = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto scale_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
+            auto bias_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[2]);
+            auto mean_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[3]);
+            auto var_unsqueeze = info.add_instruction(
+                migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[4]);
+            auto numer   = info.add_broadcastable_binary_op("sub", args[0], mean_unsqueeze);
+            auto var_eps = info.add_broadcastable_binary_op("add", var_unsqueeze, eps);
+            auto denom   = info.add_broadcastable_binary_op("pow", var_eps, rt);
+            auto div0    = info.add_broadcastable_binary_op("div", numer, denom);
+            auto r0      = info.add_broadcastable_binary_op("mul", div0, scale_unsqueeze);
+            return info.add_broadcastable_binary_op("add", r0, bias_unsqueeze);
+        }
+        else
+        {
+            // num dims in [0 , 2]
+            std::ostringstream oss;
+            oss << "FUSEDBATCHNORM: rank " << x_lens.size()
+                << " input tensor, unhandled data format";
+            MIGRAPHX_THROW(oss.str());
+        }
     }
 };
 

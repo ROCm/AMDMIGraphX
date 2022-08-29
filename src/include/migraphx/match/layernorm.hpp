@@ -51,8 +51,7 @@ struct layernorm_matcher
         return f("div")(arg(0)(x_minus_mean()),
 
                         arg(1)(skip_broadcasts(f("sqrt")(arg(0)(f("add")(
-                            either_arg(0, 1)(variance(), is_constant()))))))); // 71.7596/sec
-        // arg(0)(f("add")(either_arg(0, 1)(variance(), has_value(1e-12f)))))))); // 70.8157/sec
+                            either_arg(0, 1)(variance(), is_constant().bind("eps"))))))));
     }
 
     auto matcher() const { return layernorm_onnx(); }

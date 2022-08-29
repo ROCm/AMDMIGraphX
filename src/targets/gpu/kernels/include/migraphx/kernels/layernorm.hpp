@@ -43,7 +43,7 @@ template <index_int Axis,
           class Input2,
           class... Inputs>
 __device__ void generic_binary_layernorm(
-    F compute, BinOp op, Output output, Input1 input1, Input2 input2, Inputs... inputs)
+    F compute, BinOp op, float eps, Output output, Input1 input1, Input2 input2, Inputs... inputs)
 {
     using reduce_output = reduce::with_axis<Input1, Axis>;
     reduce::block::run<reduce_output>([&](auto, auto r) {
@@ -58,29 +58,30 @@ __device__ void generic_binary_layernorm(
         auto mean_x   = means[0];
         auto mean_x2  = means[1];
         auto variance = mean_x2 - (mean_x * mean_x);
+        auto eps_val  = static_cast<value_type>(eps);
 
         r.inner([&](auto& y, auto x1, auto x2, auto... xs) {
             auto x = op(x1, x2);
             auto m = x - mean_x;
-            // m * rsqrt(mean(m ^ 2) + 1.00136e-05)
-            y = compute(m * rsqrt(variance + value_type{1.00136e-05}), xs...);
+            // m * rsqrt(mean(m ^ 2) + epsilon)
+            y = compute(m * rsqrt(variance + eps_val), xs...);
         })(output, input1, input2, inputs...);
     });
 }
 
 template <index_int Axis, class F, class Output, class Input, class... Inputs>
-__device__ void layernorm(F compute, Output output, Input input, Inputs... inputs)
+__device__ void layernorm(F compute, float eps, Output output, Input input, Inputs... inputs)
 {
     generic_binary_layernorm<Axis>(
-        compute, [](auto x, auto) { return x; }, output, input, input, inputs...);
+        compute, [](auto x, auto) { return x; }, eps, output, input, input, inputs...);
 }
 
 template <index_int Axis, class F, class Output, class Input1, class Input2, class... Inputs>
 __device__ void
-add_layernorm(F compute, Output output, Input1 input1, Input2 input2, Inputs... inputs)
+add_layernorm(F compute, float eps, Output output, Input1 input1, Input2 input2, Inputs... inputs)
 {
     generic_binary_layernorm<Axis>(
-        compute, [](auto x1, auto x2) { return x1 + x2; }, output, input1, input2, inputs...);
+        compute, [](auto x1, auto x2) { return x1 + x2; }, eps, output, input1, input2, inputs...);
 }
 
 } // namespace migraphx

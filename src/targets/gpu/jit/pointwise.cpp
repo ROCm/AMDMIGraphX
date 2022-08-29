@@ -28,7 +28,6 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {

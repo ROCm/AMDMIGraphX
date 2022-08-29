@@ -344,7 +344,6 @@ def batch_norm_1d_test():
         'BatchNormalization',
         inputs=['x', 'scale', 'bias', 'mean', 'variance'],
         outputs=['y'],
-        epsilon=1e-6,
         momentum=0.9)
 
     return ([node], [x, scale, bias, mean, var], [out])
@@ -365,6 +364,24 @@ def batch_norm_3d_test():
         inputs=['x', 'scale', 'bias', 'mean', 'variance'],
         outputs=['y'],
         epsilon=1e-6,
+        momentum=0.9)
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_invalid_rank_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8, 8])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [8])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [8])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [8])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [8])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 8])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
         momentum=0.9)
 
     return ([node], [x, scale, bias, mean, var], [out])

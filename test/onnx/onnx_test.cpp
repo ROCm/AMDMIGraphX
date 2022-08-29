@@ -375,23 +375,29 @@ TEST_CASE(batch_norm_flat_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
-    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
-    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
-    auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
-    auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
+    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {10}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {1}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {1}});
+    auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {1}});
+    auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {1}});
 
-    auto half_pow = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
-    auto eps      = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
 
     auto mb_mean =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10}}}), mean);
-    auto n0   = mm->add_instruction("sub", X, mb_mean);
-    auto d0   = mm->add_broadcastable_binary_op("add", args[4], l1);
-    auto d1   = mm->add_broadcastable_binary_op("pow", d0, l0);
-    auto div0 = mm->add_broadcastable_binary_op("div", n0, d1);
-    auto r0   = mm->add_broadcastable_binary_op("mul", div0, args[1]);
-    return info.add_broadcastable_binary_op("add", r0, args[2]);
+    auto numer   = mm->add_instruction(migraphx::make_op("sub"), X, mb_mean);
+    auto var_eps = mm->add_instruction(migraphx::make_op("add"), var, eps);
+    auto denom   = mm->add_instruction(migraphx::make_op("pow"), var_eps, rt);
+    auto mb_denom =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10}}}), denom);
+    auto div0 = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
+    auto mb_scale =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10}}}), scale);
+    auto r0 = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
+    auto mb_bias =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10}}}), bias);
+    mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
 
     auto prog = optimize_onnx("batch_norm_flat_test.onnx");
     EXPECT(p == prog);
@@ -401,11 +407,39 @@ TEST_CASE(batch_norm_1d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
-    auto l1  = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
-    auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
-    auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
-    auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
+
+    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
+    auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
+    auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
+
+    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+    auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), scale);
+    auto usq_bias  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bias);
+    auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mean);
+    auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), var);
+
+    auto mb_mean = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), usq_mean);
+    auto numer = mm->add_instruction(migraphx::make_op("sub"), X, mb_mean);
+    auto mb_eps =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 1}}}), eps);
+    auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
+    auto mb_rt =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 1}}}), rt);
+    auto denom = mm->add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
+    auto mb_denom =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), denom);
+    auto div0     = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
+    auto mb_scale = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), usq_scale);
+    auto r0      = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
+    auto mb_bias = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), usq_bias);
+    mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
 
     auto prog = optimize_onnx("batch_norm_1d_test.onnx");
     EXPECT(p == prog);
@@ -415,14 +449,50 @@ TEST_CASE(batch_norm_3d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
-    auto l1  = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
-    auto l2  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
-    auto l3  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
-    auto l4  = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
+
+    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 2, 2, 2, 2}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {2}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {2}});
+    auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {2}});
+    auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {2}});
+
+    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
+
+    auto usq_scale =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), scale);
+    auto usq_bias =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), bias);
+    auto usq_mean =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), mean);
+    auto usq_var = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), var);
+
+    auto mb_mean = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 2}}}), usq_mean);
+    auto numer = mm->add_instruction(migraphx::make_op("sub"), X, mb_mean);
+    auto mb_eps =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1, 1}}}), eps);
+    auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
+    auto mb_rt =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1, 1}}}), rt);
+    auto denom    = mm->add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
+    auto mb_denom = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 2}}}), denom);
+    auto div0     = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
+    auto mb_scale = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 2}}}), usq_scale);
+    auto r0      = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
+    auto mb_bias = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 2}}}), usq_bias);
+    mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
 
     auto prog = optimize_onnx("batch_norm_3d_test.onnx");
     EXPECT(p == prog);
+}
+
+TEST_CASE(batch_norm_invalid_rank)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("batch_norm_invalid_rank.onnx"); }));
 }
 
 TEST_CASE(cast_test)
@@ -817,18 +887,46 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
     auto l2  = mm->add_parameter("2", {migraphx::shape::float_type, {1}});
 
-    auto p3       = mm->add_parameter("3", {migraphx::shape::float_type, {1}});
-    auto p4       = mm->add_parameter("4", {migraphx::shape::float_type, {1}});
-    auto p5       = mm->add_parameter("5", {migraphx::shape::float_type, {1}});
-    auto p6       = mm->add_parameter("6", {migraphx::shape::float_type, {1}});
+    auto p3 = mm->add_parameter("3", {migraphx::shape::float_type, {1}});
+    auto p4 = mm->add_parameter("4", {migraphx::shape::float_type, {1}});
+    auto p5 = mm->add_parameter("5", {migraphx::shape::float_type, {1}});
+    auto p6 = mm->add_parameter("6", {migraphx::shape::float_type, {1}});
+
+    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
     uint64_t axis = 1;
     auto l3 =
         mm->add_instruction(migraphx::make_op("convolution", {{"padding", {0, 0, 0, 0}}}), l0, l1);
     auto l4 = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
     auto l5 = mm->add_instruction(migraphx::make_op("add"), l3, l4);
-    auto l6 = mm->add_instruction(
-        migraphx::make_op("batch_norm_inference", {{"epsilon", 1.0e-5f}}), l5, p3, p4, p5, p6);
+
+    auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p3);
+    auto usq_bias  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p4);
+    auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p5);
+    auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p6);
+
+    auto mb_mean = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_mean);
+    auto numer = mm->add_instruction(migraphx::make_op("sub"), l5, mb_mean);
+    auto mb_eps =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), eps);
+    auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
+    auto mb_rt =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), rt);
+    auto denom    = mm->add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
+    auto mb_denom = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), denom);
+    auto div0     = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
+    auto mb_scale = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_scale);
+    auto r0      = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
+    auto mb_bias = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_bias);
+
+    auto l6 = mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
+
     auto l7 = mm->add_instruction(migraphx::make_op("relu"), l6);
     mm->add_instruction(migraphx::make_op("pooling",
                                           {{"mode", migraphx::op::pooling_mode::max},

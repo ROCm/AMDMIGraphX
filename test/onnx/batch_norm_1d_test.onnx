@@ -1,11 +1,10 @@
-batch_norm_1d_test:û
-^
+batch_norm_1d_test:è
+K
 x
 scale
 bias
 mean
-variancey"BatchNormalization*
-epsilon½7†5 *
+variancey"BatchNormalization*
 momentumfff? batch_norm_1d_testZ
 x
 

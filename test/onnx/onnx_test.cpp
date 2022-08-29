@@ -375,7 +375,7 @@ TEST_CASE(batch_norm_flat_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {10}});
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {10}});
     auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {1}});
     auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {1}});
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {1}});
@@ -386,7 +386,7 @@ TEST_CASE(batch_norm_flat_test)
 
     auto mb_mean =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10}}}), mean);
-    auto numer   = mm->add_instruction(migraphx::make_op("sub"), X, mb_mean);
+    auto numer   = mm->add_instruction(migraphx::make_op("sub"), x, mb_mean);
     auto var_eps = mm->add_instruction(migraphx::make_op("add"), var, eps);
     auto denom   = mm->add_instruction(migraphx::make_op("pow"), var_eps, rt);
     auto mb_denom =
@@ -408,7 +408,7 @@ TEST_CASE(batch_norm_1d_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
     auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {3}});
     auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {3}});
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
@@ -424,7 +424,7 @@ TEST_CASE(batch_norm_1d_test)
 
     auto mb_mean = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), usq_mean);
-    auto numer = mm->add_instruction(migraphx::make_op("sub"), X, mb_mean);
+    auto numer = mm->add_instruction(migraphx::make_op("sub"), x, mb_mean);
     auto mb_eps =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 1}}}), eps);
     auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
@@ -450,7 +450,7 @@ TEST_CASE(batch_norm_3d_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto X     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 2, 2, 2, 2}});
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 2, 2, 2, 2}});
     auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {2}});
     auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {2}});
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {2}});
@@ -469,7 +469,7 @@ TEST_CASE(batch_norm_3d_test)
 
     auto mb_mean = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2, 2}}}), usq_mean);
-    auto numer = mm->add_instruction(migraphx::make_op("sub"), X, mb_mean);
+    auto numer = mm->add_instruction(migraphx::make_op("sub"), x, mb_mean);
     auto mb_eps =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1, 1}}}), eps);
     auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);

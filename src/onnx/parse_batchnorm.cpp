@@ -44,13 +44,13 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
-        auto X_lens = args[0]->get_shape().lens();
-        auto X_type = args[0]->get_shape().type();
+        auto x_lens = args[0]->get_shape().lens();
+        auto x_type = args[0]->get_shape().type();
 
-        if(X_lens.size() == 1)
+        if(x_lens.size() == 1)
         {
-            auto rt   = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
-            auto eps  = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
+            auto rt   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
+            auto eps  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto n0   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
             auto d0   = info.add_broadcastable_binary_op("add", args[4], eps);
             auto d1   = info.add_broadcastable_binary_op("pow", d0, rt);
@@ -58,14 +58,14 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             auto r0   = info.add_broadcastable_binary_op("mul", div0, args[1]);
             return info.add_broadcastable_binary_op("add", r0, args[2]);
         }
-        else if(X_lens.size() > 2)
+        else if(x_lens.size() > 2)
         {
             // unsqueeze tensors of shape (C) to broadcast correctly
-            std::vector<int64_t> unsqueeze_axes(X_lens.size() - 2);
+            std::vector<int64_t> unsqueeze_axes(x_lens.size() - 2);
             int64_t i = 1;
             std::generate(unsqueeze_axes.begin(), unsqueeze_axes.end(), [&] { return i++; });
-            auto rt  = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {0.5}});
-            auto eps = info.add_literal(migraphx::literal{migraphx::shape{X_type}, {epsilon}});
+            auto rt  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
+            auto eps = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto scale_unsqueeze = info.add_instruction(
                 migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
             auto bias_unsqueeze = info.add_instruction(
@@ -85,7 +85,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         {
             // num dims in [0 , 2]
             std::ostringstream oss;
-            oss << "BATCHNORM: rank " << X_lens.size() << " input tensor, unhandled data format";
+            oss << "BATCHNORM: rank " << x_lens.size() << " input tensor, unhandled data format";
             MIGRAPHX_THROW(oss.str());
         }
     }

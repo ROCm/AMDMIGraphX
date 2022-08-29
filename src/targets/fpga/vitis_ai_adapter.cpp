@@ -35,7 +35,7 @@ void x_model::set_shape(migraphx::shape s) { shape = s; }
 
 x_model create_xmodel(const migraphx::module_ref mod)
 {
-    std::cout << "Calling an external function: create_xmodelnot \n";
+    std::cout << "Calling an external function: create_xmodel!\n";
     x_model xmodel;
     xmodel.set_shape(mod->get_output_shapes());
     return xmodel;
@@ -47,7 +47,7 @@ migraphx::argument execute(const x_model& xmodel,
 {
     (void)xmodel;
 
-    std::cout << "Calling an external function: executenot \n";
+    std::cout << "Calling an external function: execute!\n";
 
     std::cout << "Output Shape: " << output_shape << std::endl;
     std::cout << "Args: " << args.size() << std::endl;

@@ -21,32 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/driver/perf.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/gpu/context.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
-
-struct compile_op : action<compile_op>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
+struct gemm_add_broadcast1 : verify_program<gemm_add_broadcast1>
 {
-    static void apply(const parser& p, const value& v)
+    migraphx::program create_program() const
     {
-        context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << host_time << "ms";
-        if(device_time > 0)
-            std::cout << ", " << device_time << "ms";
-        std::cout << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{migraphx::shape::float_type, {1, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {1, 3, 4}};
+        migraphx::shape m3_shape{migraphx::shape::float_type, {1, 1, 4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
+        auto l3_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), l3);
+
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3_b);
+        return p;
     }
 };
-
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

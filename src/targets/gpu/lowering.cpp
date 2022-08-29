@@ -99,15 +99,14 @@ struct miopen_apply
         (void)i;
     }
 
-
     void init()
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
 
-        auto& ctx              = get_context();
+        auto& ctx      = get_context();
         int8_x4_format = get_int8_x4_format(ctx);
-        compute_fp32 = get_compute_fp32_flag();
+        compute_fp32   = get_compute_fp32_flag();
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
 

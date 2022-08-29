@@ -113,7 +113,7 @@ TEST_CASE(quant_dot)
         return m;
     };
 
-    auto m1 = create_module();
+    auto m1  = create_module();
     auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
@@ -213,8 +213,8 @@ TEST_CASE(quant_dot_trans)
         return m;
     };
 
-    auto m1           = create_module();
-    auto ctx = migraphx::gpu::context{}; 
+    auto m1  = create_module();
+    auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
     bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
@@ -308,8 +308,8 @@ TEST_CASE(quant_dot_pad)
         return m;
     };
 
-    auto m1           = create_module();
-    auto ctx = migraphx::gpu::context{}; 
+    auto m1  = create_module();
+    auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
     bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
@@ -445,8 +445,8 @@ TEST_CASE(quant_dot_trans_pad)
         return m;
     };
 
-    auto m1           = create_module();
-    auto ctx = migraphx::gpu::context{}; 
+    auto m1  = create_module();
+    auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
     bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);

@@ -316,28 +316,10 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
-            /// When batch size > 1 and input B is a literal broadcasted from a 2D literal
-            /// rocblas_gemm_ex can be used in place of rocblas_gemm_strided_batched_ex
-            /// by multiplying m by the number of batches.
-            /// The flag can_unbatch is set here and passed to gemm_impl, where the alternative
-            /// call is made.
-            auto can_unbatch = false;
-            if(refs[0]->get_shape().lens().size() > 2 and refs[0]->get_shape().lens().front() > 1)
-            {
-                if(refs[1]->can_eval())
-                    can_unbatch = true;
-                else if(not refs[1]->inputs().empty())
-                {
-                    auto b_in = refs[1]->inputs().front();
-                    if(refs[1]->name() == "gpu::contiguous" and b_in->get_shape().broadcasted() and
-                       b_in->can_eval())
-                        can_unbatch = true;
-                }
-            }
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32, can_unbatch}, refs);
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
         });
     }
 

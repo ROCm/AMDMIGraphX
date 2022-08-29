@@ -271,6 +271,78 @@ struct find_nested_slice
     }
 };
 
+struct find_concat_multibroadcasts
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::all_of[match::inputs()](match::name("contiguous")(match::all_of[match::inputs()](match::name("multibroadcast")))));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins          = mr.result;
+        //std::cout << "Concat multis" << std::endl;
+        //ins->debug_print();
+        auto op          = any_cast<op::concat>(ins->get_operator());
+        auto axis = op.axis;
+
+        auto out_lens = ins->get_shape().lens();
+
+        auto inputs = ins->inputs();
+        /// check that concat is not done on broadcasted or batch dimension
+        if (axis == 0 or std::any_of(inputs.begin(), inputs.end(), [&](auto i){ return i->get_shape().strides()[axis] == 0; }))
+        {
+            return;
+        }
+
+        for (auto& i : inputs)
+        {
+            i = i->inputs().front()->inputs().front();
+        }
+
+        op.axis -= out_lens.size() - inputs.front()->get_shape().lens().size();
+
+        auto new_concat = m.insert_instruction(std::next(ins), op, inputs);
+        m.replace_instruction(ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), new_concat);
+
+
+
+
+        // auto trans_inputs = ins->inputs();
+        // auto s            = trans_inputs.front()->get_shape();
+        // assert(s.transposed());
+        // auto op          = any_cast<op::concat>(ins->get_operator());
+        // auto permutation = find_permutation(s);
+
+        // // permutation should be the same for all inputs
+        // if(!std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
+        //        return (find_permutation(in->get_shape()) == permutation);
+        //    }))
+        // {
+        //     return;
+        // }
+
+        // // axis could be a negative value
+        // int64_t n_dim = static_cast<int64_t>(s.lens().size());
+        // op.axis       = tune_axis(n_dim, op.axis, op.name());
+
+        // auto ipermutation = invert_permutation(permutation);
+        // op.axis           = ipermutation[op.axis];
+
+        // std::vector<instruction_ref> inputs;
+        // std::transform(
+        //     ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
+        //         return m.insert_instruction(
+        //             ins, make_op("transpose", {{"permutation", permutation}}), i);
+        //     });
+        // auto concat = m.insert_instruction(ins, op, inputs);
+        // auto t      = m.insert_instruction(
+        //     ins, make_op("transpose", {{"permutation", ipermutation}}), concat);
+        // assert(ins->get_shape().lens() == t->get_shape().lens());
+        // m.replace_instruction(ins, t);
+    }
+};
+
 struct find_concat_transpose
 {
     auto matcher() const
@@ -764,6 +836,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshaper{},
                             find_transpose{},
                             find_concat_transpose{},
+                            find_concat_multibroadcasts{},
                             find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},

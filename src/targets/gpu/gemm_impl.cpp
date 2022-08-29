@@ -109,8 +109,7 @@ void gemm_impl(context& ctx,
                T alpha,
                T beta,
                bool int8_x4_format,
-               bool compute_fp32,
-               bool can_unbatch)
+               bool compute_fp32)
 {
     const bool is_3inputs = (args.size() == 4);
     if(!is_3inputs)
@@ -177,10 +176,13 @@ void gemm_impl(context& ctx,
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-        if(num_matrices == 1 or can_unbatch)
+        std::cout << "B: " << args[1].get_shape() << ", " << get_batch_stride(args[1]) << std::endl;
+        bool unbatchable = num_matrices > 0 and get_batch_stride(args[1]) == 0;
+        if(num_matrices == 1 or unbatchable)
         {
-            if(can_unbatch)
+            if(unbatchable)
             {
+                std::cout << "Unbatched" << std::endl;
                 m *= num_matrices;
             }
             // the rocblas_gemm API handles inputs and output matrices as
@@ -259,10 +261,9 @@ void gemm(context& ctx,
           float alpha,
           float beta,
           bool int8_x4_format,
-          bool compute_fp32,
-          bool can_unbatch)
+          bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32, can_unbatch);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
 }
 
 void gemm(context& ctx,
@@ -271,10 +272,9 @@ void gemm(context& ctx,
           int32_t alpha,
           int32_t beta,
           bool int8_x4_format,
-          bool compute_fp32,
-          bool can_unbatch)
+          bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32, can_unbatch);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
 }
 
 } // namespace gpu

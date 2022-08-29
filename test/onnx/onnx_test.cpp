@@ -382,7 +382,7 @@ TEST_CASE(batch_norm_flat_test)
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {1}});
 
     auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
-    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
 
     auto mb_mean =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {10}}}), mean);

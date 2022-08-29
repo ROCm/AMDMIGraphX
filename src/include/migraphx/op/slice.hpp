@@ -78,7 +78,7 @@ struct slice
         const std::vector<std::size_t>& lens    = s.lens();
         const std::vector<std::size_t>& strides = s.strides();
         auto offset                             = 0;
-        if(!axes.empty())
+        if(not axes.empty())
         {
             for(std::size_t i = 0; i < axes.size(); i++)
             {

@@ -23,7 +23,6 @@
  */
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/config.hpp>
 #include <rocblas.h>
@@ -37,6 +36,11 @@ using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_h
 rocblas_handle_ptr create_rocblas_handle_ptr();
 rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
 
+struct context;
+
+bool get_compute_fp32_flag();
+
+bool get_int8_x4_format(context& ctx);
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

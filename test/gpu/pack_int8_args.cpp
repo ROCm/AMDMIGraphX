@@ -40,9 +40,8 @@
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
 
-void run_passes(migraphx::module& m)
+void run_passes(migraphx::module& m, migraphx::gpu::context& ctx)
 {
-    auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(m,
                          {migraphx::auto_contiguous{},
                           migraphx::gpu::lowering{&ctx, false},
@@ -51,37 +50,6 @@ void run_passes(migraphx::module& m)
                           migraphx::dead_code_elimination{},
                           migraphx::gpu::pack_int8_args{},
                           migraphx::dead_code_elimination{}});
-}
-
-const std::unordered_set<std::string>& get_rocblas_fp32_archs()
-{
-    static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
-    return supported_archs;
-}
-
-bool get_compute_fp32_flag()
-{
-    bool compute_fp32 = false;
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    auto ctx = migraphx::gpu::context{};
-    const auto device_name =
-        migraphx::trim(migraphx::split_string(migraphx::gpu::get_device_name(), ':').front());
-    if(migraphx::contains(get_rocblas_fp32_archs(), device_name))
-        compute_fp32 = true;
-#endif
-    return compute_fp32;
-}
-
-bool get_int8_x4_format()
-{
-    bool int8_x4_format = true;
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    auto ctx = migraphx::gpu::context{};
-    rocblas_gemm_flags flag;
-    rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-    int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
-#endif
-    return int8_x4_format;
 }
 
 TEST_CASE(quant_dot)
@@ -146,10 +114,11 @@ TEST_CASE(quant_dot)
     };
 
     auto m1 = create_module();
-    run_passes(m1);
+    auto ctx = migraphx::gpu::context{};
+    run_passes(m1, ctx);
 
-    bool int8_x4      = get_int8_x4_format();
-    bool compute_fp32 = get_compute_fp32_flag();
+    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
+    bool compute_fp32 = migraphx::gpu::get_compute_fp32_flag();
     auto m2           = create_optimized_int8_x4(int8_x4, compute_fp32);
     EXPECT(m1 == m2);
 }
@@ -245,11 +214,12 @@ TEST_CASE(quant_dot_trans)
     };
 
     auto m1           = create_module();
-    bool int8_x4      = get_int8_x4_format();
-    bool compute_fp32 = get_compute_fp32_flag();
-    auto m2           = create_optimized_int8_x4(int8_x4, compute_fp32);
+    auto ctx = migraphx::gpu::context{}; 
+    run_passes(m1, ctx);
 
-    run_passes(m1);
+    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
+    bool compute_fp32 = migraphx::gpu::get_compute_fp32_flag();
+    auto m2           = create_optimized_int8_x4(int8_x4, compute_fp32);
 
     EXPECT(m1 == m2);
 }
@@ -339,11 +309,12 @@ TEST_CASE(quant_dot_pad)
     };
 
     auto m1           = create_module();
-    bool int8_x4      = get_int8_x4_format();
-    bool compute_fp32 = get_compute_fp32_flag();
-    auto m2           = create_optimized_int8_x4(int8_x4, compute_fp32);
+    auto ctx = migraphx::gpu::context{}; 
+    run_passes(m1, ctx);
 
-    run_passes(m1);
+    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
+    bool compute_fp32 = migraphx::gpu::get_compute_fp32_flag();
+    auto m2           = create_optimized_int8_x4(int8_x4, compute_fp32);
 
     EXPECT(m1 == m2);
 }
@@ -475,11 +446,12 @@ TEST_CASE(quant_dot_trans_pad)
     };
 
     auto m1           = create_module();
-    bool int8_x4      = get_int8_x4_format();
-    bool compute_fp32 = get_compute_fp32_flag();
-    auto m2           = create_optimized_int8_x4(int8_x4, compute_fp32);
+    auto ctx = migraphx::gpu::context{}; 
+    run_passes(m1, ctx);
 
-    run_passes(m1);
+    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
+    bool compute_fp32 = migraphx::gpu::get_compute_fp32_flag();
+    auto m2           = create_optimized_int8_x4(int8_x4, compute_fp32);
 
     EXPECT(m1 == m2);
 }

@@ -109,7 +109,7 @@ struct slice
             MIGRAPHX_THROW("SLICE: input axis " + to_string_range(axes) + " out of range");
         }
 
-        if(starts.size() != axes.size() || axes.size() != ends.size())
+        if(starts.size() != axes.size() or axes.size() != ends.size())
         {
             MIGRAPHX_THROW("SLICE: inconsistent sizes");
         }

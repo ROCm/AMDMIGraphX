@@ -149,7 +149,7 @@ void memory_coloring_impl::build()
         {
             def_interval = instr2_live[p_iter];
             bool is_lit  = is_literal(iter);
-            if(is_allocate(iter) || is_lit)
+            if(is_allocate(iter) or is_lit)
             {
                 live_range& range        = def_interval->segment;
                 def_interval->result     = iter->get_shape();
@@ -157,7 +157,7 @@ void memory_coloring_impl::build()
                 range.begin              = cur_points;
                 def_interval->def_point  = cur_points;
                 range.size               = (iter->get_shape()).bytes();
-                if(not is_lit || unify_literals)
+                if(not is_lit or unify_literals)
                     alloc_queue.push(def_interval);
                 live_set.erase(range.vn);
             }
@@ -179,7 +179,7 @@ void memory_coloring_impl::build()
             if(not p_mod->has_instruction(arg))
                 continue;
 
-            if(is_param(arg) || is_outline(arg))
+            if(is_param(arg) or is_outline(arg))
             {
                 if(is_output_param(arg))
                     is_dead = false;

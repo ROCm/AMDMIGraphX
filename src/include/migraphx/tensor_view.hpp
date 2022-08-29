@@ -67,7 +67,7 @@ struct tensor_view
 
     const shape& get_shape() const { return this->m_shape; }
 
-    bool empty() const { return m_data == nullptr || m_shape.lens().empty(); }
+    bool empty() const { return m_data == nullptr or m_shape.lens().empty(); }
 
     std::size_t size() const { return m_shape.elements(); }
 

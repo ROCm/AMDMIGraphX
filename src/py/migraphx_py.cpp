@@ -83,7 +83,7 @@ void visit_py(T x, F f)
     {
         f(x.template cast<bool>());
     }
-    else if(py::isinstance<py::int_>(x) || py::hasattr(x, "__index__"))
+    else if(py::isinstance<py::int_>(x) or py::hasattr(x, "__index__"))
     {
         f(x.template cast<int>());
     }

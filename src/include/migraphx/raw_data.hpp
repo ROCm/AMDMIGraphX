@@ -147,7 +147,7 @@ struct raw_data : raw_data_base
         template <class T>
         bool matches() const
         {
-            return is_data_ptr<T>{} ||
+            return is_data_ptr<T>{} or
                    self->get_shape().type() == migraphx::shape::get_type<get_data_type<T>>{};
         }
 

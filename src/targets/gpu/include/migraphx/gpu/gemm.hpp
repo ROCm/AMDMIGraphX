@@ -42,15 +42,17 @@ namespace gpu {
 struct context;
 
 void blas_shape(const shape& s);
+shape transpose_batch(const shape& s, unsigned trans_batch);
 
 template <class Op>
 struct rocblas_gemm
 {
     Op op;
-    float alpha         = 1;
-    float beta          = 0;
-    bool int8_x4_format = true;
-    bool compute_fp32   = false;
+    float alpha          = 1;
+    float beta           = 0;
+    bool int8_x4_format  = true;
+    bool compute_fp32    = false;
+    unsigned trans_batch = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -58,7 +60,9 @@ struct rocblas_gemm
         return pack_join(migraphx::reflect(self.op, f),
                          pack(f(self.alpha, "alpha"),
                               f(self.beta, "beta"),
-                              f(self.int8_x4_format, "int8_x4_format")));
+                              f(self.int8_x4_format, "int8_x4_format"),
+                              f(self.compute_fp32, "compute_fp32"),
+                              f(self.trans_batch, "trans_batch")));
     }
 
     std::string name() const
@@ -74,13 +78,14 @@ struct rocblas_gemm
     {
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
-        check_shapes{in_shapes, *this}.not_broadcasted();
+        check_shapes{in_shapes, *this}.has(2, 3);
         blas_shape(inputs[0]);
         blas_shape(inputs[1]);
         // if gemm and add are fused
         if(in_shapes.size() > 2)
         {
             auto cmat_shape = in_shapes.back();
+            check_shapes{{cmat_shape}, *this}.not_transposed().not_broadcasted();
             in_shapes.pop_back();
             blas_shape(cmat_shape);
             auto op_out_shape = op.compute_shape(in_shapes);
@@ -97,10 +102,10 @@ struct rocblas_gemm
                                to_string(cmat_shape.type()) +
                                ", it must be: " + to_string(op_out_shape.type()));
             }
-            return op_out_shape;
+            return transpose_batch(op_out_shape, trans_batch);
         }
 
-        return op.compute_shape(in_shapes);
+        return transpose_batch(op.compute_shape(in_shapes), trans_batch);
     }
 
     argument

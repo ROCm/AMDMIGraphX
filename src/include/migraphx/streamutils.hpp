@@ -27,6 +27,7 @@
 #include <ostream>
 #include <algorithm>
 #include <migraphx/rank.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -59,6 +60,10 @@ inline stream_range_container<Range> stream_range(const Range& r)
 
 namespace detail {
 
+inline void stream_write_value_impl(rank<3>, std::ostream& os, const migraphx::value::binary&) {
+    os << "{binary_object}";
+}
+
 inline void stream_write_value_impl(rank<2>, std::ostream& os, const std::string& x) { os << x; }
 
 template <class Range>
@@ -75,12 +80,13 @@ void stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
 {
     os << x;
 }
+
 } // namespace detail
 
 template <class T>
 void stream_write_value(std::ostream& os, const T& x)
 {
-    detail::stream_write_value_impl(rank<2>{}, os, x);
+    detail::stream_write_value_impl(rank<3>{}, os, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

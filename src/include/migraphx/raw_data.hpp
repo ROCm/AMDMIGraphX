@@ -281,7 +281,7 @@ template <class T,
                             std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {
-    return not (x == y);
+    return not(x == y);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

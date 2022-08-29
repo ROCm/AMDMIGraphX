@@ -49,7 +49,8 @@ struct quant_dot
             MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t");
         }
 
-        if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
+        if(not std::all_of(
+               inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
         {
             MIGRAPHX_THROW("QUANT_DOT: dot only accept 2 or more dims operands");
         }

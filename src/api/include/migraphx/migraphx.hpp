@@ -588,7 +588,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
-    friend bool operator!=(const shape& px, const shape& py) { return not (px == py); }
+    friend bool operator!=(const shape& px, const shape& py) { return not(px == py); }
 };
 
 /**
@@ -647,7 +647,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return pout;
     }
 
-    friend bool operator!=(const argument& px, const argument& py) { return not (px == py); }
+    friend bool operator!=(const argument& px, const argument& py) { return not(px == py); }
 };
 
 /// A target for compilation
@@ -1015,7 +1015,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return module{p_modu, this->share_handle()};
     }
 
-    friend bool operator!=(const program& px, const program& py) { return not (px == py); }
+    friend bool operator!=(const program& px, const program& py) { return not(px == py); }
 };
 
 // options for migraphx file format options

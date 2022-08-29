@@ -788,7 +788,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return not (dots < 2 and convs < 2);
+    return not(dots < 2 and convs < 2);
 }
 
 struct find_conv_dot_horiz_fusion

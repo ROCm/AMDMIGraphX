@@ -193,7 +193,7 @@ bool operator==(const tensor_view<T>& x, const tensor_view<U>& y)
 template <class T, class U>
 bool operator!=(const tensor_view<T>& x, const tensor_view<U>& y)
 {
-    return not (x == y);
+    return not(x == y);
 }
 
 template <class T>

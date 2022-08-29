@@ -354,7 +354,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         all_output_names.begin(),
         all_output_names.end(),
         std::back_inserter(prog_output_names),
-        [&](const auto& name) { return not (name.empty() or instructions.count(name) == 0); });
+        [&](const auto& name) { return not(name.empty() or instructions.count(name) == 0); });
 
     std::vector<instruction_ref> output_ins;
     std::transform(prog_output_names.begin(),

@@ -176,13 +176,13 @@ bool operator==(const instruction& x, const instruction& y)
     return true;
 }
 
-bool operator!=(const instruction& x, const instruction& y) { return not (x == y); }
+bool operator!=(const instruction& x, const instruction& y) { return not(x == y); }
 
 bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
-bool operator!=(const instruction& i, instruction_ref ref) { return not (i == ref); }
+bool operator!=(const instruction& i, instruction_ref ref) { return not(i == ref); }
 
-bool operator!=(instruction_ref ref, const instruction& i) { return not (i == ref); }
+bool operator!=(instruction_ref ref, const instruction& i) { return not(i == ref); }
 
 void instruction::add_output(instruction_ref ins)
 {

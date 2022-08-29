@@ -118,7 +118,8 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(contains(vec_attrs, op::normalize_attribute::include_min))
         {
-            if(not std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
+            if(not std::equal(
+                   min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }

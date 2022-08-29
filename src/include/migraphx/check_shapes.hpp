@@ -288,7 +288,8 @@ struct check_shapes
      */
     const check_shapes& batch_not_transposed() const
     {
-        if(not this->all_of([&](const shape& s) { return batch_not_transposed_strides(s.strides()); }))
+        if(not this->all_of(
+               [&](const shape& s) { return batch_not_transposed_strides(s.strides()); }))
             MIGRAPHX_THROW(prefix() + "Batch size is transposed");
         return *this;
     }

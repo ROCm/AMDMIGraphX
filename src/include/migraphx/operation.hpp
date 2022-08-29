@@ -1276,7 +1276,7 @@ inline const ValueType& any_cast(const operation& x)
 }
 #endif
 
-inline bool operator!=(const operation& x, const operation& y) { return not (x == y); }
+inline bool operator!=(const operation& x, const operation& y) { return not(x == y); }
 
 inline value
 compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)

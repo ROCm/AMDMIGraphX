@@ -43,7 +43,8 @@ struct dot
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
+        if(not std::all_of(
+               inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
         {
             MIGRAPHX_THROW("DOT: dot only accept 2 or more dims operands");
         }

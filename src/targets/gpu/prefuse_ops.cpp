@@ -38,8 +38,7 @@ struct layernorm_base
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.epsilon, "epsilon"));
+        return pack(f(self.epsilon, "epsilon"));
     }
     shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
     {
@@ -68,7 +67,7 @@ struct layernorm_base
 
 struct layernorm : layernorm_base<layernorm, 0>
 {
-    
+
     std::string name() const { return "gpu::prelayernorm"; }
 };
 MIGRAPHX_REGISTER_OP(layernorm);
@@ -87,7 +86,7 @@ struct find_layernorm
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        auto eps = r.instructions["eps"]->eval().at<float>();
+        auto eps   = r.instructions["eps"]->eval().at<float>();
 
         m.replace_instruction(ins, layernorm{eps}, x_ins);
     }
@@ -104,7 +103,7 @@ struct find_add_layernorm
     {
         auto ins     = r.result;
         auto add_ins = r.instructions["add"];
-        auto eps = r.instructions["eps"]->eval().at<float>();
+        auto eps     = r.instructions["eps"]->eval().at<float>();
 
         m.replace_instruction(ins, add_layernorm{eps}, add_ins->inputs());
     }

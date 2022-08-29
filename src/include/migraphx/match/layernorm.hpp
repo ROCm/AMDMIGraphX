@@ -50,8 +50,8 @@ struct layernorm_matcher
     {
         return f("div")(arg(0)(x_minus_mean()),
 
-                        arg(1)(skip_broadcasts(f("sqrt")(arg(0)(f("add")(
-                            either_arg(0, 1)(variance(), is_constant().bind("eps"))))))));
+                        arg(1)(skip_broadcasts(f("sqrt")(arg(0)(
+                            f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps"))))))));
     }
 
     auto matcher() const { return layernorm_onnx(); }

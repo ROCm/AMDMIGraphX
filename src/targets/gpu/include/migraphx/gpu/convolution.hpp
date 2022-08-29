@@ -40,7 +40,7 @@ struct miopen_convolution
     shared<convolution_descriptor> cd = nullptr;
     miopenConvFwdAlgorithm_t algo{};
     uint64_t solution_id = 0;
-    value::binary solution_object{}; // TODO, dont' want to have this printed in MIGraphX program
+    value::binary solution_object{}; 
 #ifdef MIGRAPHX_HAS_FIND_2_API
     miopenSolution_t solution_ptr = nullptr;
 #endif

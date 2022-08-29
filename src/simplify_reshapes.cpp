@@ -275,27 +275,30 @@ struct find_concat_multibroadcasts
 {
     auto matcher() const
     {
-        return match::name("concat")(match::all_of[match::inputs()](match::name("contiguous")(match::all_of[match::inputs()](match::name("multibroadcast")))));
+        return match::name("concat")(match::all_of[match::inputs()](match::name("contiguous")(
+            match::all_of[match::inputs()](match::name("multibroadcast")))));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
-        //std::cout << "Concat multis" << std::endl;
-        //ins->debug_print();
-        auto op          = any_cast<op::concat>(ins->get_operator());
+        auto ins = mr.result;
+        // std::cout << "Concat multis" << std::endl;
+        // ins->debug_print();
+        auto op   = any_cast<op::concat>(ins->get_operator());
         auto axis = op.axis;
 
         auto out_lens = ins->get_shape().lens();
 
         auto inputs = ins->inputs();
         /// check that concat is not done on broadcasted or batch dimension
-        if (axis == 0 or std::any_of(inputs.begin(), inputs.end(), [&](auto i){ return i->get_shape().strides()[axis] == 0; }))
+        if(axis == 0 or std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
+               return i->get_shape().strides()[axis] == 0;
+           }))
         {
             return;
         }
 
-        for (auto& i : inputs)
+        for(auto& i : inputs)
         {
             i = i->inputs().front()->inputs().front();
         }
@@ -303,10 +306,8 @@ struct find_concat_multibroadcasts
         op.axis -= out_lens.size() - inputs.front()->get_shape().lens().size();
 
         auto new_concat = m.insert_instruction(std::next(ins), op, inputs);
-        m.replace_instruction(ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), new_concat);
-
-
-
+        m.replace_instruction(
+            ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), new_concat);
 
         // auto trans_inputs = ins->inputs();
         // auto s            = trans_inputs.front()->get_shape();

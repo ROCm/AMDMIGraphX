@@ -1002,7 +1002,7 @@ struct find_split_reshape
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
         // insert the reshape instruction and add contiguous if needed
-        if(!input->get_shape().standard())
+        if(not input->get_shape().standard())
         {
             input = m.insert_instruction(std::next(input), make_op("contiguous"), input);
         }

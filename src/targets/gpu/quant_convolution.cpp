@@ -43,26 +43,23 @@ argument miopen_quant_convolution::compute(context& ctx,
     auto w_desc = make_tensor(args[1].get_shape(), int8_x4_format);
     auto y_desc = make_tensor(output_shape);
 
-    float alpha = 1;
-    float beta  = 0;
+    if(solution_id == 0)
+        MIGRAPHX_THROW("MIOpen Convolution: invalid solution ID");
 
-    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
-                                           &alpha,
-                                           x_desc.get(),
-                                           args[0].implicit(),
-                                           w_desc.get(),
-                                           args[1].implicit(),
-                                           cd.get(),
-                                           algo,
-                                           &beta,
-                                           y_desc.get(),
-                                           args[3].implicit(),
-                                           args[2].implicit(),
-                                           args[2].get_shape().bytes());
+    auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
+                                                    w_desc.get(),
+                                                    args[1].implicit(),
+                                                    x_desc.get(),
+                                                    args[0].implicit(),
+                                                    cd.get(),
+                                                    y_desc.get(),
+                                                    args[3].implicit(),
+                                                    args[2].implicit(),
+                                                    args[2].get_shape().bytes(),
+                                                    solution_id);
+
     if(status != miopenStatusSuccess)
-    {
         MIGRAPHX_THROW("QUANT_CONVOLUTION: run convolution forward failed");
-    }
 
     return args[3];
 }
@@ -115,7 +112,6 @@ shape miopen_quant_convolution::find(context& ctx,
                                                         false);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Quant Convolution: find convolution failed");
-    algo = perf.fwd_algo;
 
     size_t solution_count;
 
@@ -143,7 +139,10 @@ shape miopen_quant_convolution::find(context& ctx,
 
     solution_id = solutions.front().solution_id;
 
-    return shape{shape::int8_type, {perf.memory}};
+    algo = solutions.front().algorithm;
+    workspace_size = solutions.front().workspace_size;
+
+    return shape{shape::int8_type, {workspace_size}};
 }
 
 void miopen_quant_convolution::finalize(context& ctx,

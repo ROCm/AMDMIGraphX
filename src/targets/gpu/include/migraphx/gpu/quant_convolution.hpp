@@ -40,7 +40,7 @@ struct miopen_quant_convolution
     op::quant_convolution op;
     bool int8_x4_format = false;
     shared<convolution_descriptor> cd;
-    miopenConvFwdAlgorithm_t algo{};
+    miopenConvAlgorithm_t algo{};
     uint64_t solution_id = 0;
 
     template <class Self, class F>

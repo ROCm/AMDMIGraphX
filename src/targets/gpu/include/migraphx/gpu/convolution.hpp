@@ -38,7 +38,7 @@ struct miopen_convolution
 {
     op::convolution op;
     shared<convolution_descriptor> cd = nullptr;
-    miopenConvFwdAlgorithm_t algo{};
+    miopenConvAlgorithm_t algo{};
     uint64_t solution_id = 0;
 
     template <class Self, class F>

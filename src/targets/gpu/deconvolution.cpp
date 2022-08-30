@@ -119,7 +119,6 @@ shape miopen_deconvolution::find(context& ctx, const shape& output_shape, std::v
                                                         false);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Deconvolution: find convolution failed");
-    algo = perf.fwd_algo;
 
     size_t solution_count;
 
@@ -146,8 +145,10 @@ shape miopen_deconvolution::find(context& ctx, const shape& output_shape, std::v
         MIGRAPHX_THROW("MIOpen Deconvolution: get solution failed");
 
     solution_id = solutions.front().solution_id;
+    algo = solutions.front().algorithm;
+    workspace_size = solutions.front().workspace_size;
 
-    return shape{shape::int8_type, {perf.memory}};
+    return shape{shape::int8_type, {workspace_size}};
 }
 
 void miopen_deconvolution::finalize(context& ctx,

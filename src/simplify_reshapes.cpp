@@ -280,10 +280,10 @@ struct find_concat_multibroadcasts
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins = mr.result;
-        auto op   = any_cast<op::concat>(ins->get_operator());
-        auto out_lens = ins->get_shape().lens();
-        auto inputs = ins->inputs();
+        auto ins        = mr.result;
+        auto op         = any_cast<op::concat>(ins->get_operator());
+        auto out_lens   = ins->get_shape().lens();
+        auto inputs     = ins->inputs();
         auto in_strides = inputs.front()->get_shape().strides();
 
         // Axis could be a negative value
@@ -299,10 +299,12 @@ struct find_concat_multibroadcasts
         }
 
         // Use inputs of multibroadcast ops as inputs to new concat op
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [](auto i){ return i->inputs().front(); });
-        
-        // Reduce axis by number of leading broadcasted dimensions 
-        if (inputs.front()->get_shape().lens().size() < out_lens.size())
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [](auto i) {
+            return i->inputs().front();
+        });
+
+        // Reduce axis by number of leading broadcasted dimensions
+        if(inputs.front()->get_shape().lens().size() < out_lens.size())
             op.axis -= std::count(in_strides.begin(), in_strides.begin() + op.axis, 0);
 
         auto concat = m.insert_instruction(ins, op, inputs);

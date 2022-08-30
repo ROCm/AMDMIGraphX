@@ -359,10 +359,10 @@ TEST_CASE(concat_multibroadcasts1)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    auto cd         = std::distance(m.begin(), new_concat);
+    auto cd = std::distance(m.begin(), new_concat);
     auto new_mb =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
-    auto md         = std::distance(m.begin(), new_mb);
+    auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
 }
@@ -389,10 +389,10 @@ TEST_CASE(concat_multibroadcasts2)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    auto cd         = std::distance(m.begin(), new_concat);
+    auto cd = std::distance(m.begin(), new_concat);
     auto new_mb =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
-    auto md         = std::distance(m.begin(), new_mb);
+    auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 0);
 }
@@ -419,10 +419,10 @@ TEST_CASE(concat_multibroadcasts3)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    auto cd         = std::distance(m.begin(), new_concat);
+    auto cd = std::distance(m.begin(), new_concat);
     auto new_mb =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
-    auto md         = std::distance(m.begin(), new_mb);
+    auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 2);
 }

@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
 struct test_conv_bn : verify_program<test_conv_bn>
 {
@@ -37,19 +38,52 @@ struct test_conv_bn : verify_program<test_conv_bn>
         migraphx::shape xs{migraphx::shape::float_type, {1, 3, 224, 224}};
         migraphx::shape ws{migraphx::shape::float_type, {64, 3, 7, 7}};
         migraphx::shape vars{migraphx::shape::float_type, {64}};
-        auto x    = mm->add_parameter("x", xs);
-        auto w    = mm->add_parameter("w", ws);
+        auto x = mm->add_parameter("x", xs);
+        auto w = mm->add_parameter("w", ws);
+        // non-symmetrical tiling
         auto conv = mm->add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {3, 3}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
+
         auto scale    = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
         auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm->add_instruction(
-            migraphx::make_op("batch_norm_inference"), conv, scale, bias, mean, variance);
+
+        auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+        auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+        auto usq_scale =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
+        auto usq_bias =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), bias);
+        auto usq_mean =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
+        auto usq_var =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), variance);
+
+        auto bn_lens = conv->get_shape().lens();
+        auto c_len   = bn_lens.at(1);
+        auto mb_mean = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_mean);
+        auto numer  = mm->add_instruction(migraphx::make_op("sub"), conv, mb_mean);
+        auto mb_eps = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {c_len, 1, 1}}}), eps);
+        auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
+        auto mb_rt   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {c_len, 1, 1}}}), rt);
+        auto denom    = mm->add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
+        auto mb_denom = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), denom);
+        auto div0     = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
+        auto mb_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_scale);
+        auto r0      = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
+        auto mb_bias = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_bias);
+        mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
         return p;
     }
 };

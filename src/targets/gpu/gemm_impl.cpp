@@ -176,15 +176,13 @@ void gemm_impl(context& ctx,
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-        std::cout << "B: " << args[1].get_shape() << ", " << get_batch_stride(args[1]) << std::endl;
-        bool unbatchable = num_matrices > 0 and get_batch_stride(args[1]) == 0;
-        if(num_matrices == 1 or unbatchable)
+        if(num_matrices == 1 or (num_matrices > 1 and get_batch_stride(args[1]) == 0))
         {
-            if(unbatchable)
-            {
-                std::cout << "Unbatched" << std::endl;
-                m *= num_matrices;
-            }
+            // If the batch dimension of B is broadcasted, then we can 
+            // multiply m by the batch_size and use rocblas_gemm_ex 
+            // instead of rocblas_gemm_strided_batched_ex.
+            m *= num_matrices;
+
             // the rocblas_gemm API handles inputs and output matrices as
             // column-major format. When doing a C = A * B, we actually do
             // C^T = (B^T) * (A^T). That is the reason we input args[1] as

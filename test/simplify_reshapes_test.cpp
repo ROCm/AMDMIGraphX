@@ -337,6 +337,115 @@ TEST_CASE(nop_convert)
     EXPECT(std::distance(m.begin(), m.end()) == n - 1);
 }
 
+TEST_CASE(concat_multibroadcasts1)
+{
+    // Broadcasted batch dim, new axis < old axis
+    migraphx::module m;
+
+    auto s  = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+    auto x  = m.add_parameter("x", s);
+    auto y  = m.add_parameter("y", s);
+    auto z  = m.add_parameter("z", s);
+    auto xm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+    auto ym = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), y);
+    auto zm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), z);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), xm, ym, zm);
+    m.add_return({concat});
+    auto out_shape = m.get_output_shapes().back();
+    auto n         = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
+    EXPECT(std::distance(m.begin(), m.end()) == n - 2);
+    auto new_concat =
+        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != m.end()});
+    auto cd         = std::distance(m.begin(), new_concat);
+    auto new_mb =
+        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
+    auto md         = std::distance(m.begin(), new_mb);
+    EXPECT(cd == md - 1);
+    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+}
+
+TEST_CASE(concat_multibroadcasts2)
+{
+    // Broadcasted middle dim, new axis == old axis
+    migraphx::module m;
+
+    auto s  = migraphx::shape{migraphx::shape::float_type, {3, 1, 4}};
+    auto x  = m.add_parameter("x", s);
+    auto y  = m.add_parameter("y", s);
+    auto z  = m.add_parameter("z", s);
+    auto xm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 4}}}), x);
+    auto ym = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 4}}}), y);
+    auto zm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 4}}}), z);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xm, ym, zm);
+    m.add_return({concat});
+    auto out_shape = m.get_output_shapes().back();
+    auto n         = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
+    EXPECT(std::distance(m.begin(), m.end()) == n - 2);
+    auto new_concat =
+        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != m.end()});
+    auto cd         = std::distance(m.begin(), new_concat);
+    auto new_mb =
+        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
+    auto md         = std::distance(m.begin(), new_mb);
+    EXPECT(cd == md - 1);
+    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 0);
+}
+
+TEST_CASE(concat_multibroadcasts3)
+{
+    // Broadcasted middle dim, new axis == old axis
+    migraphx::module m;
+
+    auto s  = migraphx::shape{migraphx::shape::float_type, {3, 1, 4}};
+    auto x  = m.add_parameter("x", s);
+    auto y  = m.add_parameter("y", s);
+    auto z  = m.add_parameter("z", s);
+    auto xm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 4}}}), x);
+    auto ym = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 4}}}), y);
+    auto zm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 4}}}), z);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), xm, ym, zm);
+    m.add_return({concat});
+    auto out_shape = m.get_output_shapes().back();
+    auto n         = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
+    EXPECT(std::distance(m.begin(), m.end()) == n - 2);
+    auto new_concat =
+        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != m.end()});
+    auto cd         = std::distance(m.begin(), new_concat);
+    auto new_mb =
+        std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
+    auto md         = std::distance(m.begin(), new_mb);
+    EXPECT(cd == md - 1);
+    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 2);
+}
+
+TEST_CASE(concat_multibroadcasts4)
+{
+    // Broadcasted batch dim, axis is broadcasted dim
+    migraphx::module m;
+
+    auto s  = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+    auto x  = m.add_parameter("x", s);
+    auto y  = m.add_parameter("y", s);
+    auto z  = m.add_parameter("z", s);
+    auto xm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+    auto ym = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), y);
+    auto zm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), z);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xm, ym, zm);
+    m.add_return({concat});
+    auto m1 = m;
+    run_pass(m);
+    EXPECT(m1 == m);
+}
+
 TEST_CASE(concat_transpose1)
 {
     migraphx::module m;

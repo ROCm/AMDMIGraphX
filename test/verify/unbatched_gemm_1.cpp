@@ -34,17 +34,25 @@ struct unbatched_gemm_1 : verify_program<unbatched_gemm_1>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::float_type, {4, 384, 768}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {768, 2304}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {768, 768}};
         migraphx::shape m3_shape{migraphx::shape::float_type, {4, 384, 2304}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_literal(migraphx::generate_literal(m2_shape));
-        auto l3 = mm->add_parameter("3", m3_shape);
         l2      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 2304}}}), l2);
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 768}}}), l2);
+        auto l3 = mm->add_literal(migraphx::generate_literal(m2_shape));
+        l3      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 768}}}), l3);
+        auto l4 = mm->add_literal(migraphx::generate_literal(m2_shape));
+        l4      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 768}}}), l4);
+        auto concat = mm->add_instruction(
+            migraphx::make_op("concat", {{"axis", 2}}), l2, l3, l4);
 
+        auto l5 = mm->add_parameter("3", m3_shape);
         float alpha = 1.0f;
         float beta  = 1.0f;
-        migraphx::add_apply_alpha_beta(*mm, {l1, l2, l3}, migraphx::make_op("dot"), alpha, beta);
+        migraphx::add_apply_alpha_beta(*mm, {l1, concat, l5}, migraphx::make_op("dot"), alpha, beta);
         return p;
     }
 };

@@ -65,13 +65,15 @@ vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs
                            return 1;
                        if(len == 1 and input.elements() > sizes.front())
                            return sizes.front();
-                       auto it = std::find_if(
-                           sizes.begin(), sizes.end(), [&](auto vsize) {
-                            // The len is divisible by the size and all the strides are divisible by the size
-                            return (len % vsize) == 0 and std::all_of(input.strides().begin(), input.strides().end(), [&](auto i) {
-                                return contains({0, 1}, i) or i % vsize == 0;
-                            });
-                        });
+                       auto it = std::find_if(sizes.begin(), sizes.end(), [&](auto vsize) {
+                           // The len is divisible by the size and all the strides are divisible by
+                           // the size
+                           return (len % vsize) == 0 and
+                                  std::all_of(
+                                      input.strides().begin(), input.strides().end(), [&](auto i) {
+                                          return contains({0, 1}, i) or i % vsize == 0;
+                                      });
+                       });
                        if(it != sizes.end())
                            return *it;
                        return 1;

@@ -44,7 +44,6 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/register_op.hpp>
-#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
@@ -221,7 +220,6 @@ struct loader
         {
             migraphx::run_passes(*p.get_main_module(),
                                  {
-                                     migraphx::rewrite_batchnorm{},
                                      migraphx::eliminate_identity{},
                                      migraphx::dead_code_elimination{},
                                      migraphx::simplify_algebra{},

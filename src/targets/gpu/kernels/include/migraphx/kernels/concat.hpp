@@ -44,6 +44,14 @@ constexpr auto concat_slice(Output out, Input, Start)
     return make_tensor_view(&out[offset], s);
 }
 
+template <index_int Axis, class Input, class Start, class... Ts>
+constexpr auto concat_slices(Input input, Start start, Ts... xs)
+{
+    return [=](auto f) {
+        f(concat_slice<Axis>(xs, input, start)...);
+    };
+}
+
 template <index_int Axis, class Input>
 constexpr auto concat_ends(Input)
 {
@@ -51,15 +59,18 @@ constexpr auto concat_ends(Input)
     return _c<lens[Axis]>;
 }
 
-template <index_int Axis, class Output, class... Inputs>
-__device__ void concat(Output output, Inputs... inputs)
+template <index_int Axis, class... Inputs>
+__device__ auto concat(Inputs... inputs)
 {
-    auto idx = make_index();
-    fold([&](auto start, auto input) {
-        auto y = concat_slice<Axis>(output, input, start);
-        idx.global_stride(input.get_shape().elements(), [&](auto i) { y[i] = input[i]; });
-        return start + concat_ends<Axis>(input);
-    })(_c<0>, inputs...);
+    return [=](auto f, auto... ts) {
+        auto idx = make_index();
+        fold([&](auto start, auto input) {
+            concat_slices<Axis>(input, start, ts...)([&](auto y, auto... xs) {
+                idx.global_stride(input.get_shape().elements(), [&](auto i) { y[i] = f(input[i], xs[i]...); });
+            });
+            return start + concat_ends<Axis>(input);
+        })(_c<0>, inputs...);
+    };
 }
 
 } // namespace migraphx

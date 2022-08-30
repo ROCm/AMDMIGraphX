@@ -38,6 +38,7 @@ using namespace migraphx::gpu::gen; // NOLINT
 static const char* const concat_kernel = R"__migraphx__(
 #include <migraphx/kernels/concat.hpp>
 #include <migraphx/kernels/vectorize.hpp>
+#include <migraphx/kernels/ops.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -47,7 +48,7 @@ extern "C" {
 __global__ void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, auto... xs) {
-        concat<${axis}>(y, xs...);
+        concat<${axis}>(xs...)(op::id{}, y);
     });
 }
 

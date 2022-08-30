@@ -33,7 +33,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/pooling.hpp>

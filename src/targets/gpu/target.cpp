@@ -41,7 +41,6 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
-#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -108,8 +107,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_pad{},
         dead_code_elimination{},
         insert_pad{},
-        dead_code_elimination{},
-        rewrite_batchnorm{},
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},

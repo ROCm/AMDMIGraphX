@@ -57,9 +57,8 @@ bool get_compute_fp32_flag()
 {
     bool compute_fp32 = false;
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    const auto device_name =
-        migraphx::trim(migraphx::split_string(migraphx::gpu::get_device_name(), ':').front());
-    if(migraphx::contains(get_rocblas_fp32_archs(), device_name))
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    if(contains(get_rocblas_fp32_archs(), device_name))
         compute_fp32 = true;
 #endif
     return compute_fp32;

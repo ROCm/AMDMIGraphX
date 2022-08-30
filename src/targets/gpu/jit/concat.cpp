@@ -72,12 +72,12 @@ struct concat_compiler : compiler<concat_compiler>
     {
         // TODO: Use reduce_dims
         hip_compile_options options;
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.params         = "-Wno-float-equal";
-        auto axis              = find_fast_axis(options.inputs);
-        auto vec               = vectorize::elements(axis, options.inputs);
-        options.kernel_name    = v.get("kernel", "concat_kernel");
+        options.inputs      = inputs;
+        options.output      = inputs.back();
+        options.params      = "-Wno-float-equal";
+        auto axis           = find_fast_axis(options.inputs);
+        auto vec            = vectorize::elements(axis, options.inputs);
+        options.kernel_name = v.get("kernel", "concat_kernel");
         options.set_launch_params(
             v, compute_global_for(ctx, get_concat_elements(options.inputs) / vec.size, 256));
         auto src = interpolate_string(concat_kernel,

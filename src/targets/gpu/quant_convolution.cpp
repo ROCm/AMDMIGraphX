@@ -137,12 +137,12 @@ shape miopen_quant_convolution::find(context& ctx,
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Quant Convolution: get solution failed");
 
-    solution_id = solutions.front().solution_id;
+    const auto& best_solution = solutions.front();
 
-    algo           = solutions.front().algorithm;
-    workspace_size = solutions.front().workspace_size;
+    solution_id = best_solution.solution_id;
+    algo        = best_solution.algorithm;
 
-    return shape{shape::int8_type, {workspace_size}};
+    return shape{shape::int8_type, {best_solution.workspace_size}};
 }
 
 void miopen_quant_convolution::finalize(context& ctx,

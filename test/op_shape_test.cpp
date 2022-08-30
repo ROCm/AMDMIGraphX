@@ -81,16 +81,6 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
-TEST_CASE(batch_norm_inference_shape)
-{
-    const size_t channels = 3;
-    migraphx::shape s{migraphx::shape::float_type, {4, channels, 3, 3}};
-    migraphx::shape vars{migraphx::shape::float_type, {channels}};
-    expect_shape(s, migraphx::make_op("batch_norm_inference"), s, vars, vars, vars, vars);
-    throws_shape(migraphx::make_op("batch_norm_inference"), s);
-    throws_shape(migraphx::make_op("batch_norm_inference"), s, vars, vars, vars, vars, vars);
-}
-
 TEST_CASE(broadcast)
 {
     {

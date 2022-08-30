@@ -37,7 +37,10 @@ struct test_slice2 : verify_program<test_slice2>
         auto x      = mm->add_parameter("x", {migraphx::shape::float_type, {1, 44, 57, 57}});
         auto y      = mm->add_parameter("y", {migraphx::shape::float_type, {1, 44, 56, 56}});
         auto slice0 = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {0, 2, 3, 1}}, {"starts", {0, 1, 1, 0}}, {"ends", {1, 57, 57, 44}}}), x);
+            migraphx::make_op(
+                "slice",
+                {{"axes", {0, 2, 3, 1}}, {"starts", {0, 1, 1, 0}}, {"ends", {1, 57, 57, 44}}}),
+            x);
         mm->add_instruction(migraphx::make_op("add"), y, slice0);
         return p;
     }

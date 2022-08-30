@@ -1,12 +1,35 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #include <migraphx/gpu/hip.hpp>
-
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <miopen/miopen.h>
-
+#include <memory>
+#include <mutex>
 #include <vector>
 
 namespace migraphx {
@@ -14,7 +37,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_REGISTER_OP(hip_allocate)
-MIGRAPHX_REGISTER_OP(hip_sync_device)
 MIGRAPHX_REGISTER_OP(hip_sync_stream)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
@@ -55,12 +77,38 @@ void* get_device_ptr(void* hptr)
     return result;
 }
 
-hip_ptr allocate_gpu(std::size_t sz, bool host = false)
+struct host_ptr_cache
+{
+    std::unordered_map<void*, std::weak_ptr<void>> cache;
+    std::mutex m;
+    std::shared_ptr<void> get(void* ptr)
+    {
+        std::lock_guard<std::mutex> lock(m);
+        auto it = cache.find(ptr);
+        if(it != cache.end())
+            return it->second.lock();
+        return nullptr;
+    }
+
+    void put(const std::shared_ptr<void>& p)
+    {
+        std::lock_guard<std::mutex> lock(m);
+        cache[p.get()] = p;
+    }
+};
+
+static host_ptr_cache& get_host_ptr_cache()
+{
+    static host_ptr_cache cache;
+    return cache;
+}
+
+std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
     if(sz > get_available_gpu_memory())
         MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
-    void* result = nullptr;
-    auto status  = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
+    void* alloc_ptr = nullptr;
+    auto status     = host ? hipHostMalloc(&alloc_ptr, sz) : hipMalloc(&alloc_ptr, sz);
     if(status != hipSuccess)
     {
         if(host)
@@ -68,16 +116,28 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
         else
             return allocate_gpu(sz, true);
     }
-    assert(result != nullptr);
-    return hip_ptr{result};
+    assert(alloc_ptr != nullptr);
+    std::shared_ptr<void> result = share(hip_ptr{alloc_ptr});
+    if(host)
+    {
+        get_host_ptr_cache().put(result);
+    }
+    return result;
 }
 
-hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
+std::shared_ptr<void> register_on_gpu(void* ptr, std::size_t sz)
 {
+    std::shared_ptr<void> result = get_host_ptr_cache().get(ptr);
+    if(result)
+    {
+        return result;
+    }
     auto status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
-    return hip_host_ptr{ptr};
+    result = share(hip_host_ptr{ptr});
+    get_host_ptr_cache().put(result);
+    return result;
 }
 
 template <class T>
@@ -93,7 +153,7 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
+std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
     gpu_sync();
     auto result = allocate_gpu(sz, host);
@@ -115,22 +175,21 @@ hip_ptr write_to_gpu(const T& x)
 
 argument allocate_gpu(const shape& s, bool host)
 {
-    auto p = share(allocate_gpu(s.bytes() + 1, host));
+    auto p = allocate_gpu(s.bytes() + 1, host);
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
 argument register_on_gpu(const argument& arg)
 {
     auto arg_shared = arg.share();
-    auto p          = share(register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes()));
-    return {arg_shared.get_shape(), [p, a = std::move(arg_shared)]() mutable {
-                return get_device_ptr(p.get());
-            }}; // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
+    auto p          = register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes());
+    return {arg_shared.get_shape(),
+            [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
+}
 
 argument to_gpu(const argument& arg, bool host)
 {
-    auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes(), host));
+    auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
     return {arg.get_shape(), p};
 }
 

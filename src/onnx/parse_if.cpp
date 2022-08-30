@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/onnx_parser.hpp>
@@ -24,7 +47,8 @@ struct parse_if : op_parser<parse_if>
 
         if(args.front()->get_shape().elements() != 1)
         {
-            MIGRAPHX_THROW("PARSE_IF: condition input can have only one element!");
+            MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                           " condition input can have only one element!");
         }
 
         std::string then_name = info.name + "_if";
@@ -46,7 +70,8 @@ struct parse_if : op_parser<parse_if>
                           else_out_shapes.begin(),
                           else_out_shapes.end()))
         {
-            MIGRAPHX_THROW("PARSE_IF: then and else sub_grahps must have same output shapes!");
+            MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                           " then and else sub_grahps must have same output shapes!");
         }
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});

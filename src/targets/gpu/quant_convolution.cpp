@@ -139,7 +139,7 @@ shape miopen_quant_convolution::find(context& ctx,
 
     solution_id = solutions.front().solution_id;
 
-    algo = solutions.front().algorithm;
+    algo           = solutions.front().algorithm;
     workspace_size = solutions.front().workspace_size;
 
     return shape{shape::int8_type, {workspace_size}};

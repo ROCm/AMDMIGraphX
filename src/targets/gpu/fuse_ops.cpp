@@ -220,8 +220,8 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 
     auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
-    if(conv.algo == miopenConvolutionAlgoWinograd and wei.lens()[2] != 3 and
-       wei.lens()[3] != 3 and contains({{1, 1}}, op.stride))
+    if(conv.algo == miopenConvolutionAlgoWinograd and wei.lens()[2] != 3 and wei.lens()[3] != 3 and
+       contains({{1, 1}}, op.stride))
         return false;
     return contains({{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}}, op.padding) and
            contains({{0, 0}, {1, 1}}, op.stride) and contains({{1, 1}}, op.dilation);

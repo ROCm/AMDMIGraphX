@@ -47,9 +47,7 @@ constexpr auto concat_slice(Output out, Input, Start)
 template <index_int Axis, class Input, class Start, class... Ts>
 constexpr auto concat_slices(Input input, Start start, Ts... xs)
 {
-    return [=](auto f) {
-        f(concat_slice<Axis>(xs, input, start)...);
-    };
+    return [=](auto f) { f(concat_slice<Axis>(xs, input, start)...); };
 }
 
 template <index_int Axis, class Input>
@@ -66,7 +64,8 @@ __device__ auto concat(Inputs... inputs)
         auto idx = make_index();
         fold([&](auto start, auto input) {
             concat_slices<Axis>(input, start, ts...)([&](auto y, auto... xs) {
-                idx.global_stride(input.get_shape().elements(), [&](auto i) { y[i] = f(input[i], xs[i]...); });
+                idx.global_stride(input.get_shape().elements(),
+                                  [&](auto i) { y[i] = f(input[i], xs[i]...); });
             });
             return start + concat_ends<Axis>(input);
         })(_c<0>, inputs...);

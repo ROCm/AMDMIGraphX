@@ -145,8 +145,8 @@ shape miopen_deconvolution::find(context& ctx, const shape& output_shape, std::v
         MIGRAPHX_THROW("MIOpen Deconvolution: get solution failed");
 
     const auto& best_solution = solutions.front();
-    solution_id = best_solution.solution_id;
-    algo        = best_solution.algorithm;
+    solution_id               = best_solution.solution_id;
+    algo                      = best_solution.algorithm;
 
     return shape{shape::int8_type, {best_solution.workspace_size}};
 }

@@ -70,13 +70,13 @@ struct concat_compiler : compiler<concat_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        // TODO: Use reduce_dims
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(inputs);
         options.params         = "-Wno-float-equal";
-        auto axis              = find_fast_axis(options.virtual_inputs);
-        auto vec               = vectorize::elements(axis, options.virtual_inputs);
+        auto axis              = find_fast_axis(options.inputs);
+        auto vec               = vectorize::elements(axis, options.inputs);
         options.kernel_name    = v.get("kernel", "concat_kernel");
         options.set_launch_params(
             v, compute_global_for(ctx, get_concat_elements(options.inputs) / vec.size, 256));

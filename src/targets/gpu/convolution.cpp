@@ -144,7 +144,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 
         solution_ptr = find_solution(miopen_stream_handle, conv_problem.get());
 
-        auto status       = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+        auto status = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution : failed to get solution's workspace size");
 
@@ -242,9 +242,8 @@ void miopen_convolution::finalize(context& ctx,
         (void)(inputs);
         // load solution
         miopenSolution_t ptr;
-        auto status = miopenLoadSolution(&ptr,
-                                         reinterpret_cast<const char*>(solution_object.data()),
-                                         solution_object.size());
+        auto status = miopenLoadSolution(
+            &ptr, reinterpret_cast<const char*>(solution_object.data()), solution_object.size());
         solution_ptr = miopen_solution(ptr);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");

@@ -40,18 +40,20 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 struct precompile_op
 {
     operation op = op::identity{};
+    std::size_t additional_args = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"));
+        return pack(f(self.op, "op"), f(self.additional_args, "additional_args"));
     }
 
     std::string name() const { return "gpu::precompile_op"; }
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        inputs.pop_back();
+        // Pop off additional args
+        inputs.resize(inputs.size() - additional_args);
         return op.compute_shape(inputs, mods);
     }
 

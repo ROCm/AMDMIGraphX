@@ -21,54 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_GELU_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_GELU_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/module_ref.hpp>
 #include <string>
-#include <unordered_map>
-#include <vector>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct shape;
+struct module;
 
-namespace gpu {
-namespace gen {
-
-struct vectorize
+/**
+ * Rewrite gelu standard formula as the sigmoid approximation formula
+ */
+struct rewrite_gelu
 {
-    std::size_t size = 1;
-    std::size_t axis = 0;
-    static vectorize elements(std::size_t axis, const std::vector<shape>& inputs);
-    std::string str() const;
-};
-struct preload
-{
-    std::vector<bool> args = {};
-    static preload broadcasts(std::size_t axis, const std::vector<shape>& inputs);
-    bool is_preloading() const;
-    std::string str() const;
+    std::string name() const { return "rewrite_gelu"; }
+    void apply(module& m) const;
 };
 
-std::size_t find_fast_axis(const std::vector<shape>& inputs);
-
-std::string make_transformer_args(std::vector<std::string> transformers);
-
-template <class... Ts>
-std::string make_transformer_args(Ts... xs)
-{
-    return make_transformer_args({xs.str()...});
-}
-
-std::string generate_pointwise(const module& pm, const std::string& name);
-
-std::string generate_name_from_ops(const module& m);
-
-} // namespace gen
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP
+
+#endif

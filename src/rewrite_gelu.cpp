@@ -21,54 +21,39 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/module_ref.hpp>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct shape;
-
-namespace gpu {
-namespace gen {
-
-struct vectorize
+struct find_gelu_erf
 {
-    std::size_t size = 1;
-    std::size_t axis = 0;
-    static vectorize elements(std::size_t axis, const std::vector<shape>& inputs);
-    std::string str() const;
+    auto matcher() const { return match::gelu_erf(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x   = r.instructions["x"];
+        if(x->get_shape().type() != migraphx::shape::half_type)
+            return;
+
+        auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
+        auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});
+        auto sig = m.insert_instruction(ins, make_op("neg"), mul);
+        sig      = m.insert_instruction(ins, make_op("exp"), sig);
+        auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+        sig      = insert_common_op(m, ins, make_op("add"), {sig, one});
+        sig      = m.insert_instruction(ins, make_op("div"), x, sig);
+        m.replace_instruction(ins, sig);
+    }
 };
-struct preload
-{
-    std::vector<bool> args = {};
-    static preload broadcasts(std::size_t axis, const std::vector<shape>& inputs);
-    bool is_preloading() const;
-    std::string str() const;
-};
 
-std::size_t find_fast_axis(const std::vector<shape>& inputs);
+void rewrite_gelu::apply(module& m) const { match::find_matches(m, find_gelu_erf{}); }
 
-std::string make_transformer_args(std::vector<std::string> transformers);
-
-template <class... Ts>
-std::string make_transformer_args(Ts... xs)
-{
-    return make_transformer_args({xs.str()...});
-}
-
-std::string generate_pointwise(const module& pm, const std::string& name);
-
-std::string generate_name_from_ops(const module& m);
-
-} // namespace gen
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP

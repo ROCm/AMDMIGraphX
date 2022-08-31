@@ -84,22 +84,22 @@ argument miopen_convolution::compute(context& ctx,
             arguments[i].buffer     = buffers[i];
         }
 
-        if(solution_ptr == nullptr) 
+        if(solution_ptr == nullptr)
             MIGRAPHX_THROW("MIOpen Convolution : Load MIOpen Solution before running it");
 
         auto status = miopenRunSolution(miopen_stream_handle,
-                                   solution_ptr,
-                                   3,
-                                   arguments.get(),
-                                   args[2].implicit(),
-                                   workspace_size);
+                                        solution_ptr,
+                                        3,
+                                        arguments.get(),
+                                        args[2].implicit(),
+                                        workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: running convolution using find_2.0 failed");
 
         std::cout << "Hurray, it is using find_2.0 API\n"; // TODO, Remove this at before merging,
                                                            // this is here debugging purposes.
 
-        // TODO: Need to create managed_ptr for solution 
+        // TODO: Need to create managed_ptr for solution
         // status = miopenDestroySolution(solution_ptr);
         // if(status != miopenStatusSuccess)
         // {
@@ -167,7 +167,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
         solutions.resize(found);
 
         solution_ptr = solutions.front();
-        status = miopenGetSolutionWorkspaceSize(solution_ptr, &workspace_size);
+        status       = miopenGetSolutionWorkspaceSize(solution_ptr, &workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution : failed to get solution's workspace size");
 
@@ -273,7 +273,6 @@ void miopen_convolution::finalize(context& ctx,
                                          solution_object.size());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
-
     }
 #else
     // Use immediate mode API

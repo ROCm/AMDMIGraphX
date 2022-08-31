@@ -41,6 +41,7 @@ struct miopen_convolution
     miopenConvFwdAlgorithm_t algo{};
 #ifdef MIGRAPHX_HAS_FIND_2_API
     value::binary solution_object{};
+    miopenSolution_t solution_ptr = nullptr;
 #endif
     uint64_t solution_id = 0;
 

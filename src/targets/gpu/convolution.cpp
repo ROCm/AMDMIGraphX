@@ -83,15 +83,11 @@ argument miopen_convolution::compute(context& ctx,
             arguments[i].descriptor = descriptors[i] != nullptr ? &descriptors[i] : nullptr;
             arguments[i].buffer     = buffers[i];
         }
-        // load solution
-        miopenSolution_t solution_ptr;
-        auto status = miopenLoadSolution(&solution_ptr,
-                                         reinterpret_cast<const char*>(solution_object.data()),
-                                         solution_object.size());
-        if(status != miopenStatusSuccess)
-            MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
 
-        status = miopenRunSolution(miopen_stream_handle,
+        if(solution_ptr == nullptr) 
+            MIGRAPHX_THROW("MIOpen Convolution : Load MIOpen Solution before running it");
+
+        auto status = miopenRunSolution(miopen_stream_handle,
                                    solution_ptr,
                                    3,
                                    arguments.get(),
@@ -103,11 +99,12 @@ argument miopen_convolution::compute(context& ctx,
         std::cout << "Hurray, it is using find_2.0 API\n"; // TODO, Remove this at before merging,
                                                            // this is here debugging purposes.
 
-        status = miopenDestroySolution(solution_ptr);
-        if(status != miopenStatusSuccess)
-        {
-            MIGRAPHX_THROW("MIOpen Convolution : Destroying Solution Failed");
-        }
+        // TODO: Need to create managed_ptr for solution 
+        // status = miopenDestroySolution(solution_ptr);
+        // if(status != miopenStatusSuccess)
+        // {
+        //     MIGRAPHX_THROW("MIOpen Convolution : Destroying Solution Failed");
+        // }
         return args[3];
     }
 #else
@@ -169,7 +166,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 
         solutions.resize(found);
 
-        miopenSolution_t solution_ptr = solutions.front();
+        solution_ptr = solutions.front();
         status = miopenGetSolutionWorkspaceSize(solution_ptr, &workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution : failed to get solution's workspace size");
@@ -270,6 +267,13 @@ void miopen_convolution::finalize(context& ctx,
         (void)(ctx); // avoid warnings
         (void)(output_shape);
         (void)(inputs);
+        // load solution
+        auto status = miopenLoadSolution(&solution_ptr,
+                                         reinterpret_cast<const char*>(solution_object.data()),
+                                         solution_object.size());
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
+
     }
 #else
     // Use immediate mode API

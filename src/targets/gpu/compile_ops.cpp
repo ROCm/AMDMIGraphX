@@ -39,7 +39,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 
 struct precompile_op
 {
-    operation op = op::identity{};
+    operation op                = op::identity{};
     std::size_t additional_args = 1;
 
     template <class Self, class F>

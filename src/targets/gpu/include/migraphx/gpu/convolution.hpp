@@ -39,11 +39,10 @@ struct miopen_convolution
     op::convolution op;
     shared<convolution_descriptor> cd = nullptr;
     miopenConvFwdAlgorithm_t algo{};
-    uint64_t solution_id = 0;
-    value::binary solution_object{};
 #ifdef MIGRAPHX_HAS_FIND_2_API
-    miopenSolution_t solution_ptr = nullptr;
+    value::binary solution_object{};
 #endif
+    uint64_t solution_id = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -53,8 +52,10 @@ struct miopen_convolution
                     f(self.op.dilation, "dilation"),
                     f(self.op.group, "group"),
                     f(self.op.padding_mode, "padding_mode"),
-                    f(self.solution_id, "solution_id"),
-                    f(self.solution_object, "solution_object"));
+#ifdef MIGRAPHX_HAS_FIND_2_API
+                    f(self.solution_object, "solution_object"),
+#endif
+                    f(self.solution_id, "solution_id"));
     }
 
     std::string name() const { return "gpu::convolution"; }

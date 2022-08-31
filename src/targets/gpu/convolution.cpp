@@ -80,11 +80,18 @@ argument miopen_convolution::compute(context& ctx,
         for(auto i = 0; i < 3; ++i)
         {
             arguments[i].id         = names[i];
-            arguments[i].descriptor = &descriptors[i];
+            arguments[i].descriptor = descriptors[i] !=  nullptr ? &descriptors[i] : nullptr;
             arguments[i].buffer     = buffers[i];
         }
+        // load solution
+        miopenSolution_t solution_ptr;
+        auto status = miopenLoadSolution(&solution_ptr,
+                                         reinterpret_cast<const char*>(solution_object.data()),
+                                         solution_object.size());
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
 
-        auto status = miopenRunSolution(miopen_stream_handle,
+        status = miopenRunSolution(miopen_stream_handle,
                                         solution_ptr,
                                         3,
                                         arguments.get(),
@@ -162,7 +169,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 
         solutions.resize(found);
 
-        solution_ptr = solutions.front();
+        miopenSolution_t solution_ptr = solutions.front();
         status       = miopenGetSolutionWorkspaceSize(solution_ptr, &workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution : failed to get solution's workspace size");
@@ -263,12 +270,6 @@ void miopen_convolution::finalize(context& ctx,
         (void)(ctx); // avoid warnings
         (void)(output_shape);
         (void)(inputs);
-        // need to create managed_ptr
-        auto status = miopenLoadSolution(&solution_ptr,
-                                         reinterpret_cast<const char*>(solution_object.data()),
-                                         solution_object.size());
-        if(status != miopenStatusSuccess)
-            MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
     }
 #else
     // Use immediate mode API

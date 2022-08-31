@@ -80,7 +80,7 @@ argument miopen_convolution::compute(context& ctx,
         for(auto i = 0; i < 3; ++i)
         {
             arguments[i].id         = names[i];
-            arguments[i].descriptor = descriptors[i] !=  nullptr ? &descriptors[i] : nullptr;
+            arguments[i].descriptor = descriptors[i] != nullptr ? &descriptors[i] : nullptr;
             arguments[i].buffer     = buffers[i];
         }
         // load solution
@@ -92,11 +92,11 @@ argument miopen_convolution::compute(context& ctx,
             MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
 
         status = miopenRunSolution(miopen_stream_handle,
-                                        solution_ptr,
-                                        3,
-                                        arguments.get(),
-                                        args[2].implicit(),
-                                        workspace_size);
+                                   solution_ptr,
+                                   3,
+                                   arguments.get(),
+                                   args[2].implicit(),
+                                   workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: running convolution using find_2.0 failed");
 
@@ -170,7 +170,7 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
         solutions.resize(found);
 
         miopenSolution_t solution_ptr = solutions.front();
-        status       = miopenGetSolutionWorkspaceSize(solution_ptr, &workspace_size);
+        status = miopenGetSolutionWorkspaceSize(solution_ptr, &workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution : failed to get solution's workspace size");
 

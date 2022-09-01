@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM pytorch/pytorch:latest
 
 ARG PREFIX=/usr/local
 
@@ -6,7 +6,7 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.0.2/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.2.3/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -73,8 +73,12 @@ RUN /download_models.sh && rm /download_models.sh
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1
 
+RUN apt-get update
+RUN apt install build-essential libssl-dev
 # Install newer cmake for onnx runtime
-RUN cget -p /opt/cmake install kitware/cmake@v3.13.4
+RUN cget -p /opt/cmake install kitware/cmake@v3.20.0
+
+
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
@@ -86,6 +90,9 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
+
+RUN cget -p /usr/local install kitware/cmake@v3.20.0
+# Install newer cmake for onnx runtime
 RUN cget -p /usr/local install ROCmSoftwarePlatform/llvm-project-mlir@d2cb9e580550e92ab75a0a417e7a4abd02a24edf -DBUILD_MIXR_TARGET=On
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db

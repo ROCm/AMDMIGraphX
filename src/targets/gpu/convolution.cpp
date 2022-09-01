@@ -241,12 +241,14 @@ void miopen_convolution::finalize(context& ctx,
         (void)(output_shape);
         (void)(inputs);
         // load solution
-        miopenSolution_t ptr;
-        auto status = miopenLoadSolution(
-            &ptr, reinterpret_cast<const char*>(solution_object.data()), solution_object.size());
-        solution_ptr = miopen_solution(ptr);
-        if(status != miopenStatusSuccess)
-            MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
+        if(solution_ptr == nullptr) {
+            miopenSolution_t ptr;
+            auto status = miopenLoadSolution(
+                &ptr, reinterpret_cast<const char*>(solution_object.data()), solution_object.size());
+            solution_ptr = miopen_solution(ptr);
+            if(status != miopenStatusSuccess)
+                MIGRAPHX_THROW("MIOpen Convolution: loading convolution solution failed");
+        }
     }
 #else
     // Use immediate mode API

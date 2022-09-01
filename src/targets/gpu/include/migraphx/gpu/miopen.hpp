@@ -73,14 +73,14 @@ Result make_obj(F f, Ts... xs)
 #ifdef MIGRAPHX_HAS_FIND_2_API
 using miopen_find_options = MIGRAPHX_MANAGE_PTR(miopenFindOptions_t, miopenDestroyFindOptions);
 using miopen_problem      = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
-using miopen_solution     = std::shared_ptr<miopenSolution>;
+using miopen_solution     = MIGRAPHX_MANAGE_PTR(miopenSolution_t, miopenDestroySolution);
 
 inline miopen_solution find_solution(miopenHandle_t handle, miopenProblem_t problem)
 {
     miopenSolution_t solution;
     size_t found = 0;
     auto status  = miopenFindSolutions(handle, problem, nullptr, &solution, &found, 1);
-    auto result  = miopen_solution{solution, &miopenDestroySolution};
+    auto result = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)
         MIGRAPHX_THROW("MIOpen miopenFindSolutions failed");
     return result;

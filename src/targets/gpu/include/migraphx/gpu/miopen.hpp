@@ -80,7 +80,7 @@ inline miopen_solution find_solution(miopenHandle_t handle, miopenProblem_t prob
     miopenSolution_t solution;
     size_t found = 0;
     auto status  = miopenFindSolutions(handle, problem, nullptr, &solution, &found, 1);
-    auto result = miopen_solution{solution};
+    auto result  = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)
         MIGRAPHX_THROW("MIOpen miopenFindSolutions failed");
     return result;

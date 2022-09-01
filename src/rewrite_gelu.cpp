@@ -21,53 +21,39 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MATCH_GELU_ERF_HPP
-#define MIGRAPHX_GUARD_MATCH_GELU_ERF_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace match {
 
-namespace detail {
-template <class F>
-struct gelu_erf_matcher
+struct find_gelu_erf
 {
-    F f;
-    auto erf_fn() const
+    auto matcher() const { return match::gelu_erf(); }
+
+    void apply(module& m, const match::matcher_result& r) const
     {
-        auto mul_1_sqrt_2 = f("mul")(either_arg(0, 1)(none_of(has_value(M_SQRT1_2, 1e-3)).bind("x"),
-                                                      has_value(M_SQRT1_2, 1e-3)));
-        auto div_sqrt_2 =
-            f("div")(args(none_of(has_value(M_SQRT2, 1e-3)).bind("x"), has_value(M_SQRT2, 1e-3)));
-        return f("erf")(used_once(), arg(0)(used_once(), any_of(mul_1_sqrt_2, div_sqrt_2)));
+        auto ins = r.result;
+        auto x   = r.instructions["x"];
+        if(x->get_shape().type() != migraphx::shape::half_type)
+            return;
+
+        auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
+        auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});
+        auto sig = m.insert_instruction(ins, make_op("neg"), mul);
+        sig      = m.insert_instruction(ins, make_op("exp"), sig);
+        auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+        sig      = insert_common_op(m, ins, make_op("add"), {sig, one});
+        sig      = m.insert_instruction(ins, make_op("div"), x, sig);
+        m.replace_instruction(ins, sig);
     }
-
-    auto add_erf() const
-    {
-        return f("add")(used_once(), either_arg(0, 1)(erf_fn(), has_value(1.0f)));
-    }
-
-    auto one_half() const { return has_value(0.5f); }
-
-    auto matcher() const { return unordered_tree(f("mul"), one_half(), add_erf(), any()); }
 };
-} // namespace detail
 
-template <class F>
-auto gelu_erf(F f)
-{
-    return detail::gelu_erf_matcher<F>{f}.matcher();
-}
+void rewrite_gelu::apply(module& m) const { match::find_matches(m, find_gelu_erf{}); }
 
-inline auto gelu_erf()
-{
-    return gelu_erf([](auto x) { return name(x); });
-}
-
-} // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MATCH_GELU_ERF_HPP

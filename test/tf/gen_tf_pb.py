@@ -708,7 +708,7 @@ if __name__ == '__main__':
     pow_test()
     relu_test()
     relu6_test()
-    relu6_mismatch_test()
+    relu6_half_test()
     reshape_test()
     rsqrt_test()
     shape_test()

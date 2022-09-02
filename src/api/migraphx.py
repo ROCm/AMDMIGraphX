@@ -317,12 +317,12 @@ api.add_function('migraphx_save',
 @api.handle('migraphx_execution_environment',
             'migraphx::execution_environment')
 def execution_environment(h):
-    # if users are not allowed to change stream after creation of this object then, we should pass those
-    # parameters in the constructor itself  and make this "const"
-    h.constructor('create',
-                   q='migraphx::any_ptr',
-                   is_async='bool')
-
+    h.constructor('create')
+    h.method('set_async_stream', 
+             api.params(
+                q='void*'
+             ),
+             invoke='migraphx::set_async_stream($@)')
 
 @auto_handle()
 def onnx_options(h):

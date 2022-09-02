@@ -167,9 +167,17 @@ void set_output_names(tf_options& options, std::vector<const char*> names)
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
 
-void set_execution_stream(execution_environment& exec, void* stream) { exec.queue = stream; }
-
-void set_run_async_flag(execution_environment& exec, bool flag) { exec.async = flag; }
+migraphx_status set_async_stream(execution_environment &e, void * stream) 
+{
+    migraphx_status ret = migraphx_status_bad_param;
+    if(stream != nullptr) 
+    {
+        e.queue = any_ptr(stream, "hipStream_t");
+        e.async = true;
+        ret = migraphx_status_bad_param;
+    }
+    return ret;
+}
 
 std::vector<argument>
 run_async(program& p, const parameter_map& params, const execution_environment& exec_env)

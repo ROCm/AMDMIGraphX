@@ -386,6 +386,9 @@ migraphx_execution_environment_assign_to(migraphx_execution_environment_t output
 migraphx_status
 migraphx_execution_environment_create(migraphx_execution_environment_t* execution_environment);
 
+migraphx_status migraphx_execution_environment_set_async_stream(
+    migraphx_execution_environment_t execution_environment, void* q);
+
 migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
 
 migraphx_status migraphx_onnx_options_assign_to(migraphx_onnx_options_t output,

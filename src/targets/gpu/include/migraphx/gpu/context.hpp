@@ -283,8 +283,11 @@ struct context
 
         auto status = hipEventRecord(start_event.get(), sPtr);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("wait_for: Failed to record event.");
-
+        {
+            std::stringstream ss;
+            ss << "wait_for: failed to record " << status;
+            MIGRAPHX_THROW(ss.str());
+        }
         ctx_q.wait(start_event.get());
      }
 
@@ -296,7 +299,11 @@ struct context
 
         auto status = hipStreamWaitEvent(sPtr, finish_event.get(), 0);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("finish_on: Failed to wait on event.");
+        {
+            std::stringstream ss;
+            ss << "finish_on: Failed to wait on event." << status;
+            MIGRAPHX_THROW(ss.str());
+        }
     }
 
     any_ptr get_queue() { return get_stream().get(); }

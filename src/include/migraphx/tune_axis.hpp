@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 inline int tune_axis(const int n_dim, const int axis, const std::string& op_name = "OPERATOR")
 {
-    if(axis >= n_dim || std::abs(axis) > n_dim)
+    if(axis >= n_dim or std::abs(axis) > n_dim)
     {
         MIGRAPHX_THROW(to_upper(op_name) + ": axis is out of range.");
     }

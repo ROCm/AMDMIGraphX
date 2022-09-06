@@ -53,8 +53,8 @@ int main(int argc, char** argv)
 
     migraphx::program p;
 
-    if(cmdOptionExists(argv + 2, argv + argc, "--parse") ||
-       !cmdOptionExists(argv + 2, argv + argc, "--load"))
+    if(cmdOptionExists(argv + 2, argv + argc, "--parse") or
+       not cmdOptionExists(argv + 2, argv + argc, "--load"))
     {
         std::cout << "Parsing ONNX File" << std::endl;
         migraphx::onnx_options options;

@@ -181,7 +181,7 @@ struct marker
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<!std::is_reference<PrivateDetailTypeErasedU>::value,
+            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
                                     int>::type* = nullptr) noexcept
             : private_detail_te_value(std::move(value))
         {
@@ -233,7 +233,7 @@ struct marker
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
         assert(private_detail_te_handle_mem_var != nullptr);
-        if(!private_detail_te_handle_mem_var.unique())
+        if(not private_detail_te_handle_mem_var.unique())
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }

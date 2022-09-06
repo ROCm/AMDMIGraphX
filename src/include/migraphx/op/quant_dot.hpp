@@ -49,13 +49,14 @@ struct quant_dot
             MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t");
         }
 
-        if(!std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
+        if(not std::all_of(
+               inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
         {
             MIGRAPHX_THROW("QUANT_DOT: dot only accept 2 or more dims operands");
         }
 
         // only handle the case that the batch size of a and b are the same
-        if(!std::equal(
+        if(not std::equal(
                a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
         {
             MIGRAPHX_THROW("QUANT_DOT: batch size of A and B mismatch: {" +

@@ -70,7 +70,7 @@ struct broadcast
             MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than input ndims");
         }
 
-        if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
+        if(not std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
         {
             MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
         }

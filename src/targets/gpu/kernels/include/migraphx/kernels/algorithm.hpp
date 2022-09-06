@@ -163,7 +163,7 @@ constexpr Iterator1 search(Iterator1 first, Iterator1 last, Iterator2 s_first, I
             {
                 return last;
             }
-            if(!(*it == *s_it))
+            if(not(*it == *s_it))
             {
                 break;
             }

@@ -100,7 +100,7 @@ struct parse_conv : op_parser<parse_conv>
                 {
                     MIGRAPHX_THROW("padding should have 4 values");
                 }
-                if(padding[0] != padding[2] || padding[1] != padding[3])
+                if(padding[0] != padding[2] or padding[1] != padding[3])
                 {
                     MIGRAPHX_THROW("migraphx does not support asymetric padding");
                 }

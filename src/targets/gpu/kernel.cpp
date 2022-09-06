@@ -80,7 +80,9 @@ void launch_kernel(hipFunction_t fun,
                    std::size_t global,
                    std::size_t local,
                    void* kernargs,
-                   std::size_t size)
+                   std::size_t size,
+                   hipEvent_t start,
+                   hipEvent_t stop)
 {
     assert(global > 0);
     assert(local > 0);
@@ -97,34 +99,55 @@ void launch_kernel(hipFunction_t fun,
 #endif
     };
 
-    auto status = hipExtModuleLaunchKernel(
-        fun, global, 1, 1, local, 1, 1, 0, stream, nullptr, reinterpret_cast<void**>(&config));
+    auto status = hipExtModuleLaunchKernel(fun,
+                                           global,
+                                           1,
+                                           1,
+                                           local,
+                                           1,
+                                           1,
+                                           0,
+                                           stream,
+                                           nullptr,
+                                           reinterpret_cast<void**>(&config),
+                                           start,
+                                           stop);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
+    if(stop != nullptr)
+    {
+        status = hipEventSynchronize(stop);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to sync event: " + hip_error(status));
+    }
 }
 
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    std::vector<void*> args) const
+                    std::vector<void*> args,
+                    hipEvent_t start,
+                    hipEvent_t stop) const
 {
     assert(impl != nullptr);
     void* kernargs   = args.data();
     std::size_t size = args.size() * sizeof(void*);
 
-    launch_kernel(impl->fun, stream, global, local, kernargs, size);
+    launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
 }
 
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    const std::vector<kernel_argument>& args) const
+                    const std::vector<kernel_argument>& args,
+                    hipEvent_t start,
+                    hipEvent_t stop) const
 {
     assert(impl != nullptr);
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size);
+    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
 }
 
 } // namespace gpu

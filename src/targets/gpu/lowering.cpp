@@ -340,7 +340,7 @@ struct miopen_apply
             catch(migraphx::exception&)
             {
                 // In case no solver supports the default format, retry using the other format.
-                compile_quant_conv_with_format(!int8_x4_format);
+                compile_quant_conv_with_format(not int8_x4_format);
             }
 
             auto args      = ins->inputs();

@@ -21,20 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/memory_coloring.hpp>
-#include "memory_coloring_impl.hpp"
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-void memory_coloring::apply(module& m) const
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
+struct gemm_add_broadcast1 : verify_program<gemm_add_broadcast1>
 {
-    if(not enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
+    migraphx::program create_program() const
     {
-        memory_coloring_impl opt(&m, allocation_op, verify);
-        opt.run();
-    }
-}
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{migraphx::shape::float_type, {1, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {1, 3, 4}};
+        migraphx::shape m3_shape{migraphx::shape::float_type, {1, 1, 4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
+        auto l3_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), l3);
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3_b);
+        return p;
+    }
+};

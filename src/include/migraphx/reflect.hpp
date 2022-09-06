@@ -129,7 +129,7 @@ template <class T>
 struct reflect_equality
 {
     friend bool operator==(const T& x, const T& y) { return reflect_tie(x) == reflect_tie(y); }
-    friend bool operator!=(const T& x, const T& y) { return !(x == y); }
+    friend bool operator!=(const T& x, const T& y) { return not(x == y); }
 };
 
 template <class T>

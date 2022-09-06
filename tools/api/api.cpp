@@ -172,7 +172,7 @@ migraphx_status set_async_stream(execution_environment &e, void * stream)
     migraphx_status ret = migraphx_status_bad_param;
     if(stream != nullptr) 
     {
-        e.queue = any_ptr(stream, "hipStream_t");
+        e.queue = any_ptr(stream, "ihipStream_t");
         e.async = true;
         ret = migraphx_status_bad_param;
     }

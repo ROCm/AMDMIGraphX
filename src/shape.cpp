@@ -477,7 +477,7 @@ bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 
 bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
-    return !(x == y);
+    return not(x == y);
 }
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
@@ -497,7 +497,7 @@ bool operator==(const shape& x, const shape& y)
             x.strides() == y.strides() and x.sub_shapes() == y.sub_shapes());
 }
 
-bool operator!=(const shape& x, const shape& y) { return !(x == y); }
+bool operator!=(const shape& x, const shape& y) { return not(x == y); }
 
 std::ostream& operator<<(std::ostream& os, const shape& x)
 {

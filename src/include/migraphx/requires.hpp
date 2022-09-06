@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <bool... Bs>
-struct and_ : std::is_same<and_<Bs...>, and_<(Bs || true)...>> // NOLINT
+struct and_ : std::is_same<and_<Bs...>, and_<(Bs or true)...>> // NOLINT
 {
 };
 

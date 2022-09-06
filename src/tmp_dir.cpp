@@ -78,7 +78,7 @@ void tmp_dir::execute(const std::string& exe, const std::string& args) const
 
 tmp_dir::~tmp_dir()
 {
-    if(!enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
+    if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
     {
         fs::remove_all(this->path);
     }

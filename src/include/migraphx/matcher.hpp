@@ -357,11 +357,11 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
     const
 #endif
         int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
-    #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
+#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif
         bool validate = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    bool match    = false;
+    bool match        = false;
     each_args(
         [&](auto&& m) {
             if(match)
@@ -379,7 +379,7 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
             // If its already invalid dont validate it again
             bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
             m.apply(mod, r);
-            if (validate and not invalidated)
+            if(validate and not invalidated)
             {
                 auto invalid = get_module(mod).validate();
                 if(invalid != get_module(mod).end())

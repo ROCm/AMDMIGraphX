@@ -1186,6 +1186,34 @@ struct find_layernorm_pointwise
     }
 };
 
+struct find_concat_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(match::arg(0)(
+            precompile_name("concat").bind("concat")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto concat = r.instructions["concat"];
+        auto* pm       = ins->module_inputs().front();
+
+        if(not concat->module_inputs().empty())
+            return;
+
+        auto inputs = concat->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
+
+        auto op = concat->get_operator();
+        op.from_value({{"additional_args", ins->inputs().size()}, {"ignore_modules", true}});
+
+        m.replace_instruction(ins, op, inputs, {pm});
+    }
+};
+
 void fuse_ops::apply(module& m) const
 {
     match::find_matches(m, find_contiguous_pointwise{}, find_gelu{}, find_gelu_new{fast_math});
@@ -1209,6 +1237,7 @@ void fuse_ops::apply(module& m) const
                         find_triadd_layernorm{},
                         find_gemm_add{},
                         find_layernorm_pointwise{},
+                        find_concat_pointwise{},
                         find_gemm_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});

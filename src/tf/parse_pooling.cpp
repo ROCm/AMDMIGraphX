@@ -42,7 +42,7 @@ struct parse_pooling : op_parser<parse_pooling>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        if(!starts_with(opd.tf_name, "Max") && !starts_with(opd.tf_name, "Av"))
+        if(not starts_with(opd.tf_name, "Max") and not starts_with(opd.tf_name, "Av"))
         {
             MIGRAPHX_THROW("tf pooling mode must be Max or Average");
         }

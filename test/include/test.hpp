@@ -345,7 +345,7 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
 template <class T, class F>
 void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
 {
-    if(!bool(x.value()))
+    if(not bool(x.value()))
     {
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;

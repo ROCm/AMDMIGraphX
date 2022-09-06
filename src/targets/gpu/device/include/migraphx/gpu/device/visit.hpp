@@ -117,12 +117,13 @@ template <class V, class F, class... Ts>
 void hip_visit_all_impl(const shape& s, F f, V&& v, Ts&&... xs)
 {
     std::initializer_list<migraphx::shape::type_t> types = {get_shape(xs).type()...};
-    if(!std::all_of(
+    if(not std::all_of(
            types.begin(), types.end(), [&](migraphx::shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
     std::initializer_list<index_int> ranks = {
         static_cast<index_int>(get_shape(xs).lens().size())...};
-    if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
+    if(not std::all_of(
+           ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
     visit_tensor_size(s.lens().size(), [&](auto ndim) {
         s.visit_type(hip_visitor([&](auto as) { v(f(xs, ndim, as)...); }));
@@ -134,7 +135,8 @@ void hip_visit_views_impl(const shape& s, F f, V&& v, Ts&&... xs)
 {
     std::initializer_list<index_int> ranks = {
         static_cast<index_int>(get_shape(xs).lens().size())...};
-    if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
+    if(not std::all_of(
+           ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
     visit_tensor_size(s.lens().size(), [&](auto ndim) { v(f(xs, ndim)...); });
 }

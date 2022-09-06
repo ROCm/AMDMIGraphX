@@ -174,7 +174,7 @@ migraphx_status set_async_stream(execution_environment& e, void* stream)
     {
         e.queue = any_ptr(stream, "ihipStream_t");
         e.async = true;
-        ret     = migraphx_status_bad_param;
+        ret     = migraphx_status_success;
     }
     return ret;
 }

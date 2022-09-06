@@ -347,6 +347,7 @@ match::matcher_result find_match(module& modl, M&& m)
 }
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 
 /// Find matches for an instruction in the module
 template <class Mod, class... Ms>
@@ -356,6 +357,10 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
     const
 #endif
         int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
+    #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
+    const
+#endif
+        bool validate = enabled(MIGRAPHX_VALIDATE_MATCHES{});
     bool match    = false;
     each_args(
         [&](auto&& m) {
@@ -371,7 +376,20 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
                 std::cout << "Matched by " << get_type_name(m) << std::endl;
                 get_module(mod).debug_print(ins);
             }
+            // If its already invalid dont validate it again
+            bool invalidated = validate and get_module(mod).validate() != get_module(mod).end();
             m.apply(mod, r);
+            if (validate and not invalidated)
+            {
+                auto invalid = get_module(mod).validate();
+                if(invalid != get_module(mod).end())
+                {
+                    std::cout << "Invalid program from match: " << get_type_name(m) << std::endl;
+                    std::cout << "Invalid instructions: " << std::endl;
+                    get_module(mod).debug_print(invalid->inputs());
+                    get_module(mod).debug_print(invalid);
+                }
+            }
             match = true;
         },
         ms...);

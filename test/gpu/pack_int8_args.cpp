@@ -92,7 +92,8 @@ TEST_CASE(quant_dot)
         }
         auto gemm = m.add_instruction(
             migraphx::make_op("gpu::quant_gemm",
-                              {{"int8_x4_format", int8_x4}, {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
+                              {{"int8_x4_format", int8_x4},
+                               {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
             l1,
             packa,
             gemm_alloc);
@@ -117,8 +118,8 @@ TEST_CASE(quant_dot)
     auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
-    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
-    auto m2           = create_optimized_int8_x4(int8_x4);
+    bool int8_x4 = migraphx::gpu::get_int8_x4_format(ctx);
+    auto m2      = create_optimized_int8_x4(int8_x4);
     EXPECT(m1 == m2);
 }
 
@@ -203,7 +204,8 @@ TEST_CASE(quant_dot_trans)
 
         auto gemm = m.add_instruction(
             migraphx::make_op("gpu::quant_gemm",
-                              {{"int8_x4_format", int8_x4}, {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
+                              {{"int8_x4_format", int8_x4},
+                               {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
             tl1_alpha_int8,
             packb,
             output);
@@ -216,8 +218,8 @@ TEST_CASE(quant_dot_trans)
     auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
-    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
-    auto m2           = create_optimized_int8_x4(int8_x4);
+    bool int8_x4 = migraphx::gpu::get_int8_x4_format(ctx);
+    auto m2      = create_optimized_int8_x4(int8_x4);
 
     EXPECT(m1 == m2);
 }
@@ -286,7 +288,8 @@ TEST_CASE(quant_dot_pad)
 
         auto gemm = m.add_instruction(
             migraphx::make_op("gpu::quant_gemm",
-                              {{"int8_x4_format", int8_x4}, {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
+                              {{"int8_x4_format", int8_x4},
+                               {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
             pl1,
             packa,
             gemm_alloc);
@@ -310,8 +313,8 @@ TEST_CASE(quant_dot_pad)
     auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
-    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
-    auto m2           = create_optimized_int8_x4(int8_x4);
+    bool int8_x4 = migraphx::gpu::get_int8_x4_format(ctx);
+    auto m2      = create_optimized_int8_x4(int8_x4);
 
     EXPECT(m1 == m2);
 }
@@ -433,7 +436,8 @@ TEST_CASE(quant_dot_trans_pad)
 
         auto gemm = m.add_instruction(
             migraphx::make_op("gpu::quant_gemm",
-                              {{"int8_x4_format", int8_x4}, {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
+                              {{"int8_x4_format", int8_x4},
+                               {"compute_fp32", migraphx::gpu::get_compute_fp32_flag()}}),
             pa,
             packb,
             output);
@@ -446,8 +450,8 @@ TEST_CASE(quant_dot_trans_pad)
     auto ctx = migraphx::gpu::context{};
     run_passes(m1, ctx);
 
-    bool int8_x4      = migraphx::gpu::get_int8_x4_format(ctx);
-    auto m2           = create_optimized_int8_x4(int8_x4);
+    bool int8_x4 = migraphx::gpu::get_int8_x4_format(ctx);
+    auto m2      = create_optimized_int8_x4(int8_x4);
 
     EXPECT(m1 == m2);
 }

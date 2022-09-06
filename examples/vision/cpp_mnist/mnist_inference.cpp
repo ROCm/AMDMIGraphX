@@ -51,16 +51,16 @@ int main(int argc, char** argv)
 
     char** begin   = argv + 1;
     char** end     = argv + argc;
-    const bool CPU = (std::find(begin, end, std::string("-c")) != end) ||
+    const bool CPU = (std::find(begin, end, std::string("-c")) != end) or
                      std::find(begin, end, std::string("--cpu")) != end;
-    const bool GPU = std::find(begin, end, std::string("-g")) != end ||
+    const bool GPU = std::find(begin, end, std::string("-g")) != end or
                      std::find(begin, end, std::string("--gpu")) != end;
-    const bool FP16 = std::find(begin, end, std::string("-f")) != end ||
+    const bool FP16 = std::find(begin, end, std::string("-f")) != end or
                       std::find(begin, end, std::string("--fp16")) != end;
-    const bool INT8 = std::find(begin, end, std::string("-i")) != end ||
+    const bool INT8 = std::find(begin, end, std::string("-i")) != end or
                       std::find(begin, end, std::string("--int8")) != end;
     const bool CALIB = std::find(begin, end, std::string("--cal")) != end;
-    const bool PRINT = std::find(begin, end, std::string("-p")) != end ||
+    const bool PRINT = std::find(begin, end, std::string("-p")) != end or
                        std::find(begin, end, std::string("--print")) != end;
 
     migraphx::program prog;
@@ -182,7 +182,7 @@ void read_nth_digit(const int n, std::vector<float>& digit)
     const int HEIGHT = 28;
     const int WIDTH  = 28;
 
-    if(!file.is_open())
+    if(not file.is_open())
     {
         return;
     }

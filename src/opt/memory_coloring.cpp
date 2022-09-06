@@ -29,7 +29,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void memory_coloring::apply(module& m) const
 {
-    if(!enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
+    if(not enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
     {
         memory_coloring_impl opt(&m, allocation_op, verify);
         opt.run();

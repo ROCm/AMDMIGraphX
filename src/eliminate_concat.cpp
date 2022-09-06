@@ -60,7 +60,7 @@ void eliminate_concat::apply(module& m) const
         auto lens              = ins->inputs().front()->get_shape().lens();
         auto concat_op         = concat_opt.get_concat(ins->get_operator());
         std::size_t axis_index = tune_axis(lens.size(), concat_op.axis, concat_op.name());
-        if(axis_index == 0 ||
+        if(axis_index == 0 or
            std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; }))
         {
             // Last input should be an allocation

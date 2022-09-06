@@ -1190,15 +1190,15 @@ struct find_concat_pointwise
 {
     auto matcher() const
     {
-        return precompile_name("pointwise")(match::arg(0)(
-            precompile_name("concat").bind("concat")));
+        return precompile_name("pointwise")(
+            match::arg(0)(precompile_name("concat").bind("concat")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins       = r.result;
+        auto ins    = r.result;
         auto concat = r.instructions["concat"];
-        auto* pm       = ins->module_inputs().front();
+        auto* pm    = ins->module_inputs().front();
 
         if(not concat->module_inputs().empty())
             return;

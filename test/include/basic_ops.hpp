@@ -112,12 +112,12 @@ struct mod_pass_op
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs,
                                   std::vector<migraphx::module_ref> mods) const
     {
-        if(!mods.empty())
+        if(not mods.empty())
         {
             auto out_shapes = mods[0]->get_output_shapes();
             return out_shapes[0];
         }
-        if(!inputs.empty())
+        if(not inputs.empty())
         {
             return inputs.front();
         }

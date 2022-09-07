@@ -153,7 +153,7 @@ struct array
         return true;
     }
 
-    friend constexpr bool operator!=(const array& x, const array& y) { return !(x == y); }
+    friend constexpr bool operator!=(const array& x, const array& y) { return not(x == y); }
     // This uses the product order rather than lexical order
     friend constexpr bool operator<(const array& x, const array& y)
     {

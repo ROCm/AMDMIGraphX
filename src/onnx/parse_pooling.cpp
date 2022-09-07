@@ -157,7 +157,7 @@ struct parse_pooling : op_parser<parse_pooling>
         std::vector<int64_t> slice_end;
         tune_padding_size(values, paddings, count_include_pad, slice_start);
 
-        if(!slice_start.empty())
+        if(not slice_start.empty())
         {
             // calculate expected output shape
             orig_padding.insert(orig_padding.begin() + kdims, 2, 0);
@@ -180,7 +180,7 @@ struct parse_pooling : op_parser<parse_pooling>
         op.from_value(values);
 
         auto l1 = info.add_instruction(op, l0);
-        if(!slice_start.empty())
+        if(not slice_start.empty())
         {
             std::vector<int64_t> axes(kdims);
             std::iota(axes.begin(), axes.end(), 2);

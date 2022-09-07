@@ -103,12 +103,12 @@ struct concat_compiler : compiler<concat_compiler>
         if(not ins->module_inputs().empty())
         {
             auto* pm           = ins->module_inputs().front();
-            v["concat_inputs"] = ins->inputs().size() - pm->get_parameter_names().size() - 1;
+            v["concat_inputs"] = ins->inputs().size() - pm->get_parameter_names().size();
             v["preamble"]      = generate_pointwise(*pm, "post_concat");
             v["post"]          = "MIGRAPHX_LIFT(post_concat)";
             v["kernel"]        = "concat_" + generate_name_from_ops(*pm) + "_kernel";
         }
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
+        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
     }
 };
 

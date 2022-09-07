@@ -412,6 +412,24 @@ struct find_concat_op
     }
 };
 
+void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
+{
+    auto start = range(m.begin(), pos);
+    for(auto ins:iterator_for(start))
+    {
+        auto it = std::find(inss.begin(), inss.end(), ins);
+        if (it != inss.end())
+            inss.erase(it);
+    }
+    for(auto ins : inss)
+    {
+        if(not m.has_instruction(ins))
+            continue;
+        move_instructions_back(m, pos, ins->inputs());
+        m.move_instruction(ins, pos);
+    }
+}
+
 std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
@@ -587,8 +605,7 @@ struct find_splits
                    }))
                     return;
 
-                for(auto data : data_args)
-                    m.move_instructions(data, ins);
+                move_instructions_back(m, ins, data_args);
 
                 auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
                 assert(not slice_op.axes.empty());
@@ -841,8 +858,7 @@ struct find_conv_dot_horiz_fusion
                 concat_axis = axis;
             }
 
-            for(auto arg : args)
-                m.move_instructions(arg, input);
+            move_instructions_back(m, input, args);
             // TODO: Check if axes match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);

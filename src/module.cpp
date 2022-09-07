@@ -385,9 +385,13 @@ instruction_ref module::move_instruction(instruction_ref src, instruction_ref ds
 
 instruction_ref module::move_instructions(instruction_ref src, instruction_ref dst)
 {
-    this->move_instruction(src, dst);
     for(auto ins : src->inputs())
-        this->move_instruction(ins, src);
+    {
+        if(not contains(this->impl->instructions, ins))
+            continue;
+        this->move_instructions(ins, dst);
+    }
+    this->move_instruction(src, dst);
     return src;
 }
 

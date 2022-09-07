@@ -47,16 +47,16 @@ static constexpr auto I0 = ck::Number<0>{};
 template <class L, class S, class N>
 constexpr auto MakeDescriptor_M(const L& lengths, const S& strides, const N& /* ndim */)
 {
-    auto gridSize = 72;
-    auto blockSize = 1024; 
+    auto gridSize       = 72;
+    auto blockSize      = 1024;
     constexpr auto ndim = 1;
-    //auto idx          = make_index();
+    // auto idx          = make_index();
     auto tupleOfShape = generate_tuple([&](auto I) { return static_cast<ck::index_t>(lengths[I]); },
                                        ck::Number<ndim>{});
     auto tupleOfStride = generate_tuple(
         [&](auto I) { return static_cast<ck::index_t>(strides[I]); }, ck::Number<1>{});
     const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
-    auto desc_m = desc;
+    auto desc_m     = desc;
     // merge nd to 1d desc - [s0 * s1 * ...]
     if constexpr(ndim > 1)
     {
@@ -67,9 +67,9 @@ constexpr auto MakeDescriptor_M(const L& lengths, const S& strides, const N& /* 
             make_tuple(ck::Sequence<0>{}));
     }
 
-    const auto M            = desc_m.GetLength(I0);
-    const ck::index_t loop_step = /* idx.nglobal(); // */ gridSize * blockSize/*  * MPerThread */;
-    const auto pad          = ck::math::integer_least_multiple(M, loop_step) - M;
+    const auto M                = desc_m.GetLength(I0);
+    const ck::index_t loop_step = /* idx.nglobal(); // */ gridSize * blockSize /*  * MPerThread */;
+    const auto pad              = ck::math::integer_least_multiple(M, loop_step) - M;
     const auto desc_m_pad =
         transform_tensor_descriptor(desc_m,
                                     make_tuple(ck::make_right_pad_transform(M, pad)),
@@ -91,13 +91,13 @@ template <class T, class U, class V>
 __device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
 {
     auto idx = make_index();
-    if (idx.global == 0)
+    if(idx.global == 0)
     {
         constexpr auto lengths = get_shape_c<T>{}.lens;
         constexpr auto strides = get_shape_c<T>{}.strides;
         constexpr auto a_desc  = MakeDescriptor_M(lengths, strides, 1);
 
-        using AGridDesc_M = decltype(a_desc);
+        using AGridDesc_M        = decltype(a_desc);
         using GridwiseBinEltwise = ck::GridwiseBinaryElementwise_1D<ADataType,
                                                                     BDataType,
                                                                     CDataType,

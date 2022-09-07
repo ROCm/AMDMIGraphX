@@ -26,51 +26,119 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
 
-#include <iostream>
-#include <cstdlib>
-#include "ck/ck.hpp"
+#include "ck/device_utility/device_prop.hpp"
+#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
-#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_binary_elementwise_1d.hpp"
 
 namespace migraphx {
 
-// using F16 = ck::half_t;
-// using F32 = float;
+using ADataType = float;
+using BDataType = float;
+using CDataType = float;
+using ElementwiseFunctor = float;
 
-// using ABDataType = F16;
-// using CDataType  = F16;
+static constexpr auto I0 = ck::Number<0>{};
+using index_t = index_int;
 
-// using Add = ck::tensor_operation::element_wise::Add;
-
-// using DeviceElementwiseAddInstance =
-//     ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
-//                                                     ck::Tuple<CDataType>,
-//                                                     Add,
-//                                                     1,
-//                                                     8,
-//                                                     ck::Sequence<8, 8>,
-//                                                     ck::Sequence<8>>;
-
-__host__ __device__ void ck_elementwise(void* /* a_p */, void* /* b_p */, void* /* c_p */)
+template<class L, class S>
+__host__ __device__ constexpr auto MakeDescriptor_M(const L& lengths, const S& strides)
 {
-    // ck::index_t M = 1024;
-    // std::array<const void*, 2> input = {a_p,
-    //                                     b_p};
-    // std::array<void*, 1> output      = {c_p};
+    auto idx     = make_index();
+    auto tupleOfShape  = generate_tuple([&](auto I) { return static_cast<ck::index_t>(lengths[I]); }, ck::Number<1>{});
+    auto tupleOfStride = generate_tuple([&](auto I) { return static_cast<ck::index_t>(strides[I]); }, ck::Number<1>{});
+    const auto desc_m = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
 
-    // std::array<ck::index_t, 1> abc_lengths = {M};
-    // std::array<ck::index_t, 1> a_strides   = {1};
-    // std::array<ck::index_t, 1> b_strides   = {1};
-    // std::array<ck::index_t, 1> c_strides   = {1};
+    const auto M            = desc_m.GetLength(I0);
+    const index_t loop_step = idx.nglobal();//gridSize * blockSize * MPerThread;
+    const auto pad          = ck::math::integer_least_multiple(M, loop_step) - M;
+    const auto desc_m_pad =
+        transform_tensor_descriptor(desc_m,
+                                    make_tuple(ck::make_right_pad_transform(M, pad)),
+                                    make_tuple(ck::Sequence<0>{}),
+                                    make_tuple(ck::Sequence<0>{}));
+    return desc_m_pad;
+}
 
-    // auto broadcastAdd = DeviceElementwiseAddInstance{};
-    // auto argument     = broadcastAdd.MakeArgumentPointer(
-    //     abc_lengths, {a_strides, b_strides}, {c_strides}, input, output, Add{});
+struct Add
+{
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
 
-    // broadcastAdd_invoker_ptr->Run(argument.get(), StreamConfig{nullptr, false});
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const float& x1) const
+    {
+        y = x0 + x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<double>(double& y, const double& x0, const double& x1) const
+    {
+        y = x0 + x1;
+    };
+};
+
+
+template <class T, class U, class V>
+__device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
+{
+    //auto add = [](auto a, auto b) { return a + b; };
+    auto lengths = a_t.get_shape().lens;
+    auto strides = a_t.get_shape().strides;
+    auto a_desc = MakeDescriptor_M(lengths, strides);
+
+    using AGridDesc_M        = decltype(a_desc);
+    //using Add = ck::tensor_operation::element_wise::Add;
+    using GridwiseBinEltwise = ck::GridwiseBinaryElementwise_1D<ADataType,
+                                                            BDataType,
+                                                            CDataType,
+                                                            CDataType,
+                                                            AGridDesc_M,
+                                                            AGridDesc_M,
+                                                            AGridDesc_M,
+                                                            Add,
+                                                            8,
+                                                            8,
+                                                            8,
+                                                            8>;
+    auto op = Add{};
+    GridwiseBinEltwise::Run(a_t.data(), b_t.data(), c_t.data(), a_desc, a_desc, a_desc, op);
+    // auto kernel = ck::kernel_binary_elementwise_1d<GridwiseBinEltwise,
+    //                                     ADataType,
+    //                                     BDataType,
+    //                                     CDataType,
+    //                                     AGridDesc_M,
+    //                                     AGridDesc_M,
+    //                                     AGridDesc_M,
+    //                                     Add>;
+    // kernel(a_t.data(), b_t.data(), c_t.data(), a_desc, a_desc, a_desc, Add);
+
+
+    // Argument arg{a_t.data(), b_t.data(), c_t.data(), c_t.get_shape().lens, a_t.get_shape().strides, b_t.get_shape().strides, c_t.get_shape().strides, 
+    //     add};
+    // auto lengths = a_t.get_shape().lens;
+    // auto strides = a_t.get_shape().strides;
+    // auto idx     = make_index();
+    // b_t.get_shape();
+    // c_t.get_shape();
+    // auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, ck::Number<1>{});
+    // auto tupleOfStride = generate_tuple([&](auto I) { return strides[I]; }, ck::Number<1>{});
+    // const auto desc_m = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
+
+    // const auto M            = desc_m.GetLength(I0);
+    // const ck::index_t loop_step = idx.nglobal();//gridSize * blockSize * MPerThread;
+    // const auto pad          = ck::math::integer_least_multiple(M, loop_step) - M;
+    // const auto desc_m_pad =
+    //     transform_tensor_descriptor(desc_m,
+    //                                 make_tuple(ck::make_right_pad_transform(M, pad)),
+    //                                 make_tuple(ck::Sequence<0>{}),
+    //                                 make_tuple(ck::Sequence<0>{}));
 }
 
 } // namespace migraphx
-
 #endif

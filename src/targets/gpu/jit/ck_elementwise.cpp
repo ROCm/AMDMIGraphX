@@ -49,13 +49,13 @@ static const char* const ck_elementwise_kernel = R"__migraphx__(
 
 namespace migraphx {
 
-
-
 extern "C" {
 
 __global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p) 
 {
-    ck_elementwise(a_p, b_p, c_p);
+    make_tensors()(a_p, b_p, c_p)([](auto&&... xs) { 
+        ck_elementwise(xs...); 
+    });
 }
 
 }

@@ -70,7 +70,7 @@ void quantize_int8(program& prog,
 {
     std::set<std::string> op_names = {"convolution", "dot"};
     std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
-    if(!std::includes(
+    if(not std::includes(
            op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
     {
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");

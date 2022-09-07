@@ -99,7 +99,7 @@ struct find_reshaper
         std::vector<instruction_ref> reshapes{ins};
         while(is_reshaper(reshapes.back()))
         {
-            assert(!reshapes.back()->inputs().empty());
+            assert(not reshapes.back()->inputs().empty());
             assert(m.has_instruction(reshapes.back()->inputs().front()));
             auto input = reshapes.back()->inputs().front();
             reshapes.push_back(input);
@@ -330,7 +330,7 @@ struct find_concat_transpose
         auto permutation = find_permutation(s);
 
         // permutation should be the same for all inputs
-        if(!std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
+        if(not std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
                return (find_permutation(in->get_shape()) == permutation);
            }))
         {

@@ -154,7 +154,7 @@ void pack_int8_args::apply(module& m) const
 
             bool transa = inputs[0]->get_shape().transposed();
             bool transb = inputs[1]->get_shape().transposed();
-            if(!transb)
+            if(not transb)
             {
                 auto packed_b = m.insert_instruction(
                     ins, make_op("hip::allocate", {{"shape", to_value(inputs[1]->get_shape())}}));

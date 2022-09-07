@@ -415,10 +415,10 @@ struct find_concat_op
 void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
     auto start = range(m.begin(), pos);
-    for(auto ins:iterator_for(start))
+    for(auto ins : iterator_for(start))
     {
         auto it = std::find(inss.begin(), inss.end(), ins);
-        if (it != inss.end())
+        if(it != inss.end())
             inss.erase(it);
     }
     for(auto ins : inss)

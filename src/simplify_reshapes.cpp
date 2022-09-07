@@ -286,10 +286,6 @@ struct find_concat_multibroadcasts
         auto inputs     = ins->inputs();
         auto in_strides = inputs.front()->get_shape().strides();
 
-        // Axis could be a negative value
-        int64_t n_dim = static_cast<int64_t>(ins->get_shape().lens().size());
-        op.axis       = tune_axis(n_dim, op.axis, op.name());
-
         // Only apply when concat axis is not a broadcasted dimension
         if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
                return i->get_shape().strides()[op.axis] == 0;

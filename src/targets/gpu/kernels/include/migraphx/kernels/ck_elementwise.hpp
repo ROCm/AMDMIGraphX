@@ -54,9 +54,9 @@ __host__ __device__ constexpr auto MakeDescriptor_M(const L& lengths, const S& s
         [&](auto I) { return static_cast<ck::index_t>(strides[I]); }, ck::Number<1>{});
     const auto desc_m = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
 
-    const auto M = desc_m.GetLength(I0);
+    const auto M            = desc_m.GetLength(I0);
     const index_t loop_step = idx.nglobal(); // gridSize * blockSize * MPerThread;
-    const auto pad = ck::math::integer_least_multiple(M, loop_step) - M;
+    const auto pad          = ck::math::integer_least_multiple(M, loop_step) - M;
     const auto desc_m_pad =
         transform_tensor_descriptor(desc_m,
                                     make_tuple(ck::make_right_pad_transform(M, pad)),

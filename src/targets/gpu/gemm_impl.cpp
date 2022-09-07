@@ -112,7 +112,7 @@ void gemm_impl(context& ctx,
                bool compute_fp32)
 {
     const bool is_3inputs = (args.size() == 4);
-    if(!is_3inputs)
+    if(not is_3inputs)
     {
         beta = 0;
     }

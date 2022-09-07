@@ -43,7 +43,7 @@ TEST_CASE(test_shape_assign)
     migraphx::shape s1{migraphx::shape::float_type, {100, 32, 8, 8}};
     migraphx::shape s2 = s1; // NOLINT
     EXPECT(s1 == s2);
-    EXPECT(!(s1 != s2));
+    EXPECT(not(s1 != s2));
 }
 
 TEST_CASE(test_shape_packed_default)
@@ -325,7 +325,7 @@ TEST_CASE(test_shape_default_copy)
     migraphx::shape s1{};
     migraphx::shape s2{};
     EXPECT(s1 == s2);
-    EXPECT(!(s1 != s2));
+    EXPECT(not(s1 != s2));
 }
 
 TEST_CASE(test_shape_normalize_standard1)

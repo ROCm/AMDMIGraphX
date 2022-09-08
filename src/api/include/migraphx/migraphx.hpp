@@ -720,6 +720,9 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     }
 };
 
+// Needed to enable stream sync functionality at compile time with onnxruntime
+// Helps deal with compatability so we dont break execution provider.
+#define MIGRAPHX_STREAM_SYNC
 struct execution_environment : MIGRAPHX_HANDLE_BASE(execution_environment)
 {
     execution_environment() { this->make_handle(&migraphx_execution_environment_create); }

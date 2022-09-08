@@ -278,10 +278,10 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        hipStream_t sPtr          = queue.get<hipStream_t>();
+        hipStream_t s_ptr         = queue.get<hipStream_t>();
         hip_device::stream ctx_q  = get_stream();
 
-        auto status = hipEventRecord(start_event.get(), sPtr);
+        auto status = hipEventRecord(start_event.get(), s_ptr);
         if(status != hipSuccess)
         {
             std::stringstream ss;
@@ -293,11 +293,11 @@ struct context
 
     void finish_on(any_ptr queue)
     { 
-        hipStream_t sPtr          = queue.get<hipStream_t>();
+        hipStream_t s_ptr         = queue.get<hipStream_t>();
         hip_device::stream ctx_q  = get_stream();
         ctx_q.record(finish_event.get());
 
-        auto status = hipStreamWaitEvent(sPtr, finish_event.get(), 0);
+        auto status = hipStreamWaitEvent(s_ptr, finish_event.get(), 0);
         if(status != hipSuccess)
         {
             std::stringstream ss;

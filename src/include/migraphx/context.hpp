@@ -181,13 +181,13 @@ struct context
     void wait_for(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait_for(std::move(queue));
+        (*this).private_detail_te_get_handle().wait_for(queue);
     }
 
     void finish_on(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().finish_on(std::move(queue));
+        (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
     void finish() const
@@ -260,29 +260,29 @@ struct context
 
     template <class T>
     static auto private_detail_te_default_wait_for(char, T&& private_detail_te_self, any_ptr queue)
-        -> decltype(private_detail_te_self.wait_for(std::move(queue)))
+        -> decltype(private_detail_te_self.wait_for(queue))
     {
-        private_detail_te_self.wait_for(std::move(queue));
+        private_detail_te_self.wait_for(queue);
     }
 
     template <class T>
     static void private_detail_te_default_wait_for(float, T&& private_detail_te_self, any_ptr queue)
     {
-        wait_for_context(private_detail_te_self, std::move(queue));
+        wait_for_context(private_detail_te_self, queue);
     }
 
     template <class T>
     static auto private_detail_te_default_finish_on(char, T&& private_detail_te_self, any_ptr queue)
-        -> decltype(private_detail_te_self.finish_on(std::move(queue)))
+        -> decltype(private_detail_te_self.finish_on(queue))
     {
-        private_detail_te_self.finish_on(std::move(queue));
+        private_detail_te_self.finish_on(queue);
     }
 
     template <class T>
     static void
     private_detail_te_default_finish_on(float, T&& private_detail_te_self, any_ptr queue)
     {
-        finish_on_context(private_detail_te_self, std::move(queue));
+        finish_on_context(private_detail_te_self, queue);
     }
 
     template <typename PrivateDetailTypeErasedT>
@@ -302,7 +302,7 @@ struct context
             PrivateDetailTypeErasedT value,
             typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
                                     int>::type* = nullptr) noexcept
-            : private_detail_te_value(std::move(value))
+            : private_detail_te_value(value)
         {
         }
 
@@ -334,13 +334,13 @@ struct context
         void wait_for(any_ptr queue) override
         {
 
-            private_detail_te_default_wait_for(char(0), private_detail_te_value, std::move(queue));
+            private_detail_te_default_wait_for(char(0), private_detail_te_value, queue);
         }
 
         void finish_on(any_ptr queue) override
         {
 
-            private_detail_te_default_finish_on(char(0), private_detail_te_value, std::move(queue));
+            private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
         }
 
         void finish() const override { private_detail_te_value.finish(); }

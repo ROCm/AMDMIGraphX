@@ -21,34 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
+
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
-
-struct parse_relu6 : op_parser<parse_relu6>
+struct test_slice2 : verify_program<test_slice2>
 {
-    bool transpose() const { return true; }
-    std::vector<op_desc> operators() const { return {{"Relu6"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& /*parser*/,
-                          const tf_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+    migraphx::program create_program() const
     {
-        shape::type_t output_type = args[0]->get_shape().type();
-        auto min_val = info.add_literal(migraphx::literal{migraphx::shape{output_type}, {0.0f}});
-        auto max_val = info.add_literal(migraphx::literal{migraphx::shape{output_type}, {6.0f}});
-
-        return info.add_common_op("clip", args[0], min_val, max_val);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 44, 57, 57}};
+        auto x      = mm->add_parameter("x", {migraphx::shape::float_type, {1, 44, 57, 57}});
+        auto y      = mm->add_parameter("y", {migraphx::shape::float_type, {1, 44, 56, 56}});
+        auto slice0 = mm->add_instruction(
+            migraphx::make_op(
+                "slice",
+                {{"axes", {0, 2, 3, 1}}, {"starts", {0, 1, 1, 0}}, {"ends", {1, 57, 57, 44}}}),
+            x);
+        mm->add_instruction(migraphx::make_op("add"), y, slice0);
+        return p;
     }
 };
-
-} // namespace tf
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

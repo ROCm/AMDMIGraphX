@@ -39,10 +39,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-
 // NOLINTNEXTLINE
-static const char* const ck_gemm_kernel = R"__migraphx__(
-#include <migraphx/kernels/ck_gemm.hpp>
+static const char* const ck_elementwise_kernel = R"__migraphx__(
+#include <migraphx/kernels/ck_elementwise.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/generic_constant.hpp>
@@ -52,10 +51,10 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p) 
+__global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p) 
 {
     make_tensors()(a_p, b_p, c_p)([](auto&&... xs) { 
-        ck_gemm(xs...); 
+        ck_elementwise(xs...); 
     });
 }
 
@@ -65,9 +64,9 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 
 )__migraphx__";
 
-struct ck_gemm_compiler : compiler<ck_gemm_compiler>
+struct ck_elementwise_compiler : compiler<ck_elementwise_compiler>
 {
-    std::vector<std::string> names() const { return {"ck_gemm"}; }
+    std::vector<std::string> names() const { return {"ck_elementwise"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -76,10 +75,10 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
-        options.kernel_name    = "ck_gemm_kernel";
+        options.kernel_name    = "ck_elementwise_kernel";
         options.virtual_inputs = inputs;
 
-        return compile_hip_code_object(ck_gemm_kernel, options);
+        return compile_hip_code_object(ck_elementwise_kernel, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

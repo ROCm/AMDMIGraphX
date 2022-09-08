@@ -40,6 +40,7 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>
 #include <migraphx/op/ceil.hpp>
+#include <migraphx/op/ck_elementwise.hpp>
 #include <migraphx/op/ck_gemm.hpp>
 #include <migraphx/op/clip.hpp>
 #include <migraphx/op/common.hpp>

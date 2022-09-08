@@ -26,7 +26,6 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/oper.hpp>
@@ -50,8 +49,6 @@
 #include <migraphx/array.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/op/clip.hpp>
-#include <migraphx/op/contiguous.hpp>
 #include <cmath>
 #include <set>
 
@@ -1036,7 +1033,7 @@ struct find_gemm_pointwise
         // const-fold input if not standard shape since rocblas can't handle it
         if(not c_ins->get_shape().standard())
         {
-            auto c = op::contiguous{};
+            auto c = make_op("contiguous");
             auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
             c_ins  = m.add_literal(l.get_shape(), l.data());
         }

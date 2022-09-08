@@ -197,7 +197,9 @@ struct hip_device
 struct context
 {
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
-        : current_device(std::make_shared<hip_device>(device_id, n)), start_event(create_event()), finish_event(create_event())
+        : current_device(std::make_shared<hip_device>(device_id, n)),
+          start_event(create_event()),
+          finish_event(create_event())
     {
     }
 
@@ -274,9 +276,9 @@ struct context
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }
 
-    void wait_for(any_ptr queue)  
+    void wait_for(any_ptr queue)
     {
-        hipStream_t sPtr = queue.get<hipStream_t>();
+        hipStream_t sPtr          = queue.get<hipStream_t>();
         hip_device::stream ctx_q  = get_stream();
 
         auto status = hipEventRecord(start_event.get(), sPtr);
@@ -287,11 +289,11 @@ struct context
             MIGRAPHX_THROW(ss.str());
         }
         ctx_q.wait(start_event.get());
-     }
+    }
 
-    void finish_on(any_ptr queue) 
+    void finish_on(any_ptr queue)
     { 
-        hipStream_t sPtr = queue.get<hipStream_t>();
+        hipStream_t sPtr          = queue.get<hipStream_t>();
         hip_device::stream ctx_q  = get_stream();
         ctx_q.record(finish_event.get());
 

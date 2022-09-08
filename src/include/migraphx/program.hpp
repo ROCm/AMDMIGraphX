@@ -79,8 +79,8 @@ struct program
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     std::vector<argument> eval(parameter_map params, 
-                    execution_environment exec_env = execution_environment(nullptr, false)) const;
-
+                               execution_environment exec_env = execution_environment(nullptr,
+                                                                                      false)) const;
     std::size_t size() const;
 
     std::vector<shape> get_output_shapes() const;

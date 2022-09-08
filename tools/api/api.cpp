@@ -170,11 +170,11 @@ void set_output_names(tf_options& options, std::vector<const char*> names)
 migraphx_status set_async_stream(execution_environment &e, void * stream) 
 {
     migraphx_status ret = migraphx_status_bad_param;
-    if(stream != nullptr) 
+    if(stream != nullptr)
     {
         e.queue = any_ptr(stream, "ihipStream_t");
         e.async = true;
-        ret = migraphx_status_bad_param;
+        ret     = migraphx_status_success;
     }
     return ret;
 }

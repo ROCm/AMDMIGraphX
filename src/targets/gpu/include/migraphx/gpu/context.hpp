@@ -197,10 +197,8 @@ struct hip_device
 struct context
 {
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
-        : current_device(std::make_shared<hip_device>(device_id, n))
+        : current_device(std::make_shared<hip_device>(device_id, n)), start_event(create_event()), finish_event(create_event())
     {
-        start_event  = create_event();
-        finish_event = create_event();
     }
 
     hip_device& get_current_device()

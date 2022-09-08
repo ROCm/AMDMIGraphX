@@ -322,26 +322,36 @@ message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR)
-    find_library(MLIRAPI_LIBRARY MLIRMIOpen 
-        PATH_SUFFIXES
-        # Workaournd broken mlir install
-        lib/ lib/lib)
-    # REQUIRED is not supported before cmake 3.18
-    if(NOT MLIRAPI_LIBRARY)
-        message(FATAL_ERROR "libMLIRMIOpen not found")
+    # Try to find package rocMLIR
+    # REQUIRED is omitted since we do not want cmake to abort if the package is not found
+    find_package(rocMLIR 1.0.0 CONFIG)
+    if(NOT rocMLIR_FOUND)
+        message(STATUS "Falling back to find library MLIRMIOpen")
+        # Backward compatibility with ROCm 5.3
+        # If the rocMLIR package is not found, try to find the library MLIRMIOpen directly
+        find_library(MLIRAPI_LIBRARY MLIRMIOpen
+            PATH_SUFFIXES
+            # Workaournd broken mlir install
+            lib/ lib/lib)
+        if(NOT MLIRAPI_LIBRARY)
+            message(FATAL_ERROR "libMLIRMIOpen not found")
+        else()
+            message(STATUS "Build with libMLIRMIOpen: " ${MLIRAPI_LIBRARY})
+        endif()
+
+        find_path(MLIRAPI_HEADERS NAMES mlir-c/Dialect/MIGraphX.h)
+        # Workaround MLIR broken installation
+        find_path(MLIRAPI_HEADERS2 NAMES mlir-c/Registration.h
+            PATH_SUFFIXES
+            include/external/include external/include)
+
+        target_include_directories(migraphx_gpu SYSTEM PRIVATE ${MLIRAPI_HEADERS} ${MLIRAPI_HEADERS2})
+        target_link_libraries(migraphx_gpu PUBLIC ${MLIRAPI_LIBRARY})
     else()
-        message(STATUS "Build with libMLIRMIOpen: " ${MLIRAPI_LIBRARY})
+        message(STATUS "Build with rocMLIR::rockCompiler ${rockCompiler_VERSION}")
+        target_link_libraries(migraphx_gpu PUBLIC rocMLIR::rockCompiler)
     endif()
-
-    find_path(MLIRAPI_HEADERS NAMES mlir-c/Dialect/MIGraphX.h)
-    # Workaround MLIR broken installation
-    find_path(MLIRAPI_HEADERS2 NAMES mlir-c/Registration.h
-        PATH_SUFFIXES 
-        include/external/include external/include)
-
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    target_include_directories(migraphx_gpu SYSTEM PRIVATE ${MLIRAPI_HEADERS} ${MLIRAPI_HEADERS2})
-    target_link_libraries(migraphx_gpu PUBLIC ${MLIRAPI_LIBRARY})
 endif()
 
 set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "")

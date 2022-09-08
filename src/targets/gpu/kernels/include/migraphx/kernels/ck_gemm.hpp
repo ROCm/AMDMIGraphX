@@ -37,7 +37,6 @@
 #include "ck/device_utility/device_prop.hpp"
 #include "ck/device_utility/kernel_launch.hpp"
 
-
 namespace migraphx {
 
 // static constexpr auto I0 = Number<0>{};
@@ -165,17 +164,17 @@ namespace migraphx {
 template <class T, class U, class V>
 __device__ void ck_gemm(const T& /* a_t */, const U& /* b_t */, const V& /* c_t */)
 {
-    constexpr auto alens = get_shape_c<T>{}.lens;
-    constexpr auto m = alens[0];
-    constexpr auto k = alens[1];
-    constexpr auto alens = get_shape_c<U>{}.lens;
-    constexpr auto n = alens[1];
+    constexpr auto alens    = get_shape_c<T>{}.lens;
+    constexpr auto m        = alens[0];
+    constexpr auto k        = alens[1];
+    constexpr auto alens    = get_shape_c<U>{}.lens;
+    constexpr auto n        = alens[1];
     constexpr auto astrides = get_shape_c<T>{}.strides;
-    constexpr auto as = astrides[1];
+    constexpr auto as       = astrides[1];
     constexpr auto bstrides = get_shape_c<U>{}.strides;
-    constexpr auto bs = bstrides[1];
+    constexpr auto bs       = bstrides[1];
     constexpr auto cstrides = get_shape_c<V>{}.strides;
-    constexpr auto cs = cstrides[1];
+    constexpr auto cs       = cstrides[1];
     printf("%i %i %i, %i %i %i\n", int(m), int(n), int(k), int(as), int(bs), int(cs));
 }
 

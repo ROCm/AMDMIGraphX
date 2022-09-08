@@ -39,7 +39,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-
 // NOLINTNEXTLINE
 static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <migraphx/kernels/ck_gemm.hpp>

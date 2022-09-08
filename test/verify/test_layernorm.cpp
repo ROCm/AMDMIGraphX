@@ -29,8 +29,10 @@
 
 #include <migraphx/op/reduce_mean.hpp>
 
-migraphx::instruction_ref
-add_layernorm(migraphx::module& m, migraphx::instruction_ref x, std::vector<size_t> dims, float eps=1e-12f)
+migraphx::instruction_ref add_layernorm(migraphx::module& m,
+                                        migraphx::instruction_ref x,
+                                        std::vector<size_t> dims,
+                                        float eps = 1e-12f)
 {
     auto scale =
         m.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {dims.back()}});

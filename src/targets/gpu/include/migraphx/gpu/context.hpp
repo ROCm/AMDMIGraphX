@@ -42,6 +42,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
+extern std::string hip_error(int error);
+
 struct hip_device
 {
     hip_device()
@@ -278,32 +280,20 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        hipStream_t s_ptr         = queue.get<hipStream_t>();
-        hip_device::stream ctx_q  = get_stream();
-
-        auto status = hipEventRecord(start_event.get(), s_ptr);
+        auto status = hipEventRecord(start_event.get(), queue.get<hipStream_t>());
         if(status != hipSuccess)
-        {
-            std::stringstream ss;
-            ss << "wait_for: failed to record " << status;
-            MIGRAPHX_THROW(ss.str());
-        }
-        ctx_q.wait(start_event.get());
+            MIGRAPHX_THROW("failed to record " + hip_error(status));
+
+        get_stream().wait(start_event.get());
     }
 
     void finish_on(any_ptr queue)
     { 
-        hipStream_t s_ptr         = queue.get<hipStream_t>();
-        hip_device::stream ctx_q  = get_stream();
-        ctx_q.record(finish_event.get());
+        get_stream().record(finish_event.get());
 
-        auto status = hipStreamWaitEvent(s_ptr, finish_event.get(), 0);
+        auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
         if(status != hipSuccess)
-        {
-            std::stringstream ss;
-            ss << "finish_on: Failed to wait on event." << status;
-            MIGRAPHX_THROW(ss.str());
-        }
+            MIGRAPHX_THROW("Failed to wait on event " + hip_error(status));
     }
 
     any_ptr get_queue() { return get_stream().get(); }

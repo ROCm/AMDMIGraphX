@@ -994,7 +994,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     }
 
     /// Overloaded to allow for excecuction_environment input
-    arguments eval(const program_parameters& pparams, const execution_environment& e) const
+    arguments run_async(const program_parameters& pparams, const execution_environment& e) const
     {
         migraphx_arguments_t pout;
         call(&migraphx_program_run_async,

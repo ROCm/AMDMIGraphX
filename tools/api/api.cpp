@@ -180,8 +180,9 @@ migraphx_status set_async_stream(execution_environment& e, void* stream)
 }
 
 std::vector<argument>
-run_async(program& p, const parameter_map& params, const execution_environment& exec_env)
+run_async(program& p, const parameter_map& params, void* s, std::string_view name)
 {
+    execution_environment exec_env{any_ptr(s, name), true};
     return p.run_async(params, exec_env);
 }
 

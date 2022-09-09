@@ -277,7 +277,8 @@ def program(h):
     h.method('run_async',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>',
-                 exec_env='migraphx::execution_environment'),
+                 s='void*',
+                 name='const char *'),
              invoke='migraphx::run_async($@)',
              returns='std::vector<migraphx::argument>')
     h.method('equal',

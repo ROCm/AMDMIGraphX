@@ -180,8 +180,9 @@ migraphx_status set_async_stream(execution_environment& e, void* stream)
 }
 
 std::vector<argument>
-run_async(program& p, const parameter_map& params, const execution_environment& exec_env)
+run_async(program& p, const parameter_map& params, void* s, std::string_view name)
 {
+    execution_environment exec_env{any_ptr(s, name), true};
     return p.run_async(params, exec_env);
 }
 
@@ -1381,17 +1382,16 @@ extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
                                                       migraphx_program_t program,
                                                       migraphx_program_parameters_t params,
-                                                      migraphx_execution_environment_t exec_env)
+                                                      void* s,
+                                                      const char* name)
 {
     auto api_error_result = migraphx::try_([&] {
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         if(params == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
-        if(exec_env == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter exec_env: Null pointer");
         *out = allocate<migraphx_arguments_t>(
-            migraphx::run_async((program->object), (params->object), (exec_env->object)));
+            migraphx::run_async((program->object), (params->object), (s), (name)));
     });
     return api_error_result;
 }

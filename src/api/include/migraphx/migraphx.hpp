@@ -993,15 +993,17 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return arguments(pout, own{});
     }
 
+    template<class Stream>
     /// Overloaded to allow for excecuction_environment input
-    arguments run_async(const program_parameters& pparams, const execution_environment& e) const
+    arguments run_async(const program_parameters& pparams, Stream s) const
     {
         migraphx_arguments_t pout;
         call(&migraphx_program_run_async,
              &pout,
              this->get_handle_ptr(),
              pparams.get_handle_ptr(),
-             e.get_handle_ptr());
+             s,
+             get_type_name<Stream>().c_str());
         return arguments(pout, own{});
     }
 

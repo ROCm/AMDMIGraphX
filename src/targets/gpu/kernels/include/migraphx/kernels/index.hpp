@@ -98,7 +98,8 @@ struct index
     __device__ index_int nlocal() const
     {
 #ifdef MIGRAPHX_NGROUP
-        static_assert((MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL != 0) and (MIGRAPHX_NGROUP > 1), "Local should be const");
+        static_assert((MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL != 0) and (MIGRAPHX_NGROUP > 1),
+                      "Local should be const");
 #endif
         MIGRAPHX_ASSERT(compute_local_size() > 0);
         return compute_local_size(); // NOLINT

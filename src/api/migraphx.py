@@ -314,17 +314,6 @@ api.add_function('migraphx_save',
                             options='migraphx::file_options'),
                  fname='migraphx::save')
 
-
-@api.handle('migraphx_execution_environment',
-            'migraphx::execution_environment')
-def execution_environment(h):
-    h.constructor('create')
-    h.method('set_async_stream', 
-             api.params(
-                q='void*'
-             ),
-             invoke='migraphx::set_async_stream($@)')
-
 @auto_handle()
 def onnx_options(h):
     h.constructor('create')

@@ -81,8 +81,7 @@ struct program
     std::vector<argument> eval(parameter_map params) const;
 
     std::vector<argument> run_async(parameter_map params,
-                               execution_environment exec_env = execution_environment(nullptr,
-                                                                                      false)) const;
+                               execution_environment exec_env) const;
     std::size_t size() const;
 
     std::vector<shape> get_output_shapes() const;

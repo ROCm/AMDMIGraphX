@@ -106,9 +106,6 @@ typedef const struct migraphx_program* const_migraphx_program_t;
 typedef struct migraphx_operation* migraphx_operation_t;
 typedef const struct migraphx_operation* const_migraphx_operation_t;
 
-typedef struct migraphx_execution_environment* migraphx_execution_environment_t;
-typedef const struct migraphx_execution_environment* const_migraphx_execution_environment_t;
-
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
 
@@ -376,19 +373,6 @@ migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options_t
 
 migraphx_status
 migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t options);
-
-migraphx_status
-migraphx_execution_environment_destroy(migraphx_execution_environment_t execution_environment);
-
-migraphx_status
-migraphx_execution_environment_assign_to(migraphx_execution_environment_t output,
-                                         const_migraphx_execution_environment_t input);
-
-migraphx_status
-migraphx_execution_environment_create(migraphx_execution_environment_t* execution_environment);
-
-migraphx_status migraphx_execution_environment_set_async_stream(
-    migraphx_execution_environment_t execution_environment, void* q);
 
 migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
 

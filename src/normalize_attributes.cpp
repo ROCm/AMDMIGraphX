@@ -79,14 +79,14 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(contains(vec_attrs, op::normalize_attribute::include_max))
         {
-            if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
+            if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
         }
         else
         {
-            if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{}))
+            if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
@@ -118,14 +118,15 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(contains(vec_attrs, op::normalize_attribute::include_min))
         {
-            if(!std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
+            if(not std::equal(
+                   min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
         }
         else
         {
-            if(!std::equal(result.begin(), result.end(), min_vals.begin(), std::less<>{}))
+            if(not std::equal(result.begin(), result.end(), min_vals.begin(), std::less<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
@@ -174,7 +175,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             tuned = true;
         }
     }
-    if(!attrs.contains("normalize_axes"))
+    if(not attrs.contains("normalize_axes"))
     {
         return tuned;
     }

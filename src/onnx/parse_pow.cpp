@@ -46,7 +46,7 @@ auto compute_type(shape::type_t t1, shape::type_t t2)
 
     int it1 = t1;
     int it2 = t2;
-    if(!contains(op_order, it1) or !contains(op_order, it2))
+    if(not contains(op_order, it1) or not contains(op_order, it2))
     {
         MIGRAPHX_THROW("PARSE_POW: Input data type not supported!");
     }

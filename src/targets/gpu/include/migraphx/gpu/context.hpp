@@ -200,7 +200,7 @@ struct context
 {
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n)),
-          start_event(create_event()),
+          begin_event(create_event()),
           finish_event(create_event())
     {
     }
@@ -280,11 +280,11 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        auto status = hipEventRecord(start_event.get(), queue.get<hipStream_t>());
+        auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
         if(status != hipSuccess)
             MIGRAPHX_THROW("failed to record " + hip_error(status));
 
-        get_stream().wait(start_event.get());
+        get_stream().wait(begin_event.get());
     }
 
     void finish_on(any_ptr queue)
@@ -341,6 +341,7 @@ struct context
     bool measure_perf                 = false;
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
+    shared<hip_event_ptr> begin_event, finish_event;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

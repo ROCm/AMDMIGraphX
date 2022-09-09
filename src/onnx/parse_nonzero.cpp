@@ -37,7 +37,7 @@ static std::vector<std::size_t> nonzero_indices(const std::vector<T>& data)
     std::vector<std::size_t> indices;
     for(std::size_t i = 0; i < data.size(); ++i)
     {
-        if(!float_equal(data[i], 0))
+        if(not float_equal(data[i], 0))
             indices.push_back(i);
     }
 

@@ -25,8 +25,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_GPU_SYNC_DEVICE_HPP
 
 #include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/gpu/context.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

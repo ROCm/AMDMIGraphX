@@ -160,7 +160,7 @@ struct parse_pad : op_parser<parse_pad>
         if(args.size() == 3)
         {
             auto val_ins = args.at(2);
-            if(!val_ins->can_eval())
+            if(not val_ins->can_eval())
             {
                 MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
             }

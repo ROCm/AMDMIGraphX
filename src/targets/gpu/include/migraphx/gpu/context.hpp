@@ -244,6 +244,15 @@ struct context
         return hip_event_ptr{event};
     }
 
+    static hip_event_ptr create_event_for_timing()
+    {
+        hipEvent_t event;
+        auto status = hipEventCreate(&event);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to create event");
+        return hip_event_ptr{event};
+    }
+
     value to_value() const
     {
         value result;
@@ -267,10 +276,49 @@ struct context
 
     any_ptr get_queue() { return get_stream().get(); }
 
+    void enable_perf_measurement(bool b = true)
+    {
+        if(b)
+        {
+            start_event = create_event_for_timing();
+            stop_event  = create_event_for_timing();
+            get_stream().record(start_event.get());
+            get_stream().record(stop_event.get());
+        }
+        else
+        {
+            start_event = nullptr;
+            stop_event  = nullptr;
+        }
+        measure_perf = b;
+    }
+
+    std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
+    {
+        if(measure_perf)
+            return std::make_pair(start_event.get(), stop_event.get());
+        return std::make_pair(nullptr, nullptr);
+    }
+
+    float get_elapsed_ms() const
+    {
+        float result = 0;
+        if(start_event != nullptr and stop_event != nullptr)
+        {
+            auto status = hipEventElapsedTime(&result, start_event.get(), stop_event.get());
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed hipEventElapsedTime: " + hip_error(status));
+        }
+        return result;
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
+    bool measure_perf                 = false;
+    shared<hip_event_ptr> start_event = nullptr;
+    shared<hip_event_ptr> stop_event  = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

@@ -544,9 +544,9 @@ struct interface_base : Base
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_INTERFACE_LIFT(n_out, T, prefix, name) \
-    this->set_auto_fp<T>(                                    \
-        &migraphx_##prefix##_set_##name,                     \
-        [](T& x, auto... xs) { return x.name(xs...); },      \
+    this->set_auto_fp<T>(                               \
+        &migraphx_##prefix##_set_##name,                \
+        [](T& x, auto... xs) { return x.name(xs...); }, \
         out_params<n_out>{})
 
 template <class Base, class T>
@@ -632,7 +632,8 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
-    size_t elements() const {
+    size_t elements() const
+    {
         size_t pout;
         call(&migraphx_shape_elements, &pout, this->get_handle_ptr());
         return pout;
@@ -707,7 +708,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     template <typename T>
     std::vector<T> as_vector() const
     {
-        auto ss = this->get_shape();
+        auto ss           = this->get_shape();
         auto num_elements = ss.elements();
         std::vector<T> res(num_elements);
         T* buffer_ptr = reinterpret_cast<T*>(this->data());

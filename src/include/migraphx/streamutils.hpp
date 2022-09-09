@@ -41,7 +41,7 @@ struct stream_range_container
     friend std::ostream& operator<<(std::ostream& os, const stream_range_container& sr)
     {
         assert(sr.r != nullptr);
-        if(!sr.r->empty())
+        if(not sr.r->empty())
         {
             os << sr.r->front();
             std::for_each(

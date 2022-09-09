@@ -95,7 +95,7 @@ void subgraph::apply(module_pass_manager& mpm) const
     for(auto it : iterator_for(mod))
     {
         // assuming we want all the params/literals as inputs to the FPGA submodule
-        if(migraphx::starts_with(it->name(), "@param") ||
+        if(migraphx::starts_with(it->name(), "@param") or
            migraphx::starts_with(it->name(), "@literal"))
         {
             literal_inputs.push_back(it);

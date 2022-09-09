@@ -787,7 +787,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return !(dots < 2 and convs < 2);
+    return not(dots < 2 and convs < 2);
 }
 
 struct find_conv_dot_horiz_fusion
@@ -969,7 +969,7 @@ struct find_split_reshape
 
         // all outputs are reshape and of the same shape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if(!same_ops(vec_rsp))
+        if(not same_ops(vec_rsp))
         {
             return;
         }
@@ -1052,7 +1052,7 @@ struct find_split_transpose
 
         // all transpose are the same
         auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
-        if(!same_ops(vec_trans))
+        if(not same_ops(vec_trans))
         {
             return;
         }

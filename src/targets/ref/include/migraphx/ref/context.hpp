@@ -33,8 +33,6 @@ namespace ref {
 
 struct context
 {
-    void wait_for(any_ptr) const {}
-    void finish_on(any_ptr) const {}
     void finish() const {}
 };
 

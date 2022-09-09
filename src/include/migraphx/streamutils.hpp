@@ -60,9 +60,9 @@ inline stream_range_container<Range> stream_range(const Range& r)
 
 namespace detail {
 
-inline void stream_write_value_impl(rank<3>, std::ostream& os, const migraphx::value::binary&)
+inline void stream_write_value_impl(rank<3>, std::ostream& os, const migraphx::value::binary& binary_object)
 {
-    os << "{binary_object}";
+    os << "{binary_object: " << binary_object.size() << "}";
 }
 
 inline void stream_write_value_impl(rank<2>, std::ostream& os, const std::string& x) { os << x; }

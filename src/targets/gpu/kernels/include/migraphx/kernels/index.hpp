@@ -58,8 +58,8 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
     const auto ngroup = gridDim.x;
 #endif
     const auto group_id = blockIdx.x;
-    const auto nglobal = compute_global_size();
-    if (group_id == ngroup - 1)
+    const auto nglobal  = compute_global_size();
+    if(group_id == ngroup - 1)
     {
         return nglobal % nlocal;
     }
@@ -71,7 +71,7 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
 
 #ifdef MIGRAPHX_NGROUP
 // If global is divisible by local then local can be a const
-#if (MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
+#if(MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
 #define MIGRAPHX_CONST_LOCAL 1
 #endif
 #endif

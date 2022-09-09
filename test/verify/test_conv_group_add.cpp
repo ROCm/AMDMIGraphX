@@ -34,11 +34,12 @@ struct test_conv_group_add : verify_program<test_conv_group_add>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {1, 68, 28, 28}};
-        auto x = mm->add_parameter("x", s);
-        auto w = mm->add_parameter("w", {migraphx::shape::float_type, {68, 17, 1, 1}});
-        auto b = mm->add_parameter("b", {migraphx::shape::float_type, {68}});
+        auto x    = mm->add_parameter("x", s);
+        auto w    = mm->add_parameter("w", {migraphx::shape::float_type, {68, 17, 1, 1}});
+        auto b    = mm->add_parameter("b", {migraphx::shape::float_type, {68}});
         auto conv = mm->add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
-        auto bb = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 68, 28, 28}}}), b);
+        auto bb   = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 68, 28, 28}}}), b);
         mm->add_instruction(migraphx::make_op("add"), conv, bb);
         return p;
     }

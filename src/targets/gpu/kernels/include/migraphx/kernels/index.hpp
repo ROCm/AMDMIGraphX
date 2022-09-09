@@ -61,7 +61,7 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
     const auto nglobal  = compute_global_size();
     if(group_id == ngroup - 1)
     {
-        return nglobal % nlocal;
+        return 1 + (nglobal - 1) % nlocal;
     }
     else
     {

@@ -134,8 +134,8 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
     if(status != miopenStatusSuccess or solution_count != 1)
         MIGRAPHX_THROW("MIOpen Convolution: get solution failed");
 
-    solution_id               = conv_solution.solution_id;
-    algo                      = conv_solution.algorithm;
+    solution_id = conv_solution.solution_id;
+    algo        = conv_solution.algorithm;
 
     return shape{shape::int8_type, {conv_solution.workspace_size}};
 }

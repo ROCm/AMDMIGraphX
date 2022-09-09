@@ -115,6 +115,7 @@ def shape(h):
              const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
+    h.method('elements', returns='size_t', const=True)
     h.method('bytes', returns='size_t', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape&'),

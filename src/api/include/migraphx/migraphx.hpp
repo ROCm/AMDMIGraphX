@@ -537,17 +537,17 @@ struct interface_base : Base
     template <class T1, class T2, class U, class = std::enable_if_t<std::is_same<T2, size_t>{}>>
     auto auto_assign(rank<2>, T1* out_ptr, T2* out_size, U x)
     {
-        std::copy_n(x.begin(), x.size(), out_ptr);
-        *out_size = x.size();
+        *out_size = std::min(*out_size, x.size());
+        std::copy_n(x.begin(), *out_size, out_ptr);
     }
 };
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_INTERFACE_LIFT(T, prefix, name, out_params) \
+#define MIGRAPHX_INTERFACE_LIFT(n_out, T, prefix, name) \
     this->set_auto_fp<T>(                                    \
         &migraphx_##prefix##_set_##name,                     \
         [](T& x, auto... xs) { return x.name(xs...); },      \
-        out_params)
+        out_params<n_out>{})
 
 template <class Base, class T>
 using require_interface =
@@ -632,6 +632,12 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
+    size_t elements() const {
+        size_t pout;
+        call(&migraphx_shape_elements, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
     size_t bytes() const
     {
         size_t pout;
@@ -701,16 +707,13 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     template <typename T>
     std::vector<T> as_vector() const
     {
-        auto ss   = this->get_shape();
-        auto lens = ss.lengths();
-        auto num_elements =
-            std::accumulate(lens.begin(), lens.end(), size_t{1}, std::multiplies<>());
+        auto ss = this->get_shape();
+        auto num_elements = ss.elements();
         std::vector<T> res(num_elements);
         T* buffer_ptr = reinterpret_cast<T*>(this->data());
         for(size_t i = 0; i < num_elements; i++)
         {
-            size_t space_index = ss.index(i);
-            res[i]             = *(buffer_ptr + space_index);
+            res[i] = buffer_ptr[ss.index(i)];
         }
         return res;
     }
@@ -1351,10 +1354,10 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
                              obj,
                              get_type_name(obj).c_str(),
                              obj.name().c_str());
-        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape, out_params<1>{});
-        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute, out_params<1>{});
-        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, output_alias, out_params<2>{});
-        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, runs_on_offload_target, out_params<1>{});
+        MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, compute_shape);
+        MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, compute);
+        MIGRAPHX_INTERFACE_LIFT(2, T, experimental_custom_op, output_alias);
+        MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, runs_on_offload_target);
     }
 
     void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }

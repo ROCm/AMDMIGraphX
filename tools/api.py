@@ -334,7 +334,7 @@ class Parameter:
                 inner_t = self.type.inner_type()
                 if inner_t:
                     decl_list.append(
-                        'std::vector<{inner_t}> {prefix}{n}(1024);'.format(
+                        'std::array<{inner_t}, 1024> {prefix}{n};'.format(
                             inner_t=inner_t.str(), prefix=prefix or '', n=n))
             else:
                 decl_list.append(

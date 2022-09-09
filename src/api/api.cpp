@@ -678,7 +678,7 @@ struct migraphx_experimental_custom_op
     {
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
-        std::vector<size_t> out(1024);
+        std::array<size_t, 1024> out;
         std::remove_pointer_t<size_t*> out_size;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
@@ -814,6 +814,16 @@ extern "C" migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *out = migraphx::to_shape_type((shape->object).type());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_elements(size_t* out, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).elements();
     });
     return api_error_result;
 }

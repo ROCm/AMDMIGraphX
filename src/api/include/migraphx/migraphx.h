@@ -184,6 +184,8 @@ migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shap
 
 migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, const_migraphx_shape_t shape);
 
+migraphx_status migraphx_shape_elements(size_t* out, const_migraphx_shape_t shape);
+
 migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape);
 
 migraphx_status

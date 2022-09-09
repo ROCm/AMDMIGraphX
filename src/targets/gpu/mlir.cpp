@@ -24,14 +24,14 @@
 #include <migraphx/gpu/mlir.hpp>
 
 #ifdef MIGRAPHX_MLIR
-#include <external/include/mlir-c/IR.h>
-#include <external/include/mlir-c/BuiltinAttributes.h>
-#include <external/include/mlir-c/BuiltinTypes.h>
-#include <external/include/mlir-c/Diagnostics.h>
+#include <mlir-c/IR.h>
+#include <mlir-c/BuiltinAttributes.h>
+#include <mlir-c/BuiltinTypes.h>
+#include <mlir-c/Diagnostics.h>
 #include <mlir-c/Dialect/MIGraphX.h>
-#include <external/include/mlir-c/IntegerSet.h>
-#include <external/include/mlir-c/Pass.h>
-#include <external/include/mlir-c/Registration.h>
+#include <mlir-c/IntegerSet.h>
+#include <mlir-c/Pass.h>
+#include <mlir-c/Registration.h>
 #endif
 
 #include <migraphx/env.hpp>

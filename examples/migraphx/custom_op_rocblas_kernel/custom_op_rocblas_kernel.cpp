@@ -114,7 +114,7 @@ int main(int argc, const char* argv[])
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
     migraphx::program_parameters pp;
-    std::vector<float> x_data(x_shape.bytes() / sizeof(x_shape.type()));
+    std::vector<float> x_data(x_shape.elements());
     std::vector<float> scale_data{-1};
     std::iota(x_data.begin(), x_data.end(), 0);
     pp.add("x", migraphx::argument(x_shape, x_data.data()));

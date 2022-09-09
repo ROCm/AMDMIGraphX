@@ -39,7 +39,7 @@ struct half_copy_host final : migraphx::experimental_custom_op_base
     virtual migraphx::argument
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
-        // This custom op simply sets first half size_bytes of the input 0, and rest of the half
+        // This custom op simply sets first half size_bytes of the input to 0, and rest of the half
         // bytes are copied. for this custom_op, it does its computation on the host. Therefore,
         // `runs_on_offload_target()` is set to false. MIGraphX would inject necessary buffer copies
         // to and from GPU to Host based on `runs_on_offload_targe()` flag for input buffers as well
@@ -83,7 +83,7 @@ struct half_copy_device final : migraphx::experimental_custom_op_base
     virtual migraphx::argument
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
-        // This custom op simply sets first half size_bytes of the input 0, and rest of the half
+        // This custom op simply sets first half size_bytes of the input to 0, and rest of the half
         // bytes are copied. for this custom_op, it does its computation on the "GPU". Therefore,
         // `runs_on_offload_target()` is set to "true".
         auto* input_buffer_ptr  = inputs[0].data();
@@ -309,7 +309,7 @@ TEST_CASE(custom_op_with_pre_and_post_subgraph_test)
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
     migraphx::program_parameters pp;
-    std::vector<float> x_data(s.bytes() / sizeof(s.type()));
+    std::vector<float> x_data(s.elements());
     std::iota(x_data.begin(), x_data.end(), 0);
     pp.add("x", migraphx::argument(s, x_data.data()));
     auto results                       = p.eval(pp);

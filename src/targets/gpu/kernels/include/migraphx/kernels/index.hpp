@@ -28,8 +28,53 @@
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
+
+#if defined(MIGRAPHX_NGLOBAL) && defined(MIGRAPHX_NLOCAL)
+#define MIGRAPHX_NGROUP ((MIGRAPHX_NGLOBAL + MIGRAPHX_NLOCAL - 1) / MIGRAPHX_NLOCAL)
+#endif
+
+inline __device__ __attribute__((const)) index_int compute_global_size()
+{
+#ifdef MIGRAPHX_NGLOBAL
+    return MIGRAPHX_NGLOBAL;
+#else
+    return blockDim.x * gridDim.x; // NOLINT
+#endif
+}
+
+inline __device__ __attribute__((const)) index_int compute_local_size()
+{
+#ifdef MIGRAPHX_NLOCAL
+    const auto nlocal = MIGRAPHX_NLOCAL;
+#else
+    const auto nlocal = blockDim.x;
+#endif
+#ifdef MIGRAPHX_NGROUP
+    const auto ngroup = MIGRAPHX_NGROUP;
+#else
+    const auto ngroup = gridDim.x;
+#endif
+    const auto group_id = blockIdx.x;
+    const auto nglobal = compute_global_size();
+    if (group_id == ngroup - 1)
+    {
+        return nglobal % nlocal;
+    }
+    else
+    {
+        return nlocal; // NOLINT
+    }
+}
+
+#ifdef MIGRAPHX_NGROUP
+// If global is divisible by local then local can be a const
+#if (MIGRAPHX_NGLOBAL % MIGRAPHX_NLOCAL == 0) || (MIGRAPHX_NGROUP == 1)
+#define MIGRAPHX_CONST_LOCAL 1
+#endif
+#endif
 
 struct index
 {
@@ -42,16 +87,16 @@ struct index
 #else
     __device__ index_int nglobal() const
     {
-        return blockDim.x * gridDim.x; // NOLINT
+        return compute_global_size(); // NOLINT
     }
 #endif
 
-#ifdef MIGRAPHX_NLOCAL
+#ifdef MIGRAPHX_HAS_CONST_LOCAL
     constexpr index_constant<MIGRAPHX_NLOCAL> nlocal() const { return {}; }
 #else
     __device__ index_int nlocal() const
     {
-        return blockDim.x; // NOLINT
+        return compute_local_size(); // NOLINT
     }
 #endif
     template <class N, class Stride>
@@ -63,6 +108,7 @@ struct index
     template <class F, class N, class Stride>
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
+        MIGRAPHX_ASSERT(start < stride);
         if constexpr(not is_integral<N>{} and not is_integral<Stride>{} and
                      max_stride_iterations(n, stride) == 1)
         {

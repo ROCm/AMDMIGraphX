@@ -89,7 +89,8 @@ struct index
     index_int group  = 0;
 
 #ifdef MIGRAPHX_NGLOBAL
-    constexpr index_constant<MIGRAPHX_NGLOBAL> nglobal() const { 
+    constexpr index_constant<MIGRAPHX_NGLOBAL> nglobal() const
+    {
         static_assert(MIGRAPHX_NGLOBAL > 0, "Global size must be greater than 0");
         return {};
     }
@@ -102,9 +103,10 @@ struct index
 #endif
 
 #ifdef MIGRAPHX_HAS_CONST_LOCAL
-    constexpr index_constant<MIGRAPHX_NLOCAL> nlocal() const {
+    constexpr index_constant<MIGRAPHX_NLOCAL> nlocal() const
+    {
         static_assert(MIGRAPHX_NLOCAL > 0, "Local size must be greater than 0");
-        return {}; 
+        return {};
     }
 #else
     __device__ index_int nlocal() const

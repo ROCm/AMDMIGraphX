@@ -387,6 +387,13 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
+# set(MIGRAPHX_GPU_DEBUG OFF CACHE BOOL "")
+# if(MIGRAPHX_GPU_DEBUG)
+# target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_GPU_DEBUG=1)
+# else()
+# target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_GPU_DEBUG=0)
+# endif()
+
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)

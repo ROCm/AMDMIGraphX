@@ -720,7 +720,6 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     }
 };
 
-
 struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(arguments)
@@ -980,10 +979,10 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return arguments(pout, own{});
     }
 
-    // Needed to enable stream sync functionality at compile time with onnxruntime
-    // Helps deal with compatability so we dont break execution provider.
-    #define MIGRAPHX_STREAM_SYNC
-    template<class Stream>
+// Needed to enable stream sync functionality at compile time with onnxruntime
+// Helps deal with compatability so we dont break execution provider.
+#define MIGRAPHX_STREAM_SYNC
+    template <class Stream>
     /// Overloaded to allow for excecuction_environment input
     arguments run_async(const program_parameters& pparams, Stream s) const
     {

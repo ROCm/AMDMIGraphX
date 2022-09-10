@@ -42,8 +42,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
-extern std::string hip_error(int error);
-
 struct hip_device
 {
     hip_device()
@@ -288,7 +286,7 @@ struct context
     }
 
     void finish_on(any_ptr queue)
-    { 
+    {
         get_stream().record(finish_event.get());
 
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);

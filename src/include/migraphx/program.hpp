@@ -51,7 +51,6 @@ struct program_impl;
 
 struct marker;
 
-
 /**
  * @brief Stores the instruction stream
  */
@@ -80,8 +79,7 @@ struct program
 
     std::vector<argument> eval(parameter_map params) const;
 
-    std::vector<argument> run_async(parameter_map params,
-                               execution_environment exec_env) const;
+    std::vector<argument> run_async(parameter_map params, execution_environment exec_env) const;
     std::size_t size() const;
 
     std::vector<shape> get_output_shapes() const;

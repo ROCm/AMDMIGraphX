@@ -931,6 +931,24 @@ struct find_rsqrt
     }
 };
 
+struct find_div_sqrt
+{
+    auto matcher() const
+    {
+        auto msqrt = match::skip_broadcasts(match::name("sqrt")(match::used_once()).bind("sqrt"));
+        return match::name("div")(match::args(match::any(), msqrt(match::used_once())));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto sqrt_ins = r.instructions["sqrt"];
+
+        m.replace_instruction(sqrt_ins, make_op("rsqrt"), sqrt_ins->inputs());
+        m.replace_instruction(ins, make_op("mul"), ins->inputs());
+    }
+};
+
 static bool same_ops(const std::vector<instruction_ref>& vec_ins)
 {
     return std::all_of(vec_ins.begin(), vec_ins.end(), [&](auto i) {
@@ -1099,6 +1117,7 @@ void simplify_algebra::apply(module& m) const
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
+                            find_div_sqrt{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

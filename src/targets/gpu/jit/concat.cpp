@@ -63,8 +63,10 @@ struct concat_compiler : compiler<concat_compiler>
 
     static std::size_t get_concat_elements(const std::vector<shape>& inputs)
     {
-        auto total = std::accumulate(
-            inputs.begin(), std::prev(inputs.end()), 0, [](auto x, auto s) { return x + s.elements(); });
+        auto total =
+            std::accumulate(inputs.begin(), std::prev(inputs.end()), 0, [](auto x, auto s) {
+                return x + s.elements();
+            });
         return total / (inputs.size() - 1);
     }
 

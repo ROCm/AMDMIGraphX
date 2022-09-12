@@ -983,7 +983,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 // Helps deal with compatability so we dont break execution provider.
 #define MIGRAPHX_STREAM_SYNC
     template <class Stream>
-    /// Overloaded to allow for excecuction_environment input
+    /// Overloaded to allow for execution_environment input
     arguments run_async(const program_parameters& pparams, Stream s) const
     {
         migraphx_arguments_t pout;

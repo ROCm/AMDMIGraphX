@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
-struct unbatched_gemm_2 : verify_program<unbatched_gemm_2>
+struct test_unbatched_gemm_2 : verify_program<test_unbatched_gemm_2>
 {
     migraphx::program create_program() const
     {

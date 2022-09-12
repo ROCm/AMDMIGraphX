@@ -25,7 +25,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
 
-
 #include <migraphx/gpu/compile_gen.hpp>
 
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -161,10 +160,10 @@ __global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p)
 
 // extern "C" {
 
-// __global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p) 
+// __global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p)
 // {
-//     make_tensors()(a_p, b_p, c_p)([](auto&&... xs) { 
-//         ck_elementwise(xs...); 
+//     make_tensors()(a_p, b_p, c_p)([](auto&&... xs) {
+//         ck_elementwise(xs...);
 //     });
 // }
 

@@ -44,7 +44,7 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
     // This actualy works even when global is not divisible by local size.
     // This doesnt actually do a multiplicatiosn. Instead it calls a device
     // function to get the global size, which is why it works.
-    return blockDim.x * gridDim.x; // NOLINT
+    return blockDim.x * gridDim.x;  // NOLINT
 #endif
 }
 
@@ -56,14 +56,14 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
 #ifdef MIGRAPHX_NLOCAL
     const auto nlocal = MIGRAPHX_NLOCAL;
 #else
-    const auto nlocal = blockDim.x;  // NOLINT
+    const auto nlocal = blockDim.x; // NOLINT
 #endif
 #ifdef MIGRAPHX_NGROUP
     const auto ngroup = MIGRAPHX_NGROUP;
 #else
     const auto ngroup = gridDim.x;  // NOLINT
 #endif
-    const auto group_id = blockIdx.x;  // NOLINT
+    const auto group_id = blockIdx.x; // NOLINT
     const auto nglobal  = compute_global_size();
     if(group_id == ngroup - 1)
     {

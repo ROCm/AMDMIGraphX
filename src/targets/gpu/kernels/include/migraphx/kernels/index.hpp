@@ -56,14 +56,14 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
 #ifdef MIGRAPHX_NLOCAL
     const auto nlocal = MIGRAPHX_NLOCAL;
 #else
-    const auto nlocal = blockDim.x;
+    const auto nlocal = blockDim.x;  // NOLINT
 #endif
 #ifdef MIGRAPHX_NGROUP
     const auto ngroup = MIGRAPHX_NGROUP;
 #else
-    const auto ngroup = gridDim.x;
+    const auto ngroup = gridDim.x;  // NOLINT
 #endif
-    const auto group_id = blockIdx.x;
+    const auto group_id = blockIdx.x;  // NOLINT
     const auto nglobal  = compute_global_size();
     if(group_id == ngroup - 1)
     {

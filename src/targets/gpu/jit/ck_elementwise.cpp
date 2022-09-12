@@ -50,7 +50,6 @@ using namespace migraphx::gpu::gen; // NOLINT
 // #include <migraphx/kernels/generic_constant.hpp>
 // #include <args.hpp>
 
-
 // #include <migraphx/kernels/index.hpp>
 // #include <migraphx/kernels/algorithm.hpp>
 // #include <migraphx/kernels/integral_constant.hpp>
@@ -78,7 +77,8 @@ using namespace migraphx::gpu::gen; // NOLINT
 //     auto blockSize      = 1024;
 //     //constexpr auto ndim = 1;
 //     // auto idx          = make_index();
-//     auto tupleOfShape = generate_tuple([&](auto I) { return static_cast<ck::index_t>(lengths[I]); },
+//     auto tupleOfShape = generate_tuple([&](auto I) { return static_cast<ck::index_t>(lengths[I]);
+//     },
 //                                        ck::Number<ndim>{});
 //     auto tupleOfStride = generate_tuple(
 //         [&](auto I) { return static_cast<ck::index_t>(strides[I]); }, ck::Number<1>{});
@@ -95,9 +95,9 @@ using namespace migraphx::gpu::gen; // NOLINT
 //     }
 
 //     const auto M                = desc_m.GetLength(I0);
-//     const ck::index_t loop_step = /* idx.nglobal(); // */ gridSize * blockSize /*  * MPerThread */;
-//     const auto pad              = ck::math::integer_least_multiple(M, loop_step) - M;
-//     const auto desc_m_pad =
+//     const ck::index_t loop_step = /* idx.nglobal(); // */ gridSize * blockSize /*  * MPerThread
+//     */; const auto pad              = ck::math::integer_least_multiple(M, loop_step) - M; const
+//     auto desc_m_pad =
 //         transform_tensor_descriptor(desc_m,
 //                                     make_tuple(ck::make_right_pad_transform(M, pad)),
 //                                     make_tuple(ck::Sequence<0>{}),
@@ -116,9 +116,9 @@ using namespace migraphx::gpu::gen; // NOLINT
 
 // extern "C" {
 
-// __global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p) 
+// __global__ void ck_elementwise_kernel(void* a_p, void* b_p, void* c_p)
 // {
-//     make_tensors()(a_p, b_p, c_p)([](auto a_t, auto b_t, auto c_t) { 
+//     make_tensors()(a_p, b_p, c_p)([](auto a_t, auto b_t, auto c_t) {
 //         constexpr auto lengths = get_shape_c<decltype(a_t)>{}.lens;
 //         constexpr auto strides = get_shape_c<decltype(a_t)>{}.strides;
 //         constexpr auto ndim = _c<decltype(lengths.size()){}>[1];

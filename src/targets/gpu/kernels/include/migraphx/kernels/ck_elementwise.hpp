@@ -37,9 +37,9 @@
 
 namespace migraphx {
 
-using ADataType          = ck::half_t; //float;
-using BDataType          = ck::half_t; //float;
-using CDataType          = ck::half_t; //float;
+using ADataType          = ck::half_t; // float;
+using BDataType          = ck::half_t; // float;
+using CDataType          = ck::half_t; // float;
 using ElementwiseFunctor = float;
 
 static constexpr auto I0 = ck::Number<0>{};
@@ -90,7 +90,7 @@ struct Add
 template <class T, class U, class V>
 __device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
 {
-    //auto idx               = make_index();
+    // auto idx               = make_index();
     constexpr auto lengths = get_shape_c<T>{}.lens;
     constexpr auto strides = get_shape_c<T>{}.strides;
     constexpr auto a_desc  = MakeDescriptor_M(lengths, strides, 1);

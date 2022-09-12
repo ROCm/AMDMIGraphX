@@ -679,7 +679,7 @@ struct migraphx_experimental_custom_op
         if(output_alias_f == nullptr)
             throw std::runtime_error("output_alias function is missing.");
         std::array<size_t, 1024> out;
-        std::remove_pointer_t<size_t*> out_size;
+        std::remove_pointer_t<size_t*> out_size = 1024;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = output_alias_f(out.data(),

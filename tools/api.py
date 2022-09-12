@@ -313,9 +313,10 @@ class Parameter:
     def virtual_output_args(self, prefix: Optional[str] = None) -> List[str]:
         container_type = self.type.remove_generic().basic().str()
         decl_list: List[str] = []
+        container = (container_type == "std::vector"
+                     or container_type == "vector")
         for t, n, in self.cparams:
-            if not decl_list and (container_type == "std::vector"
-                                  or container_type == "vector"):
+            if not decl_list and container:
                 decl_list.append('{prefix}{n}.data()'.format(prefix=prefix
                                                              or '',
                                                              n=n))
@@ -327,10 +328,11 @@ class Parameter:
     def virtual_output_declarations(self,
                                     prefix: Optional[str] = None) -> List[str]:
         container_type = self.type.remove_generic().basic().str()
+        container = (container_type == "std::vector"
+                     or container_type == "vector")
         decl_list: List[str] = []
         for t, n, in self.cparams:
-            if not decl_list and (container_type == "std::vector"
-                                  or container_type == "vector"):
+            if not decl_list and container:
                 inner_t = self.type.inner_type()
                 if inner_t:
                     decl_list.append(
@@ -338,8 +340,9 @@ class Parameter:
                             inner_t=inner_t.str(), prefix=prefix or '', n=n))
             else:
                 decl_list.append(
-                    'std::remove_pointer_t<{type}> {prefix}{n};'.format(
+                    'std::remove_pointer_t<{type}> {prefix}{n}'.format(
                         type=Type(t).str(), prefix=prefix or '', n=n))
+                decl_list[-1] += '=1024;' if container else ';'
         return decl_list
 
     def virtual_output(self, prefix: Optional[str] = None) -> str:

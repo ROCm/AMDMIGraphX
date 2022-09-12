@@ -49,6 +49,42 @@ TEST_CASE(load_and_run)
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
+TEST_CASE(load_and_run_async)
+{
+    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto shapes_before = p.get_output_shapes();
+    migraphx::compile_options options;
+    options.set_offload_copy();
+    p.compile(migraphx::target("gpu"), options);
+    auto shapes_after = p.get_output_shapes();
+    CHECK(shapes_before.size() == 1);
+    CHECK(shapes_before.size() == shapes_after.size());
+    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    migraphx::program_parameters pp;
+    auto param_shapes = p.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+
+    hipStream_t stream;
+    auto err = hipStreamCreateWithFlags(&stream, 0);
+    if(err != hipSuccess)
+    {
+        EXPECT(false);
+    }
+
+    auto outputs = p.run_async(pp, stream);
+    CHECK(shapes_before.size() == outputs.size());
+    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+
+    err = hipStreamDestroy(stream);
+    if(err != hipSuccess)
+    {
+        EXPECT(false);
+    }
+}
+
 TEST_CASE(load_and_run_ctx)
 {
     auto p = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");

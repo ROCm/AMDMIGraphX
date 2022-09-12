@@ -992,7 +992,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
              this->get_handle_ptr(),
              pparams.get_handle_ptr(),
              s,
-             get_type_name<Stream>().c_str());
+             get_type_name<std::remove_cv_t<std::remove_pointer_t<Stream>>>().c_str());
         return arguments(pout, own{});
     }
 

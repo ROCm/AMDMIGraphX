@@ -31,12 +31,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct execution_environment
 {
-    execution_environment& operator=(execution_environment const& rhs)
-    {
-        this->async = rhs.async;
-        this->queue = rhs.queue;
-        return *this;
-    }
     any_ptr queue = any_ptr{};
     bool async    = false;
 };

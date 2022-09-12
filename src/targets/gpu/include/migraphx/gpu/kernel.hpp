@@ -50,17 +50,22 @@ struct kernel
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,
-                const std::vector<kernel_argument>& args) const;
+                const std::vector<kernel_argument>& args,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const;
 
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,
-                std::vector<void*> args) const;
+                std::vector<void*> args,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const;
 
-    auto launch(hipStream_t stream, std::size_t global, std::size_t local) const
+    template <class... Ts>
+    auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
         return [=](auto&&... xs) {
-            launch(stream, global, local, std::vector<kernel_argument>{xs...});
+            launch(stream, global, local, std::vector<kernel_argument>{xs...}, zs...);
         };
     }
 

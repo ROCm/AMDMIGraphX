@@ -26,7 +26,7 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -21,20 +21,39 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/memory_coloring.hpp>
-#include "memory_coloring_impl.hpp"
+
+#include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void memory_coloring::apply(module& m) const
+struct find_gelu_erf
 {
-    if(not enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
+    auto matcher() const { return match::gelu_erf(); }
+
+    void apply(module& m, const match::matcher_result& r) const
     {
-        memory_coloring_impl opt(&m, allocation_op, verify);
-        opt.run();
+        auto ins = r.result;
+        auto x   = r.instructions["x"];
+        if(x->get_shape().type() != migraphx::shape::half_type)
+            return;
+
+        auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
+        auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});
+        auto sig = m.insert_instruction(ins, make_op("neg"), mul);
+        sig      = m.insert_instruction(ins, make_op("exp"), sig);
+        auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+        sig      = insert_common_op(m, ins, make_op("add"), {sig, one});
+        sig      = m.insert_instruction(ins, make_op("div"), x, sig);
+        m.replace_instruction(ins, sig);
     }
-}
+};
+
+void rewrite_gelu::apply(module& m) const { match::find_matches(m, find_gelu_erf{}); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

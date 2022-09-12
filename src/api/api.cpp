@@ -171,7 +171,7 @@ std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)
 {
     execution_environment exec_env{any_ptr(s, name), true};
-    return p.run_async(params, exec_env);
+    return p.eval(params, exec_env);
 }
 
 template <class Value>

@@ -336,10 +336,13 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool measure_perf                 = false;
+    bool measure_perf = false;
+    // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
-    shared<hip_event_ptr> begin_event, finish_event;
+    // for stream syncronization
+    shared<hip_event_ptr> begin_event  = nullptr;
+    shared<hip_event_ptr> finish_event = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

@@ -119,7 +119,7 @@ struct program
     void print_cpp(std::ostream& os) const;
 
     void dry_run(parameter_map params) const;
-    //
+
     void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
 
     program& sort();

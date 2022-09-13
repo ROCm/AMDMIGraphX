@@ -48,8 +48,9 @@ inline std::vector<std::vector<std::size_t>> to_lens(const std::vector<migraphx:
     return result;
 }
 
-migraphx::module
-make_concat_multibroadcast(const std::vector<size_t>& in_lens, const std::vector<size_t>& mbcast_lens, const int axis)
+migraphx::module make_concat_multibroadcast(const std::vector<size_t>& in_lens,
+                                            const std::vector<size_t>& mbcast_lens,
+                                            const int axis)
 {
     migraphx::module m;
     auto s = migraphx::shape{migraphx::shape::float_type, in_lens};

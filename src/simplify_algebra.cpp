@@ -998,6 +998,7 @@ struct find_split_reshape
             // slice_dim == 1, in that case it could match with last stride of 1.
             // it should accumulate lengths from last dim in that case. discount 1 to avoid going
             // out of bounds.
+            assert(slc_dim_size == 1);
             rsp_axis = std::distance(rsp_strides.begin(), ait) - 1;
         }
         else

@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

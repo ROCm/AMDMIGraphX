@@ -3790,4 +3790,23 @@ TEST_CASE(literal_test)
     CHECK(lit == result);
 }
 
+TEST_CASE(test_tuple)
+{
+    migraphx::module m;
+
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {8}};
+    auto s2 = migraphx::shape{migraphx::shape::half_type, {10}};
+
+    auto s = migraphx::shape{{s1, s2}};
+
+    auto a1 = add_alloc(m, s);
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {4}});
+    m.add_instruction(pass_op{}, a2, m1);
+    run_pass(m);
+    CHECK(m.get_parameter_shape("scratch").bytes() == 68);
+    CHECK(no_allocate(m));
+    CHECK(is_disjoint({a1, a2}));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

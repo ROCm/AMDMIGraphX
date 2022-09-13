@@ -33,8 +33,8 @@ struct test_ck_gemm : verify_program<test_ck_gemm>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {128, 256}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {256, 256}};
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {3, 3}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
 

@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
-#define MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_CK_INCLUDES_HPP
+#define MIGRAPHX_GUARD_KERNELS_CK_INCLUDES_HPP
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
@@ -211,91 +211,6 @@ static constexpr auto MakeCGridDescriptor_M_N(ck::index_t M, ck::index_t N, ck::
 using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
 using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
 using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
-
-// template <class T, class U, class V, class W>
-// __device__ void ck_gemm(const T& a_t, const U& b_t, const V& c_t, const W& p_t)
-template <class T, class U, class V>
-__device__ void ck_gemm(const T& a_t, const U& b_t, const V& c_t, float* p_t)
-{
-    constexpr auto alens    = get_shape_c<T>{}.lens;
-    constexpr auto m        = alens[0];
-    constexpr auto k        = alens[1];
-    constexpr auto blens    = get_shape_c<U>{}.lens;
-    constexpr auto n        = blens[1];
-    constexpr auto astrides = get_shape_c<T>{}.strides;
-    constexpr auto as       = astrides[0];
-    constexpr auto bstrides = get_shape_c<U>{}.strides;
-    constexpr auto bs       = bstrides[0];
-    constexpr auto cstrides = get_shape_c<V>{}.strides;
-    constexpr auto cs       = cstrides[0];
-    auto idx                = make_index();
-    if(idx.global == 0)
-        printf("%i %i %i, %i %i %i\n", int(m), int(n), int(k), int(as), int(bs), int(cs));
-
-    auto a_grid_desc_k0_m_k1 = MakeAGridDescriptor_K0_M_K1(
-        static_cast<ck::index_t>(m), static_cast<ck::index_t>(k), static_cast<ck::index_t>(as));
-    auto b_grid_desc_k0_n_k1 = MakeBGridDescriptor_K0_N_K1(
-        static_cast<ck::index_t>(k), static_cast<ck::index_t>(n), static_cast<ck::index_t>(bs));
-    auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
-        static_cast<ck::index_t>(m), static_cast<ck::index_t>(n), static_cast<ck::index_t>(cs));
-    using GridwiseGemm =
-        ck::GridwiseGemmDl_km_kn_mn_v1r3<BlockSize,
-                                         ADataType,
-                                         AccDataType,
-                                         CDataType,
-                                         ck::InMemoryDataOperationEnum::Set,
-                                         AGridDesc_K0_M_K1,
-                                         BGridDesc_K0_N_K1,
-                                         CGridDesc_M_N,
-                                         MPerBlock,
-                                         NPerBlock,
-                                         K0PerBlock,
-                                         M1PerThread,
-                                         N1PerThread,
-                                         KPerThread,
-                                         M1N1ThreadClusterM1Xs,
-                                         M1N1ThreadClusterN1Xs,
-                                         ABlockTransferThreadSliceLengths_K0_M0_M1_K1,
-                                         ABlockTransferThreadClusterLengths_K0_M0_M1_K1,
-                                         ABlockTransferThreadClusterArrangeOrder,
-                                         ABlockTransferSrcAccessOrder,
-                                         ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1,
-                                         ABlockTransferSrcVectorTensorContiguousDimOrder,
-                                         ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1,
-                                         BBlockTransferThreadSliceLengths_K0_N0_N1_K1,
-                                         BBlockTransferThreadClusterLengths_K0_N0_N1_K1,
-                                         BBlockTransferThreadClusterArrangeOrder,
-                                         BBlockTransferSrcAccessOrder,
-                                         BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1,
-                                         BBlockTransferSrcVectorTensorContiguousDimOrder,
-                                         BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
-                                         CThreadTransferSrcDstAccessOrder,
-                                         CThreadTransferSrcDstVectorDim,
-                                         CThreadTransferDstScalarPerVector>;
-
-    auto a_grid_desc_k0_m0_m1_k1 =
-        GridwiseGemm::MakeAGridDescriptor_K0_M0_M1_K1(a_grid_desc_k0_m_k1);
-    auto b_grid_desc_k0_n0_n1_k1 =
-        GridwiseGemm::MakeBGridDescriptor_K0_N0_N1_K1(b_grid_desc_k0_n_k1);
-    auto c_grid_desc_m0_m10_m11_n0_n10_n11 =
-        GridwiseGemm::MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(c_grid_desc_m_n);
-    auto block_2_ctile_map = GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n);
-
-    constexpr bool HasMainKBlockLoop       = true;
-    constexpr bool HasDoubleTailKBlockLoop = true;
-    auto num_bytes = GridwiseGemm::GetSharedMemoryNumberOfByte();
-    printf("Bytes: %i\n", int(num_bytes));
-    GridwiseGemm::Run(a_t.data(),
-                      b_t.data(),
-                      c_t.data(),
-                      /* p_t.data(), */ p_t,
-                      a_grid_desc_k0_m0_m1_k1,
-                      b_grid_desc_k0_n0_n1_k1,
-                      c_grid_desc_m0_m10_m11_n0_n10_n11,
-                      block_2_ctile_map,
-                      ck::integral_constant<bool, HasMainKBlockLoop>{},
-                      ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
-}
 
 } // namespace migraphx
 #endif

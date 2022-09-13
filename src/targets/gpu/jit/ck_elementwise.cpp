@@ -187,15 +187,6 @@ struct ck_elementwise_compiler : compiler<ck_elementwise_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        // hip_compile_options options;
-        // auto out_s = inputs.back();
-        // options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
-        // options.inputs         = inputs;
-        // options.output         = out_s;
-        // options.kernel_name    = "ck_elementwise_kernel";
-        // options.virtual_inputs = inputs;
-
-        // return compile_hip_code_object(ck_elementwise_kernel, options);
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back();
@@ -208,7 +199,7 @@ struct ck_elementwise_compiler : compiler<ck_elementwise_compiler>
         options.set_launch_params(
             v,
             compute_global_for(ctx,
-                               options.output.elements() / vec.size,
+                               options.output.elements() / (vec.size * 4),
                                oversubscribe_if(not preloads.is_preloading())));
         return compile_hip_code_object(ck_elementwise_kernel, options);
     }

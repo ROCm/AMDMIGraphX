@@ -29,7 +29,7 @@ void liveness(const module& m, F f)
     auto implicit_deps = m.calc_implicit_deps();
     instruction_set live_set;
     auto rp = reverse(m);
-    for(auto rins : iterator_for(rp))
+    for(auto rins : iterator_for(rp)) // NOLINT
     {
         // The base iterator is one ahead, so we need to use the previous iterator
         auto ins = std::prev(rins.base());
@@ -261,7 +261,7 @@ struct allocation_segment
                 [&](auto child) { return *as.get_segment(child); });
 
             // Get the segment for the parent
-            auto* parent_segment = as.get_segment(parent);
+            const auto* parent_segment = as.get_segment(parent);
             // Add segment for the parent if there is none or segment overlaps with the children
             if(parent_segment == nullptr or overlaps(segments, *parent_segment))
                 as.add_segment(parent, next_segment(segments, parent, alignment));
@@ -283,7 +283,7 @@ struct allocation_segment
                     [&](auto child) { return as.get_segment(child); },
                     [&](auto child) { return *as.get_segment(child); });
                 // Get the segment for the parent
-                auto* parent_segment = as.get_segment(parent);
+                const auto* parent_segment = as.get_segment(parent);
                 assert(parent_segment != nullptr);
 
                 auto s = next_segment(segments, parent, alignment);

@@ -67,22 +67,11 @@ argument miopen_convolution::compute(context& ctx,
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
     {
-        const miopenTensorArgumentId_t names[3] = {
-            miopenTensorConvolutionX, miopenTensorConvolutionW, miopenTensorConvolutionY};
-
-        // cppcheck-suppress constVariable
-        void* buffers[3] = {args[0].implicit(), args[1].implicit(), args[3].implicit()};
-
-        miopenTensorDescriptor_t descriptors[3] = {x_desc.get(), w_desc.get(), y_desc.get()};
-
-        auto arguments = std::make_unique<miopenTensorArgument_t[]>(3);
-
-        for(auto i = 0; i < 3; ++i)
-        {
-            arguments[i].id         = names[i];
-            arguments[i].descriptor = descriptors[i] != nullptr ? &descriptors[i] : nullptr;
-            arguments[i].buffer     = buffers[i];
-        }
+        const miopenTensorArgument_t args[3] = {
+            {miopenTensorConvolutionX, nullptr, args[0].implicit()},
+            {miopenTensorConvolutionW, nullptr, args[1].implicit()},
+            {miopenTensorConvolutionY, nullptr, args[3].implicit()},
+        };
 
         if(solution_ptr.get() == nullptr)
             MIGRAPHX_THROW("MIOpen Convolution : Load MIOpen Solution before running it");

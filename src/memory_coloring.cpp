@@ -269,7 +269,6 @@ struct allocation_segment
         // Reduce the number of segments
         for(std::size_t n = 0; n < 3; n++)
         {
-            // changed = false;
             for(auto parent : conflict_queue)
             {
                 auto children = conflict_table.at(parent);

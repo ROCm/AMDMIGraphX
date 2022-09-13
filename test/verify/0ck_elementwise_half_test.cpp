@@ -27,18 +27,20 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct ck_gemm : verify_program<ck_gemm>
+struct ck_elementwise_half : verify_program<ck_elementwise_half>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {128, 256}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {256, 256}};
+        migraphx::shape m1_shape{migraphx::shape::half_type, {2, 384, 3072}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {3072}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
+        l2      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), l2);
 
-        mm->add_instruction(migraphx::make_op("ck_gemm"), l1, l2);
+        mm->add_instruction(migraphx::make_op("ck_elementwise"), l1, l2);
 
         return p;
     }

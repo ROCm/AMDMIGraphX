@@ -48,16 +48,20 @@ inline std::vector<std::vector<std::size_t>> to_lens(const std::vector<migraphx:
     return result;
 }
 
-migraphx::module make_concat_multibroadcast(std::vector<size_t> in_lens, std::vector<size_t> mbcast_lens, int axis)
+migraphx::module
+make_concat_multibroadcast(std::vector<size_t> in_lens, std::vector<size_t> mbcast_lens, int axis)
 {
     migraphx::module m;
-    auto s  = migraphx::shape{migraphx::shape::float_type, in_lens};
-    auto x  = m.add_parameter("x", s);
-    auto y  = m.add_parameter("y", s);
-    auto z  = m.add_parameter("z", s);
-    auto xm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mbcast_lens}}), x);
-    auto ym = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mbcast_lens}}), y);
-    auto zm = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mbcast_lens}}), z);
+    auto s = migraphx::shape{migraphx::shape::float_type, in_lens};
+    auto x = m.add_parameter("x", s);
+    auto y = m.add_parameter("y", s);
+    auto z = m.add_parameter("z", s);
+    auto xm =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mbcast_lens}}), x);
+    auto ym =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mbcast_lens}}), y);
+    auto zm =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mbcast_lens}}), z);
     auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), xm, ym, zm);
     m.add_return({concat});
     return m;
@@ -355,12 +359,12 @@ TEST_CASE(nop_convert)
 TEST_CASE(concat_multibroadcasts1)
 {
     // Broadcasted batch dim, new axis < old axis
-    std::vector<std::size_t> in_lens = {3, 4};
+    std::vector<std::size_t> in_lens     = {3, 4};
     std::vector<std::size_t> mbcast_lens = {2, 3, 4};
-    const int axis = 2;
-    auto m = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
-    auto out_shape = m.get_output_shapes().back();
-    auto n         = std::distance(m.begin(), m.end());
+    const int axis                       = 2;
+    auto m                               = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
+    auto out_shape                       = m.get_output_shapes().back();
+    auto n                               = std::distance(m.begin(), m.end());
     run_pass(m);
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
@@ -378,12 +382,12 @@ TEST_CASE(concat_multibroadcasts1)
 TEST_CASE(concat_multibroadcasts2)
 {
     // Broadcasted middle dim, new axis == old axis
-    std::vector<std::size_t> in_lens = {3, 1, 4};
+    std::vector<std::size_t> in_lens     = {3, 1, 4};
     std::vector<std::size_t> mbcast_lens = {3, 2, 4};
-    const int axis = 0;
-    auto m = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
-    auto out_shape = m.get_output_shapes().back();
-    auto n         = std::distance(m.begin(), m.end());
+    const int axis                       = 0;
+    auto m                               = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
+    auto out_shape                       = m.get_output_shapes().back();
+    auto n                               = std::distance(m.begin(), m.end());
     run_pass(m);
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
@@ -401,12 +405,12 @@ TEST_CASE(concat_multibroadcasts2)
 TEST_CASE(concat_multibroadcasts3)
 {
     // Broadcasted middle dim, new axis == old axis
-    std::vector<std::size_t> in_lens = {3, 1, 4};
+    std::vector<std::size_t> in_lens     = {3, 1, 4};
     std::vector<std::size_t> mbcast_lens = {3, 2, 4};
-    const int axis = 2;
-    auto m = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
-    auto out_shape = m.get_output_shapes().back();
-    auto n         = std::distance(m.begin(), m.end());
+    const int axis                       = 2;
+    auto m                               = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
+    auto out_shape                       = m.get_output_shapes().back();
+    auto n                               = std::distance(m.begin(), m.end());
     run_pass(m);
     EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(m.begin(), m.end()) == n - 2);
@@ -424,11 +428,11 @@ TEST_CASE(concat_multibroadcasts3)
 TEST_CASE(concat_multibroadcasts4)
 {
     // Broadcasted batch dim, axis is broadcasted dim
-    std::vector<std::size_t> in_lens = {3, 4};
+    std::vector<std::size_t> in_lens     = {3, 4};
     std::vector<std::size_t> mbcast_lens = {2, 3, 4};
-    const int axis = 0;
-    auto m = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
-    auto m1 = m;
+    const int axis                       = 0;
+    auto m                               = make_concat_multibroadcast(in_lens, mbcast_lens, axis);
+    auto m1                              = m;
     run_pass(m);
     EXPECT(m1 == m);
 }

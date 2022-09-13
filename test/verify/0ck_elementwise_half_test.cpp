@@ -37,7 +37,8 @@ struct ck_elementwise_half : verify_program<ck_elementwise_half>
         migraphx::shape m2_shape{migraphx::shape::half_type, {3072}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
-        l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), l2);
+        l2      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), l2);
 
         mm->add_instruction(migraphx::make_op("ck_elementwise"), l1, l2);
 

@@ -27,8 +27,6 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 
-#include <migraphx/cpp_generator.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
 

@@ -691,7 +691,7 @@ TEST_CASE(test38)
     auto p83    = m.add_instruction(pass_op{}, p78, p77);
     m.add_instruction(pass_op{}, output, p83, p63);
     run_pass(m);
-    CHECK(m.get_parameter_shape("scratch").bytes() == 7225344); // Optimal solution is 6422528
+    CHECK(m.get_parameter_shape("scratch").bytes() == 6422528);
     CHECK(no_allocate(m));
 }
 
@@ -729,7 +729,7 @@ TEST_CASE(test39)
         run_pass(*smod);
     }
 
-    CHECK(mm->get_parameter_shape("scratch").bytes() == 8);
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 1);
     CHECK(then_mod->get_parameter_shape("scratch").bytes() == 24);
     CHECK(else_mod->get_parameter_shape("scratch").bytes() == 24);
     CHECK(no_allocate(*mm));
@@ -3374,7 +3374,7 @@ TEST_CASE(rnn_dom)
     m.add_instruction(pass_op{}, moutput, mx250, mx249, mx248);
 
     run_pass(m);
-    CHECK(m.get_parameter_shape("scratch").bytes() == 1600);
+    CHECK(m.get_parameter_shape("scratch").bytes() == 1824); // Optimal is 1600
     CHECK(no_allocate(m));
     CHECK(is_disjoint({mx0, mx8}));
     CHECK(is_disjoint({mx0, mx8}));

@@ -208,6 +208,42 @@ struct find_mul_add
     }
 };
 
+struct find_dot_add
+{
+    auto matcher() const
+    {
+        return match::name("dot")(match::either_arg(0, 1)(
+            match::name("add")(
+                match::either_arg(0, 1)(match::any().bind("x"),
+                                        match::any_of(match::is_constant()).bind("b")),
+                match::none_of(match::args(match::is_constant(), match::is_constant())),
+                match::used_once()),
+            match::is_constant().bind("a")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
+        auto x_ins = r.instructions["x"];
+        assert(x_ins != b_ins);
+
+        const bool flipped = a_ins == ins->inputs().back();
+
+        auto insert_dot = [&](auto x, auto y) {
+            if(flipped)
+                return m.insert_instruction(ins, make_op("dot"), y, x);
+            else
+                return m.insert_instruction(ins, make_op("dot"), x, y);
+        };
+
+        auto ax_ins = insert_dot(a_ins, x_ins);
+        auto ab_ins = insert_dot(a_ins, b_ins);
+        m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+    }
+};
+
 struct find_add_lit_broadcast
 {
     auto matcher() const
@@ -267,28 +303,26 @@ struct find_double_add_lit_broadcast
 
 struct find_inner_broadcast
 {
-    auto matcher() const
-    {
-        return pointwise(
-            match::nargs(2),
-            match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
-    }
+    auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins   = r.result;
-        auto x_ins = r.instructions["x"];
-        auto y_ins = r.instructions["y"];
-
-        auto xbroadcast = any_cast<op::broadcast>(x_ins->get_operator());
-        auto ybroadcast = any_cast<op::broadcast>(y_ins->get_operator());
-
-        if(xbroadcast.axis != ybroadcast.axis)
+        auto ins        = r.result;
+        auto broadcasts = ins->inputs();
+        if(broadcasts.empty())
+            return;
+        std::vector<instruction_ref> inputs;
+        std::transform(broadcasts.begin(),
+                       broadcasts.end(),
+                       std::back_inserter(inputs),
+                       [](auto i) { return i->inputs().front(); });
+        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
+               return i->get_shape() != inputs.front()->get_shape();
+           }))
             return;
 
-        auto op = m.insert_instruction(
-            ins, ins->get_operator(), x_ins->inputs().front(), y_ins->inputs().front());
-        m.replace_instruction(ins, xbroadcast, op);
+        auto op = m.insert_instruction(ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }
 };
 
@@ -416,8 +450,9 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](match::name("slice")(
-            match::any_of[match::outputs()](match::pointwise(), reduction()))));
+        return match::any(
+            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
+                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
@@ -580,10 +615,9 @@ struct find_splits
                     auto outputs = i->outputs();
                     for(auto output : outputs)
                     {
-                        if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
+                        if(output->name() != "reshape")
                             continue;
-                        auto x =
-                            m.insert_instruction(output, make_op("contiguous"), output->inputs());
+                        auto x = m.insert_instruction(output, make_op("contiguous"), i);
                         m.replace_instruction(output, output->get_operator(), x);
                     }
 
@@ -753,7 +787,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return !(dots < 2 and convs < 2);
+    return not(dots < 2 and convs < 2);
 }
 
 struct find_conv_dot_horiz_fusion
@@ -773,7 +807,7 @@ struct find_conv_dot_horiz_fusion
             auto y = j->inputs()[1]->get_shape().lens();
             if(x.size() != y.size())
                 return false;
-            // Check that non-axises match
+            // Check that non-axes match
             int axis = 1;
             if(i->name() == "dot")
             {
@@ -809,13 +843,22 @@ struct find_conv_dot_horiz_fusion
 
             for(auto arg : args)
                 m.move_instructions(arg, input);
-            // TODO: Check if axises match
+            // TODO: Check if axes match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
             auto fused     = m.insert_instruction(std::next(input), op, input, concat);
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
+                auto outputs = arg->outputs();
+                for(auto output : outputs)
+                {
+                    if(output->name() != "reshape")
+                        continue;
+                    auto x = m.insert_instruction(output, make_op("contiguous"), arg);
+                    m.replace_instruction(output, output->get_operator(), x);
+                }
+
                 int64_t len = arg->get_shape().lens()[axis];
                 m.replace_instruction(
                     arg,
@@ -926,7 +969,7 @@ struct find_split_reshape
 
         // all outputs are reshape and of the same shape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if(!same_ops(vec_rsp))
+        if(not same_ops(vec_rsp))
         {
             return;
         }
@@ -958,7 +1001,11 @@ struct find_split_reshape
         std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
-        // insert the reshape instruction
+        // insert the reshape instruction and add contiguous if needed
+        if(not input->get_shape().standard())
+        {
+            input = m.insert_instruction(std::next(input), make_op("contiguous"), input);
+        }
         auto rsp_ins = m.insert_instruction(
             std::next(input), make_op("reshape", {{"dims", rsp_out_lens}}), input);
 
@@ -1005,7 +1052,7 @@ struct find_split_transpose
 
         // all transpose are the same
         auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
-        if(!same_ops(vec_trans))
+        if(not same_ops(vec_trans))
         {
             return;
         }
@@ -1048,6 +1095,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_add{},
+                            find_dot_add{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

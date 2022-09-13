@@ -112,12 +112,12 @@ struct mod_pass_op
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs,
                                   std::vector<migraphx::module_ref> mods) const
     {
-        if(!mods.empty())
+        if(not mods.empty())
         {
             auto out_shapes = mods[0]->get_output_shapes();
             return out_shapes[0];
         }
-        if(!inputs.empty())
+        if(not inputs.empty())
         {
             return inputs.front();
         }
@@ -186,9 +186,10 @@ struct nop
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const { return {}; }
 };
 
-inline migraphx::literal get_2x2()
+inline migraphx::literal get_2x2(int base = 0)
 {
-    return migraphx::literal{{migraphx::shape::float_type, {2, 2}}, {1, 2, 3, 4}};
+    return migraphx::literal{{migraphx::shape::float_type, {2, 2}},
+                             {base + 1, base + 2, base + 3, base + 4}};
 }
 
 inline migraphx::literal get_2x2_transposed()

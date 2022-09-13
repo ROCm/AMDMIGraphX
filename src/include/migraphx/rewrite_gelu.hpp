@@ -21,20 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/memory_coloring.hpp>
-#include "memory_coloring_impl.hpp"
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_GELU_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_GELU_HPP
+
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void memory_coloring::apply(module& m) const
+struct module;
+
+/**
+ * Rewrite gelu standard formula as the sigmoid approximation formula
+ */
+struct rewrite_gelu
 {
-    if(not enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
-    {
-        memory_coloring_impl opt(&m, allocation_op, verify);
-        opt.run();
-    }
-}
+    std::string name() const { return "rewrite_gelu"; }
+    void apply(module& m) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

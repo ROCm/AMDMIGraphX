@@ -100,9 +100,7 @@ struct module_pm : module_pass_manager
         if(enabled(MIGRAPHX_TIME_PASSES{}))
         {
             using milliseconds = std::chrono::duration<double, std::milli>;
-            auto ms = time<milliseconds>([&] {
-                p.apply(*this);
-            });
+            auto ms            = time<milliseconds>([&] { p.apply(*this); });
             std::cout << p.name() << ": " << ms << "ms\n";
         }
         else

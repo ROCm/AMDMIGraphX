@@ -21,41 +21,39 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
 
+#include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/ref/target.hpp>
-#include <migraphx/target_assignments.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/common.hpp>
 
-migraphx::program create_program()
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct find_gelu_erf
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto x    = mm->add_parameter("x", s);
-    auto y    = mm->add_parameter("y", s);
-    auto z    = mm->add_parameter("z", s);
-    auto diff = mm->add_instruction(migraphx::make_op("div"), x, y);
-    mm->add_instruction(migraphx::make_op("div"), diff, z);
-    return p;
-}
+    auto matcher() const { return match::gelu_erf(); }
 
-TEST_CASE(is_supported)
-{
-    auto p       = create_program();
-    auto targets = migraphx::get_targets();
-    EXPECT(!targets.empty());
-    auto first_target = targets[0];
-    auto t            = migraphx::make_target(first_target);
-
-    const auto assignments = p.get_target_assignments({t});
-    for(const auto& [ins, target] : assignments)
+    void apply(module& m, const match::matcher_result& r) const
     {
-        (void)ins;
-        EXPECT(target == first_target);
-    }
-}
+        auto ins = r.result;
+        auto x   = r.instructions["x"];
+        if(x->get_shape().type() != migraphx::shape::half_type)
+            return;
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+        auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
+        auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});
+        auto sig = m.insert_instruction(ins, make_op("neg"), mul);
+        sig      = m.insert_instruction(ins, make_op("exp"), sig);
+        auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+        sig      = insert_common_op(m, ins, make_op("add"), {sig, one});
+        sig      = m.insert_instruction(ins, make_op("div"), x, sig);
+        m.replace_instruction(ins, sig);
+    }
+};
+
+void rewrite_gelu::apply(module& m) const { match::find_matches(m, find_gelu_erf{}); }
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

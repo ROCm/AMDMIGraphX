@@ -45,11 +45,13 @@ namespace op {
 struct nonmaxsuppression
 {
     bool center_point_box = false;
+    bool use_dyn_output   = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.center_point_box, "center_point_box"));
+        return pack(f(self.center_point_box, "center_point_box"),
+                    f(self.use_dyn_output, "use_dyn_output"));
     }
 
     std::string name() const { return "nonmaxsuppression"; }
@@ -57,27 +59,81 @@ struct nonmaxsuppression
     shape compute_shape(std::vector<shape> inputs) const
     {
         // requires at least 2 inputs
-        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.only_dims(3);
-        auto lens = inputs.front().lens();
+        check_shapes{{inputs.at(0), inputs.at(1)}, *this, true}.only_dims(3).same_ndims();
+        auto boxes_max_lens = inputs.at(0).max_lens();
+        // num batches * num boxes
+        const auto max_num_boxes = boxes_max_lens.at(0) * boxes_max_lens.at(1);
 
-        // check input shape
-        if(lens[1] != inputs.at(1).lens()[2])
+        auto fixed_shape_error_check = [&]() {
+            auto lens = inputs.front().lens();
+            if(lens[1] != inputs.at(1).lens()[2])
+            {
+                MIGRAPHX_THROW(
+                    "NonMaxSuppression: spatial dimension mismatch between boxes and scores input");
+            }
+            if(lens[0] != inputs.at(1).lens()[0])
+            {
+                MIGRAPHX_THROW(
+                    "NonMaxSuppression: number of batches mismatch between boxes and scores input");
+            }
+        };
+
+        if(use_dyn_output)
         {
-            MIGRAPHX_THROW(
-                "NonMaxSuppression: spatial dimension mismatch between boxes and scores input");
+            if(inputs.at(0).dynamic())
+            {
+                // both boxes and scores should be dynamic
+                // check dynamic dimensions are consistent
+                const auto boxes_dims  = inputs.at(0).dyn_dims();
+                const auto scores_dims = inputs.at(1).dyn_dims();
+                if(boxes_dims.at(1) != scores_dims.at(2))
+                {
+                    MIGRAPHX_THROW("NonMaxSuppression: dynamic spatial dimension mismatch between "
+                                   "boxes and scores input");
+                }
+                if(boxes_dims.at(0) != scores_dims.at(0))
+                {
+                    MIGRAPHX_THROW("NonMaxSuppression: dynamic number of batches mismatch between "
+                                   "boxes and scores input");
+                }
+            }
+            else if(inputs.at(1).dynamic())
+            {
+                // scores has dynamic shape, boxes fixed shape
+                // check that it is only a dynamic number of classes
+                const auto scores_dims = inputs.at(1).dyn_dims();
+                const auto boxes_lens  = inputs.at(0).lens();
+                if(not scores_dims.at(0).is_fixed() or scores_dims.at(0).max != boxes_lens.at(0))
+                {
+                    MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; num_batches not "
+                                   "fixed or mismatched");
+                }
+                if(not scores_dims.at(2).is_fixed() or scores_dims.at(2).max != boxes_lens.at(1))
+                {
+                    MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; "
+                                   "spatial_dimension not fixed or mismatches");
+                }
+            }
+            else
+            {
+                fixed_shape_error_check();
+            }
+            std::vector<shape::dynamic_dimension> out_lens = {};
+            out_lens.push_back({0, max_num_boxes, 0});
+            out_lens.push_back({3, 3, 0});
+            return {shape::int64_type, out_lens};
         }
-
-        // check batch sizes
-        if(lens[0] != inputs.at(1).lens()[0])
+        else
         {
-            MIGRAPHX_THROW(
-                "NonMaxSuppression: number of batches mismatch between boxes and scores input");
+            if(inputs.at(0).dynamic() or inputs.at(1).dynamic())
+            {
+                MIGRAPHX_THROW(
+                    "NonMaxSuppression: dynamic input shape with use_dyn_output set to false");
+            }
+            fixed_shape_error_check();
+            std::vector<std::size_t> out_lens = {max_num_boxes, 3};
+            return {shape::int64_type, out_lens};
         }
-
-        std::vector<int64_t> out_lens(2);
-        out_lens.at(0) = lens.at(1);
-        out_lens.at(1) = 3;
-        return {shape::int64_type, out_lens};
     }
 
     struct box
@@ -181,13 +237,13 @@ struct nonmaxsuppression
     }
 
     template <class Output, class Boxes, class Scores>
-    void compute_nms(Output output,
-                     Boxes boxes,
-                     Scores scores,
-                     const shape& output_shape,
-                     std::size_t max_output_boxes_per_class,
-                     double iou_threshold,
-                     double score_threshold) const
+    std::size_t compute_nms(Output output,
+                            Boxes boxes,
+                            Scores scores,
+                            const shape& max_output_shape,
+                            std::size_t max_output_boxes_per_class,
+                            double iou_threshold,
+                            double score_threshold) const
     {
         std::fill(output.begin(), output.end(), 0);
         const auto& lens       = scores.get_shape().lens();
@@ -197,7 +253,7 @@ struct nonmaxsuppression
         // boxes of a class with NMS applied [score, index]
         std::vector<std::pair<double, int64_t>> selected_boxes_inside_class;
         std::vector<int64_t> selected_indices;
-        selected_boxes_inside_class.reserve(output_shape.elements());
+        selected_boxes_inside_class.reserve(max_output_shape.elements());
         // iterate over batches and classes
         shape comp_s{shape::double_type, {num_batches, num_classes}};
         shape_for_each(comp_s, [&](auto idx) {
@@ -210,7 +266,7 @@ struct nonmaxsuppression
             auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold
-            while(!boxes_heap.empty() &&
+            while(not boxes_heap.empty() &&
                   selected_boxes_inside_class.size() < max_output_boxes_per_class)
             {
                 // Check with existing selected boxes for this class, remove box if it
@@ -237,11 +293,14 @@ struct nonmaxsuppression
             }
         });
         std::copy(selected_indices.begin(), selected_indices.end(), output.begin());
+        return selected_indices.size() / 3;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        // make buffer of maximum size
+        shape max_output_shape = {output_shape.type(), output_shape.max_lens()};
+        argument result{max_output_shape};
 
         std::size_t max_output_boxes_per_class =
             (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
@@ -249,22 +308,29 @@ struct nonmaxsuppression
         {
             return result;
         }
-        double iou_threshold   = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
-        double score_threshold = (args.size() > 4) ? (args.at(4).at<double>()) : 0.0f;
+        double iou_threshold     = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
+        double score_threshold   = (args.size() > 4) ? (args.at(4).at<double>()) : 0.0f;
+        std::size_t num_selected = 0;
 
         result.visit([&](auto output) {
             visit_all(args[0], args[1])([&](auto boxes, auto scores) {
-                compute_nms(output,
-                            boxes,
-                            scores,
-                            output_shape,
-                            max_output_boxes_per_class,
-                            iou_threshold,
-                            score_threshold);
+                num_selected = compute_nms(output,
+                                           boxes,
+                                           scores,
+                                           max_output_shape,
+                                           max_output_boxes_per_class,
+                                           iou_threshold,
+                                           score_threshold);
             });
         });
-
-        return result;
+        if(use_dyn_output)
+        {
+            return result.reshape({output_shape.type(), {num_selected, 3}});
+        }
+        else
+        {
+            return result;
+        }
     }
 };
 

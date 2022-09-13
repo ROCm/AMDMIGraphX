@@ -37,6 +37,7 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
+#include <migraphx/supported_segments.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -77,11 +78,11 @@ program& program::operator=(program p)
 
 void program::assign(const program& p)
 {
-    if(!impl)
+    if(not impl)
     {
         impl = std::make_unique<program_impl>();
     }
-    else if(!impl->modules.empty())
+    else if(not impl->modules.empty())
     {
         impl->modules.clear();
     }
@@ -167,13 +168,37 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     target_assignments p;
 
     const auto* mod = get_main_module();
-    for(auto it : iterator_for(*mod))
+    std::vector<std::pair<target, supported_segments>> target_subgraphs;
+    target_subgraphs.reserve(targets.size());
+    std::transform(targets.begin(),
+                   targets.end(),
+                   std::back_inserter(target_subgraphs),
+                   [&](const auto& t) { return std::make_pair(t, t.find_supported(mod, m)); });
+
+    for(const auto ins : iterator_for(*mod))
     {
-        auto t = std::max_element(
-            targets.begin(), targets.end(), [it, m](const target& lhs, const target& rhs) {
-                return lhs.is_supported(it, m) < rhs.is_supported(it, m);
-            });
-        p.add_assignment(it, t->name());
+        if(contains(p, ins))
+        {
+            continue;
+        }
+
+        for(const auto& [target, subgraph] : target_subgraphs)
+        {
+            // can't pass a structured binding into lambda in C++17 so create a variable for it
+            const auto& t = target;
+            for(const auto& segment : subgraph)
+            {
+                const auto& instructions = segment.instructions;
+                if(not contains(instructions, ins))
+                {
+                    continue;
+                }
+                std::transform(instructions.begin(),
+                               instructions.end(),
+                               std::inserter(p, p.end()),
+                               [&](auto instr) { return std::make_pair(instr, t.name()); });
+            }
+        }
     }
     return p;
 }

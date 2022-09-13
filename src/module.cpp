@@ -141,12 +141,12 @@ void module::set_bypass(bool b) { impl->bypass = b; }
 void module::assign(const module& m)
 {
     // copy the impl
-    if(!impl)
+    if(not impl)
         impl = std::make_unique<module_impl>();
     *impl = *m.impl;
 
     // clear instructions
-    if(!impl->instructions.empty())
+    if(not impl->instructions.empty())
     {
         impl->clear();
     }
@@ -346,7 +346,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         assert(out->valid(begin()));
     }
     // Replacement should not be dead code unless its the last instruction
-    assert(!rep->outputs().empty() or rep == std::prev(end()));
+    assert(not rep->outputs().empty() or rep == std::prev(end()));
     // Output of the original instruction should only be the replacement or empty
     assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(),
                                                  ins->outputs().end(),
@@ -598,7 +598,7 @@ instruction_ref module::validate() const
             auto inputs      = i.inputs();
             bool check_order = std::all_of(
                 inputs.begin(), inputs.end(), [&](auto in) { return has_instruction(in); });
-            return !i.valid(impl->instructions.begin(), check_order);
+            return not i.valid(impl->instructions.begin(), check_order);
         });
 }
 
@@ -754,7 +754,7 @@ void module::print_graph(std::ostream& os, bool brief) const
             label = to_string(ins->get_operator());
         os << "\t" << enclose_name(ins_names.at(ins)) << "[label=" << enclose_name(label) << "]";
         os << ";" << std::endl;
-        if(!ins->inputs().empty())
+        if(not ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
             {
@@ -788,12 +788,15 @@ static std::string cpp_var_name(const std::string& name)
 
 static void print_make_op(std::ostream& os, const operation& op)
 {
-    os << "migraphx::make_op(" << enclose_name(op.name());
     auto v = op.to_value();
     if(not v.empty())
     {
-        os << ", "
-           << "migraphx::from_json_string(" << enclose_name(to_json_string(v)) << ")";
+        os << "migraphx::make_json_op(" << enclose_name(op.name());
+        os << ", " << enclose_name(to_json_string(v));
+    }
+    else
+    {
+        os << "migraphx::make_op(" << enclose_name(op.name());
     }
     os << ")";
 }
@@ -905,7 +908,7 @@ module& module::sort()
         this->move_instruction(ins, this->begin());
         for(auto child : ins->inputs())
         {
-            if(!contains(this->impl->instructions, child))
+            if(not contains(this->impl->instructions, child))
             {
                 continue;
             }

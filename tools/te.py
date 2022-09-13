@@ -23,7 +23,9 @@
 #####################################################################################
 import string, sys, re
 
-trivial = ['std::size_t', 'instruction_ref', 'support_metric']
+trivial = [
+    'std::size_t', 'instruction_ref', 'support_metric', 'const_module_ref'
+]
 
 headers = '''
 #include <algorithm>
@@ -134,7 +136,7 @@ private:
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type (PrivateDetailTypeErasedT value,
                 typename std::enable_if<
-                    !std::is_reference<PrivateDetailTypeErasedU>::value,
+                    not std::is_reference<PrivateDetailTypeErasedU>::value,
                     int
                 >::type * = nullptr) noexcept :
             private_detail_te_value (std::move(value))
@@ -176,7 +178,7 @@ private:
     private_detail_te_handle_base_type & private_detail_te_get_handle ()
     {
         assert(private_detail_te_handle_mem_var != nullptr); 
-        if (!private_detail_te_handle_mem_var.unique())
+        if (not private_detail_te_handle_mem_var.unique())
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }

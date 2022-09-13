@@ -108,15 +108,7 @@ struct function
 };
 
 template <class Stream, class Iterator>
-inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
-{
-    if(start != last)
-    {
-        s << *start;
-        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
-    }
-    return s;
-}
+Stream& stream_range(Stream& s, Iterator start, Iterator last);
 
 template <class Stream>
 inline Stream& operator<<(Stream& s, std::nullptr_t)
@@ -133,6 +125,17 @@ inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.
     s << "{ ";
     stream_range(s, v.begin(), v.end());
     s << "}";
+    return s;
+}
+
+template <class Stream, class Iterator>
+inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
+{
+    if(start != last)
+    {
+        s << *start;
+        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
+    }
     return s;
 }
 
@@ -342,7 +345,7 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
 template <class T, class F>
 void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
 {
-    if(!bool(x.value()))
+    if(not bool(x.value()))
     {
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;

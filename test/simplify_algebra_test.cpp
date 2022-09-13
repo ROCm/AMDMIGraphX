@@ -2077,7 +2077,8 @@ TEST_CASE(reorder_reshape_slice_move_axis2)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reorder_reshape_slice_len_1) {
+TEST_CASE(reorder_reshape_slice_len_1)
+{
     migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {1, 128, 3}};
@@ -2123,7 +2124,6 @@ TEST_CASE(reorder_reshape_slice_len_1) {
 
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
-
 }
 
 TEST_CASE(reorder_reshape_slice_not_apply)

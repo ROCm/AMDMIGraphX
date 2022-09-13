@@ -64,11 +64,11 @@ namespace {
 
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
-    if (ins->name() != "convolution")
+    if(ins->name() != "convolution")
         return false;
-    value v = ins->get_operator().to_value();
+    value v    = ins->get_operator().to_value();
     auto group = v.at("group").to<int>();
-    if (group != 1)
+    if(group != 1)
         return false;
     return true;
 }

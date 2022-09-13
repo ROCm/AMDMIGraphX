@@ -53,18 +53,18 @@ namespace gpu {
 
 // extern "C" {
 
-// __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p) 
+// __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 // {
 //     // hipDeviceProp_t hdp{};
 //     // printf("Shared mem: %i\n", int(hdp.sharedMemPerBlock));
-//     // make_tensors()(a_p, b_p, c_p)([](auto&&... xs) { 
-//     //     ck_gemm(xs...); 
+//     // make_tensors()(a_p, b_p, c_p)([](auto&&... xs) {
+//     //     ck_gemm(xs...);
 //     // });
-//     make_tensors()(a_p, b_p, c_p)([](auto a_t, auto b_t, auto c_t) { 
-//         __shared__ float p_shared_block[512]; //[(a_t.get_shape().elements() + b_t.get_shape().elements()) * 2];
-//         ck_gemm(a_t, b_t, c_t, p_shared_block); 
+//     make_tensors()(a_p, b_p, c_p)([](auto a_t, auto b_t, auto c_t) {
+//         __shared__ float p_shared_block[512]; //[(a_t.get_shape().elements() +
+//         b_t.get_shape().elements()) * 2]; ck_gemm(a_t, b_t, c_t, p_shared_block);
 //         // make_tensors()(p_shared_block)([&](auto p_t) {
-//         //     ck_gemm(a_t, b_t, c_t, p_t); 
+//         //     ck_gemm(a_t, b_t, c_t, p_t);
 //         // });
 //     });
 // }

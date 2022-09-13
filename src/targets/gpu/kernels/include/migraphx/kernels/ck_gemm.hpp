@@ -283,7 +283,7 @@ __device__ void ck_gemm(const T& a_t, const U& b_t, const V& c_t, float* p_t)
 
     constexpr bool HasMainKBlockLoop       = true;
     constexpr bool HasDoubleTailKBlockLoop = true;
-    auto num_bytes = GridwiseGemm::GetSharedMemoryNumberOfByte();
+    auto num_bytes                         = GridwiseGemm::GetSharedMemoryNumberOfByte();
     printf("Bytes: %i\n", int(num_bytes));
     GridwiseGemm::Run(a_t.data(),
                       b_t.data(),

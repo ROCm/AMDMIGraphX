@@ -270,6 +270,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  new(&x) migraphx::argument(to_shape(info), info.ptr);
              })
         .def("get_shape", &migraphx::argument::get_shape)
+        .def("data_ptr",
+             [](migraphx::argument& x) { return reinterpret_cast<std::uintptr_t>(x.data()); })
         .def("tolist",
              [](migraphx::argument& x) {
                  py::list l{x.get_shape().elements()};

@@ -985,20 +985,35 @@ struct find_split_reshape
         auto rsp_lens    = rsp->get_shape().lens();
         auto rsp_strides = rsp->get_shape().strides();
         rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
-        auto ait = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+
+        auto ait     = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+        int rsp_axis = -1;
         if(ait == rsp_strides.end())
         {
             return;
         }
-        int rsp_axis = std::distance(rsp_strides.begin(), ait);
-
+        else if(ait == rsp_strides.end() - 1)
+        {
+            // edge case
+            // slice_dim == 1, in that case it could match with last stride of 1.
+            // it should accumulate lengths from last dim in that case. discount 1 to avoid going
+            // out of bounds.
+            assert(slc_dim_size == 1);
+            rsp_axis = std::distance(rsp_strides.begin(), ait) - 1;
+        }
+        else
+        {
+            rsp_axis = std::distance(rsp_strides.begin(), ait);
+        }
         // calculate reshape output shape
         std::vector<int64_t> vec_dims(vec_rsp.size());
+
         std::transform(vec_rsp.begin(), vec_rsp.end(), vec_dims.begin(), [&](auto is) {
             return is->get_shape().lens()[rsp_axis];
         });
 
         std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
+
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
         // insert the reshape instruction and add contiguous if needed

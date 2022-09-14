@@ -21,25 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_SYNC_DEVICE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GPU_SYNC_DEVICE_HPP
 
-#include <string>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-struct module;
-
-namespace gpu {
-
-struct sync_device
+struct test_concat_axis_2 : verify_program<test_concat_axis_2>
 {
-    std::string name() const { return "sync_device"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::int32_type, {3, 2, 1}};
+        migraphx::shape s1{migraphx::shape::int32_type, {3, 2, 1}};
+        migraphx::shape s2{migraphx::shape::int32_type, {3, 2, 1}};
+        auto l0 = mm->add_parameter("x", s0);
+        auto l1 = mm->add_parameter("y", s1);
+        auto l2 = mm->add_parameter("z", s2);
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), l0, l1, l2);
+        return p;
+    }
 };
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

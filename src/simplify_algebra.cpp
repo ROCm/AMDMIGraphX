@@ -74,8 +74,7 @@ struct find_mul_conv
         auto a_ins    = r.instructions["a"];
         auto w_ins    = r.instructions["w"];
 
-        auto a_shape   = a_ins->get_shape();
-        auto a_strides = a_shape.strides();
+        auto a_strides = a_ins->get_shape().strides();
         if(a_strides.at(0) != 0 or a_strides.at(1) != 1 or
            std::any_of(
                a_strides.cbegin() + 2, a_strides.cend(), [](std::size_t i) { return i != 0; }))

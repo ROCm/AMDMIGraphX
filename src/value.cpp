@@ -511,10 +511,7 @@ void print_value(std::ostream& os, const std::vector<value>& x)
     os << "}";
 }
 
-void print_value(std::ostream& os, const value::binary& x)
-{
-    os << x;
-}
+void print_value(std::ostream& os, const value::binary& x) { os << x; }
 
 std::ostream& operator<<(std::ostream& os, const value& d)
 {

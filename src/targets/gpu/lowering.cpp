@@ -151,7 +151,6 @@ struct miopen_apply
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("clip");
-        add_extend_op("concat");
         add_extend_op("convert");
         add_extend_op("elu");
         add_extend_op("gather");

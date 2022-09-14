@@ -22,33 +22,32 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/compiler.hpp>
-#include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/reduce_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+using namespace migraphx::gpu::gen; // NOLINT
+
 // NOLINTNEXTLINE
-static const char* const roialign_kernel = R"__migraphx__(
-#include <migraphx/kernels/roialign.hpp>
-#include <migraphx/kernels/integral_constant.hpp>
-#include <migraphx/kernels/generic_constant.hpp>
+static const char* const concat_kernel = R"__migraphx__(
+#include <migraphx/kernels/concat.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 #include <args.hpp>
 
 namespace migraphx {
 
 extern "C" {
 
-__global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y) 
+__global__ void ${kernel}(${params}) 
 {
-    make_tensors()(in_x, in_rois, in_ind, y)([](auto&&... xs) {
-        auto settings = make_roalign_settings(MIGRAPHX_MAKE_CONSTANT(float{ROIS_OFFSET}),
-                                              _c<bool{IS_AVG_POOLING}>,
-                                              _c<int64_t{SAMPLING_RATIO}>, 
-                                              MIGRAPHX_MAKE_CONSTANT(float{SPATIAL_SCALE}));
-        roialign(xs..., settings); 
+    transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, auto... xs) {
+        concat<${axis}>(y, xs...);
     });
 }
 
@@ -58,36 +57,34 @@ __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y
 
 )__migraphx__";
 
-struct roialign_compiler : compiler<roialign_compiler>
+struct concat_compiler : compiler<concat_compiler>
 {
-    std::vector<std::string> names() const { return {"roialign"}; }
+    std::vector<std::string> names() const { return {"concat"}; }
+
+    static std::size_t get_concat_elements(const std::vector<shape>& inputs)
+    {
+        return inputs.back().elements() / (inputs.size() - 1);
+    }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        // TODO: Use reduce_dims
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), 128);
-        options.output      = inputs.back();
         options.inputs      = inputs;
-        options.kernel_name = "roialign_kernel";
-
-        // sampling_ratio
-        options.params += " -DSAMPLING_RATIO=" + v.at("sampling_ratio").to<std::string>();
-
-        // pooling_mode
-        auto mode = v.at("mode").to<migraphx::op::pooling_mode>();
-        std::string is_avg_pooling =
-            (mode == migraphx::op::pooling_mode::average) ? "true" : "false";
-        options.params += " -DIS_AVG_POOLING=" + is_avg_pooling;
-
-        // coord_trans_mode
-        auto ctm          = v.at("coordinate_transformation_mode").to<std::string>();
-        float rois_offset = (ctm == "output_half_pixel") ? -0.5f : 0.0f;
-        options.params += " -DROIS_OFFSET=" + std::to_string(rois_offset);
-
-        // spatial_scale
-        options.params += " -DSPATIAL_SCALE=" + v.at("spatial_scale").to<std::string>();
-
-        return compile_hip_code_object(roialign_kernel, options);
+        options.output      = inputs.back();
+        options.params      = "-Wno-float-equal";
+        auto axis           = find_fast_axis(options.inputs);
+        auto vec            = vectorize::elements(axis, options.inputs);
+        options.kernel_name = v.get("kernel", "concat_kernel");
+        options.set_launch_params(
+            v, compute_global_for(ctx, get_concat_elements(options.inputs) / vec.size, 256));
+        auto src = interpolate_string(concat_kernel,
+                                      {{"kernel", options.kernel_name},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"transformers", make_transformer_args(vec)},
+                                       {"axis", v.at("axis").to<std::string>()}});
+        return compile_hip_code_object(src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

@@ -3791,7 +3791,8 @@ TEST_CASE(not_test)
         std::vector<char> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<bool> gold(data.size());
-        std::transform(data.begin(), data.end(), gold.begin(), [](bool n) -> bool { return !n; });
+        std::transform(
+            data.begin(), data.end(), gold.begin(), [](bool n) -> bool { return not n; });
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 }

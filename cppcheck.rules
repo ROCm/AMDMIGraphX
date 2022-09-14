@@ -107,7 +107,7 @@
         <summary>Use make_shared or make_unique instead of new</summary>
     </message>
 </rule>
-<!-- <rule>
+<rule>
     <tokenlist>raw</tokenlist>
     <pattern><![CDATA[ \|\| ]]></pattern>
     <message>
@@ -124,7 +124,7 @@
         <severity>style</severity>
         <summary>Use 'not' instead of !</summary>
     </message>
-</rule> -->
+</rule>
 <!-- <rule>
     <tokenlist>raw</tokenlist>
     <pattern><![CDATA[] (__device__ |__host__ )+(\(|{)]]></pattern>

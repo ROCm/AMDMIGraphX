@@ -47,7 +47,7 @@ constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value)
         it   = first;
         step = count / 2;
         std::advance(it, step);
-        if(!(value < *it))
+        if(not(value < *it))
         {
             first = ++it;
             count -= step + 1;

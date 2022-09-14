@@ -265,9 +265,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
         .def(py::init([](py::buffer b) {
-                 py::buffer_info info = b.request();
-                 return migraphx::argument(to_shape(info), info.ptr);
-             }))
+            py::buffer_info info = b.request();
+            return migraphx::argument(to_shape(info), info.ptr);
+        }))
         .def("get_shape", &migraphx::argument::get_shape)
         .def("data_ptr",
              [](migraphx::argument& x) { return reinterpret_cast<std::uintptr_t>(x.data()); })

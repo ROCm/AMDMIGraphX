@@ -74,10 +74,34 @@ struct find_mul_conv
         auto a_ins    = r.instructions["a"];
         auto w_ins    = r.instructions["w"];
 
+        auto a_input_lens = a_ins->inputs().front()->get_shape().lens();
+
+        std::size_t num_not_one_dims = std::count_if(
+            a_input_lens.cbegin(), a_input_lens.cend(), [](auto dim) { return dim != 1; });
+        if(num_not_one_dims > 1)
+            return;
+
+        // check broadcasted along channels
+        auto a_lens    = a_ins->get_shape().lens();
         auto a_strides = a_ins->get_shape().strides();
-        if(a_strides.at(0) != 0 or a_strides.at(1) != 1 or
-           std::any_of(
-               a_strides.cbegin() + 2, a_strides.cend(), [](std::size_t i) { return i != 0; }))
+        // handle case of stride = 1 and len = 1
+        auto invalid_sl = [&](std::size_t i) {
+            if(a_strides[i] != 0)
+            {
+                if(a_strides[i] == 1 and a_lens[i] == 1)
+                    return false;
+                return true;
+            }
+            return false;
+        };
+        auto check = false;
+        for(int i = 2; i < a_lens.size(); ++i)
+        {
+            if(invalid_sl(i))
+                check = true;
+        }
+
+        if(invalid_sl(0) or a_strides.at(1) != 1 or check)
             return;
 
         auto sq    = m.insert_instruction(ins, make_op("squeeze"), a_ins->inputs().front());

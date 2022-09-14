@@ -260,6 +260,81 @@ TEST_CASE(simplify_mul_conv2)
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
+// stride = 1 and len = 1 case
+TEST_CASE(simplify_mul_conv3)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 1, 1}, {1, 1, 1}}));
+    auto b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() != "mul");
+}
+
+// Previously broadcasted literal case, should skip
+TEST_CASE(simplify_mul_conv_skip1)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 14, 14}, {1, 0, 0}}));
+    auto b = m.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() == "mul");
+}
+
+// Another previously broadcasted literal case, should skip
+TEST_CASE(simplify_mul_conv_skip2)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 14, 14}, {1, 0, 0}}));
+    auto b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() == "mul");
+}
+
 TEST_CASE(simplify_mul_slice_conv1)
 {
     migraphx::module m1;

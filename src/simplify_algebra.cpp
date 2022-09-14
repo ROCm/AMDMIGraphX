@@ -74,15 +74,11 @@ struct find_mul_conv
         auto a_ins    = r.instructions["a"];
         auto w_ins    = r.instructions["w"];
 
-        // check that the channels stride is 1
         auto a_shape   = a_ins->get_shape();
-        auto a_lens    = a_shape.lens();
         auto a_strides = a_shape.strides();
-        if(a_strides.at(1) != 1)
-            return;
-        else if(a_strides.at(0) != 0 or std::any_of(a_strides.cbegin() + 2,
-                                                    a_strides.cend(),
-                                                    [](std::size_t i) { return i != 0; }))
+        if(a_strides.at(0) != 0 or a_strides.at(1) != 1 or
+           std::any_of(
+               a_strides.cbegin() + 2, a_strides.cend(), [](std::size_t i) { return i != 0; }))
             return;
 
         auto sq    = m.insert_instruction(ins, make_op("squeeze"), a_ins->inputs().front());

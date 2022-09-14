@@ -236,6 +236,30 @@ TEST_CASE(simplify_mul_conv1)
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
+TEST_CASE(simplify_mul_conv2)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a      = m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256}}));
+    auto unsq_a = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), a);
+    auto b      = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), unsq_a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() != "mul");
+}
+
 TEST_CASE(simplify_mul_slice_conv1)
 {
     migraphx::module m1;

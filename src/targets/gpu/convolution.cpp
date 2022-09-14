@@ -67,7 +67,7 @@ argument miopen_convolution::compute(context& ctx,
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
     {
-        const miopenTensorArgument_t args[3] = {
+        const miopenTensorArgument_t tensor_args[3] = {
             {miopenTensorConvolutionX, nullptr, args[0].implicit()},
             {miopenTensorConvolutionW, nullptr, args[1].implicit()},
             {miopenTensorConvolutionY, nullptr, args[3].implicit()},
@@ -79,14 +79,12 @@ argument miopen_convolution::compute(context& ctx,
         auto status = miopenRunSolution(miopen_stream_handle,
                                         solution_ptr.get(),
                                         3,
-                                        arguments.get(),
+                                        tensor_args,
                                         args[2].implicit(),
                                         workspace_size);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen Convolution: running convolution using find_2.0 failed");
 
-        std::cout << "Hurray, it is using find_2.0 API\n"; // TODO, Remove this at before merging,
-                                                           // this is here debugging purposes.
         return args[3];
     }
 #else

@@ -50,7 +50,6 @@ ${preamble}
 extern "C" {
 __global__ void ${kernel}(${params}) 
 {
-    auto idx = make_index();
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto... xs) {
         ${layernorm}<${axis}>(${post}, xs...);
     });
@@ -78,9 +77,8 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         // Vectorize if the axis is a reduction axis
         if(axis == faxis)
         {
-            vec = vectorize::elements(faxis, inputs);
+            vec = vectorize::elements(ctx, faxis, inputs);
         }
-        auto preloads   = preload::broadcasts(axis, inputs);
         auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);
         auto block_size = compute_block_size(relements, 256);
@@ -95,7 +93,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
-                                       {"transformers", make_transformer_args(preloads, vec)},
+                                       {"transformers", make_transformer_args(vec)},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"layernorm", v.get("layernorm", std::string{"layernorm"})},

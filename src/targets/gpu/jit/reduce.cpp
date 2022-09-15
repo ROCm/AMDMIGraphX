@@ -121,7 +121,7 @@ struct reduce_compiler : compiler<reduce_compiler>
         // Vectorize if the axis is a reduction axis
         if(options.virtual_inputs.back().lens()[faxis] == 1)
         {
-            vec = vectorize::elements(faxis, options.virtual_inputs);
+            vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
         }
         auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
         auto nelements = options.virtual_inputs.back().elements();

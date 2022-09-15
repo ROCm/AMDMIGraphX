@@ -69,7 +69,7 @@ struct softmax_compiler : compiler<softmax_compiler>
         // Vectorize if the axis is a reduction axis
         if(faxis == axis)
         {
-            vec = vectorize::elements(faxis, inputs);
+            vec = vectorize::elements(ctx, faxis, inputs);
         }
         auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);

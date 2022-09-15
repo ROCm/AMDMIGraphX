@@ -235,17 +235,19 @@ class Parameter:
 
     def substitute(self,
                    s: str,
+                   type: Optional[Type] = None,
                    prefix: Optional[str] = None,
                    result: Optional[str] = None) -> str:
         ctype = None
         if len(self.cparams) > 0:
             ctype = Type(self.cparams[0][0]).basic().str()
-        return Template(s).safe_substitute(name=self.get_name(prefix),
-                                           type=self.type.str(),
-                                           ctype=ctype or '',
-                                           cpptype=self.get_cpp_type(),
-                                           size=self.size_name,
-                                           result=result or '')
+        return Template(s).safe_substitute(
+            name=self.get_name(prefix),
+            type=type.str() if type else self.type.str(),
+            ctype=ctype or '',
+            cpptype=self.get_cpp_type(),
+            size=self.size_name,
+            result=result or '')
 
     def add_param(self, t: Union[str, Type],
                   name: Optional[str] = None) -> None:
@@ -357,7 +359,8 @@ class Parameter:
         return self.substitute(self.cpp_write, prefix=prefix)
 
     def input(self, prefix: Optional[str] = None) -> str:
-        return '(' + self.substitute(self.read, prefix=prefix) + ')'
+        return '(' + self.substitute(
+            self.read, type=self.type.basic(), prefix=prefix) + ')'
 
     def outputs(self, result: Optional[str] = None) -> List[str]:
         return [self.substitute(w, result=result) for w in self.write]
@@ -918,9 +921,8 @@ def vector_c_wrap(p: Parameter) -> None:
     if not inner:
         return
     t = inner.add_pointer()
-    if p.type.is_reference():
-        if p.type.is_const():
-            t = t.add_const()
+    if p.type.is_const():
+        t = t.add_const()
     if p.returns:
         if p.type.is_reference():
             p.add_param(t.add_pointer())
@@ -949,6 +951,10 @@ def vector_c_wrap(p: Parameter) -> None:
 @cwrap('std::string')
 def string_c_wrap(p: Parameter) -> None:
     t = Type('char*')
+
+    if p.type.is_const():
+        t = t.add_const()
+
     if p.returns:
         if p.type.is_reference():
             p.add_param(t.add_pointer())

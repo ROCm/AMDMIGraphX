@@ -83,7 +83,7 @@ void visit_py(T x, F f)
     {
         f(x.template cast<bool>());
     }
-    else if(py::isinstance<py::int_>(x) or py::hasattr(x, "__index__"))
+    else if(py::isinstance<py::int_>(x) || py::hasattr(x, "__index__"))
     {
         f(x.template cast<int>());
     }
@@ -354,6 +354,21 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                      pm[key]              = migraphx::argument(to_shape(info), info.ptr);
                  }
                  return p.eval(pm);
+             })
+        .def("run_async",
+             [](migraphx::program& p, py::dict params, py::buffer stream) {
+                 migraphx::parameter_map pm;
+                 for(auto x : params)
+                 {
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
+                     py::buffer_info info = b.request();
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                 }
+                 py::buffer_info info = stream.request();
+                 migraphx::execution_environment exec_env{
+                     migraphx::any_ptr<hipStream_t>(reinterpret_cast<hipStream_t>(info.ptr)), true};
+                 return p.eval(pm, exec_env);
              })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })

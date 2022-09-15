@@ -116,6 +116,7 @@ def main():
 
     model = migraphx.parse_onnx(model_name, default_dim_value=batch)
 
+    print(model)
     model.compile(migraphx.get_target('gpu'), offload_copy=False)
 
     params = {}
@@ -133,7 +134,10 @@ def main():
         test_inputs[name] = test_input
         params[name] = migraphx.to_gpu(migraphx.argument(test_input))
 
-    pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
+    if async is True:
+        pred_migx = np.array(migraphx.from_gpu(model.run_async(params, stream)[-1]))
+    else:
+        pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
 
     sess = ort.InferenceSession(model_name, providers=[args.provider])
 

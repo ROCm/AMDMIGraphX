@@ -78,10 +78,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);
         options.kernel_name    = v.get("kernel", "kernel");
         options.set_launch_params(
-            v,
-            compute_global_for(ctx,
-                               options.output.elements() / vec.size,
-                               256));
+            v, compute_global_for(ctx, options.output.elements() / vec.size, 256));
         auto src = interpolate_string(pointwise_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},

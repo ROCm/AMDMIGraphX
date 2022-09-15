@@ -36,6 +36,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct shape;
 
 namespace gpu {
+
+struct context;
+
 namespace gen {
 
 struct vectorize
@@ -43,6 +46,8 @@ struct vectorize
     std::size_t size = 1;
     std::size_t axis = 0;
     static vectorize elements(std::size_t axis, const std::vector<shape>& inputs);
+    static vectorize elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs);
+    static vectorize elements(std::size_t axis, const std::vector<shape>& inputs, const std::vector<std::size_t>& sizes);
     std::string str() const;
 };
 struct preload

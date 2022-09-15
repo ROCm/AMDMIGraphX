@@ -95,7 +95,8 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
                              ctx.get_current_device().get_max_workitems_per_cu();
     std::size_t over = n / max_global;
     std::cout << "over: " << over << std::endl;
-    bool broadcasted = std::any_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.broadcasted(); });
+    bool broadcasted =
+        std::any_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.broadcasted(); });
     std::vector<std::size_t> sizes;
     if(broadcasted and over > 8)
         sizes.push_back(8);

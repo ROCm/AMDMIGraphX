@@ -41,8 +41,12 @@ using half2 = migraphx::vec<half, 2>;
 
 struct address_space
 {
-    struct global {};
-    struct local {};
+    struct global
+    {
+    };
+    struct local
+    {
+    };
 };
 
 } // namespace migraphx

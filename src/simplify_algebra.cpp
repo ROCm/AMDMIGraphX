@@ -88,11 +88,7 @@ struct find_mul_conv
         auto invalid_sl = [&](std::size_t i) {
             if(a_strides[i] != 0)
             {
-                if(a_lens[i] == 1)
-                {
-                    return false;
-                }
-                return true;
+                return a_lens[i] != 1;
             }
             return false;
         };

@@ -317,21 +317,39 @@ load
 
 .. py:function:: load(filename, format='msgpack')
 
-    Load a MIGraphX program.
+    Load and de-serialize MIGraphX program from a file.
 
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
 
     :rtype: program
 
+.. py:function:: load_buffer(buffer, format='msgpack')
+
+    Load and de-serialize MIGraphX program from a data buffer.
+
+    :param list[str] buffer: Reference to data buffer 
+    :param str format: Format of file. Valid options are msgpack or json.
+
+    :rtype: program
+
+
 save
 ----
 
 .. py:function:: save(p, filename, format='msgpack')
 
-    Save a MIGraphX program.
+    Serialize and Save MIGraphX program to a file.
 
     :param program p: Program to save.
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
 
+.. py:function:: save_buffer(p, format='msgpack')
+
+    Serialize and Save MIGraphX program to a buffer.
+
+    :param program p: Program to save.
+    :param str format: Format of file. Valid options are msgpack or json.
+
+    :rtype: list[str] 

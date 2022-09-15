@@ -302,8 +302,7 @@ api.add_function('migraphx_load',
                  returns='migraphx::program')
 
 api.add_function('migraphx_load_buffer',
-                 api.params(buffer='const char*',
-                            size='size_t',
+                 api.params(buffer='const std::vector<char>&',
                             options='migraphx::file_options'),
                  fname='migraphx::load_buffer',
                  returns='migraphx::program')
@@ -318,7 +317,7 @@ api.add_function('migraphx_save_buffer',
                  api.params(p='migraphx::program',
                             options='migraphx::file_options'),
                  fname='migraphx::save_buffer',
-                 returns='std::vector<char>')
+                 returns='const std::vector<char>&')
 
 
 @auto_handle()

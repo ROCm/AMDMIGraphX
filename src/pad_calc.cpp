@@ -62,9 +62,9 @@ std::vector<std::size_t> calc_dyn_auto_pad(std::vector<std::size_t> tensor_lens,
     padding.resize(2 * k_lens.size());
     for(std::size_t i = 0; i < padding.size() / 2; i++)
     {
-        std::ptrdiff_t input_dim      = tensor_lens[i];
+        std::ptrdiff_t input_dim      = tensor_lens[i + 2];
         std::ptrdiff_t stride         = strides[i];
-        std::ptrdiff_t weight_dim     = k_lens[i];
+        std::ptrdiff_t weight_dim     = k_lens[i + 2];
         std::ptrdiff_t dilation       = dilations[i];
         std::ptrdiff_t output_dim     = (input_dim + stride - 1) / stride; // round up result
         std::ptrdiff_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);

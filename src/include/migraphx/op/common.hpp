@@ -36,8 +36,6 @@ namespace op {
 enum padding_mode_t
 {
     default_, // NOLINT
-    same,
-    valid,
     same_lower,
     same_upper
 };

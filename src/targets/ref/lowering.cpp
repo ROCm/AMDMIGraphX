@@ -237,12 +237,12 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         std::vector<std::size_t> padding;
-        if(op.use_dynamic_same_auto_pad)
+        if(op.padding_mode != op::padding_mode_t::default_)
         {
             auto input_lens = args[0].get_shape().lens();
-            std::vector<std::size_t> img_lens{input_lens.begin() + 2, input_lens.end()};
+            std::vector<std::size_t> img_lens{input_lens.begin(), input_lens.end()};
             auto weights_lens = args[1].get_shape().lens();
-            std::vector<std::size_t> k_lens{weights_lens.begin() + 2, weights_lens.end()};
+            std::vector<std::size_t> k_lens{weights_lens.begin(), weights_lens.end()};
             padding = calc_dyn_auto_pad(img_lens, k_lens, op.stride, op.dilation);
             output_shape =
                 compute_padded_shape({args.at(0).get_shape(), args.at(1).get_shape()}, padding);

@@ -260,7 +260,7 @@ TEST_CASE(simplify_mul_conv2)
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
-// stride = 1 and len = 1 case
+// len = 1 case
 TEST_CASE(simplify_mul_conv3)
 {
     migraphx::module m;
@@ -273,7 +273,7 @@ TEST_CASE(simplify_mul_conv3)
         x,
         w);
     auto a = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::int32_type, {256, 1, 1}, {1, 1, 1}}));
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 1, 1}, {1, 18, 1}}));
     auto b =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), a);
     auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);

@@ -84,24 +84,26 @@ struct find_mul_conv
         // check broadcasted along channels
         auto a_lens    = a_ins->get_shape().lens();
         auto a_strides = a_ins->get_shape().strides();
-        // handle case of stride = 1 and len = 1
+        // handle len = 1 case
         auto invalid_sl = [&](std::size_t i) {
             if(a_strides[i] != 0)
             {
-                if(a_strides[i] == 1 and a_lens[i] == 1)
+                if(a_lens[i] == 1)
+                {
                     return false;
+                }
                 return true;
             }
             return false;
         };
-        auto check = false;
+        auto invalid_case = false;
         for(int i = 2; i < a_lens.size(); ++i)
         {
             if(invalid_sl(i))
-                check = true;
+                invalid_case = true;
         }
 
-        if(invalid_sl(0) or a_strides.at(1) != 1 or check)
+        if(invalid_sl(0) or a_strides.at(1) != 1 or invalid_case)
             return;
 
         auto sq    = m.insert_instruction(ins, make_op("squeeze"), a_ins->inputs().front());

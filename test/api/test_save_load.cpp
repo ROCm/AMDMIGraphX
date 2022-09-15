@@ -57,7 +57,7 @@ TEST_CASE(load_save_json)
     std::remove(filename.c_str());
 }
 
-TEST_CASE(load_save_buffer)
+TEST_CASE(load_save_buffer_default)
 {
     auto p1 = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto s1 = p1.get_output_shapes();

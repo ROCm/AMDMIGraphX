@@ -41,9 +41,6 @@ def test_conv_relu(format):
         assert p1.sort() == p2.sort()
 
 
-test_conv_relu('msgpack')
-test_conv_relu('json')
-
 def test_save_load_buffer(format):
     p1 = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p1)
@@ -57,5 +54,9 @@ def test_save_load_buffer(format):
     assert s1 == s2
     assert p1.sort() == p2.sort()
 
-test_save_load_buffer('json')
-test_save_load_buffer('msgpack')
+
+if __name__ == "__main__":
+    test_conv_relu('msgpack')
+    test_conv_relu('json')
+    test_save_load_buffer('json')
+    test_save_load_buffer('msgpack')

@@ -27,6 +27,7 @@
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/debug.hpp>
 #include <migraphx/kernels/iota_iterator.hpp>
+#include <migraphx/kernels/buffer_address.hpp>
 
 namespace migraphx {
 
@@ -41,7 +42,7 @@ struct tensor_view_iterator_read
     }
 };
 
-template <class T, class Shape>
+template <class T, class Shape, class AddressSpace = address_space::global>
 struct tensor_view
 {
     using type        = T;
@@ -71,6 +72,26 @@ struct tensor_view
         return x[ito.offset];
     }
 
+    __device__ T load(MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i) const
+    {
+        index_to_offset ito = i;
+        MIGRAPHX_WARN(ito.offset < get_shape().element_space(),
+                      i,
+                      "Out of bounds access at offset: ",
+                      ito.offset);
+        return buffer_load(x, ito.offset, get_shape().element_space(), AddressSpace{});
+    }
+
+    __device__ void store(MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i, T d) const
+    {
+        index_to_offset ito = i;
+        MIGRAPHX_WARN(ito.offset < get_shape().element_space(),
+                      i,
+                      "Out of bounds access at offset: ",
+                      ito.offset);
+        buffer_store(d, x, ito.offset, get_shape().element_space(), AddressSpace{});
+    }
+
     constexpr T* data() const { return x; }
 
     constexpr auto begin() const { return iterator{0, {this}}; }
@@ -83,11 +104,17 @@ struct tensor_view
         return iterator{get_shape().single(i), {this}};
     }
 
-    template <class U>
-    constexpr tensor_view<U, Shape> with(U* y) const
+    template <class U, class AS>
+    constexpr tensor_view<U, Shape, AS> with(U* y, AS) const
     {
         static_assert(sizeof(T) == sizeof(U), "Not the same size");
         return {y};
+    }
+
+    template <class U>
+    constexpr auto with(U* y) const
+    {
+        return with(y, AddressSpace{});
     }
 
     T* x;

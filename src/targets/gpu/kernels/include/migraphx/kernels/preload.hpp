@@ -102,14 +102,14 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
                     auto b = as_vec(tensor_vec_size(v), buffer + offset);
                     idx.local_stride(v.get_shape().element_space(),
                                      [&](auto i) { b[i] = v.data()[i]; });
-                    return x.with(buffer + offset);
+                    return x.with(buffer + offset, address_space::local{});
                 }
                 else
                 {
                     auto b = as_vec(tensor_vec_size(x), buffer + offset);
                     idx.local_stride(x.get_shape().element_space(),
                                      [&](auto i) { b[i] = x.data()[i]; });
-                    return x.with(b);
+                    return x.with(b, address_space::local{});
                 }
             }
             else
@@ -172,7 +172,7 @@ __device__ auto preload_copy(index idx, T x)
             auto input       = as_vec<n>(remove_bool(x.data()));
             auto b           = as_vec<n>(remove_bool(buffer));
             idx.local_stride(size / n, [&](auto i) { b[i] = input[i]; });
-            return f(x.with(buffer));
+            return f(x.with(buffer, address_space::local{}));
         }
         else
         {

@@ -39,6 +39,12 @@ using vec = T __attribute__((ext_vector_type(N)));
 using half  = _Float16;
 using half2 = migraphx::vec<half, 2>;
 
+struct address_space
+{
+    struct global {};
+    struct local {};
+};
+
 } // namespace migraphx
 
 #endif

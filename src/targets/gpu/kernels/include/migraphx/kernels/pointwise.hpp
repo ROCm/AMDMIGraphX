@@ -69,7 +69,7 @@ template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {
     idx.global_stride(out.get_shape().elements(),
-                      [&](auto i) { out[i] = implicit_conversion(f(xs[i]...)); });
+                      [&](auto i) { out.store(i, implicit_conversion(f(xs.load(i)...))); });
 }
 
 template <class... Transforms>

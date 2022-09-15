@@ -169,7 +169,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     for(const auto& tname : migraphx::get_targets())
     {
         // TODO(varunsh): once verify tests can run, remove fpga
-        if(tname == "ref" || tname == "fpga")
+        if(tname == "ref" or tname == "fpga")
             continue;
 
         // if tests disabled, skip running it

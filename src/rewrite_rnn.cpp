@@ -214,7 +214,7 @@ void rewrite_rnn::apply_vanilla_rnn(module& m, instruction_ref ins) const
             ih = m.add_literal(migraphx::literal{ih_shape, data});
         }
 
-        if(!is_forward and variable_seq_len)
+        if(not is_forward and variable_seq_len)
         {
             args[0] =
                 m.insert_instruction(ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
@@ -520,7 +520,7 @@ void rewrite_rnn::apply_gru(module& m, instruction_ref ins) const
             ih = m.add_literal(migraphx::literal{ih_shape, data});
         }
 
-        if(!is_forward and variable_seq_len)
+        if(not is_forward and variable_seq_len)
         {
             args[0] =
                 m.insert_instruction(ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
@@ -977,7 +977,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
             pph = args[7];
         }
 
-        if(!is_forward and variable_seq_len)
+        if(not is_forward and variable_seq_len)
         {
             args[0] =
                 m.insert_instruction(ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
@@ -1294,11 +1294,11 @@ bool rewrite_rnn::is_variable_seq_lens(const module& m, instruction_ref seq_lens
             std::vector<int64_t> vec_lens;
             arg_lens.visit([&](auto l) { vec_lens.assign(l.begin(), l.end()); });
             int64_t l = 0;
-            if(!vec_lens.empty())
+            if(not vec_lens.empty())
             {
                 l = vec_lens[0];
             }
-            if(!std::all_of(vec_lens.begin(), vec_lens.end(), [&](auto v) { return v == l; }))
+            if(not std::all_of(vec_lens.begin(), vec_lens.end(), [&](auto v) { return v == l; }))
             {
                 is_var_lens = true;
             }
@@ -1318,7 +1318,7 @@ rewrite_rnn::get_seq_len(const module& m, instruction_ref input, instruction_ref
     bool is_var_lens = is_variable_seq_lens(m, seq_lens);
     auto input_shape = input->get_shape();
     auto length      = input_shape.lens()[0];
-    if(!is_var_lens and seq_lens != m.end())
+    if(not is_var_lens and seq_lens != m.end())
     {
         auto arg_len = seq_lens->eval();
         std::vector<std::size_t> vec_lens;
@@ -1387,7 +1387,7 @@ void rewrite_rnn::replace_last_cell_output(module& m,
 
     if(variable_seq_len)
     {
-        if(!ins_outputs.empty())
+        if(not ins_outputs.empty())
         {
             cell_outputs = m.insert_instruction(
                 std::next(ins),

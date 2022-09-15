@@ -37,6 +37,8 @@ namespace gpu {
 
 struct context;
 
+std::string hip_error(int error);
+
 argument allocate_gpu(const shape& s, bool host = false);
 
 argument register_on_gpu(const argument& arg);

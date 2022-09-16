@@ -33,18 +33,18 @@ struct test_unbatched_gemm_1 : verify_program<test_unbatched_gemm_1>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {4, 384, 768}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {768, 768}};
-        migraphx::shape m3_shape{migraphx::shape::float_type, {4, 384, 2304}};
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 32, 64}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {64, 64}};
+        migraphx::shape m3_shape{migraphx::shape::float_type, {2, 32, 192}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_literal(migraphx::generate_literal(m2_shape));
-        l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 768}}}),
+        l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 64}}}),
                                  l2);
         auto l3 = mm->add_literal(migraphx::generate_literal(m2_shape));
-        l3 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 768}}}),
+        l3 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 64}}}),
                                  l3);
         auto l4 = mm->add_literal(migraphx::generate_literal(m2_shape));
-        l4 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 768}}}),
+        l4 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 64}}}),
                                  l4);
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), l2, l3, l4);
 

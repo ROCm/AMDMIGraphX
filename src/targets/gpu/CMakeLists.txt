@@ -322,26 +322,11 @@ message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR)
-    find_library(MLIRAPI_LIBRARY MLIRMIOpen 
-        PATH_SUFFIXES
-        # Workaournd broken mlir install
-        lib/ lib/lib)
-    # REQUIRED is not supported before cmake 3.18
-    if(NOT MLIRAPI_LIBRARY)
-        message(FATAL_ERROR "libMLIRMIOpen not found")
-    else()
-        message(STATUS "Build with libMLIRMIOpen: " ${MLIRAPI_LIBRARY})
-    endif()
-
-    find_path(MLIRAPI_HEADERS NAMES mlir-c/Dialect/MIGraphX.h)
-    # Workaround MLIR broken installation
-    find_path(MLIRAPI_HEADERS2 NAMES mlir-c/Registration.h
-        PATH_SUFFIXES 
-        include/external/include external/include)
-
+    # Find package rocMLIR
+    find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
+    message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    target_include_directories(migraphx_gpu SYSTEM PRIVATE ${MLIRAPI_HEADERS} ${MLIRAPI_HEADERS2})
-    target_link_libraries(migraphx_gpu PUBLIC ${MLIRAPI_LIBRARY})
+    target_link_libraries(migraphx_gpu PUBLIC rocMLIR::rockCompiler)
 endif()
 
 set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "")

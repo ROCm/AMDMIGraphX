@@ -50,8 +50,8 @@ void calculate_padding(int64_t idx,
  * \param use_upper put odd padding on upper or lower side
  * \return padding in the form of {x0_begin, x1_begin, ... x0_end , x1_end, ...}
  */
-std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& tensor_lens,
-                                           const std::vector<std::size_t>& k_lens,
+std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input_lens,
+                                           const std::vector<std::size_t>& wei_lens,
                                            const std::vector<std::size_t>& strides,
                                            const std::vector<std::size_t>& dilations,
                                            bool use_upper);

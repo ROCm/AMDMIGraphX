@@ -82,7 +82,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         }
         else
         {
-            // num dims in [0 , 2]
+            // num dims either 0 or 2
             MIGRAPHX_THROW("PARSE_BATCHNORM: rank " + std::to_string(x_lens.size()) +
                            " input tensor, unhandled data format");
         }

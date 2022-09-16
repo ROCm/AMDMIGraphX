@@ -25,7 +25,6 @@
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip /opt/rocm/hcc /opt/rocm/ck)
 find_package(miopen)
 
-find_package(composable_kernel 1.0.0 COMPONENTS device_operations)
 find_package(hip REQUIRED PATHS /opt/rocm)
 
 # rocblas
@@ -393,8 +392,8 @@ endif()
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::device_operations)
-target_include_directories(migraphx_gpu PRIVATE /opt/rocm/ck/include)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+#target_include_directories(migraphx_gpu PRIVATE /opt/rocm/ck/include)
 
 add_subdirectory(driver)
 

@@ -167,6 +167,32 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
                         block_2_ctile_map,
                         ck::integral_constant<bool, HasMainKBlockLoop>{},
                         ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
+        
+        // using AGridDesc_K0_M0_M1_K1 =
+        //     decltype(GridwiseGemm::MakeAGridDescriptor_K0_M0_M1_K1(AGridDesc_K0_M_K1{}));
+        // using BGridDesc_K0_N0_N1_K1 =
+        //     decltype(GridwiseGemm::MakeBGridDescriptor_K0_N0_N1_K1(BGridDesc_K0_N_K1{}));
+        // using CGridDesc_M0_M10_M11_N0_N10_N11 =
+        //     decltype(GridwiseGemm::MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(CGridDesc_M_N{}));
+        // using DefaultBlock2CTileMap =
+        //     decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}));
+        
+        // const auto kernel = ck::kernel_gemm_dl_v1r3<GridwiseGemm,
+        //                                 ADataType,
+        //                                 CDataType,
+        //                                 remove_reference_t<AGridDesc_K0_M0_M1_K1>,
+        //                                 remove_reference_t<BGridDesc_K0_N0_N1_K1>,
+        //                                 remove_reference_t<CGridDesc_M0_M10_M11_N0_N10_N11>,
+        //                                 remove_reference_t<DefaultBlock2CTileMap>,
+        //                                 true,
+        //                                 true>;
+        // kernel(a_t.data(),
+        //     b_t.data(),
+        //     c_t.data(),
+        //     a_grid_desc_k0_m0_m1_k1,
+        //     b_grid_desc_k0_n0_n1_k1,
+        //     c_grid_desc_m0_m10_m11_n0_n10_n11,
+        //     block_2_ctile_map);
     });
 }
 

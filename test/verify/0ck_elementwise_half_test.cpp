@@ -27,6 +27,53 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
+// struct ck_elementwise_half : verify_program<ck_elementwise_half>
+// {
+//     migraphx::program create_program() const
+//     {
+//         migraphx::program p;
+//         auto* mm = p.get_main_module();
+//         migraphx::shape m1_shape{migraphx::shape::half_type, {1, 1, 2, 2, 2}};
+//         migraphx::shape m2_shape{migraphx::shape::half_type, {1, 1, 1, 2, 1}};
+//         std::vector<float> v1(8, 1);
+//         std::vector<float> v2(2);
+//         std::iota(v2.begin(), v2.end(), 1);
+//         auto l1 = mm->add_literal(migraphx::literal{m1_shape, v1});
+//         auto l2 = mm->add_literal(migraphx::literal{m2_shape, v2});
+//         l2      = mm->add_instruction(
+//             migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2}}}), l2);
+//         //l2 = mm->add_instruction(migraphx::make_op("contiguous"), l2);
+
+//         mm->add_instruction(migraphx::make_op("ck_elementwise"), l1, l2);
+//         mm->debug_print();
+
+//         return p;
+//     }
+// };
+
+// struct ck_elementwise_half : verify_program<ck_elementwise_half>
+// {
+//     migraphx::program create_program() const
+//     {
+//         migraphx::program p;
+//         auto* mm = p.get_main_module();
+//         migraphx::shape m1_shape{migraphx::shape::half_type, {2, 384, 3072}};
+//         migraphx::shape m2_shape{migraphx::shape::half_type, {1, 384, 1}};
+//         std::vector<float> v1(2*384*3072, 1);
+//         std::vector<float> v2(384, 2.54);
+//         auto l1 = mm->add_literal(migraphx::literal{m1_shape, v1});
+//         auto l2 = mm->add_literal(migraphx::literal{m2_shape, v2});
+//         l2      = mm->add_instruction(
+//             migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), l2);
+//         //l2 = mm->add_instruction(migraphx::make_op("contiguous"), l2);
+
+//         mm->add_instruction(migraphx::make_op("ck_elementwise"), l1, l2);
+//         mm->debug_print();
+
+//         return p;
+//     }
+// };
+
 struct ck_elementwise_half : verify_program<ck_elementwise_half>
 {
     migraphx::program create_program() const
@@ -34,7 +81,7 @@ struct ck_elementwise_half : verify_program<ck_elementwise_half>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::half_type, {2, 384, 3072}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {3072}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 384, 1}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
         l2      = mm->add_instruction(
@@ -45,3 +92,24 @@ struct ck_elementwise_half : verify_program<ck_elementwise_half>
         return p;
     }
 };
+
+// struct ck_elementwise_half : verify_program<ck_elementwise_half>
+// {
+//     migraphx::program create_program() const
+//     {
+//         migraphx::program p;
+//         auto* mm = p.get_main_module();
+//         migraphx::shape m1_shape{migraphx::shape::half_type, {3072}};
+//         migraphx::shape m2_shape{migraphx::shape::half_type, {1}};
+//         auto l1 = mm->add_parameter("1", m1_shape);
+//         auto l2 = mm->add_parameter("2", m2_shape);
+//         l2      = mm->add_instruction(
+//             migraphx::make_op("multibroadcast", {{"out_lens", {3072}}}), l2);
+//         //l2 = mm->add_instruction(migraphx::make_op("contiguous"), l2);
+
+//         mm->add_instruction(migraphx::make_op("ck_elementwise"), l1, l2);
+//        //mm->debug_print();
+
+//         return p;
+//     }
+// };

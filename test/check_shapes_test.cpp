@@ -49,6 +49,6 @@ bool create_shapes(bool dynamic_allowed)
 
 TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
 
-TEST_CASE(fail_dynamic_shape) { EXPECT(!create_shapes(false)); }
+TEST_CASE(fail_dynamic_shape) { EXPECT(not create_shapes(false)); }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

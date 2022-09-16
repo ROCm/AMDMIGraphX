@@ -615,10 +615,9 @@ struct find_splits
                     auto outputs = i->outputs();
                     for(auto output : outputs)
                     {
-                        if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
+                        if(output->name() != "reshape")
                             continue;
-                        auto x =
-                            m.insert_instruction(output, make_op("contiguous"), output->inputs());
+                        auto x = m.insert_instruction(output, make_op("contiguous"), i);
                         m.replace_instruction(output, output->get_operator(), x);
                     }
 
@@ -788,7 +787,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return !(dots < 2 and convs < 2);
+    return not(dots < 2 and convs < 2);
 }
 
 struct find_conv_dot_horiz_fusion
@@ -808,7 +807,7 @@ struct find_conv_dot_horiz_fusion
             auto y = j->inputs()[1]->get_shape().lens();
             if(x.size() != y.size())
                 return false;
-            // Check that non-axises match
+            // Check that non-axes match
             int axis = 1;
             if(i->name() == "dot")
             {
@@ -844,13 +843,22 @@ struct find_conv_dot_horiz_fusion
 
             for(auto arg : args)
                 m.move_instructions(arg, input);
-            // TODO: Check if axises match
+            // TODO: Check if axes match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
             auto fused     = m.insert_instruction(std::next(input), op, input, concat);
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
+                auto outputs = arg->outputs();
+                for(auto output : outputs)
+                {
+                    if(output->name() != "reshape")
+                        continue;
+                    auto x = m.insert_instruction(output, make_op("contiguous"), arg);
+                    m.replace_instruction(output, output->get_operator(), x);
+                }
+
                 int64_t len = arg->get_shape().lens()[axis];
                 m.replace_instruction(
                     arg,
@@ -961,7 +969,7 @@ struct find_split_reshape
 
         // all outputs are reshape and of the same shape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if(!same_ops(vec_rsp))
+        if(not same_ops(vec_rsp))
         {
             return;
         }
@@ -977,23 +985,42 @@ struct find_split_reshape
         auto rsp_lens    = rsp->get_shape().lens();
         auto rsp_strides = rsp->get_shape().strides();
         rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
-        auto ait = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+
+        auto ait     = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+        int rsp_axis = -1;
         if(ait == rsp_strides.end())
         {
             return;
         }
-        int rsp_axis = std::distance(rsp_strides.begin(), ait);
-
+        else if(ait == rsp_strides.end() - 1)
+        {
+            // edge case
+            // slice_dim == 1, in that case it could match with last stride of 1.
+            // it should accumulate lengths from last dim in that case. discount 1 to avoid going
+            // out of bounds.
+            assert(slc_dim_size == 1);
+            rsp_axis = std::distance(rsp_strides.begin(), ait) - 1;
+        }
+        else
+        {
+            rsp_axis = std::distance(rsp_strides.begin(), ait);
+        }
         // calculate reshape output shape
         std::vector<int64_t> vec_dims(vec_rsp.size());
+
         std::transform(vec_rsp.begin(), vec_rsp.end(), vec_dims.begin(), [&](auto is) {
             return is->get_shape().lens()[rsp_axis];
         });
 
         std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
+
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
-        // insert the reshape instruction
+        // insert the reshape instruction and add contiguous if needed
+        if(not input->get_shape().standard())
+        {
+            input = m.insert_instruction(std::next(input), make_op("contiguous"), input);
+        }
         auto rsp_ins = m.insert_instruction(
             std::next(input), make_op("reshape", {{"dims", rsp_out_lens}}), input);
 
@@ -1040,7 +1067,7 @@ struct find_split_transpose
 
         // all transpose are the same
         auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
-        if(!same_ops(vec_trans))
+        if(not same_ops(vec_trans))
         {
             return;
         }

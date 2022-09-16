@@ -24,9 +24,10 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_PAD_CALC_HPP
 #define MIGRAPHX_GUARD_OPERATORS_PAD_CALC_HPP
 
-#include <migraphx/config.hpp>
 #include <cstdint>
 #include <vector>
+#include <migraphx/config.hpp>
+#include <migraphx/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -49,11 +50,19 @@ void calculate_padding(int64_t idx,
  * \param use_upper put odd padding on upper or lower side
  * \return padding in the form of {x0_begin, x1_begin, ... x0_end , x1_end, ...}
  */
-std::vector<std::size_t> calc_dyn_auto_pad(std::vector<std::size_t> tensor_lens,
-                                           std::vector<std::size_t> k_lens,
-                                           std::vector<std::size_t> strides,
-                                           std::vector<std::size_t> dilations,
+std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& tensor_lens,
+                                           const std::vector<std::size_t>& k_lens,
+                                           const std::vector<std::size_t>& strides,
+                                           const std::vector<std::size_t>& dilations,
                                            bool use_upper = true);
+
+// Used for dynamic auto padding of convolution operators since padding needs to be computed at
+// evaulation time.
+shape compute_padded_shape(const shape& input,
+                           const shape& weights,
+                           const std::vector<std::size_t>& padding,
+                           const std::vector<std::size_t>& stride,
+                           const std::vector<std::size_t>& dilation);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

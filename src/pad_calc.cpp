@@ -52,10 +52,10 @@ void calculate_padding(int64_t idx,
     }
 }
 
-std::vector<std::size_t> calc_dyn_auto_pad(std::vector<std::size_t> tensor_lens,
-                                           std::vector<std::size_t> k_lens,
-                                           std::vector<std::size_t> strides,
-                                           std::vector<std::size_t> dilations,
+std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& tensor_lens,
+                                           const std::vector<std::size_t>& k_lens,
+                                           const std::vector<std::size_t>& strides,
+                                           const std::vector<std::size_t>& dilations,
                                            bool use_upper)
 {
     std::vector<std::size_t> padding;
@@ -84,6 +84,29 @@ std::vector<std::size_t> calc_dyn_auto_pad(std::vector<std::size_t> tensor_lens,
         }
     }
     return padding;
+}
+
+shape compute_padded_shape(const shape& input,
+                           const shape& weights,
+                           const std::vector<std::size_t>& padding,
+                           const std::vector<std::size_t>& stride,
+                           const std::vector<std::size_t>& dilation)
+{
+    const size_t num_spatial_dims = input.lens().size() - 2;
+
+    std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
+    // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
+    for(size_t i = 0; i < num_spatial_dims; i++)
+    {
+        auto padding_factor = padding[i] + padding[i + num_spatial_dims];
+        output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+            1,
+            (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+             padding_factor) /
+                    stride[i] +
+                1)));
+    }
+    return input.with_lens(output_lens);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

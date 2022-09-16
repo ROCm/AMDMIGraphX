@@ -95,6 +95,8 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
             check_attr_sizes(
                 kdims, values["dilation"].size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
+
+        // TODO: nothing is done with this?
         if(contains(info.attributes, "auto_pad"))
         {
             auto s = info.attributes["auto_pad"].s();
@@ -106,7 +108,9 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
 
             if(s.find("SAME") != std::string::npos)
             {
-                values["padding_mode"] = to_value(op::padding_mode_t::same);
+                bool is_same_upper     = (s.find("SAME_UPPER") != std::string::npos);
+                values["padding_mode"] = is_same_upper ? to_value(op::padding_mode_t::same_upper)
+                                                       : to_value(op::padding_mode_t::same_lower);
             }
         }
 

@@ -125,7 +125,6 @@ struct parse_convolution : op_parser<parse_convolution>
                     values["padding_mode"] = is_same_upper
                                                  ? to_value(op::padding_mode_t::same_upper)
                                                  : to_value(op::padding_mode_t::same_lower);
-                    values["use_dynamic_same_auto_pad"] = true;
                 }
                 else
                 {

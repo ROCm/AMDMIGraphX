@@ -75,7 +75,6 @@ struct parse_conv : op_parser<parse_conv>
             const std::string& pad_mode = info.attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                op.padding_mode                 = op::padding_mode_t::same;
                 std::vector<size_t> weight_dims = weights->get_shape().lens();
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
@@ -86,10 +85,6 @@ struct parse_conv : op_parser<parse_conv>
                 calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
                 op.padding = std::vector<size_t>(pads.begin(), pads.end());
-            }
-            else if(pad_mode.find("VALID") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::valid;
             }
             else if(pad_mode.find("EXPLICIT") != std::string::npos)
             {

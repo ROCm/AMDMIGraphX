@@ -759,8 +759,7 @@ TEST_CASE(conv_autopad_same_test)
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
     migraphx::op::convolution op;
-    op.padding      = {1, 1, 1, 1};
-    op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.padding = {1, 1, 1, 1};
     mm->add_instruction(op, l0, l1);
 
     auto prog = optimize_onnx("conv_autopad_same_test.onnx");
@@ -909,15 +908,11 @@ TEST_CASE(conv_dynamic_batch_same_upper)
     auto l0  = mm->add_parameter(
         "0", {migraphx::shape::float_type, {{1, 10, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}});
     auto l1 = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
-    auto c0 =
-        mm->add_instruction(migraphx::make_op("convolution",
-                                              {{"padding", {1, 1, 1, 1}},
-                                               {"stride", {1, 1}},
-                                               {"dilation", {1, 1}},
-                                               {"padding_mode", migraphx::op::padding_mode_t::same},
-                                               {"use_dynamic_same_auto_pad", false}}),
-                            l0,
-                            l1);
+    auto c0 = mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1, 1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+        l0,
+        l1);
     mm->add_return({c0});
 
     migraphx::onnx_options options;
@@ -939,8 +934,7 @@ TEST_CASE(conv_dynamic_img_same_upper)
                           {{"padding", {0, 0}},
                            {"stride", {1, 1}},
                            {"dilation", {1, 1}},
-                           {"padding_mode", migraphx::op::padding_mode_t::same_upper},
-                           {"use_dynamic_same_auto_pad", true}}),
+                           {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
         l0,
         l1);
     mm->add_return({c0});
@@ -964,8 +958,7 @@ TEST_CASE(conv_dynamic_kernel_same_lower)
                           {{"padding", {0, 0}},
                            {"stride", {1, 1}},
                            {"dilation", {1, 1}},
-                           {"padding_mode", migraphx::op::padding_mode_t::same_lower},
-                           {"use_dynamic_same_auto_pad", true}}),
+                           {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
         l0,
         l1);
     mm->add_return({c0});

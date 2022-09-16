@@ -37,7 +37,7 @@ namespace op {
 
 struct quant_convolution
 {
-    std::vector<std::size_t> padding  = {};
+    std::vector<std::size_t> padding  = {0, 0};
     std::vector<std::size_t> stride   = {1, 1};
     std::vector<std::size_t> dilation = {1, 1};
 
@@ -54,10 +54,7 @@ struct quant_convolution
                     f(self.group, "group"));
     }
 
-    value attributes() const
-    {
-        return {{"general_data_type", "convolution"}, {"normalize_padding", "padding"}};
-    }
+    value attributes() const { return {{"general_data_type", "convolution"}}; }
 
     std::string name() const { return "quant_convolution"; }
 

@@ -80,7 +80,6 @@ struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
 
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                op.padding_mode                 = op::padding_mode_t::same;
                 std::vector<size_t> weight_dims = weights->get_shape().lens();
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
@@ -100,10 +99,6 @@ struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
                     op.padding[0] = pads[0];
                     op.padding[1] = pads[1];
                 }
-            }
-            else if(pad_mode.find("VALID") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::valid;
             }
         }
 

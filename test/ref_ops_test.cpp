@@ -1168,10 +1168,9 @@ TEST_CASE(conv_dynamic_img_same_upper_test)
     auto input   = mm->add_parameter("X", input_dyn_shape);
     auto weights = mm->add_parameter("W", weights_shape);
     mm->add_instruction(
-        migraphx::make_op("convolution",
-                          {{"stride", {1, 1}},
-                           {"padding_mode", migraphx::op::padding_mode_t::same_upper},
-                           {"use_dynamic_same_auto_pad", true}}),
+        migraphx::make_op(
+            "convolution",
+            {{"stride", {1, 1}}, {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
         input,
         weights);
 
@@ -1240,10 +1239,9 @@ TEST_CASE(conv_dynamic_kernel_same_lower_test)
     auto input   = mm->add_parameter("X", input_shape);
     auto weights = mm->add_parameter("W", weights_shape);
     mm->add_instruction(
-        migraphx::make_op("convolution",
-                          {{"stride", {1, 1}},
-                           {"padding_mode", migraphx::op::padding_mode_t::same_lower},
-                           {"use_dynamic_same_auto_pad", true}}),
+        migraphx::make_op(
+            "convolution",
+            {{"stride", {1, 1}}, {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
         input,
         weights);
 

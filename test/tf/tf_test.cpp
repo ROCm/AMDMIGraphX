@@ -327,10 +327,9 @@ migraphx::program create_conv()
         mm->add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 32}}, weight_data);
 
     migraphx::op::convolution op;
-    op.padding_mode = migraphx::op::padding_mode_t::same;
-    op.padding      = {1, 1, 1, 1};
-    op.stride       = {1, 1};
-    op.dilation     = {1, 1};
+    op.padding  = {1, 1, 1, 1};
+    op.stride   = {1, 1};
+    op.dilation = {1, 1};
     auto l2 =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), l1);
     mm->add_instruction(op, l0, l2);
@@ -406,11 +405,10 @@ TEST_CASE(depthwiseconv_test)
         mm->add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 1}}, weight_data);
 
     migraphx::op::convolution op;
-    op.padding_mode = migraphx::op::padding_mode_t::same;
-    op.padding      = {1, 1};
-    op.stride       = {1, 1};
-    op.dilation     = {1, 1};
-    op.group        = 3;
+    op.padding  = {1, 1};
+    op.stride   = {1, 1};
+    op.dilation = {1, 1};
+    op.group    = 3;
     auto l3 =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), l1);
     auto l4 = mm->add_instruction(migraphx::make_op("contiguous"), l3);

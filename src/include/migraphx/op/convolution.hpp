@@ -37,7 +37,7 @@ namespace op {
 
 struct convolution
 {
-    std::vector<std::size_t> padding  = {};
+    std::vector<std::size_t> padding  = {0, 0};
     std::vector<std::size_t> stride   = {1, 1};
     std::vector<std::size_t> dilation = {1, 1};
 
@@ -64,8 +64,6 @@ struct convolution
             MIGRAPHX_THROW("CONVOLUTION: inconsistent attribute sizes");
         }
     }
-
-    value attributes() const { return {{"normalize_padding", "padding"}}; }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -152,7 +150,7 @@ struct convolution
         dynamic_shape_push_back(w_shape);
 
         const size_t num_spatial_dims = x_shape.max_lens().size() - 2;
-        if(padding_mode != op::padding_mode_t::default_)
+        if(padding_mode != default_)
         {
             for(std::size_t i = 0; i < num_spatial_dims; ++i)
             {

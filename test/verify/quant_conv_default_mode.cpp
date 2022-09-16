@@ -37,10 +37,7 @@ struct quant_conv_default_mode : verify_program<quant_conv_default_mode>
         auto pa = mm->add_parameter("a", a_shape);
         migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
         auto pc = mm->add_parameter("c", c_shape);
-        mm->add_instruction(
-            migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::same},
-            pa,
-            pc);
+        mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
         return p;
     }
 };

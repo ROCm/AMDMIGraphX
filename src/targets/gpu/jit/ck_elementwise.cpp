@@ -83,18 +83,18 @@ struct ck_elementwise_compiler : compiler<ck_elementwise_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        //options.virtual_inputs = reduce_dims(inputs);
-        //std::cout << options.virtual_inputs << std::endl;
-        options.params         = "-Wno-float-equal";
+        options.inputs = inputs;
+        options.output = inputs.back();
+        // options.virtual_inputs = reduce_dims(inputs);
+        // std::cout << options.virtual_inputs << std::endl;
+        options.params = "-Wno-float-equal";
         // auto axis              = find_fast_axis(options.virtual_inputs);
         // auto vec               = vectorize::elements(axis, options.virtual_inputs);
         // auto preloads          = preload::broadcasts(axis, options.virtual_inputs);
-        auto axis              = find_fast_axis(inputs);
-        auto vec               = vectorize::elements(axis, inputs);
-        auto preloads          = preload::broadcasts(axis, inputs);
-        options.kernel_name    = "ck_elementwise_kernel";
+        auto axis           = find_fast_axis(inputs);
+        auto vec            = vectorize::elements(axis, inputs);
+        auto preloads       = preload::broadcasts(axis, inputs);
+        options.kernel_name = "ck_elementwise_kernel";
         options.set_launch_params(
             v,
             compute_global_for(ctx,

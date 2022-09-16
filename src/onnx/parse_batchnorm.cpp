@@ -62,8 +62,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         {
             // unsqueeze tensors of shape (C) to broadcast correctly
             std::vector<int64_t> unsqueeze_axes(x_lens.size() - 2);
-            int64_t i = 1;
-            std::generate(unsqueeze_axes.begin(), unsqueeze_axes.end(), [&] { return i++; });
+            std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 1);
             auto rt  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
             auto eps = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto scale_unsqueeze = info.add_instruction(
@@ -84,9 +83,8 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         else
         {
             // num dims in [0 , 2]
-            std::ostringstream oss;
-            oss << "BATCHNORM: rank " << x_lens.size() << " input tensor, unhandled data format";
-            MIGRAPHX_THROW(oss.str());
+            MIGRAPHX_THROW("PARSE_BATCHNORM: rank " + std::to_string(x_lens.size()) +
+                           " input tensor, unhandled data format");
         }
     }
 };

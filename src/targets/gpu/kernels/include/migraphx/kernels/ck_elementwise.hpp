@@ -171,24 +171,24 @@ template <class T, class U, class V>
 __device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
 {
     // auto idx = make_index();
-    constexpr auto a_lens    = get_shape_c<T>{}.lens;
-    constexpr auto a_strides = get_shape_c<T>{}.strides;
+    constexpr auto a_lens        = get_shape_c<T>{}.lens;
+    constexpr auto a_strides     = get_shape_c<T>{}.strides;
     constexpr ck::index_t a_ndim = a_lens.size(); // decltype(a_lens.size()){};
     // if (idx.global == 0)
     //     printf("a_ndim: %i\n", int(a_ndim));
     auto a_bin_op         = CKBinaryElementwise<a_ndim>{};
     constexpr auto a_desc = a_bin_op.MakeDescriptor_M(a_lens, a_strides);
 
-    constexpr auto b_lens    = get_shape_c<U>{}.lens;
-    constexpr auto b_strides = get_shape_c<U>{}.strides;
+    constexpr auto b_lens        = get_shape_c<U>{}.lens;
+    constexpr auto b_strides     = get_shape_c<U>{}.strides;
     constexpr ck::index_t b_ndim = b_lens.size(); // decltype(b_lens.size()){};
     // if (idx.global == 0)
     //     printf("b_ndim: %i\n", int(b_ndim));
     auto b_bin_op         = CKBinaryElementwise<b_ndim>{};
     constexpr auto b_desc = b_bin_op.MakeDescriptor_M(b_lens, b_strides);
 
-    constexpr auto c_lens    = get_shape_c<V>{}.lens;
-    constexpr auto c_strides = get_shape_c<V>{}.strides;
+    constexpr auto c_lens        = get_shape_c<V>{}.lens;
+    constexpr auto c_strides     = get_shape_c<V>{}.strides;
     constexpr ck::index_t c_ndim = c_lens.size(); // decltype(c_lens.size()){};
     auto c_bin_op                = CKBinaryElementwise<c_ndim>{};
     constexpr auto c_desc        = c_bin_op.MakeDescriptor_M(c_lens, c_strides);

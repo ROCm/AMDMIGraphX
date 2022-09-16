@@ -62,7 +62,7 @@ struct half_copy_host final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(!inputs[0].standard() || !inputs[1].standard())
+        if(!inputs[0].standard() or !inputs[1].standard())
         {
             throw std::runtime_error("Input args must be standard shaped");
         }

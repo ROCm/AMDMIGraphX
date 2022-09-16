@@ -65,6 +65,8 @@ struct convolution
         }
     }
 
+    value attributes() const { return {{"normalize_padding", "padding"}}; }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2).same_type().same_ndims().min_ndims(3);

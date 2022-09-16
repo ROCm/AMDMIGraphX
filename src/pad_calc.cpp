@@ -52,19 +52,20 @@ void calculate_padding(int64_t idx,
     }
 }
 
-std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& tensor_lens,
-                                           const std::vector<std::size_t>& k_lens,
+std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input_lens,
+                                           const std::vector<std::size_t>& wei_lens,
                                            const std::vector<std::size_t>& strides,
                                            const std::vector<std::size_t>& dilations,
                                            bool use_upper)
 {
     std::vector<std::size_t> padding;
-    padding.resize(2 * k_lens.size());
-    for(std::size_t i = 0; i < padding.size() / 2; i++)
+    std::size_t num_spatial_dims = input_lens.size() - 2;
+    padding.resize(2 * num_spatial_dims);
+    for(std::size_t i = 0; i < num_spatial_dims; i++)
     {
-        std::ptrdiff_t input_dim      = tensor_lens[i + 2];
+        std::ptrdiff_t input_dim      = input_lens[i + 2];
         std::ptrdiff_t stride         = strides[i];
-        std::ptrdiff_t weight_dim     = k_lens[i + 2];
+        std::ptrdiff_t weight_dim     = wei_lens[i + 2];
         std::ptrdiff_t dilation       = dilations[i];
         std::ptrdiff_t output_dim     = (input_dim + stride - 1) / stride; // round up result
         std::ptrdiff_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
@@ -96,7 +97,7 @@ shape compute_padded_shape(const shape& input,
 
     std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
     // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
-    for(size_t i = 0; i < num_spatial_dims; i++)
+    for(size_t i = 0; i < num_spatial_dims; ++i)
     {
         auto padding_factor = padding[i] + padding[i + num_spatial_dims];
         output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(

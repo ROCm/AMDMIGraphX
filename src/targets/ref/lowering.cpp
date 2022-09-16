@@ -241,9 +241,12 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
         {
             auto input_lens   = args[0].get_shape().lens();
             auto weights_lens = args[1].get_shape().lens();
-            padding           = calc_dyn_auto_pad(input_lens, weights_lens, op.stride, op.dilation);
-            output_shape      = compute_padded_shape(
-                args.at(0).get_shape(), args.at(1).get_shape(), padding, op.stride, op.dilation);
+            padding =
+                op.padding_mode == op::same_upper
+                    ? calc_dyn_auto_pad(input_lens, weights_lens, op.stride, op.dilation, true)
+                    : calc_dyn_auto_pad(input_lens, weights_lens, op.stride, op.dilation, false);
+            output_shape = compute_padded_shape(
+                args[0].get_shape(), args[1].get_shape(), padding, op.stride, op.dilation);
         }
         else
         {

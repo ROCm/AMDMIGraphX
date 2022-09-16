@@ -54,7 +54,7 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& tenso
                                            const std::vector<std::size_t>& k_lens,
                                            const std::vector<std::size_t>& strides,
                                            const std::vector<std::size_t>& dilations,
-                                           bool use_upper = true);
+                                           bool use_upper);
 
 // Used for dynamic auto padding of convolution operators since padding needs to be computed at
 // evaulation time.

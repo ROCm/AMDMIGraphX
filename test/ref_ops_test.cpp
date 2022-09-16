@@ -1227,7 +1227,7 @@ TEST_CASE(conv_dynamic_img_same_upper_test)
     EXPECT(migraphx::verify_range(results_vector, sol));
 }
 
-TEST_CASE(conv_dynamic_kernel_same_lower_test)
+TEST_CASE(conv_dynamic_kernel_same_upper_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -1241,7 +1241,7 @@ TEST_CASE(conv_dynamic_kernel_same_lower_test)
     mm->add_instruction(
         migraphx::make_op(
             "convolution",
-            {{"stride", {1, 1}}, {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
+            {{"stride", {1, 1}}, {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
         input,
         weights);
 
@@ -1288,6 +1288,80 @@ TEST_CASE(conv_dynamic_kernel_same_lower_test)
                               0.9225286,
                               1.43048,
                               0.74341124};
+
+    migraphx::shape weight_fixed_shape0{migraphx::shape::float_type, {1, 3, 2, 2}};
+
+    migraphx::parameter_map params0;
+    params0["X"] = migraphx::argument(input_shape, a.data());
+    params0["W"] = migraphx::argument(weight_fixed_shape0, c.data());
+
+    auto result = p.eval(params0).back();
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, sol));
+}
+
+TEST_CASE(conv_dynamic_kernel_same_lower_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 3, 4, 4}};
+    migraphx::shape weights_shape{migraphx::shape::float_type,
+                                  {{1, 1, 0}, {3, 3, 0}, {2, 3, 0}, {2, 3, 0}}};
+
+    auto input   = mm->add_parameter("X", input_shape);
+    auto weights = mm->add_parameter("W", weights_shape);
+    mm->add_instruction(
+        migraphx::make_op(
+            "convolution",
+            {{"stride", {1, 1}}, {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
+        input,
+        weights);
+
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> a   = {0.63321185, 0.6466339,  0.8515352,  0.44240063, 0.5018913,  0.5068494,
+                            0.75330657, 0.7383877,  0.15870683, 0.8171611,  0.56118083, 0.87004256,
+                            0.24401724, 0.8815178,  0.4222333,  0.27191755,
+
+                            0.41633207, 0.2460619,  0.32004243, 0.6962248,  0.12284133, 0.2620491,
+                            0.96931046, 0.6030955,  0.7623861,  0.2395751,  0.61440414, 0.577285,
+                            0.80087787, 0.12776066, 0.26566318, 0.46569306,
+
+                            0.96701574, 0.3850145,  0.14165345, 0.5887347,  0.7152134,  0.5295342,
+                            0.6303507,  0.4037548,  0.18556239, 0.79416305, 0.29107493, 0.18770285,
+                            0.6870904,  0.30701008, 0.314684,   0.91075855};
+    std::vector<float> c   = {2.8150102e-01,
+                            3.3198616e-01,
+                            9.5149356e-01,
+                            7.4039467e-02,
+
+                            9.6555042e-01,
+                            2.8815505e-01,
+                            2.5100240e-01,
+                            5.2186239e-01,
+
+                            2.3850012e-01,
+                            8.2963020e-01,
+                            3.0763101e-04,
+                            6.7026985e-01};
+    std::vector<float> sol = {0.91231215,
+                              1.1416453,
+                              1.00216,
+                              1.6813052,
+                              1.7131033,
+                              2.453681,
+                              2.536207,
+                              3.0187201,
+                              1.3293691,
+                              2.1738236,
+                              2.9695358,
+                              3.2319589,
+                              1.3228729,
+                              2.5953722,
+                              2.50734,
+                              2.7736917};
 
     migraphx::shape weight_fixed_shape0{migraphx::shape::float_type, {1, 3, 2, 2}};
 

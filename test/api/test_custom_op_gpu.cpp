@@ -62,7 +62,7 @@ struct half_copy_host final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(!inputs[0].standard() or !inputs[1].standard())
+        if(not inputs[0].standard() or not inputs[1].standard())
         {
             throw std::runtime_error("Input args must be standard shaped");
         }
@@ -104,7 +104,7 @@ struct half_copy_device final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(!inputs[0].standard() || !inputs[1].standard())
+        if(not inputs[0].standard() or not inputs[1].standard())
         {
             throw std::runtime_error("Input args must be standard shaped");
         }
@@ -140,7 +140,7 @@ struct half_copy_device_same_buffer final : migraphx::experimental_custom_op_bas
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(!inputs[0].standard())
+        if(not inputs[0].standard())
         {
             throw std::runtime_error("Input arg must be standard shaped");
         }
@@ -231,7 +231,7 @@ struct stride_two final : migraphx::experimental_custom_op_base
         {
             throw std::runtime_error("stride_two op must have only one input argument");
         };
-        if(!inputs[0].standard())
+        if(not inputs[0].standard())
         {
             throw std::runtime_error("stride_two op only works on the standard input shapes");
         }

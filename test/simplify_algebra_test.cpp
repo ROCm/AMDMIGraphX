@@ -260,6 +260,81 @@ TEST_CASE(simplify_mul_conv2)
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
+// len = 1 case
+TEST_CASE(simplify_mul_conv3)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 1, 1}, {1, 18, 1}}));
+    auto b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() != "mul");
+}
+
+// Previously broadcasted literal case, should skip
+TEST_CASE(simplify_mul_conv_skip1)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 14, 14}, {1, 0, 0}}));
+    auto b = m.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() == "mul");
+}
+
+// Another previously broadcasted literal case, should skip
+TEST_CASE(simplify_mul_conv_skip2)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 14, 14}, {1, 0, 0}}));
+    auto b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() == "mul");
+}
+
 TEST_CASE(simplify_mul_slice_conv1)
 {
     migraphx::module m1;
@@ -2091,6 +2166,55 @@ TEST_CASE(reorder_reshape_slice_move_axis2)
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {32}}, {"ends", {64}}}), rsp);
         auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {96}}}), rsp);
+
+        auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
+        auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);
+        m2.add_return({ret});
+    };
+
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reorder_reshape_slice_len_1)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 128, 3}};
+        auto input = m1.add_parameter("input", s);
+        auto slc0  = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto slc1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto slc2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}), input);
+
+        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
+        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
+        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
+
+        std::vector<int64_t> lens = {1, 128};
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+
+        auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
+        auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
+        m1.add_return({ret});
+    };
+
+    migraphx::module m2;
+    {
+        auto s                    = migraphx::shape{migraphx::shape::float_type, {1, 128, 3}};
+        auto input                = m2.add_parameter("input", s);
+        std::vector<int64_t> lens = {1, 384};
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
+        auto slc0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {128}}}), rsp);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {128}}, {"ends", {256}}}), rsp);
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {256}}, {"ends", {384}}}), rsp);
 
         auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
         auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);

@@ -74,10 +74,32 @@ struct find_mul_conv
         auto a_ins    = r.instructions["a"];
         auto w_ins    = r.instructions["w"];
 
+        auto a_input_lens = a_ins->inputs().front()->get_shape().lens();
+
+        std::size_t num_not_one_dims = std::count_if(
+            a_input_lens.cbegin(), a_input_lens.cend(), [](auto dim) { return dim != 1; });
+        if(num_not_one_dims > 1)
+            return;
+
+        // check broadcasted along channels
+        auto a_lens    = a_ins->get_shape().lens();
         auto a_strides = a_ins->get_shape().strides();
-        if(a_strides.at(0) != 0 or a_strides.at(1) != 1 or
-           std::any_of(
-               a_strides.cbegin() + 2, a_strides.cend(), [](std::size_t i) { return i != 0; }))
+        // handle len = 1 case
+        auto invalid_sl = [&](std::size_t i) {
+            if(a_strides[i] != 0)
+            {
+                return a_lens[i] != 1;
+            }
+            return false;
+        };
+        auto invalid_case = false;
+        for(int i = 2; i < a_lens.size(); ++i)
+        {
+            if(invalid_sl(i))
+                invalid_case = true;
+        }
+
+        if(invalid_sl(0) or a_strides.at(1) != 1 or invalid_case)
             return;
 
         auto sq    = m.insert_instruction(ins, make_op("squeeze"), a_ins->inputs().front());
@@ -988,20 +1010,35 @@ struct find_split_reshape
         auto rsp_lens    = rsp->get_shape().lens();
         auto rsp_strides = rsp->get_shape().strides();
         rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
-        auto ait = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+
+        auto ait     = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+        int rsp_axis = -1;
         if(ait == rsp_strides.end())
         {
             return;
         }
-        int rsp_axis = std::distance(rsp_strides.begin(), ait);
-
+        else if(ait == rsp_strides.end() - 1)
+        {
+            // edge case
+            // slice_dim == 1, in that case it could match with last stride of 1.
+            // it should accumulate lengths from last dim in that case. discount 1 to avoid going
+            // out of bounds.
+            assert(slc_dim_size == 1);
+            rsp_axis = std::distance(rsp_strides.begin(), ait) - 1;
+        }
+        else
+        {
+            rsp_axis = std::distance(rsp_strides.begin(), ait);
+        }
         // calculate reshape output shape
         std::vector<int64_t> vec_dims(vec_rsp.size());
+
         std::transform(vec_rsp.begin(), vec_rsp.end(), vec_dims.begin(), [&](auto is) {
             return is->get_shape().lens()[rsp_axis];
         });
 
         std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
+
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
         // insert the reshape instruction and add contiguous if needed

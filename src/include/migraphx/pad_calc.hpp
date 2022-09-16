@@ -43,11 +43,6 @@ void calculate_padding(int64_t idx,
 /*!
  * Calculate the padding for auto_padding. Used for dynamic shapes
  * where the padding calculation must be done at evaluation time.
- * \param tensor_lens input tensor image shape
- * \param k_lens weights kernel shape
- * \param strides strides for the kernel
- * \param dilations dilations for the kernel
- * \param use_upper put odd padding on upper or lower side
  * \return padding in the form of {x0_begin, x1_begin, ... x0_end , x1_end, ...}
  */
 std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input_lens,

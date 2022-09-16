@@ -26,8 +26,6 @@ on:
         required: true
         default: '-s'
 
-concurrency: benchmark
-
 jobs:
   release:
     uses: rocmsoftwareplatform/migraphx-benchmark/.github/workflows/perf-test.yml@main

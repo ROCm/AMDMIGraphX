@@ -29,6 +29,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -60,16 +61,22 @@ inline stream_range_container<Range> stream_range(const Range& r)
 
 namespace detail {
 
-inline void
-stream_write_value_impl(rank<3>, std::ostream& os, const migraphx::value::binary& binary_object)
+template <class T>
+auto stream_write_value_impl(rank<1>, std::ostream& os, const T& x) -> decltype(os << x, void())
 {
-    os << binary_object;
+    os << x;
 }
 
-inline void stream_write_value_impl(rank<2>, std::ostream& os, const std::string& x) { os << x; }
+template <class T>
+void stream_write_value_impl(rank<1>, std::ostream& os, const std::vector<T>& r) 
+{
+    os << "{";
+    os << stream_range(r);
+    os << "}";
+}
 
 template <class Range>
-auto stream_write_value_impl(rank<1>, std::ostream& os, const Range& r)
+auto stream_write_value_impl(rank<0>, std::ostream& os, const Range& r)
     -> decltype(r.begin(), r.end(), void())
 {
     os << "{";
@@ -77,18 +84,12 @@ auto stream_write_value_impl(rank<1>, std::ostream& os, const Range& r)
     os << "}";
 }
 
-template <class T>
-void stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
-{
-    os << x;
-}
-
 } // namespace detail
 
 template <class T>
 void stream_write_value(std::ostream& os, const T& x)
 {
-    detail::stream_write_value_impl(rank<3>{}, os, x);
+    detail::stream_write_value_impl(rank<1>{}, os, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

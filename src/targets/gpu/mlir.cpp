@@ -99,7 +99,9 @@ struct mlir_handle
 
     mlir_handle(T p) : handle(ptr{p}) {}
 
-    T get() const { return handle.get().get(); }
+    T get() const { 
+        return handle.get().get(); // NOLINT(readability-redundant-smartptr-get)
+    }
 
     T release() { return handle.release().get(); }
 
@@ -571,7 +573,7 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    std::string get_tune_params() { return get_mlir_perf_for_conv(pp); }
+    std::string get_tune_params() const { return get_mlir_perf_for_conv(pp); }
 
     mlir_context ctx;
     MlirLocation location;

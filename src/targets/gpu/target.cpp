@@ -35,6 +35,7 @@
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
+#include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/preallocate_param.hpp>
@@ -71,6 +72,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 
 struct id_pass
 {
@@ -122,6 +124,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_common_subexpression{},
         dead_code_elimination{},
         simplify_algebra{},
+        simplify_reshapes{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
+        dead_code_elimination{},
         simplify_reshapes{},
         simplify_algebra{},
         prefuse_ops{},

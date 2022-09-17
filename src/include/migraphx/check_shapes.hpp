@@ -236,11 +236,12 @@ struct check_shapes
     /*!
      * Check all shapes are packed with certain layouts
      */
-    const check_shapes& packed_layouts(const std::initializer_list<std::vector<int64_t>>& layouts) const
+    const check_shapes&
+    packed_layouts(const std::initializer_list<std::vector<int64_t>>& layouts) const
     {
-        if(not this->all_of([&](const shape& s) { 
-            return s.packed() and contains(layouts, find_permutation(s)); 
-        }))
+        if(not this->all_of([&](const shape& s) {
+               return s.packed() and contains(layouts, find_permutation(s));
+           }))
             MIGRAPHX_THROW(prefix() + "Shapes are not packed with correct layout");
         return *this;
     }

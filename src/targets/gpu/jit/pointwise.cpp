@@ -100,7 +100,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             return replace(compile_op(
                 ctx,
                 to_shapes(ins->inputs()),
-                {{"lambda", "[](auto x) { return x; }"}, {"kernel",  op.name()+"_kernel"}}));
+                {{"lambda", "[](auto x) { return x; }"}, {"kernel", op.name() + "_kernel"}}));
         }
         else
         {

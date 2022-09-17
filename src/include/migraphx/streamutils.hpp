@@ -27,7 +27,6 @@
 #include <ostream>
 #include <algorithm>
 #include <migraphx/rank.hpp>
-#include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
 #include <vector>
 

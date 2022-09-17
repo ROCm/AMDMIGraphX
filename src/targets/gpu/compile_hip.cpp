@@ -299,20 +299,6 @@ std::string enum_params(std::size_t count, std::string param)
     return join_strings(items, ",");
 }
 
-// std::string enum_params(std::size_t count, std::initializer_list<std::string> params)
-// {
-//     std::vector<std::string> items(count);
-//     transform(range(count), items.begin(), [&](auto i) {
-//         auto idx = std::to_string(i);
-//         std::vector<std::string> eparams(params.size());
-//         transform(params, eparams.begin(), [&](const std::string& s) {
-//             return s + i;
-//         });
-//         return join_strings(eparams, " ");
-//     });
-//     return join_strings(items, ",");
-// }
-
 #endif // MIGRAPHX_USE_HIPRTC
 
 } // namespace gpu

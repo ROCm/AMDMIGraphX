@@ -52,7 +52,7 @@ void transform_convolutions(module& m)
         if(ins->get_shape().lens().size() != 4)
             continue;
         auto v = ins->get_operator().to_value();
-        if (v.at("group").to<int>() > 1)
+        if(v.at("group").to<int>() > 1)
             continue;
         auto args = ins->inputs();
         std::transform(args.begin(), args.end(), args.begin(), [&](auto& i) {

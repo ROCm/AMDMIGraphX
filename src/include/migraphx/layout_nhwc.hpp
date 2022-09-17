@@ -8,7 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 /**
  * Transform convolutions to nhwc
@@ -16,7 +16,7 @@ struct module;
 struct layout_nhwc
 {
     std::string name() const { return "layout_nhwc"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

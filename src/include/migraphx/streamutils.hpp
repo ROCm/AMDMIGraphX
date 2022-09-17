@@ -68,7 +68,7 @@ auto stream_write_value_impl(rank<1>, std::ostream& os, const T& x) -> decltype(
 }
 
 template <class T>
-void stream_write_value_impl(rank<1>, std::ostream& os, const std::vector<T>& r) 
+void stream_write_value_impl(rank<1>, std::ostream& os, const std::vector<T>& r)
 {
     os << "{";
     os << stream_range(r);

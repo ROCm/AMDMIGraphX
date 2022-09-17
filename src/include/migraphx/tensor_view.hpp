@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_TENSOR_VIEW_HPP
 #define MIGRAPHX_GUARD_TENSOR_VIEW_HPP
 
@@ -44,7 +67,7 @@ struct tensor_view
 
     const shape& get_shape() const { return this->m_shape; }
 
-    bool empty() const { return m_data == nullptr || m_shape.lens().empty(); }
+    bool empty() const { return m_data == nullptr or m_shape.lens().empty(); }
 
     std::size_t size() const { return m_shape.elements(); }
 
@@ -86,37 +109,37 @@ struct tensor_view
 
     T& operator[](std::size_t i)
     {
-        assert(!this->empty() && i < this->size());
+        assert(not this->empty() && i < this->size());
         return m_data[m_shape.index(i)];
     }
 
     const T& operator[](std::size_t i) const
     {
-        assert(!this->empty() && i < this->size());
+        assert(not this->empty() && i < this->size());
         return m_data[m_shape.index(i)];
     }
 
     T& front()
     {
-        assert(!this->empty());
+        assert(not this->empty());
         return m_data[0];
     }
 
     const T& front() const
     {
-        assert(!this->empty());
+        assert(not this->empty());
         return m_data[0];
     }
 
     T& back()
     {
-        assert(!this->empty());
+        assert(not this->empty());
         return m_data[m_shape.index(this->size() - 1)];
     }
 
     const T& back() const
     {
-        assert(!this->empty());
+        assert(not this->empty());
         return m_data[m_shape.index(this->size() - 1)];
     }
 
@@ -136,7 +159,7 @@ struct tensor_view
 
     friend std::ostream& operator<<(std::ostream& os, const tensor_view<T>& x)
     {
-        if(!x.empty())
+        if(not x.empty())
         {
             os << as_number(x.front());
             for(std::size_t i = 1; i < x.m_shape.elements(); i++)
@@ -159,7 +182,7 @@ bool operator==(const tensor_view<T>& x, const tensor_view<U>& y)
     {
         for(std::size_t i = 0; i < x.get_shape().elements(); i++)
         {
-            if(!float_equal(x[i], y[i]))
+            if(not float_equal(x[i], y[i]))
                 return false;
         }
         return true;
@@ -170,7 +193,7 @@ bool operator==(const tensor_view<T>& x, const tensor_view<U>& y)
 template <class T, class U>
 bool operator!=(const tensor_view<T>& x, const tensor_view<U>& y)
 {
-    return !(x == y);
+    return not(x == y);
 }
 
 template <class T>

@@ -1,7 +1,31 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_C_API_MIGRAPHX_H
 #define MIGRAPHX_GUARD_C_API_MIGRAPHX_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 // Add new types here
 // clang-format off
@@ -106,8 +130,18 @@ typedef const struct migraphx_context* const_migraphx_context_t;
 typedef struct migraphx_experimental_custom_op* migraphx_experimental_custom_op_t;
 typedef const struct migraphx_experimental_custom_op* const_migraphx_experimental_custom_op_t;
 
+typedef migraphx_status (*migraphx_experimental_custom_op_compute)(migraphx_argument_t out,
+                                                                   void* obj,
+                                                                   char* exception_msg,
+                                                                   size_t exception_msg_size,
+                                                                   migraphx_context_t ctx,
+                                                                   migraphx_shape_t output,
+                                                                   migraphx_arguments_t inputs);
+
 typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraphx_shape_t out,
                                                                          void* obj,
+                                                                         char* exception_msg,
+                                                                         size_t exception_msg_size,
                                                                          migraphx_shapes_t inputs);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_copy)(void** out, void* input);
@@ -145,6 +179,8 @@ migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape);
 
 migraphx_status
 migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_shape_t x);
+
+migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape);
 
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
@@ -271,6 +307,10 @@ migraphx_status migraphx_module_add_parameter(migraphx_instruction_t* out,
 migraphx_status migraphx_module_add_return(migraphx_instruction_t* out,
                                            migraphx_module_t module,
                                            migraphx_instructions_t args);
+
+migraphx_status migraphx_module_add_allocation(migraphx_instruction_t* out,
+                                               migraphx_module_t module,
+                                               const_migraphx_shape_t s);
 
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
 
@@ -452,7 +492,12 @@ migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experi
                                        void* obj,
                                        migraphx_experimental_custom_op_copy c,
                                        migraphx_experimental_custom_op_delete d,
+                                       const char* obj_typename,
                                        const char* name);
+
+migraphx_status
+migraphx_experimental_custom_op_set_compute(migraphx_experimental_custom_op_t obj,
+                                            migraphx_experimental_custom_op_compute input);
 
 migraphx_status migraphx_experimental_custom_op_set_compute_shape(
     migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input);

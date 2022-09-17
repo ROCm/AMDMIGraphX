@@ -1,7 +1,31 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
 #include "migraphx.h"
+#include <cstring>
 #include <initializer_list>
 #include <migraphx/migraphx.h>
 #include <memory>
@@ -34,6 +58,42 @@ template <>
 struct rank<0>
 {
 };
+
+template <class PrivateMigraphTypeNameProbe>
+std::string compute_type_name()
+{
+    std::string name;
+#ifdef _MSC_VER
+    name = typeid(PrivateMigraphTypeNameProbe).name();
+    name = name.substr(7);
+#else
+    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
+
+    name = __PRETTY_FUNCTION__;
+
+    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
+#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
+    auto length = name.find_last_of(",") - begin;
+#else
+    auto length = name.find_first_of("];", begin) - begin;
+#endif
+    name        = name.substr(begin, length);
+#endif
+    return name;
+}
+
+template <class T>
+const std::string& get_type_name()
+{
+    static const std::string name = compute_type_name<T>();
+    return name;
+}
+
+template <class T>
+const std::string& get_type_name(const T&)
+{
+    return get_type_name<T>();
+}
 
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
@@ -287,12 +347,21 @@ struct interface_base : Base
 
     protected:
     template <class F>
-    static migraphx_status try_(F f) // NOLINT
+    static migraphx_status try_(F f, char* ex_msg = nullptr, size_t ex_msg_size = 0) // NOLINT
     {
         try
         {
             f();
             return migraphx_status_success;
+        }
+        catch(const std::exception& ex)
+        {
+            if(ex_msg)
+            {
+                std::strncpy(ex_msg, ex.what(), ex_msg_size);
+                ex_msg[ex_msg_size - 1] = '\0';
+            }
+            return migraphx_status_unknown_error;
         }
         catch(...)
         {
@@ -326,9 +395,13 @@ struct interface_base : Base
     {
         static F f = pf;
         (void)f; // avoid warning on gcc
-        call(setter, this->get_handle_ptr(), [](auto... xs) -> migraphx_status {
-            return try_([&] { call_cast_arg<T>(rank<1>{}, f, xs...); });
-        });
+        call(setter,
+             this->get_handle_ptr(),
+             [](auto out, void* obj, char* ex_msg, size_t ex_msg_size, auto... xs)
+                 -> migraphx_status {
+                 return try_(
+                     [&] { call_cast_arg<T>(rank<1>{}, f, out, obj, xs...); }, ex_msg, ex_msg_size);
+             });
     }
 
     template <class T, class Setter, class F>
@@ -378,11 +451,14 @@ struct interface_base : Base
         return x;
     }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     template <class T>
     auto auto_convert_param(rank<1>, T x) -> decltype(as_handle<T>{x})
     {
         return as_handle<T>{x};
     }
+#pragma GCC diagnostic pop
 
     template <class T>
     auto auto_convert_param(rank<2>, T x) -> decltype(as_handle<T>{x, borrow{}})
@@ -441,7 +517,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     shape(const migraphx_shape* p) { this->set_handle(p, borrow{}); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(shape);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(shape)
 
     /// Construct a scalar shape
     shape(migraphx_shape_datatype_t type)
@@ -498,6 +574,13 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
+    bool standard() const
+    {
+        bool result = false;
+        call(&migraphx_shape_standard, &result, this->get_handle_ptr());
+        return result;
+    }
+
     friend bool operator==(const shape& px, const shape& py)
     {
         bool pout;
@@ -505,7 +588,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
-    friend bool operator!=(const shape& px, const shape& py) { return !(px == py); }
+    friend bool operator!=(const shape& px, const shape& py) { return not(px == py); }
 };
 
 /**
@@ -518,7 +601,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 {
     argument() {}
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(argument);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(argument)
 
     MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     argument(const migraphx_argument* p) { this->set_handle(p, borrow{}); }
@@ -542,6 +625,14 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return pout;
     }
 
+    template <typename T>
+    std::vector<T> as_vector() const
+    {
+        size_t vector_len = this->get_shape().bytes() / sizeof(T);
+        T* buffer_ptr     = reinterpret_cast<T*>(this->data());
+        return {buffer_ptr, buffer_ptr + vector_len};
+    }
+
     /// Generate an argument using random data
     static argument generate(shape ps, size_t pseed = 0)
     {
@@ -556,7 +647,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return pout;
     }
 
-    friend bool operator!=(const argument& px, const argument& py) { return !(px == py); }
+    friend bool operator!=(const argument& px, const argument& py) { return not(px == py); }
 };
 
 /// A target for compilation
@@ -564,7 +655,7 @@ struct target : MIGRAPHX_HANDLE_BASE(target)
 {
     target() {}
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(target);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(target)
 
     /// Construct a target from its name
     target(const char* name) { this->make_handle(&migraphx_target_create, name); }
@@ -574,7 +665,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
 {
     program_parameter_shapes() {}
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(program_parameter_shapes);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program_parameter_shapes)
 
     size_t size() const
     {
@@ -593,7 +684,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
     std::vector<const char*> names() const
     {
         std::vector<const char*> result(this->size());
-        if(!result.empty())
+        if(not result.empty())
         {
             call(&migraphx_program_parameter_shapes_names, result.data(), this->get_handle_ptr());
         }
@@ -604,7 +695,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
 /// A class to construct the inputs parameters for a program
 struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(program_parameters);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program_parameters)
 
     MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     program_parameters(migraphx_program_parameters* p) { this->set_handle(p, borrow{}); }
@@ -631,7 +722,7 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 
 struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(arguments);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(arguments)
 
     size_t size() const
     {
@@ -650,7 +741,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 
 struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(shapes);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(shapes)
 
     size_t size() const
     {
@@ -669,7 +760,7 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 
 struct operation : MIGRAPHX_HANDLE_BASE(operation)
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(operation);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(operation)
 
     template <class... Ts>
     operation(const char* name, const char* attributes = nullptr, Ts... xs)
@@ -687,12 +778,12 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
 
 struct instruction : MIGRAPHX_CONST_HANDLE_BASE(instruction)
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(instruction);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(instruction)
 };
 
 struct instructions : MIGRAPHX_HANDLE_BASE(instructions)
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(instructions);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(instructions)
 
     template <class... Ts>
     instructions(Ts... xs)
@@ -706,7 +797,7 @@ struct module;
 
 struct modules : MIGRAPHX_HANDLE_BASE(modules)
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(modules);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(modules)
 
     template <class... Ts>
     modules(Ts... xs)
@@ -779,13 +870,20 @@ struct module
         return instruction(ret_ins, own{});
     }
 
+    instruction add_allocation(const migraphx::shape& s)
+    {
+        migraphx_instruction_t ret_ins;
+        call(&migraphx_module_add_allocation, &ret_ins, mm.get(), s.get_handle_ptr());
+        return instruction(ret_ins, own{});
+    }
+
     migraphx_module_t get_handle_ptr() const { return mm.get(); }
 
     private:
     std::shared_ptr<migraphx_module> mm;
 };
 
-struct context
+struct context : handle_lookup<context, migraphx_context>
 {
     context(migraphx_context* p, borrow) : ctx(std::shared_ptr<migraphx_context*>(), p) {}
 
@@ -813,7 +911,7 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 {
     compile_options() { this->make_handle(&migraphx_compile_options_create); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(compile_options);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(compile_options)
 
     /// For targets with offloaded memory(such as the gpu), this will insert
     /// instructions during compilation to copy the input parameters to the
@@ -837,7 +935,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 {
     program() { this->make_handle(&migraphx_program_create); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(program);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program)
 
     /// Compile the program for a specific target to be ran on
     void compile(const target& ptarget, const compile_options& poptions) const
@@ -917,13 +1015,13 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return module{p_modu, this->share_handle()};
     }
 
-    friend bool operator!=(const program& px, const program& py) { return !(px == py); }
+    friend bool operator!=(const program& px, const program& py) { return not(px == py); }
 };
 
 // options for migraphx file format options
 struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
 {
-    MIGRAPHX_HANDLE_CONSTRUCTOR(file_options);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(file_options)
     file_options() { this->make_handle(&migraphx_file_options_create); }
 
     // set file format
@@ -965,7 +1063,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
     onnx_options() { this->make_handle(&migraphx_onnx_options_create); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(onnx_options);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(onnx_options)
 
     /// Make onnx parser treat an inputs with a certain dimensions
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
@@ -1047,7 +1145,7 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 {
     tf_options() { this->make_handle(&migraphx_tf_options_create); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(tf_options);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(tf_options)
 
     /// Make tf parser treat an inputs with a certain dimensions
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
@@ -1100,7 +1198,7 @@ struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {
     quantize_op_names() { this->make_handle(&migraphx_quantize_op_names_create); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(quantize_op_names);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(quantize_op_names)
 
     void add(const std::string& name)
     {
@@ -1125,7 +1223,7 @@ struct quantize_int8_options : MIGRAPHX_HANDLE_BASE(quantize_int8_options)
 {
     quantize_int8_options() { this->make_handle(&migraphx_quantize_int8_options_create); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(quantize_int8_options);
+    MIGRAPHX_HANDLE_CONSTRUCTOR(quantize_int8_options)
 
     /// Add an operator that should be quantized
     void add_op_name(const std::string& name)
@@ -1154,9 +1252,10 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
 
 struct experimental_custom_op_base
 {
-    virtual std::string name() const                 = 0;
-    virtual shape compute_shape(shapes inputs) const = 0;
-    virtual ~experimental_custom_op_base()           = default;
+    virtual std::string name() const                                            = 0;
+    virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
+    virtual shape compute_shape(shapes inputs) const                            = 0;
+    virtual ~experimental_custom_op_base()                                      = default;
 };
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
@@ -1164,8 +1263,12 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     template <class T>
     experimental_custom_op(T& obj)
     {
-        this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
+        this->make_interface(&migraphx_experimental_custom_op_create,
+                             obj,
+                             get_type_name(obj).c_str(),
+                             obj.name().c_str());
         MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
+        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute);
     }
 
     void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }

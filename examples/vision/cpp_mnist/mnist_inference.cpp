@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -28,16 +51,16 @@ int main(int argc, char** argv)
 
     char** begin   = argv + 1;
     char** end     = argv + argc;
-    const bool CPU = (std::find(begin, end, std::string("-c")) != end) ||
+    const bool CPU = (std::find(begin, end, std::string("-c")) != end) or
                      std::find(begin, end, std::string("--cpu")) != end;
-    const bool GPU = std::find(begin, end, std::string("-g")) != end ||
+    const bool GPU = std::find(begin, end, std::string("-g")) != end or
                      std::find(begin, end, std::string("--gpu")) != end;
-    const bool FP16 = std::find(begin, end, std::string("-f")) != end ||
+    const bool FP16 = std::find(begin, end, std::string("-f")) != end or
                       std::find(begin, end, std::string("--fp16")) != end;
-    const bool INT8 = std::find(begin, end, std::string("-i")) != end ||
+    const bool INT8 = std::find(begin, end, std::string("-i")) != end or
                       std::find(begin, end, std::string("--int8")) != end;
     const bool CALIB = std::find(begin, end, std::string("--cal")) != end;
-    const bool PRINT = std::find(begin, end, std::string("-p")) != end ||
+    const bool PRINT = std::find(begin, end, std::string("-p")) != end or
                        std::find(begin, end, std::string("--print")) != end;
 
     migraphx::program prog;
@@ -159,7 +182,7 @@ void read_nth_digit(const int n, std::vector<float>& digit)
     const int HEIGHT = 28;
     const int WIDTH  = 28;
 
-    if(!file.is_open())
+    if(not file.is_open())
     {
         return;
     }

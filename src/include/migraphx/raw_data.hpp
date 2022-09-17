@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #ifndef MIGRAPHX_GUARD_RAW_DATA_HPP
 #define MIGRAPHX_GUARD_RAW_DATA_HPP
@@ -124,7 +147,7 @@ struct raw_data : raw_data_base
         template <class T>
         bool matches() const
         {
-            return is_data_ptr<T>{} ||
+            return is_data_ptr<T>{} or
                    self->get_shape().type() == migraphx::shape::get_type<get_data_type<T>>{};
         }
 
@@ -209,7 +232,7 @@ auto visit_all(T&& x, Ts&&... xs)
 {
     auto&& s                                   = x.get_shape();
     std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
-    if(!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
+    if(not std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
     return [&](auto... vs) { detail::visit_all_pack(s, vs...)(x, xs...); };
 }
@@ -218,7 +241,7 @@ template <class T>
 auto visit_all(const std::vector<T>& x)
 {
     auto&& s = x.front().get_shape();
-    if(!std::all_of(
+    if(not std::all_of(
            x.begin(), x.end(), [&](const T& y) { return y.get_shape().type() == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
     return [&](auto v) {
@@ -258,7 +281,7 @@ template <class T,
                             std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {
-    return !(x == y);
+    return not(x == y);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

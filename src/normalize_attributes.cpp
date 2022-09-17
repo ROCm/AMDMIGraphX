@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/operation.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/normalize_attributes.hpp>
@@ -56,14 +79,14 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(contains(vec_attrs, op::normalize_attribute::include_max))
         {
-            if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
+            if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
         }
         else
         {
-            if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{}))
+            if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
@@ -95,14 +118,15 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(contains(vec_attrs, op::normalize_attribute::include_min))
         {
-            if(!std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
+            if(not std::equal(
+                   min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
         }
         else
         {
-            if(!std::equal(result.begin(), result.end(), min_vals.begin(), std::less<>{}))
+            if(not std::equal(result.begin(), result.end(), min_vals.begin(), std::less<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
@@ -151,7 +175,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             tuned = true;
         }
     }
-    if(!attrs.contains("normalize_axes"))
+    if(not attrs.contains("normalize_axes"))
     {
         return tuned;
     }

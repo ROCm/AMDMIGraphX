@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <cassert>
 #include <iostream>
 #include <migraphx/cloneable.hpp>
@@ -377,7 +400,7 @@ std::pair<value*, bool> value::insert(const value& v)
 {
     if(v.key.empty())
     {
-        if(!x)
+        if(not x)
             x = std::make_shared<array_value_holder>();
         get_array_impl(x).push_back(v);
         assert(this->if_array());
@@ -385,7 +408,7 @@ std::pair<value*, bool> value::insert(const value& v)
     }
     else
     {
-        if(!x)
+        if(not x)
             x = std::make_shared<object_value_holder>();
         auto p = x->if_object()->emplace(v.key, get_array_impl(x).size());
         if(p.second)
@@ -397,7 +420,7 @@ std::pair<value*, bool> value::insert(const value& v)
 value* value::insert(const value* pos, const value& v)
 {
     assert(v.key.empty());
-    if(!x)
+    if(not x)
         x = std::make_shared<array_value_holder>();
     auto&& a = get_array_impl(x);
     auto it  = a.insert(a.begin() + (pos - begin()), v);
@@ -443,7 +466,7 @@ bool compare(const value& x, const value& y, F f)
 
 value::type_t value::get_type() const
 {
-    if(!x)
+    if(not x)
         return null_type;
     return x->get_type();
 }

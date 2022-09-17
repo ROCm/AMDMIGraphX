@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/instruction_ref.hpp"
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/target.hpp>

@@ -14,7 +14,7 @@ inline migraphx::operation make_preallocate_op(migraphx::rank<1>, const std::str
     return make_preallocate_op(migraphx::rank<0>{}, migraphx::make_op(name));
 }
 
-template<class T>
+template <class T>
 auto make_preallocate_op(const T& x)
 {
     return make_preallocate_op(migraphx::rank<1>{}, x);

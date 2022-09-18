@@ -188,21 +188,23 @@ TEST_CASE(quant_dot_trans)
         // back result to int8
         auto tl1_convert_alloc = m.add_instruction(migraphx::make_op(
             "hip::allocate", {{"shape", migraphx::to_value(alpha_contiguous->get_shape())}}));
-        auto tl1_convert       = m.add_instruction(
-            make_preallocate_op(migraphx::make_op("convert", {{"target_type", alpha->get_shape().type()}})),
-            conta,
-            tl1_convert_alloc);
-        auto mul_alloc       = m.add_instruction(migraphx::make_op(
+        auto tl1_convert =
+            m.add_instruction(make_preallocate_op(migraphx::make_op(
+                                  "convert", {{"target_type", alpha->get_shape().type()}})),
+                              conta,
+                              tl1_convert_alloc);
+        auto mul_alloc = m.add_instruction(migraphx::make_op(
             "hip::allocate", {{"shape", migraphx::to_value(tl1_convert->get_shape())}}));
-        auto tl1_alpha_int32 = m.add_instruction(
-            make_preallocate_op("mul"), alpha_contiguous, tl1_convert, mul_alloc);
+        auto tl1_alpha_int32 =
+            m.add_instruction(make_preallocate_op("mul"), alpha_contiguous, tl1_convert, mul_alloc);
         // convert mul_res to int8
         auto tl1_alpha_int8_alloc = m.add_instruction(migraphx::make_op(
             "hip::allocate", {{"shape", migraphx::to_value(conta->get_shape())}}));
-        auto tl1_alpha_int8       = m.add_instruction(
-            make_preallocate_op(migraphx::make_op("convert", {{"target_type", conta->get_shape().type()}})),
-            tl1_alpha_int32,
-            tl1_alpha_int8_alloc);
+        auto tl1_alpha_int8 =
+            m.add_instruction(make_preallocate_op(migraphx::make_op(
+                                  "convert", {{"target_type", conta->get_shape().type()}})),
+                              tl1_alpha_int32,
+                              tl1_alpha_int8_alloc);
 
         auto packb = contb;
         if(int8_x4)
@@ -397,14 +399,15 @@ TEST_CASE(quant_dot_trans_pad)
         // back result to int8
         auto tl1_convert_alloc = m.add_instruction(migraphx::make_op(
             "hip::allocate", {{"shape", migraphx::to_value(alpha_contiguous->get_shape())}}));
-        auto tl1_convert       = m.add_instruction(
-            make_preallocate_op(migraphx::make_op("convert", {{"target_type", alpha->get_shape().type()}})),
-            conta,
-            tl1_convert_alloc);
-        auto mul_alloc       = m.add_instruction(migraphx::make_op(
+        auto tl1_convert =
+            m.add_instruction(make_preallocate_op(migraphx::make_op(
+                                  "convert", {{"target_type", alpha->get_shape().type()}})),
+                              conta,
+                              tl1_convert_alloc);
+        auto mul_alloc = m.add_instruction(migraphx::make_op(
             "hip::allocate", {{"shape", migraphx::to_value(tl1_convert->get_shape())}}));
-        auto tl1_alpha_int32 = m.add_instruction(
-            make_preallocate_op("mul"), alpha_contiguous, tl1_convert, mul_alloc);
+        auto tl1_alpha_int32 =
+            m.add_instruction(make_preallocate_op("mul"), alpha_contiguous, tl1_convert, mul_alloc);
         // convert mul_res to int8
         auto tl1_alpha_int8_alloc = m.add_instruction(migraphx::make_op(
             "hip::allocate", {{"shape", migraphx::to_value(conta->get_shape())}}));
@@ -416,10 +419,11 @@ TEST_CASE(quant_dot_trans_pad)
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps1)}}));
         }
 
-        auto tl1_alpha_int8 = m.add_instruction(
-            make_preallocate_op(migraphx::make_op("convert", {{"target_type", conta->get_shape().type()}})),
-            tl1_alpha_int32,
-            tl1_alpha_int8_alloc);
+        auto tl1_alpha_int8 =
+            m.add_instruction(make_preallocate_op(migraphx::make_op(
+                                  "convert", {{"target_type", conta->get_shape().type()}})),
+                              tl1_alpha_int32,
+                              tl1_alpha_int8_alloc);
 
         auto pa = tl1_alpha_int8;
         if(int8_x4)

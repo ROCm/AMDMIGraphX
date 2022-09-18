@@ -120,8 +120,7 @@ TEST_CASE(quant_dot)
             m.add_instruction(migraphx::make_op("gpu::contiguous"), beta_broadcast, beta_alloc);
         auto mul_alloc = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m3_shape)}}));
-        auto m3_beta =
-            m.add_instruction(make_precompile_op("mul"), l3, beta_contiguous, mul_alloc);
+        auto m3_beta = m.add_instruction(make_precompile_op("mul"), l3, beta_contiguous, mul_alloc);
         auto gemm_add = m.add_instruction(make_precompile_op("add"), gemm, m3_beta, output);
         m.add_return({gemm_add});
 
@@ -312,8 +311,7 @@ TEST_CASE(quant_dot_pad)
             m.add_instruction(migraphx::make_op("gpu::contiguous"), beta_broadcast, beta_alloc);
         auto mul_alloc = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s3)}}));
-        auto m3_beta =
-            m.add_instruction(make_precompile_op("mul"), l3, beta_contiguous, mul_alloc);
+        auto m3_beta = m.add_instruction(make_precompile_op("mul"), l3, beta_contiguous, mul_alloc);
         auto gemm_add = m.add_instruction(make_precompile_op("add"), gemm, m3_beta, output);
         m.add_return({gemm_add});
         return m;

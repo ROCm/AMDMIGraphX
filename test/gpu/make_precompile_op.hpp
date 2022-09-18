@@ -5,23 +5,23 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 
-#define MIGRAPHX_GPU_TEST_PRECOMPILE(...) \
-struct test_compiler : migraphx::gpu::compiler<test_compiler> \
-{ \
-    std::vector<std::string> names() const { return {__VA_ARGS__}; } \
- \
-    template<class... Ts> \
-    migraphx::operation compile_op(Ts&&...) const \
-    { \
-        MIGRAPHX_THROW("Not compilable"); \
-    } \
- \
-    template<class... Ts> \
-    migraphx::gpu::compiler_replace compile(Ts&&...) const \
-    { \
-        MIGRAPHX_THROW("Not compilable"); \
-    } \
-};
+#define MIGRAPHX_GPU_TEST_PRECOMPILE(...)                                \
+    struct test_compiler : migraphx::gpu::compiler<test_compiler>        \
+    {                                                                    \
+        std::vector<std::string> names() const { return {__VA_ARGS__}; } \
+                                                                         \
+        template <class... Ts>                                           \
+        migraphx::operation compile_op(Ts&&...) const                    \
+        {                                                                \
+            MIGRAPHX_THROW("Not compilable");                            \
+        }                                                                \
+                                                                         \
+        template <class... Ts>                                           \
+        migraphx::gpu::compiler_replace compile(Ts&&...) const           \
+        {                                                                \
+            MIGRAPHX_THROW("Not compilable");                            \
+        }                                                                \
+    };
 
 inline migraphx::operation make_precompile_op(migraphx::rank<0>, const migraphx::operation& op)
 {

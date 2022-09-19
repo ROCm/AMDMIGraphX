@@ -87,8 +87,13 @@ struct find_mul_conv
 
         auto is_broadcasted_axis = [](auto len, auto stride) { return len == 1 or stride == 0; };
 
-        if(a_strides.at(1) != 1 or not is_broadcasted_axis(a_lens.front(), a_strides.front()) or
-           not std::equal(a_lens.begin() + 2,
+        if(a_strides.at(1) != 1)
+            return;
+
+        if(not is_broadcasted_axis(a_lens.front(), a_strides.front()))
+            return;
+
+        if(not std::equal(a_lens.begin() + 2,
                           a_lens.end(),
                           a_strides.begin() + 2,
                           a_strides.end(),

@@ -259,7 +259,7 @@ struct hip_add_relu : binary_device<hip_add_relu, &device::add_relu>
 };
 MIGRAPHX_REGISTER_OP(hip_add_relu)
 
-struct hip_add_sigmoid : binary_device<hip_add_relu, &device::add_sigmoid>
+struct hip_add_sigmoid : binary_device<hip_add_sigmoid, &device::add_sigmoid>
 {
 };
 MIGRAPHX_REGISTER_OP(hip_add_sigmoid)

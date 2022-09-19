@@ -47,6 +47,13 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         auto x_lens = args[0]->get_shape().lens();
         auto x_type = args[0]->get_shape().type();
 
+        if(std::any_of(args.cbegin() + 1, args.cend(), [](auto a) {
+               return a->get_shape().lens().size() != 1;
+           }))
+        {
+            MIGRAPHX_THROW("PARSE_BATCHNORM: argument scale, bias, mean, or var rank != 1");
+        }
+
         if(x_lens.size() == 1)
         {
             auto rt   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});

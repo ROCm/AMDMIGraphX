@@ -492,6 +492,11 @@ TEST_CASE(batch_norm_invalid_rank)
     EXPECT(test::throws([&] { migraphx::parse_onnx("batch_norm_invalid_rank.onnx"); }));
 }
 
+TEST_CASE(batch_norm_invalid_bias_rank)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("batch_norm_invalid_bias_rank.onnx"); }));
+}
+
 TEST_CASE(cast_test)
 {
     migraphx::program p;

@@ -402,6 +402,23 @@ def batch_norm_invalid_rank_test():
 
 
 @onnx_test
+def batch_norm_invalid_bias_rank_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [3, 1])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [3])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [3])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 4])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'])
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
 def cast_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])

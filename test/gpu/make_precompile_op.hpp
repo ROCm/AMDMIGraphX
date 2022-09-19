@@ -5,6 +5,7 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_GPU_TEST_PRECOMPILE(...)                                \
     struct test_compiler : migraphx::gpu::compiler<test_compiler>        \
     {                                                                    \

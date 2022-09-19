@@ -1,12 +1,11 @@
-batch_norm_3d_test:‹
-^
+batch_norm_3d_test:÷
+J
 x
 scale
 bias
 mean
 variancey"BatchNormalization*
-epsilon½7†5 *
-momentumfff? batch_norm_3d_testZ
+epsilon½7†5 batch_norm_3d_testZ
 x
 
 

@@ -343,8 +343,7 @@ def batch_norm_1d_test():
     node = onnx.helper.make_node(
         'BatchNormalization',
         inputs=['x', 'scale', 'bias', 'mean', 'variance'],
-        outputs=['y'],
-        momentum=0.9)
+        outputs=['y'])
 
     return ([node], [x, scale, bias, mean, var], [out])
 
@@ -380,8 +379,7 @@ def batch_norm_3d_test():
         'BatchNormalization',
         inputs=['x', 'scale', 'bias', 'mean', 'variance'],
         outputs=['y'],
-        epsilon=1e-6,
-        momentum=0.9)
+        epsilon=1e-6)
 
     return ([node], [x, scale, bias, mean, var], [out])
 
@@ -398,8 +396,7 @@ def batch_norm_invalid_rank_test():
     node = onnx.helper.make_node(
         'BatchNormalization',
         inputs=['x', 'scale', 'bias', 'mean', 'variance'],
-        outputs=['y'],
-        momentum=0.9)
+        outputs=['y'])
 
     return ([node], [x, scale, bias, mean, var], [out])
 

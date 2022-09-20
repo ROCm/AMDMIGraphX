@@ -265,15 +265,20 @@ struct experimental_custom_op
 template <class CustomOp>
 struct custom_operation
 {
+    
     template <class Self, class F>
     static auto reflect(Self&, F)
     {
         return pack();
     }
-    CustomOp op;
-    bool custom_op     = true;
-    std::string target = op.runs_on_offload_target() ? "gpu" : "cpu";
 
+    value attributes() const
+    {
+        return {{"custom_op", true}, {"target", target}};
+    }
+
+    CustomOp op;
+    std::string target =  op.runs_on_offload_target() ? "gpu" : "cpu";
     std::string name() const { return op.xobject.name; }
 
     shape compute_shape(std::vector<shape> inputs) const

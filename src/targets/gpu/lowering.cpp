@@ -240,18 +240,18 @@ struct miopen_apply
             {
                 check_shape(s, insert_precompile_op(it));
             }
-            else if(attrs.contains("custom_op") and attrs["custom_op"].get_bool())
+            else if(attrs.contains("custom_op"))
             {
-                check_shape(s, insert_custom_op(it));
+                check_shape(s, insert_custom_op(it, attrs));
             }
         }
         copy_params();
     }
 
-    instruction_ref insert_custom_op(instruction_ref ins) const
+    instruction_ref insert_custom_op(instruction_ref ins, value& attrs) const
     {
         const auto& custom_op = ins->get_operator();
-        if(custom_op.attributes()["target"] == "cpu")
+        if(attrs["target"] == "cpu")
         {
             auto s = ins->get_shape();
             std::vector<instruction_ref> cpu_inputs;

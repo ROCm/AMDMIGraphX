@@ -32,6 +32,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_FAST_SOFTMAX)
+
 using namespace migraphx::gpu::gen; // NOLINT
 
 static const char* const softmax_kernel = R"__migraphx__(
@@ -80,6 +82,9 @@ struct softmax_compiler : compiler<softmax_compiler>
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = "softmax_kernel";
+
+        if(enabled(MIGRAPHX_USE_FAST_SOFTMAX{}))
+            options.params = "-DMIGRAPHX_USE_FAST_SOFTMAX";
 
         auto src = interpolate_string(
             softmax_kernel,

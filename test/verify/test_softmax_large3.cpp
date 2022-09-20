@@ -21,29 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
-#define MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
 
-#include <migraphx/kernels/reduce.hpp>
-#include <migraphx/kernels/ops.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/common.hpp>
 
-namespace migraphx {
-
-template <index_int Axis, class Input, class Output>
-__device__ void softmax(Input input, Output output)
+struct test_softmax_large3 : verify_program<test_softmax_large3>
 {
-    reduce::block::run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
-#ifdef MIGRAPHX_USE_FAST_SOFTMAX
-        const auto c = vec_at(r.slice(input)[0], 0);
-#else
-        const auto c = r.reduce(op::max{}, lowest{}, op::id{})(input);
-#endif
-        auto batch_sum = r.reduce(op::sum{}, 0, [&](auto x) {
-            return migraphx::convert<float>(migraphx::exp(x - c));
-        })(input);
-        r.inner([&](auto& y, auto x) { y = migraphx::exp(x - c) / batch_sum; })(output, input);
-    });
-}
-
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+        auto large = mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {100}});
+        auto add   = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {x, large});
+        mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), add);
+        return p;
+    }
+};

@@ -272,7 +272,10 @@ struct custom_operation
         return pack();
     }
 
-    value attributes() const { return {{"custom_op", true}, {"target", op.runs_on_offload_target() ? "gpu" : "cpu"}}; }
+    value attributes() const
+    {
+        return {{"custom_op", true}, {"target", op.runs_on_offload_target() ? "gpu" : "cpu"}};
+    }
 
     CustomOp op;
     std::string name() const { return op.xobject.name; }

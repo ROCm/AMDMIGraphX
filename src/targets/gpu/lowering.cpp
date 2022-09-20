@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/errors.hpp"
 #include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -230,6 +231,7 @@ struct miopen_apply
         for(auto it = mod->begin(); it != mod->end(); it++)
         {
             auto s = it->get_shape();
+            auto attrs = it->get_operator().attributes();
             if(apply_map.count(it->name()) > 0)
             {
                 check_shape(s, apply_map.at(it->name())(it));
@@ -238,20 +240,18 @@ struct miopen_apply
             {
                 check_shape(s, insert_precompile_op(it));
             }
-            else if(it->get_operator().has_offload_copy()) // custom op
+            else if(attrs.contains("custom_op"))
             {
                 check_shape(s, insert_custom_op(it));
-            }
+            }        
         }
-
         copy_params();
     }
 
     instruction_ref insert_custom_op(instruction_ref ins) const
     {
         const auto& custom_op = ins->get_operator();
-        if(not custom_op.runs_on_offload_target())
-        {
+        if(custom_op.attributes()["target"] == "cpu") {
             auto s = ins->get_shape();
             std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();
@@ -267,7 +267,6 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
             return mod->replace_instruction(ins, gpu_out);
         }
-
         return ins;
     }
 

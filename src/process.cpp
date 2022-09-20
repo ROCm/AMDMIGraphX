@@ -50,7 +50,7 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
     {
         // TODO: Use execve instead of popen
         std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), "r"), closer); // NOLINT
-        if(!pipe)
+        if(not pipe)
             MIGRAPHX_THROW("popen() failed: " + cmd);
         std::array<char, 128> buffer;
         while(fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)

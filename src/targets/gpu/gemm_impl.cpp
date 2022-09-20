@@ -112,7 +112,7 @@ void gemm_impl(context& ctx,
                bool compute_fp32)
 {
     const bool is_3inputs = (args.size() == 4);
-    if(!is_3inputs)
+    if(not is_3inputs)
     {
         beta = 0;
     }
@@ -176,8 +176,13 @@ void gemm_impl(context& ctx,
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-        if(num_matrices == 1)
+        if(num_matrices == 1 or (num_matrices > 1 and get_batch_stride(args[1]) == 0))
         {
+            // If the batch dimension of B is broadcasted, then we can
+            // multiply m by the batch_size and use rocblas_gemm_ex
+            // instead of rocblas_gemm_strided_batched_ex.
+            m *= num_matrices;
+
             // the rocblas_gemm API handles inputs and output matrices as
             // column-major format. When doing a C = A * B, we actually do
             // C^T = (B^T) * (A^T). That is the reason we input args[1] as

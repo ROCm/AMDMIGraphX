@@ -176,13 +176,13 @@ bool operator==(const instruction& x, const instruction& y)
     return true;
 }
 
-bool operator!=(const instruction& x, const instruction& y) { return !(x == y); }
+bool operator!=(const instruction& x, const instruction& y) { return not(x == y); }
 
 bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
-bool operator!=(const instruction& i, instruction_ref ref) { return !(i == ref); }
+bool operator!=(const instruction& i, instruction_ref ref) { return not(i == ref); }
 
-bool operator!=(instruction_ref ref, const instruction& i) { return !(i == ref); }
+bool operator!=(instruction_ref ref, const instruction& i) { return not(i == ref); }
 
 void instruction::add_output(instruction_ref ins)
 {
@@ -361,7 +361,7 @@ void instruction::print(std::ostream& os,
             os << "{" << ins->get_literal() << "}";
     }
 
-    if(!ins->inputs().empty())
+    if(not ins->inputs().empty())
     {
         char delim = '(';
         for(auto&& arg : ins->inputs())
@@ -374,7 +374,7 @@ void instruction::print(std::ostream& os,
     }
 
     // print module inputs
-    if(!ins->module_inputs().empty())
+    if(not ins->module_inputs().empty())
     {
         std::string delim = ", [";
         for(auto&& mod_arg : ins->module_inputs())
@@ -446,7 +446,7 @@ operation instruction::normalized_operator() const
     if(this->need_normalization())
     {
         auto s = this->inputs().front()->get_shape();
-        if(!normalize_attributes(o, s.max_lens()))
+        if(not normalize_attributes(o, s.max_lens()))
             return this->get_operator();
     }
     return o;

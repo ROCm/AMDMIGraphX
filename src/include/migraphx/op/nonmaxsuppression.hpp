@@ -266,7 +266,7 @@ struct nonmaxsuppression
             auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold
-            while(!boxes_heap.empty() &&
+            while(not boxes_heap.empty() &&
                   selected_boxes_inside_class.size() < max_output_boxes_per_class)
             {
                 // Check with existing selected boxes for this class, remove box if it

@@ -71,7 +71,7 @@ static bool try_compute_shape(instruction_ref ins,
                 return (arg == ins) ? new_shape : arg->get_shape();
             });
 
-            if(!try_compute_shape(output, input_shapes, mods))
+            if(not try_compute_shape(output, input_shapes, mods))
             {
                 return false;
             }

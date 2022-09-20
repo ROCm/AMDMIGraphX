@@ -86,7 +86,7 @@ struct concat
         {
             if(l != axis)
             {
-                if(!std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
+                if(not std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
                        return s.lens()[l] == first_shape_lens[l];
                    }))
                 {

@@ -219,7 +219,7 @@ struct module
 
     friend std::ostream& operator<<(std::ostream& os, const module& m);
     friend bool operator==(const module& x, const module& y);
-    friend bool operator!=(const module& x, const module& y) { return !(x == y); }
+    friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     private:
     void assign(const module& m);

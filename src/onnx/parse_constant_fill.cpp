@@ -93,7 +93,7 @@ struct parse_constant_fill : op_parser<parse_constant_fill>
         }
         else if(input_as_shape == 0)
         {
-            if(!contains(info.attributes, "shape"))
+            if(not contains(info.attributes, "shape"))
             {
                 MIGRAPHX_THROW("ConstantFill: attribute output shape is needed");
             }

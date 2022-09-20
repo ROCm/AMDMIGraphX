@@ -65,7 +65,7 @@ struct gather
         auto lens = inputs[0].lens();
         auto type = inputs[0].type();
         lens.erase(lens.begin() + axis);
-        if(!inputs[1].scalar())
+        if(not inputs[1].scalar())
         {
             auto ind_lens = inputs[1].lens();
             lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());

@@ -147,7 +147,7 @@ struct raw_data : raw_data_base
         template <class T>
         bool matches() const
         {
-            return is_data_ptr<T>{} ||
+            return is_data_ptr<T>{} or
                    self->get_shape().type() == migraphx::shape::get_type<get_data_type<T>>{};
         }
 
@@ -232,7 +232,7 @@ auto visit_all(T&& x, Ts&&... xs)
 {
     auto&& s                                   = x.get_shape();
     std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
-    if(!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
+    if(not std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
     return [&](auto... vs) { detail::visit_all_pack(s, vs...)(x, xs...); };
 }
@@ -241,7 +241,7 @@ template <class T>
 auto visit_all(const std::vector<T>& x)
 {
     auto&& s = x.front().get_shape();
-    if(!std::all_of(
+    if(not std::all_of(
            x.begin(), x.end(), [&](const T& y) { return y.get_shape().type() == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
     return [&](auto v) {
@@ -281,7 +281,7 @@ template <class T,
                             std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {
-    return !(x == y);
+    return not(x == y);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

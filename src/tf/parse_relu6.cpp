@@ -41,8 +41,9 @@ struct parse_relu6 : op_parser<parse_relu6>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto min_val = info.add_literal(0.0f);
-        auto max_val = info.add_literal(6.0f);
+        shape::type_t output_type = args[0]->get_shape().type();
+        auto min_val = info.add_literal(migraphx::literal{migraphx::shape{output_type}, {0.0f}});
+        auto max_val = info.add_literal(migraphx::literal{migraphx::shape{output_type}, {6.0f}});
 
         return info.add_common_op("clip", args[0], min_val, max_val);
     }

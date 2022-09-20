@@ -187,7 +187,7 @@ TEST_CASE(print_test)
     std::stringstream ss;
     ss << p;
     std::string s = ss.str();
-    EXPECT(!s.empty());
+    EXPECT(not s.empty());
 }
 
 TEST_CASE(param_test)

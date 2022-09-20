@@ -560,7 +560,7 @@ lifetime get_lifetime_op(const T&)
 
     inline bool operator!=(const operation& x, const operation& y)
 {
-    return !(x == y);
+    return not(x == y);
 }
 
 inline value

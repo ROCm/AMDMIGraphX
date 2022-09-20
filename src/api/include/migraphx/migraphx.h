@@ -82,6 +82,9 @@ typedef const struct migraphx_program_parameter_shapes* const_migraphx_program_p
 typedef struct migraphx_program_parameters* migraphx_program_parameters_t;
 typedef const struct migraphx_program_parameters* const_migraphx_program_parameters_t;
 
+typedef struct migraphx_buffer* migraphx_buffer_t;
+typedef const struct migraphx_buffer* const_migraphx_buffer_t;
+
 typedef struct migraphx_arguments* migraphx_arguments_t;
 typedef const struct migraphx_arguments* const_migraphx_arguments_t;
 
@@ -238,6 +241,17 @@ migraphx_status migraphx_program_parameters_add(migraphx_program_parameters_t pr
                                                 const char* name,
                                                 const_migraphx_argument_t argument);
 
+migraphx_status migraphx_buffer_destroy(migraphx_buffer_t buffer);
+
+migraphx_status migraphx_buffer_assign_to(migraphx_buffer_t output, const_migraphx_buffer_t input);
+
+migraphx_status
+migraphx_buffer_create(migraphx_buffer_t* buffer, const char* data_ptr, size_t size);
+
+migraphx_status migraphx_buffer_size(size_t* out, migraphx_buffer_t buffer);
+
+migraphx_status migraphx_buffer_data(const char** out, migraphx_buffer_t buffer);
+
 migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments);
 
 migraphx_status migraphx_arguments_assign_to(migraphx_arguments_t output,
@@ -366,17 +380,14 @@ migraphx_status
 migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options_t options);
 
 migraphx_status migraphx_load_buffer(migraphx_program_t* out,
-                                     const char* buffer,
-                                     size_t buffer_size,
+                                     const_migraphx_buffer_t buffer,
                                      migraphx_file_options_t options);
 
 migraphx_status
 migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t options);
 
-migraphx_status migraphx_save_buffer(const char** out,
-                                     size_t* out_size,
-                                     migraphx_program_t p,
-                                     migraphx_file_options_t options);
+migraphx_status
+migraphx_save_buffer(migraphx_buffer_t* out, migraphx_program_t p, migraphx_file_options_t options);
 
 migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
 

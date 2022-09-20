@@ -39,6 +39,7 @@
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
 #include <cstdarg>
+#include <type_traits>
 namespace migraphx {
 
 static thread_local bool disable_exception_catch = false; // NOLINT
@@ -110,8 +111,17 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
+template <class T, class = std::enable_if_t<std::is_fundamental<T>{}>>
+auto to_obj_vector(const T* x, std::size_t n)
+{
+    std::vector<T> result;
+    std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y; });
+    return result;
+}
+
 template <class T>
 auto to_obj_vector(const T* x, std::size_t n)
+    -> decltype((*x)->object, std::vector<decltype((*x)->object)>{})
 {
     std::vector<decltype((*x)->object)> result;
     std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y->object; });
@@ -426,6 +436,17 @@ struct migraphx_program_parameters
     {
     }
     std::unordered_map<std::string, migraphx::argument> object;
+};
+
+extern "C" struct migraphx_buffer;
+struct migraphx_buffer
+{
+    template <class... Ts>
+    migraphx_buffer(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::vector<char> object;
 };
 
 extern "C" struct migraphx_arguments;
@@ -982,6 +1003,49 @@ migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_buffer_destroy(migraphx_buffer_t buffer)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((buffer)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_buffer_assign_to(migraphx_buffer_t output,
+                                                     const_migraphx_buffer_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_buffer_create(migraphx_buffer_t* buffer, const char* data_ptr, size_t size)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *buffer = object_cast<migraphx_buffer_t>(
+            allocate<std::vector<char>>(migraphx::to_obj_vector<char>((data_ptr), (size))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_buffer_size(size_t* out, migraphx_buffer_t buffer)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(buffer == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter buffer: Null pointer");
+        *out = (buffer->object).size();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_buffer_data(const char** out, migraphx_buffer_t buffer)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(buffer == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter buffer: Null pointer");
+        *out = (buffer->object).data();
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments)
 {
     auto api_error_result = migraphx::try_([&] { destroy((arguments)); });
@@ -1427,17 +1491,16 @@ migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options_t
 }
 
 extern "C" migraphx_status migraphx_load_buffer(migraphx_program_t* out,
-                                                const char* buffer,
-                                                size_t buffer_size,
+                                                const_migraphx_buffer_t buffer,
                                                 migraphx_file_options_t options)
 {
     auto api_error_result = migraphx::try_([&] {
-        if(buffer == nullptr and buffer_size != 0)
+        if(buffer == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter buffer: Null pointer");
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        *out = allocate<migraphx_program_t>(migraphx::load_buffer(
-            (std::vector<char>(buffer, buffer + buffer_size)), (options->object)));
+        *out = allocate<migraphx_program_t>(
+            migraphx::load_buffer((buffer->object), (options->object)));
     });
     return api_error_result;
 }
@@ -1455,21 +1518,15 @@ migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t op
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_save_buffer(const char** out,
-                                                size_t* out_size,
-                                                migraphx_program_t p,
-                                                migraphx_file_options_t options)
+extern "C" migraphx_status
+migraphx_save_buffer(migraphx_buffer_t* out, migraphx_program_t p, migraphx_file_options_t options)
 {
     auto api_error_result = migraphx::try_([&] {
-        if(out == nullptr or out_size == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
         if(p == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter p: Null pointer");
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        auto&& api_result = migraphx::save_buffer((p->object), (options->object));
-        *out              = api_result.data();
-        *out_size         = api_result.size();
+        *out = allocate<migraphx_buffer_t>(migraphx::save_buffer((p->object), (options->object)));
     });
     return api_error_result;
 }

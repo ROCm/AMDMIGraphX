@@ -39,6 +39,7 @@
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
 #include <cstdarg>
+#include <type_traits>
 namespace migraphx {
 
 static thread_local bool disable_exception_catch = false; // NOLINT
@@ -110,8 +111,16 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
+template <class T, class = std::enable_if_t<std::is_fundamental<T>{}>>
+auto to_obj_vector(const T* x, std::size_t n) 
+{
+    std::vector<T> result;
+    std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y; });
+    return result;
+}
+
 template <class T>
-auto to_obj_vector(const T* x, std::size_t n)
+auto to_obj_vector(const T* x, std::size_t n) -> decltype((*x)->object, std::vector<decltype((*x)->object)>{})
 {
     std::vector<decltype((*x)->object)> result;
     std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y->object; });

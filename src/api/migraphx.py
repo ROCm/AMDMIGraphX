@@ -182,6 +182,15 @@ def program_parameters(h):
              invoke='${program_parameters}[${name}] = ${argument}')
 
 
+@api.handle('migraphx_buffer', 'std::vector<char>')
+def buffer(h):
+    h.constructor('create',
+                  api.params(data_ptr='const char*', size='size_t'),
+                  fname='migraphx::to_obj_vector<char>')
+    h.method('size', returns='size_t')
+    h.method('data', returns='const char*')
+
+
 @api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')
 def arguments(h):
     h.method('size', returns='size_t')
@@ -317,7 +326,7 @@ api.add_function('migraphx_save_buffer',
                  api.params(p='migraphx::program',
                             options='migraphx::file_options'),
                  fname='migraphx::save_buffer',
-                 returns='const std::vector<char>&')
+                 returns='std::vector<char>')
 
 
 @auto_handle()

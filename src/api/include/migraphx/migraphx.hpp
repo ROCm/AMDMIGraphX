@@ -720,6 +720,30 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     }
 };
 
+struct buffer : MIGRAPHX_HANDLE_BASE(buffer), array_base<buffer> {
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(buffer)
+
+    buffer(const char* ptr, size_t size)
+    {
+        this->make_handle(&migraphx_buffer_create, ptr, size);
+    }
+
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_buffer_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    const char* data() const
+    {
+        const char* pout;
+        call(&migraphx_buffer_data, &pout, this->get_handle_ptr());
+        return pout;
+    }
+};
+
 struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(arguments)
@@ -1041,9 +1065,10 @@ inline program load(const char* filename, const file_options& options = file_opt
 // Load a saved migraphx program from buffer
 inline program load_buffer(const std::string& buffer, const file_options& options = file_options{})
 {
+    migraphx::buffer migx_buffer{buffer.data(), buffer.size()};
     return program(
         make<migraphx_program>(
-            &migraphx_load_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
+            &migraphx_load_buffer, migx_buffer.get_handle_ptr(), options.get_handle_ptr()),
         own{});
 }
 
@@ -1057,11 +1082,10 @@ save(const program& p, const char* filename, const file_options& options = file_
 // Save a program to a buffer
 inline std::vector<char> save_buffer(const program& p, const file_options& options = file_options{})
 {
-    const char* buffer;
-    size_t buffer_size;
-    call(
-        &migraphx_save_buffer, &buffer, &buffer_size, p.get_handle_ptr(), options.get_handle_ptr());
-    return {buffer, buffer + buffer_size};
+    migraphx_buffer_t c_buffer;
+    call(&migraphx_save_buffer, &c_buffer, p.get_handle_ptr(), options.get_handle_ptr());
+    migraphx::buffer buffer{c_buffer, own{}};
+    return {buffer.data(), buffer.data() + buffer.size()};
 }
 
 // Options for parsing onnx options

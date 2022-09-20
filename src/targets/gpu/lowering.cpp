@@ -230,7 +230,7 @@ struct miopen_apply
         init();
         for(auto it = mod->begin(); it != mod->end(); it++)
         {
-            auto s = it->get_shape();
+            auto s     = it->get_shape();
             auto attrs = it->get_operator().attributes();
             if(apply_map.count(it->name()) > 0)
             {
@@ -243,7 +243,7 @@ struct miopen_apply
             else if(attrs.contains("custom_op"))
             {
                 check_shape(s, insert_custom_op(it));
-            }        
+            }
         }
         copy_params();
     }
@@ -251,7 +251,8 @@ struct miopen_apply
     instruction_ref insert_custom_op(instruction_ref ins) const
     {
         const auto& custom_op = ins->get_operator();
-        if(custom_op.attributes()["target"] == "cpu") {
+        if(custom_op.attributes()["target"] == "cpu")
+        {
             auto s = ins->get_shape();
             std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();

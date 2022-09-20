@@ -1046,6 +1046,16 @@ extern "C" migraphx_status migraphx_buffer_data(const char** out, migraphx_buffe
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_buffer_get(char* out, migraphx_buffer_t buffer, size_t idx)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(buffer == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter buffer: Null pointer");
+        *out = (buffer->object).at((idx));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments)
 {
     auto api_error_result = migraphx::try_([&] { destroy((arguments)); });

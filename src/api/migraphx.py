@@ -189,6 +189,11 @@ def buffer(h):
                   fname='migraphx::to_obj_vector<char>')
     h.method('size', returns='size_t')
     h.method('data', returns='const char*')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='char')
 
 
 @api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')

@@ -722,7 +722,6 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 
 struct buffer : MIGRAPHX_HANDLE_BASE(buffer), array_base<buffer>
 {
-
     MIGRAPHX_HANDLE_CONSTRUCTOR(buffer)
 
     buffer(const char* ptr, size_t size) { this->make_handle(&migraphx_buffer_create, ptr, size); }
@@ -739,6 +738,13 @@ struct buffer : MIGRAPHX_HANDLE_BASE(buffer), array_base<buffer>
         const char* pout;
         call(&migraphx_buffer_data, &pout, this->get_handle_ptr());
         return pout;
+    }
+
+    char operator[](size_t pidx) const
+    {
+        char pout;
+        call(&migraphx_buffer_get, &pout, this->get_handle_ptr(), pidx);
+        return pout; 
     }
 };
 

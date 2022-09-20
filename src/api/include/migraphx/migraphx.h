@@ -252,6 +252,8 @@ migraphx_status migraphx_buffer_size(size_t* out, migraphx_buffer_t buffer);
 
 migraphx_status migraphx_buffer_data(const char** out, migraphx_buffer_t buffer);
 
+migraphx_status migraphx_buffer_get(char* out, migraphx_buffer_t buffer, size_t idx);
+
 migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments);
 
 migraphx_status migraphx_arguments_assign_to(migraphx_arguments_t output,

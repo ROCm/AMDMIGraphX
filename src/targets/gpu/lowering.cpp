@@ -240,7 +240,7 @@ struct miopen_apply
             {
                 check_shape(s, insert_precompile_op(it));
             }
-            else if(attrs.contains("custom_op"))
+            else if(attrs.contains("target"))
             {
                 check_shape(s, insert_custom_op(it, attrs));
             }

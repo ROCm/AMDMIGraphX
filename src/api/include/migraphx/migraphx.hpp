@@ -1342,6 +1342,7 @@ struct experimental_custom_op_base
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
     virtual shape compute_shape(shapes inputs) const                            = 0;
     virtual std::vector<size_t> output_alias(shapes) const { return {}; }
+    // TODO: Return target string instead of bool
     virtual bool runs_on_offload_target() const = 0;
     virtual ~experimental_custom_op_base()      = default;
 };

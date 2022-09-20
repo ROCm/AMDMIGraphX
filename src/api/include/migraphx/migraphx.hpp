@@ -744,7 +744,7 @@ struct buffer : MIGRAPHX_HANDLE_BASE(buffer), array_base<buffer>
     {
         char pout;
         call(&migraphx_buffer_get, &pout, this->get_handle_ptr(), pidx);
-        return pout; 
+        return pout;
     }
 };
 

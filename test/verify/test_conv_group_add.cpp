@@ -26,21 +26,21 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/apply_alpha_beta.hpp>
-struct test_unbatched_gemm_2 : verify_program<test_unbatched_gemm_2>
+
+struct test_conv_group_add : verify_program<test_conv_group_add>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {4, 32, 64}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {64, 64}};
-        auto l1 = mm->add_parameter("1", m1_shape);
-        auto l2 = mm->add_literal(migraphx::generate_literal(m2_shape));
-        l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}),
-                                 l2);
-
-        mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        migraphx::shape s{migraphx::shape::float_type, {1, 68, 28, 28}};
+        auto x    = mm->add_parameter("x", s);
+        auto w    = mm->add_parameter("w", {migraphx::shape::float_type, {68, 17, 1, 1}});
+        auto b    = mm->add_parameter("b", {migraphx::shape::float_type, {68}});
+        auto conv = mm->add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto bb   = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 68, 28, 28}}}), b);
+        mm->add_instruction(migraphx::make_op("add"), conv, bb);
         return p;
     }
 };

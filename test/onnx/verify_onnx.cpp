@@ -30,6 +30,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/half.hpp>
 #include "test.hpp"
 
 TEST_CASE(averagepool_notset_test)
@@ -119,16 +120,17 @@ TEST_CASE(batch_norm_1d_test)
     migraphx::program p = migraphx::parse_onnx("batch_norm_1d_test.onnx");
     p.compile(migraphx::ref::target{});
 
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape x_shape{migraphx::shape::half_type, {2, 3, 4}};
     migraphx::shape c_shape(migraphx::shape::float_type, {3});
-    std::vector<float> x_data        = {0.7253,  -0.6356, 0.4606,  -0.8689, -1.1932, 0.4538,
-                                 -1.0018, -0.365,  -0.214,  -0.9553, -0.7672, 0.2331,
-                                 -0.8416, -0.6142, 0.0814,  0.2498,  -0.6706, 1.4872,
-                                 0.5112,  -1.5212, -0.9126, 0.0735,  1.085,   -0.3417};
-    std::vector<float> scale_data    = {1.1, 1.2, 1.3};
-    std::vector<float> bias_data     = {0.1, 0.2, 0.3};
-    std::vector<float> mean_data     = {-0.1804, -0.2875, -0.2249};
-    std::vector<float> variance_data = {2.7914, 7.3424, 3.3287};
+    std::vector<float> tmp = {1.652,     -0.5103, 0.3254,  2.441,   2.084,    0.4497,
+                              1.005,     -0.2401, -0.4307, 0.07623, -0.02927, 0.4236,
+                              -0.004498, -0.4282, -0.5527, 0.02205, -1.472,   -1.7295,
+                              0.796,     0.9507,  0.2312,  0.664,   -0.06964, 1.035};
+    std::vector<migraphx::half> x_data{tmp.cbegin(), tmp.cend()};
+    std::vector<float> scale_data    = {-1.336926, -1.0679098, 0.10368501};
+    std::vector<float> bias_data     = {0.20240043, -0.70175606, -0.8859727};
+    std::vector<float> mean_data     = {0.30854642, -0.36574763, -0.9463552};
+    std::vector<float> variance_data = {0.43428132, 0.97773486, 0.30332062};
 
     migraphx::parameter_map params;
     params["x"]        = migraphx::argument(x_shape, x_data.data());
@@ -138,13 +140,14 @@ TEST_CASE(batch_norm_1d_test)
     params["variance"] = migraphx::argument(c_shape, variance_data.data());
 
     auto result = p.eval(params).back();
-    std::vector<float> result_vector;
+    std::vector<migraphx::half> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0.696301,  -0.199697, 0.522026,  -0.353299, -0.201094, 0.528289,
-                               -0.116332, 0.165679,  0.307767,  -0.220435, -0.086407, 0.62634,
-                               -0.335325, -0.185608, 0.272366,  0.383238,  0.0303421, 0.985936,
-                               0.553709,  -0.346351, -0.190009, 0.51262,   1.23335,   0.216776};
+    tmp = {-2.523, 1.863,   0.1681,  -4.125, -3.348, -1.582, -2.182,  -0.8374,
+           -0.789, -0.6934, -0.7134, -0.628, 0.8374, 1.697,  1.949,   0.7837,
+           0.4927, 0.771,   -1.956,  -2.123, -0.664, -0.583, -0.7207, -0.5127};
+
+    std::vector<migraphx::half> gold{tmp.cbegin(), tmp.cend()};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
@@ -219,17 +222,18 @@ TEST_CASE(batch_norm_3d_test)
     migraphx::program p = migraphx::parse_onnx("batch_norm_3d_test.onnx");
     p.compile(migraphx::ref::target{});
 
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 2, 2, 2}};
-    migraphx::shape c_shape(migraphx::shape::float_type, {2});
-    std::vector<float> x_data     = {-1.0833, 1.9681,  1.2075,  -0.723,  -0.4076, -0.8738, 0.5853,
-                                 -0.5357, 1.734,   0.7904,  0.6953,  -0.468,  -0.425,  0.6895,
-                                 0.0096,  0.4205,  -0.1749, 1.2821,  2.1453,  -0.8538, 1.0687,
-                                 0.0906,  0.0714,  -1.3079, -0.6376, 1.3023,  0.945,   0.0927,
-                                 -0.7421, -1.4341, -1.0309, 1.5153};
-    std::vector<float> scale_data = {1.1, 1.3};
-    std::vector<float> bias_data  = {0.1, 0.2};
-    std::vector<float> mean_data  = {0.1537, 0.2161};
-    std::vector<float> variance_data = {18.0805, 13.3906};
+    migraphx::shape x_shape{migraphx::shape::double_type, {2, 2, 2, 2, 2}};
+    migraphx::shape c_shape(migraphx::shape::double_type, {2});
+    std::vector<double> x_data = {
+        1.65243424,  -0.51048073, 0.32543049, 2.44100439,  2.0833701,   0.44981123,  1.00446224,
+        -0.24006312, -0.43065987, 0.07626268, -0.02927135, 0.42347776,  -0.00449735, -0.4281568,
+        -0.55276351, 0.02204161,  -1.4719028, -1.72987988, 0.79596406,  0.95054607,  0.23115851,
+        0.66395935,  -0.06963254, 1.03487685, -1.33692599, -1.06790983, 0.103685,    0.20240044,
+        -0.70175607, -0.88597268, 0.30854644, -0.36574764};
+    std::vector<double> scale_data    = {-0.9463552, 0.94769164};
+    std::vector<double> bias_data     = {0.37686515, -0.05184272};
+    std::vector<double> mean_data     = {-0.71512443, -0.37341377};
+    std::vector<double> variance_data = {0.57612415, 0.95018451};
 
     migraphx::parameter_map params;
     params["x"]        = migraphx::argument(x_shape, x_data.data());
@@ -242,11 +246,13 @@ TEST_CASE(batch_norm_3d_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
+    // converted to float on visit
     std::vector<float> gold = {
-        -0.220005, 0.569376, 0.372612, -0.126798,  -0.0452053, -0.165809, 0.211653,  -0.0783441,
-        0.739245,  0.404024, 0.370239, -0.0430317, -0.0277556, 0.368179,  0.126639,  0.272615,
-        0.0149929, 0.391911, 0.615216, -0.160635,  0.336706,   0.0836764, 0.0787094, -0.278108,
-        -0.103283, 0.585881, 0.458947, 0.156161,   -0.140408,  -0.386246, -0.243006, 0.661551};
+        -2.5749769,  0.12171798,  -0.92048549, -3.55815613, -3.11226224, -1.07556182, -1.76709365,
+        -0.21543525, -0.10749804, 0.38533794,  0.28273653,  0.72290446,  0.3068221,   -0.10506452,
+        -0.22620862, 0.33262359,  1.32040679,  1.64204933,  -1.50714077, -1.69987165, -0.8029484,
+        -1.34255897, -0.42792594, -1.8050142,  -0.98858046, -0.72703984, 0.41199824,  0.50797052,
+        -0.37106091, -0.55015842, 0.61116689,  -0.04438962};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

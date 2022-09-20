@@ -720,14 +720,12 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     }
 };
 
-struct buffer : MIGRAPHX_HANDLE_BASE(buffer), array_base<buffer> {
+struct buffer : MIGRAPHX_HANDLE_BASE(buffer), array_base<buffer>
+{
 
     MIGRAPHX_HANDLE_CONSTRUCTOR(buffer)
 
-    buffer(const char* ptr, size_t size)
-    {
-        this->make_handle(&migraphx_buffer_create, ptr, size);
-    }
+    buffer(const char* ptr, size_t size) { this->make_handle(&migraphx_buffer_create, ptr, size); }
 
     size_t size() const
     {
@@ -1066,10 +1064,10 @@ inline program load(const char* filename, const file_options& options = file_opt
 inline program load_buffer(const std::string& buffer, const file_options& options = file_options{})
 {
     migraphx::buffer migx_buffer{buffer.data(), buffer.size()};
-    return program(
-        make<migraphx_program>(
-            &migraphx_load_buffer, migx_buffer.get_handle_ptr(), options.get_handle_ptr()),
-        own{});
+    return program(make<migraphx_program>(&migraphx_load_buffer,
+                                          migx_buffer.get_handle_ptr(),
+                                          options.get_handle_ptr()),
+                   own{});
 }
 
 // Save a program to a file

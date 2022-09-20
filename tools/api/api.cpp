@@ -112,7 +112,7 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 }
 
 template <class T, class = std::enable_if_t<std::is_fundamental<T>{}>>
-auto to_obj_vector(const T* x, std::size_t n) 
+auto to_obj_vector(const T* x, std::size_t n)
 {
     std::vector<T> result;
     std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y; });
@@ -120,7 +120,8 @@ auto to_obj_vector(const T* x, std::size_t n)
 }
 
 template <class T>
-auto to_obj_vector(const T* x, std::size_t n) -> decltype((*x)->object, std::vector<decltype((*x)->object)>{})
+auto to_obj_vector(const T* x, std::size_t n)
+    -> decltype((*x)->object, std::vector<decltype((*x)->object)>{})
 {
     std::vector<decltype((*x)->object)> result;
     std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y->object; });

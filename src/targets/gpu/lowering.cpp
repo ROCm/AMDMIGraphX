@@ -248,10 +248,10 @@ struct miopen_apply
         copy_params();
     }
 
-    instruction_ref insert_custom_op(instruction_ref ins, value& attrs) const
+    instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
     {
         const auto& custom_op = ins->get_operator();
-        if(attrs["target"] == "cpu")
+        if(attrs.at("target") == "cpu")
         {
             auto s = ins->get_shape();
             std::vector<instruction_ref> cpu_inputs;

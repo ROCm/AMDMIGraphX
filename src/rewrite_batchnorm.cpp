@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -14,9 +37,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_batchnorm::apply(module& p) const
+void rewrite_batchnorm::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() != "batch_norm_inference")
             continue;
@@ -46,13 +69,13 @@ void rewrite_batchnorm::apply(module& p) const
             });
 
         auto broadcast   = op::broadcast{1, ins->get_shape().lens()};
-        auto a_ins       = p.add_literal({a.get_shape(), a.data()});
-        auto a_broadcast = p.insert_instruction(ins, broadcast, a_ins);
-        auto mul   = p.insert_instruction(ins, make_op("mul"), ins->inputs().front(), a_broadcast);
-        auto b_ins = p.add_literal({b.get_shape(), b.data()});
-        auto b_broadcast = p.insert_instruction(ins, broadcast, b_ins);
-        auto add         = p.insert_instruction(ins, make_op("add"), mul, b_broadcast);
-        p.replace_instruction(ins, add);
+        auto a_ins       = m.add_literal({a.get_shape(), a.data()});
+        auto a_broadcast = m.insert_instruction(ins, broadcast, a_ins);
+        auto mul   = m.insert_instruction(ins, make_op("mul"), ins->inputs().front(), a_broadcast);
+        auto b_ins = m.add_literal({b.get_shape(), b.data()});
+        auto b_broadcast = m.insert_instruction(ins, broadcast, b_ins);
+        auto add         = m.insert_instruction(ins, make_op("add"), mul, b_broadcast);
+        m.replace_instruction(ins, add);
     }
 }
 

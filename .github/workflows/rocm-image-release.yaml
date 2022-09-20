@@ -1,0 +1,16 @@
+name: ROCM Docker image build
+
+on:
+  workflow_dispatch:
+    inputs:
+      rocm_release:
+        description: ROCm release version
+        required: true
+
+jobs:
+  release:
+    uses: ROCmSoftwarePlatform/actions/.github/workflows/rocm-release.yml@main
+    with:
+      rocm_release: ${{ github.event.inputs.rocm_release }}
+    secrets:
+      gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

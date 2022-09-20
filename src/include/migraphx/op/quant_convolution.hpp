@@ -1,15 +1,33 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 
-#include <array>
 #include <migraphx/op/common.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -23,8 +41,9 @@ struct quant_convolution
     std::vector<std::size_t> stride   = {1, 1};
     std::vector<std::size_t> dilation = {1, 1};
 
-    padding_mode_t padding_mode = default_;
-    int group                   = 1;
+    padding_mode_t padding_mode    = default_;
+    int group                      = 1;
+    bool use_dynamic_same_auto_pad = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -33,7 +52,8 @@ struct quant_convolution
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
                     f(self.padding_mode, "padding_mode"),
-                    f(self.group, "group"));
+                    f(self.group, "group"),
+                    f(self.use_dynamic_same_auto_pad, "use_dynamic_same_auto_pad"));
     }
 
     value attributes() const

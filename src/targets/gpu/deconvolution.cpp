@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
@@ -36,31 +59,30 @@ argument miopen_deconvolution::compute(context& ctx,
     auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
     auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
-    float alpha = 1;
-    float beta  = 0;
-    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
-                                           &alpha,
-                                           x_desc.get(),
-                                           args[0].implicit(),
-                                           w_desc.get(),
-                                           args[1].implicit(),
-                                           cd.get(),
-                                           algo,
-                                           &beta,
-                                           y_desc.get(),
-                                           args[3].implicit(),
-                                           args[2].implicit(),
-                                           args[2].get_shape().bytes());
+    if(solution_id == 0)
+        MIGRAPHX_THROW("MIOpen Deconvolution: invalid solution ID");
+
+    auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
+                                                    w_desc.get(),
+                                                    args[1].implicit(),
+                                                    x_desc.get(),
+                                                    args[0].implicit(),
+                                                    cd.get(),
+                                                    y_desc.get(),
+                                                    args[3].implicit(),
+                                                    args[2].implicit(),
+                                                    args[2].get_shape().bytes(),
+                                                    solution_id);
+
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Running deconvolution failed");
+        MIGRAPHX_THROW("MIOpen Deconvolution: running convolution failed");
     return args[3];
 }
 
-shape miopen_deconvolution::compile(context& ctx,
-                                    const shape& output_shape,
-                                    std::vector<shape> inputs)
+shape miopen_deconvolution::find(context& ctx, const shape& output_shape, std::vector<shape> inputs)
 {
     shape workspace_shape{};
+
     auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
     auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
     auto y_desc = make_tensor(reshape_if_1d(output_shape));
@@ -96,9 +118,35 @@ shape miopen_deconvolution::compile(context& ctx,
                                                         workspace_size,
                                                         false);
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Find deconvolution failed");
-    handle = ctx.get_stream().get_miopen();
-    algo   = perf.fwd_algo;
+        MIGRAPHX_THROW("MIOpen Deconvolution: find convolution failed");
+    algo = perf.fwd_algo;
+
+    size_t solution_count;
+
+    status = miopenConvolutionForwardGetSolutionCount(ctx.get_stream().get_miopen(),
+                                                      w_desc.get(),
+                                                      x_desc.get(),
+                                                      cd.get(),
+                                                      y_desc.get(),
+                                                      &solution_count);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen Deconvolution: get solution count failed");
+
+    std::vector<miopenConvSolution_t> solutions(solution_count);
+
+    status = miopenConvolutionForwardGetSolution(ctx.get_stream().get_miopen(),
+                                                 w_desc.get(),
+                                                 x_desc.get(),
+                                                 cd.get(),
+                                                 y_desc.get(),
+                                                 solution_count,
+                                                 &solution_count,
+                                                 solutions.data());
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen Deconvolution: get solution failed");
+
+    solution_id = solutions.front().solution_id;
+
     return shape{shape::int8_type, {perf.memory}};
 }
 
@@ -106,13 +154,29 @@ void miopen_deconvolution::finalize(context& ctx,
                                     const shape& output_shape,
                                     std::vector<shape> inputs)
 {
-    if(handle == ctx.get_stream().get_miopen())
-        return;
-    // Check that workspace hasn't changed
-    auto size = inputs.at(2).bytes();
-    auto ws   = compile(ctx, output_shape, std::move(inputs));
-    if(ws.bytes() > size)
-        MIGRAPHX_THROW("Workspace has changed during finalization.");
+    if(cd == nullptr)
+        cd = make_deconv(op);
+    if(solution_id == 0)
+    {
+        // Check that workspace hasn't changed
+        auto size = inputs.at(2).bytes();
+        auto ws   = find(ctx, output_shape, inputs);
+        if(ws.bytes() > size)
+            MIGRAPHX_THROW("MIOpen Deconvolution: workspace has changed during finalization.");
+    }
+
+    auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+    auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));
+
+    auto status = miopenConvolutionForwardCompileSolution(ctx.get_stream().get_miopen(),
+                                                          w_desc.get(),
+                                                          x_desc.get(),
+                                                          cd.get(),
+                                                          y_desc.get(),
+                                                          solution_id);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen Deconvolution: compile solution failed");
 }
 
 } // namespace gpu

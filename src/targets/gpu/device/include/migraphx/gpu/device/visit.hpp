@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_VISIT_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_VISIT_HPP
@@ -94,12 +117,13 @@ template <class V, class F, class... Ts>
 void hip_visit_all_impl(const shape& s, F f, V&& v, Ts&&... xs)
 {
     std::initializer_list<migraphx::shape::type_t> types = {get_shape(xs).type()...};
-    if(!std::all_of(
+    if(not std::all_of(
            types.begin(), types.end(), [&](migraphx::shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
     std::initializer_list<index_int> ranks = {
         static_cast<index_int>(get_shape(xs).lens().size())...};
-    if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
+    if(not std::all_of(
+           ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
     visit_tensor_size(s.lens().size(), [&](auto ndim) {
         s.visit_type(hip_visitor([&](auto as) { v(f(xs, ndim, as)...); }));
@@ -111,7 +135,8 @@ void hip_visit_views_impl(const shape& s, F f, V&& v, Ts&&... xs)
 {
     std::initializer_list<index_int> ranks = {
         static_cast<index_int>(get_shape(xs).lens().size())...};
-    if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
+    if(not std::all_of(
+           ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
     visit_tensor_size(s.lens().size(), [&](auto ndim) { v(f(xs, ndim)...); });
 }

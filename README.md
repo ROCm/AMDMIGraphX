@@ -46,6 +46,7 @@ The following is a list of prerequisites required to build MIGraphX source.
 * [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
 * [JSON](https://github.com/nlohmann/json) - for model serialization to json string format
 * [MessagePack](https://msgpack.org/index.html) - for model serialization to binary format
+* [SQLite3](https://www.sqlite.org/index.html) - to create database of kernels' tuning information or execute queries on existing database
 
 #### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 

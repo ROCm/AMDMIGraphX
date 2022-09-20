@@ -53,6 +53,7 @@ jobs:
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
+          -DMIGRAPHX_ENABLE_FPGA=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
@@ -133,6 +134,7 @@ jobs:
               -o -iname '*.hpp.in' \
               -o -iname '*.cpp.in' \
               -o -iname '*.cl' \
+              -o -iname '*.c' \
           | grep -v 'build/' \
           | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
           find . -iname '*.py' \
@@ -159,6 +161,20 @@ jobs:
         pyflakes examples/ tools/ src/ test/ doc/
         mypy --version
         mypy tools/api.py
+
+  licensing:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: run License Check
+      run: python3 tools/check_stamped.py
 
   linux:
 
@@ -255,4 +271,98 @@ jobs:
         curl -s https://codecov.io/bash | bash
         echo "Uploaded"
 
+  linux-fpga:
+    continue-on-error: true
+    runs-on: ${{ matrix.os }}
 
+    env:
+      CCACHE_COMPRESSLEVEL: 10
+      CCACHE_DIR: ${{github.workspace}}/ccache
+      CCACHE_NOHASHDIR: true
+      CCACHE_BASEDIR: ${{github.workspace}}
+      CCACHE_MAXSIZE: 1
+
+    strategy:
+      matrix:
+        os:
+          - ubuntu-18.04
+          - ubuntu-20.04
+        configuration:
+          - debug
+          #- release  Uncomment when ready to test release builds
+          #- codecov  Uncomment when ready for codecov
+
+    steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Cache dependencies
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+      uses: actions/cache@v2
+      with:
+        # This path is specific to Ubuntu
+        path: ${{ github.workspace }}/cget
+        # Look to see if there is a cache hit for the corresponding requirements file
+        key: 
+          ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+          ${{ matrix.os }}-cget-4-
+
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+        rbuild prepare -d cget -s gh
+    - name: Prepare timestamp
+      id: cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Cache files for ccache
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+      uses: pat-s/always-upload-cache@v2.1.3
+      with:
+        path: ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+        restore-keys: |
+            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
+
+    - name: Build and test
+      env:
+        CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
+        CCACHE_LOGFILE: /tmp/ccache.log
+        CXXFLAGS: -Werror -pthread --param ggc-min-expand=5 --param ggc-min-heapsize=8192
+      run: |
+        echo "leak:dnnl::impl::malloc" > suppressions.txt
+        export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
+        rbuild build -d cget -s gh -T check \
+          -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
+          -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
+          -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold' \
+          -DMIGRAPHX_ENABLE_FPGA=On
+        ${{ github.workspace }}/cget/bin/ccache -s
+
+    #- name: Upload code coverage
+    #  if: "matrix.configuration == 'codecov'"
+    #  env:
+    #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
+    #  run: |
+    #    sudo apt-get install -y lcov
+    #    cd build
+    #    lcov --directory . --capture --output-file $(pwd)/coverage.info
+    #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
+    #    lcov --list $(pwd)/coverage.info
+    #    curl -s https://codecov.io/bash | bash
+    #    echo "Uploaded"

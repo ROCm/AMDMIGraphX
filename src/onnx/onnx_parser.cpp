@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/fallthrough.hpp>
@@ -5,16 +28,17 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/pad_calc.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
 namespace onnx {
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
@@ -35,7 +59,7 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
     {
-        return {};
+        return literal{shape_type};
     }
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
@@ -52,7 +76,7 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
     {
-        return {};
+        return literal{shape_type};
     }
 
     // scalar input
@@ -163,7 +187,7 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
 
 void onnx_parser::parse_undefined(module* mod, const std::string& name)
 {
-    if(!contains(instructions, name))
+    if(not contains(instructions, name))
     {
         auto ins           = mod->add_instruction(make_op("undefined"));
         instructions[name] = ins;
@@ -243,9 +267,9 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
     {
         const std::string& name = input.name();
         // input not in initializer_data, so it is a real input
-        if(!contains(mod_insts, name))
+        if(not contains(mod_insts, name))
         {
-            // ONNX specification does not specify hwo to deal with the
+            // ONNX specification does not specify how to deal with the
             // scenario that a nested subgraph contains a parameter with the
             // name existed in its parent graph.
             // In the current implementation, MIGraphX throws an exception for that.
@@ -255,13 +279,22 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
                                "\" existing in parent graph!");
             }
 
+            shape s;
             std::vector<std::size_t> dims;
             if(map_input_dims.count(name) > 0)
             {
                 dims = map_input_dims.at(name);
+                s    = parse_type(input.type(), dims);
             }
-
-            shape s         = parse_type(input.type(), dims);
+            else if(map_dyn_input_dims.count(name) > 0)
+            {
+                shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
+                s                        = {shape_type, map_dyn_input_dims.at(name)};
+            }
+            else
+            {
+                s = parse_type(input.type(), dims);
+            }
             mod_insts[name] = mod->add_parameter(name, s);
         }
     }
@@ -321,7 +354,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         all_output_names.begin(),
         all_output_names.end(),
         std::back_inserter(prog_output_names),
-        [&](const auto& name) { return !(name.empty() or instructions.count(name) == 0); });
+        [&](const auto& name) { return not(name.empty() or instructions.count(name) == 0); });
 
     std::vector<instruction_ref> output_ins;
     std::transform(prog_output_names.begin(),
@@ -411,35 +444,46 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                               const std::vector<std::size_t>& input_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
-    if(!input_dims.empty())
+    if(not input_dims.empty())
     {
         return {shape_type, input_dims};
     }
 
-    std::vector<std::size_t> dims;
+    std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
     std::transform(tensor_dims.begin(),
                    tensor_dims.end(),
-                   std::back_inserter(dims),
-                   [&](auto&& d) -> std::size_t {
+                   std::back_inserter(dynamic_dims),
+                   [&](auto&& d) -> shape::dynamic_dimension {
                        if(d.has_dim_value())
                        {
                            if(static_cast<int>(d.dim_value()) <= 0)
                            {
-                               return default_dim_value;
+                               return default_dyn_dim_value;
                            }
-                           return d.dim_value();
+                           std::size_t tmp = d.dim_value();
+                           return {tmp, tmp, 0};
                        }
                        else
                        {
-                           return default_dim_value;
+                           return default_dyn_dim_value;
                        }
                    });
 
-    if(dims.empty())
+    if(dynamic_dims.empty())
+    {
         return {shape_type};
-
-    return {shape_type, dims};
+    }
+    if(std::all_of(dynamic_dims.begin(), dynamic_dims.end(), [](auto dd) { return dd.is_fixed(); }))
+    {
+        std::vector<std::size_t> dims;
+        std::transform(dynamic_dims.begin(),
+                       dynamic_dims.end(),
+                       std::back_inserter(dims),
+                       [](auto d) { return d.max; });
+        return {shape_type, dims};
+    }
+    return {shape_type, dynamic_dims};
 }
 
 shape::type_t get_type(int dtype)
@@ -462,6 +506,16 @@ shape::type_t get_type(int dtype)
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }
     }
+}
+
+bool is_type_float(shape::type_t dtype)
+{
+    bool r = false;
+    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type)
+    {
+        r = true;
+    }
+    return r;
 }
 
 } // namespace onnx

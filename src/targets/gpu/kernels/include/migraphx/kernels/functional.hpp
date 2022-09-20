@@ -1,7 +1,39 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP
 #define MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP
 
-#include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_RETURNS(...) \
+    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_LIFT(...)                           \
+    [](auto&&... private_lisft_xs) MIGRAPHX_RETURNS( \
+        (__VA_ARGS__)(static_cast<decltype(private_lisft_xs)>(private_lisft_xs)...))
 
 namespace migraphx {
 
@@ -129,7 +161,7 @@ constexpr auto by(F f)
 template <class F, class... Ts>
 constexpr void each_args(F f, Ts&&... xs)
 {
-    swallow{(f(std::forward<Ts>(xs)), 0)...};
+    swallow{(f(static_cast<Ts&&>(xs)), 0)...};
 }
 
 template <class F>
@@ -159,6 +191,18 @@ template <class... Ts>
 constexpr auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
+}
+
+template <class G, class F>
+constexpr auto join(G g, F f)
+{
+    return f([=](auto... xs) { return g(xs...); });
+}
+
+template <class G, class F, class... Fs>
+constexpr auto join(G g, F f, Fs... fs)
+{
+    return f([=](auto... xs) { return join([=](auto... ys) { return g(xs..., ys...); }, fs...); });
 }
 
 template <class Compare, class P1, class P2>
@@ -191,39 +235,45 @@ constexpr auto arg(IntegralConstant ic)
     return arg_c<ic>();
 }
 
-inline constexpr auto rotate_last()
+template <class F>
+constexpr auto make_transform(F f)
 {
-    return [](auto... xs) {
-        return [=](auto&& f) {
-            return sequence_c<sizeof...(xs)>([&](auto... is) {
-                constexpr auto size = sizeof...(is);
-                return f(arg_c<(is + size - 1) % size>()(xs...)...);
-            });
-        };
-    };
+    return [=](auto... xs) { return [=](auto g) { return f(g, xs...); }; };
 }
 
+// An arg transformation takes the arguments and then a function to take the new arguments:
+//     transform(xs...)([](auto... ys) { ... })
+// The transform_args function takes a list of transformations and continually applies them
 template <class F>
 constexpr auto transform_args(F f)
 {
-    return [=](auto... xs) {
-        return [=](auto g) { return f(xs...)([&](auto... ys) { return g(ys...); }); };
-    };
+    return f;
 }
 
 template <class F, class... Fs>
 constexpr auto transform_args(F f, Fs... fs)
 {
-    return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
+    return make_transform([=](auto g, auto... xs) {
+        return f(xs...)([=](auto... ys) { return transform_args(fs...)(ys...)(g); });
+    });
 }
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_RETURNS(...) \
-    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+// identity transform
+inline constexpr auto transform_args()
+{
+    return make_transform([](auto f, auto... xs) { return f(xs...); });
+}
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_LIFT(...) \
-    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
+// Rotate the first argument to the last argument
+inline constexpr auto rotate_last()
+{
+    return make_transform([](auto f, auto... xs) {
+        return sequence_c<sizeof...(xs)>([&](auto... is) {
+            constexpr auto size = sizeof...(is);
+            return f(arg_c<(is + size - 1) % size>()(xs...)...);
+        });
+    });
+}
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

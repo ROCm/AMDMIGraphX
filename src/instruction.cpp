@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/instruction.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/erase.hpp>
@@ -81,6 +104,7 @@ bool instruction::valid(instruction_ref start, bool check_order) const
                bool ret  = self != i->outputs().end();
                if(check_order)
                {
+                   // check arguments for this instruction before this instruction
                    ret = ret and (std::distance(start, i) < std::distance(start, *self));
                }
                return ret;
@@ -152,13 +176,13 @@ bool operator==(const instruction& x, const instruction& y)
     return true;
 }
 
-bool operator!=(const instruction& x, const instruction& y) { return !(x == y); }
+bool operator!=(const instruction& x, const instruction& y) { return not(x == y); }
 
 bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
-bool operator!=(const instruction& i, instruction_ref ref) { return !(i == ref); }
+bool operator!=(const instruction& i, instruction_ref ref) { return not(i == ref); }
 
-bool operator!=(instruction_ref ref, const instruction& i) { return !(i == ref); }
+bool operator!=(instruction_ref ref, const instruction& i) { return not(i == ref); }
 
 void instruction::add_output(instruction_ref ins)
 {
@@ -337,7 +361,7 @@ void instruction::print(std::ostream& os,
             os << "{" << ins->get_literal() << "}";
     }
 
-    if(!ins->inputs().empty())
+    if(not ins->inputs().empty())
     {
         char delim = '(';
         for(auto&& arg : ins->inputs())
@@ -350,7 +374,7 @@ void instruction::print(std::ostream& os,
     }
 
     // print module inputs
-    if(!ins->module_inputs().empty())
+    if(not ins->module_inputs().empty())
     {
         std::string delim = ", [";
         for(auto&& mod_arg : ins->module_inputs())
@@ -421,8 +445,8 @@ operation instruction::normalized_operator() const
     operation o = this->get_operator();
     if(this->need_normalization())
     {
-        auto lens = this->inputs().front()->get_shape().lens();
-        if(!normalize_attributes(o, lens))
+        auto s = this->inputs().front()->get_shape();
+        if(not normalize_attributes(o, s.max_lens()))
             return this->get_operator();
     }
     return o;

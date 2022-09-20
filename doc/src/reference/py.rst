@@ -84,6 +84,12 @@ argument
 
     Construct an argument from a python buffer. This can include numpy arrays.
 
+.. py:method:: data_ptr()
+
+    Returns the address to the underlying argument data.
+
+    :rtype: int
+
 .. py:method:: get_shape()
 
     Returns the shape of the argument.
@@ -113,7 +119,16 @@ argument
     :param shape s: Shape of argument to fill.
     :param int value: Value to fill in the argument.
 
-    :rtype argument
+    :rtype: argument
+
+.. py:function:: argument_from_pointer(shape, address)
+
+    Create argument from data stored in given address without copy.
+
+    :param shape shape: Shape of the data stored in address.
+    :param long address: Memory address of data from another source
+
+    :rtype: argument 
 
 target
 ------
@@ -145,6 +160,13 @@ module
     :param list[instruction] args: list of inputs to the op.
     :param list[module] mod_args: optional list of module arguments to the operator.
     :rtype instruction
+
+.. py:method:: add_literal(data)
+
+    Adds constant or literal data of provided shape into the module from python buffer which includes numpy array.    
+
+    :param py::buffer data: Python buffer or numpy array 
+    :rtype instruction 
 
 .. py:method:: add_parameter(name, shape)
     

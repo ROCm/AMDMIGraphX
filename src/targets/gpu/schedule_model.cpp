@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
@@ -77,28 +100,28 @@ MIGRAPHX_REGISTER_OP(wait_event)
 MIGRAPHX_REGISTER_OP(set_stream)
 
 std::size_t schedule_model::concurrency() const { return streams; }
-void schedule_model::sched(module& p, instruction_ref ins, std::size_t n) const
+void schedule_model::sched(module& m, instruction_ref ins, std::size_t n) const
 {
     auto last_stream = std::find_if(std::make_reverse_iterator(ins),
-                                    std::make_reverse_iterator(p.begin()),
+                                    std::make_reverse_iterator(m.begin()),
                                     [&](auto&& i) { return i.name() == "gpu::set_stream"; });
-    if(last_stream != std::make_reverse_iterator(p.begin()))
+    if(last_stream != std::make_reverse_iterator(m.begin()))
     {
         auto&& op = any_cast<set_stream>(last_stream->get_operator());
         // If the same stream was set earlier then skip
         if(op.stream == n)
             return;
     }
-    p.insert_instruction(ins, set_stream{n});
+    m.insert_instruction(ins, set_stream{n});
 }
 
-void schedule_model::wait(module& p, instruction_ref ins, std::size_t wait_id) const
+void schedule_model::wait(module& m, instruction_ref ins, std::size_t wait_id) const
 {
-    p.insert_instruction(ins, wait_event{wait_id});
+    m.insert_instruction(ins, wait_event{wait_id});
 }
-void schedule_model::record(module& p, instruction_ref ins, std::size_t wait_id) const
+void schedule_model::record(module& m, instruction_ref ins, std::size_t wait_id) const
 {
-    p.insert_instruction(std::next(ins), record_event{wait_id});
+    m.insert_instruction(std::next(ins), record_event{wait_id});
 }
 
 static std::unordered_map<std::string, std::size_t> create_weight_map()

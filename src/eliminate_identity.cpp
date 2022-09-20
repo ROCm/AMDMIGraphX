@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -8,21 +31,21 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_identity::apply(module& p) const
+void eliminate_identity::apply(module& m) const
 {
-    auto last = std::prev(p.end());
-    for(auto ins : iterator_for(p))
+    auto last = std::prev(m.end());
+    for(auto ins : iterator_for(m))
     {
         // Skip the first instruction, since we always process the previous
         // instruction
-        if(ins == p.begin())
+        if(ins == m.begin())
             continue;
         const auto i = std::prev(ins);
 
         if(i->name() == "identity")
         {
-            p.replace_instruction(i, i->inputs().front());
-            p.move_instruction(i, p.end());
+            m.replace_instruction(i, i->inputs().front());
+            m.move_instruction(i, m.end());
         }
         if(ins == last)
         {
@@ -31,7 +54,7 @@ void eliminate_identity::apply(module& p) const
                 const instruction_ref& identity_input = ins->inputs().front();
                 if(identity_input->outputs().size() == 1)
                 {
-                    p.move_instruction(identity_input, i);
+                    m.move_instruction(identity_input, i);
                     // since this is the last instruction, removing it only
                     // requires changing "last" and calling remove below
                     last = std::prev(last);
@@ -40,7 +63,7 @@ void eliminate_identity::apply(module& p) const
             break;
         }
     }
-    p.remove_instructions(std::next(last), p.end());
+    m.remove_instructions(std::next(last), m.end());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

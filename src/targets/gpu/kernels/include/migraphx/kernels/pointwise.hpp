@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
 #define MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
 
@@ -18,8 +41,15 @@ struct implicit_conversion_op
     template <index_int N, class U>
     constexpr operator vec<U, N>() const
     {
-        static_assert(vec_size<T>() == N, "Vector mismatch size");
-        return __builtin_convertvector(x, vec<U, N>);
+        if constexpr(vec_size<T>() == 0)
+        {
+            return x;
+        }
+        else
+        {
+            static_assert(vec_size<T>() == N, "Vector mismatch size");
+            return __builtin_convertvector(x, vec<U, N>);
+        }
     }
 
     template <class U>
@@ -38,20 +68,17 @@ constexpr implicit_conversion_op<T> implicit_conversion(T x)
 template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {
-    preload<typename T::type>(idx, xs...)([&](auto... ps) {
-        idx.global_stride(out.get_shape().elements(),
-                          [&](auto i) { out[i] = implicit_conversion(f(ps[i]...)); });
-    });
+    idx.global_stride(out.get_shape().elements(),
+                      [&](auto i) { out[i] = implicit_conversion(f(xs[i]...)); });
 }
 
-template <class F, class... Ts>
-__device__ void pointwise(F f, Ts*... ps)
+template <class... Transforms>
+__device__ auto pointwise(index idx, Transforms... transforms)
 {
-    auto t = transform_args(make_tensors(), rotate_last(), auto_vectorize());
-    t(ps...)([&](auto... xs) {
-        auto idx = make_index();
-        pointwise_tensor(idx, f, xs...);
-    });
+    return [=](auto f, auto*... ps) {
+        auto t = transform_args(make_tensors(), rotate_last(), transforms...);
+        t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
+    };
 }
 
 } // namespace migraphx

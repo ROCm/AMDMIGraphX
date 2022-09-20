@@ -1,3 +1,26 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #include <migraphx/matcher.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <test.hpp>
@@ -332,7 +355,7 @@ TEST_CASE(match_either_args_any1)
         match::name("sum")(match::either_arg(0, 1)(match::any().bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any2)
@@ -347,7 +370,7 @@ TEST_CASE(match_either_args_any2)
         match::either_arg(0, 1)(match::any().bind("x"), match::name("@literal").bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any3)
@@ -362,7 +385,7 @@ TEST_CASE(match_either_args_any3)
         match::either_arg(0, 1)(match::name("@literal").bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum1});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any4)
@@ -377,7 +400,7 @@ TEST_CASE(match_either_args_any4)
         match::either_arg(0, 1)(match::name("sum").bind("x"), match::any().bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum2});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_either_args_any5)
@@ -392,7 +415,7 @@ TEST_CASE(match_either_args_any5)
         match::either_arg(0, 1)(match::any().bind("x"), match::name("sum").bind("y")));
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == sum2});
-    EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
+    EXPECT(bool{r.instructions["x"] != r.instructions["y"]});
 }
 
 TEST_CASE(match_all_of1)
@@ -747,10 +770,10 @@ TEST_CASE(match_bind1)
                  match::standard_shape())
                  .bind("pass");
     auto r = find_match(mm, m);
-    EXPECT(bool{r.instructions.at("one") == one});
-    EXPECT(bool{r.instructions.at("two") == two});
-    EXPECT(bool{r.instructions.at("sum") == sum});
-    EXPECT(bool{r.instructions.at("pass") == pass});
+    EXPECT(bool{r.instructions["one"] == one});
+    EXPECT(bool{r.instructions["two"] == two});
+    EXPECT(bool{r.instructions["sum"] == sum});
+    EXPECT(bool{r.instructions["pass"] == pass});
     EXPECT(bool{r.result == pass});
 }
 
@@ -795,9 +818,9 @@ TEST_CASE(match_bind_modules2)
                  match::standard_shape())
                  .bind("pass");
     auto r = find_match(*child, m);
-    EXPECT(bool{r.instructions.at("two") == two});
-    EXPECT(bool{r.instructions.at("sum") == sum});
-    EXPECT(bool{r.instructions.at("pass") == pass});
+    EXPECT(bool{r.instructions["two"] == two});
+    EXPECT(bool{r.instructions["sum"] == sum});
+    EXPECT(bool{r.instructions["pass"] == pass});
     EXPECT(bool{r.result == pass});
 }
 

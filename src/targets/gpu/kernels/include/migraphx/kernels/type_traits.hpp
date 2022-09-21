@@ -192,7 +192,51 @@ struct common_type<T, U, Us...>
 template <class... Ts>
 using common_type_t = typename common_type<Ts...>::type;
 
-#define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
+namespace detail {
+using gpu_half = __fp16;
+
+template <class T>
+struct host_type
+{
+    using type = T;
+};
+
+template <>
+struct host_type<gpu_half>
+{
+    using type = half;
+};
+
+} // namespace detail
+
+template <class T>
+using host_type = typename detail::host_type<T>::type;
+
+template <bool... Bs>
+struct and_ : std::is_same<and_<Bs...>, and_<(Bs or true)...>> // NOLINT
+{
+};
+
+template <bool B>
+using bool_c = std::integral_constant<bool, B>;
+
+#define MIGRAPHX_REQUIRES_PRIMITIVE_CAT(x, y) x##y
+#define MIGRAPHX_REQUIRES_CAT(x, y) MIGRAPHX_REQUIRES_PRIMITIVE_CAT(x, y)
+
+#define MIGRAPHX_REQUIRES_VAR() MIGRAPHX_REQUIRES_CAT(PrivateRequires, __LINE__)
+
+// #define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
+#ifdef CPPCHECK
+#define MIGRAPHX_REQUIRES(...) class = void
+#define MIGRAPHX_CLASS_REQUIRES(...) void
+#else
+#define MIGRAPHX_REQUIRES(...)                                           \
+    long MIGRAPHX_REQUIRES_VAR()            = __LINE__,                  \
+         typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() == __LINE__ && \
+                                  (migraphx::and_<__VA_ARGS__>{})),      \
+                                 int>::type = 0
+#define MIGRAPHX_CLASS_REQUIRES(...) typename std::enable_if<(migraphx::and_<__VA_ARGS__>{})>::type
+#endif
 
 constexpr unsigned long int_max(unsigned long n) { return (1u << (n * 8)) - 1; }
 

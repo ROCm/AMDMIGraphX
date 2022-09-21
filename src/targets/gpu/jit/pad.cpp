@@ -26,6 +26,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/reduce_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,19 +35,20 @@ namespace gpu {
 using namespace migraphx::gpu::gen; // NOLINT
 
 static const char* const pointwise_kernel = R"__migraphx__(
+#include <migraphx/kernels/pad.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <args.hpp>
 
 namespace migraphx {
 
-${preamble}
-
 extern "C" {
-__global__ void pad_kernel(${params}) 
+__global__ void pad_kernel(void* input_p, void* output_p) 
 {
     auto offsets = index_ints<${offsets}>{};
-    auto idx = make_index();
-    pad(idx, offsets, ${transformers})(${args});
+    auto idx     = make_index();
+    make_tensors()(input_p, output_p)([&](auto input, auto output) {
+        pad(idx, offsets, input, output, ${pad_val});
+    });
 }
     
 }
@@ -55,9 +57,10 @@ __global__ void pad_kernel(${params})
 
 )__migraphx__";
 
-struct pointwise_compiler : compiler<pointwise_compiler>
+
+struct pad_compiler : compiler<pad_compiler>
 {
-    std::vector<std::string> names() const { return {"pointwise", "contiguous"}; }
+    std::vector<std::string> names() const { return {"pad"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -65,18 +68,19 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
-        auto axis              = find_fast_axis(options.virtual_inputs);
-        auto vec               = vectorize::elements(axis, options.virtual_inputs);
-        auto preloads          = preload::broadcasts(axis, options.virtual_inputs);
         options.kernel_name    = "pad_kernel";
+        std::cout << inputs.at(1).elements() << std::endl;
         options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
 
+        auto pad_val = v.get("value", 0.f);
+
+        auto padding = v.at("pads").to_vector<int64_t>();
+        std::vector<size_t> offsets(inputs.front().lens().size());
+        std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
+
         auto src = interpolate_string(pointwise_kernel,
-                                      {{"params", enum_params(inputs.size(), "void * private_p")},
-                                       {"args", enum_params(inputs.size(), "private_p")},
-                                       {"lambda", v.at("lambda").to<std::string>()},
-                                       {"transformers", make_transformer_args(preloads, vec)},
-                                       {"preamble", v.get("preamble", std::string{})}});
+                                       {{"pad_val", to_string(pad_val)},
+                                        {"offsets", to_string_range(offsets.begin(), offsets.end())}});
         return compile_hip_code_object(src, options);
     }
 

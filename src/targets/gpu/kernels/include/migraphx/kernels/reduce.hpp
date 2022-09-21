@@ -97,13 +97,14 @@ MIGRAPHX_DPP_REDUCE(op::product, v_mul)
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
+    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     constexpr index_int lanes_per_thread = 16;
 #else
     constexpr index_int lanes_per_thread = 64;
 #endif
     using type = decltype(f(0));
-    __shared__ type buffer[idx.nlocal() / lanes_per_thread];
+    __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
     type x = init;
     idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     dpp_reduce(x, op);
@@ -126,9 +127,9 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
-
+    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(f(0));
-    __shared__ type buffer[idx.nlocal()];
+    __shared__ type buffer[idx.max_nlocal()];
     type x = init;
     idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     buffer[idx.local] = x;

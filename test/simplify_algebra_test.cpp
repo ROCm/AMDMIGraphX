@@ -1283,13 +1283,13 @@ TEST_CASE(simplify_zero_div_const)
 
 TEST_CASE(simplify_zero_div_const_vec)
 {
-    migraphx::shape inner{migraphx::shape::int32_type, {2}};
-    migraphx::shape outer{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
     migraphx::op::broadcast b{1, {1, 2, 3, 3}};
     migraphx::module m1;
     {
-        auto x       = m1.add_parameter("x", outer);
-        auto zero    = m1.add_literal({inner, {0, 0}});
+        auto x       = m1.add_parameter("x", x_shape);
+        auto zero    = m1.add_literal({zero_shape, {0, 0}});
         auto zerob   = m1.add_instruction(b, zero);
         auto div_ins = m1.add_instruction(migraphx::make_op("div"), zerob, x);
         m1.add_return({div_ins});
@@ -1298,8 +1298,8 @@ TEST_CASE(simplify_zero_div_const_vec)
 
     migraphx::module m2;
     {
-        m2.add_parameter("x", outer);
-        auto zero  = m2.add_literal({inner, {0, 0}});
+        m2.add_parameter("x", x_shape);
+        auto zero  = m2.add_literal({zero_shape, {0, 0}});
         auto zerob = m2.add_instruction(b, zero);
         m2.add_return({zerob});
     }

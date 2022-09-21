@@ -57,7 +57,6 @@ __global__ void pad_kernel(void* input_p, void* output_p)
 
 )__migraphx__";
 
-
 struct pad_compiler : compiler<pad_compiler>
 {
     std::vector<std::string> names() const { return {"pad"}; }
@@ -78,9 +77,10 @@ struct pad_compiler : compiler<pad_compiler>
         std::vector<size_t> offsets(inputs.front().lens().size());
         std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
 
-        auto src = interpolate_string(pointwise_kernel,
-                                       {{"pad_val", to_string(pad_val)},
-                                        {"offsets", to_string_range(offsets.begin(), offsets.end())}});
+        auto src =
+            interpolate_string(pointwise_kernel,
+                               {{"pad_val", to_string(pad_val)},
+                                {"offsets", to_string_range(offsets.begin(), offsets.end())}});
         return compile_hip_code_object(src, options);
     }
 

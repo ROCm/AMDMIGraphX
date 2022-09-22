@@ -503,11 +503,12 @@ struct mlir_program
             {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
-                std::string tuned = get_tune_params();
+                // check if HW supports xdlops
+                bool xdlops = contains(get_xdlops_archs(), target_name);
+                std::string tuned = get_tune_params(xdlops);
                 if(not tuned.empty())
                     ops.add_attributes({{"perf_config", tuned}});
-                // check if HW supports xdlops
-                if(contains(get_xdlops_archs(), target_name))
+                if(xdlops)
                     ops.add_attributes({{"xdlopsV2", true}});
             }
 
@@ -572,7 +573,7 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    std::string get_tune_params() { return get_mlir_perf_for_conv(pp); }
+    std::string get_tune_params(bool xdlops) { return get_mlir_perf_for_conv(pp, xdlops); }
 
     mlir_context ctx;
     MlirLocation location;

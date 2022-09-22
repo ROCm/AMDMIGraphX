@@ -59,7 +59,7 @@ struct transpose
         }
         std::vector<int64_t> axes(dims.size());
         std::iota(axes.begin(), axes.end(), 0);
-        if(!std::is_permutation(axes.begin(), axes.end(), dims.begin()))
+        if(not std::is_permutation(axes.begin(), axes.end(), dims.begin()))
         {
             MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
         }

@@ -78,7 +78,7 @@ struct mlir_handle
 
         friend bool operator==(ptr x, ptr y) { return x.get_value() == y.get_value(); }
 
-        friend bool operator!=(ptr x, ptr y) { return !(x == y); }
+        friend bool operator!=(ptr x, ptr y) { return not(x == y); }
         T obj{};
     };
 
@@ -503,7 +503,7 @@ struct mlir_program
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
                 std::string tuned = get_tune_params();
-                if(!tuned.empty())
+                if(not tuned.empty())
                     ops.add_attributes({{"perf_config", tuned}});
                 // check if HW supports xdlops
                 if(contains(get_xdlops_archs(), target_name))

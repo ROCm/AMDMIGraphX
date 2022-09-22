@@ -60,7 +60,7 @@ std::vector<std::size_t> calc_dyn_auto_pad(std::vector<std::size_t> tensor_lens,
 {
     std::vector<std::size_t> padding;
     padding.resize(2 * k_lens.size());
-    for(size_t i = 0; i < padding.size() / 2; i++)
+    for(std::size_t i = 0; i < padding.size() / 2; i++)
     {
         std::ptrdiff_t input_dim      = tensor_lens[i];
         std::ptrdiff_t stride         = strides[i];

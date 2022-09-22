@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/match/layernorm.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 

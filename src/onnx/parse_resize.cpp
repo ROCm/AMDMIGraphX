@@ -56,7 +56,7 @@ const auto& get_nearest_op(const std::string& mode)
              return static_cast<std::size_t>(std::ceil((val)));
          }}};
 
-    if(!contains(nearest_ops, mode))
+    if(not contains(nearest_ops, mode))
     {
         MIGRAPHX_THROW("PARSE_RESIZE: nearest_mode " + mode + " not supported!");
     }
@@ -86,7 +86,7 @@ const auto& get_original_idx_op(const std::string& mode)
              return (idx + 0.5) / scale;
          }}};
 
-    if(!contains(idx_ops, mode))
+    if(not contains(idx_ops, mode))
     {
         MIGRAPHX_THROW("PARSE_RESIZE: coordinate_transformation_mode " + mode + " not supported!");
     }

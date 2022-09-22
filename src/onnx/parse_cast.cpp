@@ -38,7 +38,7 @@ struct parse_cast : op_parser<parse_cast>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-        if(!contains(info.attributes, "to"))
+        if(not contains(info.attributes, "to"))
         {
             MIGRAPHX_THROW("PARSE_CAST: missing to type attribute!");
         }

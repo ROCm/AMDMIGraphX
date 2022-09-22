@@ -564,6 +564,11 @@ MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref in
     return nullopt;
 }
 
+MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
+{
+    return contains({"broadcast", "multibroadcast"}, ins->name());
+}
+
 template <class... Ms>
 auto skip(Ms... ms)
 {
@@ -813,8 +818,7 @@ inline auto has_attribute(const std::string& name)
 template <class... Ms>
 auto pointwise(Ms... ms)
 {
-    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)),
-                                             ms...);
+    return match::has_attribute("pointwise")(ms...);
 }
 
 } // namespace match

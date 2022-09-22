@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
 
 #include <unordered_map>
+#include <string>
 
 #include <migraphx/instruction_ref.hpp>
 

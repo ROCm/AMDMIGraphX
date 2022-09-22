@@ -67,7 +67,8 @@ struct parse_matmul : op_parser<parse_matmul>
 
         instruction_ref bl0 = l0;
         instruction_ref bl1 = l1;
-        if(!std::equal(l0_lens.rbegin() + 2, l0_lens.rend(), l1_lens.rbegin() + 2, l1_lens.rend()))
+        if(not std::equal(
+               l0_lens.rbegin() + 2, l0_lens.rend(), l1_lens.rbegin() + 2, l1_lens.rend()))
         {
             auto l0_it = l0_lens.begin() + l0_lens.size() - 2;
             std::vector<std::size_t> l0_broadcasted_lens(l0_lens.begin(), l0_it);

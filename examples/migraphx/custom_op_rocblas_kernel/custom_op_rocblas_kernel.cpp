@@ -72,7 +72,7 @@ struct sscal_custom_op final : migraphx::experimental_custom_op_base
         {
             throw std::runtime_error("sscal_custom_op must have 2 input arguments");
         }
-        if(inputs[0].lengths().size() != 1 || inputs[0].lengths()[0] != 1)
+        if(inputs[0].lengths().size() != 1 or inputs[0].lengths()[0] != 1)
         {
             throw std::runtime_error("first input argument to sscal_custom_op must be a scalar");
         }

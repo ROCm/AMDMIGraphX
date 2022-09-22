@@ -31,9 +31,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Iterator, class EndIterator>
-auto is_end(rank<2>, Iterator it, EndIterator) -> decltype(!it._M_dereferenceable())
+auto is_end(rank<2>, Iterator it, EndIterator) -> decltype(not it._M_dereferenceable())
 {
-    return !it._M_dereferenceable();
+    return not it._M_dereferenceable();
 }
 
 template <class Iterator, class EndIterator>

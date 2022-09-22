@@ -38,7 +38,6 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/convolution.hpp>
-#include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/reshape.hpp>

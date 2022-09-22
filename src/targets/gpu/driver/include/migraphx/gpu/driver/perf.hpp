@@ -33,7 +33,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace driver {
 
-double time_op(context& ctx, operation op, const std::vector<shape>& inputs, int n = 100);
+std::pair<double, double>
+time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
 
 } // namespace driver
 } // namespace gpu

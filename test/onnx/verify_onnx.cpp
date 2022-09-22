@@ -224,16 +224,12 @@ TEST_CASE(batch_norm_3d_test)
 
     migraphx::shape x_shape{migraphx::shape::double_type, {2, 2, 2, 2, 2}};
     migraphx::shape c_shape(migraphx::shape::double_type, {2});
-    std::vector<double> x_data = {
-        1.65243424,  -0.51048073, 0.32543049, 2.44100439,  2.0833701,   0.44981123,  1.00446224,
-        -0.24006312, -0.43065987, 0.07626268, -0.02927135, 0.42347776,  -0.00449735, -0.4281568,
-        -0.55276351, 0.02204161,  -1.4719028, -1.72987988, 0.79596406,  0.95054607,  0.23115851,
-        0.66395935,  -0.06963254, 1.03487685, -1.33692599, -1.06790983, 0.103685,    0.20240044,
-        -0.70175607, -0.88597268, 0.30854644, -0.36574764};
-    std::vector<double> scale_data    = {-0.9463552, 0.94769164};
-    std::vector<double> bias_data     = {0.37686515, -0.05184272};
-    std::vector<double> mean_data     = {-0.71512443, -0.37341377};
-    std::vector<double> variance_data = {0.57612415, 0.95018451};
+    std::vector<double> x_data = {5., 5., 8., 7., 3., 4., 1., 7., 5., 5., 9., 4., 7., 2., 2., 2.,
+                                  6., 1., 4., 9., 2., 8., 0., 2., 1., 4., 8., 8., 3., 3., 0., 8.};
+    std::vector<double> scale_data    = {1., 1.};
+    std::vector<double> bias_data     = {0., 0.};
+    std::vector<double> mean_data     = {-0.75, 0.29};
+    std::vector<double> variance_data = {0.31, 0.37};
 
     migraphx::parameter_map params;
     params["x"]        = migraphx::argument(x_shape, x_data.data());
@@ -243,16 +239,26 @@ TEST_CASE(batch_norm_3d_test)
     params["variance"] = migraphx::argument(c_shape, variance_data.data());
 
     auto result = p.eval(params).back();
-    std::vector<float> result_vector;
+    std::vector<double> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // converted to float on visit
-    std::vector<float> gold = {
-        -2.5749769,  0.12171798,  -0.92048549, -3.55815613, -3.11226224, -1.07556182, -1.76709365,
-        -0.21543525, -0.10749804, 0.38533794,  0.28273653,  0.72290446,  0.3068221,   -0.10506452,
-        -0.22620862, 0.33262359,  1.32040679,  1.64204933,  -1.50714077, -1.69987165, -0.8029484,
-        -1.34255897, -0.42792594, -1.8050142,  -0.98858046, -0.72703984, 0.41199824,  0.50797052,
-        -0.37106091, -0.55015842, 0.61116689,  -0.04438962};
+    typedef std::numeric_limits<double> dbl;
+    std::cout.precision(dbl::max_digits10);
+    std::cout << "result_vector: ";
+    for(auto r : result_vector)
+    {
+        std::cout << r << ", ";
+    }
+    std::cout << "\n";
+    std::vector<double> gold = {
+        10.32713830114023,  10.32713830114023,  15.715210458256873,  13.919186405884659,
+        6.735090196395803,  8.531114248768016,  3.143042091651375,   13.919186405884659,
+        7.743087666472147,  7.743087666472147,  14.318958296172486,  6.099120009047063,
+        11.031022981322316, 2.811184694196894,  2.811184694196894,   2.811184694196894,
+        12.123162353512445, 3.143042091651375,  8.531114248768016,   17.511234510629087,
+        4.939066144023589,  15.715210458256873, 1.3470180392791606,  4.939066144023589,
+        1.16721703677181,   6.099120009047063,  12.674990638747401,  12.674990638747401,
+        4.455152351621979,  4.455152351621979,  -0.4767506206532744, 12.674990638747401};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

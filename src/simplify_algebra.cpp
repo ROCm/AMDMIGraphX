@@ -74,7 +74,7 @@ struct find_mul_conv
         auto a_ins    = r.instructions["a"];
         auto w_ins    = r.instructions["w"];
 
-        auto a_input_lens = a_ins->inputs().front()->get_shape().lens();
+        const auto& a_input_lens = a_ins->inputs().front()->get_shape().lens();
 
         std::size_t num_not_one_dims = std::count_if(
             a_input_lens.cbegin(), a_input_lens.cend(), [](auto dim) { return dim != 1; });
@@ -82,24 +82,22 @@ struct find_mul_conv
             return;
 
         // check broadcasted along channels
-        auto a_lens    = a_ins->get_shape().lens();
-        auto a_strides = a_ins->get_shape().strides();
-        // handle len = 1 case
-        auto invalid_sl = [&](std::size_t i) {
-            if(a_strides[i] != 0)
-            {
-                return a_lens[i] != 1;
-            }
-            return false;
-        };
-        auto invalid_case = false;
-        for(int i = 2; i < a_lens.size(); ++i)
-        {
-            if(invalid_sl(i))
-                invalid_case = true;
-        }
+        const auto& a_lens    = a_ins->get_shape().lens();
+        const auto& a_strides = a_ins->get_shape().strides();
 
-        if(invalid_sl(0) or a_strides.at(1) != 1 or invalid_case)
+        auto is_broadcasted_axis = [](auto len, auto stride) { return len == 1 or stride == 0; };
+
+        if(a_strides.at(1) != 1)
+            return;
+
+        if(not is_broadcasted_axis(a_lens.front(), a_strides.front()))
+            return;
+
+        if(not std::equal(a_lens.begin() + 2,
+                          a_lens.end(),
+                          a_strides.begin() + 2,
+                          a_strides.end(),
+                          is_broadcasted_axis))
             return;
 
         auto sq    = m.insert_instruction(ins, make_op("squeeze"), a_ins->inputs().front());

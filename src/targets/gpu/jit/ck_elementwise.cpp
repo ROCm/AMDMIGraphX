@@ -45,7 +45,7 @@ using namespace migraphx::gpu::gen; // NOLINT
 
 // NOLINTNEXTLINE
 static const char* const ck_elementwise_kernel = R"__migraphx__(
-#include <migraphx/kernels/ck_elementwise.hpp>
+#include <migraphx/kernels/ck_elementwise2.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/generic_constant.hpp>

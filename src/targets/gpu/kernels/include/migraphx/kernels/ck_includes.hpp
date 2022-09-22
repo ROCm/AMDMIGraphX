@@ -36,8 +36,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_v1r3.hpp"
-#include "ck/device_utility/device_prop.hpp"
-#include "ck/device_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_dl.hpp"
 
 namespace migraphx {
 
@@ -53,7 +52,7 @@ static constexpr auto K1Number  = ck::Number<K1>{};
 
 using Row     = ck::tensor_layout::gemm::RowMajor;
 using Col     = ck::tensor_layout::gemm::ColumnMajor;
-using ALayout = Col;
+using ALayout = Row;//Col;
 using BLayout = Row;
 using CLayout = Row;
 
@@ -61,6 +60,10 @@ using ADataType   = float;
 using BDataType   = float;
 using CDataType   = float;
 using AccDataType = float;
+
+using AElementOp = ck::tensor_operation::element_wise::PassThrough;
+using BElementOp = ck::tensor_operation::element_wise::PassThrough;
+using CElementOp = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -211,6 +214,61 @@ static constexpr auto MakeCGridDescriptor_M_N(ck::index_t M, ck::index_t N, ck::
 using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
 using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
 using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+
+using GridwiseGemm =
+            ck::GridwiseGemmDl_km_kn_mn_v1r3<BlockSize,
+                                            ADataType,
+                                            AccDataType,
+                                            CDataType,
+                                            ck::InMemoryDataOperationEnum::Set,
+                                            AGridDesc_K0_M_K1,
+                                            BGridDesc_K0_N_K1,
+                                            CGridDesc_M_N,
+                                            MPerBlock,
+                                            NPerBlock,
+                                            K0PerBlock,
+                                            M1PerThread,
+                                            N1PerThread,
+                                            KPerThread,
+                                            M1N1ThreadClusterM1Xs,
+                                            M1N1ThreadClusterN1Xs,
+                                            ABlockTransferThreadSliceLengths_K0_M0_M1_K1,
+                                            ABlockTransferThreadClusterLengths_K0_M0_M1_K1,
+                                            ABlockTransferThreadClusterArrangeOrder,
+                                            ABlockTransferSrcAccessOrder,
+                                            ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1,
+                                            ABlockTransferSrcVectorTensorContiguousDimOrder,
+                                            ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1,
+                                            BBlockTransferThreadSliceLengths_K0_N0_N1_K1,
+                                            BBlockTransferThreadClusterLengths_K0_N0_N1_K1,
+                                            BBlockTransferThreadClusterArrangeOrder,
+                                            BBlockTransferSrcAccessOrder,
+                                            BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1,
+                                            BBlockTransferSrcVectorTensorContiguousDimOrder,
+                                            BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
+                                            CThreadTransferSrcDstAccessOrder,
+                                            CThreadTransferSrcDstVectorDim,
+                                            CThreadTransferDstScalarPerVector>;
+
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+
+// clang-format off
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmDl
+// ######|     AData|     BData|     CData|     AccData| ALayout| BLayout| CLayout|           A|           B|           C|           GEMM| Block|  MPer|  NPer| K0Per| K1|      M1Per|      N1Per|   KPer|  M11N11Thread|  M11N11Thread|     ABlockTransfer|       ABlockTransfer| ABlockTransfer| ABlockTransfer|      ABlockTransfer|     ABlockTransfer|      ABlockTransfer|     BBlockTransfer|       BBlockTransfer| BBlockTransfer| BBlockTransfer|      BBlockTransfer|     BBlockTransfer|      BBlockTransfer|     CThreadTransfer| CThreadTransfer|    CThreadTransfer|
+// ######|      Type|      Type|      Type|        Type|        |        |        | Elementwise| Elementwise| Elementwise| Spacialization|  Size| Block| Block| Block|   | ThreadM111| ThreadN111| Thread| ClusterM110Xs| ClusterN110Xs| ThreadSliceLengths| ThreadClusterLengths|  ThreadCluster|      SrcAccess|     SrcVectorTensor|    SrcVectorTensor|     DstVectorTensor| ThreadSliceLengths| ThreadClusterLengths|  ThreadCluster|      SrcAccess|     SrcVectorTensor|    SrcVectorTensor|     DstVectorTensor|        SrcDstAccess| SrcDstVectorDim| DstScalarPerVector|
+// ######|          |          |          |            |        |        |        |   Operation|   Operation|   Operation|               |      |      |      |      |   |           |           |       |              |              |        K0_M0_M1_K1|          K0_M0_M1_K1|   ArrangeOrder|          Order| Lengths_K0_M0_M1_K1| ContiguousDimOrder| Lengths_K0_M0_M1_K1|        K0_N0_N1_K1|          K0_N0_N1_K1|   ArrangeOrder|          Order| Lengths_K0_N0_N1_K1| ContiguousDimOrder| Lengths_K0_N0_N1_K1|               Order|                |                   |
+// ######|          |          |          |            |        |        |        |            |            |            |               |      |      |      |      |   |           |           |       |              |              |                   |                     |               |               |                    |                   |                    |                   |                     |               |               |                    |                   |                    |                    |                |                   |
+        < ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,  AElementOp,  BElementOp,  CElementOp,    GemmDefault,   256,   128,   128,    16,  1,          4,          4,      1,       S<8, 2>,       S<8, 2>,      S<2, 1, 4, 1>,       S<8, 1, 32, 1>,  S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<1, 1, 4, 1>,      S<0, 3, 1, 2>,       S<1, 1, 4, 1>,      S<2, 1, 4, 1>,       S<8, 1, 32, 1>,  S<0, 3, 1, 2>,  S<0, 3, 1, 2>,       S<1, 1, 4, 1>,      S<0, 3, 1, 2>,       S<1, 1, 4, 1>, S<0, 1, 2, 3, 4, 5>,               5,                  4>;
+// clang-format on
+
+using AGridDesc_K0_M0_M1_K1 =
+    decltype(GridwiseGemm::MakeAGridDescriptor_K0_M0_M1_K1(AGridDesc_K0_M_K1{}));
+using BGridDesc_K0_N0_N1_K1 =
+    decltype(GridwiseGemm::MakeBGridDescriptor_K0_N0_N1_K1(BGridDesc_K0_N_K1{}));
+using CGridDesc_M0_M10_M11_N0_N10_N11 =
+    decltype(GridwiseGemm::MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(CGridDesc_M_N{}));
+using DefaultBlock2CTileMap =
+    decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}));
 
 } // namespace migraphx
 #endif

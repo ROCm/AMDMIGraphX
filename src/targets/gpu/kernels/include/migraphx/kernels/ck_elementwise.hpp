@@ -31,9 +31,10 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 
+#include "ck/ck.hpp"
 #include "ck/device_utility/device_prop.hpp"
 #include "ck/device_utility/kernel_launch.hpp"
-#include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include <ck/tensor_operation/gpu/device/device_base.hpp>
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_binary_elementwise_1d.hpp"
 
@@ -212,6 +213,7 @@ __device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
                                                                 AScalarPerVector,
                                                                 BScalarPerVector,
                                                                 CScalarPerVector>;
+    
     auto op                                = Add{};
     GridwiseBinEltwise::Run(a_t.data(), b_t.data(), c_t.data(), a_desc, b_desc, c_desc, op);
 }

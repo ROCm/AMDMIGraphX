@@ -504,7 +504,7 @@ struct mlir_program
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
                 // check if HW supports xdlops
-                bool xdlops = contains(get_xdlops_archs(), target_name);
+                bool xdlops       = contains(get_xdlops_archs(), target_name);
                 std::string tuned = get_tune_params(xdlops);
                 if(not tuned.empty())
                     ops.add_attributes({{"perf_config", tuned}});

@@ -111,14 +111,14 @@ auto query_miopen_db(const std::string& query)
 std::string get_mlir_perf_for_conv(const problem_params& pp, bool xdlops)
 {
     std::string solver = xdlops ? "ConvMlirIgemmFwdXdlops" : "ConvMlirIgemmFwd";
-    std::string query = "select P.* \
+    std::string query  = "select P.* \
                              from perf_db P, config C \
                              where P.config = C.id AND \
                              P.solver = '${solver}' AND \
                              ${config}";
 
-    auto results =
-        query_miopen_db(interpolate_string(query, {{"config", generate_miopen_config(pp)}, {"solver", solver}}));
+    auto results = query_miopen_db(
+        interpolate_string(query, {{"config", generate_miopen_config(pp)}, {"solver", solver}}));
     if(results.empty())
         return "";
     return results.front().at("params");

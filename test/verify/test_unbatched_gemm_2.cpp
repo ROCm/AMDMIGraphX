@@ -21,56 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_MATCH_LAYERNORM_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_MATCH_LAYERNORM_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/matcher.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace match {
-
-namespace detail {
-template <class F>
-struct layernorm_matcher
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
+struct test_unbatched_gemm_2 : verify_program<test_unbatched_gemm_2>
 {
-    F f;
-    auto x_minus_mean() const
+    migraphx::program create_program() const
     {
-        return f("sub")(arg(0)(any().bind("x")), arg(1)(skip_broadcasts(f("reduce_mean"))));
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{migraphx::shape::float_type, {4, 32, 64}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {64, 64}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_literal(migraphx::generate_literal(m2_shape));
+        l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}),
+                                 l2);
+
+        mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        return p;
     }
-
-    auto variance() const
-    {
-        return f("reduce_mean")(arg(0)(f("pow")(arg(0)(x_minus_mean()), arg(1)(has_value(2.0f)))));
-    }
-
-    auto layernorm_onnx() const
-    {
-        return f("div")(arg(0)(x_minus_mean()),
-
-                        arg(1)(skip_broadcasts(f("sqrt")(arg(0)(
-                            f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps"))))))));
-    }
-
-    auto matcher() const { return layernorm_onnx(); }
 };
-} // namespace detail
-
-template <class F>
-auto layernorm(F f)
-{
-    return detail::layernorm_matcher<F>{f}.matcher();
-}
-
-inline auto layernorm()
-{
-    return layernorm([](auto x) { return name(x); });
-}
-
-} // namespace match
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

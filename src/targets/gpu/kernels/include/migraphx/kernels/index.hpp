@@ -125,36 +125,6 @@ struct index
         return (n - _c<1>) / stride + _c<1>;
     }
 
-<<<<<<< HEAD
-    template <class F, class N, class Stride>
-    static constexpr void for_stride(index_int start, N n, Stride stride, F f)
-    {
-        if constexpr(not is_integral<N>{} and not is_integral<Stride>{} and
-                     max_stride_iterations(n, stride) == 1)
-        {
-            if constexpr(stride > n)
-            {
-                if(start < n)
-                    f(start);
-            }
-            else
-            {
-                f(start);
-            }
-        }
-        else
-        {
-            for(index_int i = start; i < n; i += stride)
-            {
-                f(i);
-            }
-        }
-    }
-
-    template <class F, class N>
-    __device__ void global_stride(N n, F f) const
-    {
-=======
 #ifdef MIGRAPHX_NLOCAL
     constexpr index_constant<MIGRAPHX_NLOCAL> max_nlocal() const { return {}; }
 #else
@@ -199,7 +169,6 @@ struct index
     template <class F, class N>
     __device__ void global_stride(N n, F f) const
     {
->>>>>>> origin/develop
         for_stride(global, n, nglobal(), f);
     }
 

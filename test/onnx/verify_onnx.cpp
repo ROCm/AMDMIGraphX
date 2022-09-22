@@ -222,14 +222,24 @@ TEST_CASE(batch_norm_3d_test)
     migraphx::program p = migraphx::parse_onnx("batch_norm_3d_test.onnx");
     p.compile(migraphx::ref::target{});
 
-    migraphx::shape x_shape{migraphx::shape::double_type, {2, 2, 2, 2, 2}};
-    migraphx::shape c_shape(migraphx::shape::double_type, {2});
-    std::vector<double> x_data = {5., 5., 8., 7., 3., 4., 1., 7., 5., 5., 9., 4., 7., 2., 2., 2.,
-                                  6., 1., 4., 9., 2., 8., 0., 2., 1., 4., 8., 8., 3., 3., 0., 8.};
-    std::vector<double> scale_data    = {1., 1.};
-    std::vector<double> bias_data     = {0., 0.};
-    std::vector<double> mean_data     = {-0.75, 0.29};
-    std::vector<double> variance_data = {0.31, 0.37};
+    migraphx::shape x_shape{migraphx::shape::half_type, {2, 2, 2, 2, 2}};
+    migraphx::shape c_shape(migraphx::shape::half_type, {2});
+
+    // using migraphx::half copy conversion since it doesn't have initializer_list constructor
+    std::vector<float> tmp = {5., 5., 8., 7., 3., 4., 1., 7., 5., 5., 9., 4., 7., 2., 2., 2.,
+                              6., 1., 4., 9., 2., 8., 0., 2., 1., 4., 8., 8., 3., 3., 0., 8.};
+    std::vector<migraphx::half> x_data{tmp.cbegin(), tmp.cend()};
+    tmp = {1., 1.};
+    std::vector<migraphx::half> scale_data{tmp.cbegin(), tmp.cend()};
+    tmp = {
+        0.,
+        0.,
+    };
+    std::vector<migraphx::half> bias_data{tmp.cbegin(), tmp.cend()};
+    tmp = {-0.75, 0.29};
+    std::vector<migraphx::half> mean_data{tmp.cbegin(), tmp.cend()};
+    tmp = {0.31, 0.37};
+    std::vector<migraphx::half> variance_data{tmp.cbegin(), tmp.cend()};
 
     migraphx::parameter_map params;
     params["x"]        = migraphx::argument(x_shape, x_data.data());
@@ -239,26 +249,13 @@ TEST_CASE(batch_norm_3d_test)
     params["variance"] = migraphx::argument(c_shape, variance_data.data());
 
     auto result = p.eval(params).back();
-    std::vector<double> result_vector;
+    std::vector<migraphx::half> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    typedef std::numeric_limits<double> dbl;
-    std::cout.precision(dbl::max_digits10);
-    std::cout << "result_vector: ";
-    for(auto r : result_vector)
-    {
-        std::cout << r << ", ";
-    }
-    std::cout << "\n";
-    std::vector<double> gold = {
-        10.32713830114023,  10.32713830114023,  15.715210458256873,  13.919186405884659,
-        6.735090196395803,  8.531114248768016,  3.143042091651375,   13.919186405884659,
-        7.743087666472147,  7.743087666472147,  14.318958296172486,  6.099120009047063,
-        11.031022981322316, 2.811184694196894,  2.811184694196894,   2.811184694196894,
-        12.123162353512445, 3.143042091651375,  8.531114248768016,   17.511234510629087,
-        4.939066144023589,  15.715210458256873, 1.3470180392791606,  4.939066144023589,
-        1.16721703677181,   6.099120009047063,  12.674990638747401,  12.674990638747401,
-        4.455152351621979,  4.455152351621979,  -0.4767506206532744, 12.674990638747401};
+    tmp = {10.33, 10.33, 15.71, 13.914, 6.734, 8.53,   3.143, 13.914, 7.742,   7.742, 14.32,
+           6.098, 11.03, 2.81,  2.81,   2.81,  12.125, 3.143, 8.53,   17.52,   4.938, 15.71,
+           1.347, 4.938, 1.167, 6.098,  12.67, 12.67,  4.453, 4.453,  -0.4768, 12.67};
+    std::vector<migraphx::half> gold{tmp.cbegin(), tmp.cend()};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

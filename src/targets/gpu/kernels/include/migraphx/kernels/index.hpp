@@ -119,11 +119,6 @@ struct index
         return compute_local_size(); // NOLINT
     }
 #endif
-    template <class N, class Stride>
-    static constexpr auto max_stride_iterations(N n, Stride stride)
-    {
-        return (n - _c<1>) / stride + _c<1>;
-    }
 
 #ifdef MIGRAPHX_NLOCAL
     constexpr index_constant<MIGRAPHX_NLOCAL> max_nlocal() const { return {}; }

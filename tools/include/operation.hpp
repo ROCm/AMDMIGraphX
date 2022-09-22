@@ -222,7 +222,7 @@ template <class T>
 auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
     -> decltype(x.compute(output_shape, input))
 {
-    return x.compute(output_shape, input);
+    return x.compute(make_compute_output_shape(x, output_shape, input), input);
 }
 
 template <class T>
@@ -561,6 +561,59 @@ lifetime get_lifetime_op(const T&)
     inline bool operator!=(const operation& x, const operation& y)
 {
     return not(x == y);
+}
+
+// used for dynamic operators
+struct dyn_output
+{
+    // original instruction output shape
+    shape ins_shape;
+    std::function<shape()> compute_shape;
+
+    shape get_output_shape()
+    {
+        if(output_shape.element_space() == 0)
+        {
+            output_shape = compute_shape();
+        }
+        return output_shape;
+    }
+
+    private:
+    // shape computed at eval time using input arguments
+    shape output_shape;
+};
+
+/**
+ * Handle dynamic and static shape at evaluation time.
+ * If converted to shape type, returns original ins_shape
+ * If converted to dyn_output type, will compute an output shape using the input arguments
+ */
+template <class F>
+struct compute_output_shape
+{
+    F ins_inputs;
+    operator dyn_output() const
+    {
+        return unpack(
+            [](const auto& x, shape ins_shape, const std::vector<argument>& args) {
+                return dyn_output{ins_shape, [&]() { compute_shape(x, to_shapes(args)); }};
+            },
+            ins_inputs);
+    }
+
+    operator shape() const
+    {
+        return unpack(
+            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; },
+            ins_inputs);
+    }
+};
+
+template <class T>
+auto make_compute_output_shape(const T& x, shape ins_shape, const std::vector<argument>& input)
+{
+    return compute_output_shape{pack(x, ins_shape, input)};
 }
 
 inline value

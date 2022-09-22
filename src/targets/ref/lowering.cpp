@@ -234,8 +234,9 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
         return op.normalize_compute_shape(inputs);
     }
 
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(context&, migraphx::dyn_output dyn_output, std::vector<argument> args) const
     {
+        shape output_shape;
         std::vector<std::size_t> padding;
         if(op.padding_mode != op::padding_mode_t::default_)
         {
@@ -250,12 +251,8 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
         }
         else
         {
-            padding = op.padding;
-            if(output_shape.dynamic())
-            {
-                output_shape =
-                    op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
-            }
+            padding      = op.padding;
+            output_shape = dyn_output.get_output_shape();
         }
 
         argument result{output_shape};

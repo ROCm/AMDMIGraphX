@@ -52,7 +52,7 @@ static constexpr auto K1Number  = ck::Number<K1>{};
 
 using Row     = ck::tensor_layout::gemm::RowMajor;
 using Col     = ck::tensor_layout::gemm::ColumnMajor;
-using ALayout = Row;//Col;
+using ALayout = Row; // Col;
 using BLayout = Row;
 using CLayout = Row;
 
@@ -216,39 +216,39 @@ using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
 using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
 using GridwiseGemm =
-            ck::GridwiseGemmDl_km_kn_mn_v1r3<BlockSize,
-                                            ADataType,
-                                            AccDataType,
-                                            CDataType,
-                                            ck::InMemoryDataOperationEnum::Set,
-                                            AGridDesc_K0_M_K1,
-                                            BGridDesc_K0_N_K1,
-                                            CGridDesc_M_N,
-                                            MPerBlock,
-                                            NPerBlock,
-                                            K0PerBlock,
-                                            M1PerThread,
-                                            N1PerThread,
-                                            KPerThread,
-                                            M1N1ThreadClusterM1Xs,
-                                            M1N1ThreadClusterN1Xs,
-                                            ABlockTransferThreadSliceLengths_K0_M0_M1_K1,
-                                            ABlockTransferThreadClusterLengths_K0_M0_M1_K1,
-                                            ABlockTransferThreadClusterArrangeOrder,
-                                            ABlockTransferSrcAccessOrder,
-                                            ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1,
-                                            ABlockTransferSrcVectorTensorContiguousDimOrder,
-                                            ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1,
-                                            BBlockTransferThreadSliceLengths_K0_N0_N1_K1,
-                                            BBlockTransferThreadClusterLengths_K0_N0_N1_K1,
-                                            BBlockTransferThreadClusterArrangeOrder,
-                                            BBlockTransferSrcAccessOrder,
-                                            BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1,
-                                            BBlockTransferSrcVectorTensorContiguousDimOrder,
-                                            BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
-                                            CThreadTransferSrcDstAccessOrder,
-                                            CThreadTransferSrcDstVectorDim,
-                                            CThreadTransferDstScalarPerVector>;
+    ck::GridwiseGemmDl_km_kn_mn_v1r3<BlockSize,
+                                     ADataType,
+                                     AccDataType,
+                                     CDataType,
+                                     ck::InMemoryDataOperationEnum::Set,
+                                     AGridDesc_K0_M_K1,
+                                     BGridDesc_K0_N_K1,
+                                     CGridDesc_M_N,
+                                     MPerBlock,
+                                     NPerBlock,
+                                     K0PerBlock,
+                                     M1PerThread,
+                                     N1PerThread,
+                                     KPerThread,
+                                     M1N1ThreadClusterM1Xs,
+                                     M1N1ThreadClusterN1Xs,
+                                     ABlockTransferThreadSliceLengths_K0_M0_M1_K1,
+                                     ABlockTransferThreadClusterLengths_K0_M0_M1_K1,
+                                     ABlockTransferThreadClusterArrangeOrder,
+                                     ABlockTransferSrcAccessOrder,
+                                     ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1,
+                                     ABlockTransferSrcVectorTensorContiguousDimOrder,
+                                     ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1,
+                                     BBlockTransferThreadSliceLengths_K0_N0_N1_K1,
+                                     BBlockTransferThreadClusterLengths_K0_N0_N1_K1,
+                                     BBlockTransferThreadClusterArrangeOrder,
+                                     BBlockTransferSrcAccessOrder,
+                                     BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1,
+                                     BBlockTransferSrcVectorTensorContiguousDimOrder,
+                                     BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
+                                     CThreadTransferSrcDstAccessOrder,
+                                     CThreadTransferSrcDstVectorDim,
+                                     CThreadTransferDstScalarPerVector>;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -267,8 +267,7 @@ using BGridDesc_K0_N0_N1_K1 =
     decltype(GridwiseGemm::MakeBGridDescriptor_K0_N0_N1_K1(BGridDesc_K0_N_K1{}));
 using CGridDesc_M0_M10_M11_N0_N10_N11 =
     decltype(GridwiseGemm::MakeCGridDescriptor_M0_M10_M11_N0_N10_N11(CGridDesc_M_N{}));
-using DefaultBlock2CTileMap =
-    decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}));
+using DefaultBlock2CTileMap = decltype(GridwiseGemm::MakeDefaultBlock2CTileMap(CGridDesc_M_N{}));
 
 } // namespace migraphx
 #endif

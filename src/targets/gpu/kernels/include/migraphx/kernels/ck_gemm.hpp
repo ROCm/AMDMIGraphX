@@ -60,19 +60,27 @@ __device__ void ck_gemm(const T& a_t, const U& b_t, const V& c_t, const W& p_t)
 
     if(idx.global == 0)
     {
-        printf("a_grid_desc_k0_m0_m1_k1{%i, %i, %i}\n", int(a_grid_desc_k0_m_k1.GetLength(I0)), int(a_grid_desc_k0_m_k1.GetLength(I1)), int(a_grid_desc_k0_m_k1.GetLength(I2)));
-        printf("b_grid_desc_k0_n0_n1_k1{%i, %i, %i}\n", int(b_grid_desc_k0_n_k1.GetLength(I0)), int(b_grid_desc_k0_n_k1.GetLength(I1)), int(b_grid_desc_k0_n_k1.GetLength(I2)));
-        printf("c_grid_desc_m_n{%i, %i}\n", int(c_grid_desc_m_n.GetLength(I0)), int(c_grid_desc_m_n.GetLength(I1)));
+        printf("a_grid_desc_k0_m0_m1_k1{%i, %i, %i}\n",
+               int(a_grid_desc_k0_m_k1.GetLength(I0)),
+               int(a_grid_desc_k0_m_k1.GetLength(I1)),
+               int(a_grid_desc_k0_m_k1.GetLength(I2)));
+        printf("b_grid_desc_k0_n0_n1_k1{%i, %i, %i}\n",
+               int(b_grid_desc_k0_n_k1.GetLength(I0)),
+               int(b_grid_desc_k0_n_k1.GetLength(I1)),
+               int(b_grid_desc_k0_n_k1.GetLength(I2)));
+        printf("c_grid_desc_m_n{%i, %i}\n",
+               int(c_grid_desc_m_n.GetLength(I0)),
+               int(c_grid_desc_m_n.GetLength(I1)));
     }
     AGridDesc_K0_M0_M1_K1 a_grid_desc_k0_m0_m1_k1;
     BGridDesc_K0_N0_N1_K1 b_grid_desc_k0_n0_n1_k1;
     CGridDesc_M0_M10_M11_N0_N10_N11 c_grid_desc_m0_m10_m11_n0_n10_n11;
     DefaultBlock2CTileMap block_2_ctile_map;
 
-    if(true or GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1, b_grid_desc_k0_n_k1, c_grid_desc_m_n))
+    if(true or
+       GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1, b_grid_desc_k0_n_k1, c_grid_desc_m_n))
     {
-        //printf("Is valid\n");
+        // printf("Is valid\n");
         a_grid_desc_k0_m0_m1_k1 =
             GridwiseGemm::MakeAGridDescriptor_K0_M0_M1_K1(a_grid_desc_k0_m_k1);
         b_grid_desc_k0_n0_n1_k1 =
@@ -83,79 +91,86 @@ __device__ void ck_gemm(const T& a_t, const U& b_t, const V& c_t, const W& p_t)
     }
     else
     {
-        //printf("Not valid\n");
+        // printf("Not valid\n");
     }
 
     if(idx.global == 0)
     {
-        printf("a_grid_desc_k0_m0_m1_k1{%i, %i, %i}\n", int(a_grid_desc_k0_m0_m1_k1.GetLength(I0)), int(a_grid_desc_k0_m0_m1_k1.GetLength(I1)), int(a_grid_desc_k0_m0_m1_k1.GetLength(I2)));
-        printf("b_grid_desc_k0_n0_n1_k1{%i, %i, %i}\n", int(b_grid_desc_k0_n0_n1_k1.GetLength(I0)), int(b_grid_desc_k0_n0_n1_k1.GetLength(I1)), int(b_grid_desc_k0_n0_n1_k1.GetLength(I2)));
-        printf("c_grid_desc_m0_m10_m11_n0_n10_n11{%i, %i}\n", int(c_grid_desc_m0_m10_m11_n0_n10_n11.GetLength(I0)), int(c_grid_desc_m0_m10_m11_n0_n10_n11.GetLength(I1)));
+        printf("a_grid_desc_k0_m0_m1_k1{%i, %i, %i}\n",
+               int(a_grid_desc_k0_m0_m1_k1.GetLength(I0)),
+               int(a_grid_desc_k0_m0_m1_k1.GetLength(I1)),
+               int(a_grid_desc_k0_m0_m1_k1.GetLength(I2)));
+        printf("b_grid_desc_k0_n0_n1_k1{%i, %i, %i}\n",
+               int(b_grid_desc_k0_n0_n1_k1.GetLength(I0)),
+               int(b_grid_desc_k0_n0_n1_k1.GetLength(I1)),
+               int(b_grid_desc_k0_n0_n1_k1.GetLength(I2)));
+        printf("c_grid_desc_m0_m10_m11_n0_n10_n11{%i, %i}\n",
+               int(c_grid_desc_m0_m10_m11_n0_n10_n11.GetLength(I0)),
+               int(c_grid_desc_m0_m10_m11_n0_n10_n11.GetLength(I1)));
     }
 
-    const auto K0                    = a_grid_desc_k0_m0_m1_k1.GetLength(I0);
-    const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K0);
-    const bool has_double_tail_k_block_loop =
-        GridwiseGemm::CalculateHasDoubleTailKBlockLoop(K0);
+    const auto K0                           = a_grid_desc_k0_m0_m1_k1.GetLength(I0);
+    const bool has_main_k_block_loop        = GridwiseGemm::CalculateHasMainKBlockLoop(K0);
+    const bool has_double_tail_k_block_loop = GridwiseGemm::CalculateHasDoubleTailKBlockLoop(K0);
     if(has_main_k_block_loop && has_double_tail_k_block_loop)
     {
-        constexpr bool HasMainKBlockLoop = true;
+        constexpr bool HasMainKBlockLoop       = true;
         constexpr bool HasDoubleTailKBlockLoop = true;
         GridwiseGemm::Run(a_t.data(),
-                        b_t.data(),
-                        c_t.data(),
-                        p_t.data(),
-                        a_grid_desc_k0_m0_m1_k1,
-                        b_grid_desc_k0_n0_n1_k1,
-                        c_grid_desc_m0_m10_m11_n0_n10_n11,
-                        block_2_ctile_map,
-                        ck::integral_constant<bool, HasMainKBlockLoop>{},
-                        ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
+                          b_t.data(),
+                          c_t.data(),
+                          p_t.data(),
+                          a_grid_desc_k0_m0_m1_k1,
+                          b_grid_desc_k0_n0_n1_k1,
+                          c_grid_desc_m0_m10_m11_n0_n10_n11,
+                          block_2_ctile_map,
+                          ck::integral_constant<bool, HasMainKBlockLoop>{},
+                          ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
     }
     else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
     {
-        constexpr bool HasMainKBlockLoop = true;
+        constexpr bool HasMainKBlockLoop       = true;
         constexpr bool HasDoubleTailKBlockLoop = false;
         GridwiseGemm::Run(a_t.data(),
-                        b_t.data(),
-                        c_t.data(),
-                        p_t.data(),
-                        a_grid_desc_k0_m0_m1_k1,
-                        b_grid_desc_k0_n0_n1_k1,
-                        c_grid_desc_m0_m10_m11_n0_n10_n11,
-                        block_2_ctile_map,
-                        ck::integral_constant<bool, HasMainKBlockLoop>{},
-                        ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
+                          b_t.data(),
+                          c_t.data(),
+                          p_t.data(),
+                          a_grid_desc_k0_m0_m1_k1,
+                          b_grid_desc_k0_n0_n1_k1,
+                          c_grid_desc_m0_m10_m11_n0_n10_n11,
+                          block_2_ctile_map,
+                          ck::integral_constant<bool, HasMainKBlockLoop>{},
+                          ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
     }
     else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
     {
-        constexpr bool HasMainKBlockLoop = false;
+        constexpr bool HasMainKBlockLoop       = false;
         constexpr bool HasDoubleTailKBlockLoop = true;
         GridwiseGemm::Run(a_t.data(),
-                        b_t.data(),
-                        c_t.data(),
-                        p_t.data(),
-                        a_grid_desc_k0_m0_m1_k1,
-                        b_grid_desc_k0_n0_n1_k1,
-                        c_grid_desc_m0_m10_m11_n0_n10_n11,
-                        block_2_ctile_map,
-                        ck::integral_constant<bool, HasMainKBlockLoop>{},
-                        ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
+                          b_t.data(),
+                          c_t.data(),
+                          p_t.data(),
+                          a_grid_desc_k0_m0_m1_k1,
+                          b_grid_desc_k0_n0_n1_k1,
+                          c_grid_desc_m0_m10_m11_n0_n10_n11,
+                          block_2_ctile_map,
+                          ck::integral_constant<bool, HasMainKBlockLoop>{},
+                          ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
     }
-    else 
+    else
     {
-        constexpr bool HasMainKBlockLoop = false;
+        constexpr bool HasMainKBlockLoop       = false;
         constexpr bool HasDoubleTailKBlockLoop = false;
         GridwiseGemm::Run(a_t.data(),
-                        b_t.data(),
-                        c_t.data(),
-                        p_t.data(),
-                        a_grid_desc_k0_m0_m1_k1,
-                        b_grid_desc_k0_n0_n1_k1,
-                        c_grid_desc_m0_m10_m11_n0_n10_n11,
-                        block_2_ctile_map,
-                        ck::integral_constant<bool, HasMainKBlockLoop>{},
-                        ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
+                          b_t.data(),
+                          c_t.data(),
+                          p_t.data(),
+                          a_grid_desc_k0_m0_m1_k1,
+                          b_grid_desc_k0_n0_n1_k1,
+                          c_grid_desc_m0_m10_m11_n0_n10_n11,
+                          block_2_ctile_map,
+                          ck::integral_constant<bool, HasMainKBlockLoop>{},
+                          ck::integral_constant<bool, HasDoubleTailKBlockLoop>{});
     }
 }
 

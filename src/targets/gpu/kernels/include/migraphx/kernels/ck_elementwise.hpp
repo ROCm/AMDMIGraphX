@@ -213,8 +213,8 @@ __device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
                                                                 AScalarPerVector,
                                                                 BScalarPerVector,
                                                                 CScalarPerVector>;
-    
-    auto op                                = Add{};
+
+    auto op = Add{};
     GridwiseBinEltwise::Run(a_t.data(), b_t.data(), c_t.data(), a_desc, b_desc, c_desc, op);
 }
 

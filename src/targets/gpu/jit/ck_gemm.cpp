@@ -72,7 +72,6 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 
 )__migraphx__";
 
-
 struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 {
     std::vector<std::string> names() const { return {"ck_gemm"}; }

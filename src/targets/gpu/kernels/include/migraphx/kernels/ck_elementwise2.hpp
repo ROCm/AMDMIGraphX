@@ -164,12 +164,12 @@ struct Div
     };
 };
 
-using InDataTypeTuple = ck::Tuple<ABDataType, ABDataType>;
-using OutDataTypeTuple = ck::Tuple<CDataType>;
-using ElementwiseOperation = Add;
+using InDataTypeTuple            = ck::Tuple<ABDataType, ABDataType>;
+using OutDataTypeTuple           = ck::Tuple<CDataType>;
+using ElementwiseOperation       = Add;
 static constexpr auto MPerThread = 8;
-using InScalarPerVectorSeq = ck::Sequence<1, 8>;
-using OutScalarPerVectorSeq = ck::Sequence<8>;
+using InScalarPerVectorSeq       = ck::Sequence<1, 8>;
+using OutScalarPerVectorSeq      = ck::Sequence<8>;
 
 // using DeviceElementwiseAddInstance =
 //     ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
@@ -186,7 +186,7 @@ __device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
     // auto idx = make_index();
     constexpr auto a_lens        = get_shape_c<T>{}.lens;
     constexpr auto a_strides     = get_shape_c<T>{}.strides;
-    constexpr ck::index_t ndim = a_lens.size(); 
+    constexpr ck::index_t ndim   = a_lens.size();
     constexpr auto b_lens        = get_shape_c<U>{}.lens;
     constexpr auto b_strides     = get_shape_c<U>{}.strides;
     constexpr ck::index_t b_ndim = b_lens.size();
@@ -197,47 +197,46 @@ __device__ void ck_elementwise(const T& a_t, const U& b_t, const V& c_t)
 
     using DeviceElementwiseAddInstance =
         ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ABDataType, ABDataType>,
-                                                    ck::Tuple<CDataType>,
-                                                    Add,
-                                                    ndim,
-                                                    8,
-                                                    ck::Sequence<1, 8>,
-                                                    ck::Sequence<8>>;
+                                                        ck::Tuple<CDataType>,
+                                                        Add,
+                                                        ndim,
+                                                        8,
+                                                        ck::Sequence<1, 8>,
+                                                        ck::Sequence<8>>;
     using shapes_t = std::array<ck::index_t, 3>;
-    //shapes_t lengths_abc;
-    //copy(c_lens.begin(), c_lens.end(), lengths_abc);
+    // shapes_t lengths_abc;
+    // copy(c_lens.begin(), c_lens.end(), lengths_abc);
     shapes_t lengths_abc = {c_lens[0], c_lens[1], c_lens[2]};
-    //constexpr auto lengths_abc = static_cast<shapes_t>(c_lens[0], c_lens[1], c_lens[2]);
+    // constexpr auto lengths_abc = static_cast<shapes_t>(c_lens[0], c_lens[1], c_lens[2]);
     constexpr auto strides_a = static_cast<shapes_t>(a_strides);
     constexpr auto strides_b = static_cast<shapes_t>(b_strides);
     constexpr auto strides_c = static_cast<shapes_t>(c_strides);
 
-    std::array<const void*, 2> input = {a_t.data(),
-                                        b_t.data()};
+    std::array<const void*, 2> input = {a_t.data(), b_t.data()};
     std::array<void*, 1> output      = {c_t.data()};
 
-    auto ck_add = DeviceElementwiseAddInstance{};
-    auto argument     = ck_add.MakeArgumentPointer(
+    auto ck_add   = DeviceElementwiseAddInstance{};
+    auto argument = ck_add.MakeArgumentPointer(
         lengths_abc, {strides_a, strides_b}, {strides_c}, input, output, Add{});
-    
+
     using InGrid1dDescTuple  = decltype(ck_add.GenerateInOutGrid1dDescTuple(ck::Number<ndim>{}));
     using OutGrid1dDescTuple = decltype(ck_add.GenerateInOutGrid1dDescTuple(ck::Number<ndim>{}));
     using InDataTypePointerTuple  = decltype(ck_add.GenerateInDataTypePointerTuple());
     using OutDataTypePointerTuple = decltype(ck_add.GenerateOutDataTypePointerTuple());
-    using GridwiseElementwise = ck::GridwiseElementwise_1D<InGrid1dDescTuple,
-                                                       OutGrid1dDescTuple,
-                                                       InDataTypePointerTuple,
-                                                       OutDataTypePointerTuple,
-                                                       ElementwiseOperation,
-                                                       MPerThread,
-                                                       InScalarPerVectorSeq,
-                                                       OutScalarPerVectorSeq>;
+    using GridwiseElementwise     = ck::GridwiseElementwise_1D<InGrid1dDescTuple,
+                                                           OutGrid1dDescTuple,
+                                                           InDataTypePointerTuple,
+                                                           OutDataTypePointerTuple,
+                                                           ElementwiseOperation,
+                                                           MPerThread,
+                                                           InScalarPerVectorSeq,
+                                                           OutScalarPerVectorSeq>;
 
     GridwiseElementwise::Run(argument.in_grid_1d_desc_tuple_,
-                            argument.out_grid_1d_desc_tuple_,
-                            argument.in_dev_buffers_,
-                            argument.out_dev_buffers_,
-                            argument.elementwise_op_);
+                             argument.out_grid_1d_desc_tuple_,
+                             argument.in_dev_buffers_,
+                             argument.out_dev_buffers_,
+                             argument.elementwise_op_);
 }
 
 } // namespace migraphx

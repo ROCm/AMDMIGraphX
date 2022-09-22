@@ -459,14 +459,14 @@ TEST_CASE(batch_norm_3d_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto x     = mm->add_parameter("x", {migraphx::shape::double_type, {2, 2, 2, 2, 2}});
-    auto scale = mm->add_parameter("scale", {migraphx::shape::double_type, {2}});
-    auto bias  = mm->add_parameter("bias", {migraphx::shape::double_type, {2}});
-    auto mean  = mm->add_parameter("mean", {migraphx::shape::double_type, {2}});
-    auto var   = mm->add_parameter("variance", {migraphx::shape::double_type, {2}});
+    auto x     = mm->add_parameter("x", {migraphx::shape::half_type, {2, 2, 2, 2, 2}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::half_type, {2}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::half_type, {2}});
+    auto mean  = mm->add_parameter("mean", {migraphx::shape::half_type, {2}});
+    auto var   = mm->add_parameter("variance", {migraphx::shape::half_type, {2}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::double_type, {0.5}});
-    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::double_type, {1e-6f}});
+    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {0.5}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-6f}});
 
     auto usq_scale =
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), scale);

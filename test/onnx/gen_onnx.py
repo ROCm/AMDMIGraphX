@@ -367,12 +367,13 @@ def batch_norm_2d_test():
 
 @onnx_test
 def batch_norm_3d_test():
-    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 2, 2, 2, 2])
-    scale = helper.make_tensor_value_info('scale', TensorProto.DOUBLE, [2])
-    bias = helper.make_tensor_value_info('bias', TensorProto.DOUBLE, [2])
-    mean = helper.make_tensor_value_info('mean', TensorProto.DOUBLE, [2])
-    var = helper.make_tensor_value_info('variance', TensorProto.DOUBLE, [2])
-    out = helper.make_tensor_value_info('y', TensorProto.DOUBLE,
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16,
+                                      [2, 2, 2, 2, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [2])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [2])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT16, [2])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT16, [2])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT16,
                                         [2, 2, 2, 2, 2])
 
     node = onnx.helper.make_node(

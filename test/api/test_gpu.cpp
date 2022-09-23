@@ -25,6 +25,7 @@
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
+
 #include "test.hpp"
 
 TEST_CASE(load_and_run)

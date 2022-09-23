@@ -51,7 +51,7 @@ extern "C" {
 __global__ void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto... xs) {
-        ${layernorm}<${axis}>(${post}, xs...);
+        ${layernorm}<${axis}>(${post}, ${eps}, xs...);
     });
 }
     
@@ -88,6 +88,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = v.get("kernel", "layernorm_kernel");
+        auto eps            = v.get("epsilon", 1e-12f);
 
         auto src = interpolate_string(layernorm_kernel,
                                       {{"kernel", options.kernel_name},
@@ -97,7 +98,8 @@ struct layernorm_compiler : compiler<layernorm_compiler>
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"layernorm", v.get("layernorm", std::string{"layernorm"})},
-                                       {"axis", to_string(axis)}});
+                                       {"axis", to_string(axis)},
+                                       {"eps", to_string(eps)}});
 
         return compile_hip_code_object(src, options);
     }

@@ -26,6 +26,36 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/common.hpp>
+
+/*
+    Checking for y == 0 ? eps : y
+
+    Adding this because HIP fmod sign changes when y = 0 resulting in nan and -nan not beign
+   consistent between ref and gpu implementations.
+*/
+migraphx::instruction_ref add_epsilon(migraphx::module& m, migraphx::instruction_ref y)
+{
+    auto zero = m.add_literal(0.0f);
+    auto eps  = m.add_literal(1e-3f);
+    auto op_y = add_common_op(m, migraphx::make_op("equal"), {y, zero});
+    return add_common_op(m, migraphx::make_op("where"), {op_y, eps, y});
+}
+
+struct test_fmod : verify_program<test_fmod>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {64}};
+        auto x        = mm->add_parameter("x", s);
+        auto y        = mm->add_parameter("y", s);
+        auto op_where = add_epsilon(*mm, y);
+        mm->add_instruction(migraphx::make_op("fmod"), x, op_where);
+        return p;
+    }
+};
 
 struct test_mod : verify_program<test_mod>
 {
@@ -34,9 +64,10 @@ struct test_mod : verify_program<test_mod>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {64}};
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        mm->add_instruction(migraphx::make_op("mod"), x, y);
+        auto x        = mm->add_parameter("x", s);
+        auto y        = mm->add_parameter("y", s);
+        auto op_where = add_epsilon(*mm, y);
+        mm->add_instruction(migraphx::make_op("mod"), x, op_where);
         return p;
     }
 };

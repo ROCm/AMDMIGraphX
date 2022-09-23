@@ -34,7 +34,7 @@
 namespace migraphx {
 
 template <class T, class U, class V, class W>
-__device__ void ck_gemm(const T& a_t, const U& b_t, const V& c_t, const W& p_t)
+__device__ void ck_gemm(const T& a_t, const U& b_t, const V& c_t, W& p_t)
 {
     static gemm tp{};
     using GridwiseGemm      = decltype(tp.gg);

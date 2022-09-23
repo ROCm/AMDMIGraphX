@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/quant_convolution.hpp>
-#include <migraphx/gpu/device/convert.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
 

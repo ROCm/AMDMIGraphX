@@ -33,7 +33,7 @@ struct test_fmod : verify_program<test_fmod>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3}};
+        migraphx::shape s{migraphx::shape::float_type, {64}};
         auto x = mm->add_parameter("x", s);
         auto y = mm->add_parameter("y", s);
         mm->add_instruction(migraphx::make_op("fmod"), x, y);

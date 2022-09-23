@@ -58,8 +58,8 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 {
     make_tensors()(a_p, b_p, c_p)([](auto a_t, auto b_t, auto c_t) {
         constexpr ck::index_t shared_block_size =
-            hGridwiseGemm::GetSharedMemoryNumberOfByte() /* / sizeof(float) */;
-        __shared__ void* p_shared_block[shared_block_size];
+            hGridwiseGemm::GetSharedMemoryNumberOfByte();
+        __shared__ char p_shared_block[shared_block_size];
         make_tensors()(p_shared_block)([&](auto p_t) {
             ck_gemm(a_t, b_t, c_t, p_t);
         });

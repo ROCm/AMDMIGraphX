@@ -108,6 +108,7 @@ struct miopen_apply
 
         add_extend_op("argmax");
         add_extend_op("argmin");
+        add_extend_op("elu");
         add_extend_op("gather");
         add_extend_op("leaky_relu");
         add_extend_op("logsoftmax");

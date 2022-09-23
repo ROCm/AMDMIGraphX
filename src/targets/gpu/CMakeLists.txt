@@ -347,7 +347,7 @@ foreach(_unused RANGE 2)
     string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 # Add ck includes
 find_path(CK_INCLUDE_PATH ck/ck.hpp)
-set (CK_INCLUDE_PATH "/code/AMDMIGraphX/AMDMIGraphX/depend/cget/include/")
+#set (CK_INCLUDE_PATH "/code/AMDMIGraphX/AMDMIGraphX/depend/cget/include/")
 message(STATUS "CK path: ${CK_INCLUDE_PATH}")
 string(APPEND HIP_COMPILER_FLAGS " -isystem ${CK_INCLUDE_PATH}")
 endforeach()

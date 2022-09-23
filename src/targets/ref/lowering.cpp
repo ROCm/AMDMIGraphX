@@ -252,7 +252,7 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
         else
         {
             padding      = op.padding;
-            output_shape = dyn_output.get_output_shape();
+            output_shape = dyn_output.computed_shape;
         }
 
         argument result{output_shape};

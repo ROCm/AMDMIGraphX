@@ -268,7 +268,9 @@ jobs:
         lcov --directory . --capture --output-file $(pwd)/coverage.info
         lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
         lcov --list $(pwd)/coverage.info
-        curl -s https://codecov.io/bash | bash
+        curl -Os https://uploader.codecov.io/latest/linux/codecov
+        chmod +x codecov
+        ./codecov -t ${CODECOV_TOKEN}
         echo "Uploaded"
 
   linux-fpga:

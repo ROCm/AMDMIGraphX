@@ -220,7 +220,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        apt-get install -y libhiredis-dev
+        sudo apt-get install -y libhiredis-dev
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
@@ -265,7 +265,7 @@ jobs:
       env:
         CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
       run: |
-        apt-get install -y lcov
+        sudo apt-get install -y lcov
         cd build
         lcov --directory . --capture --output-file $(pwd)/coverage.info
         lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
@@ -319,7 +319,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        apt-get install -y libhiredis-dev
+        sudo apt-get install -y libhiredis-dev
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh

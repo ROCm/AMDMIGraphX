@@ -20,6 +20,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     gdb \
     git \
     lcov \
+    libhiredis-dev \
     locales \
     pkg-config \
     python3 \

@@ -22,23 +22,25 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_PRELU_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_PRELU_HPP
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
-
-void prelu(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2);
-
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+struct test_conv_group_add : verify_program<test_conv_group_add>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 68, 28, 28}};
+        auto x    = mm->add_parameter("x", s);
+        auto w    = mm->add_parameter("w", {migraphx::shape::float_type, {68, 17, 1, 1}});
+        auto b    = mm->add_parameter("b", {migraphx::shape::float_type, {68}});
+        auto conv = mm->add_instruction(migraphx::make_op("convolution", {{"group", 4}}), x, w);
+        auto bb   = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 68, 28, 28}}}), b);
+        mm->add_instruction(migraphx::make_op("add"), conv, bb);
+        return p;
+    }
+};

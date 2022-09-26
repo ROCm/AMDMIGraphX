@@ -52,8 +52,8 @@ inline shape reshape_if_1d(const shape& input)
 }
 
 argument miopen_deconvolution::compute(context& ctx,
-                                     const shape& output_shape,
-                                     const std::vector<argument>& args) const
+                                       const shape& output_shape,
+                                       const std::vector<argument>& args) const
 {
     auto x_desc                = make_tensor(reshape_if_1d(args[0].get_shape()));
     auto w_desc                = make_tensor(reshape_if_1d(args[1].get_shape()));
@@ -214,8 +214,8 @@ shape miopen_deconvolution::find(context& ctx, const shape& output_shape, std::v
 }
 
 void miopen_deconvolution::finalize(context& ctx,
-                                  const shape& output_shape,
-                                  const std::vector<shape>& inputs)
+                                    const shape& output_shape,
+                                    const std::vector<shape>& inputs)
 {
 #ifdef MIGRAPHX_HAS_FIND_2_API
     {
@@ -268,4 +268,3 @@ void miopen_deconvolution::finalize(context& ctx,
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

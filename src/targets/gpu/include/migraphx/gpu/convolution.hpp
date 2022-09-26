@@ -49,11 +49,11 @@ struct miopen_convolution
     static auto reflect(Self& self, F f)
     {
         return pack_join(op::convolution::reflect(self.op, f),
-                        pack(
-        #ifdef MIGRAPHX_HAS_FIND_2_API
-                            f(self.solution_object, "solution_object"),
-        #endif
-                            f(self.solution_id, "solution_id")));
+                         pack(
+#ifdef MIGRAPHX_HAS_FIND_2_API
+                             f(self.solution_object, "solution_object"),
+#endif
+                             f(self.solution_id, "solution_id")));
     }
 
     std::string name() const { return "gpu::convolution"; }

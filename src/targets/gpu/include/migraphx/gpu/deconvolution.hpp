@@ -50,11 +50,11 @@ struct miopen_deconvolution
     {
 
         return pack_join(op::deconvolution::reflect(self.op, f),
-                        pack(
+                         pack(
 #ifdef MIGRAPHX_HAS_FIND_2_API
-                         f(self.solution_object, "solution_object"),
+                             f(self.solution_object, "solution_object"),
 #endif
-                         f(self.solution_id, "solution_id")));
+                             f(self.solution_id, "solution_id")));
     }
 
     std::string name() const { return "gpu::deconv"; }

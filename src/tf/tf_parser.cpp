@@ -347,7 +347,7 @@ void tf_parser::parse_node(const std::string& name)
                 // input was from a node with multiple outputs
                 if(contains(input_name, ':'))
                 {
-                    input_name = input_name.substr(0, input.find(':'));
+                    input_name.resize(input.find(':'));
                 }
                 else
                 {

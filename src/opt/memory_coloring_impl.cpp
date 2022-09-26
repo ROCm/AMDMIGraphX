@@ -42,7 +42,7 @@ void memory_coloring_impl::run()
     {
         MIGRAPHX_DEBUG(dump_intervals());
         // Coloring
-        while(!alloc_queue.empty())
+        while(not alloc_queue.empty())
         {
             interval_ptr interval = alloc_queue.top();
             allocate(interval);
@@ -72,7 +72,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
 
     if(conflict_table.find(vn) != conflict_table.end())
     {
-        std::set<int>& vn_set = conflict_table[vn];
+        const std::set<int>& vn_set = conflict_table[vn];
         for(const auto& iter : vn_set)
         {
             live_range* range = live_ranges[iter];
@@ -96,7 +96,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     }
 
     std::size_t offset = 0;
-    while(!conflict_queue.empty())
+    while(not conflict_queue.empty())
     {
         live_range* range       = conflict_queue.top();
         std::size_t iter_offset = range->offset;
@@ -149,7 +149,7 @@ void memory_coloring_impl::build()
         {
             def_interval = instr2_live[p_iter];
             bool is_lit  = is_literal(iter);
-            if(is_allocate(iter) || is_lit)
+            if(is_allocate(iter) or is_lit)
             {
                 live_range& range        = def_interval->segment;
                 def_interval->result     = iter->get_shape();
@@ -157,12 +157,12 @@ void memory_coloring_impl::build()
                 range.begin              = cur_points;
                 def_interval->def_point  = cur_points;
                 range.size               = (iter->get_shape()).bytes();
-                if(!is_lit || unify_literals)
+                if(not is_lit or unify_literals)
                     alloc_queue.push(def_interval);
                 live_set.erase(range.vn);
             }
         }
-        else if(!is_param(iter) && !is_outline(iter) && !is_check_context(iter))
+        else if(not is_param(iter) && not is_outline(iter) && not is_check_context(iter))
         {
             is_dead = true;
         }
@@ -179,7 +179,7 @@ void memory_coloring_impl::build()
             if(not p_mod->has_instruction(arg))
                 continue;
 
-            if(is_param(arg) || is_outline(arg))
+            if(is_param(arg) or is_outline(arg))
             {
                 if(is_output_param(arg))
                     is_dead = false;
@@ -235,7 +235,7 @@ void memory_coloring_impl::rewrite()
             if(interval->get_begin() == invalid_offset)
                 continue;
 
-            if(!unify_literals && interval->is_literal)
+            if(not unify_literals && interval->is_literal)
                 continue;
 
             std::size_t offset = 0;
@@ -267,12 +267,12 @@ void memory_coloring_impl::verify()
     {
         for(int i = 0; i < num_of_lives; ++i)
         {
-            live_interval& interval = live_intervals[i];
-            live_range& segment     = interval.segment;
+            const live_interval& interval = live_intervals[i];
+            const live_range& segment     = interval.segment;
 
             if(segment.begin == invalid_offset)
             {
-                // if(!interval.is_live_on_entry)
+                // if(not interval.is_live_on_entry)
                 // MIGRAPHX_THROW("interval is not live on entry");
                 continue;
             }
@@ -284,13 +284,13 @@ void memory_coloring_impl::verify()
             int vn = segment.vn;
             if(conflict_table.find(vn) != conflict_table.end())
             {
-                std::set<int>& vn_set = conflict_table[vn];
+                const std::set<int>& vn_set = conflict_table[vn];
                 for(const auto& iter : vn_set)
                 {
                     live_range* range = live_ranges[iter];
                     if(range->offset == invalid_offset)
                         continue;
-                    if(!is_disjoin(*range, segment))
+                    if(not is_disjoin(*range, segment))
                         MIGRAPHX_THROW("range and segment is not disjoined");
                 }
             }
@@ -319,8 +319,8 @@ void memory_coloring_impl::dump_intervals()
         {
             std::cout << " segment:" << i;
             std::cout << " =>";
-            std::set<int>& table = conflict_table[i];
-            for(auto& iter : table)
+            const std::set<int>& table = conflict_table[i];
+            for(const auto& iter : table)
             {
                 std::cout << (iter) << ",";
             }
@@ -357,7 +357,7 @@ void live_interval::dump()
     std::cout << "id:" << id;
     segment.dump();
     std::cout << " uses:";
-    for(auto& iter : use_points)
+    for(const auto& iter : use_points)
     {
         std::cout << " " << get_ins_enum(iter) << ",";
     }

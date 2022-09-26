@@ -101,7 +101,7 @@ struct check_shapes
 
     const check_shapes& nelements(std::size_t n) const
     {
-        if(!this->all_of([&](const shape& s) { return s.elements() == n; }))
+        if(not this->all_of([&](const shape& s) { return s.elements() == n; }))
             MIGRAPHX_THROW(prefix() + "Shapes must have only " + std::to_string(n) + " elements");
         return *this;
     }
@@ -164,7 +164,7 @@ struct check_shapes
      */
     const check_shapes& same_shape() const
     {
-        if(!this->same([](const shape& s) { return s; }))
+        if(not this->same([](const shape& s) { return s; }))
             MIGRAPHX_THROW(prefix() + "Shapes do not match");
         return *this;
     }
@@ -174,7 +174,7 @@ struct check_shapes
      */
     const check_shapes& same_type() const
     {
-        if(!this->same([](const shape& s) { return s.type(); }))
+        if(not this->same([](const shape& s) { return s.type(); }))
             MIGRAPHX_THROW(prefix() + "Types do not match");
         return *this;
     }
@@ -184,10 +184,10 @@ struct check_shapes
      */
     const check_shapes& same_dims() const
     {
-        if(!this->same([](const shape& s) { return s.max_lens(); }))
+        if(not this->same([](const shape& s) { return s.max_lens(); }))
             MIGRAPHX_THROW(prefix() + "Dimensions do not match");
         if(this->any_of([&](const shape& s) { return s.dynamic(); }))
-            if(!this->same([](const shape& s) { return s.min_lens(); }))
+            if(not this->same([](const shape& s) { return s.min_lens(); }))
                 MIGRAPHX_THROW(prefix() + "Min dynamic dimensions do not match");
         return *this;
     }
@@ -197,7 +197,7 @@ struct check_shapes
      */
     const check_shapes& same_ndims() const
     {
-        if(!this->same([](const shape& s) { return s.max_lens().size(); }))
+        if(not this->same([](const shape& s) { return s.max_lens().size(); }))
             MIGRAPHX_THROW(prefix() + "Number of dimensions do not match");
         return *this;
     }
@@ -207,7 +207,7 @@ struct check_shapes
      */
     const check_shapes& standard() const
     {
-        if(!this->all_of([](const shape& s) { return s.standard(); }))
+        if(not this->all_of([](const shape& s) { return s.standard(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are not in standard layout");
         return *this;
     }
@@ -217,7 +217,7 @@ struct check_shapes
      */
     const check_shapes& standard_or_scalar() const
     {
-        if(!this->all_of([](const shape& s) { return s.standard() or s.scalar(); }))
+        if(not this->all_of([](const shape& s) { return s.standard() or s.scalar(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are not a scalar or in standard layout");
         return *this;
     }
@@ -227,7 +227,7 @@ struct check_shapes
      */
     const check_shapes& packed() const
     {
-        if(!this->all_of([](const shape& s) { return s.packed(); }))
+        if(not this->all_of([](const shape& s) { return s.packed(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are not packed");
         return *this;
     }
@@ -237,7 +237,7 @@ struct check_shapes
      */
     const check_shapes& packed_or_broadcasted() const
     {
-        if(!this->all_of([](const shape& s) { return s.packed() or s.broadcasted(); }))
+        if(not this->all_of([](const shape& s) { return s.packed() or s.broadcasted(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are not packed nor broadcasted");
         return *this;
     }
@@ -247,7 +247,7 @@ struct check_shapes
      */
     const check_shapes& tuple_type() const
     {
-        if(!this->all_of([](const shape& s) { return s.type() == shape::tuple_type; }))
+        if(not this->all_of([](const shape& s) { return s.type() == shape::tuple_type; }))
             MIGRAPHX_THROW(prefix() + "Shapes are not tuple!");
         return *this;
     }
@@ -257,7 +257,7 @@ struct check_shapes
      */
     const check_shapes& not_transposed() const
     {
-        if(!this->all_of([](const shape& s) { return not s.transposed(); }))
+        if(not this->all_of([](const shape& s) { return not s.transposed(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are transposed");
         return *this;
     }
@@ -267,7 +267,7 @@ struct check_shapes
      */
     const check_shapes& not_broadcasted() const
     {
-        if(!this->all_of([](const shape& s) { return not s.broadcasted(); }))
+        if(not this->all_of([](const shape& s) { return not s.broadcasted(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are broadcasted");
         return *this;
     }
@@ -278,7 +278,7 @@ struct check_shapes
      */
     const check_shapes& elements(std::size_t n) const
     {
-        if(!this->all_of([&](const shape& s) { return s.elements() == n; }))
+        if(not this->all_of([&](const shape& s) { return s.elements() == n; }))
             MIGRAPHX_THROW(prefix() + "Wrong number of elements");
         return *this;
     }
@@ -288,7 +288,8 @@ struct check_shapes
      */
     const check_shapes& batch_not_transposed() const
     {
-        if(!this->all_of([&](const shape& s) { return batch_not_transposed_strides(s.strides()); }))
+        if(not this->all_of(
+               [&](const shape& s) { return batch_not_transposed_strides(s.strides()); }))
             MIGRAPHX_THROW(prefix() + "Batch size is transposed");
         return *this;
     }

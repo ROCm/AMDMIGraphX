@@ -26,15 +26,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-
-#include <migraphx/cpp_generator.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -77,7 +69,7 @@ struct softmax_compiler : compiler<softmax_compiler>
         // Vectorize if the axis is a reduction axis
         if(faxis == axis)
         {
-            vec = vectorize::elements(faxis, inputs);
+            vec = vectorize::elements(ctx, faxis, inputs);
         }
         auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);

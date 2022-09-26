@@ -55,7 +55,7 @@ struct simple_custom_op final : migraphx::experimental_custom_op_base
 
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
-        if(!inputs[0].standard())
+        if(not inputs[0].standard())
         {
             throw std::runtime_error("first arg must be standard shaped");
         }

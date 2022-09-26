@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-//!  Parser for ReverseSequence ONNX operator.
+// Parser for ReverseSequence ONNX operator.
 /*!
   Reverses the data along the time axis for the batches along the batch axis.
   The sequence lengths can be given to reverse up to the given length for each batch, keeping the

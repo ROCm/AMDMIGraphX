@@ -94,7 +94,7 @@ struct parse_gemm : op_parser<parse_gemm>
                 out_lens.back() = l2->get_shape().lens().back();
                 auto l3         = args[2];
                 auto l3_lens    = l3->get_shape().lens();
-                if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
+                if(not std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
                 {
                     l3 = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
                                               args[2]);

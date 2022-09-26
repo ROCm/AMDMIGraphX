@@ -39,8 +39,8 @@ TEST_CASE(literal_test)
     migraphx::literal l2 = l1; // NOLINT
     EXPECT(l1 == l2);
     EXPECT(l1.at<int>(0) == 1);
-    EXPECT(!l1.empty());
-    EXPECT(!l2.empty());
+    EXPECT(not l1.empty());
+    EXPECT(not l2.empty());
 
     migraphx::literal l3{};
     migraphx::literal l4{};

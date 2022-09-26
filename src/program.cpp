@@ -78,11 +78,11 @@ program& program::operator=(program p)
 
 void program::assign(const program& p)
 {
-    if(!impl)
+    if(not impl)
     {
         impl = std::make_unique<program_impl>();
     }
-    else if(!impl->modules.empty())
+    else if(not impl->modules.empty())
     {
         impl->modules.clear();
     }

@@ -30,7 +30,6 @@
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
-
 #include <test.hpp>
 
 void run_pass(migraphx::module& m)
@@ -237,6 +236,105 @@ TEST_CASE(simplify_mul_conv1)
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
+TEST_CASE(simplify_mul_conv2)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a      = m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256}}));
+    auto unsq_a = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), a);
+    auto b      = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), unsq_a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() != "mul");
+}
+
+// len = 1 case
+TEST_CASE(simplify_mul_conv3)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 1, 1}, {1, 18, 1}}));
+    auto b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() != "mul");
+}
+
+// Previously broadcasted literal case, should skip
+TEST_CASE(simplify_mul_conv_skip1)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 14, 14}, {1, 0, 0}}));
+    auto b = m.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() == "mul");
+}
+
+// Another previously broadcasted literal case, should skip
+TEST_CASE(simplify_mul_conv_skip2)
+{
+    migraphx::module m;
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    auto a = m.add_literal(
+        migraphx::generate_literal({migraphx::shape::int32_type, {256, 14, 14}, {1, 0, 0}}));
+    auto b =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 256, 14, 14}}}), a);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), conv, b);
+    m.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    run_pass(m);
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() == "mul");
+}
+
 TEST_CASE(simplify_mul_slice_conv1)
 {
     migraphx::module m1;
@@ -358,7 +456,33 @@ TEST_CASE(simplify_mul_add)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(simplify_inner_broadcast)
+TEST_CASE(simplify_dot_add)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one = m1.add_literal(get_2x2());
+        auto two = m1.add_literal(get_2x2(1));
+        auto sum = m1.add_instruction(migraphx::make_op("add"), one, x);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), sum, two);
+        m1.add_instruction(pass_op{}, dot);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+        auto one  = m2.add_literal(get_2x2());
+        auto two  = m2.add_literal(get_2x2(1));
+        auto dot1 = m2.add_instruction(migraphx::make_op("dot"), x, two);
+        auto dot2 = m2.add_instruction(migraphx::make_op("dot"), one, two);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), dot1, dot2);
+        m2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_inner_broadcast1)
 {
     auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};
     migraphx::module m1;
@@ -376,6 +500,31 @@ TEST_CASE(simplify_inner_broadcast)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto sumb = m2.add_instruction(b, sum);
+        m2.add_instruction(pass_op{}, sumb);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_inner_broadcast2)
+{
+    auto b = migraphx::op::multibroadcast{{2, 1, 4, 5}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto xb  = m1.add_instruction(b, x);
+        auto yb  = m1.add_instruction(b, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), xb, yb);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1, 1, 1}});
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, y);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
@@ -1477,6 +1626,48 @@ TEST_CASE(simplify_dot_horiz_flipped)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// test if contiguous is added as necessary for reshapes
+TEST_CASE(simplify_dot_horiz_reshape)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 4, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto a     = m1.add_literal(migraphx::generate_literal(s, 0));
+        auto b     = m1.add_literal(migraphx::generate_literal(s, 1));
+        auto x     = m1.add_instruction(migraphx::make_op("dot"), input, a);
+        auto y     = m1.add_instruction(migraphx::make_op("dot"), input, b);
+        auto x_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x);
+        auto y_rsp =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto input  = m2.add_parameter("input", s);
+        auto a      = m2.add_literal(migraphx::generate_literal(s, 0));
+        auto b      = m2.add_literal(migraphx::generate_literal(s, 1));
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, b);
+        auto dot    = m2.add_instruction(migraphx::make_op("dot"), input, concat);
+        auto x      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), dot);
+        auto y = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {4}}, {"ends", {8}}}), dot);
+        auto x_cont = m2.add_instruction(migraphx::make_op("contiguous"), x);
+        auto x_rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x_cont);
+        auto y_rsp =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});
+        m2.add_instruction(pass_op{}, sum);
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_conv_horiz)
 {
     auto s  = migraphx::shape{migraphx::shape::int32_type, {8, 3, 64, 64}};
@@ -1782,13 +1973,19 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
     }
     EXPECT(m1.sort() == m2.sort());
 }
-TEST_CASE(reorder_reshape_slice)
+
+template <std::size_t BS, bool TransposeInput>
+void reorder_reshape_slice()
 {
     std::vector<int64_t> perm0 = {0, 2, 1, 3};
     std::vector<int64_t> perm1 = {0, 2, 3, 1};
-    auto create_m1             = [&](std::size_t batch_size) {
-        migraphx::module m1;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+    migraphx::module m1;
+    {
+        auto s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
+        if(TransposeInput)
+        {
+            s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
+        }
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {640}}}), input);
@@ -1803,7 +2000,7 @@ TEST_CASE(reorder_reshape_slice)
         auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
         auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
 
-        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 128, 10, 64};
+        std::vector<int64_t> lens = {static_cast<int64_t>(BS), 128, 10, 64};
         auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
         auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
         auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
@@ -1815,16 +2012,23 @@ TEST_CASE(reorder_reshape_slice)
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("dot"), sum, t2);
         m1.add_return({ret});
-
-        return m1;
     };
 
-    auto create_m2 = [&](std::size_t batch_size) {
-        migraphx::module m2;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
-        auto input = m2.add_parameter("input", s);
-        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 128, 30, 64};
-        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
+    migraphx::module m2;
+    {
+        auto s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
+        if(TransposeInput)
+        {
+            s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
+        }
+        auto input     = m2.add_parameter("input", s);
+        auto rsp_input = input;
+        if(TransposeInput)
+        {
+            rsp_input = m2.add_instruction(migraphx::make_op("contiguous"), {input});
+        }
+        std::vector<int64_t> lens = {static_cast<int64_t>(BS), 128, 30, 64};
+        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), rsp_input);
 
         auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {10}}}), r);
@@ -1843,27 +2047,25 @@ TEST_CASE(reorder_reshape_slice)
         auto sum = m2.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m2.add_instruction(migraphx::make_op("dot"), sum, t2);
         m2.add_return({ret});
-
-        return m2;
     };
-
-    auto test = [&](std::size_t batch_size) {
-        auto m1 = create_m1(batch_size);
-        run_pass(m1);
-        auto m2 = create_m2(batch_size);
-        EXPECT(m1.sort() == m2.sort());
-    };
-
-    test(1);
-    test(4);
-    test(8);
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reorder_reshape_slice_move_axis1)
+TEST_CASE_REGISTER(reorder_reshape_slice<1, true>); // test if contiguous is added as necessary if
+                                                    // input is transposed
+TEST_CASE_REGISTER(reorder_reshape_slice<4, true>);
+TEST_CASE_REGISTER(reorder_reshape_slice<8, true>);
+TEST_CASE_REGISTER(reorder_reshape_slice<1, false>);
+TEST_CASE_REGISTER(reorder_reshape_slice<4, false>);
+TEST_CASE_REGISTER(reorder_reshape_slice<8, false>);
+
+template <std::size_t BS>
+void reorder_reshape_slice_move_axis1()
 {
-    auto create_m1 = [](std::size_t batch_size) {
-        migraphx::module m1;
-        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
+    migraphx::module m1;
+    {
+        auto s                     = migraphx::shape{migraphx::shape::float_type, {BS, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
         auto input                 = m1.add_parameter("input", s);
@@ -1878,7 +2080,7 @@ TEST_CASE(reorder_reshape_slice_move_axis1)
         auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
         auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
 
-        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 64, 4, 32};
+        std::vector<int64_t> lens = {static_cast<int64_t>(BS), 64, 4, 32};
         auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
         auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
         auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
@@ -1890,50 +2092,45 @@ TEST_CASE(reorder_reshape_slice_move_axis1)
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("dot"), sum, t2);
         m1.add_return({ret});
-
-        return m1;
     };
 
-    auto create_m2 = [](std::size_t batch_size) {
-        migraphx::module m;
-        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
+    migraphx::module m2;
+    {
+        auto s                     = migraphx::shape{migraphx::shape::float_type, {BS, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
-        auto input                 = m.add_parameter("input", s);
-        std::vector<int64_t> lens  = {static_cast<int64_t>(batch_size), 64, 4, 96};
-        auto rsp  = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
-        auto slc0 = m.add_instruction(
+        auto input                 = m2.add_parameter("input", s);
+        std::vector<int64_t> lens  = {static_cast<int64_t>(BS), 64, 4, 96};
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
+        auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {32}}}), rsp);
-        auto t0 = m.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc0);
-        auto slc1 = m.add_instruction(
+        auto t0 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc0);
+        auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {32}}, {"ends", {64}}}), rsp);
-        auto t1 = m.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc1);
-        auto slc2 = m.add_instruction(
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm0}}), slc1);
+        auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {96}}}), rsp);
-        auto t2 = m.add_instruction(migraphx::make_op("transpose", {{"permutation", perm1}}), slc2);
+        auto t2 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm1}}), slc2);
 
-        auto sum = m.add_instruction(migraphx::make_op("add"), t0, t1);
-        auto ret = m.add_instruction(migraphx::make_op("dot"), sum, t2);
-        m.add_return({ret});
-
-        return m;
+        auto sum = m2.add_instruction(migraphx::make_op("add"), t0, t1);
+        auto ret = m2.add_instruction(migraphx::make_op("dot"), sum, t2);
+        m2.add_return({ret});
     };
 
-    auto test = [&](std::size_t batch_size) {
-        auto m1 = create_m1(batch_size);
-        auto m2 = create_m2(batch_size);
-        run_pass(m1);
-        EXPECT(m1.sort() == m2.sort());
-    };
-
-    test(4);
-    test(8);
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
+
+TEST_CASE_REGISTER(reorder_reshape_slice_move_axis1<4>);
+TEST_CASE_REGISTER(reorder_reshape_slice_move_axis1<8>);
 
 TEST_CASE(reorder_reshape_slice_move_axis2)
 {
-    auto create_m1 = [] {
-        migraphx::module m1;
+    migraphx::module m1;
+    {
         migraphx::shape s{migraphx::shape::float_type, {128, 96}};
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
@@ -1955,32 +2152,75 @@ TEST_CASE(reorder_reshape_slice_move_axis2)
         auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
         m1.add_return({ret});
-
-        return m1;
     };
 
-    auto create_m2 = [] {
-        migraphx::module m;
+    migraphx::module m2;
+    {
         auto s                    = migraphx::shape{migraphx::shape::float_type, {128, 96}};
-        auto input                = m.add_parameter("input", s);
+        auto input                = m2.add_parameter("input", s);
         std::vector<int64_t> lens = {1, 16, 8, 96};
-        auto rsp  = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
-        auto slc0 = m.add_instruction(
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
+        auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {32}}}), rsp);
-        auto slc1 = m.add_instruction(
+        auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {32}}, {"ends", {64}}}), rsp);
-        auto slc2 = m.add_instruction(
+        auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {96}}}), rsp);
 
-        auto sum = m.add_instruction(migraphx::make_op("add"), slc0, slc1);
-        auto ret = m.add_instruction(migraphx::make_op("mul"), sum, slc2);
-        m.add_return({ret});
-
-        return m;
+        auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
+        auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);
+        m2.add_return({ret});
     };
 
-    auto m1 = create_m1();
-    auto m2 = create_m2();
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reorder_reshape_slice_len_1)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 128, 3}};
+        auto input = m1.add_parameter("input", s);
+        auto slc0  = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto slc1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto slc2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}), input);
+
+        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
+        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
+        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
+
+        std::vector<int64_t> lens = {1, 128};
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+
+        auto sum = m1.add_instruction(migraphx::make_op("add"), r0, r1);
+        auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, r2);
+        m1.add_return({ret});
+    };
+
+    migraphx::module m2;
+    {
+        auto s                    = migraphx::shape{migraphx::shape::float_type, {1, 128, 3}};
+        auto input                = m2.add_parameter("input", s);
+        std::vector<int64_t> lens = {1, 384};
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
+        auto slc0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {128}}}), rsp);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {128}}, {"ends", {256}}}), rsp);
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {256}}, {"ends", {384}}}), rsp);
+
+        auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
+        auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);
+        m2.add_return({ret});
+    };
+
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
@@ -2020,15 +2260,14 @@ TEST_CASE(reorder_reshape_slice_not_apply)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reorder_reshape_slice_diff_dims)
+template <std::size_t BS>
+void reorder_reshape_slice_diff_dims()
 {
-    auto create_m1 = [](std::size_t batch_size) {
-        migraphx::module m1;
-        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 96, 96}};
-        std::vector<int64_t> perm0 = {0, 2, 1, 3};
-        std::vector<int64_t> perm1 = {0, 2, 3, 1};
-        auto input                 = m1.add_parameter("input", s);
-        auto slc0                  = m1.add_instruction(
+    migraphx::module m1;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {BS, 96, 96}};
+        auto input = m1.add_parameter("input", s);
+        auto slc0  = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {32}}}), input);
         auto slc1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {32}}, {"ends", {64}}}), input);
@@ -2039,34 +2278,31 @@ TEST_CASE(reorder_reshape_slice_diff_dims)
         auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
         auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
 
-        std::vector<int64_t> lens  = {static_cast<int64_t>(batch_size), 32, 3, 32};
-        std::vector<int64_t> lens1 = {static_cast<int64_t>(batch_size), 48, 2, 32};
+        std::vector<int64_t> lens  = {static_cast<int64_t>(BS), 32, 3, 32};
+        std::vector<int64_t> lens1 = {static_cast<int64_t>(BS), 48, 2, 32};
         auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
         auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
         auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens1}}), c2);
 
         m1.add_return({r0, r1, r2});
-
-        return m1;
     };
 
-    auto test = [&](std::size_t batch_size) {
-        auto m1 = create_m1(batch_size);
-        auto m2 = m1;
-        run_pass(m1);
-        EXPECT(m1.sort() == m2.sort());
-    };
-
-    test(4);
-    test(8);
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reorder_slice_trans)
+TEST_CASE_REGISTER(reorder_reshape_slice_diff_dims<4>);
+TEST_CASE_REGISTER(reorder_reshape_slice_diff_dims<8>);
+
+template <std::size_t BS>
+void reorder_slice_trans()
 {
     std::vector<int64_t> perm = {0, 2, 1};
-    auto create_m1            = [&](std::size_t batch_size) {
-        migraphx::module m1;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+
+    migraphx::module m1;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
         auto input = m1.add_parameter("input", s);
         auto slc0  = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {640}}}), input);
@@ -2084,13 +2320,11 @@ TEST_CASE(reorder_slice_trans)
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, t2);
         m1.add_return({ret});
-
-        return m1;
     };
 
-    auto create_m2 = [&](std::size_t batch_size) {
-        migraphx::module m2;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
         auto input = m2.add_parameter("input", s);
         auto r = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), input);
 
@@ -2104,26 +2338,21 @@ TEST_CASE(reorder_slice_trans)
         auto sum = m2.add_instruction(migraphx::make_op("add"), slc0, slc1);
         auto ret = m2.add_instruction(migraphx::make_op("mul"), sum, slc2);
         m2.add_return({ret});
-
-        return m2;
     };
 
-    auto test = [&](std::size_t batch_size) {
-        auto m1 = create_m1(batch_size);
-        run_pass(m1);
-        auto m2 = create_m2(batch_size);
-        EXPECT(m1.sort() == m2.sort());
-    };
-
-    test(1);
-    test(8);
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reorder_slice_trans_diff_perm)
+TEST_CASE_REGISTER(reorder_slice_trans<1>);
+TEST_CASE_REGISTER(reorder_slice_trans<8>);
+
+template <std::size_t BS>
+void reorder_slice_trans_diff_perm()
 {
-    auto create_m1 = [](std::size_t batch_size) {
-        migraphx::module m1;
-        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+    migraphx::module m1;
+    {
+        auto s                     = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}};
         std::vector<int64_t> perm0 = {0, 2, 1};
         std::vector<int64_t> perm1 = {0, 1, 2};
         auto input                 = m1.add_parameter("input", s);
@@ -2146,20 +2375,15 @@ TEST_CASE(reorder_slice_trans_diff_perm)
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("dot"), sum, t2);
         m1.add_return({ret});
-
-        return m1;
     };
 
-    auto test = [&](std::size_t batch_size) {
-        auto m1 = create_m1(batch_size);
-        run_pass(m1);
-        auto m2 = m1;
-        EXPECT(m1.sort() == m2.sort());
-    };
-
-    test(1);
-    test(4);
+    run_pass(m1);
+    auto m2 = m1;
+    EXPECT(m1.sort() == m2.sort());
 }
+
+TEST_CASE_REGISTER(reorder_slice_trans_diff_perm<1>);
+TEST_CASE_REGISTER(reorder_slice_trans_diff_perm<4>);
 
 TEST_CASE(reorder_slice_ins_deps)
 {

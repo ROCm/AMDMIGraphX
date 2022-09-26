@@ -47,7 +47,7 @@ TEST_CASE(is_supported)
 {
     auto p       = create_program();
     auto targets = migraphx::get_targets();
-    EXPECT(!targets.empty());
+    EXPECT(not targets.empty());
     auto t = migraphx::make_target("fpga");
 
     const auto assignments = p.get_target_assignments({t});

@@ -63,7 +63,7 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.3)
+rocm_setup_version(VERSION 2.4)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -212,6 +212,7 @@ rocm_enable_cppcheck(
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction
+        ctuPointerArith
         noExplicitConstructor
         passedByValue
         unusedStructMember

@@ -47,12 +47,12 @@ void rewrite_pooling::apply(module& m) const
         if(not s.standard())
             continue;
         auto&& op = any_cast<op::pooling>(ins->get_operator());
-        if(!std::all_of(op.padding.begin(), op.padding.end(), [](auto i) { return i == 0; }))
+        if(not std::all_of(op.padding.begin(), op.padding.end(), [](auto i) { return i == 0; }))
             continue;
-        if(!std::all_of(op.stride.begin(), op.stride.end(), [](auto i) { return i == 1; }))
+        if(not std::all_of(op.stride.begin(), op.stride.end(), [](auto i) { return i == 1; }))
             continue;
         auto lens = s.lens();
-        if(!std::equal(lens.begin() + 2, lens.end(), op.lengths.begin(), op.lengths.end()))
+        if(not std::equal(lens.begin() + 2, lens.end(), op.lengths.begin(), op.lengths.end()))
             continue;
         std::int64_t n = s.lens()[0];
         std::int64_t c = s.lens()[1];

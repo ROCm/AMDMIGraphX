@@ -27,42 +27,24 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/op/abs.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/dot.hpp>
-#include <migraphx/op/elu.hpp>
 #include <migraphx/op/if_op.hpp>
-#include <migraphx/op/leaky_relu.hpp>
-#include <migraphx/op/lrn.hpp>
-#include <migraphx/op/pooling.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 
-#include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/elu.hpp>
-#include <migraphx/gpu/equal.hpp>
 #include <migraphx/gpu/gemm.hpp>
-#include <migraphx/gpu/greater.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
-#include <migraphx/gpu/leaky_relu.hpp>
-#include <migraphx/gpu/less.hpp>
-#include <migraphx/gpu/logical_and.hpp>
-#include <migraphx/gpu/logical_or.hpp>
-#include <migraphx/gpu/logical_xor.hpp>
-#include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
-#include <migraphx/gpu/unary_not.hpp>
-#include <migraphx/gpu/where.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
@@ -122,55 +104,10 @@ struct miopen_apply
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
 
-        add_generic_op("acos");
-        add_generic_op("acosh");
-        add_generic_op("add");
-        add_generic_op("asin");
-        add_generic_op("asinh");
-        add_generic_op("atan");
-        add_generic_op("atanh");
-        add_generic_op("ceil");
         add_generic_op("contiguous");
-        add_generic_op("cos");
-        add_generic_op("cosh");
-        add_generic_op("div");
-        add_generic_op("equal");
-        add_generic_op("erf");
-        add_generic_op("exp");
-        add_generic_op("floor");
-        add_generic_op("greater");
-        add_generic_op("less");
-        add_generic_op("log");
-        add_generic_op("logical_and");
-        add_generic_op("logical_or");
-        add_generic_op("logical_xor");
-        add_generic_op("max");
-        add_generic_op("min");
-        add_generic_op("mul");
-        add_generic_op("not");
-        add_generic_op("pow");
-        add_generic_op("prelu");
-        add_generic_op("recip");
-        add_generic_op("relu");
-        add_generic_op("round");
-        add_generic_op("rsqrt");
-        add_generic_op("sigmoid");
-        add_generic_op("sign");
-        add_generic_op("sin");
-        add_generic_op("sinh");
-        add_generic_op("sqdiff");
-        add_generic_op("sqrt");
-        add_generic_op("sub");
-        add_generic_op("tan");
-        add_generic_op("tanh");
-        add_generic_op("where");
 
-        add_extend_op("abs");
         add_extend_op("argmax");
         add_extend_op("argmin");
-        add_extend_op("clip");
-        add_extend_op("concat");
-        add_extend_op("convert");
         add_extend_op("elu");
         add_extend_op("gather");
         add_extend_op("leaky_relu");
@@ -341,7 +278,7 @@ struct miopen_apply
             catch(migraphx::exception&)
             {
                 // In case no solver supports the default format, retry using the other format.
-                compile_quant_conv_with_format(!int8_x4_format);
+                compile_quant_conv_with_format(not int8_x4_format);
             }
 
             auto args      = ins->inputs();

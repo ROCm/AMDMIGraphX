@@ -60,8 +60,14 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     {
         parser.default_dyn_dim_value = options.default_dyn_dim_value;
     }
+    if(not options.map_input_dims.empty() and not options.map_dyn_input_dims.empty())
+    {
+        MIGRAPHX_THROW("PARSE_ONNX_FROM: both map_input_dims and map_dyn_input_dims non-empty, only"
+                       "one should be used");
+    }
     parser.skip_unknown_operators = options.skip_unknown_operators;
     parser.max_loop_iterations    = options.max_loop_iterations;
+    parser.use_dyn_output         = options.use_dyn_output;
 
     if(options.print_program_on_error)
     {
@@ -80,6 +86,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
+
     return std::move(parser.prog);
 }
 

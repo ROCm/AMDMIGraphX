@@ -26,9 +26,6 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
 #include <miopen/miopen.h>
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MIOPEN_FIND_2)
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {

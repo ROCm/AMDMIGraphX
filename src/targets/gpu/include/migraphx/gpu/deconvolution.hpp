@@ -39,13 +39,22 @@ struct miopen_deconvolution
     op::deconvolution op;
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
+#ifdef MIGRAPHX_HAS_FIND_2_API
+    value::binary solution_object{};
+    shared<miopen_solution> solution_ptr = nullptr;
+#endif
     uint64_t solution_id = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
+
         return pack_join(op::deconvolution::reflect(self.op, f),
-                         pack(f(self.solution_id, "solution_id")));
+                        pack(
+#ifdef MIGRAPHX_HAS_FIND_2_API
+                         f(self.solution_object, "solution_object"),
+#endif
+                         f(self.solution_id, "solution_id")));
     }
 
     std::string name() const { return "gpu::deconv"; }
@@ -53,7 +62,7 @@ struct miopen_deconvolution
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
+    void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& inputs);
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;

@@ -21,13 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/env.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
 #include <miopen/miopen.h>
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MIOPEN_FIND_2)
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

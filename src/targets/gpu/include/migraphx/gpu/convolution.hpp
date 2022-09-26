@@ -48,15 +48,12 @@ struct miopen_convolution
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op.padding, "padding"),
-                    f(self.op.stride, "stride"),
-                    f(self.op.dilation, "dilation"),
-                    f(self.op.group, "group"),
-                    f(self.op.padding_mode, "padding_mode"),
-#ifdef MIGRAPHX_HAS_FIND_2_API
-                    f(self.solution_object, "solution_object"),
-#endif
-                    f(self.solution_id, "solution_id"));
+        return pack_join(op::convolution::reflect(self.op, f),
+                        pack(
+        #ifdef MIGRAPHX_HAS_FIND_2_API
+                            f(self.solution_object, "solution_object"),
+        #endif
+                            f(self.solution_id, "solution_id")));
     }
 
     std::string name() const { return "gpu::convolution"; }

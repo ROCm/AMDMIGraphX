@@ -271,6 +271,44 @@ struct find_nested_slice
     }
 };
 
+struct find_concat_multibroadcasts
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::all_of[match::inputs()](match::name("multibroadcast")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins        = mr.result;
+        auto op         = any_cast<op::concat>(ins->get_operator());
+        auto out_lens   = ins->get_shape().lens();
+        auto inputs     = ins->inputs();
+        auto in_strides = inputs.front()->get_shape().strides();
+
+        // Only apply when concat axis is not a broadcasted dimension
+        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
+               return i->get_shape().strides()[op.axis] == 0;
+           }))
+        {
+            return;
+        }
+
+        // Use inputs of multibroadcast ops as inputs to new concat op
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [](auto i) {
+            return i->inputs().front();
+        });
+
+        // Reduce axis by number of leading broadcasted dimensions
+        if(inputs.front()->get_shape().lens().size() < out_lens.size())
+            op.axis -= std::count(in_strides.begin(), in_strides.begin() + op.axis, 0);
+
+        auto concat = m.insert_instruction(ins, op, inputs);
+        m.replace_instruction(
+            ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), concat);
+    }
+};
+
 struct find_concat_transpose
 {
     auto matcher() const
@@ -764,6 +802,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshaper{},
                             find_transpose{},
                             find_concat_transpose{},
+                            find_concat_multibroadcasts{},
                             find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},

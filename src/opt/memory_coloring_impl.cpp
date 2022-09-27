@@ -72,7 +72,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
 
     if(conflict_table.find(vn) != conflict_table.end())
     {
-        std::set<int>& vn_set = conflict_table[vn];
+        const std::set<int>& vn_set = conflict_table[vn];
         for(const auto& iter : vn_set)
         {
             live_range* range = live_ranges[iter];
@@ -267,8 +267,8 @@ void memory_coloring_impl::verify()
     {
         for(int i = 0; i < num_of_lives; ++i)
         {
-            live_interval& interval = live_intervals[i];
-            live_range& segment     = interval.segment;
+            const live_interval& interval = live_intervals[i];
+            const live_range& segment     = interval.segment;
 
             if(segment.begin == invalid_offset)
             {
@@ -284,7 +284,7 @@ void memory_coloring_impl::verify()
             int vn = segment.vn;
             if(conflict_table.find(vn) != conflict_table.end())
             {
-                std::set<int>& vn_set = conflict_table[vn];
+                const std::set<int>& vn_set = conflict_table[vn];
                 for(const auto& iter : vn_set)
                 {
                     live_range* range = live_ranges[iter];
@@ -319,8 +319,8 @@ void memory_coloring_impl::dump_intervals()
         {
             std::cout << " segment:" << i;
             std::cout << " =>";
-            std::set<int>& table = conflict_table[i];
-            for(auto& iter : table)
+            const std::set<int>& table = conflict_table[i];
+            for(const auto& iter : table)
             {
                 std::cout << (iter) << ",";
             }
@@ -357,7 +357,7 @@ void live_interval::dump()
     std::cout << "id:" << id;
     segment.dump();
     std::cout << " uses:";
-    for(auto& iter : use_points)
+    for(const auto& iter : use_points)
     {
         std::cout << " " << get_ins_enum(iter) << ",";
     }

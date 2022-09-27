@@ -21,22 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SUB_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SUB_HPP
-
-#include <migraphx/gpu/oper.hpp>
-#include <migraphx/gpu/device/sub.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/cpu/pointwise.hpp>
+#include <migraphx/op/mod.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace cpu {
 
-struct hip_sub : binary_device<hip_sub, device::sub>
-{
-};
+template struct cpu_binary<op::mod>;
 
-} // namespace gpu
+} // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

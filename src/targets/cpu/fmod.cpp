@@ -21,24 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_PRELU_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_PRELU_HPP
-
-#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/cpu/pointwise.hpp>
+#include <migraphx/op/fmod.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace cpu {
 
-void prelu(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2);
+template struct cpu_binary<op::fmod>;
 
-} // namespace device
-} // namespace gpu
+} // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

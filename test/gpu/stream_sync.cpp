@@ -37,7 +37,7 @@
 #include <migraphx/gpu/target.hpp>
 #include "test.hpp"
 
-constexpr uint32_t STREAM_SYNC_TEST_VAL = 1337;
+constexpr uint32_t stream_sync_test_val = 1337;
 
 // NOLINTNEXTLINE
 const std::string compare_numbers = R"__migraphx__(
@@ -73,7 +73,7 @@ TEST_CASE(test_stream_sync_compare_kernel)
     migraphx::gpu::kernel k1{binaries.front(), "compare"};
 
     auto input =
-        migraphx::fill_argument({migraphx::shape::float_type, {128}}, STREAM_SYNC_TEST_VAL);
+        migraphx::fill_argument({migraphx::shape::float_type, {128}}, stream_sync_test_val);
 
     auto ginput = migraphx::gpu::to_gpu(input);
 
@@ -96,83 +96,23 @@ TEST_CASE(test_stream_sync_compare_kernel)
     EXPECT(output == input);
 }
 
-TEST_CASE(test_stream_sync_different_stream)
+TEST_CASE(test_stream_sync)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
         {make_src_file("check_stuff.cpp", compare_numbers)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::gpu::kernel k1{binaries.front(), "compare"};
+    constexpr unsigned int m = 128;
+    constexpr unsigned int k = 8192;
 
     // Setup empty GPU memory buffer
-    migraphx::shape io_shape{migraphx::shape::float_type, {128, 128}};
-    auto input  = migraphx::fill_argument(io_shape, 0);
+    migraphx::shape input_shape{migraphx::shape::float_type, {m, k}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {m, m}};
+    auto input  = migraphx::fill_argument(input_shape, 0);
     auto ginput = migraphx::gpu::to_gpu(input);
 
-    auto output  = migraphx::fill_argument(io_shape, 0);
-    auto goutput = migraphx::gpu::to_gpu(output);
-
-    hipStream_t stream;
-    auto status = hipStreamCreate(&stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to get stream");
-    }
-
-    hipStream_t kernel_stream;
-    status = hipStreamCreate(&kernel_stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to get stream2");
-    }
-
-    migraphx::program p;
-    auto* mm      = p.get_main_module();
-    auto x        = mm->add_parameter("x", io_shape);
-    auto y        = mm->add_literal({io_shape, {STREAM_SYNC_TEST_VAL + 100}});
-    auto test_val = mm->add_literal({io_shape, {STREAM_SYNC_TEST_VAL}});
-
-    auto mult_out = mm->add_instruction(migraphx::make_op("mul"), x, y);
-    auto add_out  = mm->add_instruction(migraphx::make_op("add"), mult_out, test_val);
-    mm->insert_parameter(add_out, "output", io_shape);
-
-    migraphx::compile_options options;
-    p.compile(migraphx::gpu::target{}, options);
-
-    // Run network and then verify with kernel
-    auto args = p.eval({{"x", ginput}, {"output", goutput}}, {stream, true});
-    k1.launch(kernel_stream, input.get_shape().elements(), 1024)(goutput.cast<std::float_t>());
-
-    output = migraphx::gpu::from_gpu(goutput);
-    EXPECT(output != input);
-
-    status = hipStreamDestroy(stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to cleanup stream");
-    }
-
-    status = hipStreamDestroy(kernel_stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to cleanup kernel stream");
-    }
-}
-
-TEST_CASE(test_stream_sync_same_stream)
-{
-    auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("check_stuff.cpp", compare_numbers)}, "", migraphx::gpu::get_device_name());
-    EXPECT(binaries.size() == 1);
-
-    migraphx::gpu::kernel k1{binaries.front(), "compare"};
-
-    // Setup empty GPU memory buffer
-    migraphx::shape io_shape{migraphx::shape::float_type, {128, 128}};
-    auto input  = migraphx::fill_argument(io_shape, 0);
-    auto ginput = migraphx::gpu::to_gpu(input);
-
-    auto output  = migraphx::fill_argument(io_shape, 0);
+    auto output  = migraphx::fill_argument(output_shape, 0);
     auto goutput = migraphx::gpu::to_gpu(output);
 
     hipStream_t stream;
@@ -183,21 +123,20 @@ TEST_CASE(test_stream_sync_same_stream)
     }
 
     migraphx::program p;
-    auto* mm      = p.get_main_module();
-    auto x        = mm->add_parameter("x", io_shape);
-    auto y        = mm->add_literal({io_shape, {STREAM_SYNC_TEST_VAL + 100}});
-    auto test_val = mm->add_literal({io_shape, {STREAM_SYNC_TEST_VAL}});
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {m, k}});
+    auto y   = mm->add_literal(
+        {migraphx::shape{migraphx::shape::float_type, {k, m}}, {stream_sync_test_val + 100}});
+    auto test_val = mm->add_literal({output_shape, {stream_sync_test_val}});
 
-    auto mult_out = mm->add_instruction(migraphx::make_op("mul"), x, y);
-    auto add_out  = mm->add_instruction(migraphx::make_op("add"), mult_out, test_val);
-    mm->insert_parameter(add_out, "output", io_shape);
+    auto mult_out = mm->add_instruction(migraphx::make_op("dot"), x, y);
+    mm->add_instruction(migraphx::make_op("add"), mult_out, test_val);
 
-    migraphx::compile_options options;
-    p.compile(migraphx::gpu::target{}, options);
+    p.compile(migraphx::gpu::target{});
 
     // Run network and then verify with kernel
     auto args = p.eval({{"x", ginput}, {"output", goutput}}, {stream, true});
-    k1.launch(stream, input.get_shape().elements(), 1024)(goutput.cast<std::float_t>());
+    k1.launch(stream, output.get_shape().elements(), 1024)(goutput.cast<float>());
 
     output = migraphx::gpu::from_gpu(goutput);
     EXPECT(output != input);

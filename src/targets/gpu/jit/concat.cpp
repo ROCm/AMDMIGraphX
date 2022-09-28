@@ -78,7 +78,7 @@ struct concat_compiler : compiler<concat_compiler>
         options.params      = "-Wno-float-equal";
         options.kernel_name = v.get("kernel", "concat_kernel");
         auto axis           = find_fast_axis(options.inputs);
-        auto vec            = vectorize::elements(axis, options.inputs);
+        auto vec            = vectorize::elements(ctx, axis, options.inputs);
         options.set_launch_params(
             v, compute_global_for(ctx, get_concat_elements(options.inputs) / vec.size, 256));
         auto src = interpolate_string(

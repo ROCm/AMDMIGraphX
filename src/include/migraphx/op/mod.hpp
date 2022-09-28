@@ -38,9 +38,9 @@ struct mod : binary<mod>
     {
         auto a           = base_attributes();
         a["commutative"] = false;
+        a["point_op"]    = "${function:fmod}((${function:remainder}(${0}, ${1})) + ${1}, ${1})";
         return a;
     }
-    std::string point_function() const { return "mod"; }
     auto apply() const
     {
         return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };

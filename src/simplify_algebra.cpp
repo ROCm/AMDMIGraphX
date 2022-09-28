@@ -57,12 +57,14 @@ auto conv_const_weights()
 
 auto reduction() { return match::name_contains("reduce"); }
 
+// conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
 {
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(conv_const_weights().bind("conv"),
-                                                          match::name("broadcast").bind("a")));
+        return match::name("mul")(
+            match::either_arg(0, 1)(conv_const_weights().bind("conv"),
+                                    match::name("broadcast", "multibroadcast").bind("a")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -72,14 +74,35 @@ struct find_mul_conv
         auto a_ins    = r.instructions["a"];
         auto w_ins    = r.instructions["w"];
 
-        auto broadcast_op = any_cast<op::broadcast>(a_ins->get_operator());
-        if(broadcast_op.axis != 1)
+        const auto& a_input_lens = a_ins->inputs().front()->get_shape().lens();
+
+        std::size_t num_not_one_dims = std::count_if(
+            a_input_lens.cbegin(), a_input_lens.cend(), [](auto dim) { return dim != 1; });
+        if(num_not_one_dims > 1)
             return;
 
+        // check broadcasted along channels
+        const auto& a_lens    = a_ins->get_shape().lens();
+        const auto& a_strides = a_ins->get_shape().strides();
+
+        auto is_broadcasted_axis = [](auto len, auto stride) { return len == 1 or stride == 0; };
+
+        if(a_strides.at(1) != 1)
+            return;
+
+        if(not is_broadcasted_axis(a_lens.front(), a_strides.front()))
+            return;
+
+        if(not std::equal(a_lens.begin() + 2,
+                          a_lens.end(),
+                          a_strides.begin() + 2,
+                          a_strides.end(),
+                          is_broadcasted_axis))
+            return;
+
+        auto sq    = m.insert_instruction(ins, make_op("squeeze"), a_ins->inputs().front());
         auto new_a = m.insert_instruction(
-            ins,
-            make_op("broadcast", {{"axis", 0}, {"out_lens", w_ins->get_shape().lens()}}),
-            a_ins->inputs().front());
+            ins, make_op("broadcast", {{"axis", 0}, {"out_lens", w_ins->get_shape().lens()}}), sq);
         auto new_mul  = m.insert_instruction(ins, make_op("mul"), new_a, w_ins);
         auto new_conv = m.insert_instruction(
             ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_mul);

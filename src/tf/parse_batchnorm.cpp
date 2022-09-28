@@ -51,13 +51,6 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         auto x_lens = args[0]->get_shape().lens();
         auto x_type = args[0]->get_shape().type();
 
-        if(x_lens.size() != 4)
-        {
-            std::ostringstream oss;
-            oss << "FUSEDBATCHNORM: rank " << x_lens.size() << " input tensor, expecting rank 4";
-            MIGRAPHX_THROW(oss.str());
-        }
-
         // unsqueeze tensors of shape (C) to broadcast correctly
         auto rt  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
         auto eps = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});

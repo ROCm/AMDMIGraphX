@@ -162,7 +162,6 @@ def batchnormv3_test(g1):
                                     is_training=False,
                                     name='batchnorm1')
 
-
 @tf_test
 def biasadd_test(g1):
     with g1.as_default():

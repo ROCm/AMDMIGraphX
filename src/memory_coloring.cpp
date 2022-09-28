@@ -296,7 +296,7 @@ struct allocation_segment
     }
 };
 
-static std::size_t find_max_alignmen(const module& m, const std::string& allocation_op)
+static std::size_t find_max_alignment(const module& m, const std::string& allocation_op)
 {
     std::size_t alignment = 1;
     for(auto ins : iterator_for(m))

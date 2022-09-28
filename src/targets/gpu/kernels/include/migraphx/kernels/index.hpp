@@ -29,6 +29,7 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/functional.hpp>
 
 namespace migraphx {
 
@@ -135,28 +136,55 @@ struct index
         return (n - _c<1>) / stride + _c<1>;
     }
 
+    template<class F, class I, class D>
+    static constexpr auto invoke_loop(F f, I i, D d) -> decltype(f(i, d), void())
+    {
+        f(i, d);
+    }
+
+    template<class F, class I, class D>
+    static constexpr auto invoke_loop(F f, I i, D) -> decltype(f(i), void())
+    {
+        f(i);
+    }
+
     template <class F, class N, class Stride>
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
         MIGRAPHX_ASSERT(start < stride);
-        if constexpr(not is_integral<N>{} and not is_integral<Stride>{} and
-                     max_stride_iterations(n, stride) == 1)
+        if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
         {
-            if constexpr(stride > n)
+            if constexpr(max_stride_iterations(n, stride) == 1)
             {
-                if(start < n)
-                    f(start);
+                if constexpr(stride > n)
+                {
+                    if(start < n)
+                        invoke_loop(f, start, _c<0>);
+                }
+                else
+                {
+                    invoke_loop(f, start, _c<0>);
+                }
             }
             else
             {
-                f(start);
+                sequence(max_stride_iterations(n, stride), [&](auto... ks) {
+                    fold([&](auto d, auto k) {
+                        auto i = start + stride * k;
+                        if(i < n)
+                            invoke_loop(f, i, d);
+                        return d + _c<1>;
+                    })(_c<0>, ks...);
+                });
             }
         }
         else
         {
+            index_int k = 0;
             for(index_int i = start; i < n; i += stride)
             {
-                f(i);
+                invoke_loop(f, i, k);
+                k++;
             }
         }
     }

@@ -37,6 +37,8 @@
 #include <migraphx/gpu/target.hpp>
 #include "test.hpp"
 
+using hip_stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
+
 constexpr uint32_t stream_sync_test_val = 1337;
 
 // NOLINTNEXTLINE
@@ -49,7 +51,7 @@ __global__ void compare(float* data)
     int i = threadIdx.x + blockDim.x * blockIdx.x;
     if (data[i] != 1337) 
     {
-        //abort();
+        abort();
     }
 }
     
@@ -62,6 +64,19 @@ int main() {}
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, std::make_pair(content.data(), content.data() + content.size())};
+}
+
+hip_stream_ptr getStream()
+{
+    hipStream_t stream;
+
+    auto status = hipStreamCreate(&stream);
+    if(status != hipSuccess)
+    {
+        MIGRAPHX_THROW("Failed to get stream");
+    }
+
+    return hip_stream_ptr{stream};
 }
 
 TEST_CASE(test_stream_sync_compare_kernel)
@@ -77,20 +92,9 @@ TEST_CASE(test_stream_sync_compare_kernel)
 
     auto ginput = migraphx::gpu::to_gpu(input);
 
-    hipStream_t stream;
-    auto status = hipStreamCreate(&stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to get stream");
-    }
+    hip_stream_ptr pstream = getStream();
 
-    k1.launch(stream, input.get_shape().elements(), 1024)(ginput.cast<std::float_t>());
-
-    status = hipStreamDestroy(stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to cleanup stream");
-    }
+    k1.launch(pstream.get(), input.get_shape().elements(), 1024)(ginput.cast<std::float_t>());
 
     auto output = migraphx::gpu::from_gpu(ginput);
     EXPECT(output == input);
@@ -115,37 +119,27 @@ TEST_CASE(test_stream_sync)
     auto output  = migraphx::fill_argument(output_shape, 0);
     auto goutput = migraphx::gpu::to_gpu(output);
 
-    hipStream_t stream;
-    auto status = hipStreamCreate(&stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to get stream");
-    }
+    hip_stream_ptr pstream = getStream();
 
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {m, k}});
     auto y   = mm->add_literal(
         {migraphx::shape{migraphx::shape::float_type, {k, m}}, {stream_sync_test_val + 100}});
-    auto test_val = mm->add_literal({output_shape, {stream_sync_test_val}});
 
+    std::vector<float> data(m * m, stream_sync_test_val);
+    auto test_val = mm->add_literal(output_shape, data);
     auto mult_out = mm->add_instruction(migraphx::make_op("dot"), x, y);
     mm->add_instruction(migraphx::make_op("add"), mult_out, test_val);
 
     p.compile(migraphx::gpu::target{});
 
     // Run network and then verify with kernel
-    auto args = p.eval({{"x", ginput}, {"output", goutput}}, {stream, true});
-    k1.launch(stream, output.get_shape().elements(), 1024)(goutput.cast<float>());
+    auto args = p.eval({{"x", ginput}, {"output", goutput}}, {pstream.get(), true});
+    k1.launch(pstream.get(), m * m, 1024)(goutput.cast<unsigned int>());
 
     output = migraphx::gpu::from_gpu(goutput);
     EXPECT(output != input);
-
-    status = hipStreamDestroy(stream);
-    if(status != hipSuccess)
-    {
-        MIGRAPHX_THROW("Failed to cleanup stream");
-    }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

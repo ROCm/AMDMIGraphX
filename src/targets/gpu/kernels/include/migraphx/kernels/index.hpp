@@ -136,13 +136,13 @@ struct index
         return (n - _c<1>) / stride + _c<1>;
     }
 
-    template<class F, class I, class D>
+    template <class F, class I, class D>
     static constexpr auto invoke_loop(F f, I i, D d) -> decltype(f(i, d), void())
     {
         f(i, d);
     }
 
-    template<class F, class I, class D>
+    template <class F, class I, class D>
     static constexpr auto invoke_loop(F f, I i, D) -> decltype(f(i), void())
     {
         f(i);

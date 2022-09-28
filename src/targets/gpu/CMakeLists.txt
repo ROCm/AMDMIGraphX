@@ -78,7 +78,6 @@ add_library(migraphx_gpu
     allocation_model.cpp
     argmax.cpp
     argmin.cpp
-    clip.cpp
     code_object_op.cpp
     compile_ops.cpp
     compile_gen.cpp

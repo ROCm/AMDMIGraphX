@@ -66,7 +66,7 @@ migraphx::src_file make_src_file(const std::string& name, const std::string& con
     return {name, std::make_pair(content.data(), content.data() + content.size())};
 }
 
-hip_stream_ptr getStream()
+hip_stream_ptr get_stream()
 {
     hipStream_t stream;
 
@@ -92,7 +92,7 @@ TEST_CASE(test_stream_sync_compare_kernel)
 
     auto ginput = migraphx::gpu::to_gpu(input);
 
-    hip_stream_ptr pstream = getStream();
+    hip_stream_ptr pstream = get_stream();
 
     k1.launch(pstream.get(), input.get_shape().elements(), 1024)(ginput.cast<std::float_t>());
 
@@ -119,7 +119,7 @@ TEST_CASE(test_stream_sync)
     auto output  = migraphx::fill_argument(output_shape, 0);
     auto goutput = migraphx::gpu::to_gpu(output);
 
-    hip_stream_ptr pstream = getStream();
+    hip_stream_ptr pstream = get_stream();
 
     migraphx::program p;
     auto* mm = p.get_main_module();

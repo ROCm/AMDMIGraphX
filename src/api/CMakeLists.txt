@@ -28,6 +28,17 @@ add_library(migraphx_c
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 rocm_set_soversion(migraphx_c 3.0)
 
+# Check miopen find mode api
+include(CheckLibraryExists)
+check_library_exists(MIGRAPHX "migraphx_program_run_async" "src/api/include/migraphx.h" HAS_STREAM_SYNC)
+if(HAS_STREAM_SYNC)
+    target_compile_definitions(migraphx_c PUBLIC -DMIGRAPHX_STREAM_SYNC)
+    message(STATUS "MIGRAPHX API has has stream synchronization enabled")
+else()
+    message(STATUS "MIGRAPHX API does not have stream synchronization")
+endif()
+
+
 rocm_clang_tidy_check(migraphx_c)
 target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_all_targets)
 

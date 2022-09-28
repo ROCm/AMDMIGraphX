@@ -38,7 +38,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
-#include <migraphx/version.h>
 #include <algorithm>
 #include <cstdarg>
 namespace migraphx {
@@ -302,11 +301,6 @@ void register_custom_op(const CustomOp& op)
 }
 
 migraphx::context get_context(const program& p) { return p.get_context(); }
-
-unsigned int get_migraphx_version()
-{
-    return (MIGRAPHX_VERSION_MAJOR * 100000 + MIGRAPHX_VERSION_MINOR * 1000);
-}
 
 } // namespace migraphx
 

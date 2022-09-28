@@ -94,7 +94,7 @@ TEST_CASE(test_stream_sync_compare_kernel)
 
     hip_stream_ptr pstream = get_stream();
 
-    k1.launch(pstream.get(), input.get_shape().elements(), 1024)(ginput.cast<std::float_t>());
+    k1.launch(pstream.get(), input.get_shape().elements(), 1024)(ginput.cast<float>());
 
     auto output = migraphx::gpu::from_gpu(ginput);
     EXPECT(output == input);
@@ -136,7 +136,7 @@ TEST_CASE(test_stream_sync)
 
     // Run network and then verify with kernel
     auto args = p.eval({{"x", ginput}, {"output", goutput}}, {pstream.get(), true});
-    k1.launch(pstream.get(), m * m, 1024)(goutput.cast<unsigned int>());
+    k1.launch(pstream.get(), m * m, 1024)(goutput.cast<float>());
 
     output = migraphx::gpu::from_gpu(goutput);
     EXPECT(output != input);

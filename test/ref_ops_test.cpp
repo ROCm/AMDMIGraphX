@@ -3663,7 +3663,7 @@ TEST_CASE(multinomial_test)
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
     std::vector<int> res_dist(5, 0);
-    for(auto& r : result_vec)
+    for(const auto& r : result_vec)
         res_dist[r]++;
     auto dist_sum     = std::accumulate(dist.begin(), dist.end(), 0);
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);

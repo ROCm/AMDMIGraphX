@@ -21,7 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <unordered_set>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,6 +47,33 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
     return rb;
 }
 
+const std::unordered_set<std::string>& get_rocblas_fp32_archs()
+{
+    static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
+    return supported_archs;
+}
+
+bool get_compute_fp32_flag()
+{
+    bool compute_fp32 = false;
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    if(contains(get_rocblas_fp32_archs(), device_name))
+        compute_fp32 = true;
+#endif
+    return compute_fp32;
+}
+
+bool get_int8_x4_format(context& ctx)
+{
+    bool int8_x4_format = true;
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+    rocblas_gemm_flags flag;
+    rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+    int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
+#endif
+    return int8_x4_format;
+}
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

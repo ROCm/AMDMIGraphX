@@ -184,6 +184,12 @@ struct value
         {
         }
         explicit binary(std::size_t s) : base(s) {}
+
+        friend std::ostream& operator<<(std::ostream& os, const binary& obj)
+        {
+            os << "{binary_object: " << obj.size() << "}";
+            return os;
+        }
     };
 
     value() = default;

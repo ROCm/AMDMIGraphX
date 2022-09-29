@@ -214,9 +214,6 @@ struct shape
     /// Return true if the shape is dynamic
     bool dynamic() const;
 
-    /// Returns true if the shape is empty
-    bool empty() const;
-
     shape normalize_standard() const;
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;

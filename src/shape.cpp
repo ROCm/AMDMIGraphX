@@ -443,8 +443,6 @@ std::string shape::type_string() const { return name(this->type()); }
 
 bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
 
-bool shape::empty() const { return max_lens().empty(); }
-
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
 std::vector<std::size_t> shape::min_lens() const

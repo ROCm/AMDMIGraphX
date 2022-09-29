@@ -212,6 +212,7 @@ rocm_enable_cppcheck(
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction
+        ctuPointerArith
         noExplicitConstructor
         passedByValue
         unusedStructMember

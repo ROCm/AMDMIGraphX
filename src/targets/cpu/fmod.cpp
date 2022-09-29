@@ -21,33 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_FMOD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_FMOD_HPP
-
-#include <migraphx/op/binary.hpp>
-#include <cmath>
+#include <migraphx/config.hpp>
+#include <migraphx/cpu/pointwise.hpp>
+#include <migraphx/op/fmod.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace cpu {
 
-struct fmod : binary<fmod>
-{
-    std::string name() const { return "fmod"; }
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return std::fmod(x, y); };
-    }
-};
+template struct cpu_binary<op::fmod>;
 
-} // namespace op
+} // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

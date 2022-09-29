@@ -408,7 +408,8 @@ auto is_context_free_op(rank<1>,
                         const T& x,
                         const shape& output_shape,
                         const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input), std::true_type{});
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output_shape, input)), input),
+                std::true_type{});
 
 template <class T>
 auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argument>&)

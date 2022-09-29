@@ -39,6 +39,10 @@ struct miopen_convolution
     op::convolution op;
     shared<convolution_descriptor> cd = nullptr;
     miopenConvFwdAlgorithm_t algo{};
+#ifdef MIGRAPHX_HAS_FIND_2_API
+    value::binary solution_object{};
+    shared<miopen_solution> solution_ptr = nullptr;
+#endif
     uint64_t solution_id = 0;
 
     template <class Self, class F>
@@ -49,6 +53,9 @@ struct miopen_convolution
                     f(self.op.dilation, "dilation"),
                     f(self.op.group, "group"),
                     f(self.op.padding_mode, "padding_mode"),
+#ifdef MIGRAPHX_HAS_FIND_2_API
+                    f(self.solution_object, "solution_object"),
+#endif
                     f(self.solution_id, "solution_id"));
     }
 
@@ -57,7 +64,7 @@ struct miopen_convolution
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
+    void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& inputs);
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;

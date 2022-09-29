@@ -123,9 +123,10 @@ TEST_CASE(test_stream_sync)
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {m, k}});
-    auto y   = mm->add_literal(
-        {migraphx::shape{migraphx::shape::float_type, {k, m}}, {stream_sync_test_val + 100}});
+
+    std::vector<float> test_data(k * m, stream_sync_test_val + 100);
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {m, k}});
+    auto y = mm->add_literal(migraphx::shape{migraphx::shape::float_type, {k, m}}, test_data);
 
     std::vector<float> data(m * m, stream_sync_test_val);
     auto test_val = mm->add_literal(output_shape, data);

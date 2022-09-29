@@ -36,6 +36,11 @@ struct elu : unary<elu>
 {
     float alpha = 1;
 
+    std::string point_op() const
+    {
+        return "${function:where}(${0} > 0, ${0}, ${alpha} * (migraphx::exp(${0}) - 1))";
+    }
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

@@ -54,17 +54,6 @@ TEST_CASE(load_and_run)
 
 using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
 
-hip_ptr get_hip_host_buffer(size_t size)
-{
-    void* ptr;
-    auto err = hipHostMalloc(&ptr, size);
-    if(err != hipSuccess)
-    {
-        EXPECT(false);
-    }
-    return hip_ptr{ptr};
-}
-
 hip_ptr get_hip_buffer(size_t size)
 {
     void* ptr;
@@ -90,17 +79,15 @@ TEST_CASE(load_and_run_async)
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
 
-    std::vector<hip_ptr> host_buffs;
     std::vector<hip_ptr> buffs;
     std::vector<migraphx::argument> args;
     for(auto&& name : param_shapes.names())
     {
         args.push_back(migraphx::argument::generate(param_shapes[name]));
         buffs.push_back(get_hip_buffer(args.rbegin()->get_shape().bytes()));
-        host_buffs.push_back(get_hip_buffer(args.rbegin()->get_shape().bytes()));
 
         auto err = hipMemcpy(buffs.rbegin()->get(),
-                             host_buffs.rbegin()->get(),
+                             args.rbegin()->data(),
                              args.rbegin()->get_shape().bytes(),
                              hipMemcpyHostToDevice);
         if(err != hipSuccess)

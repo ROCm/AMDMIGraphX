@@ -44,6 +44,7 @@ struct broadcast
 {
     uint64_t axis = 0;
     std::vector<std::size_t> broadcast_lens;
+    std::vector<shape::dynamic_dimension> broadcast_dyn_dims;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -54,11 +55,12 @@ struct broadcast
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
+        check_shapes{inputs, *this}.has(1);
         auto input = inputs.at(0);
         auto t     = input.type();
 
         std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
-        // the broacast op is deprecated now, so not handling the negative
+        // the broadcast op is deprecated now, so not handling the negative
         // value of axis anymore
         if(axis >= broadcast_lens.size())
         {

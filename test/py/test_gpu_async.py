@@ -21,33 +21,27 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import sys
 import migraphx
 import ctypes
-import pathlib
 
 libname = "libamdhip64.so"
 hip = ctypes.cdll.LoadLibrary(libname)
 
 def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
-    print(p)
-    print("Compiling ...")
+    #print(p)
+    #print("Compiling ...")
     p.compile(migraphx.get_target("gpu"))
-    print(p)
+    #print(p)
     params = {}
 
     for key, value in p.get_parameter_shapes().items():
-        #print("Parameter {} -> {}".format(key, value))
         params[key] = migraphx.generate_argument(value)
 
-    stream = ctypes.c_void_p() 
+    stream = ctypes.c_void_p()
     err = ctypes.c_int(hip.hipStreamCreate(ctypes.addressof(stream)))
-    #print(err)
-
-    #r = p.run_async(params, stream, "ihipStream_t")
-    #print(r)
 
     err = ctypes.c_int(hip.hipStreamDestroy(stream))
+    print(err)
 
 test_conv_relu()

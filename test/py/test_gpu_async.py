@@ -24,24 +24,52 @@
 import migraphx
 import ctypes
 
-libname = "libamdhip64.so"
-hip = ctypes.cdll.LoadLibrary(libname)
-
 def test_conv_relu():
+    libname = "libamdhip64.so"
+    hip = ctypes.cdll.LoadLibrary(libname)
+
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
-    #print(p)
-    #print("Compiling ...")
-    p.compile(migraphx.get_target("gpu"))
-    #print(p)
+    print(p)
+    print("Compiling ...")
+    # Need to have offload_copy = False to avoid syncs() back to the host device
+    p.compile(migraphx.get_target("gpu"), offload_copy=False)
+    print(p)
     params = {}
 
-    for key, value in p.get_parameter_shapes().items():
-        params[key] = migraphx.generate_argument(value)
+    # Done to avoid parsing enums in ctypes. hipGetDevice always gives us
+    # hipSuccess as an output without modifying state of the current device
+    device_id = ctypes.c_void_p()
+    hipSuccess = ctypes.c_long(hip.hipGetDevice(device_id))
+    migraphx.gpu_sync()
 
+    # Alloc a stream
     stream = ctypes.c_void_p()
-    err = ctypes.c_int(hip.hipStreamCreate(ctypes.addressof(stream)))
 
-    err = ctypes.c_int(hip.hipStreamDestroy(stream))
-    print(err)
+    err = ctypes.c_long(
+        hip.hipStreamCreateWithFlags(ctypes.addressof(stream), 0))
+
+    if err != hipSuccess:
+        print("hipStreamCreate failed")
+        return err
+
+    # Use to_gpu to push generated argument to the GPU before we perform a run
+    for key, value in p.get_parameter_shapes().items():
+        params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
+
+    result = p.run_async(params, stream, "ihipStream_t")
+
+    # Wait for all commands in stream to complete
+    err = ctypes.c_long(hip.hipStreamSyncrhonize(stream))
+    if err != hipSuccess:
+        print("hipStreamSyncronize failed, invalid handle")
+        return err
+
+    # Cleanup Stream
+    err = ctypes.c_long(hip.hipStreamDestroy(stream))
+    if err != hipSuccess:
+        print("hipStreamDestroy failed")
+        return err
+
+    print(result)
 
 test_conv_relu()

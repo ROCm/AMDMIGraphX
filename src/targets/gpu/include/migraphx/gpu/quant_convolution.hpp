@@ -41,7 +41,7 @@ struct miopen_quant_convolution
     bool int8_x4_format = false;
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
- #ifdef MIGRAPHX_HAS_FIND_2_API
+#ifdef MIGRAPHX_HAS_FIND_2_API
     value::binary solution_object{};
     shared<miopen_solution> solution_ptr = nullptr;
 #endif
@@ -53,11 +53,10 @@ struct miopen_quant_convolution
         // TODO: Add algo
         return pack_join(migraphx::reflect(self.op, f),
                          pack(
-        #ifdef MIGRAPHX_HAS_FIND_2_API
-                            f(self.solution_object, "solution_object"),
-        #endif
-                            f(self.int8_x4_format, "int8_x4_format")
-                            ));
+#ifdef MIGRAPHX_HAS_FIND_2_API
+                             f(self.solution_object, "solution_object"),
+#endif
+                             f(self.int8_x4_format, "int8_x4_format")));
     }
 
     std::string name() const { return "gpu::quant_convolution"; }

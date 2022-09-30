@@ -42,11 +42,35 @@ argument miopen_quant_convolution::compute(context& ctx,
     auto x_desc = make_tensor(args[0].get_shape(), int8_x4_format);
     auto w_desc = make_tensor(args[1].get_shape(), int8_x4_format);
     auto y_desc = make_tensor(output_shape);
+    auto* miopen_stream_handle = ctx.get_stream().get_miopen();
+    auto workspace_size = args[2].get_shape().bytes();
+#ifdef MIGRAPHX_HAS_FIND_2_API
+ {
+        const miopenTensorArgument_t tensor_args[3] = {
+            {miopenTensorConvolutionX, nullptr, args[0].implicit()},
+            {miopenTensorConvolutionW, nullptr, args[1].implicit()},
+            {miopenTensorConvolutionY, nullptr, args[3].implicit()},
+        };
 
+        if(solution_ptr.get() == nullptr)
+            MIGRAPHX_THROW("MIOpen Quant Convolution : Load MIOpen Solution before running it");
+
+        auto status = miopenRunSolution(miopen_stream_handle,
+                                        solution_ptr.get(),
+                                        3,
+                                        tensor_args,
+                                        args[2].implicit(),
+                                        workspace_size);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Quant Convolution: running convolution using find_2.0 failed");
+
+        return args[3];
+    }
+#else
     float alpha = 1;
     float beta  = 0;
 
-    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+    auto status = miopenConvolutionForward(miopen_stream_handle,
                                            &alpha,
                                            x_desc.get(),
                                            args[0].implicit(),
@@ -58,13 +82,13 @@ argument miopen_quant_convolution::compute(context& ctx,
                                            y_desc.get(),
                                            args[3].implicit(),
                                            args[2].implicit(),
-                                           args[2].get_shape().bytes());
+                                           workspace_size);
     if(status != miopenStatusSuccess)
     {
-        MIGRAPHX_THROW("QUANT_CONVOLUTION: run convolution forward failed");
+        MIGRAPHX_THROW("MIOpen Quant Convolution: run convolution forward failed");
     }
-
     return args[3];
+#endif
 }
 
 shape miopen_quant_convolution::find(context& ctx,
@@ -75,14 +99,48 @@ shape miopen_quant_convolution::find(context& ctx,
     auto x_desc = make_tensor(inputs[0], int8_x4_format);
     auto w_desc = make_tensor(inputs[1], int8_x4_format);
     auto y_desc = make_tensor(output_shape);
-
     std::size_t workspace_size = 0;
+#ifdef MIGRAPHX_HAS_FIND_2_API
+ {      auto conv_problem = make_obj<miopen_problem>(
+            &miopenCreateConvProblem, cd.get(), miopenProblemDirectionForward);
+
+        set_tensor_descriptor(miopenTensorConvolutionX, x_desc, conv_problem);
+        set_tensor_descriptor(miopenTensorConvolutionW, w_desc, conv_problem);
+        set_tensor_descriptor(miopenTensorConvolutionY, y_desc, conv_problem);
+
+        auto* miopen_stream_handle = ctx.get_stream().get_miopen();
+
+        solution_ptr = find_solution(miopen_stream_handle, conv_problem.get());
+
+        auto status = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Quant Convolution : failed to get solution's workspace size");
+
+        std::size_t solution_size;
+        status = miopenGetSolutionSize(solution_ptr.get(), &solution_size);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Quant Convolution: Failed to fetch solution size");
+
+        auto solution_binary = std::vector<char>{};
+        solution_binary.resize(solution_size);
+
+        status = miopenSaveSolution(solution_ptr.get(), solution_binary.data());
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Quant Convolution: Saving solution failed");
+        solution_object = value::binary{solution_binary.data(), solution_size};
+        return shape{shape::int8_type, {workspace_size}};
+
+ }
+#else 
     miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
                                              w_desc.get(),
                                              x_desc.get(),
                                              cd.get(),
                                              y_desc.get(),
                                              &workspace_size);
+    if(status != miopenSuccess)
+        MIGRAPHX_THROW("MIOpen Quant Convolution Failed to get forward workspace size");
+
     workspace_shape = shape{shape::int8_type, {workspace_size}};
 
     auto x_shape = inputs[0];
@@ -144,12 +202,29 @@ shape miopen_quant_convolution::find(context& ctx,
     solution_id = solutions.front().solution_id;
 
     return shape{shape::int8_type, {perf.memory}};
+#endif
 }
 
 void miopen_quant_convolution::finalize(context& ctx,
                                         const shape& output_shape,
-                                        std::vector<shape> inputs)
+                                        const std::vector<shape>& inputs)
 {
+#ifdef MIGRAPHX_HAS_FIND_2_API
+    (void)(ctx); // avoid warnings
+    (void)(output_shape);
+    (void)(inputs);
+    // load solution
+    if(solution_ptr == nullptr)
+    {
+        miopenSolution_t ptr;
+        auto status  = miopenLoadSolution(&ptr,
+                                            reinterpret_cast<const char*>(solution_object.data()),
+                                            solution_object.size());
+        solution_ptr = miopen_solution{ptr};
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen Quant Convolution: loading convolution solution failed");
+    }
+#else
     if(cd == nullptr)
         cd = make_conv(op);
     if(solution_id == 0)
@@ -173,6 +248,7 @@ void miopen_quant_convolution::finalize(context& ctx,
                                                           solution_id);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Quant Convolution: compile solution failed");
+#endif
 }
 
 shape miopen_quant_convolution::pack_int8_shape(const shape& s) const

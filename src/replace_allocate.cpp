@@ -73,7 +73,7 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
         name_shapes.insert(ps.begin(), ps.end());
     }
 
-    for(auto& pn : name_shapes)
+    for(const auto& pn : name_shapes)
     {
         const auto& s = pn.second;
         instruction_ref output{};

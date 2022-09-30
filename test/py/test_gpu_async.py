@@ -24,6 +24,7 @@
 import migraphx
 import ctypes
 
+
 def test_conv_relu():
     libname = "libamdhip64.so"
     hip = ctypes.cdll.LoadLibrary(libname)
@@ -71,5 +72,6 @@ def test_conv_relu():
         return err
 
     print(result)
+
 
 test_conv_relu()

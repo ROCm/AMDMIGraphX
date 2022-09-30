@@ -26,6 +26,7 @@
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 
+#include <migraphx/manage_ptr.hpp>
 #include "test.hpp"
 
 TEST_CASE(load_and_run)
@@ -45,9 +46,23 @@ TEST_CASE(load_and_run)
     {
         pp.add(name, migraphx::argument::generate(param_shapes[name]));
     }
+
     auto outputs = p.eval(pp);
     CHECK(shapes_before.size() == outputs.size());
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+}
+
+using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
+
+hip_ptr get_hip_buffer(size_t size)
+{
+    void* ptr;
+    auto err = hipMalloc(&ptr, size);
+    if(err != hipSuccess)
+    {
+        EXPECT(false);
+    }
+    return hip_ptr{ptr};
 }
 
 TEST_CASE(load_and_run_async)
@@ -55,7 +70,7 @@ TEST_CASE(load_and_run_async)
     auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options options;
-    options.set_offload_copy();
+    options.set_offload_copy(false);
     p.compile(migraphx::target("gpu"), options);
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
@@ -63,9 +78,23 @@ TEST_CASE(load_and_run_async)
     CHECK(bool{shapes_before.front() == shapes_after.front()});
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
+
+    std::vector<hip_ptr> buffs;
+    std::vector<migraphx::argument> args;
     for(auto&& name : param_shapes.names())
     {
-        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+        args.push_back(migraphx::argument::generate(param_shapes[name]));
+        buffs.push_back(get_hip_buffer(args.rbegin()->get_shape().bytes()));
+
+        auto err = hipMemcpy(buffs.rbegin()->get(),
+                             args.rbegin()->data(),
+                             args.rbegin()->get_shape().bytes(),
+                             hipMemcpyHostToDevice);
+        if(err != hipSuccess)
+        {
+            EXPECT(false);
+        }
+        pp.add(name, migraphx::argument(args.rbegin()->get_shape(), buffs.rbegin()->get()));
     }
 
     hipStream_t stream;

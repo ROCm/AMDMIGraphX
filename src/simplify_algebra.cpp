@@ -562,32 +562,36 @@ struct find_splits
     static std::vector<instruction_ref> split_nary(const std::vector<instruction_ref>& group)
     {
         // All inputs have the same slices
-        if (not std::all_of(group.begin(), group.end(), [](auto ins) {
-            if (ins->inputs().empty())
-                return false;
-            auto first = ins->inputs().front();
-            if (first->name() != "slice")
-                return false;
-            return std::all_of(ins->inputs().begin()+1, ins->inputs().end(), [&](auto input) {
-                return input->get_operator() == first->get_operator();
-            });
-        }))
+        if(not std::all_of(group.begin(), group.end(), [](auto ins) {
+               if(ins->inputs().empty())
+                   return false;
+               auto first = ins->inputs().front();
+               if(first->name() != "slice")
+                   return false;
+               return std::all_of(ins->inputs().begin() + 1, ins->inputs().end(), [&](auto input) {
+                   return input->get_operator() == first->get_operator();
+               });
+           }))
             return {};
-        auto start       = group.front();
+        auto start = group.front();
         std::vector<instruction_ref> inputs;
-        std::transform(start->inputs().begin(), start->inputs().end(), std::back_inserter(inputs), [](auto ins) {
-            return ins->inputs().front();
-        });
-        if (not std::all_of(group.begin(), group.end(), [&](auto ins) {
-            return std::equal(ins->inputs().begin(), ins->inputs().end(), inputs.begin(), inputs.end(), [](auto slice, auto input) {
-                return slice->inputs().front() == input;
-            });
-        }))
+        std::transform(start->inputs().begin(),
+                       start->inputs().end(),
+                       std::back_inserter(inputs),
+                       [](auto ins) { return ins->inputs().front(); });
+        if(not std::all_of(group.begin(), group.end(), [&](auto ins) {
+               return std::equal(
+                   ins->inputs().begin(),
+                   ins->inputs().end(),
+                   inputs.begin(),
+                   inputs.end(),
+                   [](auto slice, auto input) { return slice->inputs().front() == input; });
+           }))
             return {};
         return inputs;
     }
 
-    template<class Range>
+    template <class Range>
     static instruction_ref find_last_instruction(const module& m, const Range& r)
     {
         auto rm = reverse(m);
@@ -629,10 +633,10 @@ struct find_splits
                 }) && "one argument must be a split");
 
                 auto split_inputs = split_nary(group);
-                if (not split_inputs.empty())
+                if(not split_inputs.empty())
                 {
                     auto last = find_last_instruction(m, split_inputs);
-                    c = m.insert_instruction(std::next(last), op, split_inputs);
+                    c         = m.insert_instruction(std::next(last), op, split_inputs);
                 }
                 else
                 {
@@ -673,7 +677,6 @@ struct find_splits
                     args[data_idx]  = concat;
                     c               = m.insert_instruction(std::next(ins), op, args);
                 }
-
             }
             if(c != m.end())
             {

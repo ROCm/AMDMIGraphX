@@ -44,7 +44,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
-        auto x_lens = args[0]->get_shape().lens();
+        auto x_lens = args[0]->get_shape().max_lens();
         auto x_type = args[0]->get_shape().type();
 
         if(std::any_of(args.cbegin() + 1, args.cend(), [](auto a) {

@@ -32,6 +32,7 @@
 #include <utility>
 #include <unordered_map>
 #include <migraphx/reflect.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/argument.hpp>
@@ -93,6 +94,46 @@ bool need_normalization(const operation& x);
 bool has_finalize(const operation& x);
 
 #else
+
+struct dyn_output
+{
+    // original shape from the instruction
+    shape ins_shape;
+    // shape computed at eval time using input arguments
+    shape computed_shape;
+};
+
+/**
+ * Handle dynamic and static shape at evaluation time.
+ * If converted to shape type, returns original ins_shape.
+ * If converted to dyn_output type, will compute an output shape using the input arguments.
+ */
+template <class F>
+struct compute_output_shape
+{
+    F ins_inputs;
+
+    operator dyn_output() const
+    {
+        return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
+            if(ins_shape.dynamic())
+                return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
+            return dyn_output{ins_shape, ins_shape};
+        });
+    }
+
+    operator shape() const
+    {
+        return ins_inputs(
+            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; });
+    }
+};
+
+template <class F>
+compute_output_shape<F> make_compute_output_shape(F f)
+{
+    return {f};
+}
 
 namespace detail {
 
@@ -199,9 +240,12 @@ auto compute_op(rank<1>,
                 context& ctx,
                 const shape& output_shape,
                 const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output_shape, input)),
+                          input))
 {
-    return x.compute(auto_any_cast(ctx), output_shape, input);
+    return x.compute(
+        auto_any_cast(ctx), make_compute_output_shape(pack(x, output_shape, input)), input);
 }
 
 template <class T>
@@ -220,9 +264,9 @@ compute_op(const T& x, context& ctx, const shape& output_shape, const std::vecto
 
 template <class T>
 auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output_shape, input)), input))
 {
-    return x.compute(make_compute_output_shape(x, output_shape, input), input);
+    return x.compute(make_compute_output_shape(pack(x, output_shape, input)), input);
 }
 
 template <class T>
@@ -244,9 +288,11 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(output, inputs, module_args, f))
+                F f)
+    -> decltype(
+        x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
 {
-    return x.compute(output, inputs, module_args, f);
+    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
 }
 
 template <class T, class F>
@@ -278,9 +324,17 @@ auto compute_op(rank<4>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(auto_any_cast(ctx), output, inputs, module_args, f))
+                F f) -> decltype(x.compute(auto_any_cast(ctx),
+                                           make_compute_output_shape(pack(x, output, inputs)),
+                                           inputs,
+                                           module_args,
+                                           f))
 {
-    return x.compute(auto_any_cast(ctx), output, inputs, module_args, f);
+    return x.compute(auto_any_cast(ctx),
+                     make_compute_output_shape(pack(x, output, inputs)),
+                     inputs,
+                     module_args,
+                     f);
 }
 
 template <class T, class F>
@@ -290,9 +344,11 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(output, inputs, module_args, f))
+                F f)
+    -> decltype(
+        x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
 {
-    return x.compute(output, inputs, module_args, f);
+    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
 }
 
 template <class T, class F>
@@ -302,9 +358,10 @@ auto compute_op(rank<2>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F) -> decltype(x.compute(output, inputs))
+                F)
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs))
 {
-    return x.compute(output, inputs);
+    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
 }
 
 template <class T, class F>
@@ -314,9 +371,12 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F) -> decltype(x.compute(auto_any_cast(ctx), output, inputs))
+                F) -> decltype(x.compute(auto_any_cast(ctx),
+                                         make_compute_output_shape(pack(x, output, inputs)),
+                                         inputs))
 {
-    return x.compute(auto_any_cast(ctx), output, inputs);
+    return x.compute(
+        auto_any_cast(ctx), make_compute_output_shape(pack(x, output, inputs)), inputs);
 }
 
 template <class T, class F>
@@ -348,7 +408,8 @@ auto is_context_free_op(rank<1>,
                         const T& x,
                         const shape& output_shape,
                         const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input), std::true_type{});
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output_shape, input)), input),
+                std::true_type{});
 
 template <class T>
 auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argument>&)
@@ -1277,59 +1338,6 @@ inline const ValueType& any_cast(const operation& x)
 #endif
 
 inline bool operator!=(const operation& x, const operation& y) { return not(x == y); }
-
-// used for dynamic operators
-struct dyn_output
-{
-    // original instruction output shape
-    shape ins_shape;
-    std::function<shape()> compute_shape;
-
-    shape get_output_shape()
-    {
-        if(output_shape.element_space() == 0)
-        {
-            output_shape = compute_shape();
-        }
-        return output_shape;
-    }
-
-    private:
-    // shape computed at eval time using input arguments
-    shape output_shape;
-};
-
-/**
- * Handle dynamic and static shape at evaluation time.
- * If converted to shape type, returns original ins_shape
- * If converted to dyn_output type, will compute an output shape using the input arguments
- */
-template <class F>
-struct compute_output_shape
-{
-    F ins_inputs;
-    operator dyn_output() const
-    {
-        return unpack(
-            [](const auto& x, shape ins_shape, const std::vector<argument>& args) {
-                return dyn_output{ins_shape, [&]() { compute_shape(x, to_shapes(args)); }};
-            },
-            ins_inputs);
-    }
-
-    operator shape() const
-    {
-        return unpack(
-            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; },
-            ins_inputs);
-    }
-};
-
-template <class T>
-auto make_compute_output_shape(const T& x, shape ins_shape, const std::vector<argument>& input)
-{
-    return compute_output_shape{pack(x, ins_shape, input)};
-}
 
 inline value
 compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)

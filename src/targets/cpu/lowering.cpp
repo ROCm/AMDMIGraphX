@@ -216,55 +216,6 @@ struct cpu_pad
 };
 MIGRAPHX_REGISTER_OP(cpu_pad)
 
-struct leaky_relu_op
-{
-    op::leaky_relu op;
-    std::string name() const { return "cpu::leaky_relu"; }
-    auto fcn() const
-    {
-        auto a = op.alpha;
-        return [a](auto x) { return x > 0 ? x : x * a; };
-    }
-};
-
-template <typename Op>
-struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
-{
-    cpu_unary2() = default;
-
-    template <class T>
-    cpu_unary2(T pop) : op(Op{std::move(pop)})
-    {
-    }
-
-    Op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op.op, f);
-    }
-    std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        const auto& s = inputs.at(0);
-        return {s.type(), s.lens()};
-    }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            assert(input.get_shape().standard());
-            std::transform(input.begin(), input.end(), output.begin(), op.fcn());
-        });
-
-        return result;
-    }
-};
-template struct cpu_unary2<leaky_relu_op>;
-
 struct cpu_rnn_var_sl_last_output
 {
     op::rnn_var_sl_last_output op;

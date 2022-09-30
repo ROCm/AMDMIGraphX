@@ -34,7 +34,7 @@ struct test_elu : verify_program<test_elu>
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        mm->add_instruction(migraphx::make_op("leaky_relu", {{"alpha", 1.0}}), x);
+        mm->add_instruction(migraphx::make_op("elu", {{"alpha", 0.8}}), x);
         return p;
     }
 };

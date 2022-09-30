@@ -3476,6 +3476,21 @@ TEST_CASE(neg_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(neg_dynamic_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int64_type, {{1, 10, 0}, {3, 3, 0}}};
+    auto input = mm->add_parameter("0", s);
+    auto ret   = mm->add_instruction(migraphx::make_op("neg"), input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10, 0};
+    auto prog                     = migraphx::parse_onnx("neg_dynamic_test.onnx", options);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(nms_test)
 {
     migraphx::program p;
@@ -5195,6 +5210,29 @@ TEST_CASE(sinh_test)
     mm->add_instruction(migraphx::make_op("sinh"), input);
 
     auto prog = optimize_onnx("sinh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(sinh_dynamic_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape::dynamic_dimension dd{1, 10, 0};
+    std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
+    dyn_dims.push_back(dd);
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dyn_dims});
+    mm->add_instruction(migraphx::make_op("sinh"), input);
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = dd;
+    auto prog                     = parse_onnx("sinh_dynamic_test.onnx", options);
+    auto* mm_onnx                 = prog.get_main_module();
+    auto last_ins                 = std::prev(mm_onnx->end());
+    if(last_ins->name() == "@return")
+    {
+        mm->remove_instruction(last_ins);
+    }
 
     EXPECT(p == prog);
 }

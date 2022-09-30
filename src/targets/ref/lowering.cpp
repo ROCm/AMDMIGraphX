@@ -32,9 +32,7 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/elu.hpp>
 #include <migraphx/op/im2col.hpp>
-#include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
@@ -234,9 +232,8 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
         return op.normalize_compute_shape(inputs);
     }
 
-    argument compute(context&, migraphx::dyn_output dyn_output, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        shape output_shape;
         std::vector<std::size_t> padding;
         if(op.padding_mode != op::padding_mode_t::default_)
         {
@@ -251,8 +248,12 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
         }
         else
         {
-            padding      = op.padding;
-            output_shape = dyn_output.get_output_shape();
+            padding = op.padding;
+            if(output_shape.dynamic())
+            {
+                output_shape =
+                    op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
+            }
         }
 
         argument result{output_shape};
@@ -507,65 +508,6 @@ struct ref_quant_gemm
 };
 MIGRAPHX_REGISTER_OP(ref_gemm)
 
-struct leaky_relu_op
-{
-    op::leaky_relu op;
-    std::string name() const { return "ref::leaky_relu"; }
-    auto fcn() const
-    {
-        auto a = op.alpha;
-        return [a](auto x) { return x > 0 ? x : x * a; };
-    }
-};
-
-struct elu_op
-{
-    op::elu op;
-    std::string name() const { return "ref::elu"; }
-    auto fcn() const
-    {
-        auto a = op.alpha;
-        return [a](auto x) { return x > 0 ? x : a * std::expm1(x); };
-    }
-};
-
-template <typename Op>
-struct ref_unary : auto_register_op<ref_unary<Op>>
-{
-    ref_unary() = default;
-
-    template <class T>
-    ref_unary(T pop) : op(Op{std::move(pop)})
-    {
-    }
-
-    Op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op.op, f);
-    }
-    std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        const auto& s = inputs.at(0);
-        return {s.type(), s.lens()};
-    }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            assert(input.get_shape().standard());
-            std::transform(input.begin(), input.end(), output.begin(), op.fcn());
-        });
-
-        return result;
-    }
-};
-
 template <class Op>
 struct ref_softmax : auto_register_op<ref_softmax<Op>>
 {
@@ -708,9 +650,7 @@ struct ref_apply
         apply_map["quant_dot"]   = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["quant_convolution"] =
             extend_op<ref_convolution<op::quant_convolution>, op::quant_convolution>();
-        apply_map["elu"]        = extend_op<ref_unary<elu_op>, op::elu>();
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
-        apply_map["leaky_relu"] = extend_op<ref_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();
         apply_map["lrn"]        = extend_op<ref_lrn, op::lrn>();
         apply_map["pad"]        = extend_op<ref_pad, op::pad>();

@@ -3648,6 +3648,16 @@ def neg_test():
 
 
 @onnx_test
+def neg_dynamic_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT64, [None, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.INT64, [None, 3])
+
+    node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def nms_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
@@ -5270,6 +5280,20 @@ def sin_test():
 def sinh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Sinh',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def sinh_dynamic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
 
     node = onnx.helper.make_node(
         'Sinh',

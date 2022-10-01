@@ -854,23 +854,27 @@ struct find_add_dots
 {
     auto matcher() const
     {
-        auto dot_const_weights = match::name("dot")(match::used_once(), match::arg(1)(match::is_constant()));
-        auto dot_const_inputs = match::name("dot")(match::used_once(), match::arg(0)(match::is_constant()));
-        return match::name("add")(match::any_of(
-            match::args(dot_const_weights.bind("a"), dot_const_weights.bind("b")),
-            match::args(dot_const_inputs.bind("a"), dot_const_inputs.bind("b"))));
+        auto dot_const_weights =
+            match::name("dot")(match::used_once(), match::arg(1)(match::is_constant()));
+        auto dot_const_inputs =
+            match::name("dot")(match::used_once(), match::arg(0)(match::is_constant()));
+        return match::name("add")(
+            match::any_of(match::args(dot_const_weights.bind("a"), dot_const_weights.bind("b")),
+                          match::args(dot_const_inputs.bind("a"), dot_const_inputs.bind("b"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        auto a = r.instructions["a"];
-        auto b = r.instructions["b"];
+        auto a   = r.instructions["a"];
+        auto b   = r.instructions["b"];
 
         auto n = ins->get_shape().lens().size();
 
-        auto x = m.insert_instruction(ins, make_op("concat", {{"axis", (n-1)}}), a->inputs()[0], b->inputs()[0]);
-        auto w = m.insert_instruction(ins, make_op("concat", {{"axis", (n-2)}}), a->inputs()[1], b->inputs()[1]);
+        auto x = m.insert_instruction(
+            ins, make_op("concat", {{"axis", (n - 1)}}), a->inputs()[0], b->inputs()[0]);
+        auto w = m.insert_instruction(
+            ins, make_op("concat", {{"axis", (n - 2)}}), a->inputs()[1], b->inputs()[1]);
         m.replace_instruction(ins, make_op("dot"), x, w);
     }
 };

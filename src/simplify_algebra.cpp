@@ -850,6 +850,31 @@ struct find_add_convs
     }
 };
 
+struct find_add_dots
+{
+    auto matcher() const
+    {
+        auto dot_const_weights = match::name("dot")(match::used_once(), match::arg(1)(match::is_constant()));
+        auto dot_const_inputs = match::name("dot")(match::used_once(), match::arg(0)(match::is_constant()));
+        return match::name("add")(match::any_of(
+            match::args(dot_const_weights.bind("a"), dot_const_weights.bind("b")),
+            match::args(dot_const_inputs.bind("a"), dot_const_inputs.bind("b"))));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto a = r.instructions["a"];
+        auto b = r.instructions["b"];
+
+        auto n = ins->get_shape().lens().size();
+
+        auto x = m.insert_instruction(ins, make_op("concat", {{"axis", (n-1)}}), a->inputs()[0], b->inputs()[0]);
+        auto w = m.insert_instruction(ins, make_op("concat", {{"axis", (n-2)}}), a->inputs()[1], b->inputs()[1]);
+        m.replace_instruction(ins, make_op("dot"), x, w);
+    }
+};
+
 MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 {
     auto pred = [&](auto name) {
@@ -1179,6 +1204,7 @@ void simplify_algebra::apply(module& m) const
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_add_convs{},
+                            find_add_dots{},
                             find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
                             find_mul_slice_conv{},

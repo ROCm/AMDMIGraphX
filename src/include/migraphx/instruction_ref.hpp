@@ -38,8 +38,7 @@ migraphx::instruction* as_address(const instruction_ref& ins) noexcept;
 
 struct compare_instruction_ref
 {
-    bool operator()(const instruction_ref& x,
-                           const instruction_ref& y) const noexcept
+    bool operator()(const instruction_ref& x, const instruction_ref& y) const noexcept
     {
         return as_address(x) < as_address(y);
     }

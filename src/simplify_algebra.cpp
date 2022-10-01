@@ -559,7 +559,8 @@ struct find_splits
         return true;
     }
 
-    static std::vector<instruction_ref> split_nary(const std::vector<instruction_ref>& group, bool commutative)
+    static std::vector<instruction_ref> split_nary(const std::vector<instruction_ref>& group,
+                                                   bool commutative)
     {
         // All inputs have the same slices
         if(not std::all_of(group.begin(), group.end(), [](auto ins) {
@@ -573,7 +574,7 @@ struct find_splits
                });
            }))
             return {};
-        auto start = group.front();
+        auto start      = group.front();
         auto get_inputs = [](auto ins) {
             std::vector<instruction_ref> result;
             std::transform(ins->inputs().begin(),
@@ -583,15 +584,14 @@ struct find_splits
             return result;
         };
         auto inputs = get_inputs(start);
-        if (commutative and inputs.size() > 1)
+        if(commutative and inputs.size() > 1)
         {
             std::sort(inputs.begin(), inputs.end(), compare_instruction_ref{});
             if(not std::all_of(group.begin(), group.end(), [&](auto ins) {
-                auto inputs2 = get_inputs(ins);
-                std::sort(inputs2.begin(), inputs2.end(), compare_instruction_ref{});
-                return inputs == inputs2;
-
-            }))
+                   auto inputs2 = get_inputs(ins);
+                   std::sort(inputs2.begin(), inputs2.end(), compare_instruction_ref{});
+                   return inputs == inputs2;
+               }))
                 return {};
         }
         else
@@ -605,7 +605,7 @@ struct find_splits
                        [](auto slice, auto input) { return slice->inputs().front() == input; });
                }))
                 return {};
-            }
+        }
         return inputs;
     }
 

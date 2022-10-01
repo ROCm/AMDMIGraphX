@@ -81,77 +81,21 @@ struct miopen_apply
         (void)i;
     }
 
-    const std::unordered_set<std::string>& get_rocblas_fp32_archs()
-    {
-        static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
-        return supported_archs;
-    }
-
     void init()
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
 
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-        auto& ctx              = get_context();
-        const auto device_name = trim(split_string(get_device_name(), ':').front());
-        if(contains(get_rocblas_fp32_archs(), device_name))
-            compute_fp32 = true;
-        rocblas_gemm_flags flag;
-        rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-        int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
-#endif
+        auto& ctx      = get_context();
+        int8_x4_format = get_int8_x4_format(ctx);
+        compute_fp32   = get_compute_fp32_flag();
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
 
-        add_generic_op("acos");
-        add_generic_op("acosh");
-        add_generic_op("add");
-        add_generic_op("asin");
-        add_generic_op("asinh");
-        add_generic_op("atan");
-        add_generic_op("atanh");
-        add_generic_op("ceil");
         add_generic_op("contiguous");
-        add_generic_op("cos");
-        add_generic_op("cosh");
-        add_generic_op("div");
-        add_generic_op("equal");
-        add_generic_op("erf");
-        add_generic_op("exp");
-        add_generic_op("floor");
-        add_generic_op("greater");
-        add_generic_op("less");
-        add_generic_op("log");
-        add_generic_op("logical_and");
-        add_generic_op("logical_or");
-        add_generic_op("logical_xor");
-        add_generic_op("max");
-        add_generic_op("min");
-        add_generic_op("mul");
-        add_generic_op("not");
-        add_generic_op("pow");
-        add_generic_op("prelu");
-        add_generic_op("recip");
-        add_generic_op("relu");
-        add_generic_op("round");
-        add_generic_op("rsqrt");
-        add_generic_op("sigmoid");
-        add_generic_op("sign");
-        add_generic_op("sin");
-        add_generic_op("sinh");
-        add_generic_op("sqdiff");
-        add_generic_op("sqrt");
-        add_generic_op("sub");
-        add_generic_op("tan");
-        add_generic_op("tanh");
-        add_generic_op("where");
 
-        add_extend_op("abs");
         add_extend_op("argmax");
         add_extend_op("argmin");
-        add_extend_op("clip");
-        add_extend_op("convert");
         add_extend_op("elu");
         add_extend_op("gather");
         add_extend_op("leaky_relu");

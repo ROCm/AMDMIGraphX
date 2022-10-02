@@ -777,30 +777,24 @@ struct find_add_split
 {
     auto matcher() const
     {
-        auto add = [](auto... ms) {
-            return match::name("add")(match::either_arg(0, 1)(ms...));
-        };
+        auto add   = [](auto... ms) { return match::name("add")(match::either_arg(0, 1)(ms...)); };
         auto slice = match::name("slice").bind("slice");
-        auto constant = match::is_constant().bind("a");
-        auto any = match::any().bind("x");
+        auto constant  = match::is_constant().bind("a");
+        auto any       = match::any().bind("x");
         auto slice_a_x = add(slice, add(constant, any));
         auto a_slice_x = add(constant, add(slice, any));
-        return match::any_of(
-                slice_a_x,
-                a_slice_x
-            );
+        return match::any_of(slice_a_x, a_slice_x);
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
+        auto ins   = r.result;
         auto slice = r.instructions["slice"];
-        auto a = r.instructions["a"];
-        auto x = r.instructions["x"];
+        auto a     = r.instructions["a"];
+        auto x     = r.instructions["x"];
 
         auto slice_add = m.insert_instruction(ins, migraphx::make_op("add"), slice, a);
         m.replace_instruction(ins, migraphx::make_op("add"), slice_add, x);
-
     }
 };
 

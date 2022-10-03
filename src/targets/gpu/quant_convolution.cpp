@@ -249,7 +249,7 @@ void miopen_quant_convolution::finalize(context& ctx,
 #endif
 }
 
-shape miopen_quant_convolution::pack_int8_shape(const shape& s) const   
+shape miopen_quant_convolution::pack_int8_shape(const shape& s) const
 {
     if(s.type() != shape::int8_type)
     {

@@ -131,7 +131,7 @@ shape miopen_quant_convolution::find(context& ctx,
         return shape{shape::int8_type, {workspace_size}};
     }
 #else
-    miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
+    auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
                                              w_desc.get(),
                                              x_desc.get(),
                                              cd.get(),
@@ -249,6 +249,7 @@ void miopen_quant_convolution::finalize(context& ctx,
 #endif
 }
 
+// cppcheck-suppress unusedPrivateFunction
 shape miopen_quant_convolution::pack_int8_shape(const shape& s) const
 {
     if(s.type() != shape::int8_type)

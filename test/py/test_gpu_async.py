@@ -55,7 +55,8 @@ def test_conv_relu():
     for key, value in p.get_parameter_shapes().items():
         params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
 
-    result = migraphx.from_gpu(p.run_async(params, stream.value, "ihipStream_t")[-1])
+    result = migraphx.from_gpu(
+        p.run_async(params, stream.value, "ihipStream_t")[-1])
 
     # Wait for all commands in stream to complete
     err = ctypes.c_long(hip.hipStreamSynchronize(stream))

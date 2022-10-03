@@ -156,7 +156,7 @@ shape miopen_quant_convolution::find(context& ctx,
 
     int algo_count = 1;
     miopenConvAlgoPerf_t perf;
-    auto status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
+    status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
                                                         x_desc.get(),
                                                         x.implicit(),
                                                         w_desc.get(),

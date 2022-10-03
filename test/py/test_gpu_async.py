@@ -38,40 +38,36 @@ def test_conv_relu():
 
     # Done to avoid parsing enums in ctypes. hipGetDevice always gives us
     # hipSuccess as an output without modifying state of the current device
-    device_id = ctypes.c_void_p()
-    hipSuccess = ctypes.c_long(hip.hipGetDevice(device_id))
+    hipSuccess = ctypes.c_long(0)
     migraphx.gpu_sync()
 
     # Alloc a stream
     stream = ctypes.c_void_p()
 
     err = ctypes.c_long(
-        hip.hipStreamCreateWithFlags(ctypes.addressof(stream), 0))
+        hip.hipStreamCreateWithFlags(ctypes.byref(stream), ctypes.c_uint(0)))
 
-    if err != hipSuccess:
-        print("hipStreamCreate failed")
+    if err.value != hipSuccess.value:
+        print("FAILED hipStreamCreate")
         return err
 
     # Use to_gpu to push generated argument to the GPU before we perform a run
     for key, value in p.get_parameter_shapes().items():
         params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
 
-    result = p.run_async(params, stream, "ihipStream_t")
+    result = p.run_async(params, stream.value, "ihipStream_t")
 
     # Wait for all commands in stream to complete
     err = ctypes.c_long(hip.hipStreamSynchronize(stream))
-    if err != hipSuccess:
-        print("hipStreamSyncronize failed, invalid handle")
+    if err.value != hipSuccess.value:
+        print("FAILED: hipStreamSyncronize")
         return err
 
     # Cleanup Stream
     err = ctypes.c_long(hip.hipStreamDestroy(stream))
-    if err != hipSuccess:
-        print("hipStreamDestroy failed")
+    if err.value != hipSuccess.value:
+        print("FAILED: hipStreamDestroy")
         return err
 
-    print(result)
 
-
-if __name__ == "main":
-    test_conv_relu()
+test_conv_relu()

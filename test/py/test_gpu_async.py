@@ -26,8 +26,7 @@ import ctypes
 
 
 def test_conv_relu():
-    libname = "libamdhip64.so"
-    hip = ctypes.cdll.LoadLibrary(libname)
+    hip = ctypes.cdll.LoadLibrary("libamdhip64.so")
 
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)
@@ -60,7 +59,7 @@ def test_conv_relu():
     result = p.run_async(params, stream, "ihipStream_t")
 
     # Wait for all commands in stream to complete
-    err = ctypes.c_long(hip.hipStreamSyncrhonize(stream))
+    err = ctypes.c_long(hip.hipStreamSynchronize(stream))
     if err != hipSuccess:
         print("hipStreamSyncronize failed, invalid handle")
         return err

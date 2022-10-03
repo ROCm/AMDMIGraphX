@@ -107,8 +107,8 @@ TEST_CASE(test_stream_sync)
     EXPECT(binaries.size() == 1);
 
     migraphx::gpu::kernel k1{binaries.front(), "compare"};
-    constexpr unsigned int m = 128;
-    constexpr unsigned int k = 8192;
+    const unsigned int m = 128;
+    const unsigned int k = 8192;
 
     // Setup empty GPU memory buffer
     migraphx::shape input_shape{migraphx::shape::float_type, {m, k}};
@@ -124,9 +124,9 @@ TEST_CASE(test_stream_sync)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> test_data(k * m, stream_sync_test_val + 100);
     auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {m, k}});
-    auto y = mm->add_literal(migraphx::shape{migraphx::shape::float_type, {k, m}}, test_data);
+    auto y = mm->add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {k, m}}));
 
     std::vector<float> data(m * m, stream_sync_test_val);
     auto test_val = mm->add_literal(output_shape, data);

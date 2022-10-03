@@ -93,7 +93,6 @@ else()
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments
                 -Wno-missing-prototypes
-		-Wno-misc-confusable-identifiers
                 -Wno-nested-anon-types
                 -Wno-option-ignored
                 -Wno-padded

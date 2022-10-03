@@ -83,7 +83,7 @@ struct pooling
         size_t kdims      = input_lens.size() - 2;
         auto input_size   = inputs[0].lens().size();
         auto padding_size = padding.size();
-        if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
+        if(input_size != padding_size / 2 + 2 and input_size != padding_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }

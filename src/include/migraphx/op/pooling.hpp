@@ -65,7 +65,7 @@ struct pooling
     void check_attribute_size() const
     {
         if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
-            stride.size() != lengths.size())
+           stride.size() != lengths.size())
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }

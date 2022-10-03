@@ -66,7 +66,7 @@ struct quant_convolution
     void check_attribute_size() const
     {
         if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
-            stride.size() != dilation.size())
+           stride.size() != dilation.size())
         {
             MIGRAPHX_THROW("QUANT_CONVOLUTION: inconsistent attribute sizes");
         }

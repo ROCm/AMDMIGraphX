@@ -602,7 +602,7 @@ void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
         auto param        = m.get_parameter(name);
         if(input.standard())
             continue;
-        auto lens = input.lens();
+        auto lens    = input.lens();
         auto strides = input.strides();
         std::vector<operation> ops;
         if(input.transposed())
@@ -610,7 +610,7 @@ void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
             auto perm  = find_permutation(input);
             auto iperm = invert_permutation(perm);
             lens       = reorder_dims(lens, iperm);
-            strides       = reorder_dims(strides, iperm);
+            strides    = reorder_dims(strides, iperm);
             ops.push_back(make_op("transpose", {{"permutation", perm}}));
         }
         if(input.broadcasted())

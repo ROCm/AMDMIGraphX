@@ -31,6 +31,22 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+auto compute_broadcasting = [](std::vector<std::size_t> s0, std::vector<std::size_t> s1) {
+    std::vector<std::size_t> out_lens(s1);
+    auto offset = s1.size() - s0.size();
+    std::transform(
+        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
+            if(a != b and a != 1 and b != 1)
+            {
+                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + to_string_range(s0) + "} and {" +
+                               to_string_range(s1) + "} mismatch!");
+            }
+            return std::max(a, b);
+        });
+
+    return out_lens;
+};
+
 // Example:
 // s0 = (3,2,4,5) and s1 = (2,1,1)
 //
@@ -50,20 +66,17 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
         return s0;
     if(s0.size() > s1.size())
         s0.swap(s1);
+    return compute_broadcasting(s0, s1);
+}
 
-    std::vector<std::size_t> out_lens(s1);
-    auto offset = s1.size() - s0.size();
-    std::transform(
-        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
-            if(a != b and a != 1 and b != 1)
-            {
-                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + to_string_range(s0) + "} and {" +
-                               to_string_range(s1) + "} mismatch!");
-            }
-            return std::max(a, b);
-        });
-
-    return out_lens;
+std::vector<std::size_t> broadcast_s0s1_lens(std::vector<std::size_t> s0,
+                                             std::vector<std::size_t> s1)
+{
+    if(s0 == s1)
+        return s0;
+    if(s0.size() > s1.size())
+        MIGRAPHX_THROW("BROADCAST_SHAPE_LENS: s0 size > s1 size and swap not allowed");
+    return compute_broadcasting(s0, s1);
 }
 
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
@@ -114,6 +127,7 @@ instruction_ref insert_common_op(module& m,
                                  const operation& op,
                                  std::vector<instruction_ref> inputs)
 {
+    // TODO update this to handle dynamic shapes
     auto common = common_shape(to_shapes(inputs));
     std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
         if(input->get_shape().lens() != common.lens())

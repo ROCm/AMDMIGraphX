@@ -50,27 +50,25 @@ struct multibroadcast
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
-        auto t           = inputs.at(0).type();
+        auto t  = inputs.at(0).type();
         auto s0 = inputs.at(0);
 
-			
-		if(s0.lens().empty())
-		{
-			MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should be > 0");
-		}
+        if(s0.lens().empty())
+        {
+            MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should be > 0");
+        }
 
-		auto make_bcast_strides = [&](std::size_t out_num_dims, std::size_t offset)
-		{
-			std::vector<size_t> bcast_strides(out_num_dims, 0);
-			for(std::ptrdiff_t i = s0.lens().size() - 1; i >= 0; i--)
-			{
-				if(output_lens[i + offset] == s0.lens()[i])
-				{
-					bcast_strides[i + offset] = s0.strides()[i];
-				}
-			}
-			return bcast_strides;
-		};
+        auto make_bcast_strides = [&](std::size_t out_num_dims, std::size_t offset) {
+            std::vector<size_t> bcast_strides(out_num_dims, 0);
+            for(std::ptrdiff_t i = s0.lens().size() - 1; i >= 0; i--)
+            {
+                if(output_lens[i + offset] == s0.lens()[i])
+                {
+                    bcast_strides[i + offset] = s0.strides()[i];
+                }
+            }
+            return bcast_strides;
+        };
 
         if(inputs.size() == 1)
         {
@@ -84,52 +82,42 @@ struct multibroadcast
             {
                 if(output_lens[i + offset] != s0.lens()[i] and s0.lens()[i] != 1)
                 {
-                    MIGRAPHX_THROW(
-                        "MULTIBROADCAST: input shape {" + to_string_range(s0.lens()) +
-                        "} cannot be broadcasted to {" + to_string_range(output_lens) + "}!");
+                    MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(s0.lens()) +
+                                   "} cannot be broadcasted to {" + to_string_range(output_lens) +
+                                   "}!");
                 }
             }
 
-			auto bcast_strides = make_bcast_strides(output_lens.size(), offset);
+            auto bcast_strides = make_bcast_strides(output_lens.size(), offset);
             return {t, output_lens, std::move(bcast_strides)};
         }
         else
         {
-            // need both shapes when handling dynamic case
-            // shapes can be dynamic (at compile-time) or static (at evaluation time)
-            // this function will be called through compute_output_shape conversion to dyn_output
-            // new compute_broadcasted_lens for dynamic shapes
-			// do we want this to work in both broadcast directions?
-			// s0 and s1 as shape inputs
-			// always s0 -> s1 shape or allow s0 to retain the same shape?
-			// presuming that it's always s0 -> s1 shape, since that's closer to the current behavior
-			// compute_broadcasted_lens() will swap the shapes if s1.size() < s0.size(), may need to make another function
             auto s1 = inputs.at(1);
-            if(s0.dynamic() and s1.dynamic()) 
-			{
-				auto bcast_max_lens = compute_broadcasted_lens(s0.max_lens(), s1.max_lens());
-				auto bcast_min_lens = compute_broadcasted_lens(s0.min_lens(), s1.min_lens());
-				auto bcast_opt_lens = compute_broadcasted_lens(s0.opt_lens(), s1.opt_lens());
-
-				std::vector<shape::dynamic_dimension> output_dyn_dims = {};
-				for(size_t i = 0; i < bcast_max_lens.size(); ++i)
-				{
-					output_dyn_dims.push_back(shape::dynamic_dimension{
-						min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
-				}
-				return {t, std::move(output_dyn_dims)};
-			}
-            else if(not s0.dynamic() and not s1.dynamic())
+            if(s0.max_lens().size() > s1.max_lens().size())
             {
-                auto bcast_lens = compute_broadcasted_lens(s0.lens(), s1.lens());
-				auto offset = s1.lens().size() - s0.lens().size();
-				auto bcast_strides = make_bcast_strides(s1.lens().size(), offset);
-				return {t, std::move(bcast_lens), std::move(bcast_strides)};
+                MIGRAPHX_THROW("MULTIBROADCAST: s0 rank should <= s1 rank");
+            }
+            if(s0.dynamic() or s1.dynamic())
+            {
+                auto bcast_max_lens = broadcast_s0s1_lens(s0.max_lens(), s1.max_lens());
+                auto bcast_min_lens = broadcast_s0s1_lens(s0.min_lens(), s1.min_lens());
+                auto bcast_opt_lens = broadcast_s0s1_lens(s0.opt_lens(), s1.opt_lens());
+
+                std::vector<shape::dynamic_dimension> output_dyn_dims = {};
+                for(size_t i = 0; i < bcast_max_lens.size(); ++i)
+                {
+                    output_dyn_dims.push_back(shape::dynamic_dimension{
+                        bcast_max_lens[i], bcast_min_lens[i], bcast_opt_lens[i]});
+                }
+                return {t, std::move(output_dyn_dims)};
             }
             else
             {
-                MIGRAPHX_THROW(
-                    "MULTIBROADCAST: s0 and s1 are not both dynamic or static");
+                auto bcast_lens    = compute_broadcasted_lens(s0.lens(), s1.lens());
+                auto offset        = s1.lens().size() - s0.lens().size();
+                auto bcast_strides = make_bcast_strides(s1.lens().size(), offset);
+                return {t, std::move(bcast_lens), std::move(bcast_strides)};
             }
         }
     }

@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,63 +57,73 @@ struct broadcast
     {
         check_shapes{inputs, *this, true}.has(1, 2);
         auto s0 = inputs.at(0);
-        auto t     = s0.type();
+        auto t  = s0.type();
 
-		if (inputs.size() == 1)
-		{
-			std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
-			// the broadcast op is deprecated now, so not handling the negative
-			// value of axis anymore
-			if(axis >= broadcast_lens.size())
-			{
-				MIGRAPHX_THROW("BROADCAST : axis is out of range");
-			}
-
-			if(broadcast_lens.size() - axis < s0.lens().size())
-			{
-				MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
-			}
-
-			if(not std::equal(s0.lens().begin(), s0.lens().end(), broadcast_lens.begin() + axis))
-			{
-				MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
-			}
-			std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
-
-			shape output{t, broadcast_lens, std::move(bcast_strides)};
-			if(output.elements() < s0.elements())
-				MIGRAPHX_THROW("BROADCAST: output size must be greater than or equal to s0 size");
-			return output;
-		}
-		else
-		{
-            if(s0.dynamic() and s1.dynamic()) 
-			{
-				auto bcast_max_lens = compute_broadcasted_lens(s0.max_lens(), s1.max_lens());
-				auto bcast_min_lens = compute_broadcasted_lens(s0.min_lens(), s1.min_lens());
-				auto bcast_opt_lens = compute_broadcasted_lens(s0.opt_lens(), s1.opt_lens());
-
-				std::vector<shape::dynamic_dimension> output_dyn_dims = {};
-				for(size_t i = 0; i < bcast_max_lens.size(); ++i)
-				{
-					output_dyn_dims.push_back(shape::dynamic_dimension{
-						min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
-				}
-				return {t, output_dyn_dims};
-			}
-            else if(not s0.dynamic() and not s1.dynamic())
+        if(inputs.size() == 1)
+        {
+            std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
+            // the broadcast op is deprecated now, so not handling the negative
+            // value of axis anymore
+            if(axis >= broadcast_lens.size())
             {
-                auto bcast_lens = compute_broadcasted_lens(s0.lens(), s1.lens());
-				std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
-				std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
-				return {t, std::move(bcast_lens), std::move(bcast_strides)};
+                MIGRAPHX_THROW("BROADCAST : axis is out of range");
+            }
+
+            if(broadcast_lens.size() - axis < s0.lens().size())
+            {
+                MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
+            }
+
+            if(not std::equal(s0.lens().begin(), s0.lens().end(), broadcast_lens.begin() + axis))
+            {
+                MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
+            }
+            std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
+
+            shape output{t, broadcast_lens, std::move(bcast_strides)};
+            if(output.elements() < s0.elements())
+                MIGRAPHX_THROW("BROADCAST: output size must be greater than or equal to s0 size");
+            return output;
+        }
+        else
+        {
+            auto s1 = inputs.at(1);
+
+            if(axis >= s1.max_lens().size())
+            {
+                MIGRAPHX_THROW("BROADCAST_2in: axis is out of range of s1");
+            }
+            if(s1.max_lens().size() - axis < s0.max_lens().size())
+            {
+                MIGRAPHX_THROW("BROADCAST_2in: (s1 rank - axis) is less than s0 rank");
+            }
+
+            if(s0.dynamic() or s1.dynamic())
+            {
+                auto bcast_max_lens = broadcast_s0s1_lens(s0.max_lens(), s1.max_lens());
+                auto bcast_min_lens = broadcast_s0s1_lens(s0.min_lens(), s1.min_lens());
+                auto bcast_opt_lens = broadcast_s0s1_lens(s0.opt_lens(), s1.opt_lens());
+
+                std::vector<shape::dynamic_dimension> output_dyn_dims = {};
+                for(size_t i = 0; i < bcast_max_lens.size(); ++i)
+                {
+                    output_dyn_dims.push_back(shape::dynamic_dimension{
+                        bcast_max_lens[i], bcast_min_lens[i], bcast_opt_lens[i]});
+                }
+                return {t, std::move(output_dyn_dims)};
             }
             else
             {
-                MIGRAPHX_THROW(
-                    "BROADCAST: s0 and s1 are not both dynamic or static");
+                if(not std::equal(s0.lens().begin(), s0.lens().end(), s1.lens().begin() + axis))
+                {
+                    MIGRAPHX_THROW("BROADCAST_2in: when broadcasting, succeeding sizes must match");
+                }
+                auto bcast_lens = compute_broadcasted_lens(s0.lens(), s1.lens());
+                std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
+                std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
+                return {t, std::move(bcast_lens), std::move(bcast_strides)};
             }
-		}
+        }
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const

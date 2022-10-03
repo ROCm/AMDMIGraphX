@@ -36,6 +36,11 @@ struct operation;
 
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1);
+
+// This version doesn't allow s0.size() > s1.size()
+std::vector<std::size_t> broadcast_s0s1_lens(std::vector<std::size_t> s0,
+                                             std::vector<std::size_t> s1);
+
 shape common_shape(const std::vector<shape>& shapes);
 
 instruction_ref insert_common_op(module& m,

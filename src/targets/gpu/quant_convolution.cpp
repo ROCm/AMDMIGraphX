@@ -137,7 +137,7 @@ shape miopen_quant_convolution::find(context& ctx,
                                                            cd.get(),
                                                            y_desc.get(),
                                                            &workspace_size);
-    if(status != miopenSuccess)
+    if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Quant Convolution Failed to get forward workspace size");
 
     workspace_shape = shape{shape::int8_type, {workspace_size}};
@@ -249,8 +249,7 @@ void miopen_quant_convolution::finalize(context& ctx,
 #endif
 }
 
-// cppcheck-suppress unusedPrivateFunction
-shape miopen_quant_convolution::pack_int8_shape(const shape& s) const
+shape miopen_quant_convolution::pack_int8_shape(const shape& s) const   
 {
     if(s.type() != shape::int8_type)
     {

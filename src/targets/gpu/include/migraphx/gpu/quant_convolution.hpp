@@ -71,6 +71,7 @@ struct miopen_quant_convolution
     }
 
     private:
+    // cppcheck-suppress unusedPrivateFunction
     shape pack_int8_shape(const shape& s) const;
 };
 

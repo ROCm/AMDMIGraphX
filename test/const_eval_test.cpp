@@ -70,8 +70,6 @@ struct non_computable_cf
 struct test_context
 {
     void finish() const {}
-    void finish_on(migraphx::any_ptr) const {}
-    void wait_for(migraphx::any_ptr) const {}
 };
 
 TEST_CASE(literal_test)

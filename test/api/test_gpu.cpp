@@ -52,16 +52,22 @@ TEST_CASE(load_and_run)
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
-using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
+using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);
+using stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
+
+stream_ptr get_stream()
+{
+    hipStream_t stream;
+    auto err = hipStreamCreateWithFlags(&stream, 0);
+    EXPECT(err == hipSuccess);
+    return stream_ptr{stream};
+}
 
 hip_ptr get_hip_buffer(size_t size)
 {
     void* ptr;
     auto err = hipMalloc(&ptr, size);
-    if(err != hipSuccess)
-    {
-        EXPECT(false);
-    }
+    EXPECT(err == hipSuccess);
     return hip_ptr{ptr};
 }
 
@@ -79,6 +85,8 @@ TEST_CASE(load_and_run_async)
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
 
+    stream_ptr stream = get_stream();
+
     std::vector<hip_ptr> buffs;
     std::vector<migraphx::argument> args;
     for(auto&& name : param_shapes.names())
@@ -90,29 +98,13 @@ TEST_CASE(load_and_run_async)
                              args.rbegin()->data(),
                              args.rbegin()->get_shape().bytes(),
                              hipMemcpyHostToDevice);
-        if(err != hipSuccess)
-        {
-            EXPECT(false);
-        }
+        EXPECT(err == hipSuccess);
         pp.add(name, migraphx::argument(args.rbegin()->get_shape(), buffs.rbegin()->get()));
     }
 
-    hipStream_t stream;
-    auto err = hipStreamCreateWithFlags(&stream, 0);
-    if(err != hipSuccess)
-    {
-        EXPECT(false);
-    }
-
-    auto outputs = p.run_async(pp, stream);
+    auto outputs = p.run_async(pp, stream.get());
     CHECK(shapes_before.size() == outputs.size());
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
-
-    err = hipStreamDestroy(stream);
-    if(err != hipSuccess)
-    {
-        EXPECT(false);
-    }
 }
 
 TEST_CASE(load_and_run_ctx)

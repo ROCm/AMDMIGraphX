@@ -74,4 +74,5 @@ def test_conv_relu():
     print(result)
 
 
-test_conv_relu()
+if __name__ == "main":
+    test_conv_relu()

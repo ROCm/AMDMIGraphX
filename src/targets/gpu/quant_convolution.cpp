@@ -132,11 +132,11 @@ shape miopen_quant_convolution::find(context& ctx,
     }
 #else
     auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
-                                             w_desc.get(),
-                                             x_desc.get(),
-                                             cd.get(),
-                                             y_desc.get(),
-                                             &workspace_size);
+                                                           w_desc.get(),
+                                                           x_desc.get(),
+                                                           cd.get(),
+                                                           y_desc.get(),
+                                                           &workspace_size);
     if(status != miopenSuccess)
         MIGRAPHX_THROW("MIOpen Quant Convolution Failed to get forward workspace size");
 

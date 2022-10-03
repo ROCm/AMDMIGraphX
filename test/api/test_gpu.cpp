@@ -82,10 +82,10 @@ TEST_CASE(if_pl_test)
         migraphx::program_parameters pp;
         auto param_shapes = p.get_parameter_shapes();
         auto xs           = param_shapes["x"];
-        std::vector<float> xd(xs.bytes() / sizeof(float), 1.0);
+        std::vector<float> xd(xs.elements(), 1.0);
         pp.add("x", migraphx::argument(xs, xd.data()));
         auto ys = param_shapes["y"];
-        std::vector<float> yd(ys.bytes() / sizeof(float), 2.0);
+        std::vector<float> yd(ys.elements(), 2.0);
         pp.add("y", migraphx::argument(ys, yd.data()));
         char ccond = cond;
         pp.add("cond", migraphx::argument(param_shapes["cond"], &ccond));

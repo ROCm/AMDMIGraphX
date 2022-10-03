@@ -26,7 +26,6 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
-
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
@@ -147,6 +146,16 @@ typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraph
                                                                          size_t exception_msg_size,
                                                                          migraphx_shapes_t inputs);
 
+typedef migraphx_status (*migraphx_experimental_custom_op_output_alias)(size_t* out,
+                                                                        size_t* out_size,
+                                                                        void* obj,
+                                                                        char* exception_msg,
+                                                                        size_t exception_msg_size,
+                                                                        migraphx_shapes_t inputs);
+
+typedef migraphx_status (*migraphx_experimental_custom_op_runs_on_offload_target)(
+    bool* out, void* obj, char* exception_msg, size_t exception_msg_size);
+
 typedef migraphx_status (*migraphx_experimental_custom_op_copy)(void** out, void* input);
 
 typedef migraphx_status (*migraphx_experimental_custom_op_delete)(void* input);
@@ -178,12 +187,16 @@ migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shap
 
 migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, const_migraphx_shape_t shape);
 
+migraphx_status migraphx_shape_elements(size_t* out, const_migraphx_shape_t shape);
+
 migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape);
 
 migraphx_status
 migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_shape_t x);
 
 migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape);
+
+migraphx_status migraphx_shape_index(size_t* out, const_migraphx_shape_t shape, size_t i);
 
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
@@ -524,6 +537,13 @@ migraphx_experimental_custom_op_set_compute(migraphx_experimental_custom_op_t ob
 
 migraphx_status migraphx_experimental_custom_op_set_compute_shape(
     migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input);
+
+migraphx_status migraphx_experimental_custom_op_set_output_alias(
+    migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_output_alias input);
+
+migraphx_status migraphx_experimental_custom_op_set_runs_on_offload_target(
+    migraphx_experimental_custom_op_t obj,
+    migraphx_experimental_custom_op_runs_on_offload_target input);
 
 migraphx_status
 migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t experimental_custom_op);

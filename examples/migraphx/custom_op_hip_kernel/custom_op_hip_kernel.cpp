@@ -45,6 +45,13 @@ __global__ void vector_square(T* C_d, const T* A_d, size_t N)
 struct square_custom_op final : migraphx::experimental_custom_op_base
 {
     virtual std::string name() const override { return "square_custom_op"; }
+
+    // flag to identify whether custom op runs on the GPU or on the host.
+    // Based on this flag MIGraphX would inject necessary copies to and from GPU for the input and
+    // output buffers as necessary. Therefore if custom_op runs on GPU then it can assume its input
+    // buffers are in GPU memory, and similarly for the host
+    virtual bool runs_on_offload_target() const override { return true; }
+
     virtual migraphx::argument
     compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
@@ -54,7 +61,7 @@ struct square_custom_op final : migraphx::experimental_custom_op_base
         // is output argument, so it should be returned from compute method.
         auto* input_buffer  = reinterpret_cast<float*>(inputs[0].data());
         auto* output_buffer = reinterpret_cast<float*>(inputs[1].data());
-        size_t n_elements   = inputs[0].get_shape().bytes() / sizeof(inputs[0].get_shape().type());
+        size_t n_elements   = inputs[0].get_shape().elements();
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
         const unsigned blocks            = 512;
         const unsigned threads_per_block = 256;
@@ -103,7 +110,7 @@ int main(int argc, const char* argv[])
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
     migraphx::program_parameters pp;
-    std::vector<float> x_data(s.bytes() / sizeof(s.type()));
+    std::vector<float> x_data(s.elements());
     std::iota(x_data.begin(), x_data.end(), 0);
     pp.add("x", migraphx::argument(s, x_data.data()));
     auto results                       = p.eval(pp);

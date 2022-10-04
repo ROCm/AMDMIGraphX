@@ -36,10 +36,8 @@ def test_conv_relu():
     print(p)
     params = {}
 
-    # Done to avoid parsing enums in ctypes. hipGetDevice always gives us
-    # hipSuccess as an output without modifying state of the current device
+    # Using default value in api for hipSuccess which is always 0
     hipSuccess = ctypes.c_long(0)
-    migraphx.gpu_sync()
 
     # Alloc a stream
     stream = ctypes.c_void_p()
@@ -71,5 +69,6 @@ def test_conv_relu():
         return err
 
     print(result)
+
 
 test_conv_relu()

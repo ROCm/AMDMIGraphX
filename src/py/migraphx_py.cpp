@@ -355,6 +355,23 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  }
                  return p.eval(pm);
              })
+        .def("run_async",
+             [](migraphx::program& p,
+                py::dict params,
+                std::uintptr_t stream,
+                std::string stream_name) {
+                 migraphx::parameter_map pm;
+                 for(auto x : params)
+                 {
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
+                     py::buffer_info info = b.request();
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                 }
+                 migraphx::execution_environment exec_env{
+                     migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
+                 return p.eval(pm, exec_env);
+             })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})

@@ -193,14 +193,19 @@ TEST_CASE(half_copy_custom_op_test)
         auto result_vec = result.as_vector<float>();
         std::vector<float> expected_result(12, 0);
         std::iota(expected_result.begin() + 6, expected_result.end(), 6);
-        if(not bool{result == migraphx::argument(s, expected_result.data())}) {
+        if(not bool{result == migraphx::argument(s, expected_result.data())})
+        {
+            std::cout << op_name << "\n";
+            p.print();
             std::cout << "result: \n";
-            for(const auto & i: result_vec) {
+            for(const auto& i : result_vec)
+            {
                 std::cout << i << " ";
             }
             std::cout << "\n";
             std::cout << "expected result: \n";
-            for(const auto &i : expected_result) {
+            for(const auto& i : expected_result)
+            {
                 std::cout << i << " ";
             }
             std::cout << "\n";
@@ -220,8 +225,7 @@ TEST_CASE(half_copy_custom_op_test)
     std::vector<std::pair<std::string, bool>> tests_config = {
         {"half_copy_host", true},
         {"half_copy_device", true},
-        {"half_copy_device_same_buffer", false}
-	};
+        {"half_copy_device_same_buffer", false}};
     for(const auto& i : tests_config)
     {
         run_test_prog(i.first, i.second);

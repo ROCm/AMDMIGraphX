@@ -197,7 +197,9 @@ struct hip_device
 struct context
 {
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
-        : current_device(std::make_shared<hip_device>(device_id, n))
+        : current_device(std::make_shared<hip_device>(device_id, n)),
+          begin_event(create_event()),
+          finish_event(create_event())
     {
     }
 
@@ -274,6 +276,24 @@ struct context
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }
 
+    void wait_for(any_ptr queue)
+    {
+        auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("failed to record " + hip_error(status));
+
+        get_stream().wait(begin_event.get());
+    }
+
+    void finish_on(any_ptr queue)
+    {
+        get_stream().record(finish_event.get());
+
+        auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to wait on event " + hip_error(status));
+    }
+
     any_ptr get_queue() { return get_stream().get(); }
 
     void enable_perf_measurement(bool b = true)
@@ -316,9 +336,13 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool measure_perf                 = false;
+    bool measure_perf = false;
+    // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
+    // for stream syncronization
+    shared<hip_event_ptr> begin_event  = nullptr;
+    shared<hip_event_ptr> finish_event = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

@@ -2335,6 +2335,82 @@ TEST_CASE(if_else_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(if_else_empty_shape_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    auto cond = mm->add_literal(migraphx::literal(sc, {0}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    auto l1                 = mm->add_literal(s, ones);
+    std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
+    auto l2                 = mm->add_literal(s, rand);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
+
+    auto* then_mod = p.create_module("If_5_if");
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({rt});
+
+    auto* else_mod = p.create_module("If_5_else");
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({re});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    std::ifstream ifs("if_else_empty_shape_test.onnx", std::ios::binary);
+    ifs.seekg(0, std::ios::end);
+    auto length = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    std::vector<char> onnx_buffer(length);
+    ifs.read(onnx_buffer.data(), length);
+    ifs.close();
+
+    auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_else_trailing_one_shape_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    auto cond = mm->add_literal(migraphx::literal(sc, {0}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    auto l1                 = mm->add_literal(s, ones);
+    std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
+    auto l2                 = mm->add_literal(s, rand);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
+
+    auto* then_mod = p.create_module("If_5_if");
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({rt});
+
+    auto* else_mod = p.create_module("If_5_else");
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({re});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    std::ifstream ifs("if_else_trailing_one_shape_test.onnx", std::ios::binary);
+    ifs.seekg(0, std::ios::end);
+    auto length = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    std::vector<char> onnx_buffer(length);
+    ifs.read(onnx_buffer.data(), length);
+    ifs.close();
+
+    auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
+    EXPECT(p == prog);
+}
+
 TEST_CASE(if_literal_test)
 {
     migraphx::program p;
@@ -2436,8 +2512,68 @@ TEST_CASE(if_pl_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_pl_test.onnx");
+}
+
+TEST_CASE(if_then_empty_shape_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    auto cond = mm->add_literal(migraphx::literal(sc, {1}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    auto l1                 = mm->add_literal(s, ones);
+    std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
+    auto l2                 = mm->add_literal(s, rand);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
+
+    auto* then_mod = p.create_module("If_5_if");
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({rt});
+
+    auto* else_mod = p.create_module("If_5_else");
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({re});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("if_then_empty_shape_test.onnx");
     EXPECT(p == prog);
 }
+
+TEST_CASE(if_then_trailing_one_shape_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    auto cond = mm->add_literal(migraphx::literal(sc, {1}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    auto l1                 = mm->add_literal(s, ones);
+    std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
+    auto l2                 = mm->add_literal(s, rand);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
+
+    auto* then_mod = p.create_module("If_5_if");
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({rt});
+
+    auto* else_mod = p.create_module("If_5_else");
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({re});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("if_then_trailing_one_shape_test.onnx");
+    EXPECT(p == prog);
+}
+
 
 TEST_CASE(if_then_test)
 {

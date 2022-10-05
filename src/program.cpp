@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/version.h>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -485,6 +486,7 @@ value program::to_value() const
 {
     value result;
     result["version"] = program_file_version;
+    result["migraphx_version"] = get_migraphx_version(); 
     result["target"]  = this->impl->target_name;
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
@@ -614,6 +616,10 @@ void program::from_value(const value& v)
     if(version != program_file_version)
     {
         MIGRAPHX_THROW("Warning: Program version mismatch");
+    }
+    auto migx_version = v.at("migraphx_version").to<std::string>();
+    if(migx_version != get_migraphx_version()) {
+        std::clog << "MIGraphX version mismatch, consider recompiling model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model " << std::endl;
     }
 
     this->impl->target_name = v.at("target").to<std::string>();

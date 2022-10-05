@@ -258,10 +258,10 @@ struct context
     value to_value() const
     {
         value result;
-        result["events"]  = events.size();
-        result["streams"] = current_device->nstreams();
-        result["gfx_arch"] = current_device->get_device_name();
-        result["cu_count"] = current_device->get_cu_count();
+        result["events"]         = events.size();
+        result["streams"]        = current_device->nstreams();
+        result["gfx_arch"]       = current_device->get_device_name();
+        result["cu_count"]       = current_device->get_cu_count();
         result["miopen_version"] = get_miopen_version();
         return result;
     }
@@ -277,28 +277,39 @@ struct context
 
         auto v_gfx_arch = v.at("gfx_arch").to<std::string>();
 
-        auto v_cu_count = v.at("cu_count");
+        auto v_cu_count        = v.at("cu_count");
         std::size_t n_cu_count = v_cu_count.without_key().to<std::size_t>();
 
         std::string v_miopen_version = v.at("miopen_version").to<std::string>();
 
         this->current_device = std::make_shared<hip_device>(0, n_streams);
 
-        #ifdef MIGRAPHX_HAS_FIND_2_API
+#ifdef MIGRAPHX_HAS_FIND_2_API
         {
-            std::string current_gfx_arch = this->current_device->get_device_name();
-            std::size_t current_cu_count = this->current_device->get_cu_count();
-            std::string current_miopen_version = get_miopen_version();            
-            if(n_cu_count != current_cu_count || v_gfx_arch != current_gfx_arch) {
-                std::clog << "MIGraphX model was compiled for gfx_arch: " << v_gfx_arch << " with number of CUs=" << n_cu_count << ", but current device has gfx_arch: " << current_gfx_arch << " with number of CUs=" << current_cu_count<<", performance may suffer. \
-                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model." << std::endl;
+            std::string current_gfx_arch       = this->current_device->get_device_name();
+            std::size_t current_cu_count       = this->current_device->get_cu_count();
+            std::string current_miopen_version = get_miopen_version();
+            if(n_cu_count != current_cu_count || v_gfx_arch != current_gfx_arch)
+            {
+                std::clog << "MIGraphX model was compiled for gfx_arch: " << v_gfx_arch
+                          << " with number of CUs=" << n_cu_count
+                          << ", but current device has gfx_arch: " << current_gfx_arch
+                          << " with number of CUs=" << current_cu_count
+                          << ", performance may suffer. \
+                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
+                          << std::endl;
             }
-            if(current_miopen_version != v_miopen_version) {
-                std::clog << "MIGraphX model was compiled with MIOpen version : " << v_miopen_version << ", but this machine has MIOpen version: " << current_miopen_version << ", Performance may suffer.\
-                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."  << std::endl;
+            if(current_miopen_version != v_miopen_version)
+            {
+                std::clog << "MIGraphX model was compiled with MIOpen version : "
+                          << v_miopen_version
+                          << ", but this machine has MIOpen version: " << current_miopen_version
+                          << ", Performance may suffer.\
+                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
+                          << std::endl;
             }
         }
-        #endif
+#endif
     }
 
     void wait_for(any_ptr queue)

@@ -459,6 +459,26 @@ TEST_CASE(hardsigmoid_verify_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(if_then_test)
+{
+    migraphx::program p = migraphx::parse_onnx("if_then_test.onnx");
+    p.compile(migraphx::ref::target{});
+    migraphx::shape s_data{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s_data, data.data());
+    pp["y"] = migraphx::argument(s_data, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // protobuff adds ones so result should be just + 1.0
+    std::vector<float> gold = {1.0625, 1.75, 0.9375, 1.125, 0.875, 0.4375};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(if_else_test)
 {
     migraphx::program p = migraphx::parse_onnx("if_else_test.onnx");

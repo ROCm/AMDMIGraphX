@@ -116,6 +116,9 @@ def main():
 
     model = migraphx.parse_onnx(model_name, default_dim_value=batch)
 
+    if args.verbose:
+        print(model)
+
     model.compile(migraphx.get_target('gpu'), offload_copy=False)
 
     params = {}

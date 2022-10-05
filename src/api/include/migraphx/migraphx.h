@@ -357,6 +357,12 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                      migraphx_program_t program,
                                      migraphx_program_parameters_t params);
 
+migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
+                                           migraphx_program_t program,
+                                           migraphx_program_parameters_t params,
+                                           void* s,
+                                           const char* name);
+
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);
 

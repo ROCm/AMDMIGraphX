@@ -235,7 +235,7 @@ struct miopen_apply
         apply_map.emplace("convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::convolution>(ins->get_operator());
             miopen_convolution<op::convolution> conv{op, make_conv(op)};
-            auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            auto ws = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
@@ -250,7 +250,7 @@ struct miopen_apply
         apply_map.emplace("deconvolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::deconvolution>(ins->get_operator());
             miopen_convolution<op::deconvolution> conv{op, make_deconv(op)};
-            auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            auto ws = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());

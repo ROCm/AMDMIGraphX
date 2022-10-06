@@ -528,8 +528,8 @@ struct find_conv_pointwise
         auto ins         = r.result;
         auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
-        auto conv_op     = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
-        auto alloc_ins   = ins->inputs().back();
+        auto conv_op   = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
+        auto alloc_ins = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();
 

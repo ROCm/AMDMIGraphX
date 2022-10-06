@@ -38,7 +38,7 @@ struct elu : unary<elu>
 
     std::string point_op() const
     {
-        return "${function:where}(${0} > 0, ${0}, ${alpha} * (migraphx::exp(${0}) - 1))";
+        return "${function:where}(${0} > 0, ${0}, ${alpha} * (${function:exp}(${0}) - 1))";
     }
 
     template <class Self, class F>

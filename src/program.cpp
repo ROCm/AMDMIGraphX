@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/version.h>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -399,7 +398,7 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, make_trace);
 }
 
-std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
+std::vector<argument> program::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -424,12 +423,6 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
 #endif
 
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
-    std::vector<argument> ret;
-
-    if(exec_env.async)
-    {
-        ctx.wait_for(exec_env.queue);
-    }
 
     if(trace_level > 0)
     {
@@ -441,56 +434,49 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
 
-        ret = generic_eval(*this,
-                           ctx,
-                           std::move(params),
-                           with_check_context([&](auto& ins, auto f, auto&& check_context) {
-                               ctx.finish();
-                               std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                               timer t{};
-                               auto result = check_context(f);
-                               double t1   = t.record<milliseconds>();
-                               ctx.finish();
-                               double t2 = t.record<milliseconds>();
-                               std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                               if(trace_level > 1 and ins->name().front() != '@' and
-                                  ins->name() != "load" and not result.empty())
-                               {
-                                   target tgt  = make_target(this->impl->target_name);
-                                   auto buffer = tgt.copy_from(result);
-                                   if(trace_level == 2)
-                                   {
-                                       std::cout << "Output has "
-                                                 << to_string_range(classify_argument(buffer))
-                                                 << std::endl;
-                                       std::cout << "Output: ";
-                                       preview_argument(std::cout, buffer);
-                                       std::cout << std::endl;
-                                   }
-                                   else
-                                   {
-                                       std::cout << "Output: " << buffer << std::endl;
-                                   }
-                               }
-                               return result;
-                           }));
+        return generic_eval(*this,
+                            ctx,
+                            std::move(params),
+                            with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                                ctx.finish();
+                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                                timer t{};
+                                auto result = check_context(f);
+                                double t1   = t.record<milliseconds>();
+                                ctx.finish();
+                                double t2 = t.record<milliseconds>();
+                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                                if(trace_level > 1 and ins->name().front() != '@' and
+                                   ins->name() != "load" and not result.empty())
+                                {
+                                    target tgt  = make_target(this->impl->target_name);
+                                    auto buffer = tgt.copy_from(result);
+                                    if(trace_level == 2)
+                                    {
+                                        std::cout << "Output has "
+                                                  << to_string_range(classify_argument(buffer))
+                                                  << std::endl;
+                                        std::cout << "Output: ";
+                                        preview_argument(std::cout, buffer);
+                                        std::cout << std::endl;
+                                    }
+                                    else
+                                    {
+                                        std::cout << "Output: " << buffer << std::endl;
+                                    }
+                                }
+                                return result;
+                            }));
     }
     else
     {
-        ret = generic_eval(*this,
-                           ctx,
-                           std::move(params),
-                           with_check_context([&](auto&, auto f, auto&& check_context) {
-                               return check_context(f);
-                           }));
+        return generic_eval(*this,
+                            ctx,
+                            std::move(params),
+                            with_check_context([&](auto&, auto f, auto&& check_context) {
+                                return check_context(f);
+                            }));
     }
-
-    if(exec_env.async)
-    {
-        ctx.finish_on(exec_env.queue);
-    }
-
-    return ret;
 }
 
 const int program_file_version = 5;
@@ -498,9 +484,8 @@ const int program_file_version = 5;
 value program::to_value() const
 {
     value result;
-    result["version"]          = program_file_version;
-    result["migraphx_version"] = get_migraphx_version();
-    result["target"]           = this->impl->target_name;
+    result["version"] = program_file_version;
+    result["target"]  = this->impl->target_name;
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
 
@@ -629,13 +614,6 @@ void program::from_value(const value& v)
     if(version != program_file_version)
     {
         MIGRAPHX_THROW("Warning: Program version mismatch");
-    }
-    auto migx_version = v.at("migraphx_version").to<std::string>();
-    if(migx_version != get_migraphx_version())
-    {
-        std::clog << "MIGraphX version mismatch, consider recompiling model with environment "
-                     "variable MIOPEN_FIND_ENFORCE=3 to re-tune the model "
-                  << std::endl;
     }
 
     this->impl->target_name = v.at("target").to<std::string>();

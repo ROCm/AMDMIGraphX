@@ -197,9 +197,7 @@ struct hip_device
 struct context
 {
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
-        : current_device(std::make_shared<hip_device>(device_id, n)),
-          begin_event(create_event()),
-          finish_event(create_event())
+        : current_device(std::make_shared<hip_device>(device_id, n))
     {
     }
 
@@ -258,11 +256,9 @@ struct context
     value to_value() const
     {
         value result;
-        result["events"]         = events.size();
-        result["streams"]        = current_device->nstreams();
-        result["gfx_arch"]       = current_device->get_device_name();
-        result["cu_count"]       = current_device->get_cu_count();
-        result["miopen_version"] = get_miopen_version();
+        result["events"]  = events.size();
+        result["streams"] = current_device->nstreams();
+
         return result;
     }
 
@@ -276,58 +272,6 @@ struct context
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
 
         this->current_device = std::make_shared<hip_device>(0, n_streams);
-
-#ifdef MIGRAPHX_HAS_FIND_2_API
-        {
-            auto v_gfx_arch = v.at("gfx_arch").to<std::string>();
-
-            auto v_cu_count        = v.at("cu_count");
-            std::size_t n_cu_count = v_cu_count.without_key().to<std::size_t>();
-
-            std::string v_miopen_version = v.at("miopen_version").to<std::string>();
-
-            std::string current_gfx_arch       = this->current_device->get_device_name();
-            std::size_t current_cu_count       = this->current_device->get_cu_count();
-            std::string current_miopen_version = get_miopen_version();
-            if(n_cu_count != current_cu_count or v_gfx_arch != current_gfx_arch)
-            {
-                std::clog << "MIGraphX model was compiled for gfx_arch: " << v_gfx_arch
-                          << " with number of CUs=" << n_cu_count
-                          << ", but current device has gfx_arch: " << current_gfx_arch
-                          << " with number of CUs=" << current_cu_count
-                          << ", performance may suffer. \
-                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
-                          << std::endl;
-            }
-            if(current_miopen_version != v_miopen_version)
-            {
-                std::clog << "MIGraphX model was compiled with MIOpen version : "
-                          << v_miopen_version
-                          << ", but this machine has MIOpen version: " << current_miopen_version
-                          << ", Performance may suffer.\
-                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
-                          << std::endl;
-            }
-        }
-#endif
-    }
-
-    void wait_for(any_ptr queue)
-    {
-        auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("failed to record " + hip_error(status));
-
-        get_stream().wait(begin_event.get());
-    }
-
-    void finish_on(any_ptr queue)
-    {
-        get_stream().record(finish_event.get());
-
-        auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to wait on event " + hip_error(status));
     }
 
     any_ptr get_queue() { return get_stream().get(); }
@@ -372,13 +316,9 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool measure_perf = false;
-    // for event perf timing
+    bool measure_perf                 = false;
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
-    // for stream syncronization
-    shared<hip_event_ptr> begin_event  = nullptr;
-    shared<hip_event_ptr> finish_event = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

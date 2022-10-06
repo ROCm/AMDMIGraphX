@@ -61,15 +61,16 @@ MIGRAPHX_REGISTER_OP(miopen_op);
 
 void compile_miopen::apply(module& m) const
 {
-    for(auto ins:iterator_for(m))
+    for(auto ins : iterator_for(m))
     {
-        if (ins->name() != "gpu::miopen_op")
+        if(ins->name() != "gpu::miopen_op")
             continue;
-        auto op = any_cast<miopen_op>(ins->get_operator()).op;
-        auto v = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
+        auto op        = any_cast<miopen_op>(ins->get_operator()).op;
+        auto v         = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
         std::size_t ws = v.get("workspace", 0);
-        auto inputs = ins->inputs();
-        auto alloc = m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(shape{shape::int8_type, {ws}})}}));
+        auto inputs    = ins->inputs();
+        auto alloc     = m.insert_instruction(
+            ins, make_op("allocate", {{"shape", to_value(shape{shape::int8_type, {ws}})}}));
         inputs.insert(std::prev(inputs.end()), alloc);
 
         m.replace_instruction(ins, op, inputs);

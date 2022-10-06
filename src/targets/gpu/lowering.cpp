@@ -240,9 +240,12 @@ struct miopen_apply
             // TODO: Use make_op
             operation conv = miopen_convolution{op};
             auto output    = insert_allocation(ins, ins->get_shape());
-            
-            return mod->replace_instruction(
-                ins, make_op("gpu::miopen_op", {{"op", to_value(conv)}}), ins->inputs().at(0), ins->inputs().at(1), output);
+
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::miopen_op", {{"op", to_value(conv)}}),
+                                            ins->inputs().at(0),
+                                            ins->inputs().at(1),
+                                            output);
         });
     }
 

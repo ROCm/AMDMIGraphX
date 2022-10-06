@@ -216,7 +216,9 @@ shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vec
 #endif
 }
 
-value miopen_convolution::compile(context& ctx, const shape& output, const std::vector<shape>& input)
+value miopen_convolution::compile(context& ctx,
+                                  const shape& output,
+                                  const std::vector<shape>& input)
 {
     if(cd == nullptr)
         cd = make_conv(op);

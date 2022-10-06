@@ -774,7 +774,7 @@ struct find_layernorm_pointwise
         auto layernorm = r.instructions["layernorm"];
         if(not layernorm->module_inputs().empty())
             return;
-        auto* pm       = ins->module_inputs().front();
+        auto* pm    = ins->module_inputs().front();
         auto inputs = layernorm->inputs();
         inputs.pop_back();
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());

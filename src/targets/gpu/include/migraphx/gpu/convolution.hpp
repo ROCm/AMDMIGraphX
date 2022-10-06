@@ -52,7 +52,7 @@ inline shape reshape_if_1d(const shape& input)
 
 template <typename T>
 auto conv_compute_shape(rank<2>, const T& op, const std::vector<shape>& inputs)
-    -> decltype(op.normalize_compute_shape(inputs)) const
+    -> decltype(op.normalize_compute_shape(inputs)) 
 {
     check_shapes{inputs, op}.has(4).standard();
     std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
@@ -62,7 +62,7 @@ auto conv_compute_shape(rank<2>, const T& op, const std::vector<shape>& inputs)
 
 template <typename T>
 auto conv_compute_shape(rank<1>, const T& op, const std::vector<shape>& inputs)
-    -> decltype(op.compute_shape(inputs)) const
+    -> decltype(op.compute_shape(inputs)) 
 {
     check_shapes{inputs, op}.has(4).standard();
     std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);

@@ -106,8 +106,8 @@ struct miopen_convolution
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto x_desc                = make_tensor(reshape_if_1d(args[0].get_shape()));
-        auto w_desc                = make_tensor(reshape_if_1d(args[1].get_shape()));
+        auto x_desc                = make_tensor(reshape_if_1d(args[0].get_shape()), int8_x4_format);
+        auto w_desc                = make_tensor(reshape_if_1d(args[1].get_shape()), int8_x4_format);
         auto y_desc                = make_tensor(reshape_if_1d(output_shape));
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         auto workspace_size        = args[2].get_shape().bytes();
@@ -135,7 +135,7 @@ struct miopen_convolution
 
             return args[3];
         }
-#else
+#else 
         // else use immediate mode
         if(solution_id == 0)
             MIGRAPHX_THROW("MIOpen " + op.name() + " : invalid solution ID");

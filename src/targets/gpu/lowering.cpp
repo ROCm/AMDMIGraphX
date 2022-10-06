@@ -40,12 +40,10 @@
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
-#include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -236,8 +234,7 @@ struct miopen_apply
     {
         apply_map.emplace("convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::convolution>(ins->get_operator());
-
-            auto conv = miopen_convolution{op, make_conv(op)};
+            miopen_convolution<op::convolution> conv{op, make_conv(op)};
             auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws);
@@ -252,8 +249,7 @@ struct miopen_apply
     {
         apply_map.emplace("deconvolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::deconvolution>(ins->get_operator());
-
-            auto conv = miopen_deconvolution{op, make_deconv(op)};
+            miopen_convolution<op::deconvolution> conv{op, make_deconv(op)};
             auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws);
@@ -282,9 +278,9 @@ struct miopen_apply
         apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
             shape ws;
-            miopen_quant_convolution conv;
+            miopen_convolution<op::quant_convolution> conv;
             auto compile_quant_conv_with_format = [&](bool format) {
-                conv = miopen_quant_convolution{op, format, make_conv(op)};
+                conv = miopen_convolution<op::quant_convolution>{op, make_conv(op), format};
                 ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
             };
 

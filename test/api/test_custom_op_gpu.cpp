@@ -55,7 +55,7 @@ struct half_copy_host final : migraphx::experimental_custom_op_base
                                            hipMemcpyHostToHost,
                                            ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
-        MIGRAPHX_HIP_ASSERT(hipMemset(output_buffer_ptr, 0, copy_bytes));
+        MIGRAPHX_HIP_ASSERT(hipMemsetAsync(output_buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
         return inputs[1];
     }
@@ -97,7 +97,7 @@ struct half_copy_device final : migraphx::experimental_custom_op_base
                                            hipMemcpyDeviceToDevice,
                                            ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
-        MIGRAPHX_HIP_ASSERT(hipMemset(output_buffer_ptr, 0, copy_bytes));
+        MIGRAPHX_HIP_ASSERT(hipMemsetAsync(output_buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
         return inputs[1];
     }
@@ -124,7 +124,7 @@ struct half_copy_device_same_buffer final : migraphx::experimental_custom_op_bas
     virtual bool runs_on_offload_target() const override { return true; }
 
     virtual migraphx::argument
-    compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override
+    compute(migraphx::context ctx, migraphx::shape, migraphx::arguments inputs) const override
     {
         // This custom op simply sets first half size_bytes of the input 0, and rest of the half
         // bytes are copied. for this custom_op, it does its computation on the "device". Therefore,
@@ -133,7 +133,7 @@ struct half_copy_device_same_buffer final : migraphx::experimental_custom_op_bas
         auto input_bytes = inputs[0].get_shape().bytes();
         auto copy_bytes  = input_bytes / 2;
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
-        MIGRAPHX_HIP_ASSERT(hipMemset(buffer_ptr, 0, copy_bytes));
+        MIGRAPHX_HIP_ASSERT(hipMemsetAsync(buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
         return inputs[0];
     }

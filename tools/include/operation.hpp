@@ -32,6 +32,7 @@
 #include <utility>
 #include <unordered_map>
 #include <migraphx/reflect.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/normalize_attributes.hpp>
@@ -94,14 +95,6 @@ bool need_normalization(const operation& x);
 bool has_finalize(const operation& x);
 
 #else
-
-struct dyn_output
-{
-    // original shape from the instruction
-    shape ins_shape;
-    // shape computed at eval time using input arguments
-    shape computed_shape;
-};
 
 /**
  * Handle dynamic and static shape at evaluation time.

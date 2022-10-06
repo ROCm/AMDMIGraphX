@@ -772,11 +772,9 @@ struct find_layernorm_pointwise
     {
         auto ins       = r.result;
         auto layernorm = r.instructions["layernorm"];
-        auto* pm       = ins->module_inputs().front();
-
         if(not layernorm->module_inputs().empty())
             return;
-
+        auto* pm       = ins->module_inputs().front();
         auto inputs = layernorm->inputs();
         inputs.pop_back();
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
@@ -797,11 +795,10 @@ struct find_concat_pointwise
     {
         auto ins    = r.result;
         auto concat = r.instructions["concat"];
-        auto* pm    = ins->module_inputs().front();
-
         if(not concat->module_inputs().empty())
             return;
 
+        auto* pm    = ins->module_inputs().front();
         auto inputs = concat->inputs();
         inputs.pop_back();
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());

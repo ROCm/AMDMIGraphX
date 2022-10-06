@@ -197,11 +197,11 @@ struct block
     struct reducer
     {
         index idx;
-        Slicer slicer;
+        Slicer slice;
         template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
+            return sliced(slice, [=](auto x, auto... xs) {
                 return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) {
                     return vec_reduce(read(x[j], xs[j]...), op);
                 });
@@ -218,7 +218,7 @@ struct block
         template <class F>
         __device__ auto inner(F f) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
+            return sliced(slice, [=](auto x, auto... xs) {
                 idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
             });
         }
@@ -226,7 +226,7 @@ struct block
         template <class Input>
         constexpr auto elements() const
         {
-            using reduce_type        = decltype(slicer(Input{}));
+            using reduce_type        = decltype(slice(Input{}));
             using value_type         = typename Input::type;
             constexpr auto relements = get_shape_c<reduce_type>{}.elements();
             if constexpr(vec_size<value_type>() > 1)
@@ -260,11 +260,11 @@ struct lane
     struct reducer
     {
         index idx;
-        Slicer slicer;
+        Slicer slice;
         template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
+            return sliced(slice, [=](auto x, auto... xs) {
                 using type = typename decltype(x)::type;
                 type r     = init;
                 for(index_int j = 0; j < x.get_shape().elements(); j++)
@@ -284,7 +284,7 @@ struct lane
         template <class F>
         __device__ auto inner(F f) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
+            return sliced(slice, [=](auto x, auto... xs) {
                 for(index_int j = 0; j < x.get_shape().elements(); j++)
                 {
                     f(x[j], xs[j]...);
@@ -295,7 +295,7 @@ struct lane
         template <class Input>
         constexpr auto elements() const
         {
-            using reduce_type = decltype(slicer(Input{}));
+            using reduce_type = decltype(slice(Input{}));
             return get_shape_c<reduce_type>{}.elements();
         }
     };

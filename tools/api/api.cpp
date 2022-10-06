@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/execution_environment.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
@@ -164,6 +165,13 @@ void set_input_parameter_shape(tf_options& options, const char* name, std::vecto
 void set_output_names(tf_options& options, std::vector<const char*> names)
 {
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
+}
+
+std::vector<argument>
+run_async(program& p, const parameter_map& params, void* s, std::string_view name)
+{
+    execution_environment exec_env{any_ptr(s, name), true};
+    return p.eval(params, exec_env);
 }
 
 template <class Value>

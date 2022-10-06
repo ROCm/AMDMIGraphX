@@ -276,6 +276,13 @@ def program(h):
                  params='std::unordered_map<std::string, migraphx::argument>'),
              invoke='migraphx::run($@)',
              returns='std::vector<migraphx::argument>')
+    h.method('run_async',
+             api.params(
+                 params='std::unordered_map<std::string, migraphx::argument>',
+                 s='void*',
+                 name='const char *'),
+             invoke='migraphx::run_async($@)',
+             returns='std::vector<migraphx::argument>')
     h.method('equal',
              api.params(x='const migraphx::program&'),
              invoke='migraphx::equal($@)',

@@ -84,6 +84,7 @@ add_library(migraphx_gpu
     compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
+    compile_miopen.cpp
     compiler.cpp
     convolution.cpp
     deconvolution.cpp

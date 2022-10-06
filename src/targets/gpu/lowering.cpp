@@ -237,14 +237,12 @@ struct miopen_apply
         apply_map.emplace("convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::convolution>(ins->get_operator());
 
-            auto conv = miopen_convolution{op, make_conv(op)};
-            auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
-
-            auto workspace = insert_allocation(ins, ws);
+            // TODO: Use make_op
+            operation conv = miopen_convolution{op};
             auto output    = insert_allocation(ins, ins->get_shape());
-
+            
             return mod->replace_instruction(
-                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+                ins, make_op("gpu::miopen_op", {{"op", to_value(conv)}}), ins->inputs().at(0), ins->inputs().at(1), output);
         });
     }
 

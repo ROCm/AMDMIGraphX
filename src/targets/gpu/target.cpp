@@ -52,6 +52,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -147,6 +148,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         pack_int8_args{},
         dead_code_elimination{},
         adjust_allocation{gpu_allocation_model{}},
+        dead_code_elimination{},
+        compile_miopen{},
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},

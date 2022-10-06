@@ -96,9 +96,9 @@ struct find_conv_pointwise
                                    i.name());
            }))
             return;
-        // Only fuse with fp32 for now
+        // Only fuse with fp32/fp16
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-               return i->get_shape().type() != shape::type_t::float_type;
+                return not contains({shape::type_t::float_type, shape::type_t::half_type}, i->get_shape().type());
            }))
             return;
         std::sort(names.begin(), names.end());

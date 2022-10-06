@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>

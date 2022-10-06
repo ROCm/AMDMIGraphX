@@ -55,7 +55,8 @@ struct half_copy_host final : migraphx::experimental_custom_op_base
                                            hipMemcpyHostToHost,
                                            ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
-        MIGRAPHX_HIP_ASSERT(hipMemsetAsync(output_buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
+        MIGRAPHX_HIP_ASSERT(
+            hipMemsetAsync(output_buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
         return inputs[1];
     }
@@ -97,7 +98,8 @@ struct half_copy_device final : migraphx::experimental_custom_op_base
                                            hipMemcpyDeviceToDevice,
                                            ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
-        MIGRAPHX_HIP_ASSERT(hipMemsetAsync(output_buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
+        MIGRAPHX_HIP_ASSERT(
+            hipMemsetAsync(output_buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
         return inputs[1];
     }
@@ -133,7 +135,8 @@ struct half_copy_device_same_buffer final : migraphx::experimental_custom_op_bas
         auto input_bytes = inputs[0].get_shape().bytes();
         auto copy_bytes  = input_bytes / 2;
         MIGRAPHX_HIP_ASSERT(hipSetDevice(0));
-        MIGRAPHX_HIP_ASSERT(hipMemsetAsync(buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
+        MIGRAPHX_HIP_ASSERT(
+            hipMemsetAsync(buffer_ptr, 0, copy_bytes, ctx.get_queue<hipStream_t>()));
         MIGRAPHX_HIP_ASSERT(hipDeviceSynchronize());
         return inputs[0];
     }

@@ -101,7 +101,9 @@ inline void set_tensor_descriptor(miopenTensorArgumentId_t name,
 
 inline std::string get_miopen_version()
 {
-    size_t major = 0, minor = 0, patch = 0;
+    size_t major = 0;
+    size_t minor = 0;
+    size_t patch = 0;
     auto status = miopenGetVersion(&major, &minor, &patch);
     if(status != miopenStatusSuccess)
     {

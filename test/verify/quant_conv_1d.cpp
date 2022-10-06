@@ -37,7 +37,11 @@ struct quant_conv_1d : verify_program<quant_conv_1d>
         auto pa = mm->add_parameter("a", a_shape);
         migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3}};
         auto pc = mm->add_parameter("c", c_shape);
-        mm->add_instruction(migraphx::make_op("quant_convolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}), pa, pc);
+        mm->add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+            pa,
+            pc);
         return p;
     }
 };

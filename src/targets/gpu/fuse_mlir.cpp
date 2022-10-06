@@ -71,7 +71,7 @@ MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
     if(group != 1)
         return false;
     // Avoid MLIR assertion: Index < Length && "Invalid index!"
-    if (ins->get_shape().lens().size() != 4)
+    if(ins->get_shape().lens().size() != 4)
         return false;
     return true;
 }

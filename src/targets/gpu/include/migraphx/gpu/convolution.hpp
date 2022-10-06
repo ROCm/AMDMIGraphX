@@ -307,8 +307,8 @@ struct miopen_convolution
                                    ": workspace has changed during finalization.");
             }
 
-            auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
-            auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
+            auto x_desc = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
+            auto w_desc = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
             auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
             auto status = miopenConvolutionForwardCompileSolution(ctx.get_stream().get_miopen(),

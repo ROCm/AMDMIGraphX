@@ -26,6 +26,7 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -156,6 +157,14 @@ struct miopen_convolution
             MIGRAPHX_THROW("MIOpen " + op.name() + ": running convolution failed");
         return args[3];
 #endif
+    }
+
+    value compile(context& ctx, const shape& output, const std::vector<shape>& input)
+    {
+        if(cd == nullptr)
+            cd = make_conv(op);
+        auto ws = find(ctx, output, input);
+        return {{"workspace", ws.bytes()}};
     }
 
     shape find(context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
@@ -343,7 +352,9 @@ struct miopen_convolution
         return {s.type(), lens, strides};
     }
 };
-
+// MIGRAPHX_REGISTER_OP(miopen_convolution<op::convolution>);
+// MIGRAPHX_REGISTER_OP(miopen_convolution<op::deconvolution>);
+// MIGRAPHX_REGISTER_OP(miopen_convolution<op::quant_convolution>);
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

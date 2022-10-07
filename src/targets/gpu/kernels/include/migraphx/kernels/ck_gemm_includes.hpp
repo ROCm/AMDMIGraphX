@@ -62,7 +62,6 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-
 template <ck::index_t MPerBlock, ck::index_t NPerBlock, typename CGridDesc_M_N>
 struct BlockToCTileMap_M00_N0_M01Adapt
 {
@@ -73,8 +72,9 @@ struct BlockToCTileMap_M00_N0_M01Adapt
 
     __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt() = default;
 
-    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
-                                                        ck::index_t M01 = 8)
+    __host__
+        __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
+                                                             ck::index_t M01 = 8)
         : M01_(M01), c_grid_desc_m_n_(c_grid_desc_m_n)
     {
     }
@@ -115,12 +115,13 @@ struct BlockToCTileMap_M00_N0_M01Adapt
 
     template <typename CTileIdx, typename CTileDim>
     __host__ __device__ bool constexpr ValidCTileIndex(const CTileIdx& /* c_tile_idx */,
-                                             const CTileDim& /* c_tile_dim */) const
+                                                       const CTileDim& /* c_tile_dim */) const
     {
         return true; // always valid provided that user gets grid size from CalculateGridSize()
     }
 
-    __host__ __device__ constexpr bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    __host__ __device__ constexpr bool
+    CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
     {
         return true;
     }
@@ -177,13 +178,11 @@ template <typename ALayout,
           ck::index_t StrideA,
           ck::index_t StrideB,
           ck::index_t StrideC,
-          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()
-          >
-struct CKDeviceGemm 
+          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()>
+struct CKDeviceGemm
 {
-    //template<ck::index_t MRaw, ck::index_t KRaw, ck::index_t StrideA>
-    static constexpr auto
-    MakeAGridDescriptor_AK0_M_AK1()
+    // template<ck::index_t MRaw, ck::index_t KRaw, ck::index_t StrideA>
+    static constexpr auto MakeAGridDescriptor_AK0_M_AK1()
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
             if constexpr(ck::is_same_v<ck::tensor_layout::gemm::RowMajor, ALayout>)
@@ -287,9 +286,8 @@ struct CKDeviceGemm
         }
     }
 
-    //template<ck::index_t KRaw, ck::index_t NRaw, ck::index_t StrideB>
-    static constexpr auto
-    MakeBGridDescriptor_BK0_N_BK1()
+    // template<ck::index_t KRaw, ck::index_t NRaw, ck::index_t StrideB>
+    static constexpr auto MakeBGridDescriptor_BK0_N_BK1()
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
             if constexpr(is_same<ck::tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -393,9 +391,8 @@ struct CKDeviceGemm
         }
     }
 
-    //template<ck::index_t MRaw, ck::index_t NRaw, ck::index_t StrideC>
-    static constexpr auto
-    MakeCGridDescriptor_M_N()
+    // template<ck::index_t MRaw, ck::index_t NRaw, ck::index_t StrideC>
+    static constexpr auto MakeCGridDescriptor_M_N()
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
             if constexpr(is_same<ck::tensor_layout::gemm::RowMajor, CLayout>::value)
@@ -463,7 +460,7 @@ struct CKDeviceGemm
     using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1());
     using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N());
 
-        // return block_id to C matrix tile idx (m0, n0) mapping
+    // return block_id to C matrix tile idx (m0, n0) mapping
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {
@@ -515,7 +512,7 @@ struct CKDeviceGemm
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
-    
+
     GridwiseGemm gridwisegemm{};
     AElementwiseOperation a_element_op{};
     BElementwiseOperation b_element_op{};

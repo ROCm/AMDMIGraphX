@@ -27,6 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/common.hpp>
 
 struct test_conv_bn : verify_program<test_conv_bn>
 {
@@ -64,26 +65,12 @@ struct test_conv_bn : verify_program<test_conv_bn>
         auto usq_var =
             mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), variance);
 
-        auto bn_lens = conv->get_shape().lens();
-        auto c_len   = bn_lens.at(1);
-        auto mb_mean = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_mean);
-        auto numer  = mm->add_instruction(migraphx::make_op("sub"), conv, mb_mean);
-        auto mb_eps = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {c_len, 1, 1}}}), eps);
-        auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
-        auto mb_rt   = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {c_len, 1, 1}}}), rt);
-        auto denom    = mm->add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
-        auto mb_denom = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), denom);
-        auto div0     = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
-        auto mb_scale = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_scale);
-        auto r0      = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
-        auto mb_bias = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_bias);
-        mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
+        auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {conv, usq_mean});
+        auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+        auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
+        auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
+        auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+        add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
         return p;
     }
 };

@@ -2208,8 +2208,8 @@ def if_else_test():
 
 @onnx_test
 def if_else_empty_shape_test():
-    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [])
-    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [])
 
     then_out = onnx.helper.make_tensor_value_info('then_out',
                                                   onnx.TensorProto.FLOAT,

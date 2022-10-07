@@ -2341,20 +2341,23 @@ TEST_CASE(if_else_empty_shape_test)
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
     auto cond = mm->add_literal(migraphx::literal(sc, {0}));
+    migraphx::shape s_else{migraphx::shape::float_type, {1}, {0}};
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s, ones);
-    std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
+    std::vector<float> rand = {0.382157, 0.527744, -1.79717, -1.1778, -0.305901, -0.0392257};
     auto l2                 = mm->add_literal(s, rand);
     auto x                  = mm->add_parameter("x", s);
-    auto y                  = mm->add_parameter("y", s);
+    auto y                  = mm->add_parameter("y", s_else);
 
     auto* then_mod = p.create_module("If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
     then_mod->add_return({rt});
 
     auto* else_mod = p.create_module("If_5_else");
-    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    auto broad_y =
+        else_mod->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), y);
+    auto re = else_mod->add_instruction(migraphx::make_op("mul"), broad_y, l2);
     else_mod->add_return({re});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -2521,15 +2524,18 @@ TEST_CASE(if_then_empty_shape_test)
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
     auto cond = mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s_then{migraphx::shape::float_type, {1}, {0}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s, ones);
-    std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
+    std::vector<float> rand = {1.0483, 0.687102, -1.7479, 1.59687, -0.0965695, -0.728357};
     auto l2                 = mm->add_literal(s, rand);
-    auto x                  = mm->add_parameter("x", s);
+    auto x                  = mm->add_parameter("x", s_then);
     auto y                  = mm->add_parameter("y", s);
 
     auto* then_mod = p.create_module("If_5_if");
-    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    auto broad_x =
+        then_mod->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), x);
+    auto rt = then_mod->add_instruction(migraphx::make_op("add"), broad_x, l1);
     then_mod->add_return({rt});
 
     auto* else_mod = p.create_module("If_5_else");
@@ -2573,7 +2579,6 @@ TEST_CASE(if_then_trailing_one_shape_test)
     auto prog = migraphx::parse_onnx("if_then_trailing_one_shape_test.onnx");
     EXPECT(p == prog);
 }
-
 
 TEST_CASE(if_then_test)
 {

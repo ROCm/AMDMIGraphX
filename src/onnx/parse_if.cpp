@@ -84,13 +84,31 @@ struct parse_if : op_parser<parse_if>
         {
             auto then_shape   = then_out_shapes.at(0).lens();
             auto else_shape   = else_out_shapes.at(0).lens();
-            int dim_delta     = abs((static_cast<int>(then_shape.size() - else_shape.size())));
             auto throw_shapes = [&]() {
                 MIGRAPHX_THROW("PARSE_IF: " + info.name +
                                " then and else sub_graphs must compatible shapes ");
             };
 
+            // Throw error if both branches have zero output shapes. Not possible for static inputs
+            if(then_out_shapes.at(0).elements() == 0 && else_out_shapes.at(0).elements() == 0)
+            {
+                throw_shapes();
+            }
+
+            // Handle one empty branch by setting output identical to the other
+            if(then_out_shapes.at(0).elements() == 0)
+            {
+                then_mdl->add_outline(else_out_shapes.at(0));
+            }
+
+            if(else_out_shapes.at(0).elements() == 0)
+            {
+                else_mdl->add_outline(then_out_shapes.at(0));
+            }
+
             // check equivilant length dims, and (x1,x2,.., xn, 1) == (x1,x2,..,xn)
+            int dim_delta = abs((static_cast<int>(then_shape.size() - else_shape.size())));
+
             if(dim_delta <= 1)
             {
                 // make sure dims are equivalent in static shapes

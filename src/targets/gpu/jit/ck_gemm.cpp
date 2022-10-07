@@ -117,7 +117,6 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     };
     // clang-format on
 
-
     const std::vector<block_settings> params{{256, 256, 128},
                                              {256, 256, 128},
                                              {256, 128, 256},
@@ -139,9 +138,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
-        int i = 4;
-        if(contains(v, "tuning_val"))
-            i = v.at("tuning_val").to<int>();
+        int i = v.get("tuning_val", 4);
         assert(i >= 0 and i < instances.size());
 
         hip_compile_options options;

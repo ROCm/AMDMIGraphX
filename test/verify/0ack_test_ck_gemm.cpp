@@ -27,48 +27,54 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// struct test_ck_gemm : verify_program<test_ck_gemm>
-// {
-//     migraphx::program create_program() const
-//     {
-//         migraphx::program p;
-//         auto* mm = p.get_main_module();
-//         migraphx::shape m1_shape{migraphx::shape::float_type, {3840, 4096}};
-//         migraphx::shape m2_shape{migraphx::shape::float_type, {4096, 4096}};
-//         auto l1 = mm->add_parameter("1", m1_shape);
-//         auto l2 = mm->add_parameter("2", m2_shape);
-//         // l1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}),
-//         l1);
-//         // l2 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}),
-//         l2);
-
-//         mm->add_instruction(migraphx::make_op("ck_gemm"), l1, l2);
-
-//         return p;
-//     }
-// };
-
 struct test_ck_gemm : verify_program<test_ck_gemm>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::half_type, {2, 3}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {3, 4}};
-        std::vector<float> v1(2 * 3, 1);
-        std::iota(v1.begin(), v1.end(), 1);
-        std::vector<float> v2(3 * 4, 1);
-        // std::iota(v2.begin(), v2.end(), 1);
-        auto l1 = mm->add_literal(migraphx::literal{m1_shape, v1});
-        auto l2 = mm->add_literal(migraphx::literal{m2_shape, v2});
-        // auto l1 = mm->add_parameter("1", m1_shape);
-        // auto l2 = mm->add_parameter("2", m2_shape);
-        // l1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
-        // l2 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
+        unsigned long m = 256; 
+        unsigned long k = m;//4096; 
+        unsigned long n = k;//4096;
+        migraphx::shape m1_shape{migraphx::shape::half_type, {m, k}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {k, n}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        // migraphx::shape m1_shape{migraphx::shape::half_type, {1}};
+        // migraphx::shape m2_shape{migraphx::shape::half_type, {1}};
+        // auto l1 = mm->add_literal(migraphx::literal{m1_shape, {1}});
+        // auto l2 = mm->add_literal(migraphx::literal{m2_shape, {1}});
+        // l1 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {m, k}}}), l1);
+        // l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {k, n}}}), l2);
 
         mm->add_instruction(migraphx::make_op("ck_gemm"), l1, l2);
 
         return p;
     }
 };
+
+// struct test_ck_gemm : verify_program<test_ck_gemm>
+// {
+//     migraphx::program create_program() const
+//     {
+//         migraphx::program p;
+//         auto* mm = p.get_main_module();
+//         unsigned long m = 3; unsigned long k = 3; unsigned long n = 3;
+//         migraphx::shape m1_shape{migraphx::shape::half_type, {m, k}};
+//         migraphx::shape m2_shape{migraphx::shape::half_type, {k, n}};
+//         std::vector<float> v1(m * k, 1);
+//         //std::iota(v1.begin(), v1.end(), 1);
+//         std::vector<float> v2(k * n, 1);
+//          std::iota(v2.begin(), v2.end(), 1);
+//         auto l1 = mm->add_literal(migraphx::literal{m1_shape, v1});
+//         auto l2 = mm->add_literal(migraphx::literal{m2_shape, v2});
+//         // auto l1 = mm->add_parameter("1", m1_shape);
+//         // auto l2 = mm->add_parameter("2", m2_shape);
+//         // l1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+//         // l2 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
+
+//         mm->add_instruction(migraphx::make_op("ck_gemm"), l1, l2);
+
+//         return p;
+//     }
+// };

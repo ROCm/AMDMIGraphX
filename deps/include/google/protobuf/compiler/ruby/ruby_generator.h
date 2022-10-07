@@ -1,0 +1,1 @@
+../../../../../cget/pkg/google__protobuf/install/include/google/protobuf/compiler/ruby/ruby_generator.h

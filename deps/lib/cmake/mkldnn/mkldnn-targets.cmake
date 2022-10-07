@@ -1,0 +1,1 @@
+../../../cget/pkg/oneapi-src__oneDNN/install/lib/cmake/mkldnn/mkldnn-targets.cmake

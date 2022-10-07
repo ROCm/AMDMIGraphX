@@ -297,10 +297,25 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
-            auto output = insert_allocation(ins, ins->get_shape());
-            refs.push_back(output);
-            return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
+            auto a_lens = refs.front()->get_shape().lens();
+            auto b_lens = refs.back()->get_shape().lens();
+            if (refs.front()->get_shape().lens().size() == 2 and 
+                not refs.front()->get_shape().transposed() and 
+                not refs.back()->get_shape().transposed() and 
+                a_lens[0] % 8 == 0 and a_lens[1] % 8 == 0 and
+                b_lens[0] % 8 == 0 and b_lens[1] % 8 == 0)
+            {
+                auto it = mod->replace_instruction(
+                    ins, make_op("ck_gemm"), refs);
+                return insert_precompile_op(it);
+            }
+            else 
+            {
+                auto output = insert_allocation(ins, ins->get_shape());
+                refs.push_back(output);
+                return mod->replace_instruction(
+                    ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
+            }
         });
     }
 

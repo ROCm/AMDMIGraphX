@@ -1,0 +1,1 @@
+../../../../cget/pkg/msgpack__msgpack-c/install/include/msgpack/predef/architecture/rs6k.h

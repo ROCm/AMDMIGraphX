@@ -90,7 +90,7 @@ struct lowest
     template <class T>
     constexpr operator T() const
     {
-        return numeric_lowest<T>();
+        return numeric_lowest<vec_type<T>>();
     }
 };
 
@@ -99,7 +99,7 @@ struct highest
     template <class T>
     constexpr operator T() const
     {
-        return numeric_max<T>();
+        return numeric_max<vec_type<T>>();
     }
 };
 } // namespace migraphx

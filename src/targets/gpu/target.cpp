@@ -42,6 +42,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
+#include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -116,6 +117,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         inline_module{},
         rewrite_pooling{},
         dead_code_elimination{},
+        rewrite_gelu{},
+        dead_code_elimination{},
         eliminate_common_subexpression{},
         dead_code_elimination{},
         simplify_algebra{},
@@ -134,8 +137,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
-        replace_allocate{gpu_allocation_model{}, options.offload_copy},
-        dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
         pack_int8_args{},
@@ -143,6 +144,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         adjust_allocation{gpu_allocation_model{}},
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
+        dead_code_elimination{},
+        replace_allocate{gpu_allocation_model{}, options.offload_copy},
         dead_code_elimination{},
         compile_ops{&ctx},
         dead_code_elimination{},

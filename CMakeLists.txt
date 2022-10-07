@@ -61,11 +61,9 @@ check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
 set(CMAKE_REQUIRED_INCLUDES)
 set(CMAKE_EXTRA_INCLUDE_FILES)
 
-find_package(nlohmann_json 3.8.0 REQUIRED)
-
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.3)
+rocm_setup_version(VERSION 2.4)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -214,6 +212,7 @@ rocm_enable_cppcheck(
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction
+        ctuPointerArith
         noExplicitConstructor
         passedByValue
         unusedStructMember

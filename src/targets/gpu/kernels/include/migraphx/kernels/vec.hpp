@@ -175,7 +175,7 @@ template <class T, class Op>
 constexpr auto vec_reduce(T x, Op op)
 {
     if constexpr(vec_size<T>() < 2)
-        return x;
+        return vec_type<T>{x};
     else
     {
         vec_type<T> result = x[0];

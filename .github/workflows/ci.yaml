@@ -53,6 +53,7 @@ jobs:
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
+          -DMIGRAPHX_ENABLE_FPGA=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
@@ -267,7 +268,9 @@ jobs:
         lcov --directory . --capture --output-file $(pwd)/coverage.info
         lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
         lcov --list $(pwd)/coverage.info
-        curl -s https://codecov.io/bash | bash
+        curl -Os https://uploader.codecov.io/latest/linux/codecov
+        chmod +x codecov
+        ./codecov -t ${CODECOV_TOKEN}
         echo "Uploaded"
 
   linux-fpga:
@@ -363,5 +366,7 @@ jobs:
     #    lcov --directory . --capture --output-file $(pwd)/coverage.info
     #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
     #    lcov --list $(pwd)/coverage.info
-    #    curl -s https://codecov.io/bash | bash
+    #    curl -Os https://uploader.codecov.io/latest/linux/codecov
+    #    chmod +x codecov
+    #    ./codecov -t ${CODECOV_TOKEN}
     #    echo "Uploaded"

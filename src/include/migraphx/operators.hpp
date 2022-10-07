@@ -57,6 +57,7 @@
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/floor.hpp>
+#include <migraphx/op/fmod.hpp>
 #include <migraphx/op/gather.hpp>
 #include <migraphx/op/gathernd.hpp>
 #include <migraphx/op/get_tuple_elem.hpp>
@@ -79,6 +80,7 @@
 #include <migraphx/op/lstm.hpp>
 #include <migraphx/op/max.hpp>
 #include <migraphx/op/min.hpp>
+#include <migraphx/op/mod.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/op/neg.hpp>

@@ -40,6 +40,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -82,7 +83,7 @@ void visit_py(T x, F f)
     {
         f(x.template cast<bool>());
     }
-    else if(py::isinstance<py::int_>(x))
+    else if(py::isinstance<py::int_>(x) or py::hasattr(x, "__index__"))
     {
         f(x.template cast<int>());
     }
@@ -263,12 +264,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
-        .def("__init__",
-             [](migraphx::argument& x, py::buffer b) {
-                 py::buffer_info info = b.request();
-                 new(&x) migraphx::argument(to_shape(info), info.ptr);
-             })
+        .def(py::init([](py::buffer b) {
+            py::buffer_info info = b.request();
+            return migraphx::argument(to_shape(info), info.ptr);
+        }))
         .def("get_shape", &migraphx::argument::get_shape)
+        .def("data_ptr",
+             [](migraphx::argument& x) { return reinterpret_cast<std::uintptr_t>(x.data()); })
         .def("tolist",
              [](migraphx::argument& x) {
                  py::list l{x.get_shape().elements()};
@@ -324,6 +326,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
+        .def("is_compiled", &migraphx::program::is_compiled)
         .def(
             "compile",
             [](migraphx::program& p, const migraphx::target& t, bool offload_copy, bool fast_math) {
@@ -352,23 +355,57 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  }
                  return p.eval(pm);
              })
+        .def("run_async",
+             [](migraphx::program& p,
+                py::dict params,
+                std::uintptr_t stream,
+                std::string stream_name) {
+                 migraphx::parameter_map pm;
+                 for(auto x : params)
+                 {
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
+                     py::buffer_info info = b.request();
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                 }
+                 migraphx::execution_environment exec_env{
+                     migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
+                 return p.eval(pm, exec_env);
+             })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
-    py::class_<migraphx::operation>(m, "op")
-        .def(py::init([](const std::string& name, py::kwargs kwargs) {
-            migraphx::value v = migraphx::value::object{};
-            if(kwargs)
-            {
-                v = migraphx::to_value(kwargs);
-            }
-            return migraphx::make_op(name, v);
-        }))
-
+    py::class_<migraphx::operation> op(m, "op");
+    op.def(py::init([](const std::string& name, py::kwargs kwargs) {
+          migraphx::value v = migraphx::value::object{};
+          if(kwargs)
+          {
+              v = migraphx::to_value(kwargs);
+          }
+          return migraphx::make_op(name, v);
+      }))
         .def("name", &migraphx::operation::name);
+
+    py::enum_<migraphx::op::pooling_mode>(op, "pooling_mode")
+        .value("average", migraphx::op::pooling_mode::average)
+        .value("max", migraphx::op::pooling_mode::max)
+        .value("lpnorm", migraphx::op::pooling_mode::lpnorm);
+
+    py::enum_<migraphx::op::rnn_direction>(op, "rnn_direction")
+        .value("forward", migraphx::op::rnn_direction::forward)
+        .value("reverse", migraphx::op::rnn_direction::reverse)
+        .value("bidirectional", migraphx::op::rnn_direction::bidirectional);
+
+    m.def(
+        "argument_from_pointer",
+        [](const migraphx::shape shape, const int64_t address) {
+            return migraphx::argument(shape, reinterpret_cast<void*>(address));
+        },
+        py::arg("shape"),
+        py::arg("address"));
 
     m.def(
         "parse_tf",

@@ -1,11 +1,9 @@
 name: MIGraphX Performance Tests
 
 on:
-  push:
-    branches: [develop]
-
   pull_request:
     branches: [develop]
+    types: [opened, synchronize, closed]
   schedule:
     - cron: "0 5 * * 1-6"
 
@@ -28,7 +26,7 @@ on:
         required: true
         default: '-s'
 
-concurrency: benchmark
+concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
 
 jobs:
   release:

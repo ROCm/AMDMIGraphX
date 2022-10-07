@@ -29,14 +29,16 @@
 
 #include <migraphx/op/reduce_mean.hpp>
 
-migraphx::instruction_ref
-add_layernorm(migraphx::module& m, migraphx::instruction_ref x, std::vector<size_t> dims)
+migraphx::instruction_ref add_layernorm(migraphx::module& m,
+                                        migraphx::instruction_ref x,
+                                        std::vector<size_t> dims,
+                                        float eps = 1e-12f)
 {
     auto scale =
         m.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
     auto bias =
         m.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
-    auto epsilon  = m.add_literal(1e-12f);
+    auto epsilon  = m.add_literal(eps);
     auto exponent = m.add_literal(2.0f);
 
     auto mean = m.add_instruction(migraphx::op::reduce_mean({2}), x);
@@ -68,7 +70,7 @@ struct test_layernorm : verify_program<test_layernorm>
     {
         migraphx::program p;
         auto* mm                 = p.get_main_module();
-        std::vector<size_t> dims = {1, 1, 5};
+        std::vector<size_t> dims = {1, 2, 5};
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         add_layernorm(*mm, x, dims);
         return p;
@@ -84,6 +86,19 @@ struct test_layernorm2 : verify_program<test_layernorm2>
         std::vector<size_t> dims = {1, 4, 24};
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         add_layernorm(*mm, x, dims);
+        return p;
+    }
+};
+
+struct test_layernorm_eps : verify_program<test_layernorm_eps>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 2, 5};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+        add_layernorm(*mm, x, dims, 1e-5f);
         return p;
     }
 };

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_GEN_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/module_ref.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -35,6 +36,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct shape;
 
 namespace gpu {
+
+struct context;
+
 namespace gen {
 
 struct vectorize
@@ -42,6 +46,10 @@ struct vectorize
     std::size_t size = 1;
     std::size_t axis = 0;
     static vectorize elements(std::size_t axis, const std::vector<shape>& inputs);
+    static vectorize elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs);
+    static vectorize elements(std::size_t axis,
+                              const std::vector<shape>& inputs,
+                              const std::vector<std::size_t>& sizes);
     std::string str() const;
 };
 struct preload
@@ -61,6 +69,10 @@ std::string make_transformer_args(Ts... xs)
 {
     return make_transformer_args({xs.str()...});
 }
+
+std::string generate_pointwise(const module& pm, const std::string& name);
+
+std::string generate_name_from_ops(const module& m);
 
 } // namespace gen
 } // namespace gpu

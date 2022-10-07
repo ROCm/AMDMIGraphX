@@ -40,6 +40,12 @@ static void update_op(const instruction_ref& input, const instruction_ref& ins, 
     auto val        = op.to_value();
     auto op_padding = val.at("padding").to_vector<size_t>();
 
+    // skip if shape is dynamic
+    if(input->get_shape().dynamic())
+    {
+        return;
+    }
+
     auto kdims = input->get_shape().lens().size() - 2;
     if(std::equal(op_padding.begin(),
                   op_padding.begin() + kdims,

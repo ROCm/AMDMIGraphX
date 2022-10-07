@@ -125,11 +125,11 @@ struct memory_coloring_impl
 
     static bool is_disjoin(const live_range& range1, const live_range& range2)
     {
-        if((range1.size == 0) || (range2.size == 0))
+        if((range1.size == 0) or (range2.size == 0))
             return false;
         auto end1 = range1.offset + range1.size - 1;
         auto end2 = range2.offset + range2.size - 1;
-        return ((end1 < range2.offset) || (end2 < range1.offset));
+        return ((end1 < range2.offset) or (end2 < range1.offset));
     }
     void verify();
 #ifdef MIGRAPHX_DEBUG_OPT

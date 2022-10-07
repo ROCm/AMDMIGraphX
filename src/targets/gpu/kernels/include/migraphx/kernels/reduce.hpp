@@ -94,16 +94,17 @@ MIGRAPHX_DPP_REDUCE(op::max, v_max)
 MIGRAPHX_DPP_REDUCE(op::min, v_min)
 MIGRAPHX_DPP_REDUCE(op::product, v_mul)
 
-template <class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <class Op, class T, class Index, class F>
+__device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
+    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     constexpr index_int lanes_per_thread = 16;
 #else
     constexpr index_int lanes_per_thread = 64;
 #endif
     using type = decltype(f(0));
-    __shared__ type buffer[idx.nlocal() / lanes_per_thread];
+    __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
     type x = init;
     idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     dpp_reduce(x, op);
@@ -123,12 +124,12 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
     return y;
 }
 #else
-template <class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <class Op, class T, class Index, class F>
+__device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
-
+    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(f(0));
-    __shared__ type buffer[idx.nlocal()];
+    __shared__ type buffer[idx.max_nlocal()];
     type x = init;
     idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     buffer[idx.local] = x;
@@ -196,17 +197,14 @@ struct block
     struct reducer
     {
         index idx;
-        Slicer slicer;
+        Slicer slice;
         template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
-                return vec_reduce(block_reduce(idx,
-                                               op,
-                                               init,
-                                               x.get_shape().elements(),
-                                               [&](auto j) { return read(x[j], xs[j]...); }),
-                                  op);
+            return sliced(slice, [=](auto x, auto... xs) {
+                return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) {
+                    return vec_reduce(read(x[j], xs[j]...), op);
+                });
             });
         }
 
@@ -220,9 +218,21 @@ struct block
         template <class F>
         __device__ auto inner(F f) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
+            return sliced(slice, [=](auto x, auto... xs) {
                 idx.local_stride(x.get_shape().elements(), [&](auto j) { f(x[j], xs[j]...); });
             });
+        }
+
+        template <class Input>
+        constexpr auto elements() const
+        {
+            using reduce_type        = decltype(slice(Input{}));
+            using value_type         = typename Input::type;
+            constexpr auto relements = get_shape_c<reduce_type>{}.elements();
+            if constexpr(vec_size<value_type>() > 1)
+                return relements * vec_size<value_type>();
+            else
+                return relements;
         }
     };
 
@@ -250,11 +260,11 @@ struct lane
     struct reducer
     {
         index idx;
-        Slicer slicer;
+        Slicer slice;
         template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
+            return sliced(slice, [=](auto x, auto... xs) {
                 using type = typename decltype(x)::type;
                 type r     = init;
                 for(index_int j = 0; j < x.get_shape().elements(); j++)
@@ -274,12 +284,19 @@ struct lane
         template <class F>
         __device__ auto inner(F f) const
         {
-            return sliced(slicer, [=](auto x, auto... xs) {
+            return sliced(slice, [=](auto x, auto... xs) {
                 for(index_int j = 0; j < x.get_shape().elements(); j++)
                 {
                     f(x[j], xs[j]...);
                 }
             });
+        }
+
+        template <class Input>
+        constexpr auto elements() const
+        {
+            using reduce_type = decltype(slice(Input{}));
+            return get_shape_c<reduce_type>{}.elements();
         }
     };
 

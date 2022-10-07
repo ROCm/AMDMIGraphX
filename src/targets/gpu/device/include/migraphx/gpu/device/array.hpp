@@ -131,7 +131,7 @@ struct hip_array
 
     friend MIGRAPHX_DEVICE_CONSTEXPR bool operator!=(const hip_array& x, const hip_array& y)
     {
-        return !(x == y);
+        return not(x == y);
     }
     // This uses the product order rather than lexical order
     friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<(const hip_array& x, const hip_array& y)

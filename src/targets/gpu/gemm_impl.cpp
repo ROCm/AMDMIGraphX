@@ -24,6 +24,7 @@
 #include <rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,6 +68,19 @@ void blas_shape(const shape& s)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
 }
 
+shape transpose_batch(const shape& s, unsigned trans_batch)
+{
+    if(trans_batch == 0)
+        return s;
+    if(s.lens().size() < 3)
+        return s;
+    auto batch = s.lens().size() - 3;
+    std::vector<int64_t> perm(s.lens().size());
+    std::iota(perm.begin(), perm.end(), 0);
+    std::swap(perm[batch], perm[batch + trans_batch]);
+    return shape::from_permutation(s.type(), s.lens(), perm);
+}
+
 template <class R, class... Ts, class... Us>
 R rocblas_invoke(R (*f)(Ts...), Us... xs)
 {
@@ -97,6 +111,12 @@ void gemm_impl(context& ctx,
                bool int8_x4_format,
                bool compute_fp32)
 {
+    const bool is_3inputs = (args.size() == 4);
+    if(not is_3inputs)
+    {
+        beta = 0;
+    }
+
     bool transa     = is_transposed(args[0].get_shape());
     bool transb     = is_transposed(args[1].get_shape());
     auto n_dim      = output_shape.lens().size();
@@ -105,12 +125,8 @@ void gemm_impl(context& ctx,
     rocblas_int lda = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
     rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
     rocblas_int ldc = args[2].get_shape().strides()[dim_0];
+    rocblas_int ldd = is_3inputs ? args[3].get_shape().strides()[dim_0] : ldc;
 
-    bool is_3inputs = (args.size() == 4);
-    if(!is_3inputs)
-    {
-        beta = 0;
-    }
     rocblas_datatype arg_type = get_type(args[0].get_shape().type());
     auto output_type          = arg_type;
     if(output_type == rocblas_datatype_i8_r)
@@ -160,8 +176,13 @@ void gemm_impl(context& ctx,
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-        if(num_matrices == 1)
+        if(num_matrices == 1 or (num_matrices > 1 and get_batch_stride(args[1]) == 0))
         {
+            // If the batch dimension of B is broadcasted, then we can
+            // multiply m by the batch_size and use rocblas_gemm_ex
+            // instead of rocblas_gemm_strided_batched_ex.
+            m *= num_matrices;
+
             // the rocblas_gemm API handles inputs and output matrices as
             // column-major format. When doing a C = A * B, we actually do
             // C^T = (B^T) * (A^T). That is the reason we input args[1] as
@@ -186,7 +207,7 @@ void gemm_impl(context& ctx,
                            ldc,
                            is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                            output_type,
-                           ldc,
+                           ldd,
                            compute_type,
                            rocblas_gemm_algo_standard,
                            0,
@@ -197,6 +218,7 @@ void gemm_impl(context& ctx,
             auto a_stride = get_batch_stride(args[0]);
             auto b_stride = get_batch_stride(args[1]);
             auto c_stride = get_batch_stride(args[2]);
+            auto d_stride = is_3inputs ? get_batch_stride(args[3]) : c_stride;
             rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                            ctx.get_stream().get_rocblas(),
                            transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -220,8 +242,8 @@ void gemm_impl(context& ctx,
                            c_stride,
                            is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                            output_type,
-                           ldc,
-                           c_stride,
+                           ldd,
+                           d_stride,
                            num_matrices,
                            compute_type,
                            rocblas_gemm_algo_standard,

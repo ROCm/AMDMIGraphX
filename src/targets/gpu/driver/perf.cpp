@@ -42,22 +42,31 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
 }
 
 using milliseconds = std::chrono::duration<double, std::milli>;
-double time_op(context& ctx, operation op, const std::vector<shape>& inputs, int n)
+std::pair<double, double>
+time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
+
     // TODO: Use std::ref
-    migraphx::context gctx = ctx;
-    auto output            = op.compute_shape(inputs);
-    op.finalize(gctx, output, inputs);
+    migraphx::context ctx = ictx;
+    auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
+    auto output           = op.compute_shape(inputs);
+    op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
     auto run  = [&] {
-        op.compute(gctx, output, args);
-        gctx.finish();
+        op.compute(ctx, output, args);
+        ctx.finish();
     };
+    gctx.enable_perf_measurement();
     run();
-    auto r   = range(n);
-    double t = std::accumulate(
-        r.begin(), r.end(), double{0.0}, [&](auto x, auto) { return x + time<milliseconds>(run); });
-    return t / n;
+    double host_time   = 0.0;
+    double device_time = 0.0;
+    for(auto i : range(n))
+    {
+        (void)i;
+        host_time += time<milliseconds>(run);
+        device_time += gctx.get_elapsed_ms();
+    }
+    return std::make_pair(host_time / n, device_time / n);
 }
 
 } // namespace driver

@@ -28,7 +28,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/pad_calc.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
@@ -60,7 +59,7 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
     {
-        return {};
+        return literal{shape_type};
     }
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
@@ -77,7 +76,7 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
     {
-        return {};
+        return literal{shape_type};
     }
 
     // scalar input
@@ -188,7 +187,7 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
 
 void onnx_parser::parse_undefined(module* mod, const std::string& name)
 {
-    if(!contains(instructions, name))
+    if(not contains(instructions, name))
     {
         auto ins           = mod->add_instruction(make_op("undefined"));
         instructions[name] = ins;
@@ -257,11 +256,6 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
-    if(not map_input_dims.empty() and not map_dyn_input_dims.empty())
-    {
-        MIGRAPHX_THROW("PARSE_GRAPH: both map_input_dims and map_dyn_input_dims non-empty, only"
-                       "one should be used");
-    }
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
@@ -273,7 +267,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
     {
         const std::string& name = input.name();
         // input not in initializer_data, so it is a real input
-        if(!contains(mod_insts, name))
+        if(not contains(mod_insts, name))
         {
             // ONNX specification does not specify how to deal with the
             // scenario that a nested subgraph contains a parameter with the
@@ -360,7 +354,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         all_output_names.begin(),
         all_output_names.end(),
         std::back_inserter(prog_output_names),
-        [&](const auto& name) { return !(name.empty() or instructions.count(name) == 0); });
+        [&](const auto& name) { return not(name.empty() or instructions.count(name) == 0); });
 
     std::vector<instruction_ref> output_ins;
     std::transform(prog_output_names.begin(),
@@ -450,7 +444,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                               const std::vector<std::size_t>& input_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
-    if(!input_dims.empty())
+    if(not input_dims.empty())
     {
         return {shape_type, input_dims};
     }
@@ -512,6 +506,16 @@ shape::type_t get_type(int dtype)
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }
     }
+}
+
+bool is_type_float(shape::type_t dtype)
+{
+    bool r = false;
+    if(dtype == shape::float_type or dtype == shape::double_type or dtype == shape::half_type)
+    {
+        r = true;
+    }
+    return r;
 }
 
 } // namespace onnx

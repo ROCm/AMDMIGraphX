@@ -42,7 +42,7 @@ void cal_auto_padding_size(onnx_parser::node_info info,
     size_t kdims = in_lens.size() - 2;
     assert(k_lens.size() == kdims and dilation.size() == kdims);
 
-    if(!contains(info.attributes, "auto_pad"))
+    if(not contains(info.attributes, "auto_pad"))
     {
         return;
     }
@@ -124,7 +124,7 @@ void tune_padding_size(const value& v,
     }
 
     // if padding is symmetric, return directly
-    if(!is_asym_padding(padding))
+    if(not is_asym_padding(padding))
     {
         return;
     }

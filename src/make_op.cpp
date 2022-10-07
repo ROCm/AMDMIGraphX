@@ -64,5 +64,10 @@ operation make_op_from_value(const std::string& name, const value& v)
     });
 }
 
+operation make_json_op(const std::string& name, const std::string& s)
+{
+    return make_op(name, from_json_string(convert_to_json(s)));
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

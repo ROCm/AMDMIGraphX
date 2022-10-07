@@ -400,7 +400,7 @@ std::pair<value*, bool> value::insert(const value& v)
 {
     if(v.key.empty())
     {
-        if(!x)
+        if(not x)
             x = std::make_shared<array_value_holder>();
         get_array_impl(x).push_back(v);
         assert(this->if_array());
@@ -408,7 +408,7 @@ std::pair<value*, bool> value::insert(const value& v)
     }
     else
     {
-        if(!x)
+        if(not x)
             x = std::make_shared<object_value_holder>();
         auto p = x->if_object()->emplace(v.key, get_array_impl(x).size());
         if(p.second)
@@ -420,7 +420,7 @@ std::pair<value*, bool> value::insert(const value& v)
 value* value::insert(const value* pos, const value& v)
 {
     assert(v.key.empty());
-    if(!x)
+    if(not x)
         x = std::make_shared<array_value_holder>();
     auto&& a = get_array_impl(x);
     auto it  = a.insert(a.begin() + (pos - begin()), v);
@@ -466,7 +466,7 @@ bool compare(const value& x, const value& y, F f)
 
 value::type_t value::get_type() const
 {
-    if(!x)
+    if(not x)
         return null_type;
     return x->get_type();
 }
@@ -511,14 +511,7 @@ void print_value(std::ostream& os, const std::vector<value>& x)
     os << "}";
 }
 
-void print_value(std::ostream& os, const value::binary& x)
-{
-    // Convert binary to integers
-    std::vector<int> v(x.begin(), x.end());
-    os << "{";
-    os << to_string_range(v);
-    os << "}";
-}
+void print_value(std::ostream& os, const value::binary& x) { os << x; }
 
 std::ostream& operator<<(std::ostream& os, const value& d)
 {

@@ -347,7 +347,7 @@ void tf_parser::parse_node(const std::string& name)
                 // input was from a node with multiple outputs
                 if(contains(input_name, ':'))
                 {
-                    input_name = input_name.substr(0, input.find(':'));
+                    input_name.resize(input.find(':'));
                 }
                 else
                 {
@@ -371,7 +371,7 @@ void tf_parser::parse_node(const std::string& name)
         {
             result = ops[node.op()](*this, {get_attributes(node), node.op(), mm}, args);
         }
-        assert(!result.empty());
+        assert(not result.empty());
         // First output has no ":" delimiter
         instructions[name] = result.front();
         for(size_t i = 1; i < result.size(); i++)
@@ -458,7 +458,7 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
 {
     std::vector<size_t> dims = parse_dims(t.tensor_shape());
     size_t shape_size = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>());
-    if(!t.tensor_content().empty()) // has raw data
+    if(not t.tensor_content().empty()) // has raw data
     {
         const std::string& s = t.tensor_content();
         switch(t.dtype())

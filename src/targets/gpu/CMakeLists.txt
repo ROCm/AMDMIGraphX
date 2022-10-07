@@ -89,6 +89,7 @@ add_library(migraphx_gpu
     deconvolution.cpp
     device_name.cpp
     elu.cpp
+    fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp
@@ -215,6 +216,10 @@ string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMP
 string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 # Skip library paths since hip will incorrectly treat it as a source file
 string(APPEND HIP_COMPILER_FLAGS " ")
+# Add ck includes
+find_path(CK_INCLUDE_PATH ck/ck.hpp)
+message(STATUS "CK path: ${CK_INCLUDE_PATH}")
+string(APPEND HIP_COMPILER_FLAGS " -isystem ${CK_INCLUDE_PATH}")
 foreach(_unused RANGE 2)
     string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 endforeach()

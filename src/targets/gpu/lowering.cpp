@@ -236,11 +236,11 @@ struct miopen_apply
             auto&& op = any_cast<op::convolution>(ins->get_operator());
             miopen_convolution<op::convolution> conv{op, make_conv(op)};
             auto ws = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
-            //operation conv = make_op("gpu::convolution", {{"op", to_value(op)}});
-            //migraphx::context ctx= get_context();
-            //auto ws = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
-            //std::size_t ws_bytes = ws.get("workspace", 0);
-            //auto workspace = insert_allocation(ins, shape{shape::int8_type, {ws_bytes}});
+            // operation conv = make_op("gpu::convolution", {{"op", to_value(op)}});
+            // migraphx::context ctx= get_context();
+            // auto ws = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
+            // std::size_t ws_bytes = ws.get("workspace", 0);
+            // auto workspace = insert_allocation(ins, shape{shape::int8_type, {ws_bytes}});
 
             auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());

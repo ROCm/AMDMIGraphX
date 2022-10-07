@@ -41,81 +41,9 @@ file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 add_embed_library(migraphx_kernels ${KERNEL_FILES})
 
-add_library(migraphx_device
-    device/acos.cpp
-    device/acosh.cpp
-    device/add.cpp
-    device/add_clip.cpp
-    device/add_relu.cpp
-    device/add_sigmoid.cpp
-    device/add_tanh.cpp
-    device/argmax.cpp
-    device/argmin.cpp
-    device/asin.cpp
-    device/asinh.cpp
-    device/atan.cpp
-    device/atanh.cpp
-    device/ceil.cpp
-    device/clip.cpp
-    device/concat.cpp
-    device/contiguous.cpp
-    device/convert.cpp
-    device/cos.cpp
-    device/cosh.cpp
-    device/div.cpp
-    device/equal.cpp
-    device/erf.cpp
-    device/exp.cpp
-    device/fill.cpp
-    device/floor.cpp
-    device/gather.cpp
-    device/gelu.cpp
-    device/greater.cpp
-    device/int8_gemm_pack.cpp
-    device/layernorm.cpp
-    device/less.cpp
-    device/log.cpp
-    device/logical_and.cpp
-    device/logical_or.cpp
-    device/logical_xor.cpp
-    device/logsoftmax.cpp
-    device/max.cpp
-    device/min.cpp
-    device/mul.cpp
-    device/mul_add.cpp
-    device/mul_add_relu.cpp
-    device/multinomial.cpp
-    device/nonzero.cpp
-    device/pad.cpp
-    device/pow.cpp
-    device/prelu.cpp
-    device/prefix_scan_sum.cpp
-    device/recip.cpp
-    device/reduce_max.cpp
-    device/reduce_mean.cpp
-    device/reduce_min.cpp
-    device/reduce_sum.cpp
-    device/reduce_prod.cpp
-    device/relu.cpp
-    device/reverse.cpp
-    device/rnn_variable_seq_lens.cpp
-    device/round.cpp
-    device/rsqrt.cpp
-    device/scatter.cpp
-    device/sigmoid.cpp
-    device/sign.cpp
-    device/sin.cpp
-    device/sinh.cpp
-    device/softmax.cpp
-    device/sqdiff.cpp
-    device/sqrt.cpp
-    device/sub.cpp
-    device/tan.cpp
-    device/tanh.cpp
-    device/topk.cpp
-    device/unary_not.cpp
-    device/where.cpp
-)
+file(GLOB DEVICE_GPU_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
+add_library(migraphx_device ${DEVICE_GPU_SRCS})
+
 add_library(compile_for_gpu INTERFACE)
 target_compile_options(compile_for_gpu INTERFACE -std=c++17 -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
 target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
@@ -153,15 +81,12 @@ add_library(migraphx_gpu
     argmax.cpp
     argmin.cpp
     batch_norm_inference.cpp
-    clip.cpp
     code_object_op.cpp
     compile_ops.cpp
     compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
     compiler.cpp
-    concat.cpp
-    convert.cpp
     convolution.cpp
     deconvolution.cpp
     device_name.cpp
@@ -194,7 +119,6 @@ add_library(migraphx_gpu
     rocblas.cpp
     scatter.cpp
     schedule_model.cpp
-    softmax.cpp
     sync_device.cpp
     target.cpp
     topk.cpp
@@ -209,68 +133,18 @@ function(register_migraphx_gpu_ops PREFIX)
     endforeach()
 endfunction()
 register_migraphx_gpu_ops(hip_
-    acosh
-    acos
-    add
     argmax
     argmin
-    asinh
-    asin
-    atanh
-    atan
-    ceil
-    clip
-    concat
-    convert
-    cosh
-    cos
-    div
-    equal
-    erf
-    exp
-    floor
     gather
-    greater
-    less
-    log
     logsoftmax
-    logical_and
-    logical_or
-    logical_xor
     loop
-    max
-    min
-    mul
     multinomial
     nonzero
     pad
-    pow
-    prelu
     prefix_scan_sum
-    recip
-    reduce_max
-    reduce_mean
-    reduce_min
-    reduce_prod
-    reduce_sum
-    relu
     reverse
-    round
-    rsqrt
     scatter
-    sigmoid
-    sign
-    sinh
-    sin
-    softmax
-    sqdiff
-    sqrt
-    sub
-    tanh
-    tan
     topk
-    unary_not
-    where
 )
 register_migraphx_gpu_ops(miopen_
     abs
@@ -372,9 +246,18 @@ endif()
 include(CheckLibraryExists)
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
+check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
+
+if(HAS_FIND_2_API) 
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
+    message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
+else()
+    message(STATUS "MIOpen does not have Find-2.0 API")
+endif()
+
 if(HAS_FIND_MODE_API)
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_MODE_API)
-    message(STATUS "MIOpen has find mode api")
+    message(STATUS "MIGraphx is using Find Mode API of MIOpen")
 else()
     message(STATUS "MIOpen does not have find mode api")
 endif()

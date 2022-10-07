@@ -1,1 +1,0 @@
-../../../../cget/pkg/google__protobuf/install/include/google/protobuf/io/coded_stream.h

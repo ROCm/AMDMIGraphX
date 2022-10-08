@@ -38,6 +38,8 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/env.hpp>
 
+#include "ck_gemm_instances.hpp"
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -77,93 +79,70 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 
 )__migraphx__";
 
-std::size_t int_div_ceil(std::size_t x, std::size_t y) { return (x + y - 1) / y; }
+static std::size_t int_div_ceil(std::size_t x, std::size_t y) { return (x + y - 1) / y; }
 
-std::size_t get_grid_size(std::size_t m, std::size_t mpb, std::size_t n, std::size_t npb)
+static std::size_t block_size_index = 13;
+
+static std::size_t get_block_size(const std::vector<std::string>& s)
 {
+    return std::stoull(s[block_size_index]);
+}
+
+static std::size_t get_grid_size(const std::vector<std::string>& s, std::size_t m, std::size_t n)
+{
+    auto mpb = std::stoull(s[block_size_index+1]);
+    auto npb = std::stoull(s[block_size_index+2]);
     return int_div_ceil(m, mpb) * int_div_ceil(n, npb);
 }
 
-struct block_settings
-{
-    int bs;
-    int mpb;
-    int npb;
-};
-
-namespace fs = std::filesystem;
-
 struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 {
-    // clang-format off
-    const std::vector<std::string> instances
+    static std::string get_layout(const shape& s)
     {
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 256, 128, 32, 8, 2, 32, 32, 4, 2, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<8, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 256, 128, 32, 8, 8, 32, 32, 4, 2, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 128, 256, 32, 8, 2, 32, 32, 2, 4, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 128, 256, 32, 8, 8, 32, 32, 2, 4, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 128, 128, 32, 8, 2, 32, 32, 2, 2, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<8, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 128, 128, 32, 8, 8, 32, 32, 2, 2, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 128, 64, 32, 8, 2, 32, 32, 2, 1, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<16,16, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 128, 64, 32, 8, 8, 32, 32, 2, 1, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 8, 1, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 64, 128, 32, 8, 2, 32, 32, 1, 2, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<8, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 256, 64, 128, 32, 8, 8, 32, 32, 1, 2, S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1, 1, 1, S<1, 32, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 128, 128, 128, 32, 8, 2, 32, 32, 4, 2, S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 16, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 128, 128, 128, 32, 8, 8, 32, 32, 4, 2, S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1, 1, 1, S<1, 16, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 128, 128, 64, 32, 8, 2, 32, 32, 2, 2, S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<8, 16, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 32, 1, 4>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 128, 128, 64, 32, 8, 8, 32, 32, 2, 2, S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1, 1, 1, S<1, 32, 1, 4>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 128, 64, 128, 32, 8, 2, 32, 32, 2, 2, S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 2, 0, 1, 1, S<1, 16, 1, 8>, 8",
-        "Row, Row, Row, F16, F16, F16, F32, F16, PassThrough, PassThrough, PassThrough, GemmDefault, 1, 128, 64, 128, 32, 8, 8, 32, 32, 2, 2, S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 1, S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1, 1, 1, S<1, 16, 1, 8>, 8"
-    };
-    // clang-format on
+        return s.transposed() ? "ck::tensor_layout::gemm::ColumnMajor" : "ck::tensor_layout::gemm::RowMajor";
+    }
 
-    const std::vector<block_settings> params{{256, 256, 128},
-                                             {256, 256, 128},
-                                             {256, 128, 256},
-                                             {256, 128, 256},
-                                             {256, 128, 128},
-                                             {256, 128, 128},
-                                             {256, 128, 64},
-                                             {256, 128, 64},
-                                             {256, 64, 128},
-                                             {256, 64, 128},
-                                             {128, 128, 128},
-                                             {128, 128, 128},
-                                             {128, 128, 64},
-                                             {128, 128, 64},
-                                             {128, 64, 128},
-                                             {128, 64, 128}};
+    static std::string get_type(const shape& s)
+    {
+        if (s.type() == shape::half_type)
+            return "ck::half_t";
+        return shape::cpp_type(s.type());
+    }
 
     std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
+        auto a_shape = inputs[0];
+        auto b_shape = inputs[1];
+        auto c_shape = inputs[2];
+
+        auto m           = c_shape.lens().front();
+        auto n           = c_shape.lens().back();
+        auto k   = a_shape.lens().back();
+        auto sa  = a_shape.strides().front();
+        auto sb  = b_shape.strides().front();
+        auto sc  = c_shape.strides().front();
+
         int i = v.get("tuning_val", 4);
-        assert(i >= 0 and i < instances.size());
+        const auto& instance = get_instance(i, [&](const auto& x) -> bool {
+            return get_layout(a_shape) == x[0] and
+                get_layout(b_shape) == x[1] and
+                get_layout(c_shape) == x[2] and
+                get_type(a_shape) == x[3] and
+                get_type(b_shape) == x[4] and
+                get_type(c_shape) == x[5];
+        });
 
         hip_compile_options options;
-        auto out_s = inputs.back();
-
-        auto b_s         = params[i];
-        auto block_size  = b_s.bs;
-        auto m_per_block = b_s.mpb;
-        auto n_per_block = b_s.npb;
-        auto m           = out_s.lens().front();
-        auto n           = out_s.lens().back();
-        auto grid_size   = get_grid_size(m, m_per_block, n, n_per_block);
-
-        options.set_launch_params(v, grid_size * block_size, block_size);
+        options.set_launch_params(v, get_grid_size(instance, m, n), get_block_size(instance));
         options.inputs         = inputs;
-        options.output         = out_s;
+        options.output         = c_shape;
         options.kernel_name    = "ck_gemm_kernel";
         options.virtual_inputs = inputs;
 
-        auto k   = inputs.front().lens().back();
-        auto sa  = inputs.front().strides().front();
-        auto sb  = inputs.at(1).strides().front();
-        auto sc  = inputs.back().strides().front();
         auto src = interpolate_string(ck_gemm_kernel,
-                                      {{"instance", instances[i]},
+                                      {{"instance", join_strings(instance, ",")},
                                        {"m", to_string(m)},
                                        {"k", to_string(k)},
                                        {"n", to_string(n)},

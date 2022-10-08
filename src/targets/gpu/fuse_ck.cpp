@@ -25,7 +25,7 @@ struct ck_gemm
 
     void check_gemm_shape(const shape& s) const
     {
-        if (contains(s.lens(), 1))
+        if(contains(s.lens(), 1))
             MIGRAPHX_THROW("Invalid shape for ck_gemm");
     }
 
@@ -54,7 +54,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
-    if (a.lens().size() > 2 or b.lens().size() > 2)
+    if(a.lens().size() > 2 or b.lens().size() > 2)
         return false;
     return (a.lens()[0] % 8 == 0 and a.lens()[1] % 8 == 0 and b.lens()[0] % 8 == 0 and
             b.lens()[1] % 8 == 0);

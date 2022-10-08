@@ -2382,13 +2382,14 @@ TEST_CASE(if_else_trailing_one_shape_test)
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
     auto cond = mm->add_literal(migraphx::literal(sc, {0}));
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape s_trail{migraphx::shape::float_type, {2, 1}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s, ones);
-    std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
-    auto l2                 = mm->add_literal(s, rand);
+    std::vector<float> rand = {-0.583375, 0.633757};
+    auto l2                 = mm->add_literal(s_trail, rand);
     auto x                  = mm->add_parameter("x", s);
-    auto y                  = mm->add_parameter("y", s);
+    auto y                  = mm->add_parameter("y", s_trail);
 
     auto* then_mod = p.create_module("If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
@@ -2556,12 +2557,13 @@ TEST_CASE(if_then_trailing_one_shape_test)
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
     auto cond = mm->add_literal(migraphx::literal(sc, {1}));
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape s_trail{migraphx::shape::float_type, {2, 1}};
     std::vector<float> ones(s.elements(), 1.0f);
-    auto l1                 = mm->add_literal(s, ones);
-    std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
+    auto l1                 = mm->add_literal(s_trail, ones);
+    std::vector<float> rand = {-1.26487, -2.42279};
     auto l2                 = mm->add_literal(s, rand);
-    auto x                  = mm->add_parameter("x", s);
+    auto x                  = mm->add_parameter("x", s_trail);
     auto y                  = mm->add_parameter("y", s);
 
     auto* then_mod = p.create_module("If_5_if");

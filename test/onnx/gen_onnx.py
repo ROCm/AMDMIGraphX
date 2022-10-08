@@ -2262,23 +2262,23 @@ def if_else_empty_shape_test():
 
 @onnx_test
 def if_else_trailing_one_shape_test():
-    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3, 1])
-    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 1])
 
     then_out = onnx.helper.make_tensor_value_info('then_out',
                                                   onnx.TensorProto.FLOAT,
-                                                  [2, 3])
+                                                  [2])
     else_out = onnx.helper.make_tensor_value_info('else_out',
                                                   onnx.TensorProto.FLOAT,
-                                                  [2, 3])
+                                                  [2, 1])
 
-    xt = np.ones((2, 3)).astype(np.float)
+    xt = np.ones((2)).astype(np.float)
     xt_tensor = helper.make_tensor(name='xt',
                                    data_type=TensorProto.FLOAT,
                                    dims=xt.shape,
                                    vals=xt.flatten().astype(np.float32))
 
-    yt = np.random.randn(2, 3).astype(np.float)
+    yt = np.random.randn(2, 1).astype(np.float)
     yt_tensor = helper.make_tensor(name='yt',
                                    data_type=TensorProto.FLOAT,
                                    dims=yt.shape,
@@ -2571,23 +2571,23 @@ def if_pl_test():
 
 @onnx_test
 def if_then_trailing_one_shape_test():
-    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3, 1])
-    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 1])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2])
 
     then_out = onnx.helper.make_tensor_value_info('then_out',
                                                   onnx.TensorProto.FLOAT,
-                                                  [])
+                                                  [2, 1])
     else_out = onnx.helper.make_tensor_value_info('else_out',
                                                   onnx.TensorProto.FLOAT,
-                                                  [2, 3])
+                                                  [2])
 
-    xt = np.ones((2, 3)).astype(np.float)
+    xt = np.ones((2, 1)).astype(np.float)
     xt_tensor = helper.make_tensor(name='xt',
                                    data_type=TensorProto.FLOAT,
                                    dims=xt.shape,
                                    vals=xt.flatten().astype(np.float32))
 
-    yt = np.random.randn(2, 3).astype(np.float)
+    yt = np.random.randn(2).astype(np.float)
     yt_tensor = helper.make_tensor(name='yt',
                                    data_type=TensorProto.FLOAT,
                                    dims=yt.shape,

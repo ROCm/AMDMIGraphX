@@ -90,81 +90,74 @@ struct parse_if : op_parser<parse_if>
             };
 
             // Throw error if both branches have zero output shapes. Not possible for static inputs
-            if(then_out_shapes.at(0).elements() == 0 && else_out_shapes.at(0).elements() == 0)
+            if(then_shape.size() == 0 && else_shape.size() == 0)
             {
                 throw_shapes();
             }
 
             // Handle one empty branch by setting output identical to the other
-            if(then_out_shapes.at(0).elements() == 0)
+            // need to update the then_shape before we do further checks
+            if(then_shape.size() == 0)
             {
-                then_mdl->add_outline(else_out_shapes.at(0));
+                std::cout << "Scalar then_shape " << then_shape.size() << std::endl;
+                auto convert_ins = then_mdl->add_outline(else_out_shapes.at(0));
+                then_mdl->replace_return({convert_ins});
+                then_shape = else_shape;
+                std::cout << "Scalar then_shape update " << then_shape.size() << std::endl;
             }
-
-            if(else_out_shapes.at(0).elements() == 0)
+            else if(else_shape.size() == 0)
             {
-                else_mdl->add_outline(then_out_shapes.at(0));
+                std::cout << "Scalar else_shape " << else_shape.size() << std::endl;
+                auto convert_ins = else_mdl->add_outline(then_out_shapes.at(0));
+                else_mdl->replace_return({convert_ins});
+                else_shape = then_shape;
+                std::cout << "Scalar else_shape update " << else_shape.size() << std::endl;
             }
-
-            // check equivilant length dims, and (x1,x2,.., xn, 1) == (x1,x2,..,xn)
-            int dim_delta = abs((static_cast<int>(then_shape.size() - else_shape.size())));
-
-            if(dim_delta <= 1)
+            else
             {
-                // make sure dims are equivalent in static shapes
-                if(not equal(then_shape.begin(), then_shape.end(), else_shape.begin()) &&
-                   not equal(else_shape.begin(), else_shape.end(), then_shape.begin()))
-                {
-                    throw_shapes();
-                }
+                // check equivilant length dims, and (x1,x2,.., xn, 1) == (x1,x2,..,xn)
+                int dim_delta = abs((static_cast<int>(then_shape.size() - else_shape.size())));
 
-                // find bigger dimension and pad if its 1 otherwise throw
-                if(dim_delta == 1)
+                std::cout << "Then shape " << then_shape.size() << " else shape "
+                          << else_shape.size() << std::endl;
+
+                if(dim_delta <= 1)
                 {
-                    bool invalid_last_dim = true;
+                    // make sure dims are equivalent in static shapes
+                    if(not equal(then_shape.begin(), then_shape.end(), else_shape.begin()) &&
+                       not equal(else_shape.begin(), else_shape.end(), then_shape.begin()))
+                    {
+                        throw_shapes();
+                    }
 
                     // Find which dim to pad
                     if(then_shape.size() < else_shape.size())
                     {
                         auto last_else = *(--(else_shape.end()));
-                        if(last_else == 1)
+                        std::cout << "Last else " << last_else << std::endl;
+
+                        if(last_else <= 1)
                         {
-                            invalid_last_dim = false;
-                            // migraphx::shape s{else_out_shapes.at(0).type(), {1,1,1,1}};
-                            // else_out_shapes.at(0) = reduce_dims({else_out_shapes, s});
-                            auto convert_ins = else_mdl->insert_instruction(
-                                std::prev(else_mdl->end()),
-                                migraphx::make_op("squeeze", {{"axes", {else_shape.size()}}}),
-                                std::prev(else_mdl->end())->inputs().front());
-                            else_mdl->replace_return({convert_ins});
+                            auto convert_ins = then_mdl->add_outline(else_out_shapes.at(0));
+                            then_mdl->replace_return({convert_ins});
                         }
                     }
                     else
                     {
                         auto last_then = *(--(then_shape.end()));
-                        if(last_then == 1)
+                        std::cout << "Last then " << last_then << std::endl;
+
+                        if(last_then <= 1)
                         {
-                            invalid_last_dim = false;
-                            // migraphx::shape s{else_out_shapes.at(0).type(), {1,1,1,1}};
-                            // then_out_shapes = reduce_dims({then_out_shapes, s});
-                            auto convert_ins = then_mdl->insert_instruction(
-                                std::prev(then_mdl->end()),
-                                migraphx::make_op("squeeze", {{"axes", {then_shape.size()}}}),
-                                std::prev(then_mdl->end())->inputs().front());
-                            then_mdl->replace_return({convert_ins});
+                            auto convert_ins = else_mdl->add_outline(then_out_shapes.at(0));
+                            else_mdl->replace_return({convert_ins});
                         }
                     }
-
-                    if(invalid_last_dim)
-                    {
-                        throw_shapes();
-                    }
                 }
-            }
-
-            else
-            {
-                throw_shapes();
+                else
+                {
+                    throw_shapes();
+                }
             }
         }
 

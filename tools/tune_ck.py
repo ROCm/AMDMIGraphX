@@ -47,7 +47,7 @@ def benchmark_one(config, tuning):
 
 def benchmark(config, size):
     times = [benchmark_one(config, i) for i in range(size)]
-    return times.index(max(times))
+    return times.index(min(times))
 
 
 def benchmark_log(f):

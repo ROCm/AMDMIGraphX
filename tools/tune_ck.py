@@ -1,5 +1,6 @@
 import os, json, subprocess, tempfile, sys, argparse, contextlib
 
+
 @contextlib.contextmanager
 def tmp_file(dump=None):
     tmp_name = None
@@ -12,8 +13,10 @@ def tmp_file(dump=None):
     finally:
         os.unlink(tmp_name)
 
+
 def pretty_print(obj):
     print(json.dumps(obj, indent=2))
+
 
 def benchmark_one(config, tuning):
     b = {
@@ -29,7 +32,8 @@ def benchmark_one(config, tuning):
     print(b)
     with tmp_file(lambda tf: json.dump(b, tf)) as tf:
         cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
-                            capture_output=True, shell=True)
+                            capture_output=True,
+                            shell=True)
         for line in cp.stdout.decode().split("\n"):
             s = line.strip()
             if not s:

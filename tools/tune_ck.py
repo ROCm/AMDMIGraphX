@@ -1,27 +1,42 @@
-import os, json, subprocess, tempfile, sys, argparse
+import os, json, subprocess, tempfile, sys, argparse, contextlib
 
+@contextlib.contextmanager
+def tmp_file(dump=None):
+    tmp_name = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as f:
+            tmp_name = f.name
+            if dump:
+                dump(f)
+        yield tmp_name
+    finally:
+        os.unlink(tmp_name)
+
+def pretty_print(obj):
+    print(json.dumps(obj, indent=4))
 
 def benchmark_one(config, tuning):
-    with tempfile.NamedTemporaryFile(mode="w+") as tf:
-        b = {
-            'settings': {
-                'iterations': 100
-            },
-            'compile_op': {
-                'name': 'ck_gemm',
-                'tuning_val': tuning,
-                'inputs': config
-            }
+    b = {
+        'settings': {
+            'iterations': 100
+        },
+        'compile_op': {
+            'name': 'ck_gemm',
+            'tuning_val': tuning,
+            'inputs': config
         }
-        json.dump(b, tf)
-        cp = subprocess.run('./bin/gpu-driver {}'.format(tf.name),
-                            capture_output=True)
+    }
+    print(b)
+    with tmp_file(lambda tf: json.dump(b, tf)) as tf:
+        cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
+                            capture_output=True, shell=True)
         for line in cp.stdout.decode().split("\n"):
             s = line.strip()
             if not s:
                 continue
             fields = s.split(',')
             dtime = fields[-1].strip()
+            print(dtime)
             return float(dtime[:-2])
     return sys.float_info.max
 

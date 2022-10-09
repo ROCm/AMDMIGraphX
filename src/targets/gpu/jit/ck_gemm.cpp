@@ -170,7 +170,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         });
 
         hip_compile_options options;
-        options.set_launch_params(v, get_grid_size(instance, m, n), get_block_size(instance));
+        auto block_size = get_block_size(instance);
+        auto grid_size = get_grid_size(instance, m, n);
+        options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
         options.output         = c_shape;
         options.kernel_name    = "ck_gemm_kernel";

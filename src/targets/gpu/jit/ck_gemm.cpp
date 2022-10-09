@@ -39,7 +39,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/env.hpp>
 
-
 const std::vector<std::string>&
 get_instance(std::size_t i, const std::function<bool(const std::vector<std::string>&)>& pred);
 
@@ -100,7 +99,7 @@ static std::size_t get_grid_size(const std::vector<std::string>& s, std::size_t 
     return int_div_ceil(m, mpb) * int_div_ceil(n, npb);
 }
 
-template<class F, class Action>
+template <class F, class Action>
 auto action_decorate(F f, Action action)
 {
     return [=](auto&&... xs) {
@@ -169,7 +168,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     {
         auto shapes = to_shapes(ins->inputs());
         return action_decorate(replace(compile_op(ctx, shapes, op.to_value())), [=] {
-            if (enabled(MIGRAPHX_LOG_CK_GEMM{}))
+            if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
                 std::cout << "ck_gemm: " << to_json_string(to_value(shapes)) << std::endl;
         });
     }

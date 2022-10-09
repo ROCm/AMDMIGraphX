@@ -64,9 +64,7 @@ template <class T>
 auto to_value_impl(rank<1>, const T& x) -> decltype(std::tuple_size<T>{}, value{})
 {
     value result = value::array{};
-    repeat_c<std::tuple_size<T>{}>([&](auto i) {
-        result.push_back(to_value(std::get<i>(x)));
-    });
+    repeat_c<std::tuple_size<T>{}>([&](auto i) { result.push_back(to_value(std::get<i>(x))); });
     return result;
 }
 
@@ -147,12 +145,10 @@ void from_value_impl(rank<0>, const value& v, T& x)
 }
 
 template <class T>
-auto from_value_impl(rank<1>, const value& v, T& x)
-    -> decltype(std::tuple_size<T>{}, void())
+auto from_value_impl(rank<1>, const value& v, T& x) -> decltype(std::tuple_size<T>{}, void())
 {
-    repeat_c<std::tuple_size<T>{}>([&](auto i) {
-        std::get<i>(x) = from_value<std::tuple_element_t<i, T>>(v[i]);
-    });
+    repeat_c<std::tuple_size<T>{}>(
+        [&](auto i) { std::get<i>(x) = from_value<std::tuple_element_t<i, T>>(v[i]); });
 }
 
 template <class T>

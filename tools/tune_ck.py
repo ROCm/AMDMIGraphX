@@ -4,7 +4,9 @@ import os, json, subprocess, tempfile, sys, argparse
 def benchmark_one(config, tuning):
     with tempfile.NamedTemporaryFile(mode="w+") as tf:
         b = {
-            'settings': {'iterations': 100},
+            'settings': {
+                'iterations': 100
+            },
             'compile_op': {
                 'name': 'ck_gemm',
                 'tuning_val': tuning,
@@ -12,7 +14,8 @@ def benchmark_one(config, tuning):
             }
         }
         json.dump(b, tf)
-        cp = subprocess.run('./bin/gpu-driver {}'.format(tf.name), capture_output=True)
+        cp = subprocess.run('./bin/gpu-driver {}'.format(tf.name),
+                            capture_output=True)
         for line in cp.stdout.decode().split("\n"):
             s = line.strip()
             if not s:
@@ -22,9 +25,11 @@ def benchmark_one(config, tuning):
             return float(dtime[:-2])
     return sys.float_info.max
 
+
 def benchmark(config, size):
     times = [benchmark_one(config, i) for i in range(size)]
     return times.index(max(times))
+
 
 def benchmark_log(f):
     result = []
@@ -40,21 +45,24 @@ def benchmark_log(f):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Simple tuner for CK gemms")
-    parser.add_argument('--log', '-l',
+    parser = argparse.ArgumentParser(description="Simple tuner for CK gemms")
+    parser.add_argument('--log',
+                        '-l',
                         type=str,
                         metavar='file',
                         help='Path to logfile')
-    parser.add_argument('--out', '-o',
+    parser.add_argument('--out',
+                        '-o',
                         type=str,
                         metavar='file',
                         help='Output json file to save tunings')
     args = parser.parse_args()
     return args
 
+
 def run(args):
     tuned = benchmark_log(args.log)
     json.dump(tuned, open(args.out, 'w+'))
+
 
 run(parse_args())

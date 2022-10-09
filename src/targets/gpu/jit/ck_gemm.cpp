@@ -38,6 +38,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/file_buffer.hpp>
 
 const std::vector<std::string>&
 get_instance(std::size_t i, const std::function<bool(const std::vector<std::string>&)>& pred);
@@ -48,6 +49,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING);
 
 // NOLINTNEXTLINE
 static const char* const ck_gemm_kernel = R"__migraphx__(
@@ -108,6 +110,25 @@ auto action_decorate(F f, Action action)
     };
 }
 
+using tuning_entry = std::pair<std::vector<shape>, size_t>;
+static std::vector<tuning_entry> read_tuning(const std::string& s)
+{
+    if (not fs::exists(s))
+        return {};
+    return from_value<std::vector<tuning_entry>>(from_json_string(read_string(s)));
+}
+
+static std::size_t get_tuning_for(const std::vector<shape>& inputs)
+{
+    static auto tuning = read_tuning(string_value_of(MIGRAPHX_CK_TUNING{}, ""));
+    auto it = std::find_if(tuning.begin(), tuning.end(), [&](const auto& p) {
+        return p.first == inputs;
+    });
+    if (it == tuning.end())
+        return 4;
+    return it->second;
+}
+
 struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 {
     static std::string get_layout(const shape& s)
@@ -138,7 +159,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto sb = b_shape.strides().front();
         auto sc = c_shape.strides().front();
 
-        int i                = v.get("tuning_val", 4);
+        auto i                = v.get("tuning_val", get_tuning_for(inputs));
         const auto& instance = get_instance(i, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[2] and get_type(a_shape) == x[3] and

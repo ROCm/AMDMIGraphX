@@ -13,7 +13,7 @@ def tmp_file(dump=None):
         os.unlink(tmp_name)
 
 def pretty_print(obj):
-    print(json.dumps(obj, indent=4))
+    print(json.dumps(obj, indent=2))
 
 def benchmark_one(config, tuning):
     b = {

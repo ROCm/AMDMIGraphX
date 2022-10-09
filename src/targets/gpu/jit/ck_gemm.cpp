@@ -121,10 +121,14 @@ static std::vector<tuning_entry> read_tuning(const std::string& s)
 static std::size_t get_tuning_for(const std::vector<shape>& inputs)
 {
     static auto tuning = read_tuning(string_value_of(MIGRAPHX_CK_TUNING{}, ""));
+    if (tuning.empty())
+        std::cout << "*********** Warning: No CK tuning!" << std::endl;
     auto it            = std::find_if(
         tuning.begin(), tuning.end(), [&](const auto& p) { return p.first == inputs; });
-    if(it == tuning.end())
+    if(it == tuning.end()) {
+        std::cout << "*********** Warning: CK tuning missing for config!" << std::endl;
         return 4;
+    }
     return it->second;
 }
 

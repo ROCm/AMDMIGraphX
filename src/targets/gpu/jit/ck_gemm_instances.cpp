@@ -1,13 +1,10 @@
 
-#ifndef MIGRAPHX_GUARD_JIT_CK_INSTANCES_HPP
-#define MIGRAPHX_GUARD_JIT_CK_INSTANCES_HPP
-
 #include <algorithm>
 #include <vector>
 #include <string>
 #include <functional>
 
-inline const std::vector<std::string>&
+const std::vector<std::string>&
 get_instance(std::size_t i, const std::function<bool(const std::vector<std::string>&)>& pred)
 {
     static std::vector<std::vector<std::vector<std::string>>> instances = {
@@ -8051,5 +8048,3 @@ get_instance(std::size_t i, const std::function<bool(const std::vector<std::stri
         std::find_if(instances.begin(), instances.end(), [&](const auto& v) { return pred(v[0]); });
     return it->at(i);
 }
-
-#endif

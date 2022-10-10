@@ -93,6 +93,13 @@ inline auto make_activation_descriptor(miopenActivationMode_t mode,
 struct abs_custom_op final : migraphx::experimental_custom_op_base
 {
     virtual std::string name() const override { return "abs_custom_op"; }
+
+    // flag to identify whether custom op runs on the GPU or on the host.
+    // Based on this flag MIGraphX would inject necessary copies to and from GPU for the input and
+    // output buffers as necessary. Therefore if custom_op runs on GPU then it can assume its input
+    // buffers are in GPU memory, and similarly for the host
+    virtual bool runs_on_offload_target() const override { return true; }
+
     virtual migraphx::argument compute(migraphx::context ctx,
                                        migraphx::shape output_shape,
                                        migraphx::arguments args) const override

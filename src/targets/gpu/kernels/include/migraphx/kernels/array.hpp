@@ -91,7 +91,7 @@ __device__ auto& array2vec(T& x)
 template <class T, class... Ts>
 constexpr auto array_for_each(T& x, Ts&... xs)
 {
-    MIGRAPHX_ASSERT((x.size() == xs.size() and ...));
+    MIGRAPHX_ASSERT(((x.size() == xs.size()) and ...));
     return [&](auto f) {
         constexpr auto size = decltype(x.size()){};
         if constexpr((is_vectorizable<typename T::value_type>() or
@@ -218,12 +218,10 @@ struct array
     {
         for(index_int i = 0; i < N; i++)
         {
-            if(x[i] < y[i])
-                return true;
-            if(y[i] < x[i])
+            if(not(x[i] < y[i]))
                 return false;
         }
-        return false;
+        return true;
     }
     friend constexpr bool operator>(const array& x, const array& y) { return y < x; }
     friend constexpr bool operator<=(const array& x, const array& y) { return (x < y) or (x == y); }

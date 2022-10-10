@@ -26,7 +26,6 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
-
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \

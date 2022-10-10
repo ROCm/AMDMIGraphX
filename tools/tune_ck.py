@@ -38,6 +38,8 @@ def benchmark_one(config, tuning):
             s = line.strip()
             if not s:
                 continue
+            if not ',' in s:
+                continue
             fields = s.split(',')
             dtime = fields[-1].strip()
             print(dtime)

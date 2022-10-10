@@ -17,6 +17,7 @@ def tmp_file(dump=None):
 def pretty_print(obj):
     print(json.dumps(obj, indent=2))
 
+
 def run_driver(b):
     print(b)
     with tmp_file(lambda tf: json.dump(b, tf)) as tf:
@@ -31,12 +32,15 @@ def run_driver(b):
                 continue
             yield s.split(']: ')[1].strip()
 
+
 def convert_to_float(s):
     return s[:-2]
+
 
 def get_device_time(s):
     fields = s.split(',')
     return convert_to_float(fields[-1].strip())
+
 
 def benchmark_ck(config, tuning):
     b = {
@@ -69,6 +73,7 @@ def parse_log(f):
         line = line[len('ck_gemm:'):].strip()
         config = json.loads(line)
         yield config
+
 
 def benchmark_log(f):
     result = []

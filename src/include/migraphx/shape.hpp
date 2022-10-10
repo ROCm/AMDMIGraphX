@@ -115,6 +115,12 @@ struct shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
+    // Construct a dynamic shape from three sets of lengths (of the same rank)
+    shape(type_t t,
+          std::vector<std::size_t> mins,
+          std::vector<std::size_t> maxes,
+          std::vector<std::size_t> opts);
+
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
     {

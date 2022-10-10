@@ -71,6 +71,19 @@ struct shape_impl
     {
     }
 
+    shape_impl(shape::type_t t,
+               std::vector<std::size_t> mins,
+               std::vector<std::size_t> maxes,
+               std::vector<std::size_t> opts)
+        : m_type(t)
+    {
+        assert(mins.size() == maxes.size() and maxes.size() == opts.size());
+        for(size_t i = 0; i < mins.size(); ++i)
+        {
+            m_dyn_dims.push_back(shape::dynamic_dimension{mins[i], maxes[i], opts[i]});
+        }
+    }
+
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
 
     shape::type_t m_type;

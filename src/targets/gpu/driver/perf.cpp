@@ -64,15 +64,18 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
         (void)i;
         host_time += time<milliseconds>(run);
     }
-    // Measure device time
-    gctx.enable_perf_measurement();
-    run();
+    // Measure device time only for code_object ops which support it
     double device_time = 0.0;
-    for(auto i : range(n))
+    if (op.name() == "gpu::code_object")
     {
-        (void)i;
+        gctx.enable_perf_measurement();
         run();
-        device_time += gctx.get_elapsed_ms();
+        for(auto i : range(n))
+        {
+            (void)i;
+            run();
+            device_time += gctx.get_elapsed_ms();
+        }
     }
     return std::make_pair(host_time / n, device_time / n);
 }

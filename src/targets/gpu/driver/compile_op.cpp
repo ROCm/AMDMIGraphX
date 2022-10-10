@@ -36,7 +36,7 @@ struct compile_op : action<compile_op>
     static void apply(const parser& p, const value& v)
     {
         context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
+        auto inputs = p.get_inputs(v);
         auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
         auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << host_time << "ms";

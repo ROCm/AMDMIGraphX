@@ -58,7 +58,7 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
     };
     run();
     // Measure host time
-    double host_time   = 0.0;
+    double host_time = 0.0;
     for(auto i : range(n))
     {
         (void)i;

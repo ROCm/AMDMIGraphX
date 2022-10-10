@@ -32,10 +32,9 @@
 namespace migraphx {
 
 template <class T, class U, class V, class W, class X, class Y>
-__device__ void pad(const T& idx, const U& offsets, const V& bounds, const W& input, X& output, const Y& pad_val)
+__device__ void
+pad(const T& idx, const U& offsets, const V& bounds, const W& input, X& output, const Y& pad_val)
 {
-    // using type = typename decltype(output)::value_type;
-    // W device_val = pad_clamp<host_type<W>>(pad_val);
     auto output_shape = output.get_shape();
     idx.global_stride(output_shape.elements(), [&](auto i) {
         auto multi = output_shape.multi(i);
@@ -47,7 +46,7 @@ __device__ void pad(const T& idx, const U& offsets, const V& bounds, const W& in
                 output[multi] = pad_val;
                 return;
             }
-        }            
+        }
         output[multi] = input[multi - offsets];
     });
 }

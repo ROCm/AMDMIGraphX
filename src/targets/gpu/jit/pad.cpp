@@ -73,26 +73,26 @@ struct pad_compiler : compiler<pad_compiler>
         options.kernel_name    = "pad_kernel";
         options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
 
-        auto pad_val = v.get("value", 0.f);
+        auto pad_val        = v.get("value", 0.f);
         auto pad_val_string = to_string(pad_val);
         if(float_equal(pad_val, std::numeric_limits<float>::lowest()))
             pad_val_string = "lowest{}";
         if(float_equal(pad_val, std::numeric_limits<float>::max()))
             pad_val_string = "highest{}";
-        
-        auto padding = v.at("pads").to_vector<int64_t>();
+
+        auto padding    = v.at("pads").to_vector<int64_t>();
         auto input_lens = inputs.front().lens();
         std::vector<size_t> offsets(input_lens.size());
         std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
 
         std::vector<size_t> bounds(input_lens.begin(), input_lens.end());
-        std::transform(bounds.begin(), bounds.end(), offsets.begin(), bounds.begin(), std::plus<size_t>());
+        std::transform(
+            bounds.begin(), bounds.end(), offsets.begin(), bounds.begin(), std::plus<size_t>());
 
-        auto src =
-            interpolate_string(pointwise_kernel,
-                               {{"pad_val", to_string(pad_val_string)},
-                                {"offsets", to_string_range(offsets.begin(), offsets.end())},
-                                {"bounds", to_string_range(bounds.begin(), bounds.end())}});
+        auto src = interpolate_string(pointwise_kernel,
+                                      {{"pad_val", to_string(pad_val_string)},
+                                       {"offsets", to_string_range(offsets.begin(), offsets.end())},
+                                       {"bounds", to_string_range(bounds.begin(), bounds.end())}});
         return compile_hip_code_object(src, options);
     }
 

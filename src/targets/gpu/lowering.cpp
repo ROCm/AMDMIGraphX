@@ -26,6 +26,8 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
@@ -169,7 +171,8 @@ struct miopen_apply
         init();
         for(auto it = mod->begin(); it != mod->end(); it++)
         {
-            auto s = it->get_shape();
+            auto s     = it->get_shape();
+            auto attrs = it->get_operator().attributes();
             if(apply_map.count(it->name()) > 0)
             {
                 check_shape(s, apply_map.at(it->name())(it));
@@ -178,9 +181,35 @@ struct miopen_apply
             {
                 check_shape(s, insert_precompile_op(it));
             }
+            else if(attrs.contains("target"))
+            {
+                check_shape(s, insert_custom_op(it, attrs));
+            }
         }
-
         copy_params();
+    }
+
+    instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const
+    {
+        const auto& custom_op = ins->get_operator();
+        if(attrs.at("target") == "cpu")
+        {
+            auto s = ins->get_shape();
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            auto output = inputs.back();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, custom_op, cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        }
+        return ins;
     }
 
     instruction_ref insert_precompile_op(instruction_ref ins) const

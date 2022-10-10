@@ -96,7 +96,7 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
                 kdims, values["dilation"].size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
 
-        // TODO: nothing is done with this?
+        // TODO: auto padding needs to be implemented for this parser and operator
         if(contains(info.attributes, "auto_pad"))
         {
             auto s = info.attributes["auto_pad"].s();

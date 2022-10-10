@@ -52,7 +52,7 @@ struct parser
     shape parse_shape(const value& v) const;
 
     std::vector<shape> parse_shapes(const value& v) const;
-    
+
     std::vector<shape> get_inputs(const value& v) const;
 
     void load_settings(const value& v);

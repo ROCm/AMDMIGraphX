@@ -218,10 +218,12 @@ struct array
     {
         for(index_int i = 0; i < N; i++)
         {
-            if(not(x[i] < y[i]))
+            if(x[i] < y[i])
+                return true;
+            if(y[i] < x[i])
                 return false;
         }
-        return true;
+        return false;
     }
     friend constexpr bool operator>(const array& x, const array& y) { return y < x; }
     friend constexpr bool operator<=(const array& x, const array& y) { return (x < y) or (x == y); }

@@ -66,7 +66,7 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
     }
     // Measure device time only for code_object ops which support it
     double device_time = 0.0;
-    if (op.name() == "gpu::code_object")
+    if(op.name() == "gpu::code_object")
     {
         gctx.enable_perf_measurement();
         run();

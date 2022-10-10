@@ -511,14 +511,7 @@ void print_value(std::ostream& os, const std::vector<value>& x)
     os << "}";
 }
 
-void print_value(std::ostream& os, const value::binary& x)
-{
-    // Convert binary to integers
-    std::vector<int> v(x.begin(), x.end());
-    os << "{";
-    os << to_string_range(v);
-    os << "}";
-}
+void print_value(std::ostream& os, const value::binary& x) { os << x; }
 
 std::ostream& operator<<(std::ostream& os, const value& d)
 {

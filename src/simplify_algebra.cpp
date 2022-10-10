@@ -435,6 +435,24 @@ struct find_concat_op
     }
 };
 
+void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
+{
+    auto start = range(m.begin(), pos);
+    for(auto ins : iterator_for(start))
+    {
+        auto it = std::find(inss.begin(), inss.end(), ins);
+        if(it != inss.end())
+            inss.erase(it);
+    }
+    for(auto ins : inss)
+    {
+        if(not m.has_instruction(ins))
+            continue;
+        move_instructions_back(m, pos, ins->inputs());
+        m.move_instruction(ins, pos);
+    }
+}
+
 std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
@@ -610,8 +628,7 @@ struct find_splits
                    }))
                     return;
 
-                for(auto data : data_args)
-                    m.move_instructions(data, ins);
+                move_instructions_back(m, ins, data_args);
 
                 auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
                 assert(not slice_op.axes.empty());
@@ -864,8 +881,7 @@ struct find_conv_dot_horiz_fusion
                 concat_axis = axis;
             }
 
-            for(auto arg : args)
-                m.move_instructions(arg, input);
+            move_instructions_back(m, input, args);
             // TODO: Check if axes match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
@@ -914,6 +930,73 @@ struct find_div_const
         auto args = ins->inputs();
 
         m.replace_instruction(ins, make_op("mul"), args.front(), recip);
+    }
+};
+
+struct find_unit_ops
+{
+    auto matcher() const
+    {
+        auto mul_1 = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(1.0f), match::any().bind("x")));
+        auto div_1 =
+            match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
+        auto add_0 = match::name("add")(
+            match::either_arg(0, 1)(match::has_value(0.0f, 1e-12), match::any().bind("x")));
+        auto sub_0 =
+            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f)));
+        return match::any_of(mul_1, div_1, add_0, sub_0);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto c_in = r.instructions["x"];
+
+        m.replace_instruction(ins, c_in);
+    }
+};
+
+struct find_neg_unit_ops
+{
+    auto matcher() const
+    {
+        auto mul_neg_1 = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
+        auto div_neg_1 =
+            match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f)));
+        auto sub_0 =
+            match::name("sub")(match::args(match::has_value(0.0f), match::any().bind("x")));
+        return match::any_of(mul_neg_1, div_neg_1, sub_0);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto c_in = r.instructions["x"];
+
+        auto neg = m.add_instruction(make_op("neg"), c_in);
+        m.replace_instruction(ins, neg);
+    }
+};
+
+struct find_zero_ops
+{
+    auto matcher() const
+    {
+        auto mul_zero = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(0.0f).bind("x"), match::any()));
+        auto div_zero =
+            match::name("div")(match::args(match::has_value(0.0f).bind("x"), match::any()));
+        return match::any_of(mul_zero, div_zero);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto zero_ins = r.instructions["x"];
+
+        m.replace_instruction(ins, zero_ins);
     }
 };
 
@@ -1133,6 +1216,9 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_add{},
+                            find_unit_ops{},
+                            find_neg_unit_ops{},
+                            find_zero_ops{},
                             find_dot_add{},
                             find_div_const{},
                             find_sub_const{},

@@ -21,29 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
-#define MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP
-
-#include <migraphx/kernels/reduce.hpp>
-#include <migraphx/kernels/ops.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/cpu/pointwise.hpp>
+#include <migraphx/op/mod.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace cpu {
 
-template <index_int Axis, class Input, class Output>
-__device__ void softmax(Input input, Output output)
-{
-    reduce::block::run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
-#ifdef MIGRAPHX_USE_FAST_SOFTMAX
-        const auto c = vec_at(r.slice(input)[0], 0);
-#else
-        const auto c = r.reduce(op::max{}, lowest{}, op::id{})(input);
-#endif
-        auto batch_sum = r.reduce(op::sum{}, 0, [&](auto x) {
-            return migraphx::convert<float>(migraphx::exp(x - c));
-        })(input);
-        r.inner([&](auto& y, auto x) { y = migraphx::exp(x - c) / batch_sum; })(output, input);
-    });
-}
+template struct cpu_binary<op::mod>;
 
+} // namespace cpu
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_SOFTMAX_HPP

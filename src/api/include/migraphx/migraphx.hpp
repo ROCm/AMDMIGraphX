@@ -25,10 +25,12 @@
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
 #include "migraphx.h"
+#include <algorithm>
 #include <cstring>
 #include <initializer_list>
 #include <migraphx/migraphx.h>
 #include <memory>
+#include <numeric>
 #include <exception>
 #include <vector>
 #include <cassert>
@@ -340,6 +342,11 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
         this->set_handle(p, std::move(lifetime));                                                  \
     }
 
+template <size_t N>
+struct out_params
+{
+};
+
 template <class Base>
 struct interface_base : Base
 {
@@ -391,7 +398,22 @@ struct interface_base : Base
     }
 
     template <class T, class Setter, class F>
-    void set_fp(Setter setter, F pf)
+    void set_fp(Setter setter, F pf, out_params<2>)
+    {
+        static F f = pf;
+        (void)f; // avoid warning on gcc
+        call(setter,
+             this->get_handle_ptr(),
+             [](auto out1, auto out2, void* obj, char* ex_msg, size_t ex_msg_size, auto... xs)
+                 -> migraphx_status {
+                 return try_([&] { call_cast_arg<T>(rank<2>{}, f, out1, out2, obj, xs...); },
+                             ex_msg,
+                             ex_msg_size);
+             });
+    }
+
+    template <class T, class Setter, class F>
+    void set_fp(Setter setter, F pf, out_params<1>)
     {
         static F f = pf;
         (void)f; // avoid warning on gcc
@@ -405,11 +427,27 @@ struct interface_base : Base
     }
 
     template <class T, class Setter, class F>
-    void set_auto_fp(Setter setter, F f)
+    void set_fp(Setter setter, F pf, out_params<0>)
     {
-        return set_fp<T>(setter, [=](T& obj, auto out, auto... xs) {
-            auto_invoke(f, out, obj, auto_convert_param(rank<2>{}, xs)...);
-        });
+        static F f = pf;
+        (void)f; // avoid warning on gcc
+        call(setter,
+             this->get_handle_ptr(),
+             [](void* obj, char* ex_msg, size_t ex_msg_size, auto... xs) -> migraphx_status {
+                 return try_(
+                     [&] { call_cast_arg<T>(rank<0>{}, f, obj, xs...); }, ex_msg, ex_msg_size);
+             });
+    }
+
+    template <class T, class Setter, class F, class Out>
+    void set_auto_fp(Setter setter, F f, Out nums)
+    {
+        return set_fp<T>(
+            setter,
+            [=](T& obj, auto out1, auto out2, auto... xs) {
+                auto_invoke(f, out1, out2, obj, auto_convert_param(rank<2>{}, xs)...);
+            },
+            nums);
     }
 
     struct no_out_arg
@@ -419,7 +457,7 @@ struct interface_base : Base
     template <class T, class F, class X, class... Xs, class = std::enable_if_t<std::is_void<X>{}>>
     static void call_cast_arg(rank<0>, F f, X* obj, Xs... xs)
     {
-        f(reinterpret_cast<T*>(obj), no_out_arg{}, xs...);
+        f(reinterpret_cast<T*>(obj), no_out_arg{}, no_out_arg{}, xs...);
     }
 
     template <class T,
@@ -430,17 +468,35 @@ struct interface_base : Base
               class = std::enable_if_t<std::is_void<X>{}>>
     static void call_cast_arg(rank<1>, F f, R result, X* obj, Xs... xs)
     {
-        f(*reinterpret_cast<T*>(obj), result, xs...);
+        f(*reinterpret_cast<T*>(obj), result, no_out_arg{}, xs...);
     }
 
-    template <class F, class T, class... Ts>
-    void auto_invoke(F f, T* out, Ts&&... xs)
+    template <class T,
+              class F,
+              class R1,
+              class R2,
+              class X,
+              class... Xs,
+              class = std::enable_if_t<std::is_void<X>{}>>
+    static void call_cast_arg(rank<2>, F f, R1 result1, R2 result2, X* obj, Xs... xs)
     {
-        auto_assign(rank<2>{}, out, f(std::forward<Ts>(xs)...));
+        f(*reinterpret_cast<T*>(obj), result1, result2, xs...);
+    }
+
+    template <class F, class T1, class T2, class... Ts>
+    void auto_invoke(F f, T1* out1, T2* out2, Ts&&... xs)
+    {
+        auto_assign(rank<2>{}, out1, out2, f(std::forward<Ts>(xs)...));
     }
 
     template <class F, class T, class... Ts>
-    void auto_invoke(F f, no_out_arg, Ts&&... xs)
+    void auto_invoke(F f, T* out, no_out_arg, Ts&&... xs)
+    {
+        auto_assign(rank<1>{}, out, f(std::forward<Ts>(xs)...));
+    }
+
+    template <class F, class T, class... Ts>
+    void auto_invoke(F f, no_out_arg, no_out_arg, Ts&&... xs)
     {
         f(std::forward<Ts>(xs)...);
     }
@@ -469,7 +525,7 @@ struct interface_base : Base
     template <class T, class U>
     void auto_assign(rank<0>, T* out, U x)
     {
-        return *out = x;
+        *out = x;
     }
 
     template <class T, class U>
@@ -477,12 +533,21 @@ struct interface_base : Base
     {
         x.assign_to_handle(out);
     }
+
+    template <class T1, class T2, class U, class = std::enable_if_t<std::is_same<T2, size_t>{}>>
+    auto auto_assign(rank<2>, T1* out_ptr, T2* out_size, U x)
+    {
+        *out_size = std::min(*out_size, x.size());
+        std::copy_n(x.begin(), *out_size, out_ptr);
+    }
 };
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_INTERFACE_LIFT(T, prefix, name)          \
-    this->set_auto_fp<T>(&migraphx_##prefix##_set_##name, \
-                         [](T& x, auto... xs) { return x.name(xs...); })
+#define MIGRAPHX_INTERFACE_LIFT(n_out, T, prefix, name) \
+    this->set_auto_fp<T>(                               \
+        &migraphx_##prefix##_set_##name,                \
+        [](T& x, auto... xs) { return x.name(xs...); }, \
+        out_params<n_out>{})
 
 template <class Base, class T>
 using require_interface =
@@ -567,6 +632,13 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
+    size_t elements() const
+    {
+        size_t pout;
+        call(&migraphx_shape_elements, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
     size_t bytes() const
     {
         size_t pout;
@@ -578,6 +650,14 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     {
         bool result = false;
         call(&migraphx_shape_standard, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    // map element index to space index
+    size_t index(size_t i) const
+    {
+        size_t result;
+        call(&migraphx_shape_index, &result, this->get_handle_ptr(), i);
         return result;
     }
 
@@ -628,9 +708,15 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     template <typename T>
     std::vector<T> as_vector() const
     {
-        size_t vector_len = this->get_shape().bytes() / sizeof(T);
-        T* buffer_ptr     = reinterpret_cast<T*>(this->data());
-        return {buffer_ptr, buffer_ptr + vector_len};
+        auto ss           = this->get_shape();
+        auto num_elements = ss.elements();
+        std::vector<T> res(num_elements);
+        T* buffer_ptr = reinterpret_cast<T*>(this->data());
+        for(size_t i = 0; i < num_elements; i++)
+        {
+            res[i] = buffer_ptr[ss.index(i)];
+        }
+        return res;
     }
 
     /// Generate an argument using random data
@@ -979,6 +1065,20 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return arguments(pout, own{});
     }
 
+    template <class Stream>
+    /// Overloaded to allow for execution_environment input
+    arguments run_async(const program_parameters& pparams, Stream* s) const
+    {
+        migraphx_arguments_t pout;
+        call(&migraphx_program_run_async,
+             &pout,
+             this->get_handle_ptr(),
+             pparams.get_handle_ptr(),
+             s,
+             get_type_name<Stream>().c_str());
+        return arguments(pout, own{});
+    }
+
     void print() const { call(&migraphx_program_print, this->get_handle_ptr()); }
 
     program sort()
@@ -1255,7 +1355,10 @@ struct experimental_custom_op_base
     virtual std::string name() const                                            = 0;
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
     virtual shape compute_shape(shapes inputs) const                            = 0;
-    virtual ~experimental_custom_op_base()                                      = default;
+    virtual std::vector<size_t> output_alias(shapes) const { return {}; }
+    // TODO: Return target string instead of bool
+    virtual bool runs_on_offload_target() const = 0;
+    virtual ~experimental_custom_op_base()      = default;
 };
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
@@ -1267,8 +1370,10 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
                              obj,
                              get_type_name(obj).c_str(),
                              obj.name().c_str());
-        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
-        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute);
+        MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, compute_shape);
+        MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, compute);
+        MIGRAPHX_INTERFACE_LIFT(2, T, experimental_custom_op, output_alias);
+        MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, runs_on_offload_target);
     }
 
     void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }

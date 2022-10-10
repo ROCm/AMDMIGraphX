@@ -37,6 +37,7 @@
 #include <migraphx/assignment_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/execution_environment.hpp>
 #include <algorithm>
 #include <iostream>
 
@@ -76,8 +77,8 @@ struct program
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
-    std::vector<argument> eval(parameter_map params) const;
-
+    std::vector<argument> eval(parameter_map params,
+                               execution_environment exec_env = execution_environment{}) const;
     std::size_t size() const;
 
     std::vector<shape> get_output_shapes() const;

@@ -56,14 +56,22 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
         op.compute(ctx, output, args);
         ctx.finish();
     };
-    gctx.enable_perf_measurement();
     run();
+    // Measure host time
     double host_time   = 0.0;
-    double device_time = 0.0;
     for(auto i : range(n))
     {
         (void)i;
         host_time += time<milliseconds>(run);
+    }
+    // Measure device time
+    gctx.enable_perf_measurement();
+    run();
+    double device_time = 0.0;
+    for(auto i : range(n))
+    {
+        (void)i;
+        run();
         device_time += gctx.get_elapsed_ms();
     }
     return std::make_pair(host_time / n, device_time / n);

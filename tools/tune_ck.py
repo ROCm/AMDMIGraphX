@@ -17,8 +17,28 @@ def tmp_file(dump=None):
 def pretty_print(obj):
     print(json.dumps(obj, indent=2))
 
+def run_driver(b):
+    print(b)
+    with tmp_file(lambda tf: json.dump(b, tf)) as tf:
+        cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
+                            capture_output=True,
+                            shell=True)
+        for line in cp.stdout.decode().split("\n"):
+            s = line.strip()
+            if not s:
+                continue
+            if not ']: ' in s:
+                continue
+            yield s.split(']: ')[1].strip()
 
-def benchmark_one(config, tuning):
+def convert_to_float(s):
+    return s[:-2]
+
+def get_device_time(s):
+    fields = s.split(',')
+    return convert_to_float(fields[-1].strip())
+
+def benchmark_ck(config, tuning):
     b = {
         'settings': {
             'iterations': 100
@@ -29,37 +49,30 @@ def benchmark_one(config, tuning):
             'inputs': config
         }
     }
-    print(b)
-    with tmp_file(lambda tf: json.dump(b, tf)) as tf:
-        cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
-                            capture_output=True,
-                            shell=True)
-        for line in cp.stdout.decode().split("\n"):
-            s = line.strip()
-            if not s:
-                continue
-            if not ',' in s:
-                continue
-            fields = s.split(',')
-            dtime = fields[-1].strip()
-            print(dtime)
-            return float(dtime[:-2])
+    for line in run_driver(b):
+        dtime = get_device_time(line)
+        print(dtime)
+        return dtime
     return sys.float_info.max
 
 
 def benchmark(config, size):
-    times = [benchmark_one(config, i) for i in range(size)]
+    times = [benchmark_ck(config, i) for i in range(size)]
     return times.index(min(times))
 
 
-def benchmark_log(f):
-    result = []
+def parse_log(f):
     for line in open(f).readlines():
         line = line.strip()
         if not line.startswith('ck_gemm:'):
             continue
         line = line[len('ck_gemm:'):].strip()
         config = json.loads(line)
+        yield config
+
+def benchmark_log(f):
+    result = []
+    for config in parse_log(f):
         tuned = benchmark(config, 13)
         result.append([config, tuned])
     return result

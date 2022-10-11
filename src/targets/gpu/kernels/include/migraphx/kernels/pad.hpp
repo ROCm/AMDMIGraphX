@@ -31,8 +31,11 @@
 namespace migraphx {
 
 template <class Offsets, class Input, class Output, class PadVal>
-__device__ void
-pad(const index& idx, const Offsets& offsets, const Input& input, Output& output, const PadVal& pad_val)
+__device__ void pad(const index& idx,
+                    const Offsets& offsets,
+                    const Input& input,
+                    Output& output,
+                    const PadVal& pad_val)
 {
     auto output_shape = output.get_shape();
     idx.global_stride(output_shape.elements(), [&](auto i) {
@@ -40,7 +43,7 @@ pad(const index& idx, const Offsets& offsets, const Input& input, Output& output
         // offsets accounts for padding at the beginning
         // input_bounds + offsets accounts for padding at the end
         auto input_bounds = input.get_shape().lens;
-        if (multi < offsets or multi >= input_bounds + offsets)
+        if(multi < offsets or multi >= input_bounds + offsets)
             output[multi] = pad_val;
         else
             output[multi] = input[multi - offsets];

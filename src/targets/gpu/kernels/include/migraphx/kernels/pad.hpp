@@ -24,30 +24,26 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_PAD_HPP
 #define MIGRAPHX_GUARD_KERNELS_PAD_HPP
 
-#include <migraphx/kernels/clamp.hpp>
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/print.hpp>
 
 namespace migraphx {
 
-template <class T, class U, class V, class W, class X, class Y>
+template <class Offsets, class Input, class Output, class PadVal>
 __device__ void
-pad(const T& idx, const U& offsets, const V& bounds, const W& input, X& output, const Y& pad_val)
+pad(const index& idx, const Offsets& offsets, const Input& input, Output& output, const PadVal& pad_val)
 {
     auto output_shape = output.get_shape();
     idx.global_stride(output_shape.elements(), [&](auto i) {
         auto multi = output_shape.multi(i);
-
-        for(std::size_t j = 0; j < offsets.size(); j++)
-        {
-            if(multi[j] < offsets[j] or multi[j] >= bounds[j])
-            {
-                output[multi] = pad_val;
-                return;
-            }
-        }
-        output[multi] = input[multi - offsets];
+        // offsets accounts for padding at the beginning
+        // input_bounds + offsets accounts for padding at the end
+        auto input_bounds = input.get_shape().lens;
+        if (multi < offsets or multi >= input_bounds + offsets)
+            output[multi] = pad_val;
+        else
+            output[multi] = input[multi - offsets];
     });
 }
 

@@ -47,10 +47,9 @@ extern "C" {
 __global__ void pad_kernel(void* input_p, void* output_p) 
 {
     auto offsets = index_ints<${offsets}>{};
-    auto bounds  = index_ints<${bounds}>{};
     auto idx     = make_index();
     make_tensors()(input_p, output_p)([&](auto input, auto output) {
-        pad(idx, offsets, bounds, input, output, ${pad_val});
+        pad(idx, offsets, input, output, ${pad_val});
     });
 }
     
@@ -85,14 +84,14 @@ struct pad_compiler : compiler<pad_compiler>
         std::vector<size_t> offsets(input_lens.size());
         std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
 
-        std::vector<size_t> bounds(input_lens.begin(), input_lens.end());
-        std::transform(
-            bounds.begin(), bounds.end(), offsets.begin(), bounds.begin(), std::plus<size_t>());
+        // std::vector<size_t> bounds(input_lens.begin(), input_lens.end());
+        // std::transform(
+        //     bounds.begin(), bounds.end(), offsets.begin(), bounds.begin(), std::plus<size_t>());
 
         auto src = interpolate_string(pointwise_kernel,
                                       {{"pad_val", to_string(pad_val_string)},
-                                       {"offsets", to_string_range(offsets.begin(), offsets.end())},
-                                       {"bounds", to_string_range(bounds.begin(), bounds.end())}});
+                                       {"offsets", to_string_range(offsets.begin(), offsets.end())}
+                                      });
         return compile_hip_code_object(src, options);
     }
 

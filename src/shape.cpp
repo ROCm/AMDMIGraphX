@@ -237,6 +237,14 @@ shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
 {
 }
 
+shape::shape(type_t t,
+             std::vector<std::size_t> mins,
+             std::vector<std::size_t> maxes,
+             std::vector<std::size_t> opts)
+    : impl(std::make_shared<shape_impl>(t, std::move(mins), std::move(maxes), std::move(opts)))
+{
+}
+
 shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
 shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}

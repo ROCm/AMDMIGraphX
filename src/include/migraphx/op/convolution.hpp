@@ -176,7 +176,11 @@ struct convolution
             auto min_spatial_dims = calc_conv_lens(x_shape.min_lens(), w_shape.max_lens());
             auto max_spatial_dims = calc_conv_lens(x_shape.max_lens(), w_shape.min_lens());
             auto opt_spatial_dims = calc_conv_lens(x_shape.opt_lens(), w_shape.opt_lens());
-            return shape{x_shape.type(), min_spatial_dims, max_spatial_dims, opt_spatial_dims};
+            for(size_t i = 0; i < num_spatial_dims; ++i)
+            {
+                output_dyn_dims.push_back(shape::dynamic_dimension{
+                    min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
+            }
         }
         return shape{x_shape.type(), output_dyn_dims};
     }

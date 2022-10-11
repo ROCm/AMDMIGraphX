@@ -135,6 +135,7 @@ instruction_ref insert_common_op(module& m,
                 a_input = m.insert_instruction(
                     ins, make_op("convert", {{"target_type", c_type}}), a_input);
             }
+            return a_input;
         });
     }
     else
@@ -151,6 +152,7 @@ instruction_ref insert_common_op(module& m,
                 input = m.insert_instruction(
                     ins, make_op("convert", {{"target_type", common.type()}}), input);
             }
+            return input;
         });
     }
     return m.insert_instruction(ins, op, inputs);

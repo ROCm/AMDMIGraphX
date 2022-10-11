@@ -225,7 +225,7 @@ struct array
     }
     friend constexpr bool operator>(const array& x, const array& y) { return y < x; }
     friend constexpr bool operator<=(const array& x, const array& y) { return (x < y) or (x == y); }
-    friend constexpr bool operator>=(const array& x, const array& y) { return not (x < y); }
+    friend constexpr bool operator>=(const array& x, const array& y) { return not(x < y); }
 
     constexpr array carry(array result) const
     {

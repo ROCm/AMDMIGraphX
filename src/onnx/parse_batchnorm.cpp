@@ -65,6 +65,18 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             auto r0   = info.add_broadcastable_binary_op("mul", div0, args[1]);
             return info.add_broadcastable_binary_op("add", r0, args[2]);
         }
+        else if(x_lens.size() == 2)
+        {
+            // can get a rank 2 tensor when trailing 1 dims are removed, ex: 1x1024x1x1 - > 1x1024
+            auto rt      = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
+            auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto numer   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
+            auto var_eps = info.add_broadcastable_binary_op("add", args[4], eps);
+            auto denom   = info.add_broadcastable_binary_op("pow", var_eps, rt);
+            auto div0    = info.add_broadcastable_binary_op("div", numer, denom);
+            auto r0      = info.add_broadcastable_binary_op("mul", div0, args[1]);
+            return info.add_broadcastable_binary_op("add", r0, args[2]);
+        }
         else if(x_lens.size() > 2)
         {
             // unsqueeze tensors of shape (C) to broadcast correctly
@@ -89,7 +101,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         }
         else
         {
-            // num dims either 0 or 2
+            // rank == 0
             MIGRAPHX_THROW("PARSE_BATCHNORM: rank " + std::to_string(x_lens.size()) +
                            " input tensor, unhandled data format");
         }

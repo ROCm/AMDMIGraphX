@@ -54,18 +54,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             MIGRAPHX_THROW("PARSE_BATCHNORM: argument scale, bias, mean, or var rank != 1");
         }
 
-        if(x_lens.size() == 1)
-        {
-            auto rt   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
-            auto eps  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
-            auto n0   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
-            auto d0   = info.add_broadcastable_binary_op("add", args[4], eps);
-            auto d1   = info.add_broadcastable_binary_op("pow", d0, rt);
-            auto div0 = info.add_broadcastable_binary_op("div", n0, d1);
-            auto r0   = info.add_broadcastable_binary_op("mul", div0, args[1]);
-            return info.add_broadcastable_binary_op("add", r0, args[2]);
-        }
-        else if(x_lens.size() == 2)
+        if(x_lens.size() == 1 or x_lens.size() == 2)
         {
             // can get a rank 2 tensor when trailing 1 dims are removed, ex: 1x1024x1x1 - > 1x1024
             auto rt      = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});

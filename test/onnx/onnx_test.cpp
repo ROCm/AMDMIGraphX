@@ -5222,17 +5222,12 @@ TEST_CASE(sinh_dynamic_test)
     std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
     dyn_dims.push_back(dd);
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dyn_dims});
-    mm->add_instruction(migraphx::make_op("sinh"), input);
+    auto ret   = mm->add_instruction(migraphx::make_op("sinh"), input);
+    mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = dd;
     auto prog                     = parse_onnx("sinh_dynamic_test.onnx", options);
-    auto* mm_onnx                 = prog.get_main_module();
-    auto last_ins                 = std::prev(mm_onnx->end());
-    if(last_ins->name() == "@return")
-    {
-        mm->remove_instruction(last_ins);
-    }
 
     EXPECT(p == prog);
 }

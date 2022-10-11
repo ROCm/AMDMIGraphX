@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/common.hpp>
 
 struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
 {
@@ -52,24 +53,12 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
         auto usq_var =
             m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), variance);
 
-        auto mb_mean = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_mean);
-        auto numer  = m.add_instruction(migraphx::make_op("sub"), x, mb_mean);
-        auto mb_eps = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {c_len, 1, 1}}}), eps);
-        auto var_eps = m.add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
-        auto mb_rt   = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {c_len, 1, 1}}}), rt);
-        auto denom = m.add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
-        auto mb_denom =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), denom);
-        auto div0     = m.add_instruction(migraphx::make_op("div"), numer, mb_denom);
-        auto mb_scale = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_scale);
-        auto r0      = m.add_instruction(migraphx::make_op("mul"), div0, mb_scale);
-        auto mb_bias = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bn_lens}}), usq_bias);
-        return m.add_instruction(migraphx::make_op("add"), r0, mb_bias);
+        auto numer   = add_common_op(m, migraphx::make_op("sub"), {x, usq_mean});
+        auto var_eps = add_common_op(m, migraphx::make_op("add"), {usq_var, eps});
+        auto denom   = add_common_op(m, migraphx::make_op("pow"), {var_eps, rt});
+        auto div0    = add_common_op(m, migraphx::make_op("div"), {numer, denom});
+        auto r0      = add_common_op(m, migraphx::make_op("mul"), {div0, usq_scale});
+        return add_common_op(m, migraphx::make_op("add"), {r0, usq_bias});
     }
 
     migraphx::program create_program() const

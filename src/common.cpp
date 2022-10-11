@@ -31,22 +31,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-auto compute_broadcasting = [](std::vector<std::size_t> s0, std::vector<std::size_t> s1) {
-    std::vector<std::size_t> out_lens(s1);
-    auto offset = s1.size() - s0.size();
-    std::transform(
-        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
-            if(a != b and a != 1 and b != 1)
-            {
-                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + to_string_range(s0) + "} and {" +
-                               to_string_range(s1) + "} mismatch!");
-            }
-            return std::max(a, b);
-        });
-
-    return out_lens;
-};
-
 // Example:
 // s0 = (3,2,4,5) and s1 = (2,1,1)
 //
@@ -66,22 +50,26 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
         return s0;
     if(s0.size() > s1.size())
         s0.swap(s1);
-    return compute_broadcasting(s0, s1);
+    std::vector<std::size_t> out_lens(s1);
+    auto offset = s1.size() - s0.size();
+    std::transform(
+        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
+            if(a != b and a != 1 and b != 1)
+            {
+                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
+                               "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
+            }
+            return std::max(a, b);
+        });
+    return out_lens;
 }
 
-std::vector<std::size_t> broadcast_s0s1_lens(std::vector<std::size_t> s0,
-                                             std::vector<std::size_t> s1)
-{
-    if(s0 == s1)
-        return s0;
-    if(s0.size() > s1.size())
-        MIGRAPHX_THROW("BROADCAST_SHAPE_LENS: s0 size > s1 size and swap not allowed");
-    return compute_broadcasting(s0, s1);
-}
-
+// Compute the common (broadcasted) dimensions of a list of fixed shapes
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
 {
     assert(not shapes.empty());
+    assert(
+        std::none_of(shapes.cbegin(), shapes.cend(), [](auto shape) { return shape.dynamic(); }));
     return transform_accumulate(shapes.begin() + 1,
                                 shapes.end(),
                                 shapes.front().lens(),
@@ -127,21 +115,44 @@ instruction_ref insert_common_op(module& m,
                                  const operation& op,
                                  std::vector<instruction_ref> inputs)
 {
-    // TODO update this to handle dynamic shapes
-    auto common = common_shape(to_shapes(inputs));
-    std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-        if(input->get_shape().lens() != common.lens())
-        {
-            input = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_lens", common.lens()}}), input);
-        }
-        if(input->get_shape().type() != common.type())
-        {
-            input = m.insert_instruction(
-                ins, make_op("convert", {{"target_type", common.type()}}), input);
-        }
-        return input;
-    });
+    if(std::any_of(
+           inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().dynamic(); }))
+    {
+        auto c_type = compute_common_types(to_shapes(inputs));
+        // broadcast all inputs permutations
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto a_input) {
+            const auto& ori_input = a_input;
+            // multibroadcast this input between every other input
+            std::for_each(inputs.cbegin(), inputs.cend(), [&](auto b_input) {
+                if(b_input != ori_input)
+                {
+                    a_input =
+                        m.insert_instruction(ins, make_op("multibroadcast"), a_input, b_input);
+                }
+            });
+            if(a_input->get_shape().type() != c_type)
+            {
+                a_input = m.insert_instruction(
+                    ins, make_op("convert", {{"target_type", c_type}}), a_input);
+            }
+        });
+    }
+    else
+    {
+        auto common = common_shape(to_shapes(inputs));
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            if(input->get_shape().lens() != common.lens())
+            {
+                input = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", common.lens()}}), input);
+            }
+            if(input->get_shape().type() != common.type())
+            {
+                input = m.insert_instruction(
+                    ins, make_op("convert", {{"target_type", common.type()}}), input);
+            }
+        });
+    }
     return m.insert_instruction(ins, op, inputs);
 }
 

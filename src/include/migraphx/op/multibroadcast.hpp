@@ -34,6 +34,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Broadcast multiple dimensions between two tensors.
+ * Two versions of this operator: one input and two inputs.
+ * One input version uses output_lens attribute and broadcasts to it.
+ * Two inputs version broadcasts both inputs to the common shape at evaluation time.
+ */
 struct multibroadcast
 {
     std::vector<std::size_t> output_lens;
@@ -93,24 +99,17 @@ struct multibroadcast
         }
         else
         {
+            // two inputs
             auto s1 = inputs.at(1);
-            if(s0.max_lens().size() > s1.max_lens().size())
-            {
-                MIGRAPHX_THROW("MULTIBROADCAST: s0 rank should <= s1 rank");
-            }
             if(s0.dynamic() or s1.dynamic())
             {
-                auto bcast_max_lens = broadcast_s0s1_lens(s0.max_lens(), s1.max_lens());
-                auto bcast_min_lens = broadcast_s0s1_lens(s0.min_lens(), s1.min_lens());
-                auto bcast_opt_lens = broadcast_s0s1_lens(s0.opt_lens(), s1.opt_lens());
-
-                std::vector<shape::dynamic_dimension> output_dyn_dims = {};
-                for(size_t i = 0; i < bcast_max_lens.size(); ++i)
-                {
-                    output_dyn_dims.push_back(shape::dynamic_dimension{
-                        bcast_max_lens[i], bcast_min_lens[i], bcast_opt_lens[i]});
-                }
-                return {t, std::move(output_dyn_dims)};
+                auto bcast_min_lens = compute_broadcasted_lens(s0.min_lens(), s1.min_lens());
+                auto bcast_max_lens = compute_broadcasted_lens(s0.max_lens(), s1.max_lens());
+                auto bcast_opt_lens = compute_broadcasted_lens(s0.opt_lens(), s1.opt_lens());
+                return {t,
+                        std::move(bcast_min_lens),
+                        std::move(bcast_max_lens),
+                        std::move(bcast_opt_lens)};
             }
             else
             {

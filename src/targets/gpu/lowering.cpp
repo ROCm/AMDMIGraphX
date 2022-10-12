@@ -247,16 +247,17 @@ struct miopen_apply
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             operation conv = make_op("miopen_convolution", {{"op", to_value(ins->get_operator())}});
-            migraphx::context ctx= get_context();
-            size_t  ws_bytes = 0;
+            migraphx::context ctx         = get_context();
+            size_t ws_bytes               = 0;
             auto compile_conv_with_format = [&](bool format) {
-                conv = make_op("miopen_convolution", {{"op", to_value(ins->get_operator())}, {"int8_x4_format", format}});
-                auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
+                conv     = make_op("miopen_convolution",
+                               {{"op", to_value(ins->get_operator())}, {"int8_x4_format", format}});
+                auto ws  = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
                 ws_bytes = ws.get("workspace", 0);
             };
 
             try
-            {   // for the regular convolution and deconvolution, this try would always succeed
+            { // for the regular convolution and deconvolution, this try would always succeed
                 compile_conv_with_format(int8_x4_format);
             }
             catch(migraphx::exception&)

@@ -75,7 +75,7 @@ auto conv_compute_shape(rank<1>, const T& op, const std::vector<shape>& inputs)
 
 struct miopen_convolution
 {
-    operation op = op::identity{};
+    operation op                      = op::identity{};
     shared<convolution_descriptor> cd = nullptr;
     bool int8_x4_format               = false;
     miopenConvFwdAlgorithm_t algo{};
@@ -88,7 +88,7 @@ struct miopen_convolution
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack_join(pack(f(self.op,"op")),
+        return pack_join(pack(f(self.op, "op")),
                          pack(
 #ifdef MIGRAPHX_HAS_FIND_2_API
                              f(self.solution_object, "solution_object"),
@@ -159,23 +159,32 @@ struct miopen_convolution
 #endif
     }
 
-    inline void make_conv_descriptor() {
-        if(cd == nullptr) {
-            if(op.name() == "convolution") {
-                    cd = make_conv(any_cast<op::convolution>(op));
-                } else if(op.name() == "deconvolution") {
-                    cd = make_deconv(any_cast<op::deconvolution>(op));
-                } else if(op.name() == "quant_convolution") {
-                    cd = make_conv(any_cast<op::quant_convolution>(op));
-                } else {
-                    MIGRAPHX_THROW("MIOpen Convolution not supported for op: "  + op.name());
+    inline void make_conv_descriptor()
+    {
+        if(cd == nullptr)
+        {
+            if(op.name() == "convolution")
+            {
+                cd = make_conv(any_cast<op::convolution>(op));
+            }
+            else if(op.name() == "deconvolution")
+            {
+                cd = make_deconv(any_cast<op::deconvolution>(op));
+            }
+            else if(op.name() == "quant_convolution")
+            {
+                cd = make_conv(any_cast<op::quant_convolution>(op));
+            }
+            else
+            {
+                MIGRAPHX_THROW("MIOpen Convolution not supported for op: " + op.name());
             }
         }
     }
 
     value compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input)
     {
-        make_conv_descriptor();     
+        make_conv_descriptor();
         auto ws = find(any_cast<migraphx::gpu::context>(ctx), output, input);
         return {{"workspace", ws.bytes()}};
     }
@@ -315,7 +324,7 @@ struct miopen_convolution
 #else
         // Use immediate mode API
         {
-            make_conv_descriptor(); 
+            make_conv_descriptor();
             if(solution_id == 0)
             {
                 // Check that workspace hasn't changed
@@ -351,7 +360,7 @@ struct miopen_convolution
     {
         if(s.type() != shape::int8_type)
         {
-            return s; 
+            return s;
         }
 
         auto lens    = s.lens();

@@ -184,7 +184,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;
-    if(ins->name() != "miopen_convolution") 
+    if(ins->name() != "miopen_convolution")
         return false;
     auto miopen_conv_op = any_cast<miopen_convolution>(ins->get_operator());
     if(miopen_conv_op.op.name() != "convolution")
@@ -459,15 +459,15 @@ auto conv_bias(Ms... ms)
 template <class Op>
 void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
 {
-    auto conv_ins    = r.instructions["conv"];
-    auto bias_ins    = r.instructions["bias"];
-    auto ins         = r.result;
-    auto input_ins   = conv_ins->inputs().at(0);
-    auto weights_ins = conv_ins->inputs().at(1);
+    auto conv_ins       = r.instructions["conv"];
+    auto bias_ins       = r.instructions["bias"];
+    auto ins            = r.result;
+    auto input_ins      = conv_ins->inputs().at(0);
+    auto weights_ins    = conv_ins->inputs().at(1);
     auto miopen_conv_op = any_cast<miopen_convolution>(conv_ins->get_operator());
-    auto conv_op     = any_cast<op::convolution>(miopen_conv_op.op);
-    auto alloc_ins   = ins->inputs().back();
-    auto old_ws_ins  = conv_ins->inputs().at(2);
+    auto conv_op        = any_cast<op::convolution>(miopen_conv_op.op);
+    auto alloc_ins      = ins->inputs().back();
+    auto old_ws_ins     = conv_ins->inputs().at(2);
 
     Op cb{conv_op};
     // TODO: Insert ws allocation
@@ -526,14 +526,14 @@ struct find_conv_pointwise
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto conv_ins    = r.instructions["conv"];
-        auto bias_ins    = r.instructions["bias"];
-        auto ins         = r.result;
-        auto input_ins   = conv_ins->inputs().at(0);
-        auto weights_ins = conv_ins->inputs().at(1);
-        auto miopen_conv_op   = any_cast<miopen_convolution>(conv_ins->get_operator());
-        auto conv_op = any_cast<op::convolution>(miopen_conv_op.op);
-        auto alloc_ins = ins->inputs().back();
+        auto conv_ins       = r.instructions["conv"];
+        auto bias_ins       = r.instructions["bias"];
+        auto ins            = r.result;
+        auto input_ins      = conv_ins->inputs().at(0);
+        auto weights_ins    = conv_ins->inputs().at(1);
+        auto miopen_conv_op = any_cast<miopen_convolution>(conv_ins->get_operator());
+        auto conv_op        = any_cast<op::convolution>(miopen_conv_op.op);
+        auto alloc_ins      = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();
 

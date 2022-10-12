@@ -99,27 +99,20 @@ struct parse_if : op_parser<parse_if>
             // need to update the then_shape before we do further checks
             if(then_shape.size() == 0)
             {
-                std::cout << "Scalar then_shape " << then_shape.size() << std::endl;
                 auto convert_ins = then_mdl->add_outline(else_out_shapes.at(0));
                 then_mdl->replace_return({convert_ins});
                 then_shape = else_shape;
-                std::cout << "Scalar then_shape update " << then_shape.size() << std::endl;
             }
             else if(else_shape.size() == 0)
             {
-                std::cout << "Scalar else_shape " << else_shape.size() << std::endl;
                 auto convert_ins = else_mdl->add_outline(then_out_shapes.at(0));
                 else_mdl->replace_return({convert_ins});
                 else_shape = then_shape;
-                std::cout << "Scalar else_shape update " << else_shape.size() << std::endl;
             }
             else
             {
                 // check equivilant length dims, and (x1,x2,.., xn, 1) == (x1,x2,..,xn)
                 int dim_delta = abs((static_cast<int>(then_shape.size() - else_shape.size())));
-
-                std::cout << "Then shape " << then_shape.size() << " else shape "
-                          << else_shape.size() << std::endl;
 
                 if(dim_delta <= 1)
                 {
@@ -134,7 +127,6 @@ struct parse_if : op_parser<parse_if>
                     if(then_shape.size() < else_shape.size())
                     {
                         auto last_else = *(--(else_shape.end()));
-                        std::cout << "Last else " << last_else << std::endl;
 
                         if(last_else <= 1)
                         {
@@ -145,7 +137,6 @@ struct parse_if : op_parser<parse_if>
                     else
                     {
                         auto last_then = *(--(then_shape.end()));
-                        std::cout << "Last then " << last_then << std::endl;
 
                         if(last_then <= 1)
                         {

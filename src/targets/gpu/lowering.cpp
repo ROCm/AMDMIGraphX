@@ -114,15 +114,15 @@ struct miopen_apply
         add_extend_op("topk");
 
         add_batch_norm_inference_op();
-        add_convolution_op();
-        add_deconvolution_op();
+        add_convolution_op("convolution");
+        add_convolution_op("deconvolution");
+        add_convolution_op("quant_convolution");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
         add_if_op();
         add_loop_op();
         add_neg_op();
         add_nms_op();
-        add_quant_convolution_op();
     }
 
     void copy_params() const
@@ -230,40 +230,6 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
-    void add_convolution_op()
-    {
-        apply_map.emplace("convolution", [=](instruction_ref ins) {
-            auto&& op = any_cast<op::convolution>(ins->get_operator());
-            miopen_convolution<op::convolution> conv{op, make_conv(op)};
-            auto ws = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
-            // operation conv = make_op("gpu::convolution", {{"op", to_value(op)}});
-            // migraphx::context ctx= get_context();
-            // auto ws = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
-            // std::size_t ws_bytes = ws.get("workspace", 0);
-            // auto workspace = insert_allocation(ins, shape{shape::int8_type, {ws_bytes}});
-
-            auto workspace = insert_allocation(ins, ws);
-            auto output    = insert_allocation(ins, ins->get_shape());
-            return mod->replace_instruction(
-                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
-        });
-    }
-
-    void add_deconvolution_op()
-    {
-        apply_map.emplace("deconvolution", [=](instruction_ref ins) {
-            auto&& op = any_cast<op::deconvolution>(ins->get_operator());
-            miopen_convolution<op::deconvolution> conv{op, make_deconv(op)};
-            auto ws = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
-
-            auto workspace = insert_allocation(ins, ws);
-            auto output    = insert_allocation(ins, ins->get_shape());
-
-            return mod->replace_instruction(
-                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
-        });
-    }
-
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
@@ -277,31 +243,31 @@ struct miopen_apply
         });
     }
 
-    void add_quant_convolution_op()
+    void add_convolution_op(const std::string& name)
     {
-        apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
-            auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
-            shape ws;
-            miopen_convolution<op::quant_convolution> conv;
-            auto compile_quant_conv_with_format = [&](bool format) {
-                conv = miopen_convolution<op::quant_convolution>{op, make_conv(op), format};
-                ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            operation conv = make_op("miopen_convolution", {{"op", to_value(ins->get_operator())}});
+            migraphx::context ctx= get_context();
+            size_t  ws_bytes = 0;
+            auto compile_conv_with_format = [&](bool format) {
+                conv = make_op("miopen_convolution", {{"op", to_value(ins->get_operator())}, {"int8_x4_format", format}});
+                auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
+                ws_bytes = ws.get("workspace", 0);
             };
 
             try
-            {
-                compile_quant_conv_with_format(int8_x4_format);
+            {   // for the regular convolution and deconvolution, this try would always succeed
+                compile_conv_with_format(int8_x4_format);
             }
             catch(migraphx::exception&)
             {
                 // In case no solver supports the default format, retry using the other format.
-                compile_quant_conv_with_format(not int8_x4_format);
+                compile_conv_with_format(not int8_x4_format);
             }
 
             auto args      = ins->inputs();
-            auto workspace = insert_allocation(ins, ws);
             auto output    = insert_allocation(ins, ins->get_shape());
-
+            auto workspace = insert_allocation(ins, shape{shape::int8_type, {ws_bytes}});
             return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }

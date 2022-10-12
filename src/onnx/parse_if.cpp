@@ -99,13 +99,19 @@ struct parse_if : op_parser<parse_if>
             // need to update the then_shape before we do further checks
             if(then_shape.size() == 0)
             {
-                auto convert_ins = then_mdl->add_outline(else_out_shapes.at(0));
+                auto convert_ins = then_mdl->insert_instruction(
+                    --else_mdl->end(),
+                    make_op("multibroadcast", {{"out_lens", else_shape}}),
+                    {--(--then_mdl->end())});
                 then_mdl->replace_return({convert_ins});
                 then_shape = else_shape;
             }
             else if(else_shape.size() == 0)
             {
-                auto convert_ins = else_mdl->add_outline(then_out_shapes.at(0));
+                auto convert_ins = else_mdl->insert_instruction(
+                    --else_mdl->end(),
+                    make_op("multibroadcast", {{"out_lens", then_shape}}),
+                    {--(--else_mdl->end())});
                 else_mdl->replace_return({convert_ins});
                 else_shape = then_shape;
             }

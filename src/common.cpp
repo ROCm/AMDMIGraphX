@@ -27,6 +27,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 // In this case we need to broadcast the (:,:,1:,:) axis
 // of s0 plus the 1st dimension of s1 giving
 // output_lens = (3,2,7,5)
+//
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1)
 {
@@ -62,6 +64,79 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
             return std::max(a, b);
         });
     return out_lens;
+}
+
+// Handling opt dyn_dims calculation
+std::vector<std::size_t> compute_broadcasted_opt_lens(std::vector<std::size_t> s0,
+                                                      std::vector<std::size_t> s1)
+{
+    if(s0 == s1)
+        return s0;
+    if(s0.size() > s1.size())
+        s0.swap(s1);
+    std::vector<std::size_t> out_lens(s1);
+    auto offset = s1.size() - s0.size();
+    std::transform(
+        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
+            if(a == b)
+            {
+                return a;
+            }
+            else if(a == 1 or b == 1)
+            {
+                return std::max(a, b);
+            }
+            else
+            {
+                // if not matching nor 1, set to 0
+                return static_cast<std::size_t>(0);
+            }
+        });
+    return out_lens;
+}
+
+std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
+{
+    if(s0 == s1)
+        return s0.dyn_dims();
+    if(not s0.dynamic() or not s1_dynamic())
+    {
+        // mixed fixed and dynamic
+        if(s0.dynamic())
+            s0.swap(s1);
+    }
+    else
+    {
+        // both dynamic
+        if(s0.dyn_dims().size() > s1.dyn_dims().size())
+            std::swap(s0, s1);
+        std::vector<shape::dynamic_dimension> out_dims(s1.dyn_dims());
+        auto offset = s1.size() - s0.size();
+        std::vector<shape::dynamic_dimension> one_dyn_dims{{1, 1, 0}, {1, 1, 1}};
+        std::transform(s0.begin(),
+                       s0.end(),
+                       s1.begin() + offset,
+                       out_dims.begin() + offset,
+                       [&](auto a, auto b) {
+                           if(a == b)
+                           {
+                               return a;
+                           }
+                           else if(not contains(one_dyn_dims, a) and not contains(one_dyn_dims, b))
+                           {
+                               MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
+                                              migraphx::to_string_range(s0) + "} and {" +
+                                              migraphx::to_string_range(s1) + "} mismatch!");
+                           }
+                           else
+                           {
+                               return shape::dynamic_dimension{std::max(a.min, b.min),
+                                                               std::max(a.max, b.max),
+                                                               (a.opt != b.opt) ? 0 : a.opt};
+                           }
+                       });
+        return out_dims;
+    }
 }
 
 // Compute the common (broadcasted) dimensions of a list of fixed shapes

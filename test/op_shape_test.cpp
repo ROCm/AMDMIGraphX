@@ -1124,6 +1124,53 @@ TEST_CASE(multibroadcast)
     }
 }
 
+TEST_CASE(multibroadcast_2in)
+{
+    {
+        std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 2}, {2, 4, 0}};
+        migraphx::shape a_shape{migraphx::shape::float_type, a};
+        std::vector<migraphx::shape::dynamic_dimension> b{{1, 4, 0}, {2, 4, 2}, {2, 4, 0}};
+        migraphx::shape b_shape{migraphx::shape::float_type, b};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, a},
+                     migraphx::make_op("multibroadcast"),
+                     a_shape,
+                     b_shape);
+    }
+    {
+        // dynamic_dimensions must be the same or one is {1, 1, 0}
+        std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 0}, {2, 4, 0}};
+        migraphx::shape a_shape{migraphx::shape::float_type, a};
+        std::vector<migraphx::shape::dynamic_dimension> b{{1, 1, 0}, {2, 4, 0}, {1, 1, 0}};
+        migraphx::shape b_shape{migraphx::shape::float_type, b};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, a},
+                     migraphx::make_op("multibroadcast"),
+                     a_shape,
+                     b_shape);
+    }
+    {
+        std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 0}, {2, 4, 0}};
+        migraphx::shape a_shape{migraphx::shape::float_type, a};
+        migraphx::shape b_shape{migraphx::shape::float_type, {1, 6, 2}};
+        expect_shape(
+            migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {6, 6, 0}, {2, 4, 0}}},
+            migraphx::make_op("multibroadcast"),
+            a_shape,
+            b_shape);
+    }
+    {
+        migraphx::shape a_shape{migraphx::shape::float_type, {10, 3, 8}};
+        std::vector<migraphx::shape::dynamic_dimension> b{{1, 4, 0}, {2, 4, 0}, {2, 4, 0}};
+        migraphx::shape b_shape{migraphx::shape::float_type, b};
+        expect_shape(
+            migraphx::shape{migraphx::shape::float_type, {{10, 10, 0}, {3, 4, 0}, {8, 8, 0}}},
+            migraphx::make_op("multibroadcast"),
+            a_shape,
+            b_shape);
+    }
+
+    // both inputs are fixed
+}
+
 TEST_CASE(multinomial)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 5}};

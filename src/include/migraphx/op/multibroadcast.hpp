@@ -105,7 +105,7 @@ struct multibroadcast
             {
                 auto bcast_min_lens = compute_broadcasted_lens(s0.min_lens(), s1.min_lens());
                 auto bcast_max_lens = compute_broadcasted_lens(s0.max_lens(), s1.max_lens());
-                auto bcast_opt_lens = compute_broadcasted_lens(s0.opt_lens(), s1.opt_lens());
+                auto bcast_opt_lens = compute_broadcasted_opt_lens(s0.opt_lens(), s1.opt_lens());
                 return {t,
                         std::move(bcast_min_lens),
                         std::move(bcast_max_lens),

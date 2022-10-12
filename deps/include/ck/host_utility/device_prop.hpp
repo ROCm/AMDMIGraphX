@@ -1,1 +1,0 @@
-../../../cget/pkg/ROCmSoftwarePlatform__composable_kernel/install/include/ck/host_utility/device_prop.hpp

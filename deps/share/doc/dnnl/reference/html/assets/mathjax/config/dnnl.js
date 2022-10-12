@@ -1,1 +1,0 @@
-../../../../../../../../cget/pkg/oneapi-src__oneDNN/install/share/doc/dnnl/reference/html/assets/mathjax/config/dnnl.js

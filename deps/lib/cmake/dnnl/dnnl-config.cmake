@@ -1,1 +1,0 @@
-../../../cget/pkg/oneapi-src__oneDNN/install/lib/cmake/dnnl/dnnl-config.cmake

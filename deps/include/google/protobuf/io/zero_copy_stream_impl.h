@@ -1,1 +1,0 @@
-../../../../cget/pkg/google__protobuf/install/include/google/protobuf/io/zero_copy_stream_impl.h

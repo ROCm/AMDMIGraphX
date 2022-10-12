@@ -1,1 +1,0 @@
-../../../../../cget/pkg/ROCmSoftwarePlatform__composable_kernel/install/include/ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7.hpp

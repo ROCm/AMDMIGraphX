@@ -1,0 +1,1 @@
+../../cget/pkg/google__protobuf/install/lib/pkgconfig/protobuf-lite.pc

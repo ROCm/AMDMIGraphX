@@ -1,0 +1,1 @@
+../../../../../cget/pkg/google__protobuf/install/include/google/protobuf/compiler/objectivec/objectivec_generator.h

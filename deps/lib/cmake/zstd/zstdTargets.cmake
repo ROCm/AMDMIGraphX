@@ -1,0 +1,1 @@
+../../../cget/pkg/facebook__zstd/install/lib/cmake/zstd/zstdTargets.cmake

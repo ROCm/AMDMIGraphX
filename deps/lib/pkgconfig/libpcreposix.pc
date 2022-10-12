@@ -1,0 +1,1 @@
+../../cget/pkg/pcre/install/lib/pkgconfig/libpcreposix.pc

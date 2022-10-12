@@ -44,7 +44,7 @@ namespace gpu {
 
 // NOLINTNEXTLINE
 static const char* const ck_gemm_aag_kernel = R"__migraphx__(
-#include <migraphx/kernels/ck_fusion_inclusion.hpp>
+#include <migraphx/kernels/ck_fusion_includes.hpp>
 #include <migraphx/kernels/ck_gemm_add_add_gelu.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/integral_constant.hpp>

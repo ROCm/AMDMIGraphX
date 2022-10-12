@@ -113,6 +113,8 @@ struct find_ck_gemm_pointwise
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        // Currently set to only handle gemm_add_add_gelu fusion
+        // To-do: Adapt to handle other gemm-pointwise fusions
         auto ins = r.result;
         auto gemm = r.instructions["gemm"];
         auto inputs = gemm->inputs();

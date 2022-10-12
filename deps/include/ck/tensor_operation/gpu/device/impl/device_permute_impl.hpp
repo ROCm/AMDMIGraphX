@@ -1,0 +1,1 @@
+../../../../../../cget/pkg/ROCmSoftwarePlatform__composable_kernel/install/include/ck/tensor_operation/gpu/device/impl/device_permute_impl.hpp

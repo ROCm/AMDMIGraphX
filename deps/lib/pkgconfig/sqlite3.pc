@@ -1,0 +1,1 @@
+../../cget/pkg/sqlite3/install/lib/pkgconfig/sqlite3.pc

@@ -1,0 +1,1 @@
+../../../cget/pkg/google__protobuf/install/include/google/protobuf/text_format.h

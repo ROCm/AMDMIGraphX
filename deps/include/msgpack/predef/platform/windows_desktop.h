@@ -1,0 +1,1 @@
+../../../../cget/pkg/msgpack__msgpack-c/install/include/msgpack/predef/platform/windows_desktop.h

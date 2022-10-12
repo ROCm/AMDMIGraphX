@@ -1,0 +1,1 @@
+../../../../cget/pkg/msgpack__msgpack-c/install/include/msgpack/v3/adaptor/size_equal_only_decl.hpp

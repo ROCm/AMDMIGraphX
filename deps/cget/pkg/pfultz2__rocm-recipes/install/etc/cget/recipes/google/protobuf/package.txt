@@ -1,0 +1,1 @@
+google/protobuf@v3.2.0 -X build.cmake -H sha256:a839d3f1519ff9d68ab908de5a0f269650ef1fc501c10f6eefd4cae51d29b86f

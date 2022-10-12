@@ -1,0 +1,1 @@
+../../../../cget/pkg/msgpack__msgpack-c/install/include/msgpack/v2/adaptor/adaptor_base.hpp

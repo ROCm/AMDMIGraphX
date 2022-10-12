@@ -30,7 +30,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 //#include <migraphx/kernels/gemm_instance.hpp>
 
-#include <migraphx/kernels/ck_fusion_inclusion.hpp>
+#include <migraphx/kernels/ck_fusion_includes.hpp>
 
 namespace migraphx {
 

@@ -1,0 +1,1 @@
+../../../../../cget/pkg/google__protobuf/install/include/google/protobuf/compiler/cpp/cpp_generator.h

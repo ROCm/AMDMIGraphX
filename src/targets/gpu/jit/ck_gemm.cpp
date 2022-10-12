@@ -113,11 +113,12 @@ static std::vector<tuning_entry> read_tuning(const std::string& s)
 static std::size_t get_tuning_for(const std::vector<shape>& inputs)
 {
     static auto tuning = read_tuning(string_value_of(MIGRAPHX_CK_TUNING{}, ""));
-    if (tuning.empty())
+    if(tuning.empty())
         std::cout << "*********** Warning: No CK tuning!" << std::endl;
-    auto it            = std::find_if(
+    auto it = std::find_if(
         tuning.begin(), tuning.end(), [&](const auto& p) { return p.first == inputs; });
-    if(it == tuning.end()) {
+    if(it == tuning.end())
+    {
         std::cout << "*********** Warning: CK tuning missing for config!" << std::endl;
         return 4;
     }
@@ -163,7 +164,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
         hip_compile_options options;
         auto block_size = get_block_size(instance);
-        auto grid_size = get_grid_size(instance, m, n);
+        auto grid_size  = get_grid_size(instance, m, n);
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
         options.output         = c_shape;

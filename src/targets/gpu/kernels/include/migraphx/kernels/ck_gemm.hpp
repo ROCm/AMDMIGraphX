@@ -33,14 +33,13 @@
 
 namespace migraphx {
 
-
 template <class G, class A, class B, class C>
 __device__ void ck_gemm(const A& a, const B& b, const C& c)
 {
-    constexpr auto a_desc = to_ck_tensor<A>();
-    constexpr auto b_desc = to_ck_tensor<B>();
-    constexpr auto c_desc = to_ck_tensor<C>();
-    constexpr auto block_2_ctile_map     = G::MakeDefaultBlock2CTileMap(c_desc);
+    constexpr auto a_desc            = to_ck_tensor<A>();
+    constexpr auto b_desc            = to_ck_tensor<B>();
+    constexpr auto c_desc            = to_ck_tensor<C>();
+    constexpr auto block_2_ctile_map = G::MakeDefaultBlock2CTileMap(c_desc);
 
     using GridwiseGemm = typename G::template Make<a_desc, b_desc, c_desc>;
     // static_assert(GridwiseGemm::CheckValidity(a_desc, b_desc, c_desc, block_2_ctile_map));
@@ -48,11 +47,11 @@ __device__ void ck_gemm(const A& a, const B& b, const C& c)
     constexpr auto c_grid_desc_mblock_mperblock_nblock_nperblock =
         GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_desc);
 
-    constexpr auto shared_block_size =
-            GridwiseGemm::GetSharedMemoryNumberOfByte();
+    constexpr auto shared_block_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
     __shared__ char p_shared_block[shared_block_size];
 
-    constexpr bool HasMainKBlockLoop = GridwiseGemm::CalculateHasMainKBlockLoop(A{}.get_shape().elements());
+    constexpr bool HasMainKBlockLoop =
+        GridwiseGemm::CalculateHasMainKBlockLoop(A{}.get_shape().elements());
     GridwiseGemm::template Run<HasMainKBlockLoop>(a.data(),
                                                   b.data(),
                                                   c.data(),
@@ -64,7 +63,6 @@ __device__ void ck_gemm(const A& a, const B& b, const C& c)
                                                   b_desc,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_ctile_map);
-
 }
 
 } // namespace migraphx

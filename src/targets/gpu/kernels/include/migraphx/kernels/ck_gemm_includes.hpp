@@ -152,9 +152,8 @@ template <typename ALayout,
           ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()>
 struct CKDeviceGemm
 {
-    template<class AGridDesc_AK0_M_AK1, class BGridDesc_BK0_N_BK1, class CGridDesc_M_N>
-    using Make = 
-        ck::GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
+    template <class AGridDesc_AK0_M_AK1, class BGridDesc_BK0_N_BK1, class CGridDesc_M_N>
+    using Make = ck::GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -203,7 +202,7 @@ struct CKDeviceGemm
     static constexpr auto BOp() { return BElementwiseOperation{}; }
     static constexpr auto COp() { return CElementwiseOperation{}; }
     // return block_id to C matrix tile idx (m0, n0) mapping
-    template<class CGridDesc_M_N>
+    template <class CGridDesc_M_N>
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {

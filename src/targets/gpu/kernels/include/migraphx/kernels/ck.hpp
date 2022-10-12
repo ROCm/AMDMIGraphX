@@ -13,23 +13,23 @@
 namespace migraphx {
 
 namespace detail {
-template<class T>
+template <class T>
 struct to_ck_type_impl
 {
     using type = T;
 };
-template<>
+template <>
 struct to_ck_type_impl<migraphx::half>
 {
     using type = ck::half_t;
 };
 
-template<class Shape>
+template <class Shape>
 constexpr bool is_row_major()
 {
     constexpr auto strides = Shape{}.strides;
     MIGRAPHX_ASSERT(strides.size() >= 2);
-    if (strides.back() == 1)
+    if(strides.back() == 1)
     {
         MIGRAPHX_ASSERT(not Shape{}.is_trasnposed());
         return true;
@@ -41,18 +41,21 @@ constexpr bool is_row_major()
 
 } // namespace detail
 
-template<class T>
+template <class T>
 using to_ck_type = typename detail::to_ck_type_impl<T>::type;
 
-template<class Shape>
-using to_ck_gemm_layout = conditional_t<detail::is_row_major<get_shape_c<Shape>>(), ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::ColumnMajor>;
+template <class Shape>
+using to_ck_gemm_layout = conditional_t<detail::is_row_major<get_shape_c<Shape>>(),
+                                        ck::tensor_layout::gemm::RowMajor,
+                                        ck::tensor_layout::gemm::ColumnMajor>;
 
-template<class Tensor>
+template <class Tensor>
 constexpr auto to_ck_tensor()
 {
     constexpr auto s = get_shape_c<Tensor>{};
     return sequence(s.lens.size(), [](auto... is) {
-        return ck::make_naive_tensor_descriptor(ck::make_tuple(s.lens[is]...), ck::make_tuple(s.strides[is]...));
+        return ck::make_naive_tensor_descriptor(ck::make_tuple(s.lens[is]...),
+                                                ck::make_tuple(s.strides[is]...));
     });
 }
 

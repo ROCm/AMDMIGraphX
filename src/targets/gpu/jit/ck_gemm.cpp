@@ -95,8 +95,6 @@ struct block_settings
     int npb;
 };
 
-namespace fs = std::filesystem;
-
 struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 {
     const std::vector<std::string> instances{
@@ -135,6 +133,38 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         {128, 64, 128},
         {128, 64, 128}};
 
+    const std::unordered_map<std::string, int> tuning_lookup{
+        {"1024 2048 1416", 9},
+        {"1416 2048 512", 9},
+        {"4096 2048 1416", 5},
+        {"512 2048 2048", 6},
+        {"2048 2048 512", 9},
+        {"2048 2048 2048", 9},
+        {"512 2048 2048", 6},
+        {"2048 2048 512", 9},
+        {"160 2048 64", 6},
+        {"160 2048 64", 7},
+        {"160 2048 2048", 6},
+        {"288 2048 768", 7},
+        {"1024 2048 5120", 9},
+        {"512 2048 512", 9},
+        {"39488 2048 512", 5},
+        {"512 2048 512", 9},
+        {"5120 2048 512", 5},
+        {"512 2048 6536", 9},
+        {"39488 2048 512", 5},
+        {"32 384 160", 6},
+        {"32 856 160", 6},
+        {"32 8 160", 6},
+        {"512 2048 39488", 9},
+        {"8192 2048 3200", 5},
+        {"4096 2048 4096", 5},
+        {"4096 2048 4096", 5},
+        {"4096 2048 4096", 5},
+        {"4096 2048 4096", 5},
+        {"4096 2048 4096", 5},
+        {"8 2048 9224", 6}};
+
     std::vector<std::string> names() const { return {"ck_gemm"}; }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
@@ -147,12 +177,25 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         hip_compile_options options;
         auto out_s = inputs.back();
 
+        auto m = out_s.lens().front();
+        auto n = out_s.lens().back();
+        auto k = inputs.front().lens().back();
+        std::string mnk = to_string(m) + " " + to_string(n) + " " + to_string(k);
+        auto itr = tuning_lookup.find(mnk);
+        std::cout << mnk << std::endl;
+        if (itr != tuning_lookup.end())
+        {
+            i = tuning_lookup.at(mnk);
+            std::cout << "  i: " << i << std::endl;
+        }
+        else    
+            std::cout << "i: " << i << std::endl;
+
         auto b_s = params[i];
         auto block_size = b_s.bs;
         auto m_per_block = b_s.mpb;
         auto n_per_block = b_s.npb;
-        auto m = out_s.lens().front();
-        auto n = out_s.lens().back();
+        
         auto grid_size = get_grid_size(m, m_per_block, n, n_per_block);
 
         options.set_launch_params(v, grid_size * block_size, block_size);
@@ -161,7 +204,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.kernel_name    = "ck_gemm_kernel";
         options.virtual_inputs = inputs;
 
-        auto k = inputs.front().lens().back();
+        
         auto sa = inputs.front().strides().front();
         auto sb = inputs.at(1).strides().front();
         auto sc = inputs.back().strides().front();

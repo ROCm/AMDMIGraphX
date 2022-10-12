@@ -91,6 +91,7 @@ add_library(migraphx_gpu
     deconvolution.cpp
     device_name.cpp
     elu.cpp
+    fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp

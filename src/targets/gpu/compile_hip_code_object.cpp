@@ -138,12 +138,12 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
         std::size_t groups     = (n + local - 1) / local;
         std::size_t max_blocks = max_global / local;
         std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
-        printf("n: %zu\n", n);
-        printf("over: %zu\n", over);
-        printf("max_global: %zu\n", max_global);
-        printf("groups: %zu\n", groups);
-        printf("max_blocks: %zu\n", max_blocks);
-        printf("nglobal: %zu\n", nglobal);
+        // printf("n: %zu\n", n);
+        // printf("over: %zu\n", over);
+        // printf("max_global: %zu\n", max_global);
+        // printf("groups: %zu\n", groups);
+        // printf("max_blocks: %zu\n", max_blocks);
+        // printf("nglobal: %zu\n", nglobal);
         return std::min(nglobal, n);
     };
 }

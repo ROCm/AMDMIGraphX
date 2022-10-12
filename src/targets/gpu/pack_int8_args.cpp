@@ -181,7 +181,8 @@ void pack_int8_args::apply(module& m) const
         else if(ins->name() == "miopen_convolution")
         {
             auto conv_op = any_cast<miopen_convolution>(ins->get_operator());
-            if(conv_op.op.name() != "quant_convolution") {
+            if(conv_op.op.name() != "quant_convolution")
+            {
                 continue;
             }
             auto val = ins->get_operator().to_value();

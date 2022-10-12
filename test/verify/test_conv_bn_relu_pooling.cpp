@@ -64,7 +64,7 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling>
         auto usq_var =
             mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), variance);
 
-        auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+        auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {conv, usq_mean});
         auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
         auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
         auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});

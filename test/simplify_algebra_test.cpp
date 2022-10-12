@@ -122,6 +122,33 @@ TEST_CASE(simplify_add3)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_zero_add_constant)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("add"), zero, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    migraphx::module m3;
+    {
+        auto x    = m3.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m3.add_literal(0);
+        m3.add_instruction(migraphx::make_op("add"), x, zero);
+    }
+    run_pass(m3);
+
+    EXPECT((m1 == m2) && (m2 == m3));
+}
+
 TEST_CASE(simplify_add_broadcast1)
 {
     migraphx::shape inner{migraphx::shape::int32_type, {2}};
@@ -435,7 +462,7 @@ TEST_CASE(simplify_mul_add)
     migraphx::module m1;
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one = m1.add_literal(1);
+        auto one = m1.add_literal(3);
         auto two = m1.add_literal(2);
         auto sum = m1.add_instruction(migraphx::make_op("add"), one, x);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), sum, two);
@@ -446,7 +473,7 @@ TEST_CASE(simplify_mul_add)
     migraphx::module m2;
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one  = m2.add_literal(1);
+        auto one  = m2.add_literal(3);
         auto two  = m2.add_literal(2);
         auto mul1 = m2.add_instruction(migraphx::make_op("mul"), two, x);
         auto mul2 = m2.add_instruction(migraphx::make_op("mul"), two, one);
@@ -883,6 +910,341 @@ TEST_CASE(simplify_div_const)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_unit_mult_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(1);
+        m1.add_instruction(migraphx::make_op("mul"), x, unit);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_unit_mult_const2)
+{
+    migraphx::module m1;
+    {
+        auto unit = m1.add_literal(1);
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m1.add_instruction(migraphx::make_op("mul"), unit, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_unit_mult_const_vec)
+{
+    migraphx::shape unit_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto unit  = m1.add_literal({unit_shape, {1, 1}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto unitb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), unit);
+        m1.add_instruction(migraphx::make_op("mul"), x, unitb);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_unit_mult_const_vec2)
+{
+    migraphx::shape unit_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto unit  = m1.add_literal({unit_shape, {1, 1}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto unitb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), unit);
+        m1.add_instruction(migraphx::make_op("mul"), unitb, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_unit_div_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(1);
+        auto div  = m1.add_instruction(migraphx::make_op("div"), x, unit);
+        m1.add_return({div});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_return({x});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_unit_div_const_vec)
+{
+    migraphx::shape unit_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto unit  = m1.add_literal({unit_shape, {1, 1}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto unitb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), unit);
+        m1.add_instruction(migraphx::make_op("div"), x, unitb);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_neg_unit_mult_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(-1);
+        m1.add_instruction(migraphx::make_op("mul"), x, unit);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT((m1 == m2));
+}
+
+TEST_CASE(simplify_neg_unit_mult_const2)
+{
+    migraphx::module m1;
+    {
+        auto unit = m1.add_literal(-1);
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m1.add_instruction(migraphx::make_op("mul"), unit, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT((m1 == m2));
+}
+
+TEST_CASE(simplify_neg_unit_mul_const_vec)
+{
+    migraphx::shape unit_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto unit  = m1.add_literal({unit_shape, {-1, -1}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto unitb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), unit);
+        m1.add_instruction(migraphx::make_op("mul"), x, unitb);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_neg_unit_mul_const_vec2)
+{
+    migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto unit  = m1.add_literal({zero_shape, {-1, -1}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto unitb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), unit);
+        m1.add_instruction(migraphx::make_op("mul"), unitb, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_neg_unit_div_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto unit = m1.add_literal(-1);
+        m1.add_instruction(migraphx::make_op("div"), x, unit);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_neg_unit_div_const_vec)
+{
+    migraphx::shape unit_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto unit  = m1.add_literal({unit_shape, {-1, -1}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto unitb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), unit);
+        m1.add_instruction(migraphx::make_op("div"), x, unitb);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_sub_zero_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("sub"), x, zero);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_sub_zero_const_vec)
+{
+    migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto zero  = m1.add_literal({zero_shape, {0, 0}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto zerob = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        m1.add_instruction(migraphx::make_op("sub"), x, zerob);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("identity"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_sub_neg_zero_const)
+{
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("sub"), zero, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_sub_neg_zero_const_vec)
+{
+    migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto zero  = m1.add_literal({zero_shape, {0, 0}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto zerob = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        m1.add_instruction(migraphx::make_op("sub"), zerob, x);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", x_shape);
+        m2.add_instruction(migraphx::make_op("neg"), x);
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_sub_const)
 {
     migraphx::module m1;
@@ -900,6 +1262,150 @@ TEST_CASE(simplify_sub_const)
         auto neg = m2.insert_instruction(std::next(two), migraphx::make_op("neg"), two);
         m2.add_instruction(migraphx::make_op("add"), x, neg);
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_mult_const)
+{
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero    = m1.add_literal(0);
+        auto mul_ins = m1.add_instruction(migraphx::make_op("mul"), x, zero);
+        m1.add_return({mul_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m2.add_literal(0);
+        m2.add_return({zero});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_mult_const2)
+{
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero    = m1.add_literal(0);
+        auto mul_ins = m1.add_instruction(migraphx::make_op("mul"), zero, x);
+        m1.add_return({mul_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto zero = m2.add_literal(0);
+        m2.add_return({zero});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_mul_const_vec)
+{
+    migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto zero  = m1.add_literal({zero_shape, {0, 0}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto zerob = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        auto mul_ins = m1.add_instruction(migraphx::make_op("mul"), x, zerob);
+        m1.add_return({mul_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto zero = m2.add_literal({zero_shape, {0, 0}});
+        m2.add_parameter("x", x_shape);
+        auto zerob = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        m2.add_return({zerob});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_mul_const_vec2)
+{
+    migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto zero  = m1.add_literal({zero_shape, {0, 0}});
+        auto x     = m1.add_parameter("x", x_shape);
+        auto zerob = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        auto mul_ins = m1.add_instruction(migraphx::make_op("mul"), zerob, x);
+        m1.add_return({mul_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto zero = m2.add_literal({zero_shape, {0, 0}});
+        m2.add_parameter("x", x_shape);
+        auto zerob = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        m2.add_return({zerob});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_div_const)
+{
+    migraphx::module m1;
+    {
+        auto zero    = m1.add_literal(0);
+        auto x       = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto div_ins = m1.add_instruction(migraphx::make_op("div"), zero, x);
+        m1.add_return({div_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto zero = m2.add_literal(0);
+        m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        m2.add_return({zero});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_zero_div_const_vec)
+{
+    migraphx::shape zero_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape x_shape{migraphx::shape::int32_type, {1, 2, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", x_shape);
+        auto zero  = m1.add_literal({zero_shape, {0, 0}});
+        auto zerob = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        auto div_ins = m1.add_instruction(migraphx::make_op("div"), zerob, x);
+        m1.add_return({div_ins});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        m2.add_parameter("x", x_shape);
+        auto zero  = m2.add_literal({zero_shape, {0, 0}});
+        auto zerob = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}}), zero);
+        m2.add_return({zerob});
+    }
+
     EXPECT(m1 == m2);
 }
 

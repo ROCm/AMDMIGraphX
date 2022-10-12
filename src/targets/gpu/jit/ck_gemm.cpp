@@ -60,22 +60,14 @@ static const char* const ck_gemm_kernel = R"__migraphx__(
 
 namespace migraphx {
 
-using gemm_t = CKDeviceGemm<${instance}, ${m}, ${k}, ${n}, ${sa}, ${sb}, ${sc}>;
-
-constexpr __device__ gemm_t ckdg{};
-using GridwiseGemm = decltype(ckdg.gridwisegemm);
+using gemm_t = CKDeviceGemm<${instance}>;
 
 extern "C" {
 
 __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 {
-    make_tensors()(a_p, b_p, c_p)([&](auto a_t, auto b_t, auto c_t) {
-        constexpr ck::index_t shared_block_size =
-            GridwiseGemm::GetSharedMemoryNumberOfByte();
-        __shared__ char p_shared_block[shared_block_size];
-        make_tensors()(p_shared_block)([&](auto p_t) {
-            ck_gemm<gemm_t>(a_t, b_t, c_t, p_t);
-        });
+    make_tensors()(a_p, b_p, c_p)([&](auto a, auto b, auto c) {
+        ck_gemm<gemm_t>(a, b, c);
     });
 }
 

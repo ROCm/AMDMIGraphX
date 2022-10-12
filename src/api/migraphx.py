@@ -115,6 +115,7 @@ def shape(h):
              const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
+    h.method('elements', returns='size_t', const=True)
     h.method('bytes', returns='size_t', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape&'),
@@ -122,6 +123,7 @@ def shape(h):
              returns='bool',
              const=True)
     h.method('standard', returns='bool', const=True)
+    h.method('index', api.params(i='size_t'), returns='size_t', const=True)
 
 
 @auto_handle()
@@ -273,6 +275,13 @@ def program(h):
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),
              invoke='migraphx::run($@)',
+             returns='std::vector<migraphx::argument>')
+    h.method('run_async',
+             api.params(
+                 params='std::unordered_map<std::string, migraphx::argument>',
+                 s='void*',
+                 name='const char *'),
+             invoke='migraphx::run_async($@)',
              returns='std::vector<migraphx::argument>')
     h.method('equal',
              api.params(x='const migraphx::program&'),
@@ -450,4 +459,8 @@ def experimental_custom_op(h):
     h.virtual('compute_shape',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
+    h.virtual('output_alias',
+              api.params(inputs='std::vector<migraphx::shape>'),
+              returns='std::vector<size_t>')
+    h.virtual('runs_on_offload_target', returns='bool')
     h.method('register', invoke='migraphx::register_custom_op($@)')

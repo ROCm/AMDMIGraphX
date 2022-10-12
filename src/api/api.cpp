@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/execution_environment.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
@@ -166,6 +167,13 @@ void set_output_names(tf_options& options, std::vector<const char*> names)
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
 
+std::vector<argument>
+run_async(program& p, const parameter_map& params, void* s, std::string_view name)
+{
+    execution_environment exec_env{any_ptr(s, name), true};
+    return p.eval(params, exec_env);
+}
+
 template <class Value>
 std::vector<const char*> get_names(const std::unordered_map<std::string, Value>& m)
 {
@@ -265,11 +273,18 @@ struct experimental_custom_op
 template <class CustomOp>
 struct custom_operation
 {
+
     template <class Self, class F>
     static auto reflect(Self&, F)
     {
         return pack();
     }
+
+    value attributes() const
+    {
+        return {{"custom_op", true}, {"target", op.runs_on_offload_target() ? "gpu" : "cpu"}};
+    }
+
     CustomOp op;
     std::string name() const { return op.xobject.name; }
 
@@ -284,6 +299,23 @@ struct custom_operation
     {
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
+
+    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    {
+        auto alias_vec = op.output_alias(std::move(inputs));
+        // TODO: For now, only support one output alias
+        if(alias_vec.empty())
+        {
+            return -1;
+        }
+        if(alias_vec.size() > 1)
+        {
+            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
+        }
+        return alias_vec.front();
+    }
+
+    bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
 };
 
 template <class CustomOp>
@@ -613,9 +645,9 @@ struct migraphx_experimental_custom_op
                                migraphx::shape output,
                                std::vector<migraphx::argument> inputs) const
     {
-        std::remove_pointer_t<migraphx_argument_t> out;
         if(compute_f == nullptr)
             throw std::runtime_error("compute function is missing.");
+        std::remove_pointer_t<migraphx_argument_t> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = compute_f(&out,
@@ -637,9 +669,9 @@ struct migraphx_experimental_custom_op
     migraphx_experimental_custom_op_compute_shape compute_shape_f = nullptr;
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
-        std::remove_pointer_t<migraphx_shape_t> out;
         if(compute_shape_f == nullptr)
             throw std::runtime_error("compute_shape function is missing.");
+        std::remove_pointer_t<migraphx_shape_t> out;
         std::array<char, 256> exception_msg;
         exception_msg.front() = '\0';
         auto api_error_result = compute_shape_f(&out,
@@ -654,6 +686,49 @@ struct migraphx_experimental_custom_op
                                      std::string(object_ptr.obj_typename) + ": " + exception_str);
         }
         return (&out)->object;
+    }
+
+    migraphx_experimental_custom_op_output_alias output_alias_f = nullptr;
+    std::vector<size_t> output_alias(std::vector<migraphx::shape> inputs) const
+    {
+        if(output_alias_f == nullptr)
+            throw std::runtime_error("output_alias function is missing.");
+        std::array<size_t, 1024> out;
+        std::remove_pointer_t<size_t*> out_size = 1024;
+        std::array<char, 256> exception_msg;
+        exception_msg.front() = '\0';
+        auto api_error_result = output_alias_f(out.data(),
+                                               &out_size,
+                                               object_ptr.data,
+                                               exception_msg.data(),
+                                               exception_msg.size(),
+                                               object_cast<migraphx_shapes_t>(&(inputs)));
+        if(api_error_result != migraphx_status_success)
+        {
+            const std::string exception_str(exception_msg.data());
+            throw std::runtime_error("Error in output_alias of: " +
+                                     std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
+        return {out.begin(), out.begin() + out_size}; // cppcheck-suppress returnDanglingLifetime;
+    }
+
+    migraphx_experimental_custom_op_runs_on_offload_target runs_on_offload_target_f = nullptr;
+    bool runs_on_offload_target() const
+    {
+        if(runs_on_offload_target_f == nullptr)
+            throw std::runtime_error("runs_on_offload_target function is missing.");
+        std::remove_pointer_t<bool*> out;
+        std::array<char, 256> exception_msg;
+        exception_msg.front() = '\0';
+        auto api_error_result = runs_on_offload_target_f(
+            &out, object_ptr.data, exception_msg.data(), exception_msg.size());
+        if(api_error_result != migraphx_status_success)
+        {
+            const std::string exception_str(exception_msg.data());
+            throw std::runtime_error("Error in runs_on_offload_target of: " +
+                                     std::string(object_ptr.obj_typename) + ": " + exception_str);
+        }
+        return out;
     }
 };
 
@@ -758,6 +833,16 @@ extern "C" migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_shape_elements(size_t* out, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).elements();
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -787,6 +872,16 @@ extern "C" migraphx_status migraphx_shape_standard(bool* out, const_migraphx_sha
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *out = (shape->object).standard();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_index(size_t* out, const_migraphx_shape_t shape, size_t i)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).index((i));
     });
     return api_error_result;
 }
@@ -1348,6 +1443,23 @@ extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
+                                                      migraphx_program_t program,
+                                                      migraphx_program_parameters_t params,
+                                                      void* s,
+                                                      const char* name)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        if(params == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+        *out = allocate<migraphx_arguments_t>(
+            migraphx::run_async((program->object), (params->object), (s), (name)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x)
 {
@@ -1876,6 +1988,22 @@ extern "C" migraphx_status migraphx_experimental_custom_op_set_compute_shape(
     migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input)
 {
     auto api_error_result = migraphx::try_([&] { (obj)->compute_shape_f = (input); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_experimental_custom_op_set_output_alias(migraphx_experimental_custom_op_t obj,
+                                                 migraphx_experimental_custom_op_output_alias input)
+{
+    auto api_error_result = migraphx::try_([&] { (obj)->output_alias_f = (input); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_experimental_custom_op_set_runs_on_offload_target(
+    migraphx_experimental_custom_op_t obj,
+    migraphx_experimental_custom_op_runs_on_offload_target input)
+{
+    auto api_error_result = migraphx::try_([&] { (obj)->runs_on_offload_target_f = (input); });
     return api_error_result;
 }
 

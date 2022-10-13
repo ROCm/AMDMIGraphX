@@ -41,7 +41,7 @@ __device__ void ck_gemm(const A& a, const B& b, const C& c)
     constexpr auto c_desc            = to_ck_tensor<C>();
     constexpr auto block_2_ctile_map = G::MakeDefaultBlock2CTileMap(c_desc);
 
-    using GridwiseGemm = typename G::template Make<a_desc, b_desc, c_desc>;
+    using GridwiseGemm = typename G::template Make<decltype(a_desc), decltype(b_desc), decltype(c_desc)>;
     // static_assert(GridwiseGemm::CheckValidity(a_desc, b_desc, c_desc, block_2_ctile_map));
 
     constexpr auto c_grid_desc_mblock_mperblock_nblock_nperblock =

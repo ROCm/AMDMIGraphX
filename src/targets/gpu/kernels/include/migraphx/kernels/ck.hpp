@@ -53,7 +53,7 @@ template <class Tensor>
 constexpr auto to_ck_tensor()
 {
     constexpr auto s = get_shape_c<Tensor>{};
-    return sequence(s.lens.size(), [](auto... is) {
+    return sequence(s.lens.size(), [&](auto... is) {
         return ck::make_naive_tensor_descriptor(ck::make_tuple(s.lens[is]...),
                                                 ck::make_tuple(s.strides[is]...));
     });

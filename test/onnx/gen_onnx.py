@@ -2261,7 +2261,7 @@ def if_else_empty_shape_test():
 
 
 @onnx_test
-def if_else_trailing_one_shape_test():
+def if_then_trailing_one_shape_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 1])
 
@@ -2298,7 +2298,7 @@ def if_else_trailing_one_shape_test():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([0]).astype(np.bool)
+    cond = np.array([1]).astype(np.bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
@@ -2570,7 +2570,7 @@ def if_pl_test():
 
 
 @onnx_test
-def if_then_trailing_one_shape_test():
+def if_else_trailing_one_shape_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 1])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2])
 
@@ -2607,7 +2607,7 @@ def if_then_trailing_one_shape_test():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([1]).astype(np.bool)
+    cond = np.array([0]).astype(np.bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,

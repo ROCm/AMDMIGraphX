@@ -90,29 +90,29 @@ struct parse_if : op_parser<parse_if>
             };
 
             // Throw error if both branches have zero output shapes. Not possible for static inputs
-            if(then_shape.size() == 0 && else_shape.size() == 0)
+            if(then_shape.empty() && else_shape.empty())
             {
                 throw_shapes();
             }
 
+            auto handle_empty_branch = [](module_ref& mdl, std::vector<size_t>& out_shape) {
+                auto convert_ins =
+                    mdl->insert_instruction(--mdl->end(),
+                                            make_op("multibroadcast", {{"out_lens", out_shape}}),
+                                            {--(--mdl->end())});
+                mdl->replace_return({convert_ins});
+            };
+
             // Handle one empty branch by setting output identical to the other
             // need to update the then_shape before we do further checks
-            if(then_shape.size() == 0)
+            if(then_shape.empty())
             {
-                auto convert_ins = then_mdl->insert_instruction(
-                    --else_mdl->end(),
-                    make_op("multibroadcast", {{"out_lens", else_shape}}),
-                    {--(--then_mdl->end())});
-                then_mdl->replace_return({convert_ins});
+                handle_empty_branch(then_mdl, else_shape);
                 then_shape = else_shape;
             }
-            else if(else_shape.size() == 0)
+            else if(else_shape.empty())
             {
-                auto convert_ins = else_mdl->insert_instruction(
-                    --else_mdl->end(),
-                    make_op("multibroadcast", {{"out_lens", then_shape}}),
-                    {--(--else_mdl->end())});
-                else_mdl->replace_return({convert_ins});
+                handle_empty_branch(else_mdl, then_shape);
                 else_shape = then_shape;
             }
             else
@@ -129,32 +129,27 @@ struct parse_if : op_parser<parse_if>
                         throw_shapes();
                     }
 
-                    // Find which dim to unsqueeze
-                    if(then_shape.size() < else_shape.size())
-                    {
-                        auto last_else = *(--(else_shape.end()));
+                    auto unsqueeze_last_op = [](module_ref& mdl, std::vector<size_t>& out_shape) {
+                        auto last_else = *(--(out_shape.end()));
 
                         if(last_else <= 1)
                         {
-                            auto convert_ins = then_mdl->add_instruction(
-                                make_op("unsqueeze", {{"axes", {else_shape.size() - 1}}}),
-                                --(--then_mdl->end()));
-                            then_mdl->replace_return({convert_ins});
-                            then_mdl->remove_instruction({--convert_ins});
+                            auto convert_ins = mdl->add_instruction(
+                                make_op("unsqueeze", {{"axes", {out_shape.size() - 1}}}),
+                                --(--mdl->end()));
+                            mdl->replace_return({convert_ins});
+                            mdl->remove_instruction({--convert_ins});
                         }
+                    };
+
+                    // Find which dim to unsqueeze
+                    if(then_shape.size() < else_shape.size())
+                    {
+                        unsqueeze_last_op(then_mdl, else_shape);
                     }
                     else
                     {
-                        auto last_then = *(--(then_shape.end()));
-
-                        if(last_then <= 1)
-                        {
-                            auto convert_ins = else_mdl->add_instruction(
-                                make_op("unsqueeze", {{"axes", {then_shape.size() - 1}}}),
-                                --(--else_mdl->end()));
-                            else_mdl->replace_return({convert_ins});
-                            else_mdl->remove_instruction({--convert_ins});
-                        }
+                        unsqueeze_last_op(else_mdl, then_shape);
                     }
                 }
                 else

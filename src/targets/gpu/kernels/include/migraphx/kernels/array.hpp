@@ -218,14 +218,14 @@ struct array
     {
         for(index_int i = 0; i < N; i++)
         {
-            if((x[i] >= y[i]))
+            if(not(x[i] < y[i]))
                 return false;
         }
         return true;
     }
     friend constexpr bool operator>(const array& x, const array& y) { return y < x; }
     friend constexpr bool operator<=(const array& x, const array& y) { return (x < y) or (x == y); }
-    friend constexpr bool operator>=(const array& x, const array& y) { return not(x < y); }
+    friend constexpr bool operator>=(const array& x, const array& y) { return (y < x) or (x == y); }
 
     constexpr array carry(array result) const
     {

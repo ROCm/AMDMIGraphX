@@ -40,18 +40,19 @@ __device__ void pad(const index& idx,
     auto output_shape = output.get_shape();
     idx.global_stride(output_shape.elements(), [&](auto i) {
         auto multi  = output_shape.multi(i);
-        auto bounds = input.get_shape().lens + offsets;
+        auto input_bounds = input.get_shape().lens;
+        auto input_idx = multi - offsets;
         for(auto j = 0; j < offsets.size(); j++)
         {
-            // offsets accounts for padding at the beginning
-            // bounds accounts for padding at the end
-            if(multi[j] < offsets[j] or multi[j] >= bounds[j])
+            // "offsets" accounts for padding at the beginning
+            // "input_bounds" accounts for padding at the end
+            if(multi[j] < offsets[j] or input_idx[j] >= input_bounds[j])
             {
                 output[multi] = pad_val;
                 return;
             }
         }
-        output[multi] = input[multi - offsets];
+        output[multi] = input[input_idx];
     });
 }
 

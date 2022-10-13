@@ -26,21 +26,38 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/common.hpp>
 
 struct test_conv_bn_add : verify_program<test_conv_bn_add>
 {
-    static migraphx::instruction_ref add_bn(migraphx::module& m,
-                                            migraphx::instruction_ref x,
-                                            std::size_t channels,
-                                            std::size_t seed = 1)
+    static migraphx::instruction_ref add_bn(migraphx::module& m, migraphx::instruction_ref x)
     {
-        migraphx::shape vars{migraphx::shape::float_type, {channels}};
-        auto scale    = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + seed)));
-        auto bias     = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + seed)));
-        auto mean     = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + seed)));
-        auto variance = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4 + seed)));
-        return m.add_instruction(
-            migraphx::make_op("batch_norm_inference"), x, scale, bias, mean, variance);
+        auto bn_lens = x->get_shape().lens();
+        auto c_len   = bn_lens.at(1);
+
+        migraphx::shape vars{migraphx::shape::float_type, {c_len}};
+        auto scale    = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + c_len)));
+        auto bias     = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + c_len)));
+        auto mean     = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + c_len)));
+        auto variance = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4 + c_len)));
+
+        auto rt  = m.add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+        auto eps = m.add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+        auto usq_scale =
+            m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
+        auto usq_bias = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), bias);
+        auto usq_mean = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
+        auto usq_var =
+            m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), variance);
+
+        auto numer   = add_common_op(m, migraphx::make_op("sub"), {x, usq_mean});
+        auto var_eps = add_common_op(m, migraphx::make_op("add"), {usq_var, eps});
+        auto denom   = add_common_op(m, migraphx::make_op("pow"), {var_eps, rt});
+        auto div0    = add_common_op(m, migraphx::make_op("div"), {numer, denom});
+        auto r0      = add_common_op(m, migraphx::make_op("mul"), {div0, usq_scale});
+        return add_common_op(m, migraphx::make_op("add"), {r0, usq_bias});
     }
 
     migraphx::program create_program() const
@@ -57,10 +74,10 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add>
             {migraphx::shape::float_type, {ochannels, ichannels, 1, 1}}, 2));
         auto relu1 = mm->add_instruction(migraphx::make_op("relu"), x);
         auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), relu1, w);
-        auto bn1   = add_bn(*mm, conv1, ochannels, 1);
+        auto bn1   = add_bn(*mm, conv1);
         auto relu2 = mm->add_instruction(migraphx::make_op("relu"), y);
         auto conv2 = mm->add_instruction(migraphx::make_op("convolution"), relu2, v);
-        auto bn2   = add_bn(*mm, conv2, ochannels, 1);
+        auto bn2   = add_bn(*mm, conv2);
         auto sum   = mm->add_instruction(migraphx::make_op("add"), bn1, bn2);
         mm->add_instruction(migraphx::make_op("relu"), sum);
         return p;

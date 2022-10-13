@@ -506,10 +506,11 @@ TEST_CASE(if_then_trailing_one_shape_test)
     migraphx::program p = migraphx::parse_onnx("if_then_trailing_one_shape_test.onnx");
     p.compile(migraphx::ref::target{});
     migraphx::shape s_data{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape s_data_x{migraphx::shape::float_type, {2}};
     std::vector<float> data = {0.0625, 0.75};
 
     migraphx::parameter_map pp;
-    pp["x"] = migraphx::argument(s_data, data.data());
+    pp["x"] = migraphx::argument(s_data_x, data.data());
     pp["y"] = migraphx::argument(s_data, data.data());
 
     auto result = p.eval(pp).back();
@@ -571,17 +572,18 @@ TEST_CASE(if_else_trailing_one_shape_test)
     migraphx::program p = migraphx::parse_onnx("if_else_trailing_one_shape_test.onnx");
     p.compile(migraphx::ref::target{});
     migraphx::shape s_data{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape s_data_y{migraphx::shape::float_type, {2}};
     std::vector<float> data = {0.0625, 0.75};
 
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s_data, data.data());
-    pp["y"] = migraphx::argument(s_data, data.data());
+    pp["y"] = migraphx::argument(s_data_y, data.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {-0.0364609435, 0.475317657};
+    std::vector<float> gold = {0.002918556, 0.29198325};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

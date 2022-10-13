@@ -37,7 +37,6 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 
-#include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -300,43 +299,6 @@ struct miopen_apply
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
-        });
-    }
-
-    void add_batch_norm_inference_op()
-    {
-        apply_map.emplace("batch_norm_inference", [=](instruction_ref ins) {
-            auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
-            auto output     = insert_allocation(ins, ins->get_shape());
-            shape old_shape = ins->inputs().at(1)->get_shape();
-            auto input      = ins->inputs()[0];
-            auto input_lens = input->get_shape().lens();
-            std::vector<int64_t> rsp_lens(input_lens.size(), 1);
-            // for per_activation case, also need to reshape input
-            if(op.bn_mode == op::batch_norm_inference::per_activation)
-            {
-                std::copy(input_lens.begin() + 1, input_lens.end(), rsp_lens.begin() + 1);
-            }
-            else
-            {
-                rsp_lens[1] = static_cast<int64_t>(old_shape.elements());
-            }
-
-            auto reshape_op = op::reshape{rsp_lens};
-            std::vector<instruction_ref> reshapes;
-            std::transform(ins->inputs().begin() + 1,
-                           ins->inputs().end(),
-                           std::back_inserter(reshapes),
-                           [&](auto i) { return mod->insert_instruction(ins, reshape_op, i); });
-
-            return mod->replace_instruction(ins,
-                                            miopen_batch_norm_inference{op},
-                                            input,
-                                            reshapes[0],
-                                            reshapes[1],
-                                            reshapes[2],
-                                            reshapes[3],
-                                            output);
         });
     }
 

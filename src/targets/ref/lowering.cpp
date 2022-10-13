@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -74,84 +73,6 @@ typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::ena
 {
     return x;
 }
-
-//
-// ref implemenataion of batch norm for inference
-//
-// inputs are:
-// args[0] -> input data buffer
-// args[1] -> mini batch mean
-// args[2] -> mini batch variance
-// args[3] -> gamma
-// args[4] -> bias
-//
-// The equation to compute batch norm for inference is:
-//
-// output[i] = bias + gamma * (input[i] + mean) / sqrt(variance + epsilon)
-//
-// the input data format should be nchw
-//
-struct ref_batch_norm_inference
-{
-    op::batch_norm_inference op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::batch_norm_inference"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument output{output_shape};
-
-        double epsilon           = op.epsilon;
-        auto input               = args[0];
-        auto arg_gamma           = args[1];
-        auto arg_bias            = args[2];
-        auto mini_batch_mean     = args[3];
-        auto mini_batch_variance = args[4];
-
-        if(op.bn_mode == op::batch_norm_inference::spatial)
-        {
-            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
-                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx = output_shape.multi(i);
-                        auto c   = idx[1];
-                        assert((variance[c] + epsilon) > 0);
-                        result[i] =
-                            gamma[c] * (buffer[i] - mean[c]) / std::sqrt(variance[c] + epsilon) +
-                            bias[c];
-                    });
-                });
-        }
-
-        if(op.bn_mode == op::batch_norm_inference::per_activation)
-        {
-            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
-                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx   = output_shape.multi(i);
-                        idx[0]     = 0;
-                        auto index = output_shape.index(idx);
-
-                        assert((variance[index] + epsilon) > 0);
-                        result[i] = gamma[index] * (buffer[i] - mean[index]) /
-                                        std::sqrt(variance[index] + epsilon) +
-                                    bias[index];
-                    });
-                });
-        }
-
-        return output;
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_batch_norm_inference)
 
 struct ref_lrn
 {
@@ -237,15 +158,16 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         std::vector<std::size_t> padding;
-        if(op.use_dynamic_same_auto_pad)
+        if(op.padding_mode != op::padding_mode_t::default_)
         {
-            auto input_lens = args[0].get_shape().lens();
-            std::vector<std::size_t> img_lens{input_lens.begin() + 2, input_lens.end()};
+            auto input_lens   = args[0].get_shape().lens();
             auto weights_lens = args[1].get_shape().lens();
-            std::vector<std::size_t> k_lens{weights_lens.begin() + 2, weights_lens.end()};
-            padding = calc_dyn_auto_pad(img_lens, k_lens, op.stride, op.dilation);
-            output_shape =
-                compute_padded_shape({args.at(0).get_shape(), args.at(1).get_shape()}, padding);
+            padding =
+                op.padding_mode == op::same_upper
+                    ? calc_dyn_auto_pad(input_lens, weights_lens, op.stride, op.dilation, true)
+                    : calc_dyn_auto_pad(input_lens, weights_lens, op.stride, op.dilation, false);
+            output_shape = compute_padded_shape(
+                args[0].get_shape(), args[1].get_shape(), padding, op.stride, op.dilation);
         }
         else
         {
@@ -312,34 +234,6 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
             });
         });
         return result;
-    }
-
-    private:
-    /*!
-     * Used for dynamic auto padding since padding needs to be computed at evaulation time.
-     * \param inputs two fixed shape inputs [input_tensor, weights]
-     * \param padding from auto_pad calculation
-     */
-    shape compute_padded_shape(const std::vector<shape>& inputs,
-                               const std::vector<std::size_t>& padding) const
-    {
-        const shape& input            = inputs.at(0);
-        const shape& weights          = inputs.at(1);
-        const size_t num_spatial_dims = input.lens().size() - 2;
-
-        std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
-        // calculate the output shape of the convolution: ((W - K + 2P) / S) + 1
-        for(size_t i = 0; i < num_spatial_dims; i++)
-        {
-            auto padding_factor = padding[i] + padding[i + num_spatial_dims];
-            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
-                1,
-                (input.lens()[i + 2] - (1 + op.dilation[i] * (weights.lens()[i + 2] - 1)) +
-                 padding_factor) /
-                        op.stride[i] +
-                    1)));
-        }
-        return inputs[0].with_lens(output_lens);
     }
 };
 
@@ -731,8 +625,6 @@ struct ref_apply
 
     void init()
     {
-        apply_map["batch_norm_inference"] =
-            extend_op<ref_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<ref_convolution<op::convolution>, op::convolution>();
         apply_map["dot"]         = extend_op<ref_gemm, op::dot>();
         apply_map["quant_dot"]   = extend_op<ref_quant_gemm, op::quant_dot>();

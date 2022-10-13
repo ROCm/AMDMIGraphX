@@ -129,25 +129,24 @@ struct parse_if : op_parser<parse_if>
                         throw_shapes();
                     }
 
-                    auto unsqueeze_last_op = [](module_ref& mdl, std::vector<size_t>& out_shape) {
-                        auto last_else = *(--(out_shape.end()));
-
-                        if(last_else <= 1)
-                        {
-                            auto convert_ins = mdl->add_instruction(
-                                make_op("unsqueeze", {{"axes", {out_shape.size() - 1}}}),
-                                --(--mdl->end()));
-                            mdl->replace_return({convert_ins});
-                            mdl->remove_instruction({--convert_ins});
-                        }
+                    auto unsqueeze_last_op = [](module_ref& mdl,
+                                                const std::vector<size_t>& out_shape) {
+                        auto convert_ins = mdl->add_instruction(
+                            make_op("unsqueeze", {{"axes", {out_shape.size() - 1}}}),
+                            --(--mdl->end()));
+                        mdl->replace_return({convert_ins});
+                        mdl->remove_instruction({--convert_ins});
                     };
 
+                    auto last_then = *(--(then_shape.end()));
+                    auto last_else = *(--(else_shape.end()));
+
                     // Find which dim to unsqueeze
-                    if(then_shape.size() < else_shape.size())
+                    if((then_shape.size() < else_shape.size()) && (last_else == 1))
                     {
                         unsqueeze_last_op(then_mdl, else_shape);
                     }
-                    else
+                    else if((then_shape.size() > else_shape.size()) && (last_then == 1))
                     {
                         unsqueeze_last_op(else_mdl, then_shape);
                     }

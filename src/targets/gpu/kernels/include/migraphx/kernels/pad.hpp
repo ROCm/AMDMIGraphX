@@ -39,9 +39,9 @@ __device__ void pad(const index& idx,
 {
     auto output_shape = output.get_shape();
     idx.global_stride(output_shape.elements(), [&](auto i) {
-        auto multi  = output_shape.multi(i);
+        auto multi        = output_shape.multi(i);
         auto input_bounds = input.get_shape().lens;
-        auto input_idx = multi - offsets;
+        auto input_idx    = multi - offsets;
         for(auto j = 0; j < offsets.size(); j++)
         {
             // "offsets" accounts for padding at the beginning

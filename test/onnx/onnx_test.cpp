@@ -2559,17 +2559,18 @@ TEST_CASE(if_then_trailing_one_shape_test)
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
     auto cond = mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape s{migraphx::shape::float_type, {2, 1}};
-    migraphx::shape s_trail{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape s_trail{migraphx::shape::float_type, {2}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s_trail, ones);
-    std::vector<float> rand = {-1.26487, -2.42279};
+    std::vector<float> rand = {1.24251, 0.23161};
     auto l2                 = mm->add_literal(s, rand);
     auto x                  = mm->add_parameter("x", s_trail);
     auto y                  = mm->add_parameter("y", s);
 
     auto* then_mod = p.create_module("If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
-    then_mod->add_return({rt});
+    auto broad_rt  = then_mod->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), rt);
+    then_mod->add_return({broad_rt});
 
     auto* else_mod = p.create_module("If_5_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);

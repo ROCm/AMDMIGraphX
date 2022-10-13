@@ -2266,8 +2266,7 @@ def if_then_trailing_one_shape_test():
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 1])
 
     then_out = onnx.helper.make_tensor_value_info('then_out',
-                                                  onnx.TensorProto.FLOAT,
-                                                  [2])
+                                                  onnx.TensorProto.FLOAT, [2])
     else_out = onnx.helper.make_tensor_value_info('else_out',
                                                   onnx.TensorProto.FLOAT,
                                                   [2, 1])
@@ -2578,8 +2577,7 @@ def if_else_trailing_one_shape_test():
                                                   onnx.TensorProto.FLOAT,
                                                   [2, 1])
     else_out = onnx.helper.make_tensor_value_info('else_out',
-                                                  onnx.TensorProto.FLOAT,
-                                                  [2])
+                                                  onnx.TensorProto.FLOAT, [2])
 
     xt = np.ones((2, 1)).astype(np.float)
     xt_tensor = helper.make_tensor(name='xt',
@@ -2628,8 +2626,7 @@ def if_then_empty_shape_test():
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
 
     then_out = onnx.helper.make_tensor_value_info('then_out',
-                                                  onnx.TensorProto.FLOAT,
-                                                  [])
+                                                  onnx.TensorProto.FLOAT, [])
     else_out = onnx.helper.make_tensor_value_info('else_out',
                                                   onnx.TensorProto.FLOAT,
                                                   [2, 3])

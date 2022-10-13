@@ -112,7 +112,6 @@ struct miopen_apply
         add_extend_op("scatter_none");
         add_extend_op("topk");
 
-        add_batch_norm_inference_op();
         add_convolution_op("convolution");
         add_convolution_op("deconvolution");
         add_convolution_op("quant_convolution");

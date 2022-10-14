@@ -95,24 +95,21 @@ struct parse_if : op_parser<parse_if>
                 throw_shapes();
             }
 
-            auto handle_empty_branch = [](module_ref& mdl, std::vector<size_t>& out_shape) {
-                auto convert_ins =
-                    mdl->insert_instruction(--mdl->end(),
-                                            make_op("multibroadcast", {{"out_lens", out_shape}}),
-                                            {--(--mdl->end())});
-                mdl->replace_return({convert_ins});
+            auto handle_empty_branch = [](module_ref& mdl, const shape& out_shape) {
+                auto outline_ins = mdl->add_outline(out_shape);
+                mdl->replace_return({outline_ins});
             };
 
             // Handle one empty branch by setting output identical to the other
             // need to update the then_shape before we do further checks
             if(then_shape.empty())
             {
-                handle_empty_branch(then_mdl, else_shape);
+                handle_empty_branch(then_mdl, else_out_shapes.at(0));
                 then_shape = else_shape;
             }
             else if(else_shape.empty())
             {
-                handle_empty_branch(else_mdl, then_shape);
+                handle_empty_branch(else_mdl, then_out_shapes.at(0));
                 else_shape = then_shape;
             }
             else

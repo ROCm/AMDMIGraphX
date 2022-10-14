@@ -41,9 +41,8 @@ struct convolution
     std::vector<std::size_t> stride   = {1, 1};
     std::vector<std::size_t> dilation = {1, 1};
 
-    int group                      = 1;
-    padding_mode_t padding_mode    = default_;
-    bool use_dynamic_same_auto_pad = false;
+    int group                   = 1;
+    padding_mode_t padding_mode = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -52,8 +51,7 @@ struct convolution
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
                     f(self.group, "group"),
-                    f(self.padding_mode, "padding_mode"),
-                    f(self.use_dynamic_same_auto_pad, "use_dynamic_same_auto_pad"));
+                    f(self.padding_mode, "padding_mode"));
     }
 
     std::string name() const { return "convolution"; }
@@ -92,13 +90,6 @@ struct convolution
         if(not x_shape.dynamic() and not w_shape.dynamic() and
            x_shape.lens().at(1) != (w_shape.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
-
-        std::vector<op::padding_mode_t> dyn_pad_modes = {op::padding_mode_t::same_upper,
-                                                         op::padding_mode_t::same_lower};
-        if(use_dynamic_same_auto_pad and not contains(dyn_pad_modes, padding_mode))
-        {
-            MIGRAPHX_THROW("CONVOLUTION: use_dynamic_same_auto_pad set with invalid padding mode");
-        }
 
         if(x_shape.dynamic() or w_shape.dynamic())
         {
@@ -161,7 +152,7 @@ struct convolution
         dynamic_shape_push_back(w_shape);
 
         const size_t num_spatial_dims = x_shape.max_lens().size() - 2;
-        if(use_dynamic_same_auto_pad)
+        if(padding_mode != default_)
         {
             for(std::size_t i = 0; i < num_spatial_dims; ++i)
             {

@@ -70,7 +70,7 @@ struct parse_if : op_parser<parse_if>
 
         auto throw_shapes = [&]() {
             MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                            " then and else sub_graphs must compatible shapes ");
+                           " then and else sub_graphs must compatible shapes ");
         };
 
         if(then_out_shapes.size() != else_out_shapes.size())
@@ -90,8 +90,8 @@ struct parse_if : op_parser<parse_if>
 
         if(not then_out_shapes.at(0).dynamic() && not else_out_shapes.at(0).dynamic())
         {
-            auto then_lens   = then_out_shapes.at(0).lens();
-            auto else_lens   = else_out_shapes.at(0).lens();
+            auto then_lens = then_out_shapes.at(0).lens();
+            auto else_lens = else_out_shapes.at(0).lens();
 
             // Throw error if both branches have zero output shapes. Not possible for static inputs
             if(then_lens.empty() && else_lens.empty())
@@ -122,9 +122,20 @@ struct parse_if : op_parser<parse_if>
 
                 if(dim_delta <= 1)
                 {
+                    auto all_but_last_dims_equal = [](std::vector<size_t>& lens_A,
+                                                      std::vector<size_t>& lens_B) {
+                        if(lens_A.size() <= lens_B.size())
+                        {
+                            return equal(lens_A.begin(), lens_A.end(), lens_B.begin());
+                        }
+                        else
+                        {
+                            return equal(lens_B.begin(), lens_B.end(), lens_A.begin());
+                        }
+                    };
+
                     // make sure dims are equivalent in static shapes
-                    if(not equal(then_lens.begin(), then_lens.end(), else_lens.begin()) &&
-                       not equal(else_lens.begin(), else_lens.end(), then_lens.begin()))
+                    if(not all_but_last_dims_equal(then_lens, else_lens))
                     {
                         throw_shapes();
                     }

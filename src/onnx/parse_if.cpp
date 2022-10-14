@@ -70,7 +70,7 @@ struct parse_if : op_parser<parse_if>
 
         auto throw_shapes = [&]() {
             MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                           " then and else sub_graphs must compatible shapes ");
+                           " then and else sub_graphs must have compatible shapes ");
         };
 
         if(then_out_shapes.size() != else_out_shapes.size())

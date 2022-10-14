@@ -81,7 +81,6 @@ add_library(migraphx
     replace_allocate.cpp
     simplify_qdq.cpp
     sqlite.cpp
-    rewrite_batchnorm.cpp
     rewrite_gelu.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
@@ -115,7 +114,6 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
-    batch_norm_inference
     broadcast
     capture
     ceil

@@ -125,11 +125,9 @@ struct parse_convolution : op_parser<parse_convolution>
                     values["padding_mode"] = is_same_upper
                                                  ? to_value(op::padding_mode_t::same_upper)
                                                  : to_value(op::padding_mode_t::same_lower);
-                    values["use_dynamic_same_auto_pad"] = true;
                 }
                 else
                 {
-                    values["padding_mode"] = to_value(op::padding_mode_t::same);
                     // kernel shape will be fixed, so max_lens() == min_len() for kernel lengths
                     auto weight_lens = weights->get_shape().max_lens();
                     std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());

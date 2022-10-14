@@ -30,7 +30,7 @@ from onnx import version_converter, helper
 def parse_args():
     parser = argparse.ArgumentParser(
         description=
-        'MIGraphX Onnx Model Convertion. Use to convert the opset of the input model to MIGraphX\'s' 
+        'MIGraphX Onnx Model Convertion. Use to convert the opset of the input model to MIGraphX\'s'
     )
     req_args = parser.add_argument_group(title='required arguments')
     req_args.add_argument('--model',
@@ -56,17 +56,17 @@ def parse_args():
 def main():
     args = parse_args()
 
-    model_path     = args.model
+    model_path = args.model
     out_model_path = args.output
-    target_opset   = args.opset
-    verbose        = args.verbose
+    target_opset = args.opset
+    verbose = args.verbose
 
 
     original_model = onnx.load(model_path)
     if verbose:
         print(f"The model before conversion:\n{original_model}")
 
-     # A full list of supported adapters can be found here:
+    # A full list of supported adapters can be found here:
     # https://github.com/onnx/onnx/blob/main/onnx/version_converter.py#L21
     # Apply the version conversion on the original model
     converted_model = version_converter.convert_version(original_model, target_opset)

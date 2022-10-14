@@ -251,8 +251,7 @@ TEST_CASE(convolution_shape)
                  migraphx::make_op("convolution",
                                    {{"stride", {1, 1}},
                                     {"dilation", {1, 1}},
-                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper},
-                                    {"use_dynamic_same_auto_pad", true}}),
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
                  input_dyn_shape,
                  weights_shape);
 
@@ -265,8 +264,7 @@ TEST_CASE(convolution_shape)
                  migraphx::make_op("convolution",
                                    {{"stride", {1, 1}},
                                     {"dilation", {1, 1}},
-                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper},
-                                    {"use_dynamic_same_auto_pad", true}}),
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
                  input_dyn_shape,
                  weights_shape);
 
@@ -280,8 +278,7 @@ TEST_CASE(convolution_shape)
                  migraphx::make_op("convolution",
                                    {{"stride", {1, 1}},
                                     {"dilation", {1, 1}},
-                                    {"padding_mode", migraphx::op::padding_mode_t::same_lower},
-                                    {"use_dynamic_same_auto_pad", true}}),
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
                  input_dyn_shape,
                  weights_shape);
 }

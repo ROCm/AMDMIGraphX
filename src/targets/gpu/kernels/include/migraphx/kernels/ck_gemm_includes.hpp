@@ -149,23 +149,21 @@ template <typename ALayout,
           ck::index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           ck::index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()
-          >
-struct CKDeviceGemm 
+          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()>
+struct CKDeviceGemm
 {
     static constexpr auto I0 = ck::Number<0>{};
     static constexpr auto I1 = ck::Number<1>{};
     static constexpr auto I2 = ck::Number<2>{};
     static constexpr auto I3 = ck::Number<3>{};
 
-    template<class Descriptor>
-    static constexpr auto
-    MakeAGridDescriptor_AK0_M_AK1(const Descriptor& a_grid_desc_mraw_kraw)
+    template <class Descriptor>
+    static constexpr auto MakeAGridDescriptor_AK0_M_AK1(const Descriptor& a_grid_desc_mraw_kraw)
     {
         const auto MRaw = a_grid_desc_mraw_kraw.GetLength(I0);
         const auto KRaw = a_grid_desc_mraw_kraw.GetLength(I1);
-        const auto M = ck::math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto K = ck::math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
+        const auto M    = ck::math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto K    = ck::math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
 
         const auto MPad = M - MRaw;
         const auto KPad = K - KRaw;
@@ -253,14 +251,13 @@ struct CKDeviceGemm
         }
     }
 
-    template<class Descriptor>
-    static constexpr auto
-    MakeBGridDescriptor_BK0_N_BK1(const Descriptor& b_grid_desc_nraw_kraw)
+    template <class Descriptor>
+    static constexpr auto MakeBGridDescriptor_BK0_N_BK1(const Descriptor& b_grid_desc_nraw_kraw)
     {
         const auto NRaw = b_grid_desc_nraw_kraw.GetLength(I0);
         const auto KRaw = b_grid_desc_nraw_kraw.GetLength(I1);
-        const auto N = ck::math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
-        const auto K = ck::math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
+        const auto N    = ck::math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+        const auto K    = ck::math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
 
         const auto NPad = N - NRaw;
         const auto KPad = K - KRaw;
@@ -348,14 +345,13 @@ struct CKDeviceGemm
         }
     }
 
-    template<class Descriptor>
-    static constexpr auto
-    MakeCGridDescriptor_M_N(const Descriptor& c_grid_desc_mraw_nraw)
+    template <class Descriptor>
+    static constexpr auto MakeCGridDescriptor_M_N(const Descriptor& c_grid_desc_mraw_nraw)
     {
         const auto MRaw = c_grid_desc_mraw_nraw.GetLength(I0);
         const auto NRaw = c_grid_desc_mraw_nraw.GetLength(I1);
-        const auto M = ck::math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
-        const auto N = ck::math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+        const auto M    = ck::math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto N    = ck::math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
 
         const auto MPad = M - MRaw;
         const auto NPad = N - NRaw;
@@ -407,8 +403,8 @@ struct CKDeviceGemm
     // using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1());
     // using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N());
 
-        // return block_id to C matrix tile idx (m0, n0) mapping
-    template<class CGridDesc_M_N>
+    // return block_id to C matrix tile idx (m0, n0) mapping
+    template <class CGridDesc_M_N>
     __host__ __device__ static constexpr auto
     MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
     {
@@ -416,7 +412,7 @@ struct CKDeviceGemm
             c_grid_desc_m_n);
     }
 
-    template<class AGridDesc_AK0_M_AK1, class BGridDesc_BK0_N_BK1, class CGridDesc_M_N> 
+    template <class AGridDesc_AK0_M_AK1, class BGridDesc_BK0_N_BK1, class CGridDesc_M_N>
     using GridwiseGemm = ck::GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
@@ -461,7 +457,7 @@ struct CKDeviceGemm
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
-    
+
     AElementwiseOperation a_element_op{};
     BElementwiseOperation b_element_op{};
     CElementwiseOperation c_element_op{};

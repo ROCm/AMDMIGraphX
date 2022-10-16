@@ -40,11 +40,14 @@ __device__ void ck_gemm(const A& a, const B& b, const C& c)
 
     constexpr auto a_grid_desc_ak0_m_ak1 = gemm.MakeAGridDescriptor_AK0_M_AK1(to_ck_tensor<A>());
     constexpr auto b_grid_desc_bk0_n_bk1 = gemm.MakeBGridDescriptor_BK0_N_BK1(to_ck_tensor<B>());
-    constexpr auto c_grid_desc_m_n = gemm.MakeCGridDescriptor_M_N(to_ck_tensor<C>());
-    constexpr auto block_2_ctile_map = gemm.MakeDefaultBlock2CTileMap(c_grid_desc_m_n);
+    constexpr auto c_grid_desc_m_n       = gemm.MakeCGridDescriptor_M_N(to_ck_tensor<C>());
+    constexpr auto block_2_ctile_map     = gemm.MakeDefaultBlock2CTileMap(c_grid_desc_m_n);
 
-    using GridwiseGemm = typename G::template GridwiseGemm<decltype(a_grid_desc_ak0_m_ak1), decltype(b_grid_desc_bk0_n_bk1), decltype(c_grid_desc_m_n)>;
-    // static_assert(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, c_grid_desc_m_n, block_2_ctile_map));
+    using GridwiseGemm = typename G::template GridwiseGemm<decltype(a_grid_desc_ak0_m_ak1),
+                                                           decltype(b_grid_desc_bk0_n_bk1),
+                                                           decltype(c_grid_desc_m_n)>;
+    // static_assert(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1,
+    // c_grid_desc_m_n, block_2_ctile_map));
 
     constexpr auto c_grid_desc_mblock_mperblock_nblock_nperblock =
         GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);

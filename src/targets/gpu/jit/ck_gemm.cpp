@@ -56,18 +56,14 @@ static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <args.hpp>
 #include <migraphx/kernels/ck_gemm.hpp>
 
-#include <hip/hip_runtime_api.h>
-
 namespace migraphx {
-
-using gemm_t = CKDeviceGemm<${instance}>;
 
 extern "C" {
 
 __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 {
     make_tensors()(a_p, b_p, c_p)([&](auto a, auto b, auto c) {
-        ck_gemm<gemm_t>(a, b, c);
+        ck_gemm<CKDeviceGemm<${instance}>>(a, b, c);
     });
 }
 

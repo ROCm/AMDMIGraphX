@@ -36,16 +36,18 @@ namespace migraphx {
 template <class G, class A, class B, class C>
 __device__ void ck_gemm(const A& a, const B& b, const C& c)
 {
-    constexpr auto a_desc            = to_ck_tensor<A>();
-    constexpr auto b_desc            = to_ck_tensor<B>();
-    constexpr auto c_desc            = to_ck_tensor<C>();
-    constexpr auto block_2_ctile_map = G::MakeDefaultBlock2CTileMap(c_desc);
+    constexpr G gemm{};
 
-    using GridwiseGemm = typename G::template Make<decltype(a_desc), decltype(b_desc), decltype(c_desc)>;
-    // static_assert(GridwiseGemm::CheckValidity(a_desc, b_desc, c_desc, block_2_ctile_map));
+    constexpr auto a_grid_desc_ak0_m_ak1 = gemm.MakeAGridDescriptor_AK0_M_AK1(to_ck_tensor<A>());
+    constexpr auto b_grid_desc_bk0_n_bk1 = gemm.MakeBGridDescriptor_BK0_N_BK1(to_ck_tensor<B>());
+    constexpr auto c_grid_desc_m_n = gemm.MakeCGridDescriptor_M_N(to_ck_tensor<C>());
+    constexpr auto block_2_ctile_map = gemm.MakeDefaultBlock2CTileMap(c_grid_desc_m_n);
+
+    using GridwiseGemm = typename G::template GridwiseGemm<decltype(a_grid_desc_ak0_m_ak1), decltype(b_grid_desc_bk0_n_bk1), decltype(c_grid_desc_m_n)>;
+    // static_assert(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, c_grid_desc_m_n, block_2_ctile_map));
 
     constexpr auto c_grid_desc_mblock_mperblock_nblock_nperblock =
-        GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_desc);
+        GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
 
     constexpr auto shared_block_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
     __shared__ char p_shared_block[shared_block_size];
@@ -56,11 +58,11 @@ __device__ void ck_gemm(const A& a, const B& b, const C& c)
                                                   b.data(),
                                                   c.data(),
                                                   p_shared_block,
-                                                  G::AOp(),
-                                                  G::BOp(),
-                                                  G::COp(),
-                                                  a_desc,
-                                                  b_desc,
+                                                  gemm.a_element_op,
+                                                  gemm.b_element_op,
+                                                  gemm.c_element_op,
+                                                  a_grid_desc_ak0_m_ak1,
+                                                  b_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_ctile_map);
 }

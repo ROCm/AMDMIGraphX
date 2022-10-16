@@ -149,11 +149,275 @@ template <typename ALayout,
           ck::index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           ck::index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()>
-struct CKDeviceGemm
+          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()
+          >
+struct CKDeviceGemm 
 {
-    template <class AGridDesc_AK0_M_AK1, class BGridDesc_BK0_N_BK1, class CGridDesc_M_N>
-    using Make = ck::GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
+    static constexpr auto I0 = ck::Number<0>{};
+    static constexpr auto I1 = ck::Number<1>{};
+    static constexpr auto I2 = ck::Number<2>{};
+    static constexpr auto I3 = ck::Number<3>{};
+
+    template<class Descriptor>
+    static constexpr auto
+    MakeAGridDescriptor_AK0_M_AK1(const Descriptor& a_grid_desc_mraw_kraw)
+    {
+        const auto MRaw = a_grid_desc_mraw_kraw.GetLength(I0);
+        const auto KRaw = a_grid_desc_mraw_kraw.GetLength(I1);
+        const auto M = ck::math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto K = ck::math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
+
+        const auto MPad = M - MRaw;
+        const auto KPad = K - KRaw;
+
+        if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::MKPadding ||
+                     GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding)
+        {
+            // pad both M and K
+            assert(K % AK1 == 0);
+
+            const auto AK0 = K / AK1;
+
+            const auto a_grid_desc_m_k = transform_tensor_descriptor(
+                a_grid_desc_mraw_kraw,
+                ck::make_tuple(ck::make_right_pad_transform(MRaw, MPad),
+                               ck::make_right_pad_transform(KRaw, KPad)),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+
+            const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(AK0, AK1)),
+                               ck::make_pass_through_transform(M)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
+        else if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::MPadding ||
+                          GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNPadding)
+        {
+            // pad M, but not K
+            assert(KRaw % AK1 == 0);
+
+            const auto AK0 = KRaw / AK1;
+
+            const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
+                a_grid_desc_mraw_kraw,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(AK0, AK1)),
+                               ck::make_right_pad_transform(MRaw, MPad)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
+        else if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::KPadding ||
+                          GemmSpec == ck::tensor_operation::device::GemmSpecialization::NKPadding)
+        {
+            // pad K, but not M
+            assert(K % AK1 == 0);
+
+            const auto AK0 = K / AK1;
+
+            const auto a_grid_desc_m_k = transform_tensor_descriptor(
+                a_grid_desc_mraw_kraw,
+                ck::make_tuple(ck::make_pass_through_transform(MRaw),
+                               ck::make_right_pad_transform(KRaw, KPad)),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+
+            const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(AK0, AK1)),
+                               ck::make_pass_through_transform(MRaw)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
+        else
+        {
+            // not pad M or K
+            assert(KRaw % AK1 == 0);
+
+            const auto AK0 = KRaw / AK1;
+
+            const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
+                a_grid_desc_mraw_kraw,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(AK0, AK1)),
+                               ck::make_pass_through_transform(MRaw)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return a_grid_desc_ak0_m_ak1;
+        }
+    }
+
+    template<class Descriptor>
+    static constexpr auto
+    MakeBGridDescriptor_BK0_N_BK1(const Descriptor& b_grid_desc_nraw_kraw)
+    {
+        const auto NRaw = b_grid_desc_nraw_kraw.GetLength(I0);
+        const auto KRaw = b_grid_desc_nraw_kraw.GetLength(I1);
+        const auto N = ck::math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+        const auto K = ck::math::integer_divide_ceil(KRaw, KPerBlock) * KPerBlock;
+
+        const auto NPad = N - NRaw;
+        const auto KPad = K - KRaw;
+
+        if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::NKPadding ||
+                     GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding)
+        {
+            // pad both N and K
+            assert(K % BK1 == 0);
+
+            const auto BK0 = K / BK1;
+
+            const auto b_grid_desc_n_k = transform_tensor_descriptor(
+                b_grid_desc_nraw_kraw,
+                ck::make_tuple(ck::make_right_pad_transform(NRaw, NPad),
+                               ck::make_right_pad_transform(KRaw, KPad)),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+
+            const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(BK0, BK1)),
+                               ck::make_pass_through_transform(N)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
+        else if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::NPadding ||
+                          GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNPadding)
+        {
+            // pad N, but not K
+            assert(KRaw % BK1 == 0);
+
+            const auto BK0 = KRaw / BK1;
+
+            const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b_grid_desc_nraw_kraw,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(BK0, BK1)),
+                               ck::make_right_pad_transform(NRaw, NPad)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
+        else if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::KPadding ||
+                          GemmSpec == ck::tensor_operation::device::GemmSpecialization::MKPadding)
+        {
+            // pad K, but not N
+            assert(K % BK1 == 0);
+
+            const auto BK0 = K / BK1;
+
+            const auto b_grid_desc_n_k = transform_tensor_descriptor(
+                b_grid_desc_nraw_kraw,
+                ck::make_tuple(ck::make_pass_through_transform(NRaw),
+                               ck::make_right_pad_transform(KRaw, KPad)),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+
+            const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(BK0, BK1)),
+                               ck::make_pass_through_transform(NRaw)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
+        else
+        {
+            // not pad N or K
+            assert(KRaw % BK1 == 0);
+
+            const auto BK0 = KRaw / BK1;
+
+            const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b_grid_desc_nraw_kraw,
+                ck::make_tuple(make_unmerge_transform(ck::make_tuple(BK0, BK1)),
+                               ck::make_pass_through_transform(NRaw)),
+                ck::make_tuple(ck::Sequence<1>{}, ck::Sequence<0>{}),
+                ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
+
+            return b_grid_desc_bk0_n_bk1;
+        }
+    }
+
+    template<class Descriptor>
+    static constexpr auto
+    MakeCGridDescriptor_M_N(const Descriptor& c_grid_desc_mraw_nraw)
+    {
+        const auto MRaw = c_grid_desc_mraw_nraw.GetLength(I0);
+        const auto NRaw = c_grid_desc_mraw_nraw.GetLength(I1);
+        const auto M = ck::math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+        const auto N = ck::math::integer_divide_ceil(NRaw, NPerBlock) * NPerBlock;
+
+        const auto MPad = M - MRaw;
+        const auto NPad = N - NRaw;
+
+        if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNPadding ||
+                     GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding)
+        {
+            // pad M and N
+            return transform_tensor_descriptor(
+                c_grid_desc_mraw_nraw,
+                ck::make_tuple(ck::make_right_pad_transform(MRaw, MPad),
+                               ck::make_right_pad_transform(NRaw, NPad)),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+        }
+        else if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::MPadding ||
+                          GemmSpec == ck::tensor_operation::device::GemmSpecialization::MKPadding)
+        {
+            // pad M, but not N
+            return transform_tensor_descriptor(
+                c_grid_desc_mraw_nraw,
+                ck::make_tuple(ck::make_right_pad_transform(MRaw, MPad),
+                               ck::make_pass_through_transform(NRaw)),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+        }
+        else if constexpr(GemmSpec == ck::tensor_operation::device::GemmSpecialization::NPadding ||
+                          GemmSpec == ck::tensor_operation::device::GemmSpecialization::NKPadding)
+        {
+            // pad N, but not M
+            return transform_tensor_descriptor(
+                c_grid_desc_mraw_nraw,
+                ck::make_tuple(ck::make_pass_through_transform(MRaw),
+                               ck::make_right_pad_transform(NRaw, NPad)),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}),
+                ck::make_tuple(ck::Sequence<0>{}, ck::Sequence<1>{}));
+        }
+        else
+        {
+            // not pad M or N
+            return c_grid_desc_mraw_nraw;
+        }
+    }
+
+    // using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1<8, 8, 8>());
+    // using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1<8, 8, 8>());
+    // using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N<8, 8, 8>());
+    // using AGridDesc_AK0_M_AK1 = decltype(MakeAGridDescriptor_AK0_M_AK1());
+    // using BGridDesc_BK0_N_BK1 = decltype(MakeBGridDescriptor_BK0_N_BK1());
+    // using CGridDesc_M_N       = decltype(MakeCGridDescriptor_M_N());
+
+        // return block_id to C matrix tile idx (m0, n0) mapping
+    template<class CGridDesc_M_N>
+    __host__ __device__ static constexpr auto
+    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
+    {
+        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
+            c_grid_desc_m_n);
+    }
+
+    template<class AGridDesc_AK0_M_AK1, class BGridDesc_BK0_N_BK1, class CGridDesc_M_N> 
+    using GridwiseGemm = ck::GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -197,18 +461,10 @@ struct CKDeviceGemm
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
-
-    static constexpr auto AOp() { return AElementwiseOperation{}; }
-    static constexpr auto BOp() { return BElementwiseOperation{}; }
-    static constexpr auto COp() { return CElementwiseOperation{}; }
-    // return block_id to C matrix tile idx (m0, n0) mapping
-    template <class CGridDesc_M_N>
-    __host__ __device__ static constexpr auto
-    MakeDefaultBlock2CTileMap(const CGridDesc_M_N& c_grid_desc_m_n)
-    {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>(
-            c_grid_desc_m_n);
-    }
+    
+    AElementwiseOperation a_element_op{};
+    BElementwiseOperation b_element_op{};
+    CElementwiseOperation c_element_op{};
 };
 
 } // namespace migraphx

@@ -2586,6 +2586,64 @@ TEST_CASE(if_then_trailing_one_shape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(if_then_empty_constant_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    auto cond = mm->add_literal(migraphx::literal(sc, {1}));
+    migraphx::shape s{migraphx::shape::int64_type, {2, 1}};
+    std::vector<int> rand = {-1, 0};
+    mm->add_literal(migraphx::shape::int64_type);
+    auto l2 = mm->add_literal(s, rand);
+    auto y  = mm->add_parameter("y", s);
+
+    auto* then_mod = p.create_module("If_4_if");
+    then_mod->add_literal(migraphx::shape::int64_type);
+    auto outline = then_mod->add_outline(s);
+    then_mod->add_return({outline});
+
+    auto* else_mod = p.create_module("If_4_else");
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({re});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("if_then_empty_constant_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_else_empty_constant_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    auto cond = mm->add_literal(migraphx::literal(sc, {0}));
+    migraphx::shape s{migraphx::shape::int64_type, {2, 1}};
+    std::vector<int> rand = {1, -2};
+    mm->add_literal(migraphx::shape::int64_type);
+    auto l2 = mm->add_literal(s, rand);
+    auto y  = mm->add_parameter("y", s);
+
+    auto* then_mod = p.create_module("If_4_if");
+    auto rt        = then_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    then_mod->add_return({rt});
+
+    auto* else_mod = p.create_module("If_4_else");
+    else_mod->add_literal(migraphx::shape::int64_type);
+    auto outline = else_mod->add_outline(s);
+    else_mod->add_return({outline});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("if_else_empty_constant_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(if_then_test)
 {
     migraphx::program p;

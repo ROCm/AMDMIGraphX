@@ -59,14 +59,15 @@ constexpr auto to_ck_tensor()
     });
 }
 
-template<class F>
+template <class F>
 struct ck_function_adaptor : F
 {
-    template<class... Ts>
+    template <class... Ts>
     constexpr ck_function_adaptor(Ts&&... xs) : F(static_cast<Ts&&>(xs)...)
-    {}
+    {
+    }
 
-    template<class T, class... Ts>
+    template <class T, class... Ts>
     constexpr void operator()(T& out, Ts&&... xs) const
     {
         out = static_cast<const F&>(*this)(static_cast<Ts&&>(xs)...);
@@ -75,9 +76,10 @@ struct ck_function_adaptor : F
 
 struct ck_nop
 {
-    template<class T>
+    template <class T>
     constexpr void operator()(T&) const
-    {}
+    {
+    }
 };
 
 } // namespace migraphx

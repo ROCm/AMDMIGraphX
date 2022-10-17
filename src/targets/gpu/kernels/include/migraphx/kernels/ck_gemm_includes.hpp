@@ -156,7 +156,8 @@ template <typename ALayout,
           ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()>
 struct CK_DeviceGemmMultipleD
 {
-    ck::tensor_operation::device::MatrixPadder<GemmSpec, ck::index_t, ck::index_t, ck::index_t> matrix_padder {MPerBlock, NPerBlock, KPerBlock};
+    ck::tensor_operation::device::MatrixPadder<GemmSpec, ck::index_t, ck::index_t, ck::index_t>
+        matrix_padder{MPerBlock, NPerBlock, KPerBlock};
 
     // GridwiseGemm
     using GridwiseGemm = ck::GridwiseGemmMultipleD_xdl_cshuffle<
@@ -203,7 +204,7 @@ struct CK_DeviceGemmMultipleD
         LoopSched>;
 
     // return block_id to E matrix tile idx (m0, n0) mapping
-    template<class EGridDesc_M_N>
+    template <class EGridDesc_M_N>
     __device__ static constexpr auto
     MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n_)
     {

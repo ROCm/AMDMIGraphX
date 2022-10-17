@@ -75,10 +75,10 @@ def parse_log(f):
         yield config
 
 
-def benchmark_log(f):
+def benchmark_log(f, n):
     result = []
     for config in parse_log(f):
-        tuned = benchmark(config, 13)
+        tuned = benchmark(config, n)
         result.append([config, tuned])
     return result
 
@@ -95,12 +95,15 @@ def parse_args():
                         type=str,
                         metavar='file',
                         help='Output json file to save tunings')
+    parser.add_argument('-n',
+                        type=int,
+                        help='Number of instances to tune')
     args = parser.parse_args()
     return args
 
 
 def run(args):
-    tuned = benchmark_log(args.log)
+    tuned = benchmark_log(args.log, args.n)
     json.dump(tuned, open(args.out, 'w+'))
 
 

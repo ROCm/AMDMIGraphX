@@ -82,5 +82,14 @@ struct ck_nop
     }
 };
 
+struct ck_passthrough
+{
+    template <class T, class U>
+    constexpr void operator()(T& y , U x) const
+    {
+        y = x;
+    }
+};
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_CK_HPP

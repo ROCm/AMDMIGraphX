@@ -184,7 +184,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;
-    if(ins->name() != "miopen_convolution")
+    if(ins->name() != "gpu::miopen_convolution")
         return false;
     auto miopen_conv_op = any_cast<miopen_convolution>(ins->get_operator());
     if(miopen_conv_op.op.name() != "convolution")

@@ -178,7 +178,7 @@ void pack_int8_args::apply(module& m) const
                 m.replace_instruction(ins, ins->get_operator(), inputs);
             }
         }
-        else if(ins->name() == "miopen_convolution")
+        else if(ins->name() == "gpu::miopen_convolution")
         {
             auto conv_op = any_cast<miopen_convolution>(ins->get_operator());
             if(conv_op.op.name() != "quant_convolution")

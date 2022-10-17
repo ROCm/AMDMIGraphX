@@ -462,8 +462,7 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     auto ins            = r.result;
     auto input_ins      = conv_ins->inputs().at(0);
     auto weights_ins    = conv_ins->inputs().at(1);
-    auto miopen_conv_op = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator());
-    auto conv_op        = miopen_conv_op.op;
+    auto conv_op = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
     auto alloc_ins      = ins->inputs().back();
     auto old_ws_ins     = conv_ins->inputs().at(2);
 
@@ -529,9 +528,8 @@ struct find_conv_pointwise
         auto ins         = r.result;
         auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
-        auto miopen_conv_op =
-            any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator());
-        auto conv_op   = miopen_conv_op.op;
+        auto conv_op =
+            any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
         auto alloc_ins = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();

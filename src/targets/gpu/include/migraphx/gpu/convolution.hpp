@@ -148,7 +148,7 @@ struct miopen_convolution
     {
         if(cd == nullptr)
         {
-            cd = (op.name() == "convolution") ? make_conv(op) : make_deconv(op);
+            cd = (op.name() == "deconvolution") ? make_deconv(op) : make_conv(op);
         }
     }
 
@@ -178,7 +178,6 @@ struct miopen_convolution
             auto* miopen_stream_handle = ctx.get_stream().get_miopen();
 
             solution_ptr = find_solution(miopen_stream_handle, conv_problem.get());
-
             auto status = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");

@@ -2660,6 +2660,11 @@ TEST_CASE(if_else_then_diff_types)
     EXPECT(test::throws([&] { migraphx::parse_onnx("if_then_else_diff_type_test.onnx"); }));
 }
 
+TEST_CASE(if_else_then_both_empty)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("if_then_else_both_empty_test.onnx"); }));
+}
+
 TEST_CASE(if_then_test)
 {
     migraphx::program p;

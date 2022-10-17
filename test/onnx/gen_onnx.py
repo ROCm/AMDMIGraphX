@@ -2474,6 +2474,60 @@ def if_then_else_diff_type_test():
 
 
 @onnx_test
+def if_then_else_both_empty_test():
+
+    empty_val = np.array([]).astype(np.int64)
+    empty_ts = helper.make_tensor(name='empty_tensor',
+                                  data_type=TensorProto.INT64,
+                                  dims=empty_val.shape,
+                                  vals=empty_val.flatten().astype(int))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape_const'],
+        value=empty_ts,
+    )
+
+    empty_val_y = np.array([]).astype(np.int64)
+    empty_ts_y = helper.make_tensor(name='empty_tensor_y',
+                                  data_type=TensorProto.INT64,
+                                  dims=empty_val_y.shape,
+                                  vals=empty_val_y.flatten().astype(int))
+    shape_const_y = helper.make_node(
+        'Constant_y',
+        inputs=[],
+        outputs=['shape_const_y'],
+        value=empty_ts_y,
+    )
+
+    else_out = helper.make_tensor_value_info('shape_const', TensorProto.INT64, [])
+    then_out = onnx.helper.make_tensor_value_info('shape_const_y',
+                                                  onnx.TensorProto.INT64,
+                                                  [])
+
+    else_body = onnx.helper.make_graph([shape_const], 'else_body', [],
+                                     [else_out])
+
+    then_body = onnx.helper.make_graph([shape_const_y], 'then_body', [],
+                                       [then_out])
+
+    cond = np.array([0]).astype(np.bool)
+    cond_tensor = helper.make_tensor(name="cond",
+                                     data_type=TensorProto.BOOL,
+                                     dims=cond.shape,
+                                     vals=cond.astype(bool))
+    res = onnx.helper.make_tensor_value_info('res', TensorProto.INT64, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['res'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([node], [], [res], [cond_tensor, empty_ts, empty_ts_y])
+
+
+@onnx_test
 def if_else_empty_constant_test():
 
     empty_val = np.array([]).astype(np.int64)

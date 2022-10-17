@@ -144,8 +144,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto b_shape = inputs[1];
         auto c_shape = inputs[2];
 
-        auto m  = c_shape.lens().front();
-        auto n  = c_shape.lens().back();
+        auto m = c_shape.lens().front();
+        auto n = c_shape.lens().back();
 
         auto i               = v.get("tuning_val", get_tuning_for(inputs));
         const auto& instance = get_instance(i, [&](const auto& x) -> bool {
@@ -163,8 +163,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.kernel_name    = "ck_gemm_kernel";
         options.virtual_inputs = inputs;
 
-        auto src = interpolate_string(ck_gemm_kernel,
-                                      {{"instance", join_strings(instance, ",")}});
+        auto src = interpolate_string(ck_gemm_kernel, {{"instance", join_strings(instance, ",")}});
 
         return compile_hip_code_object(src, options);
     }

@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
 
-#include "migraphx/op/identity.hpp"
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/register_op.hpp>
@@ -75,7 +74,7 @@ auto conv_compute_shape(rank<1>, const T& op, const std::vector<shape>& inputs)
 
 struct miopen_convolution
 {
-    operation op                      = op::identity{};
+    operation op{};
     shared<convolution_descriptor> cd = nullptr;
     bool int8_x4_format               = false;
     miopenConvFwdAlgorithm_t algo{};

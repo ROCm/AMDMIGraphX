@@ -77,7 +77,7 @@ struct miopen_convolution
                              f(self.solution_id, "solution_id")));
     }
 
-    std::string name() const { return "miopen_convolution"; }
+    std::string name() const { return "gpu::miopen_convolution"; }
 
     inline shape compute_shape(const std::vector<shape>& inputs) const
     {

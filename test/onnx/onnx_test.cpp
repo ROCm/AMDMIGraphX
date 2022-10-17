@@ -2644,6 +2644,22 @@ TEST_CASE(if_else_empty_constant_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(if_then_else_diff_shape)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("if_then_else_diff_shape_test.onnx"); }));
+}
+
+TEST_CASE(if_then_else_incompatible_shape)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("if_then_else_incompatible_shape_test.onnx"); }));
+}
+
+TEST_CASE(if_else_then_diff_types)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("if_then_else_diff_type_test.onnx"); }));
+}
+
 TEST_CASE(if_then_test)
 {
     migraphx::program p;

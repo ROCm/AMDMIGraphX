@@ -61,24 +61,26 @@ void transform_convolutions(module& m, bool skip_elim_contiguous)
             // std::cout << "HERE" << std::endl;
             for(auto i = 0; i < args.size(); i++)
             {
-                
+
                 // std::cout << args[i]->name() << std::endl;
                 if(args[i]->name() != "layout" and args[i]->get_shape().standard())
                 {
                     // std::cout << "HERE2" << std::endl;
-                    args[i] = m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), args[i]);
+                    args[i] = m.insert_instruction(
+                        ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), args[i]);
                     // m.debug_print(args);
                 }
             }
         }
         else
             std::transform(args.begin(), args.end(), args.begin(), [&](auto& i) {
-                return m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
+                return m.insert_instruction(
+                    ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
             });
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
-        auto c = conv;
+        auto c    = conv;
         if(not skip_elim_contiguous)
-            c    = m.insert_instruction(ins, make_op("contiguous"), conv);
+            c = m.insert_instruction(ins, make_op("contiguous"), conv);
         m.replace_instruction(ins, c);
     }
 }

@@ -54,8 +54,7 @@ inline shape reshape_if_1d(const shape& input)
     return new_shape;
 }
 
-
-template<class Op>
+template <class Op>
 struct miopen_convolution
 {
     Op op;
@@ -71,7 +70,8 @@ struct miopen_convolution
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack_join(migraphx::reflect(self.op, f), pack(
+        return pack_join(migraphx::reflect(self.op, f),
+                         pack(
 #ifdef MIGRAPHX_HAS_FIND_2_API
                              f(self.solution_object, "solution_object"),
 #endif
@@ -79,7 +79,7 @@ struct miopen_convolution
                              f(self.solution_id, "solution_id")));
     }
 
-    std::string name() const { return "gpu::"+op.name(); }
+    std::string name() const { return "gpu::" + op.name(); }
 
     inline shape compute_shape(const std::vector<shape>& inputs) const
     {

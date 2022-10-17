@@ -191,7 +191,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto wei = ins->inputs().at(1)->get_shape();
     assert(wei.lens().size() == 4);
     auto miopen_conv_op = any_cast<miopen_convolution<op::convolution>>(ins->get_operator());
-    auto conv_op = miopen_conv_op.op;
+    auto conv_op        = miopen_conv_op.op;
     if(conv_op.group > 1)
         return false;
     if(wei.lens()[1] > 512 and miopen_conv_op.algo != miopenConvolutionFwdAlgoWinograd)
@@ -524,14 +524,15 @@ struct find_conv_pointwise
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto conv_ins       = r.instructions["conv"];
-        auto bias_ins       = r.instructions["bias"];
-        auto ins            = r.result;
-        auto input_ins      = conv_ins->inputs().at(0);
-        auto weights_ins    = conv_ins->inputs().at(1);
-        auto miopen_conv_op = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator());
-        auto conv_op        = miopen_conv_op.op;
-        auto alloc_ins      = ins->inputs().back();
+        auto conv_ins    = r.instructions["conv"];
+        auto bias_ins    = r.instructions["bias"];
+        auto ins         = r.result;
+        auto input_ins   = conv_ins->inputs().at(0);
+        auto weights_ins = conv_ins->inputs().at(1);
+        auto miopen_conv_op =
+            any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator());
+        auto conv_op   = miopen_conv_op.op;
+        auto alloc_ins = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();
 

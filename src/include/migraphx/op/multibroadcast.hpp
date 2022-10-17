@@ -101,7 +101,12 @@ struct multibroadcast
         {
             // two inputs
             auto s1 = inputs.at(1);
-            if(s0.dynamic() or s1.dynamic())
+            if(s0.dynamic() and s1.dynamic())
+            {
+                // TODO handle both dynamic case
+                MIGRAPHX_THROW("MULTIBROADCAST_2IN: two dynamic shape inputs not handled.");
+            }
+            else if(s0.dynamic() or s1.dynamic())
             {
                 auto bcast_min_lens = compute_broadcasted_lens(s0.min_lens(), s1.min_lens());
                 auto bcast_max_lens = compute_broadcasted_lens(s0.max_lens(), s1.max_lens());

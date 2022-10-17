@@ -31,7 +31,7 @@ constexpr bool is_row_major()
     MIGRAPHX_ASSERT(strides.size() >= 2);
     if(strides.back() == 1)
     {
-        MIGRAPHX_ASSERT(not Shape{}.is_trasnposed());
+        MIGRAPHX_ASSERT(not Shape{}.is_transposed());
         return true;
     }
     MIGRAPHX_ASSERT(strides[strides.size() - 2] == 1);
@@ -58,6 +58,27 @@ constexpr auto to_ck_tensor()
                                                 ck::make_tuple(s.strides[is]...));
     });
 }
+
+template<class F>
+struct ck_function_adaptor : F
+{
+    template<class... Ts>
+    constexpr ck_function_adaptor(Ts&&... xs) : F(static_cast<Ts&&>(xs)...)
+    {}
+
+    template<class T, class... Ts>
+    constexpr void operator()(T& out, Ts&&... xs) const
+    {
+        out = static_cast<const F&>(*this)(static_cast<Ts&&>(xs)...);
+    }
+};
+
+struct ck_nop
+{
+    template<class T>
+    constexpr void operator()(T&) const
+    {}
+};
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_CK_HPP

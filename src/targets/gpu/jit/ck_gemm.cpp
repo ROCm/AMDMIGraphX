@@ -63,7 +63,7 @@ extern "C" {
 __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 {
     make_tensors()(a_p, b_p, c_p)([&](auto a, auto b, auto c) {
-        ck_gemm<CKDeviceGemm<${instance}>>(a, b, c);
+        ck_gemm<CK_DeviceGemmMultipleD<${instance}>>(a, b, c);
     });
 }
 
@@ -75,7 +75,7 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 
 static std::size_t int_div_ceil(std::size_t x, std::size_t y) { return (x + y - 1) / y; }
 
-static std::size_t block_size_index = 13;
+static std::size_t block_size_index = 15;
 
 static std::size_t get_block_size(const std::vector<std::string>& s)
 {
@@ -154,8 +154,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto i               = v.get("tuning_val", get_tuning_for(inputs));
         const auto& instance = get_instance(i, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
-                   get_layout(c_shape) == x[2] and get_type(a_shape) == x[3] and
-                   get_type(b_shape) == x[4] and get_type(c_shape) == x[5];
+                   get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
+                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9];
         });
 
         hip_compile_options options;

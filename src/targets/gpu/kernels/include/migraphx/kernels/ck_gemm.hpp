@@ -33,38 +33,48 @@
 
 namespace migraphx {
 
-template <class G, class A, class B, class C>
-__device__ void ck_gemm(const A& a, const B& b, const C& c)
+template <class G, class A, class B, class E, class... Ds>
+__device__ void ck_gemm(A a, B b, E e, Ds... ds)
 {
-    constexpr const auto a_grid_desc_ak0_m_ak1 = G::MakeAGridDescriptor_AK0_M_AK1(to_ck_tensor<A>());
-    constexpr const auto b_grid_desc_bk0_n_bk1 = G::MakeBGridDescriptor_BK0_N_BK1(to_ck_tensor<B>());
-    constexpr const auto c_grid_desc_m_n       = G::MakeCGridDescriptor_M_N(to_ck_tensor<C>());
-    constexpr const auto block_2_ctile_map     = G::MakeDefaultBlock2CTileMap(c_grid_desc_m_n);
+    constexpr const G gemm{};
 
-    using GridwiseGemm = typename G::template GridwiseGemm<decltype(a_grid_desc_ak0_m_ak1),
-                                                           decltype(b_grid_desc_bk0_n_bk1),
-                                                           decltype(c_grid_desc_m_n)>;
-    // static_assert(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1,
-    // c_grid_desc_m_n, block_2_ctile_map));
+    constexpr const auto a_grid_desc_m_k = gemm.matrix_padder.PadADescriptor_M_K(to_ck_tensor<A>());
+    constexpr const auto b_grid_desc_n_k = gemm.matrix_padder.PadBDescriptor_N_K(to_ck_tensor<B>());
+    constexpr const auto e_grid_desc_m_n       = gemm.matrix_padder.PadCDescriptor_M_N(to_ck_tensor<E>());
+    constexpr const auto ds_grid_desc_m_n       = ck::make_tuple(gemm.matrix_padder.PadCDescriptor_M_N(to_ck_tensor<Ds>())...);
+    constexpr const auto block_2_etile_map     = gemm.MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
 
-    constexpr const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
-        GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+    using GridwiseGemm = typename G::GridwiseGemm;
+
+    // tensor descriptors for block/thread-wise copy
+    constexpr auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+    constexpr auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
+
+    constexpr auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
+        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            ds_grid_desc_m_n);
+
+    constexpr auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            e_grid_desc_m_n);
 
     __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     constexpr const bool HasMainKBlockLoop =
-        GridwiseGemm::CalculateHasMainKBlockLoop(A{}.get_shape().elements());
+        GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_ak0_m_ak1.GetLength(ck::Number<0>{}) * a_grid_desc_ak0_m_ak1.GetLength(ck::Number<2>{}));
     GridwiseGemm::template Run<HasMainKBlockLoop>(a.data(),
                                                   b.data(),
-                                                  c.data(),
+                                                  ck::make_tuple(ds.data()...),
+                                                  e.data(),
                                                   p_shared_block,
-                                                  G{}.a_element_op,
-                                                  G{}.b_element_op,
-                                                  G{}.c_element_op,
+                                                  gemm.a_element_op,
+                                                  gemm.b_element_op,
+                                                  gemm.cde_element_op,
                                                   a_grid_desc_ak0_m_ak1,
                                                   b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_ctile_map);
+                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                  block_2_etile_map);
 }
 
 } // namespace migraphx

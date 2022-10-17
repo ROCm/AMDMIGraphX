@@ -75,7 +75,7 @@ auto conv_compute_shape(rank<1>, const T& op, const std::vector<shape>& inputs)
 
 struct miopen_convolution
 {
-    operation op = op::identity{};
+    operation op                      = op::identity{};
     shared<convolution_descriptor> cd = nullptr;
     bool int8_x4_format               = false;
     miopenConvFwdAlgorithm_t algo{};

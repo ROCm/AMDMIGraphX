@@ -59,6 +59,7 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input
                                            bool use_upper)
 {
     std::vector<std::size_t> padding;
+    assert(input_lens.size() >= 3);
     std::size_t num_spatial_dims = input_lens.size() - 2;
     padding.resize(2 * num_spatial_dims);
     for(std::size_t i = 0; i < num_spatial_dims; i++)

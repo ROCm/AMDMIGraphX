@@ -394,6 +394,31 @@ TEST_CASE(batch_norm_flat_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(batch_norm_rank_2_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 5}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {5}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {5}});
+    auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {5}});
+    auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {5}});
+
+    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
+
+    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
+    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
+    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
+    add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
+
+    auto prog = optimize_onnx("batch_norm_rank_2_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(batch_norm_1d_test)
 {
     migraphx::program p;
@@ -5222,17 +5247,12 @@ TEST_CASE(sinh_dynamic_test)
     std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
     dyn_dims.push_back(dd);
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dyn_dims});
-    mm->add_instruction(migraphx::make_op("sinh"), input);
+    auto ret   = mm->add_instruction(migraphx::make_op("sinh"), input);
+    mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = dd;
     auto prog                     = parse_onnx("sinh_dynamic_test.onnx", options);
-    auto* mm_onnx                 = prog.get_main_module();
-    auto last_ins                 = std::prev(mm_onnx->end());
-    if(last_ins->name() == "@return")
-    {
-        mm->remove_instruction(last_ins);
-    }
 
     EXPECT(p == prog);
 }

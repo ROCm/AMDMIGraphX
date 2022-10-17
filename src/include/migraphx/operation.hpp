@@ -32,6 +32,7 @@
 #include <utility>
 #include <unordered_map>
 #include <migraphx/reflect.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/normalize_attributes.hpp>
@@ -94,46 +95,6 @@ bool need_normalization(const operation& x);
 bool has_finalize(const operation& x);
 
 #else
-
-struct dyn_output
-{
-    // original shape from the instruction
-    shape ins_shape;
-    // shape computed at eval time using input arguments
-    shape computed_shape;
-};
-
-/**
- * Handle dynamic and static shape at evaluation time.
- * If converted to shape type, returns original ins_shape.
- * If converted to dyn_output type, will compute an output shape using the input arguments.
- */
-template <class F>
-struct compute_output_shape
-{
-    F ins_inputs;
-
-    operator dyn_output() const
-    {
-        return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
-            if(ins_shape.dynamic())
-                return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
-            return dyn_output{ins_shape, ins_shape};
-        });
-    }
-
-    operator shape() const
-    {
-        return ins_inputs(
-            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; });
-    }
-};
-
-template <class F>
-compute_output_shape<F> make_compute_output_shape(F f)
-{
-    return {f};
-}
 
 namespace detail {
 

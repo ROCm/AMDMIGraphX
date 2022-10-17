@@ -30,7 +30,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/operation.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

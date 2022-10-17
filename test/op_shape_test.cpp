@@ -1216,7 +1216,53 @@ TEST_CASE(multibroadcast_2in)
         migraphx::shape b_shape{migraphx::shape::float_type, b};
         throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
     }
-    // both inputs are fixed
+
+    // fixed-fixed
+    {
+        migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {3, 6}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 6}},
+                     migraphx::make_op("multibroadcast"),
+                     a_shape,
+                     b_shape);
+    }
+    {
+        migraphx::shape a_shape{migraphx::shape::float_type, {1, 8}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {4, 8}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}, {0, 1}},
+                     migraphx::make_op("multibroadcast"),
+                     a_shape,
+                     b_shape);
+    }
+    {
+        migraphx::shape a_shape{migraphx::shape::float_type, {8}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {4, 4, 1}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 4, 8}, {0, 0, 1}},
+                     migraphx::make_op("multibroadcast"),
+                     a_shape,
+                     b_shape);
+    }
+    {
+        migraphx::shape a_shape{migraphx::shape::float_type, {3, 4, 4}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {4, 1}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4, 4}, {16, 4, 1}},
+                     migraphx::make_op("multibroadcast"),
+                     a_shape,
+                     b_shape);
+    }
+    {
+        migraphx::shape a_shape{migraphx::shape::float_type, {3, 1, 4}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {4, 1}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4, 4}, {4, 0, 1}},
+                     migraphx::make_op("multibroadcast"),
+                     a_shape,
+                     b_shape);
+    }
+    {
+        migraphx::shape a_shape{migraphx::shape::float_type, {3, 4, 4}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {4, 3}};
+        throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
+    }
 }
 
 TEST_CASE(multinomial)

@@ -2382,15 +2382,7 @@ TEST_CASE(if_else_empty_shape_test)
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
-    std::ifstream ifs("if_else_empty_shape_test.onnx", std::ios::binary);
-    ifs.seekg(0, std::ios::end);
-    auto length = ifs.tellg();
-    ifs.seekg(0, std::ios::beg);
-    std::vector<char> onnx_buffer(length);
-    ifs.read(onnx_buffer.data(), length);
-    ifs.close();
-
-    auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
+    auto prog = migraphx::parse_onnx("if_else_empty_shape_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -2422,15 +2414,7 @@ TEST_CASE(if_else_trailing_one_shape_test)
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
-    std::ifstream ifs("if_else_trailing_one_shape_test.onnx", std::ios::binary);
-    ifs.seekg(0, std::ios::end);
-    auto length = ifs.tellg();
-    ifs.seekg(0, std::ios::beg);
-    std::vector<char> onnx_buffer(length);
-    ifs.read(onnx_buffer.data(), length);
-    ifs.close();
-
-    auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
+    auto prog = migraphx::parse_onnx("if_else_trailing_one_shape_test.onnx");
     EXPECT(p == prog);
 }
 

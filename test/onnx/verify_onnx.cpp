@@ -511,7 +511,7 @@ TEST_CASE(if_then_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // protobuff adds ones so result should be just + 1.0
+    // onnx adds ones so result should be just + 1.0
     std::vector<float> gold = {1.0625, 1.75, 0.9375, 1.125, 0.875, 0.4375};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
@@ -533,7 +533,7 @@ TEST_CASE(if_then_empty_shape_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // protobuff adds ones so result should be just + 1.0
+    // onnx adds ones so result should be just + 1.0
     std::vector<float> gold = {1.1337, 1.1337, 1.1337, 1.1337, 1.1337, 1.1337};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
@@ -554,7 +554,7 @@ TEST_CASE(if_then_trailing_one_shape_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // protobuff adds ones so result should be just + 1.0
+    // onnx adds ones so result should be just + 1.0
     std::vector<float> gold = {1.0625, 1.75};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
@@ -597,8 +597,8 @@ TEST_CASE(if_else_empty_shape_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    // protobuff multiplies things by a random vector that's baked in.
-    // Needs to be changed everytime we refresh the protobuf
+    // onnx multiplies things by a random vector that's baked in.
+    // Needs to be changed everytime we refresh the onnx file
     std::vector<float> gold = {0.764314, 1.05549, -3.59435, -2.3556, -0.611802, -0.0784514};
 
     EXPECT(migraphx::verify_range(result_vector, gold));

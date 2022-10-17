@@ -78,91 +78,96 @@ struct parse_if : op_parser<parse_if>
             throw_shapes();
         }
 
-        // Must have the same type for both if/else blocks by onnx spec
-        // Add exception for empty constant scalars
-        if(then_out_shapes.at(0).type() != else_out_shapes.at(0).type())
+        // Add checks for each output shape
+        for(int i = 0; i < then_out_shapes.size(); i++)
         {
-            MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                           " then and else sub_grahps must have same output type! " +
-                           then_out_shapes.at(0).type_string() + " vs " +
-                           else_out_shapes.at(0).type_string());
-        }
-
-        if(not then_out_shapes.at(0).dynamic() && not else_out_shapes.at(0).dynamic())
-        {
-            auto then_lens = then_out_shapes.at(0).lens();
-            auto else_lens = else_out_shapes.at(0).lens();
-
-            // Throw error if both branches have zero output shapes. Not possible for static inputs
-            if(then_lens.empty() && else_lens.empty())
+            // Must have the same type for both if/else blocks by onnx spec
+            if(then_out_shapes.at(i).type() != else_out_shapes.at(i).type())
             {
-                throw_shapes();
+                MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                               " then and else sub_grahps must have same output type! " +
+                               then_out_shapes.at(i).type_string() + " vs " +
+                               else_out_shapes.at(i).type_string());
             }
 
-            auto handle_empty_branch = [](module_ref& mdl, const shape& out_shape) {
-                auto outline_ins = mdl->add_outline(out_shape);
-                mdl->replace_return({outline_ins});
-                return out_shape.lens();
-            };
-
-            // Handle one empty branch by setting output identical to the other
-            // need to update the then_shape before we do further checks
-            if(then_lens.empty())
+            if(not then_out_shapes.at(i).dynamic() && not else_out_shapes.at(i).dynamic())
             {
-                then_lens = handle_empty_branch(then_mdl, else_out_shapes.at(0));
-            }
-            else if(else_lens.empty())
-            {
-                else_lens = handle_empty_branch(else_mdl, then_out_shapes.at(0));
-            }
+                auto then_lens = then_out_shapes.at(i).lens();
+                auto else_lens = else_out_shapes.at(i).lens();
 
-            // check equivilant length dims, and (x1,x2,.., xn, 1) == (x1,x2,..,xn)
-            int dim_delta = abs((static_cast<int>(then_lens.size() - else_lens.size())));
-
-            if(dim_delta == 1)
-            {
-                auto all_but_last_dims_equal = [](std::vector<size_t>& lens_a,
-                                                  std::vector<size_t>& lens_b) {
-                    if(lens_a.size() <= lens_b.size())
-                    {
-                        return equal(lens_a.begin(), lens_a.end(), lens_b.begin());
-                    }
-                    else
-                    {
-                        return equal(lens_b.begin(), lens_b.end(), lens_a.begin());
-                    }
-                };
-
-                // make sure dims are equivalent in static shapes
-                if(not all_but_last_dims_equal(then_lens, else_lens))
+                // Throw error if both branches have zero output shapes. Not possible for static
+                // inputs
+                if(then_lens.empty() && else_lens.empty())
                 {
                     throw_shapes();
                 }
 
-                auto unsqueeze_last_op = [](module_ref& mdl, const std::vector<size_t>& out_shape) {
-                    auto convert_ins = mdl->add_instruction(
-                        make_op("unsqueeze", {{"axes", {out_shape.size() - 1}}}),
-                        std::prev(std::prev(mdl->end())));
-                    mdl->replace_return({convert_ins});
-                    mdl->remove_instruction({std::prev(convert_ins)});
+                auto handle_empty_branch = [](module_ref& mdl, const shape& out_shape) {
+                    auto outline_ins = mdl->add_outline(out_shape);
+                    mdl->replace_return({outline_ins});
+                    return out_shape.lens();
                 };
 
-                auto last_then = *(std::prev(then_lens.end()));
-                auto last_else = *(std::prev(else_lens.end()));
+                // Handle one empty branch by setting output identical to the other
+                // need to update the then_shape before we do further checks
+                if(then_lens.empty())
+                {
+                    then_lens = handle_empty_branch(then_mdl, else_out_shapes.at(i));
+                }
+                else if(else_lens.empty())
+                {
+                    else_lens = handle_empty_branch(else_mdl, then_out_shapes.at(i));
+                }
 
-                // Find which dim to unsqueeze
-                if((then_lens.size() < else_lens.size()) && (last_else == 1))
+                auto all_but_last_dims_equal = [](const std::vector<size_t>& lens_a,
+                                                  const std::vector<size_t>& lens_b) {
+                    if(lens_a.size() <= lens_b.size())
+                    {
+                        return std::equal(lens_a.begin(), lens_a.end(), lens_b.begin());
+                    }
+                    else
+                    {
+                        return std::equal(lens_b.begin(), lens_b.end(), lens_a.begin());
+                    }
+                };
+
+                // check equivalent length dims, and (x1,x2,.., xn, 1) == (x1,x2,..,xn)
+                int dim_delta = abs((static_cast<int>(then_lens.size() - else_lens.size())));
+
+                if(dim_delta == 1)
                 {
-                    unsqueeze_last_op(then_mdl, else_lens);
+                    // make sure dims are equivalent in static shapes
+                    if(not all_but_last_dims_equal(then_lens, else_lens))
+                    {
+                        throw_shapes();
+                    }
+
+                    auto last_then = then_lens.back();
+                    auto last_else = else_lens.back();
+
+                    auto unsqueeze_last_op = [](module_ref& mdl,
+                                                const std::vector<size_t>& out_shape) {
+                        auto convert_ins = mdl->add_instruction(
+                            make_op("unsqueeze", {{"axes", {out_shape.size() - 1}}}),
+                            std::prev(mdl->end())->inputs().front());
+                        mdl->replace_return({convert_ins});
+                        mdl->remove_instruction({std::prev(convert_ins)});
+                    };
+
+                    // Find which dim to unsqueeze
+                    if((then_lens.size() < else_lens.size()) && (last_else == 1))
+                    {
+                        unsqueeze_last_op(then_mdl, else_lens);
+                    }
+                    else if((then_lens.size() > else_lens.size()) && (last_then == 1))
+                    {
+                        unsqueeze_last_op(else_mdl, then_lens);
+                    }
                 }
-                else if((then_lens.size() > else_lens.size()) && (last_then == 1))
+                else if(dim_delta > 1)
                 {
-                    unsqueeze_last_op(else_mdl, then_lens);
+                    throw_shapes();
                 }
-            }
-            else if(dim_delta > 1)
-            {
-                throw_shapes();
             }
         }
 

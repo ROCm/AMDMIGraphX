@@ -56,6 +56,8 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     auto b = ins->inputs().back()->get_shape();
     if(a.lens().size() > 2 or b.lens().size() > 2)
         return false;
+    if (a.lens()[1] >= 2048)
+        return false;
     return (a.lens()[0] % 8 == 0 and a.lens()[1] % 8 == 0 and b.lens()[0] % 8 == 0 and
             b.lens()[1] % 8 == 0);
 }

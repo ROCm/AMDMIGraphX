@@ -95,9 +95,7 @@ def parse_args():
                         type=str,
                         metavar='file',
                         help='Output json file to save tunings')
-    parser.add_argument('-n',
-                        type=int,
-                        help='Number of instances to tune')
+    parser.add_argument('-n', type=int, help='Number of instances to tune')
     args = parser.parse_args()
     return args
 

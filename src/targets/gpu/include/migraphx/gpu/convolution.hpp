@@ -178,7 +178,7 @@ struct miopen_convolution
             auto* miopen_stream_handle = ctx.get_stream().get_miopen();
 
             solution_ptr = find_solution(miopen_stream_handle, conv_problem.get());
-            auto status = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+            auto status  = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
 

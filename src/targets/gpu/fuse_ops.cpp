@@ -457,14 +457,14 @@ auto conv_bias(Ms... ms)
 template <class Op>
 void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
 {
-    auto conv_ins       = r.instructions["conv"];
-    auto bias_ins       = r.instructions["bias"];
-    auto ins            = r.result;
-    auto input_ins      = conv_ins->inputs().at(0);
-    auto weights_ins    = conv_ins->inputs().at(1);
-    auto conv_op = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
-    auto alloc_ins      = ins->inputs().back();
-    auto old_ws_ins     = conv_ins->inputs().at(2);
+    auto conv_ins    = r.instructions["conv"];
+    auto bias_ins    = r.instructions["bias"];
+    auto ins         = r.result;
+    auto input_ins   = conv_ins->inputs().at(0);
+    auto weights_ins = conv_ins->inputs().at(1);
+    auto conv_op     = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
+    auto alloc_ins   = ins->inputs().back();
+    auto old_ws_ins  = conv_ins->inputs().at(2);
 
     Op cb{conv_op};
     // TODO: Insert ws allocation
@@ -528,8 +528,7 @@ struct find_conv_pointwise
         auto ins         = r.result;
         auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
-        auto conv_op =
-            any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
+        auto conv_op   = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator()).op;
         auto alloc_ins = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();

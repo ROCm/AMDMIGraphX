@@ -245,9 +245,10 @@ struct miopen_apply
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            operation conv        = miopen_convolution<Op>{any_cast<Op>(ins->get_operator()), int8_x4_format};
-            migraphx::context ctx = get_context();
-            size_t ws_bytes       = 0;
+            operation conv =
+                miopen_convolution<Op>{any_cast<Op>(ins->get_operator()), int8_x4_format};
+            migraphx::context ctx         = get_context();
+            size_t ws_bytes               = 0;
             auto compile_conv_with_format = [&](bool format) {
                 conv     = miopen_convolution<Op>{any_cast<Op>(ins->get_operator()), format};
                 auto ws  = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));

@@ -59,7 +59,7 @@ struct multibroadcast
         auto t  = inputs.at(0).type();
         auto s0 = inputs.at(0);
 
-        if(s0.lens().empty())
+        if(s0.max_lens().empty())
         {
             MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should be > 0");
         }

@@ -82,7 +82,7 @@ std::vector<std::size_t> compute_broadcasted_opt_lens(std::vector<std::size_t> s
             {
                 return a;
             }
-            else if(a == 1 or b == 1)
+            else if((a == 1 or b == 1) and a != 0 and b != 0)
             {
                 return std::max(a, b);
             }

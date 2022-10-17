@@ -244,7 +244,8 @@ struct miopen_apply
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            operation conv = make_op("gpu::miopen_convolution", {{"op", to_value(ins->get_operator())}});
+            operation conv =
+                make_op("gpu::miopen_convolution", {{"op", to_value(ins->get_operator())}});
             migraphx::context ctx         = get_context();
             size_t ws_bytes               = 0;
             auto compile_conv_with_format = [&](bool format) {

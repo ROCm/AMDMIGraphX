@@ -28,6 +28,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/miopen.hpp>
+#include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
@@ -74,7 +75,7 @@ auto conv_compute_shape(rank<1>, const T& op, const std::vector<shape>& inputs)
 
 struct miopen_convolution
 {
-    operation op{};
+    operation op = op::identity{};
     shared<convolution_descriptor> cd = nullptr;
     bool int8_x4_format               = false;
     miopenConvFwdAlgorithm_t algo{};

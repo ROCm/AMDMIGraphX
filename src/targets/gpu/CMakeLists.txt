@@ -78,7 +78,6 @@ add_library(migraphx_gpu
     allocation_model.cpp
     argmax.cpp
     argmin.cpp
-    batch_norm_inference.cpp
     code_object_op.cpp
     compile_ops.cpp
     compile_gen.cpp
@@ -146,7 +145,6 @@ register_migraphx_gpu_ops(hip_
 )
 register_migraphx_gpu_ops(miopen_
     abs
-    batch_norm_inference
     contiguous
     convolution
     deconvolution

@@ -161,6 +161,9 @@ register_op(migraphx_gpu
     HEADER migraphx/gpu/gemm.hpp 
     OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
     INCLUDES migraphx/gpu/context.hpp)
+register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp 
+    OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::deconvolution> gpu::miopen_convolution<op::quant_convolution>
+    INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 

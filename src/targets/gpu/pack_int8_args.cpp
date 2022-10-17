@@ -26,7 +26,6 @@
 #include <migraphx/gpu/int8_gemm_pack.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/hip.hpp>
-#include <migraphx/gpu/convolution.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/program.hpp>
@@ -178,13 +177,8 @@ void pack_int8_args::apply(module& m) const
                 m.replace_instruction(ins, ins->get_operator(), inputs);
             }
         }
-        else if(ins->name() == "gpu::miopen_convolution")
+        else if(ins->name() == "gpu::quant_convolution")
         {
-            auto conv_op = any_cast<miopen_convolution>(ins->get_operator());
-            if(conv_op.op.name() != "quant_convolution")
-            {
-                continue;
-            }
             auto val = ins->get_operator().to_value();
             if(not val.at("int8_x4_format").to<bool>())
             {

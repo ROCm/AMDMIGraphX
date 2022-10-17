@@ -112,9 +112,9 @@ struct miopen_apply
         add_extend_op("scatter_none");
         add_extend_op("topk");
 
-        add_convolution_op("convolution");
-        add_convolution_op("deconvolution");
-        add_convolution_op("quant_convolution");
+        add_convolution_op<op::convolution>("convolution");
+        add_convolution_op<op::deconvolution>("deconvolution");
+        add_convolution_op<op::quant_convolution>("quant_convolution");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
         add_if_op();
@@ -241,16 +241,15 @@ struct miopen_apply
         });
     }
 
+    template<typename Op>
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            operation conv =
-                make_op("gpu::miopen_convolution", {{"op", to_value(ins->get_operator())}});
+            operation conv = miopen_convolution<Op>{any_cast<Op>(ins->get_operator())};
             migraphx::context ctx         = get_context();
             size_t ws_bytes               = 0;
             auto compile_conv_with_format = [&](bool format) {
-                conv     = make_op("gpu::miopen_convolution",
-                               {{"op", to_value(ins->get_operator())}, {"int8_x4_format", format}});
+                conv     = miopen_convolution<Op>{any_cast<Op>(ins->get_operator()), format};
                 auto ws  = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
                 ws_bytes = ws.get("workspace", 0);
             };

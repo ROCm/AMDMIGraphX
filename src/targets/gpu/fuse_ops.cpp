@@ -184,16 +184,14 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;
-    if(ins->name() != "gpu::miopen_convolution")
-        return false;
-    auto miopen_conv_op = any_cast<miopen_convolution>(ins->get_operator());
-    if(miopen_conv_op.op.name() != "convolution")
+    if(ins->name() != "gpu::convolution")
         return false;
     if(ins->get_shape().type() != shape::float_type)
         return false;
     auto wei = ins->inputs().at(1)->get_shape();
     assert(wei.lens().size() == 4);
-    auto conv_op = any_cast<op::convolution>(miopen_conv_op.op);
+    auto miopen_conv_op = any_cast<miopen_convolution<op::convolution>>(ins->get_operator());
+    auto conv_op = miopen_conv_op.op;
     if(conv_op.group > 1)
         return false;
     if(wei.lens()[1] > 512 and miopen_conv_op.algo != miopenConvolutionFwdAlgoWinograd)
@@ -464,8 +462,8 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     auto ins            = r.result;
     auto input_ins      = conv_ins->inputs().at(0);
     auto weights_ins    = conv_ins->inputs().at(1);
-    auto miopen_conv_op = any_cast<miopen_convolution>(conv_ins->get_operator());
-    auto conv_op        = any_cast<op::convolution>(miopen_conv_op.op);
+    auto miopen_conv_op = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator());
+    auto conv_op        = miopen_conv_op.op;
     auto alloc_ins      = ins->inputs().back();
     auto old_ws_ins     = conv_ins->inputs().at(2);
 
@@ -531,8 +529,8 @@ struct find_conv_pointwise
         auto ins            = r.result;
         auto input_ins      = conv_ins->inputs().at(0);
         auto weights_ins    = conv_ins->inputs().at(1);
-        auto miopen_conv_op = any_cast<miopen_convolution>(conv_ins->get_operator());
-        auto conv_op        = any_cast<op::convolution>(miopen_conv_op.op);
+        auto miopen_conv_op = any_cast<miopen_convolution<op::convolution>>(conv_ins->get_operator());
+        auto conv_op        = miopen_conv_op.op;
         auto alloc_ins      = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();

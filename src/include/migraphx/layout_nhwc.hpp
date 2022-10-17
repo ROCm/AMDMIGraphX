@@ -15,6 +15,7 @@ struct module_pass_manager;
  */
 struct layout_nhwc
 {
+    bool skip_elim_contiguous = false;
     std::string name() const { return "layout_nhwc"; }
     void apply(module_pass_manager& m) const;
 };

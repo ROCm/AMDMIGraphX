@@ -132,6 +132,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{true}),
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},

@@ -44,7 +44,7 @@ std::unordered_set<instruction_ref> preserve_output_layout(module& m)
     return result;
 }
 
-void transform_convolutions(module& m)
+void transform_convolutions(module& m, bool skip_elim_contiguous)
 {
     for(auto ins : iterator_for(m))
     {
@@ -56,11 +56,29 @@ void transform_convolutions(module& m)
         if(v.at("group").to<int>() > 1)
             continue;
         auto args = ins->inputs();
-        std::transform(args.begin(), args.end(), args.begin(), [&](auto& i) {
-            return m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
-        });
+        if(skip_elim_contiguous)
+        {
+            // std::cout << "HERE" << std::endl;
+            for(auto i = 0; i < args.size(); i++)
+            {
+                
+                // std::cout << args[i]->name() << std::endl;
+                if(args[i]->name() != "layout" and args[i]->get_shape().standard())
+                {
+                    // std::cout << "HERE2" << std::endl;
+                    args[i] = m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), args[i]);
+                    // m.debug_print(args);
+                }
+            }
+        }
+        else
+            std::transform(args.begin(), args.end(), args.begin(), [&](auto& i) {
+                return m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
+            });
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
-        auto c    = m.insert_instruction(ins, make_op("contiguous"), conv);
+        auto c = conv;
+        if(not skip_elim_contiguous)
+            c    = m.insert_instruction(ins, make_op("contiguous"), conv);
         m.replace_instruction(ins, c);
     }
 }
@@ -82,9 +100,10 @@ void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_
 void layout_nhwc::apply(module_pass_manager& mpm) const
 {
     std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
-    transform_convolutions(mpm.get_module());
+    transform_convolutions(mpm.get_module(), this->skip_elim_contiguous);
     mpm.run_pass(dead_code_elimination{});
-    mpm.run_pass(eliminate_contiguous{"contiguous"});
+    if(not this->skip_elim_contiguous)
+        mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});
     remove_layout(mpm.get_module(), output_layouts);
     mpm.run_pass(dead_code_elimination{});

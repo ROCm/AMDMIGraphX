@@ -63,17 +63,33 @@ argument miopen_convolution::compute(context& ctx,
     if(solution_id == 0)
         MIGRAPHX_THROW("MIOpen Convolution: invalid solution ID");
 
-    auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
-                                                    w_desc.get(),
-                                                    args[1].implicit(),
-                                                    x_desc.get(),
-                                                    args[0].implicit(),
-                                                    cd.get(),
-                                                    y_desc.get(),
-                                                    args[3].implicit(),
-                                                    args[2].implicit(),
-                                                    args[2].get_shape().bytes(),
-                                                    solution_id);
+    // auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
+    //                                                 w_desc.get(),
+    //                                                 args[1].implicit(),
+    //                                                 x_desc.get(),
+    //                                                 args[0].implicit(),
+    //                                                 cd.get(),
+    //                                                 y_desc.get(),
+    //                                                 args[3].implicit(),
+    //                                                 args[2].implicit(),
+    //                                                 args[2].get_shape().bytes(),
+    //                                                 solution_id);
+
+    float alpha = 1;
+    float beta  = 0;
+    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+                                           &alpha,
+                                           x_desc.get(),
+                                           args[0].implicit(),
+                                           w_desc.get(),
+                                           args[1].implicit(),
+                                           cd.get(),
+                                           algo,
+                                           &beta,
+                                           y_desc.get(),
+                                           args[3].implicit(),
+                                           args[2].implicit(),
+                                           args[2].get_shape().bytes());
 
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Convolution: running convolution failed");

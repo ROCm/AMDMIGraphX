@@ -146,10 +146,6 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
         auto m  = c_shape.lens().front();
         auto n  = c_shape.lens().back();
-        auto k  = a_shape.lens().back();
-        auto sa = a_shape.strides().front();
-        auto sb = b_shape.strides().front();
-        auto sc = c_shape.strides().front();
 
         auto i               = v.get("tuning_val", get_tuning_for(inputs));
         const auto& instance = get_instance(i, [&](const auto& x) -> bool {
@@ -168,13 +164,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.virtual_inputs = inputs;
 
         auto src = interpolate_string(ck_gemm_kernel,
-                                      {{"instance", join_strings(instance, ",")},
-                                       {"m", to_string(m)},
-                                       {"k", to_string(k)},
-                                       {"n", to_string(n)},
-                                       {"sa", to_string(sa)},
-                                       {"sb", to_string(sb)},
-                                       {"sc", to_string(sc)}});
+                                      {{"instance", join_strings(instance, ",")}});
 
         return compile_hip_code_object(src, options);
     }

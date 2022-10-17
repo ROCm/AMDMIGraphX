@@ -53,26 +53,6 @@ inline shape reshape_if_1d(const shape& input)
     return new_shape;
 }
 
-template <typename T>
-auto conv_compute_shape(rank<2>, const T& op, const std::vector<shape>& inputs)
-    -> decltype(op.normalize_compute_shape(inputs))
-{
-    check_shapes{inputs, op}.has(4).standard();
-    std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
-    check_shapes{conv_inputs, op}.max_ndims(5);
-    return op.normalize_compute_shape(conv_inputs);
-}
-
-template <typename T>
-auto conv_compute_shape(rank<1>, const T& op, const std::vector<shape>& inputs)
-    -> decltype(op.compute_shape(inputs))
-{
-    check_shapes{inputs, op}.has(4).standard();
-    std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
-    check_shapes{conv_inputs, op}.max_ndims(5);
-    return op.compute_shape(conv_inputs);
-}
-
 struct miopen_convolution
 {
     operation op                      = op::identity{};
@@ -101,7 +81,10 @@ struct miopen_convolution
 
     inline shape compute_shape(const std::vector<shape>& inputs) const
     {
-        return conv_compute_shape(rank<2>{}, op, inputs);
+        check_shapes{inputs, op}.has(4).standard();
+        std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
+        check_shapes{conv_inputs, op}.max_ndims(5);
+        return op.compute_shape(conv_inputs);
     }
 
     argument
@@ -159,7 +142,7 @@ struct miopen_convolution
 #endif
     }
 
-    inline void make_conv_descriptor()
+    inline void set_conv_descriptor()
     {
         if(cd == nullptr)
         {
@@ -184,7 +167,7 @@ struct miopen_convolution
 
     value compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input)
     {
-        make_conv_descriptor();
+        set_conv_descriptor();
         auto ws = find(any_cast<migraphx::gpu::context>(ctx), output, input);
         return {{"workspace", ws.bytes()}};
     }
@@ -324,7 +307,7 @@ struct miopen_convolution
 #else
         // Use immediate mode API
         {
-            make_conv_descriptor();
+            set_conv_descriptor();
             if(solution_id == 0)
             {
                 // Check that workspace hasn't changed

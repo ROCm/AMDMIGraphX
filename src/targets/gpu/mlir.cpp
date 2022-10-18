@@ -715,10 +715,14 @@ void use(T&)
 {
 }
 
+code_object_op compile_mlir(const module&)
+{
+    return {};
+}
+
 code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>&)
 {
-    template<module> use(m);
-    return {};
+    return compile_mlir(&m);
 }
 
 instruction_ref

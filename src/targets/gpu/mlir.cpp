@@ -715,12 +715,13 @@ void use(T&)
 {
 }
 
-code_object_op compile_mlir(const module&) { return {}; }
-
-code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>&)
+// NOLINTBEGIN(*-performance-unnecessary-value-param)
+// Disabling clang-tidy warning on non-real useage.
+code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&)
 {
-    return compile_mlir(m);
+    return {};
 }
+// NOLINTEND(*-performance-unnecessary-value-param)
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent

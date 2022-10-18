@@ -112,13 +112,13 @@ template <class T>
 auto reflect_tie(T& x)
 {
     return reflect(x, [](auto&& y, auto&&...) {
-        if constexpr(is_reflectable<decltype(y)>{})
+        if constexpr(is_reflectable<decltype(y)>{}) // cppcheck-suppress UnnecessaryElseStatement
         {
             auto t = reflect_tie(y);
             return detail::wrap<decltype(t)>(t);
         }
-        else
-        {
+        else         
+        { 
             return detail::wrap<decltype(y)>(y);
         }
     })([](auto&&... xs) { return detail::auto_tuple(xs.get()...); });

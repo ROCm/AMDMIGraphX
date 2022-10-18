@@ -710,7 +710,7 @@ instruction_ref insert_mlir(module& m,
 
 std::string dump_mlir(const module&) { return {}; }
 
-code_object_op compile_mlir(const context&, const module& , const std::vector<instruction_ref>&)
+code_object_op compile_mlir(const context&, const module&, const std::vector<instruction_ref>&)
 {
     return {};
 }

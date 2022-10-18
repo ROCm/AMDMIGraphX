@@ -719,7 +719,7 @@ code_object_op compile_mlir(const module&) { return {}; }
 
 code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>&)
 {
-    return compile_mlir(&m);
+    return compile_mlir(m);
 }
 
 instruction_ref

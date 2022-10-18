@@ -190,7 +190,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto wei = ins->inputs().at(1)->get_shape();
     assert(wei.lens().size() == 4);
     auto miopen_conv_op = ins->get_operator().to_value();
-    auto algo           = miopen_conv_op.at("algo").to<int>();
+    auto algo           = miopen_conv_op.at("algo").to<miopenConvFwdAlgorithm_t>();
     auto conv_op        = from_value<op::convolution>(miopen_conv_op["op"]);
     if(conv_op.group > 1)
         return false;
@@ -528,7 +528,7 @@ struct find_conv_pointwise
         auto ins         = r.result;
         auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
-        auto conv_op     = from_value<op::convolution>((conv_ins->get_operator()).to_value()["op"]);
+        auto conv_op     = from_value<op::convolution>(conv_ins->get_operator().to_value()["op"]);
         auto alloc_ins   = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();

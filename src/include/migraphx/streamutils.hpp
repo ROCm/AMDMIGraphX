@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <migraphx/reflect.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
 #include <vector>
 
@@ -62,13 +63,13 @@ inline stream_range_container<Range> stream_range(const Range& r)
 namespace detail {
 
 template <class T>
-auto stream_write_value_impl(rank<2>, std::ostream& os, const T& x) -> decltype(os << x, void())
+auto stream_write_value_impl(rank<1>, std::ostream& os, const T& x) -> decltype(os << x, void())
 {
     os << x;
 }
 
 template <class T>
-void stream_write_value_impl(rank<2>, std::ostream& os, const std::vector<T>& r)
+void stream_write_value_impl(rank<1>, std::ostream& os, const std::vector<T>& r)
 {
     os << "{";
     os << stream_range(r);
@@ -76,7 +77,7 @@ void stream_write_value_impl(rank<2>, std::ostream& os, const std::vector<T>& r)
 }
 
 template <class Range>
-auto stream_write_value_impl(rank<1>, std::ostream& os, const Range& r)
+auto stream_write_value_impl(rank<0>, std::ostream& os, const Range& r)
     -> decltype(r.begin(), r.end(), void())
 {
     os << "{";
@@ -84,12 +85,10 @@ auto stream_write_value_impl(rank<1>, std::ostream& os, const Range& r)
     os << "}";
 }
 
-template <class T>
+template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 auto stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
-    -> decltype(os << x.name(), void())
 {
-    os << x.name();
-    char delim = '[';
+    char delim = '{';
     reflect_each(x, [&](auto&& y, auto name) {
         os << delim;
         os << name << "=";
@@ -97,7 +96,7 @@ auto stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
         delim = ',';
     });
     if(delim == ',')
-        os << "]";
+        os << "}";
 }
 
 } // namespace detail
@@ -105,7 +104,7 @@ auto stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
 template <class T>
 void stream_write_value(std::ostream& os, const T& x)
 {
-    detail::stream_write_value_impl(rank<2>{}, os, x);
+    detail::stream_write_value_impl(rank<1>{}, os, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

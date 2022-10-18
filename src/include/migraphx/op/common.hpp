@@ -33,11 +33,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+// Padding mode is default_ for fixed shape padding.
+// same_lower and same_upper used for dynamic padding.
 enum padding_mode_t
 {
     default_, // NOLINT
-    same,
-    valid,
     same_lower,
     same_upper
 };

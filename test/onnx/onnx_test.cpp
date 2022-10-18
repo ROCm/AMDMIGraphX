@@ -2671,6 +2671,12 @@ TEST_CASE(if_else_then_both_empty)
     EXPECT(test::throws([&] { migraphx::parse_onnx("if_then_else_both_empty_test.onnx"); }));
 }
 
+TEST_CASE(if_else_then_incompatible_output_shape)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("if_then_else_incompatible_output_shape.onnx"); }));
+}
+
 TEST_CASE(if_then_test)
 {
     migraphx::program p;

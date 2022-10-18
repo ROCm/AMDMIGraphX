@@ -44,6 +44,7 @@
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/perfdb.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <deque>

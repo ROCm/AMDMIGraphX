@@ -59,15 +59,15 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     auto k = a.lens()[1];
     if(a.lens().size() > 2 or b.lens().size() > 2)
         return false;
-    if (a.lens()[1] >= 2048)
+    if(a.lens()[1] >= 2048)
         return false;
-    
+
     return true;
 
     // std::cout << a << std::endl;
     // std::cout << b << std::endl;
     // printf("m, n, k: %zu, %zu, %zu\n", m, n, k);
-    
+
     // if ((m == 1414 and n == 2048 and k == 512) or
     //     (m == 4096 and n == 2048 and k == 1414) or
     //     (m == 2048 and n == 2048 and k == 512) or

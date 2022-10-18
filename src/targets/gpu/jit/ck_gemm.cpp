@@ -91,10 +91,7 @@ static std::size_t get_grid_size(const std::vector<std::string>& s, std::size_t 
     return int_div_ceil(m, mpb) * int_div_ceil(n, npb);
 }
 
-static void set_padding(std::vector<std::string>& s, const std::string p)
-{
-    s[padding_index] = p;
-}
+static void set_padding(std::vector<std::string>& s, const std::string p) { s[padding_index] = p; }
 
 template <class F, class Action>
 auto action_decorate(F f, Action action)
@@ -118,8 +115,7 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
     static auto tuning = read_tuning(string_value_of(MIGRAPHX_CK_TUNING{}, ""));
     if(tuning.empty())
         std::cout << "*********** Warning: No CK tuning!" << std::endl;
-    std::cout << inputs[0] << std::endl 
-              << inputs[1] << std::endl;
+    std::cout << inputs[0] << std::endl << inputs[1] << std::endl;
     auto it = std::find_if(
         tuning.begin(), tuning.end(), [&](const auto& p) { return p.first == inputs; });
     if(it == tuning.end())
@@ -160,7 +156,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto sb = b_shape.strides().front();
         auto sc = c_shape.strides().front();
 
-        auto i               = v.get("tuning_val", get_tuning_for(inputs));
+        auto i         = v.get("tuning_val", get_tuning_for(inputs));
         auto& instance = get_instance(i, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[2] and get_type(a_shape) == x[3] and
@@ -171,7 +167,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const bool pad_n = n % 8;
         const bool pad_k = k % 8;
 
-        if (pad_m or pad_n or pad_k)
+        if(pad_m or pad_n or pad_k)
         {
             std::string padding_t = "ck::tensor_operation::device::GemmSpecialization::";
             padding_t += pad_m ? "M" : "";

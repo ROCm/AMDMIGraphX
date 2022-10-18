@@ -2600,8 +2600,9 @@ TEST_CASE(if_then_empty_constant_test)
 
     auto* then_mod = p.create_module("If_4_if");
     then_mod->add_literal(migraphx::shape::int64_type);
-    auto outline = then_mod->add_outline(s);
-    then_mod->add_return({outline});
+    migraphx::shape gen_s{s.type(), s.lens(), s.strides()};
+    auto then_lit = then_mod->add_literal(gen_s, gen_s.lens());
+    then_mod->add_return({then_lit});
 
     auto* else_mod = p.create_module("If_4_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
@@ -2633,8 +2634,9 @@ TEST_CASE(if_else_empty_constant_test)
 
     auto* else_mod = p.create_module("If_4_else");
     else_mod->add_literal(migraphx::shape::int64_type);
-    auto outline = else_mod->add_outline(s);
-    else_mod->add_return({outline});
+    migraphx::shape gen_s{s.type(), s.lens(), s.strides()};
+    auto else_lit = else_mod->add_literal(gen_s, gen_s.lens());
+    else_mod->add_return({else_lit});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);

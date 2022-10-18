@@ -128,8 +128,9 @@ struct parse_if : op_parser<parse_if>
                 }
 
                 auto handle_empty_branch = [](module_ref& mdl, const shape& out_shape) {
-                    auto outline_ins = mdl->add_outline(out_shape);
-                    mdl->replace_return({outline_ins});
+                    shape gen_shape(out_shape.type(), out_shape.lens(), out_shape.strides());
+                    auto literal_ins = mdl->add_literal(gen_shape, gen_shape.lens());
+                    mdl->replace_return({literal_ins});
                     return out_shape.lens();
                 };
 

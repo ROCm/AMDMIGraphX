@@ -716,13 +716,13 @@ void use(T&)
 {
 }
 
-// NOLINTBEGIN(*-performance-unnecessary-value-param)
 // Disabling clang-tidy warning on non-real useage.
+// NOLINTBEGIN(performance-unnecessary-value-param)
 code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&)
 {
     return {};
 }
-// NOLINTEND(*-performance-unnecessary-value-param)
+// NOLINTEND(performance-unnecessary-value-param)
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent

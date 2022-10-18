@@ -1241,7 +1241,7 @@ TEST_CASE(simplify_sub_neg_zero_const_vec)
         auto x = m2.add_parameter("x", x_shape);
         m2.add_instruction(migraphx::make_op("neg"), x);
     }
-  
+
     EXPECT(m1 == m2);
 }
 
@@ -1288,7 +1288,7 @@ TEST_CASE(simplify_div_zero_const_middle)
         auto div0 = m2.add_divzero({x, zero}, s);
         m2.add_instruction(migraphx::make_op("mul"), div0, two);
     }
-  
+
     EXPECT(m1 == m2);
 }
 

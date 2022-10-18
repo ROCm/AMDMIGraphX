@@ -86,7 +86,7 @@ auto stream_write_value_impl(rank<0>, std::ostream& os, const Range& r)
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
-auto stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
+void stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
 {
     char delim = '{';
     reflect_each(x, [&](auto&& y, auto name) {

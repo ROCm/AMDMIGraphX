@@ -104,10 +104,51 @@ struct multibroadcast
             if(s0.dynamic() and s1.dynamic())
             {
                 // TODO handle both dynamic case
-                MIGRAPHX_THROW("MULTIBROADCAST_2IN: two dynamic shape inputs not handled.");
+                MIGRAPHX_THROW(
+                    "MULTIBROADCAST_2IN: not handled; two dynamic shape inputs not handled");
             }
             else if(s0.dynamic() or s1.dynamic())
             {
+                // only handles the case when broadcasting static shape to dynamic shape
+                // all the dimensions in the static shape must match to a fixed dimension in the
+                // dynamic shape or be 1
+                // TODO: handling the other possibilities
+                if(s1.dynamic())
+                {
+                    std::swap(s0, s1);
+                }
+                auto static_rank = s1.lens().size();
+                auto dyn_rank    = s0.max_lens().size();
+                if(static_rank > dyn_rank)
+                {
+                    MIGRAPHX_THROW("MULTIBROADCAST_2IN: not handled; static shape has a higher "
+                                   "rank than dynamic shape");
+                }
+                return s0;
+                auto offset = dyn_rank - static_rank;
+
+                std::vector<shape::dynamic_dimension> out_dims(s0.dyn_dims());
+                std::transform(s0.dyn_dims().begin(),
+                               s0.dyn_dims().end(),
+                               s1.lens().begin() + offset,
+                               out_lens.begin() + offset,
+                               [&](auto a, auto b) {
+                                   if(a == b)
+                                   {
+                                       return a;
+                                   }
+                                   else if((a == 1 or b == 1) and a != 0 and b != 0)
+                                   {
+                                       return std::max(a, b);
+                                   }
+                                   else
+                                   {
+                                       // if not matching nor 1, set to 0
+                                       return static_cast<std::size_t>(0);
+                                   }
+                               });
+
+                /*
                 auto bcast_min_lens = compute_broadcasted_lens(s0.min_lens(), s1.min_lens());
                 auto bcast_max_lens = compute_broadcasted_lens(s0.max_lens(), s1.max_lens());
                 auto bcast_opt_lens = compute_broadcasted_opt_lens(s0.opt_lens(), s1.opt_lens());
@@ -115,6 +156,7 @@ struct multibroadcast
                         std::move(bcast_min_lens),
                         std::move(bcast_max_lens),
                         std::move(bcast_opt_lens)};
+                */
             }
             else
             {

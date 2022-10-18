@@ -63,7 +63,7 @@ extern "C" {
 __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 {
     make_tensors()(a_p, b_p, c_p)([&](auto a, auto b, auto c) {
-        ck_gemm<CKDeviceGemm<${instance}>>(a, b, c);
+        ck_gemm<CK_DeviceGemmMultipleD<${instance}>>(a, b, c);
     });
 }
 
@@ -75,7 +75,7 @@ __global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
 
 static std::size_t int_div_ceil(std::size_t x, std::size_t y) { return (x + y - 1) / y; }
 
-static std::size_t block_size_index = 13;
+static std::size_t block_size_index = 15;
 
 static std::size_t padding_index = 11;
 
@@ -149,18 +149,14 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto b_shape = inputs[1];
         auto c_shape = inputs[2];
 
-        auto m  = c_shape.lens().front();
-        auto n  = c_shape.lens().back();
-        auto k  = a_shape.lens().back();
-        auto sa = a_shape.strides().front();
-        auto sb = b_shape.strides().front();
-        auto sc = c_shape.strides().front();
+        auto m = c_shape.lens().front();
+        auto n = c_shape.lens().back();
 
         auto i         = v.get("tuning_val", get_tuning_for(inputs));
         auto& instance = get_instance(i, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
-                   get_layout(c_shape) == x[2] and get_type(a_shape) == x[3] and
-                   get_type(b_shape) == x[4] and get_type(c_shape) == x[5];
+                   get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
+                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9];
         });
 
         const bool pad_m = m % 8;
@@ -186,14 +182,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.kernel_name    = "ck_gemm_kernel";
         options.virtual_inputs = inputs;
 
-        auto src = interpolate_string(ck_gemm_kernel,
-                                      {{"instance", join_strings(instance, ",")},
-                                       {"m", to_string(m)},
-                                       {"k", to_string(k)},
-                                       {"n", to_string(n)},
-                                       {"sa", to_string(sa)},
-                                       {"sb", to_string(sb)},
-                                       {"sc", to_string(sc)}});
+        auto src = interpolate_string(ck_gemm_kernel, {{"instance", join_strings(instance, ",")}});
 
         return compile_hip_code_object(src, options);
     }

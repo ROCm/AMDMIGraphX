@@ -70,13 +70,13 @@ struct miopen_convolution
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack_join(migraphx::reflect(self.op, f),
-                         pack(
+        return pack(f(self.op, "op"),
 #ifdef MIGRAPHX_HAS_FIND_2_API
                              f(self.solution_object, "solution_object"),
 #endif
+                             f(self.algo, "algo"),
                              f(self.int8_x4_format, "int8_x4_format"),
-                             f(self.solution_id, "solution_id")));
+                             f(self.solution_id, "solution_id"));
     }
 
     std::string name() const { return "gpu::" + op.name(); }
@@ -340,7 +340,6 @@ struct miopen_convolution
         return {s.type(), lens, strides};
     }
 };
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -190,8 +190,8 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto wei = ins->inputs().at(1)->get_shape();
     assert(wei.lens().size() == 4);
     auto miopen_conv_op = ins->get_operator().to_value();
-    auto algo = miopen_conv_op.at("algo").to<int>();
-    auto conv_op = from_value<op::convolution>(miopen_conv_op["op"]);
+    auto algo           = miopen_conv_op.at("algo").to<int>();
+    auto conv_op        = from_value<op::convolution>(miopen_conv_op["op"]);
     if(conv_op.group > 1)
         return false;
     if(wei.lens()[1] > 512 and algo != miopenConvolutionFwdAlgoWinograd)
@@ -203,8 +203,8 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
 
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
-    if(algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
-       wei.lens()[3] != 3 and contains({{1, 1}}, conv_op.stride))
+    if(algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and wei.lens()[3] != 3 and
+       contains({{1, 1}}, conv_op.stride))
         return false;
     return contains({{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}}, conv_op.padding) and
            contains({{0, 0}, {1, 1}}, conv_op.stride) and contains({{1, 1}}, conv_op.dilation);
@@ -529,7 +529,7 @@ struct find_conv_pointwise
         auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
         auto conv_op     = from_value<op::convolution>((conv_ins->get_operator()).to_value()["op"]);
-        auto alloc_ins = ins->inputs().back();
+        auto alloc_ins   = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();
 

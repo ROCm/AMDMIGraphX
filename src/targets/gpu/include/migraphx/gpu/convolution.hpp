@@ -72,11 +72,11 @@ struct miopen_convolution
     {
         return pack(f(self.op, "op"),
 #ifdef MIGRAPHX_HAS_FIND_2_API
-                             f(self.solution_object, "solution_object"),
+                    f(self.solution_object, "solution_object"),
 #endif
-                             f(self.algo, "algo"),
-                             f(self.int8_x4_format, "int8_x4_format"),
-                             f(self.solution_id, "solution_id"));
+                    f(self.algo, "algo"),
+                    f(self.int8_x4_format, "int8_x4_format"),
+                    f(self.solution_id, "solution_id"));
     }
 
     std::string name() const { return "gpu::" + op.name(); }

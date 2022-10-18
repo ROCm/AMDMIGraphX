@@ -111,17 +111,17 @@ auto reflect(T& x, Selector f)
 template <class T>
 auto reflect_tie(T& x)
 {
-    return reflect(x,[](auto&& y, auto&&...) { 
-    if constexpr(is_reflectable<decltype(y)>{})
-    {
-        auto t = reflect_tie(y);
-        return detail::wrap<decltype(t)>(t); 
-    }
-    else
-    {
-        return detail::wrap<decltype(y)>(y); 
-    }})
-    ([](auto&&... xs) { return detail::auto_tuple(xs.get()...); });
+    return reflect(x, [](auto&& y, auto&&...) {
+        if constexpr(is_reflectable<decltype(y)>{})
+        {
+            auto t = reflect_tie(y);
+            return detail::wrap<decltype(t)>(t);
+        }
+        else
+        {
+            return detail::wrap<decltype(y)>(y);
+        }
+    })([](auto&&... xs) { return detail::auto_tuple(xs.get()...); });
 }
 
 template <class T, class F>

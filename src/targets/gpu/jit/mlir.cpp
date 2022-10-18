@@ -41,7 +41,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
-        return insert(compile_mlir(ctx, *smod));
+        return insert(compile_mlir(ctx, *smod, ins->inputs()));
     }
 
     compiler_replace insert(code_object_op co) const

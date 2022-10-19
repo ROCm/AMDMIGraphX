@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -72,84 +71,6 @@ typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::ena
 {
     return x;
 }
-
-//
-// ref implemenataion of batch norm for inference
-//
-// inputs are:
-// args[0] -> input data buffer
-// args[1] -> mini batch mean
-// args[2] -> mini batch variance
-// args[3] -> gamma
-// args[4] -> bias
-//
-// The equation to compute batch norm for inference is:
-//
-// output[i] = bias + gamma * (input[i] + mean) / sqrt(variance + epsilon)
-//
-// the input data format should be nchw
-//
-struct ref_batch_norm_inference
-{
-    op::batch_norm_inference op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::batch_norm_inference"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument output{output_shape};
-
-        double epsilon           = op.epsilon;
-        auto input               = args[0];
-        auto arg_gamma           = args[1];
-        auto arg_bias            = args[2];
-        auto mini_batch_mean     = args[3];
-        auto mini_batch_variance = args[4];
-
-        if(op.bn_mode == op::batch_norm_inference::spatial)
-        {
-            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
-                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx = output_shape.multi(i);
-                        auto c   = idx[1];
-                        assert((variance[c] + epsilon) > 0);
-                        result[i] =
-                            gamma[c] * (buffer[i] - mean[c]) / std::sqrt(variance[c] + epsilon) +
-                            bias[c];
-                    });
-                });
-        }
-
-        if(op.bn_mode == op::batch_norm_inference::per_activation)
-        {
-            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
-                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx   = output_shape.multi(i);
-                        idx[0]     = 0;
-                        auto index = output_shape.index(idx);
-
-                        assert((variance[index] + epsilon) > 0);
-                        result[i] = gamma[index] * (buffer[i] - mean[index]) /
-                                        std::sqrt(variance[index] + epsilon) +
-                                    bias[index];
-                    });
-                });
-        }
-
-        return output;
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_batch_norm_inference)
 
 struct ref_lrn
 {
@@ -643,8 +564,6 @@ struct ref_apply
 
     void init()
     {
-        apply_map["batch_norm_inference"] =
-            extend_op<ref_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<ref_convolution<op::convolution>, op::convolution>();
         apply_map["dot"]         = extend_op<ref_gemm, op::dot>();
         apply_map["quant_dot"]   = extend_op<ref_quant_gemm, op::quant_dot>();

@@ -372,11 +372,10 @@ struct mlir_program
 
         mlir_operation_state& add_results(const std::vector<shape>& outputs)
         {
-            std::vector<shape> reshaped;
-            for(auto output : outputs)
-            {
-                reshaped.push_back(shape{output.type(), output.lens()});
-            }
+            std::vector<shape> reshaped(outputs.size());
+            std::transform(outputs.begin(), outputs.end(), reshaped.begin(), [](const shape& r) {
+                return shape{r.type(), r.lens()};
+            });
             auto x = prog->make_tensors(reshaped);
             mlirOperationStateAddResults(&op_state, x.size(), x.data());
             return *this;

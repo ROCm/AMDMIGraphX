@@ -274,18 +274,16 @@ struct context
 
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
-
-        auto v_gfx_arch = v.at("gfx_arch").to<std::string>();
-
-        auto v_cu_count        = v.at("cu_count");
-        std::size_t n_cu_count = v_cu_count.without_key().to<std::size_t>();
-
-        std::string v_miopen_version = v.at("miopen_version").to<std::string>();
-
         this->current_device = std::make_shared<hip_device>(0, n_streams);
-
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {
+            auto v_gfx_arch = v.at("gfx_arch").to<std::string>();
+
+            auto v_cu_count        = v.at("cu_count");
+            std::size_t n_cu_count = v_cu_count.without_key().to<std::size_t>();
+
+            std::string v_miopen_version = v.at("miopen_version").to<std::string>();
+
             std::string current_gfx_arch       = this->current_device->get_device_name();
             std::size_t current_cu_count       = this->current_device->get_cu_count();
             std::string current_miopen_version = get_miopen_version();

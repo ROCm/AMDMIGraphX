@@ -143,6 +143,12 @@ struct shape
     const std::vector<std::size_t>& strides() const;
 
     /*!
+     * The number of dimensions in the shape.
+     * Same as the number of indices required to get a data value.
+     */
+    std::size_t ndim() const;
+
+    /*!
      * Return the number of elements in the tensor.
      */
     std::size_t elements() const;
@@ -226,6 +232,9 @@ struct shape
     shape with_lens(const std::vector<std::size_t>& l) const;
 
     shape with_type(type_t t) const;
+
+    // convert the shape to an equivalent dynamic shape
+    shape to_dynamic() const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);

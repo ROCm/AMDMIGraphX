@@ -68,48 +68,46 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
 
 std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
 {
-    if(s0.dynamic() or s1.dynamic())
-    {
-        // change both shapes to dynamic_dimension representation
-        if(not s0.dynamic())
-            s0 = s0.to_dynamic();
-        if(not s1.dynamic())
-            s1 = s1.to_dynamic();
-
-        if(s0.rank() > s1.rank())
-        {
-            std::swap(s0, s1);
-        }
-        auto offset = s1.rank() - s0.rank();
-        std::vector<shape::dynamic_dimension> out_dims(s1.dyn_dims());
-        std::vector<shape::dynamic_dimension> one_dyn_dims{{1, 1, 0}, {1, 1, 1}};
-        std::transform(
-            s0.dyn_dims().cbegin(),
-            s0.dyn_dims().cend(),
-            s1.dyn_dims().cbegin() + offset,
-            out_dims.begin() + offset,
-            [&](auto a, auto b) {
-                if(a == b)
-                {
-                    return a;
-                }
-                else if(contains(one_dyn_dims, a) or contains(one_dyn_dims, b))
-                {
-                    return shape::dynamic_dimension{
-                        std::max(a.min, b.min), std::max(a.max, b.max), std::max(a.opt, b.opt)};
-                }
-                else
-                {
-                    MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
-                                   migraphx::to_string_range(s0.dyn_dims()) + "} and {" +
-                                   migraphx::to_string_range(s1.dyn_dims()) + "} mismatch!");
-                }
-            });
-    }
-    else
+    if(not s0.dynamic() and not s1.dynamic())
     {
         MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: given two static shapes");
     }
+    // change both shapes to dynamic_dimension representation
+    if(not s0.dynamic())
+        s0 = s0.to_dynamic();
+    if(not s1.dynamic())
+        s1 = s1.to_dynamic();
+
+    if(s0.ndim() > s1.ndim())
+    {
+        std::swap(s0, s1);
+    }
+    auto offset = s1.ndim() - s0.ndim();
+    std::vector<shape::dynamic_dimension> out_dims(s1.dyn_dims());
+    std::vector<shape::dynamic_dimension> one_dyn_dims{{1, 1, 0}, {1, 1, 1}};
+    std::transform(
+        s0.dyn_dims().cbegin(),
+        s0.dyn_dims().cend(),
+        s1.dyn_dims().cbegin() + offset,
+        out_dims.begin() + offset,
+        [&](auto a, auto b) {
+            if(a == b)
+            {
+                return a;
+            }
+            else if(contains(one_dyn_dims, a) or contains(one_dyn_dims, b))
+            {
+                // setting opt to 0, may need to be changed
+                return shape::dynamic_dimension{std::max(a.min, b.min), std::max(a.max, b.max), 0};
+            }
+            else
+            {
+                MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
+                               migraphx::to_string_range(s0.dyn_dims()) + "} and {" +
+                               migraphx::to_string_range(s1.dyn_dims()) + "} mismatch!");
+            }
+        });
+    return out_dims;
 }
 
 // Compute the common (broadcasted) dimensions of a list of fixed shapes
@@ -183,11 +181,19 @@ instruction_ref insert_common_op(module& m,
         // multibroadcast?
         if(inputs[0]->get_shape().dyn_dims() != c_dyn_dims)
         {
-            inputs[0] = m.insert_instruction(ins, make_op("multibroadcast"), inputs[0], inputs[1]);
+            inputs[0] =
+                m.insert_instruction(ins,
+                                     make_op("multibroadcast", {{"out_dyn_dims", c_dyn_dims}}),
+                                     inputs[0],
+                                     inputs[1]);
         }
         if(inputs[1]->get_shape().dyn_dims() != c_dyn_dims)
         {
-            inputs[1] = m.insert_instruction(ins, make_op("multibroadcast"), inputs[1], inputs[0]);
+            inputs[1] =
+                m.insert_instruction(ins,
+                                     make_op("multibroadcast", {{"out_dyn_dims", c_dyn_dims}}),
+                                     inputs[1],
+                                     inputs[0]);
         }
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input->get_shape().type() != c_type)

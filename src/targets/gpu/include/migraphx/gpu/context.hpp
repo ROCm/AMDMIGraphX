@@ -274,7 +274,7 @@ struct context
 
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
-        this->current_device = std::make_shared<hip_device>(0, n_streams);
+        this->current_device  = std::make_shared<hip_device>(0, n_streams);
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {
             auto v_gfx_arch = v.at("gfx_arch").to<std::string>();

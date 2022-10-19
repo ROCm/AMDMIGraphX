@@ -36,12 +36,7 @@ namespace migraphx {
 template <class G, class A, class B, class E, class... Ds>
 __device__ void ck_gemm(A a, B b, E e, Ds... ds)
 {
-    constexpr const auto a_grid_desc_ak0_m_ak1 =
-        G::MakeAGridDescriptor_AK0_M_AK1(to_ck_tensor<A>());
-    constexpr const auto b_grid_desc_bk0_n_bk1 =
-        G::MakeBGridDescriptor_BK0_N_BK1(to_ck_tensor<B>());
-    constexpr const auto c_grid_desc_m_n   = G::MakeCGridDescriptor_M_N(to_ck_tensor<C>());
-    constexpr const auto block_2_ctile_map = G::MakeDefaultBlock2CTileMap(c_grid_desc_m_n);
+    constexpr const G gemm{};
 
     constexpr const auto a_grid_desc_m_k = gemm.matrix_padder.PadADescriptor_M_K(to_ck_tensor<A>());
     constexpr const auto b_grid_desc_n_k = gemm.matrix_padder.PadBDescriptor_N_K(to_ck_tensor<B>());

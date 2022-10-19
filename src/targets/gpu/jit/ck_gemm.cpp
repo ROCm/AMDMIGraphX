@@ -77,7 +77,7 @@ static std::size_t int_div_ceil(std::size_t x, std::size_t y) { return (x + y - 
 
 static std::size_t block_size_index = 15;
 
-static std::size_t padding_index = 11;
+static std::size_t padding_index = 13;
 
 static std::size_t get_block_size(const std::vector<std::string>& s)
 {
@@ -115,7 +115,6 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
     static auto tuning = read_tuning(string_value_of(MIGRAPHX_CK_TUNING{}, ""));
     if(tuning.empty())
         std::cout << "*********** Warning: No CK tuning!" << std::endl;
-    std::cout << inputs[0] << std::endl << inputs[1] << std::endl;
     auto it = std::find_if(
         tuning.begin(), tuning.end(), [&](const auto& p) { return p.first == inputs; });
     if(it == tuning.end())
@@ -151,6 +150,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
         auto m = c_shape.lens().front();
         auto n = c_shape.lens().back();
+        auto k = a_shape.lens().back();
 
         auto i         = v.get("tuning_val", get_tuning_for(inputs));
         auto& instance = get_instance(i, [&](const auto& x) -> bool {

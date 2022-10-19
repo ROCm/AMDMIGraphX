@@ -85,7 +85,6 @@ add_library(migraphx_gpu
     compile_hip_code_object.cpp
     compiler.cpp
     device_name.cpp
-    elu.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp
@@ -98,7 +97,6 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     loop.cpp
     lrn.cpp
-    leaky_relu.cpp
     mlir.cpp
     multinomial.cpp
     nonzero.cpp
@@ -143,9 +141,7 @@ register_migraphx_gpu_ops(hip_
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
-    elu
     int8_conv_pack
-    leaky_relu
     lrn
     pooling
 )

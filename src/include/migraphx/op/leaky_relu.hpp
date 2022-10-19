@@ -26,12 +26,13 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/unary.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct leaky_relu
+struct leaky_relu : unary<leaky_relu>
 {
     float alpha = 0.01;
 
@@ -41,11 +42,13 @@ struct leaky_relu
         return pack(f(self.alpha, "alpha"));
     }
 
+    std::string point_op() const { return "${function:where}(${0} > 0, ${0}, ${alpha} * ${0})"; }
+
     std::string name() const { return "leaky_relu"; }
-    shape compute_shape(std::vector<shape> inputs) const
+
+    auto apply() const
     {
-        check_shapes{inputs, *this}.has(1);
-        return inputs.front();
+        return [&](auto x) { return x > 0 ? x : x * alpha; };
     }
 };
 

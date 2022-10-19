@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -43,6 +42,8 @@
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
+#include <migraphx/op/mod.hpp>
+#include <migraphx/op/fmod.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>

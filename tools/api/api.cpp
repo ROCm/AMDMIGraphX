@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/execution_environment.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
@@ -166,6 +167,13 @@ void set_output_names(tf_options& options, std::vector<const char*> names)
     options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
 
+std::vector<argument>
+run_async(program& p, const parameter_map& params, void* s, std::string_view name)
+{
+    execution_environment exec_env{any_ptr(s, name), true};
+    return p.eval(params, exec_env);
+}
+
 template <class Value>
 std::vector<const char*> get_names(const std::unordered_map<std::string, Value>& m)
 {
@@ -265,11 +273,18 @@ struct experimental_custom_op
 template <class CustomOp>
 struct custom_operation
 {
+
     template <class Self, class F>
     static auto reflect(Self&, F)
     {
         return pack();
     }
+
+    value attributes() const
+    {
+        return {{"custom_op", true}, {"target", op.runs_on_offload_target() ? "gpu" : "cpu"}};
+    }
+
     CustomOp op;
     std::string name() const { return op.xobject.name; }
 
@@ -284,6 +299,23 @@ struct custom_operation
     {
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
+
+    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    {
+        auto alias_vec = op.output_alias(std::move(inputs));
+        // TODO: For now, only support one output alias
+        if(alias_vec.empty())
+        {
+            return -1;
+        }
+        if(alias_vec.size() > 1)
+        {
+            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
+        }
+        return alias_vec.front();
+    }
+
+    bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
 };
 
 template <class CustomOp>

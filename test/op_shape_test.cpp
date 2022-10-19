@@ -81,16 +81,6 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
-TEST_CASE(batch_norm_inference_shape)
-{
-    const size_t channels = 3;
-    migraphx::shape s{migraphx::shape::float_type, {4, channels, 3, 3}};
-    migraphx::shape vars{migraphx::shape::float_type, {channels}};
-    expect_shape(s, migraphx::make_op("batch_norm_inference"), s, vars, vars, vars, vars);
-    throws_shape(migraphx::make_op("batch_norm_inference"), s);
-    throws_shape(migraphx::make_op("batch_norm_inference"), s, vars, vars, vars, vars, vars);
-}
-
 TEST_CASE(broadcast)
 {
     {
@@ -261,8 +251,7 @@ TEST_CASE(convolution_shape)
                  migraphx::make_op("convolution",
                                    {{"stride", {1, 1}},
                                     {"dilation", {1, 1}},
-                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper},
-                                    {"use_dynamic_same_auto_pad", true}}),
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
                  input_dyn_shape,
                  weights_shape);
 
@@ -275,8 +264,7 @@ TEST_CASE(convolution_shape)
                  migraphx::make_op("convolution",
                                    {{"stride", {1, 1}},
                                     {"dilation", {1, 1}},
-                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper},
-                                    {"use_dynamic_same_auto_pad", true}}),
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
                  input_dyn_shape,
                  weights_shape);
 
@@ -290,8 +278,7 @@ TEST_CASE(convolution_shape)
                  migraphx::make_op("convolution",
                                    {{"stride", {1, 1}},
                                     {"dilation", {1, 1}},
-                                    {"padding_mode", migraphx::op::padding_mode_t::same_lower},
-                                    {"use_dynamic_same_auto_pad", true}}),
+                                    {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
                  input_dyn_shape,
                  weights_shape);
 }

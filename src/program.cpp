@@ -633,7 +633,7 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::clog << "MIGraphX version mismatch, consider recompiling model with environment "
+        std::cerr << "MIGraphX version mismatch, consider recompiling model with environment "
                      "variable MIOPEN_FIND_ENFORCE=3 to re-tune the model "
                   << std::endl;
     }

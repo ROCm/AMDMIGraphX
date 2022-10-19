@@ -291,7 +291,7 @@ struct context
             std::string current_miopen_version = get_miopen_version();
             if(n_cu_count != current_cu_count || v_gfx_arch != current_gfx_arch)
             {
-                std::clog << "MIGraphX model was compiled for gfx_arch: " << v_gfx_arch
+                std::cerr << "MIGraphX model was compiled for gfx_arch: " << v_gfx_arch
                           << " with number of CUs=" << n_cu_count
                           << ", but current device has gfx_arch: " << current_gfx_arch
                           << " with number of CUs=" << current_cu_count
@@ -301,7 +301,7 @@ struct context
             }
             if(current_miopen_version != v_miopen_version)
             {
-                std::clog << "MIGraphX model was compiled with MIOpen version : "
+                std::cerr << "MIGraphX model was compiled with MIOpen version : "
                           << v_miopen_version
                           << ", but this machine has MIOpen version: " << current_miopen_version
                           << ", Performance may suffer.\

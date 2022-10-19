@@ -287,7 +287,7 @@ struct context
             std::string current_gfx_arch       = this->current_device->get_device_name();
             std::size_t current_cu_count       = this->current_device->get_cu_count();
             std::string current_miopen_version = get_miopen_version();
-            if(n_cu_count != current_cu_count || v_gfx_arch != current_gfx_arch)
+            if(n_cu_count != current_cu_count or v_gfx_arch != current_gfx_arch)
             {
                 std::cerr << "MIGraphX model was compiled for gfx_arch: " << v_gfx_arch
                           << " with number of CUs=" << n_cu_count

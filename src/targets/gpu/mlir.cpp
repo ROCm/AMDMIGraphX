@@ -196,7 +196,7 @@ struct mlir_program
 
     MlirType make_tensor(const shape& s, bool bStandard) const
     {
-        assert(!bStandard || s.standard());
+        assert(not bStandard or s.standard());
         std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
         return mlirRankedTensorTypeGet(
             lens.size(), lens.data(), make_type(s.type()), mlirAttributeGetNull());

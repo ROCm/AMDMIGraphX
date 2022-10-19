@@ -238,35 +238,24 @@ struct miopen_convolution
                                                        false);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen " + op.name() + " : find convolution failed");
-        algo = perf.fwd_algo;
 
-        size_t solution_count;
-
-        status = miopenConvolutionForwardGetSolutionCount(ctx.get_stream().get_miopen(),
-                                                          w_desc.get(),
-                                                          x_desc.get(),
-                                                          cd.get(),
-                                                          y_desc.get(),
-                                                          &solution_count);
-        if(status != miopenStatusSuccess)
-            MIGRAPHX_THROW("MIOpen " + op.name() + ": get solution count failed");
-
-        std::vector<miopenConvSolution_t> solutions(solution_count);
+        size_t solution_count = 1;
+        miopenConvSolution_t conv_solution;
 
         status = miopenConvolutionForwardGetSolution(ctx.get_stream().get_miopen(),
                                                      w_desc.get(),
                                                      x_desc.get(),
                                                      cd.get(),
                                                      y_desc.get(),
-                                                     solution_count,
+                                                     1,
                                                      &solution_count,
-                                                     solutions.data());
-        if(status != miopenStatusSuccess)
+                                                     &conv_solution);
+        if(status != miopenStatusSuccess or solution_count != 1)
             MIGRAPHX_THROW("MIOpen " + op.name() + ": get solution failed");
 
-        solution_id = solutions.front().solution_id;
-
-        return shape{shape::int8_type, {perf.memory}};
+        solution_id = conv_solution.solution_id;
+        algo = conv_solution.algorithm;
+        return shape{shape::int8_type, {conv_solution.workspace_size}};
 #endif
     }
 

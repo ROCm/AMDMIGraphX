@@ -194,20 +194,20 @@ struct mlir_program
         return result;
     }
 
-    MlirType make_tensor(const shape& s, bool bStandard) const
+    MlirType make_tensor(const shape& s) const
     {
-        assert(not bStandard or s.standard());
+        assert(s.standard());
         std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
         return mlirRankedTensorTypeGet(
             lens.size(), lens.data(), make_type(s.type()), mlirAttributeGetNull());
     }
 
     template <class Range>
-    std::vector<MlirType> make_tensors(const Range& r, bool bStandard = true)
+    std::vector<MlirType> make_tensors(const Range& r)
     {
         std::vector<MlirType> result;
         std::transform(r.begin(), r.end(), std::back_inserter(result), [&](const auto& s) {
-            return make_tensor(s, bStandard);
+            return make_tensor(s);
         });
         return result;
     }
@@ -370,9 +370,14 @@ struct mlir_program
             return *this;
         }
 
-        mlir_operation_state& add_results(const std::vector<shape>& outputs, bool bStandard)
+        mlir_operation_state& add_results(const std::vector<shape>& outputs)
         {
-            auto x = prog->make_tensors(outputs, bStandard);
+            std::vector<shape> reshaped;
+            for(auto output : outputs)
+            {
+                reshaped.push_back(shape{output.type(), output.lens()});
+            }
+            auto x = prog->make_tensors(reshaped);
             mlirOperationStateAddResults(&op_state, x.size(), x.data());
             return *this;
         }
@@ -499,7 +504,7 @@ struct mlir_program
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
-                ops.add_results({get_shape(ins)}, ins->name() != "multibroadcast");
+                ops.add_results({get_shape(ins)});
             if(ins->name() == "convolution")
             {
                 pp =

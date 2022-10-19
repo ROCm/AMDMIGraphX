@@ -21,29 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PERFDB_HPP
-#define MIGRAPHX_GUARD_GPU_PERFDB_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <migraphx/operation.hpp>
-#include <string>
-#include <vector>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct problem_params
+struct quant_conv_1d : verify_program<quant_conv_1d>
 {
-    operation op;
-    std::vector<shape> inputs;
-    shape output;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4}};
+        auto pa = mm->add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3}};
+        auto pc = mm->add_parameter("c", c_shape);
+        mm->add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+            pa,
+            pc);
+        return p;
+    }
 };
-
-std::string get_mlir_perf_for_conv(const problem_params& pp, bool xdlops);
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_PERFDB_HPP

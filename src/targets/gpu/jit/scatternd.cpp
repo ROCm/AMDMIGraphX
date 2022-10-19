@@ -79,9 +79,10 @@ struct scatternd_compiler : compiler<scatternd_compiler>
     {
         assert(starts_with(op.name(), "scatternd_"));
         auto reduction = op.name().substr(10);
-        return insert(compile_op(ctx,
-                                 to_shapes({ins->inputs().begin() + 1, ins->inputs().end()}),
-                                 {{"reduction", reduction}}));
+        return insert(compile_op(
+            ctx,
+            to_shapes(std::vector<instruction_ref>{ins->inputs().begin() + 1, ins->inputs().end()}),
+            {{"reduction", reduction}}));
     }
 
     compiler_replace insert(const operation& op) const

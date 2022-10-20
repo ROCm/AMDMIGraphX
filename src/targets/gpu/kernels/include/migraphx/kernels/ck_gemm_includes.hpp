@@ -233,18 +233,18 @@ struct CK_DeviceGemmMultipleD
                                         const EGridDesc_M_N& e_grid_desc_m_n,
                                         const Block2ETileMap& block_2_etile_map)
     {
-        constexpr auto M = a_grid_desc_m_k.GetLength(I0);
-        constexpr auto N = b_grid_desc_n_k.GetLength(I0);
-        constexpr auto K = a_grid_desc_m_k.GetLength(I1);
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
 
         // check consistency of desc
-        static_assert(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1));
+        MIGRAPHX_CHECK(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1));
 
         // check tile size
-        static_assert(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0);
+        MIGRAPHX_CHECK(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0);
 
         // check block-to-E-tile
-        static_assert(block_2_etile_map.CheckValidity(e_grid_desc_m_n));
+        MIGRAPHX_CHECK(block_2_etile_map.CheckValidity(e_grid_desc_m_n));
 
         return GridwiseGemm::CheckValidity(
             a_grid_desc_m_k, b_grid_desc_n_k, ds_grid_desc_m_n, e_grid_desc_m_n, block_2_etile_map);

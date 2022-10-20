@@ -228,10 +228,10 @@ struct CK_DeviceGemmMultipleD
               typename EGridDesc_M_N,
               typename Block2ETileMap>
     static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
-                                                            const BGridDesc_N_K& b_grid_desc_n_k,
-                                                            const DsGridDesc_M_N& ds_grid_desc_m_n,
-                                                            const EGridDesc_M_N& e_grid_desc_m_n,
-                                                            const Block2ETileMap& block_2_etile_map)
+                                        const BGridDesc_N_K& b_grid_desc_n_k,
+                                        const DsGridDesc_M_N& ds_grid_desc_m_n,
+                                        const EGridDesc_M_N& e_grid_desc_m_n,
+                                        const Block2ETileMap& block_2_etile_map)
     {
         constexpr auto M = a_grid_desc_m_k.GetLength(I0);
         constexpr auto N = b_grid_desc_n_k.GetLength(I0);
@@ -246,7 +246,8 @@ struct CK_DeviceGemmMultipleD
         // check block-to-E-tile
         static_assert(block_2_etile_map.CheckValidity(e_grid_desc_m_n));
 
-        return GridwiseGemm::CheckValidity(a_grid_desc_m_k, b_grid_desc_n_k, ds_grid_desc_m_n, e_grid_desc_m_n, block_2_etile_map);
+        return GridwiseGemm::CheckValidity(
+            a_grid_desc_m_k, b_grid_desc_n_k, ds_grid_desc_m_n, e_grid_desc_m_n, block_2_etile_map);
     }
 
     AElementwiseOperation a_element_op{};

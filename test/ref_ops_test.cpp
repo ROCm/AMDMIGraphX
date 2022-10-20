@@ -4764,6 +4764,30 @@ TEST_CASE(prelu_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(prelu_dynamic_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<migraphx::shape::dynamic_dimension> dd{{3, 3, 0}};
+    migraphx::shape s{migraphx::shape::float_type, dd};
+    std::vector<float> x_data{-1, 0, 2};
+    std::vector<float> slope_data{2, 1, 2};
+    auto x     = mm->add_parameter("x", s);
+    auto slope = mm->add_parameter("slope", s);
+    mm->add_instruction(migraphx::make_op("prelu"), x, slope);
+    p.compile(migraphx::ref::target{});
+
+    migraphx::parameter_map params0;
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3}};
+    params0["x"]     = migraphx::argument(input_fixed_shape0, x_data.data());
+    params0["slope"] = migraphx::argument(input_fixed_shape0, slope_data.data());
+    auto result      = p.eval(params0).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-2.0f, 0.0f, 2.0f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(quant_conv2d_padding_stride_test)
 {
     migraphx::program p;

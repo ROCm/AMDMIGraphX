@@ -61,7 +61,10 @@ struct binary : op_name<Derived>
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(2).same_type().same_dims();
+        check_shapes{inputs, static_cast<const Derived&>(*this), true}
+            .has(2)
+            .same_type()
+            .same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         if(s0.dynamic() and s1.dynamic() and s0 == s1)

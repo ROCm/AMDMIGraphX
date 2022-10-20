@@ -139,7 +139,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         return shape::cpp_type(s.type());
     }
 
-    template<class Iterator, class F>
+    template <class Iterator, class F>
     static std::string ck_tuple(Iterator start, Iterator last, F f)
     {
         std::vector<std::string> s;
@@ -158,23 +158,22 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto m = c_shape.lens().front();
         auto n = c_shape.lens().back();
 
-        auto i               = v.get("tuning_val", get_tuning_for(inputs));
+        auto i        = v.get("tuning_val", get_tuning_for(inputs));
         auto instance = get_instance(i, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
                    get_type(b_shape) == x[5] and get_type(c_shape) == x[9];
         });
         assert(inputs.size() < 4 or v.contains("post"));
-        if (v.contains("post"))
+        if(v.contains("post"))
         {
             assert(instance[2] == "ck::Tuple<>");
-            instance[2] = ck_tuple(inputs.begin()+2, inputs.end()-1, &get_layout);
+            instance[2] = ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_layout);
             assert(instance[8] == "ck::Tuple<>");
-            instance[8] = ck_tuple(inputs.begin()+2, inputs.end()-1, &get_type);
+            instance[8] = ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_type);
             assert(instance[12] == "ck_passthrough");
             instance[12] = v.at("post").to<std::string>();
         }
-
 
         hip_compile_options options;
         auto block_size = get_block_size(instance);
@@ -185,28 +184,28 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.kernel_name    = v.get("kernel", "ck_gemm_kernel");
         options.virtual_inputs = inputs;
 
-        auto src = interpolate_string(ck_gemm_kernel, {
-            {"instance", join_strings(instance, ",")},
-            {"params", enum_params(inputs.size(), "void * private_p")},
-            {"args", enum_params(inputs.size(), "private_p")},
-            {"preamble", v.get("preamble", std::string{})},
-            {"kernel", options.kernel_name}
-        });
+        auto src = interpolate_string(ck_gemm_kernel,
+                                      {{"instance", join_strings(instance, ",")},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"preamble", v.get("preamble", std::string{})},
+                                       {"kernel", options.kernel_name}});
 
         return compile_hip_code_object(src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        auto v         = op.to_value();
-        v["kernel"]    = "ck_gemm_kernel";
+        auto v      = op.to_value();
+        v["kernel"] = "ck_gemm_kernel";
         if(not ins->module_inputs().empty())
         {
             auto* pm      = ins->module_inputs().front();
-            v["preamble"] = generate_pointwise(*pm, "post_ck_gemm_function") + "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm, post_ck_gemm_function);";
-            v["post"]     = "ck_function_adaptor<post_ck_gemm>";
+            v["preamble"] = generate_pointwise(*pm, "post_ck_gemm_function") +
+                            "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm, post_ck_gemm_function);";
+            v["post"]   = "ck_function_adaptor<post_ck_gemm>";
             v["kernel"] = "ck_gemm_" + generate_name_from_ops(*pm) + "_kernel";
-        } 
+        }
 
         auto shapes = to_shapes(ins->inputs());
         return action_decorate(replace(compile_op(ctx, shapes, v)), [=] {

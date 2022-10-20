@@ -50,13 +50,13 @@ constexpr bool is_row_major()
 template <class T>
 using to_ck_type = typename detail::to_ck_type_impl<T>::type;
 
-template<class T>
+template <class T>
 constexpr auto to_ck_pointer(T* x)
 {
     return static_cast<to_ck_type<T>*>(x);
 }
 
-template<class T>
+template <class T>
 constexpr auto to_ck_const_pointer(const T* x)
 {
     return static_cast<const to_ck_type<T>*>(x);

@@ -23,6 +23,7 @@ def run_driver(b):
     with tmp_file(lambda tf: json.dump(b, tf)) as tf:
         cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
                             capture_output=True,
+                            check=True,
                             shell=True)
         for line in cp.stdout.decode().split("\n"):
             s = line.strip()
@@ -49,6 +50,7 @@ def benchmark_ck(config, tuning):
         },
         'compile_op': {
             'name': 'ck_gemm',
+            'check': True,
             'tuning_val': tuning,
             'inputs': config
         }

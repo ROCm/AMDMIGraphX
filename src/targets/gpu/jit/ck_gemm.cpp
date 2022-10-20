@@ -184,6 +184,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.kernel_name    = v.get("kernel", "ck_gemm_kernel");
         options.virtual_inputs = inputs;
 
+        if (v.get("check", false))
+            options.params += " -DMIGRAPHX_CK_CHECK=1";
+
         auto src = interpolate_string(ck_gemm_kernel,
                                       {{"instance", join_strings(instance, ",")},
                                        {"params", enum_params(inputs.size(), "void * private_p")},

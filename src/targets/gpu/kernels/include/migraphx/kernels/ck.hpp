@@ -109,5 +109,11 @@ struct ck_passthrough
     }
 };
 
+#ifdef MIGRAPHX_CK_CHECK
+#define MIGRAPHX_CK_STATIC_ASSERT static_assert
+#else
+#define MIGRAPHX_CK_STATIC_ASSERT(...)
+#endif
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_CK_HPP

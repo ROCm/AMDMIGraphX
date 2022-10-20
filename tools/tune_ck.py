@@ -44,22 +44,24 @@ def get_device_time(s):
 
 
 def benchmark_ck(config, tuning):
-    b = {
-        'settings': {
-            'iterations': 100
-        },
-        'compile_op': {
-            'name': 'ck_gemm',
-            'check': True,
-            'tuning_val': tuning,
-            'inputs': config
+    try:
+        b = {
+            'settings': {
+                'iterations': 100
+            },
+            'compile_op': {
+                'name': 'ck_gemm',
+                'check': True,
+                'tuning_val': tuning,
+                'inputs': config
+            }
         }
-    }
-    for line in run_driver(b):
-        dtime = get_device_time(line)
-        print(dtime)
-        return dtime
-    return sys.float_info.max
+        for line in run_driver(b):
+            dtime = get_device_time(line)
+            print(dtime)
+            return dtime
+    finally:
+        return sys.float_info.max
 
 
 def benchmark(config, size):

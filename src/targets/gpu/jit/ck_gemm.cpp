@@ -158,7 +158,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto m = c_shape.lens().front();
         auto n = c_shape.lens().back();
 
-        auto i        = v.get("tuning_val", get_tuning_for(inputs));
+        auto i        = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape}));
         auto instance = get_instance(i, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and

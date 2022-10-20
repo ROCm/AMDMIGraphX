@@ -279,6 +279,12 @@ constexpr auto make_const_array(T x, Ts... xs)
 }
 
 template <class T, T... Xs, class F>
+constexpr auto unpack(integral_const_array<T, Xs...>, F f)
+{
+    return f(_c<Xs>...);
+}
+
+template <class T, T... Xs, class F>
 constexpr auto transform(integral_const_array<T, Xs...>, F f)
 {
     return integral_const_array<T, f(Xs)...>{};

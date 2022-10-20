@@ -34,6 +34,7 @@
 
 namespace migraphx {
 
+// In CK, the B matrix is ordered as N,K instead of K,N
 template <class Dims>
 constexpr auto ck_transposeb_dims(Dims dims)
 {

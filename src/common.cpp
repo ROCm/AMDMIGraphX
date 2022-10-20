@@ -168,7 +168,7 @@ instruction_ref insert_common_op(module& m,
         if(inputs.size() != 2)
         {
             MIGRAPHX_THROW("INSERT_COMMON_OP: not handled; " + migraphx::to_string(inputs.size()) +
-                           "inputs, only handle two inputs");
+                           "inputs, only handle two inputs if any are dynamic shape");
         }
 
         auto c_type = compute_common_types(to_shapes(inputs));
@@ -176,24 +176,21 @@ instruction_ref insert_common_op(module& m,
             compute_broadcasted_dyn_dims(inputs[0]->get_shape(), inputs[1]->get_shape());
 
         // following should work for a static or dynamic shape
-        // TODO: compute_broadcasted_dyn_dims() is going to be called again in the multibroadcast
-        // compute_shape should figure out a way to get around recomputing that. Attribute in
-        // multibroadcast?
         if(inputs[0]->get_shape().dyn_dims() != c_dyn_dims)
         {
-            inputs[0] =
-                m.insert_instruction(ins,
-                                     make_op("multibroadcast", {{"out_dyn_dims", c_dyn_dims}}),
-                                     inputs[0],
-                                     inputs[1]);
+            inputs[0] = m.insert_instruction(
+                ins,
+                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                inputs[0],
+                inputs[1]);
         }
         if(inputs[1]->get_shape().dyn_dims() != c_dyn_dims)
         {
-            inputs[1] =
-                m.insert_instruction(ins,
-                                     make_op("multibroadcast", {{"out_dyn_dims", c_dyn_dims}}),
-                                     inputs[1],
-                                     inputs[0]);
+            inputs[1] = m.insert_instruction(
+                ins,
+                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                inputs[1],
+                inputs[0]);
         }
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input->get_shape().type() != c_type)

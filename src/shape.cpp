@@ -503,15 +503,11 @@ bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max;
 
 bool shape::dynamic_dimension::has_optimal() const { return opt != 0; }
 
-template <class Self, class F>
-auto shape::dynamic_dimension::reflect(Self& self, F f)
-{
-    return pack(f(self.min, "min"), f(self.max, "max"), f(self.opt, "opt"));
-}
-
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
-    return (x.min == y.min and x.max == y.max and x.opt == y.opt);
+    // don't check opt if both are fixed
+    bool check_opt = (x.is_fixed() and y.is_fixed()) ? false : true;
+    return (x.min == y.min and x.max == y.max and (check_opt ? x.opt == y.opt : true));
 }
 
 bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)

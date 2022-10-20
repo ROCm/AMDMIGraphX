@@ -43,6 +43,8 @@ namespace op {
 struct multibroadcast
 {
     std::vector<std::size_t> output_lens;
+
+    // optional attribute
     std::vector<shape::dynamic_dimension> output_dyn_dims;
 
     template <class Self, class F>
@@ -62,7 +64,7 @@ struct multibroadcast
 
         if(s0.max_lens().empty())
         {
-            MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should be > 0");
+            MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should be > 0");
         }
 
         auto make_bcast_strides = [&](std::vector<std::size_t> bcast_lens, std::size_t offset) {
@@ -81,7 +83,7 @@ struct multibroadcast
         {
             if(s0.lens().size() > output_lens.size())
             {
-                MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should <= output size");
+                MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");
             }
 
             auto offset = output_lens.size() - s0.lens().size();

@@ -30,6 +30,7 @@
 #include <numeric>
 #include <memory>
 
+#include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
@@ -89,7 +90,10 @@ struct shape
         std::size_t opt = 0;
 
         template <class Self, class F>
-        static auto reflect(Self& self, F f);
+        static auto reflect(Self& self, F f)
+        {
+            return pack(f(self.min, "min"), f(self.max, "max"), f(self.opt, "opt"));
+        }
 
         bool is_fixed() const;
         bool has_optimal() const;

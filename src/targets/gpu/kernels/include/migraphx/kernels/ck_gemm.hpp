@@ -33,8 +33,8 @@
 
 namespace migraphx {
 
-template <class G, class A, class B, class E, class... Ds>
-__device__ void ck_gemm(A a, B b, E e, Ds... ds)
+template <class G, class E, class A, class B, class... Ds>
+__device__ void ck_gemm(E e, A a, B b, Ds... ds)
 {
     constexpr const G gemm{};
 
@@ -64,10 +64,10 @@ __device__ void ck_gemm(A a, B b, E e, Ds... ds)
     constexpr const bool HasMainKBlockLoop =
         GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_ak0_m_ak1.GetLength(ck::Number<0>{}) *
                                                  a_grid_desc_ak0_m_ak1.GetLength(ck::Number<2>{}));
-    GridwiseGemm::template Run<HasMainKBlockLoop>(a.data(),
-                                                  b.data(),
-                                                  ck::make_tuple(ds.data()...),
-                                                  e.data(),
+    GridwiseGemm::template Run<HasMainKBlockLoop>(to_ck_const_pointer(a.data()),
+                                                  to_ck_const_pointer(b.data()),
+                                                  ck::make_tuple(to_ck_const_pointer(ds.data())...),
+                                                  to_ck_pointer(e.data()),
                                                   p_shared_block,
                                                   gemm.a_element_op,
                                                   gemm.b_element_op,

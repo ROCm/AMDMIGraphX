@@ -29,14 +29,12 @@
 
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/pass_manager.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
 
@@ -48,6 +46,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace gpu {
 
+using namespace migraphx::gpu::gen; // NOLINT
+
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING);
 
@@ -55,15 +55,18 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING);
 static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <args.hpp>
 #include <migraphx/kernels/ck_gemm.hpp>
+#include <migraphx/kernels/pointwise.hpp>
 
 namespace migraphx {
 
+${preamble}
+
 extern "C" {
 
-__global__ void ck_gemm_kernel(void* a_p, void* b_p, void* c_p)
+__global__ void ${kernel}(${params})
 {
-    make_tensors()(a_p, b_p, c_p)([&](auto a, auto b, auto c) {
-        ck_gemm<CK_DeviceGemmMultipleD<${instance}>>(a, b, c);
+    transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
+        ck_gemm<CK_DeviceGemmMultipleD<${instance}>>(xs...);
     });
 }
 
@@ -136,23 +139,42 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         return shape::cpp_type(s.type());
     }
 
+    template<class Iterator, class F>
+    static std::string ck_tuple(Iterator start, Iterator last, F f)
+    {
+        std::vector<std::string> s;
+        std::transform(start, last, std::back_inserter(s), f);
+        return "ck::Tuple<" + join_strings(s, ",") + ">";
+    }
+
     std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
         auto a_shape = inputs[0];
         auto b_shape = inputs[1];
-        auto c_shape = inputs[2];
+        auto c_shape = inputs.back();
 
         auto m = c_shape.lens().front();
         auto n = c_shape.lens().back();
 
         auto i               = v.get("tuning_val", get_tuning_for(inputs));
-        const auto& instance = get_instance(i, [&](const auto& x) -> bool {
+        auto instance = get_instance(i, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
                    get_type(b_shape) == x[5] and get_type(c_shape) == x[9];
         });
+        assert(inputs.size() < 4 or v.contains("post"));
+        if (v.contains("post"))
+        {
+            assert(instance[2] == "ck::Tuple<>");
+            instance[2] = ck_tuple(inputs.begin()+2, inputs.end()-1, &get_layout);
+            assert(instance[8] == "ck::Tuple<>");
+            instance[8] = ck_tuple(inputs.begin()+2, inputs.end()-1, &get_type);
+            assert(instance[12] == "ck_passthrough");
+            instance[12] = v.at("post").to<std::string>();
+        }
+
 
         hip_compile_options options;
         auto block_size = get_block_size(instance);
@@ -160,18 +182,34 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
         options.output         = c_shape;
-        options.kernel_name    = "ck_gemm_kernel";
+        options.kernel_name    = v.get("kernel", "ck_gemm_kernel");
         options.virtual_inputs = inputs;
 
-        auto src = interpolate_string(ck_gemm_kernel, {{"instance", join_strings(instance, ",")}});
+        auto src = interpolate_string(ck_gemm_kernel, {
+            {"instance", join_strings(instance, ",")},
+            {"params", enum_params(inputs.size(), "void * private_p")},
+            {"args", enum_params(inputs.size(), "private_p")},
+            {"preamble", v.get("preamble", std::string{})},
+            {"kernel", options.kernel_name}
+        });
 
         return compile_hip_code_object(src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
+        auto v         = op.to_value();
+        v["kernel"]    = "ck_gemm_kernel";
+        if(not ins->module_inputs().empty())
+        {
+            auto* pm      = ins->module_inputs().front();
+            v["preamble"] = generate_pointwise(*pm, "post_ck_gemm_function") + "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm, post_ck_gemm_function);";
+            v["post"]     = "ck_function_adaptor<post_ck_gemm>";
+            v["kernel"] = "ck_gemm_" + generate_name_from_ops(*pm) + "_kernel";
+        } 
+
         auto shapes = to_shapes(ins->inputs());
-        return action_decorate(replace(compile_op(ctx, shapes, op.to_value())), [=] {
+        return action_decorate(replace(compile_op(ctx, shapes, v)), [=] {
             if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
                 std::cout << "ck_gemm: " << to_json_string(to_value(shapes)) << std::endl;
         });

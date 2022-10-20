@@ -24,6 +24,12 @@ struct to_ck_type_impl<migraphx::half>
     using type = ck::half_t;
 };
 
+template <class T>
+struct to_ck_type_impl<const T>
+{
+    using type = const typename to_ck_type_impl<T>::type;
+};
+
 template <class Shape>
 constexpr bool is_row_major()
 {
@@ -43,6 +49,18 @@ constexpr bool is_row_major()
 
 template <class T>
 using to_ck_type = typename detail::to_ck_type_impl<T>::type;
+
+template<class T>
+constexpr auto to_ck_pointer(T* x)
+{
+    return static_cast<to_ck_type<T>*>(x);
+}
+
+template<class T>
+constexpr auto to_ck_const_pointer(const T* x)
+{
+    return static_cast<const to_ck_type<T>*>(x);
+}
 
 template <class Shape>
 using to_ck_gemm_layout = conditional_t<detail::is_row_major<get_shape_c<Shape>>(),

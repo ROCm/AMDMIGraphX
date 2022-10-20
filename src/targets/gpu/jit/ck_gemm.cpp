@@ -210,7 +210,10 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto shapes = to_shapes(ins->inputs());
         return action_decorate(replace(compile_op(ctx, shapes, v)), [=] {
             if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
-                std::cout << "ck_gemm: " << to_json_string(to_value(shapes)) << std::endl;
+            {
+                std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};
+                std::cout << "ck_gemm: " << to_json_string(to_value(gemm_shapes)) << std::endl;
+            }
         });
     }
 };

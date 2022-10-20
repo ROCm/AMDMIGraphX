@@ -127,10 +127,21 @@ struct parse_if : op_parser<parse_if>
                     throw_shapes();
                 }
 
-                auto handle_empty_branch = [](module_ref& mdl, const shape& out_shape) {
-                    shape gen_shape(out_shape.type(), out_shape.lens(), out_shape.strides());
-                    auto literal_ins = mdl->add_literal(gen_shape, gen_shape.lens());
-                    mdl->replace_return({literal_ins});
+                auto handle_empty_branch = [](module_ref& mdl, int index, const shape& out_shape) {
+                    shape gen_shape(shape(out_shape.type(), {1}, {0}));
+                    auto literal_ins =
+                        mdl->insert_literal(std::prev(mdl->end()), literal(gen_shape, {0}));
+                    auto unsqueeze_ins = mdl->insert_instruction(
+                        std::prev(mdl->end()),
+                        make_op("scalar", {{"scalar_bcst_dims", out_shape.lens()}}),
+                        literal_ins);
+                    auto broad_ins = mdl->insert_instruction(
+                        std::prev(mdl->end()),
+                        make_op("multibroadcast", {{"out_lens", out_shape.lens()}}),
+                        unsqueeze_ins);
+                    auto contig_out = mdl->insert_instruction(
+                        std::prev(mdl->end()), make_op("contiguous"), broad_ins);
+                    mdl->replace_instruction(std::prev(mdl->end())->inputs().at(index), contig_out);
                     return out_shape.lens();
                 };
 
@@ -138,11 +149,11 @@ struct parse_if : op_parser<parse_if>
                 // need to update the then_shape before we do further checks
                 if(then_lens.empty())
                 {
-                    then_lens = handle_empty_branch(then_mdl, else_out_shape);
+                    then_lens = handle_empty_branch(then_mdl, i, else_out_shape);
                 }
                 else if(else_lens.empty())
                 {
-                    else_lens = handle_empty_branch(else_mdl, then_out_shape);
+                    else_lens = handle_empty_branch(else_mdl, i, then_out_shape);
                 }
 
                 // check equivalent length dims, and (x1,x2,.., xn, 1) == (x1,x2,..,xn)

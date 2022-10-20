@@ -110,6 +110,15 @@ constexpr F for_each(Iterator first, Iterator last, F f)
     return f;
 }
 
+template <class Iterator, class T>
+constexpr void fill (Iterator first, Iterator last, const T& val)
+{
+  while (first != last) {
+    *first = val;
+    ++first;
+  }
+}
+
 template <class Iterator, class Predicate>
 constexpr Iterator find_if(Iterator first, Iterator last, Predicate p)
 {

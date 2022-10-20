@@ -59,6 +59,15 @@ constexpr auto to_ck_tensor()
     });
 }
 
+template <class Tensor>
+constexpr auto to_ck_batched_tensor()
+{
+    constexpr auto s = get_shape_c<Tensor>{};
+    constexpr auto sz = s.lens.size();
+    return ck::make_naive_tensor_descriptor(ck::make_tuple(s.lens[sz - 2], s.lens[sz - 1]),
+                                                ck::make_tuple(s.strides[sz - 2], s.strides[sz - 1]));
+}
+
 template <class F>
 struct ck_function_adaptor : F
 {

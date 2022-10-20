@@ -64,6 +64,15 @@ TEST_CASE(test_shape_standard)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_standard_stride)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 2048, 1, 1}, {2048, 1, 2048, 2048}};
+    EXPECT(not s.standard());
+    EXPECT(s.packed());
+    EXPECT(s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_min_max_opt)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};

@@ -41,7 +41,7 @@ struct problem_params
     shape output;
 };
 
-std::string get_mlir_perf_for_conv(const problem_params& pp);
+std::string get_mlir_perf_for_conv(const problem_params& pp, bool xdlops);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

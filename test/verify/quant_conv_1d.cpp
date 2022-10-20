@@ -27,14 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_leaky_relu : verify_program<test_leaky_relu>
+struct quant_conv_1d : verify_program<quant_conv_1d>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        mm->add_instruction(migraphx::make_op("leaky_relu", {{"alpha", 0.01}}), x);
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4}};
+        auto pa = mm->add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3}};
+        auto pc = mm->add_parameter("c", c_shape);
+        mm->add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+            pa,
+            pc);
         return p;
     }
 };

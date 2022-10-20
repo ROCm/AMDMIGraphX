@@ -50,6 +50,7 @@ using namespace migraphx::gpu::gen; // NOLINT
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_DEBUG);
 
 // NOLINTNEXTLINE
 static const char* const ck_gemm_kernel = R"__migraphx__(
@@ -184,7 +185,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         options.kernel_name    = v.get("kernel", "ck_gemm_kernel");
         options.virtual_inputs = inputs;
 
-        if(v.get("check", false))
+        if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.params += " -DMIGRAPHX_CK_CHECK=1";
 
         auto src = interpolate_string(ck_gemm_kernel,

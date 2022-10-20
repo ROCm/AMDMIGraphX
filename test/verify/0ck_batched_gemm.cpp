@@ -32,14 +32,14 @@ struct ck_batched_gemm : verify_program<ck_batched_gemm>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm      = p.get_main_module();
         std::size_t b = 2;
         std::size_t m = 3;
         std::size_t n = 3;
         std::size_t k = 3;
         migraphx::shape m1_shape{migraphx::shape::half_type, {b, m, k}};
-        std::vector<float> v1(b*m*k, 1);
-        std::vector<float> v2(b*k*n, 1);//{1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<float> v1(b * m * k, 1);
+        std::vector<float> v2(b * k * n, 1); //{1, 2, 3, 4, 5, 6, 7, 8};
         // auto l1   = mm->add_parameter("1", m1_shape);
         // auto l2   = mm->add_parameter("2", m1_shape);
         auto l1 = mm->add_literal(migraphx::literal{m1_shape, v1});

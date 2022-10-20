@@ -131,10 +131,7 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
     return it->second;
 }
 
-static std::size_t get_batch_stride(const shape& s)
-{
-    return s.strides()[s.strides().size() - 3];
-}
+static std::size_t get_batch_stride(const shape& s) { return s.strides()[s.strides().size() - 3]; }
 
 struct ck_batched_gemm_compiler : compiler<ck_batched_gemm_compiler>
 {
@@ -186,7 +183,7 @@ struct ck_batched_gemm_compiler : compiler<ck_batched_gemm_compiler>
 
         hip_compile_options options;
         // batch_count
-        auto out_lens = c_shape.lens();
+        auto out_lens    = c_shape.lens();
         auto batch_count = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         auto batchStrideA = get_batch_stride(a_shape);
@@ -209,7 +206,8 @@ struct ck_batched_gemm_compiler : compiler<ck_batched_gemm_compiler>
         options.kernel_name    = "ck_batched_gemm_kernel";
         options.virtual_inputs = inputs;
 
-        auto src = interpolate_string(ck_batched_gemm_kernel, {{"instance", join_strings(instance, ",")}});
+        auto src =
+            interpolate_string(ck_batched_gemm_kernel, {{"instance", join_strings(instance, ",")}});
 
         return compile_hip_code_object(src, options);
     }

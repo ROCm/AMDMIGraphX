@@ -111,12 +111,13 @@ constexpr F for_each(Iterator first, Iterator last, F f)
 }
 
 template <class Iterator, class T>
-constexpr void fill (Iterator first, Iterator last, const T& val)
+constexpr void fill(Iterator first, Iterator last, const T& val)
 {
-  while (first != last) {
-    *first = val;
-    ++first;
-  }
+    while(first != last)
+    {
+        *first = val;
+        ++first;
+    }
 }
 
 template <class Iterator, class Predicate>

@@ -131,16 +131,17 @@ struct find_ck_batched_gemm
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        mpm.get_module().replace_instruction(ins, ck_batched_gemm{ins->get_operator()}, ins->inputs());
+        mpm.get_module().replace_instruction(
+            ins, ck_batched_gemm{ins->get_operator()}, ins->inputs());
     }
 };
 
 } // namespace
 
-void fuse_ck::apply(module_pass_manager& mpm) const 
-{ 
-    match::find_matches(mpm, find_ck_gemm{}); 
-    match::find_matches(mpm, find_ck_batched_gemm{});    
+void fuse_ck::apply(module_pass_manager& mpm) const
+{
+    match::find_matches(mpm, find_ck_gemm{});
+    match::find_matches(mpm, find_ck_batched_gemm{});
 }
 
 } // namespace gpu

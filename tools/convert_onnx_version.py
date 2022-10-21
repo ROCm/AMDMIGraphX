@@ -61,7 +61,6 @@ def main():
     target_opset = args.opset
     verbose = args.verbose
 
-
     original_model = onnx.load(model_path)
     if verbose:
         print(f"The model before conversion:\n{original_model}")
@@ -69,10 +68,11 @@ def main():
     # A full list of supported adapters can be found here:
     # https://github.com/onnx/onnx/blob/main/onnx/version_converter.py#L21
     # Apply the version conversion on the original model
-    converted_model = version_converter.convert_version(original_model, target_opset)
+    converted_model = version_converter.convert_version(
+        original_model, target_opset)
 
     if verbose:
-        print(f"The model after conversion:\n{converted_mode}")
+        print(f"The model after conversion:\n{converted_model}")
 
 
 if __name__ == '__main__':

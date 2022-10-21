@@ -33,9 +33,9 @@ struct gemm_add_relu : verify_program<gemm_add_relu>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a   = mm->add_parameter("1", {migraphx::shape::half_type, {256, 512}});
-        auto b   = mm->add_parameter("2", {migraphx::shape::half_type, {512, 1024}});
-        auto c   = mm->add_parameter("3", {migraphx::shape::half_type, {256, 1024}});
+        auto a   = mm->add_parameter("1", {migraphx::shape::half_type, {2, 3}});
+        auto b   = mm->add_parameter("2", {migraphx::shape::half_type, {3, 4}});
+        auto c   = mm->add_parameter("3", {migraphx::shape::half_type, {2, 4}});
 
         auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add = mm->add_instruction(migraphx::make_op("add"), dot, c);

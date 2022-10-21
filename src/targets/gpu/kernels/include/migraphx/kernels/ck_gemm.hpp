@@ -72,7 +72,7 @@ __device__ void ck_gemm(E e, A a, B b, Ds... ds)
     constexpr auto e_grid_desc_mblock_mperblock_nblock_nperblock =
         GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n);
 
-    MIGRAPHX_CK_STATIC_ASSERT(GridwiseGemm::CheckValidity(
+    static_assert(GridwiseGemm::CheckValidity(
         a_grid_desc_m_k, b_grid_desc_n_k, ds_grid_desc_m_n, e_grid_desc_m_n, block_2_etile_map));
 
     __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];

@@ -30,7 +30,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/ck.hpp>
 #include <migraphx/kernels/ck_gemm_includes.hpp>
-#include <migraphx/kernels/print.hpp>
+#include <migraphx/kernels/gemm_batcher.hpp>
 
 namespace migraphx {
 
@@ -46,7 +46,7 @@ using ck_transposeb = decltype(make_shape(ck_transposeb_dims(get_shape_c<Tensor>
                                           ck_transposeb_dims(get_shape_c<Tensor>{}.strides)));
 
 template <class G, class E, class A, class B, class... Ds>
-__device__ void ck_gemm(E e, A a, B b, Ds... ds)
+__device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
 {
     constexpr const G gemm{};
 
@@ -93,6 +93,14 @@ __device__ void ck_gemm(E e, A a, B b, Ds... ds)
                                                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   e_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_etile_map);
+}
+
+template <class G, index_int BlocksPerBatch, class... Ts>
+__device__ void ck_gemm(Ts... xs)
+{
+    gemm_batch_args(make_index(), _c<BlocksPerBatch>, xs...)([](auto... ys) {
+        ck_gemm_matrix<G>(ys...);
+    });
 }
 
 } // namespace migraphx

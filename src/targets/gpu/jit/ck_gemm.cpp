@@ -67,7 +67,7 @@ extern "C" {
 __global__ void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        ck_gemm<CK_DeviceGemmMultipleD<${instance}>>(xs...);
+        ck_gemm<CK_DeviceGemmMultipleD<${instance}>, ${blocks_per_batch}>(xs...);
     });
 }
 
@@ -230,9 +230,11 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             gemm_type += "Padding";
         ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
+        auto blocks_per_batch = ip.get_grid_size(config);
+
         hip_compile_options options;
         auto block_size = ip.get_block_size();
-        auto grid_size  = ip.get_grid_size(config);
+        auto grid_size  = blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
         options.output         = c_shape;
@@ -246,6 +248,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                       {{"instance", ip.str()},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
+                                       {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
 

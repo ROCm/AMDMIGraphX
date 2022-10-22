@@ -25,7 +25,7 @@ struct ck_gemm
 
     void check_gemm_shape(const shape& s) const
     {
-        if(not contains(range(s.strides().rbegin(), s.strides().rbegin()+3), 1))
+        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1))
             MIGRAPHX_THROW("Invalid shape for ck_gemm");
     }
 
@@ -80,7 +80,7 @@ struct find_ck_gemm
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         assert(gemm_it != inputs.end());
-        if (ins->get_shape().type() != shape::half_type)
+        if(ins->get_shape().type() != shape::half_type)
             return;
         if(gemm_idx != 0)
         {

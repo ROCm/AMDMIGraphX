@@ -233,9 +233,10 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
         auto blocks_per_batch = ip.get_grid_size(config);
-        auto batch_count = std::accumulate(
-            c_shape.lens().rbegin() + 2, c_shape.lens().rend(), std::size_t{1}, std::multiplies<std::size_t>());
-
+        auto batch_count      = std::accumulate(c_shape.lens().rbegin() + 2,
+                                           c_shape.lens().rend(),
+                                           std::size_t{1},
+                                           std::multiplies<std::size_t>());
 
         hip_compile_options options;
         auto block_size = ip.get_block_size();

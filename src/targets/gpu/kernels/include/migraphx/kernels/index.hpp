@@ -130,10 +130,7 @@ struct index
     }
 #endif
 
-    constexpr auto ngroup() const
-    {
-        return nglobal() / max_nlocal();
-    }
+    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
     template <class N, class Stride>
     static constexpr auto max_stride_iterations(N n, Stride stride)
     {

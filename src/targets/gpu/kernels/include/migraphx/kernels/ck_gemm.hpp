@@ -98,9 +98,8 @@ __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
 template <class G, index_int BlocksPerBatch, class... Ts>
 __device__ void ck_gemm(Ts... xs)
 {
-    gemm_batch_args(make_index(), _c<BlocksPerBatch>, xs...)([](auto... ys) {
-        ck_gemm_matrix<G>(ys...);
-    });
+    gemm_batch_args(make_index(), _c<BlocksPerBatch>, xs...)(
+        [](auto... ys) { ck_gemm_matrix<G>(ys...); });
 }
 
 } // namespace migraphx

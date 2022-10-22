@@ -25,7 +25,7 @@ struct ck_gemm
 
     void check_gemm_shape(const shape& s) const
     {
-        if(contains(s.lens(), 1))
+        if(not contains(range(s.strides().rbegin(), s.strides().rbegin()+3), 1))
             MIGRAPHX_THROW("Invalid shape for ck_gemm");
     }
 
@@ -53,9 +53,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
-    if(a.lens().size() > 2 or b.lens().size() > 2)
-        return false;
-    if(a.lens()[1] > 2048)
+    if(a.lens().back() > 2048)
         return false;
     return true;
 }
@@ -82,6 +80,8 @@ struct find_ck_gemm
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         assert(gemm_it != inputs.end());
+        if (ins->get_shape().type() != shape::half_type)
+            return;
         if(gemm_idx != 0)
         {
             auto first_param    = pm->get_parameter(names[0]);

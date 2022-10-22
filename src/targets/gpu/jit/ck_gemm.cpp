@@ -199,9 +199,11 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto b_shape = inputs[1];
         auto c_shape = inputs.back();
 
+        auto rank = a_shape.lens().size();
+
         std::array<char, 3> keys{'M', 'N', 'K'};
         std::array<std::size_t, 3> config{
-            c_shape.lens().front(), c_shape.lens().back(), a_shape.lens().back()};
+            c_shape.lens()[rank - 2], c_shape.lens().back(), a_shape.lens().back()};
 
         auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape}));
         auto ip         = instance{get_instance(tuning_val, [&](const auto& x) -> bool {
@@ -231,10 +233,13 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
         auto blocks_per_batch = ip.get_grid_size(config);
+        auto batch_count = std::accumulate(
+            c_shape.lens().rbegin() + 2, c_shape.lens().rend(), std::size_t{1}, std::multiplies<std::size_t>());
+
 
         hip_compile_options options;
         auto block_size = ip.get_block_size();
-        auto grid_size  = blocks_per_batch;
+        auto grid_size  = batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
         options.output         = c_shape;

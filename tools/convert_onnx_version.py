@@ -75,5 +75,8 @@ def main():
         print(f"The model after conversion:\n{converted_model}")
 
 
+    # Save the ONNX model
+    onnx.save(converted_model, out_model_path)
+
 if __name__ == '__main__':
     main()

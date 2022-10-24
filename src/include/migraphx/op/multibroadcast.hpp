@@ -42,10 +42,10 @@ namespace op {
  */
 struct multibroadcast
 {
-    std::vector<std::size_t> output_lens;
+    std::vector<std::size_t> output_lens = {};
 
     // optional attribute
-    std::vector<shape::dynamic_dimension> output_dyn_dims;
+    std::vector<shape::dynamic_dimension> output_dyn_dims = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

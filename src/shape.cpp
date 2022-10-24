@@ -473,7 +473,8 @@ shape shape::to_dynamic() const
     {
         return *this;
     }
-    return {type(), lens(), lens(), lens()};
+    std::vector<std::size_t> zeroes(this->ndim(), 0);
+    return {type(), lens(), lens(), zeroes};
 }
 
 std::size_t shape::element_space() const { return impl->element_space(); }

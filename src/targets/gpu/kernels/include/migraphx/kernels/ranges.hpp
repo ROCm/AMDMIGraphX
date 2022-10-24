@@ -39,8 +39,6 @@ struct iterator_range
     constexpr Iterator end() const { return last; }
 };
 
-// using iota_iterator = basic_iota_iterator<defaul_iota_iterator>;
-
 constexpr iterator_range<iota_iterator> range(int start, int last)
 {
     return {{start, {}}, {last, {}}};

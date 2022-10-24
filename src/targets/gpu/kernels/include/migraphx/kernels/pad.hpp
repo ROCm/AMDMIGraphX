@@ -50,8 +50,9 @@ __device__ void pad(const index& idx,
         auto input_idx    = multi - offsets;
         auto range_multi  = range(multi.size());
 
-        if(any_of(range_multi.begin(), range_multi.end(), [&](auto j){ 
-            return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];}))
+        if(any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
+               return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
+           }))
             output[multi] = pad_val;
         else
             output[multi] = input[input_idx];

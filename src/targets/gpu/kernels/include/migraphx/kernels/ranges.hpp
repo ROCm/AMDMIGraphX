@@ -47,6 +47,5 @@ constexpr iterator_range<iota_iterator> range(int start, int last)
 }
 constexpr iterator_range<iota_iterator> range(int last) { return range(0, last); }
 
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_RANGES_HPP

@@ -91,7 +91,7 @@ __device__ auto& array2vec(T& x)
 template <class T, class... Ts>
 constexpr auto array_for_each(T& x, Ts&... xs)
 {
-    MIGRAPHX_ASSERT((x.size() == xs.size() and ...));
+    MIGRAPHX_ASSERT(((x.size() == xs.size()) and ...));
     return [&](auto f) {
         constexpr auto size = decltype(x.size()){};
         if constexpr((is_vectorizable<typename T::value_type>() or

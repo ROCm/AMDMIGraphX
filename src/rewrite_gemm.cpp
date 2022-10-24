@@ -44,17 +44,20 @@ void rewrite_gemm::apply(module& m) const
         if(ins->name() != "dot")
             continue;
         auto inputs = ins->inputs();
-        auto in0 = inputs.at(0);
+        auto in0    = inputs.at(0);
         if(in0->get_shape().lens().at(0) != 1) // only batch size = 1
             continue;
         auto in1 = inputs.at(1);
 
-        auto in0_transposed = m.insert_instruction(ins, make_op("transpose", {{"permutation", {0,3,1,2}}}), in0);
-        auto in1_transposed = m.insert_instruction(ins, make_op("transpose", {{"permutation", {3,2,1,0}}}), in1);
-        
-        auto conv = make_op("convolution");
+        auto in0_transposed =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), in0);
+        auto in1_transposed =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", {3, 2, 1, 0}}}), in1);
+
+        auto conv     = make_op("convolution");
         auto conv_out = m.replace_instruction(ins, conv, {in0_transposed, in1_transposed});
-        auto conv_transpose = m.add_instruction(make_op("transpose", {{"permutation", {0,2,3,1}}}), conv_out);
+        auto conv_transpose =
+            m.add_instruction(make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), conv_out);
         // m.insert_instruction(std::next(conv_transpose), make_op("unsqueeze"));
     }
 }

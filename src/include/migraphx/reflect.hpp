@@ -56,11 +56,11 @@ auto reflect_impl(rank<0>, T&, Selector)
 }
 
 template <class T>
-auto reflectable_impl(rank<1>, T&& x)
+auto reflectable_impl(rank<1>, const T& x)
     -> decltype(T::reflect(x, reflect_placeholder{}), std::true_type{});
 
 template <class T>
-auto reflectable_impl(rank<0>, T &&) -> decltype(std::false_type{});
+auto reflectable_impl(rank<0>, const T&) -> decltype(std::false_type{});
 
 template <class T>
 struct remove_rvalue_reference
@@ -111,8 +111,18 @@ auto reflect(T& x, Selector f)
 template <class T>
 auto reflect_tie(T& x)
 {
-    return reflect(x, [](auto&& y, auto&&...) { return detail::wrap<decltype(y)>(y); })(
-        [](auto&&... xs) { return detail::auto_tuple(xs.get()...); });
+    return reflect(x, [](auto&& y, auto&&...) {
+        // cppcheck-suppress UnnecessaryElseStatement
+        if constexpr(is_reflectable<decltype(y)>{})
+        {
+            auto t = reflect_tie(y);
+            return detail::wrap<decltype(t)>(t);
+        }
+        else
+        {
+            return detail::wrap<decltype(y)>(y);
+        }
+    })([](auto&&... xs) { return detail::auto_tuple(xs.get()...); });
 }
 
 template <class T, class F>

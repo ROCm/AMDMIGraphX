@@ -39,11 +39,11 @@ struct iterator_range
     constexpr Iterator end() const { return last; }
 };
 
-constexpr iterator_range<iota_iterator> range(int start, int last)
+constexpr iterator_range<iota_iterator> range(diff_int start, diff_int last)
 {
     return {{start, {}}, {last, {}}};
 }
-constexpr iterator_range<iota_iterator> range(int last) { return range(0, last); }
+constexpr iterator_range<iota_iterator> range(diff_int last) { return range(0, last); }
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_RANGES_HPP

@@ -26,7 +26,8 @@
 
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/print.hpp>
+#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/ranges.hpp>
 
 namespace migraphx {
 
@@ -39,20 +40,21 @@ __device__ void pad(const index& idx,
 {
     auto output_shape = output.get_shape();
     idx.global_stride(output_shape.elements(), [&](auto i) {
+        // 1. get current multi-index for output
+        // 2. get the size of the input to determine input boundaries
+        // 3. compute the corresponding multi-index for input by accounting for offsets
+        // 4. if current multi-index is within offsets or input's new multi-index is out of bounds,
+        //    use pad value instead of input's value
         auto multi        = output_shape.multi(i);
         auto input_bounds = input.get_shape().lens;
         auto input_idx    = multi - offsets;
-        for(auto j = 0; j < offsets.size(); j++)
-        {
-            // "offsets" accounts for padding at the beginning
-            // "input_bounds" accounts for padding at the end
-            if(multi[j] < offsets[j] or input_idx[j] >= input_bounds[j])
-            {
-                output[multi] = pad_val;
-                return;
-            }
-        }
-        output[multi] = input[input_idx];
+        auto range_multi  = range(multi.size());
+
+        if(any_of(range_multi.begin(), range_multi.end(), [&](auto j){ 
+            return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];}))
+            output[multi] = pad_val;
+        else
+            output[multi] = input[input_idx];
     });
 }
 

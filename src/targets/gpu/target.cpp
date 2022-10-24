@@ -42,6 +42,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/rewrite_gemm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -117,6 +118,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_gelu{},
         dead_code_elimination{},
         eliminate_common_subexpression{},
+        dead_code_elimination{},
+        rewrite_gemm{},
         dead_code_elimination{},
         simplify_algebra{},
         simplify_reshapes{},

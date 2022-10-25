@@ -106,7 +106,7 @@ struct instance
 
     std::size_t get_grid_size(const std::array<std::size_t, 3>& config) const
     {
-        return int_div_ceil(config[0], get_pb(1)) * int_div_ceil(config[1], get_pb(1));
+        return int_div_ceil(config[0], get_pb(0)) * int_div_ceil(config[1], get_pb(1));
     }
 
     void set_ds_layout(const std::string& s)

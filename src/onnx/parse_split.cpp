@@ -55,12 +55,11 @@ struct parse_split : op_parser<parse_split>
         {
             literal s = parser.parse_value(info.attributes.at("split"));
             s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
-
-            if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
-               static_cast<int64_t>(lens[tuned_axis]))
-            {
-                MIGRAPHX_THROW("PARSE_SPLIT: sum of split attribute unequal to dim size of axis!");
-            }
+        }
+        else if(args.size() == 2)
+        {
+            auto s = args[1]->eval();
+            s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
         }
         // no split attribute, input is equally divided
         else
@@ -72,6 +71,23 @@ struct parse_split : op_parser<parse_split>
             }
             auto dl = lens[tuned_axis] / info.num_outputs;
             vec_splits.resize(info.num_outputs, dl);
+        }
+
+        if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
+           static_cast<int64_t>(lens[tuned_axis]))
+        {
+            std::string output;
+            for(const auto& index : vec_splits)
+                output += std::to_string(index) + ",";
+
+            std::string len_output;
+            for(const auto& len_vec : lens)
+                len_output += std::to_string(len_vec) + ",";
+
+            MIGRAPHX_THROW(
+                "PARSE_SPLIT: sum of split attribute unequal to dim size of axis! tuned axis:" +
+                std::to_string(lens[tuned_axis]) + " Output " + output + " Rank " +
+                std::to_string(n_rank) + " Len outs " + len_output);
         }
 
         std::vector<instruction_ref> ret_ins;

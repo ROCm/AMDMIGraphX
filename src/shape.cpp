@@ -507,7 +507,7 @@ bool shape::dynamic_dimension::has_optimal() const { return opt != 0; }
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     // don't check opt if both are fixed
-    bool check_opt = (x.is_fixed() and y.is_fixed()) ? false : true;
+    bool check_opt = not(x.is_fixed() and y.is_fixed());
     return (x.min == y.min and x.max == y.max and (check_opt ? x.opt == y.opt : true));
 }
 

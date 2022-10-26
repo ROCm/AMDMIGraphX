@@ -67,12 +67,10 @@ struct binary : op_name<Derived>
             .same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
-        if(s0.dynamic() and s1.dynamic() and s0 == s1)
+        if(s0.dynamic() or s1.dynamic())
         {
-            return s0;
-        }
-        else if(s0.dynamic() or s1.dynamic())
-        {
+            if(s0 == s1)
+                return s0;
             MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");
         }
         else if(s0 == s1 and s0.packed())

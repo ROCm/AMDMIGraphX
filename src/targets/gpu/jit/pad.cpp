@@ -84,10 +84,9 @@ struct pad_compiler : compiler<pad_compiler>
         std::vector<size_t> offsets(input_lens.size());
         std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
 
-        auto src =
-            interpolate_string(pointwise_kernel,
-                               {{"pad_val", to_string(pad_val_string)},
-                                {"offsets", to_string_range(offsets)}});
+        auto src = interpolate_string(
+            pointwise_kernel,
+            {{"pad_val", to_string(pad_val_string)}, {"offsets", to_string_range(offsets)}});
         return compile_hip_code_object(src, options);
     }
 

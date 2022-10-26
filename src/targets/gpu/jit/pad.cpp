@@ -87,7 +87,7 @@ struct pad_compiler : compiler<pad_compiler>
         auto src =
             interpolate_string(pointwise_kernel,
                                {{"pad_val", to_string(pad_val_string)},
-                                {"offsets", to_string_range(offsets.begin(), offsets.end())}});
+                                {"offsets", to_string_range(offsets)}});
         return compile_hip_code_object(src, options);
     }
 

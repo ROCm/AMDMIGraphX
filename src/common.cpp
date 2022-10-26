@@ -68,10 +68,7 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
 
 std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
 {
-    if(not s0.dynamic() and not s1.dynamic())
-    {
-        MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: given two static shapes");
-    }
+    assert(s0.dynamic() or s1.dynamic());
     // change both shapes to dynamic_dimension representation
     if(not s0.dynamic())
         s0 = s0.to_dynamic();

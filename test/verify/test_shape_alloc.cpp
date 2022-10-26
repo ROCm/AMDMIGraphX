@@ -40,22 +40,21 @@ struct test_shape_alloc : verify_program<test_shape_alloc>
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape shape135{migraphx::shape::float_type, {11, 8, 1, 1}, {8, 1, 1, 1}};
-        auto lit135  = migraphx::generate_literal(shape135);
-        auto main135 = mm->add_literal(lit135);
+        auto weights = mm->add_literal(migraphx::generate_literal(
+            migraphx::shape{migraphx::shape::float_type, {11, 8, 1, 1}, {8, 1, 1, 1}}));
 
-        migraphx::shape s413{migraphx::shape::float_type, {1, 8, 7, 7}};
-        auto main413 = mm->add_parameter("x413", s413);
-        auto main414 =
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 8, 7, 7}});
+        auto transpose1 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
-                                main413); //  -> float_type, {1, 7, 7, 8}, {392, 7, 1, 49}
-        auto main416 = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}),
-                                           main414); //  -> float_type, {1, 1, 1, 8}, {8, 8, 8, 1}
-        auto main417 =
+                                x); //  -> float_type, {1, 7, 7, 8}, {392, 7, 1, 49}
+        auto reduce_ins =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1, 2}}}),
+                                transpose1); //  -> float_type, {1, 1, 1, 8}, {8, 8, 8, 1}
+        auto transpose2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}),
-                                main416); //  -> float_type, {1, 8, 1, 1}, {8, 1, 8, 8}
-        auto convo_op419 = migraphx::make_op("convolution");
-        mm->add_instruction(convo_op419, main417, main135);
+                                reduce_ins); //  -> float_type, {1, 8, 1, 1}, {8, 1, 8, 8}
+        auto conv_op = migraphx::make_op("convolution");
+        mm->add_instruction(conv_op, transpose2, weights);
 
         return p;
     }

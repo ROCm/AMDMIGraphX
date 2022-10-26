@@ -26,7 +26,6 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/gemm.hpp>
@@ -190,10 +189,12 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     auto wei = ins->inputs().at(1)->get_shape();
     assert(wei.lens().size() == 4);
-    auto conv = any_cast<miopen_convolution>(ins->get_operator());
-    if(conv.op.group > 1)
+    auto miopen_conv_op = ins->get_operator().to_value();
+    auto algo           = miopen_conv_op.at("algo").to<miopenConvFwdAlgorithm_t>();
+    auto conv_op        = from_value<op::convolution>(miopen_conv_op["op"]);
+    if(conv_op.group > 1)
         return false;
-    if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
+    if(wei.lens()[1] > 512 and algo != miopenConvolutionFwdAlgoWinograd)
         return false;
 
     // Do not fuse non-symmetric input
@@ -201,13 +202,12 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     if(input_lens[2] != input_lens[3] or wei.lens()[2] != wei.lens()[3])
         return false;
 
-    auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
-    if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
-       wei.lens()[3] != 3 and contains({{1, 1}}, op.stride))
+    if(algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and wei.lens()[3] != 3 and
+       contains({{1, 1}}, conv_op.stride))
         return false;
-    return contains({{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}}, op.padding) and
-           contains({{0, 0}, {1, 1}}, op.stride) and contains({{1, 1}}, op.dilation);
+    return contains({{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}}, conv_op.padding) and
+           contains({{0, 0}, {1, 1}}, conv_op.stride) and contains({{1, 1}}, conv_op.dilation);
 }
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
@@ -462,7 +462,7 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     auto ins         = r.result;
     auto input_ins   = conv_ins->inputs().at(0);
     auto weights_ins = conv_ins->inputs().at(1);
-    auto conv_op     = any_cast<miopen_convolution>(conv_ins->get_operator()).op;
+    auto conv_op     = from_value<op::convolution>((conv_ins->get_operator()).to_value()["op"]);
     auto alloc_ins   = ins->inputs().back();
     auto old_ws_ins  = conv_ins->inputs().at(2);
 
@@ -528,7 +528,7 @@ struct find_conv_pointwise
         auto ins         = r.result;
         auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
-        auto conv_op     = any_cast<miopen_convolution>(conv_ins->get_operator()).op;
+        auto conv_op     = from_value<op::convolution>(conv_ins->get_operator().to_value()["op"]);
         auto alloc_ins   = ins->inputs().back();
 
         module_ref pm = ins->module_inputs().front();

@@ -30,6 +30,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -62,9 +63,9 @@ struct unary : op_name<Derived>
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(1);
+        check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(1);
         auto s = inputs.at(0);
-        if(s.scalar())
+        if(s.dynamic() or s.scalar())
         {
             return s;
         }
@@ -78,9 +79,9 @@ struct unary : op_name<Derived>
         }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
                 std::transform(input.begin(),

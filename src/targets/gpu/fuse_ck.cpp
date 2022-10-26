@@ -114,10 +114,10 @@ struct find_ck_gemm
 
 } // namespace
 
-void fuse_ck::apply(module_pass_manager& mpm) const 
-{ 
-    match::find_matches(mpm, find_ck_gemm_pointwise{}); 
-    match::find_matches(mpm, find_ck_gemm{}); 
+void fuse_ck::apply(module_pass_manager& mpm) const
+{
+    match::find_matches(mpm, find_ck_gemm_pointwise{});
+    match::find_matches(mpm, find_ck_gemm{});
 }
 
 } // namespace gpu

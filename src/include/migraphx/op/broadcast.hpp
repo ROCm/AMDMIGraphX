@@ -28,6 +28,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -132,9 +133,9 @@ struct broadcast
         }
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(output_shape);
+        return args[0].reshape(dyn_out.computed_shape);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }

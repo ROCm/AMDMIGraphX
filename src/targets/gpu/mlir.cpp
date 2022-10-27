@@ -453,7 +453,8 @@ struct mlir_program
         auto ops = create_operation_state("func.func");
         ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
                             {"sym_name", std::string("main")},
-                            {"kernel", std::string("mixr")}});
+                            {"kernel", std::string("mixr")},
+                            {"arch", target_name}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 

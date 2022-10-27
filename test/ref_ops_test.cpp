@@ -4676,6 +4676,21 @@ TEST_CASE(pad_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(pad_test_asym)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4}});
+    mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 1}}}), l0);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(9);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1, 2, 0, 3, 4, 0, 0, 0, 0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(pad_test_highest_half)
 {
     migraphx::program p;

@@ -799,7 +799,7 @@ struct find_concat_pointwise
             return;
 
         // TODO: Handle type conversions
-        if (ins->get_shape().type() != concat->get_shape().type())
+        if(ins->get_shape().type() != concat->get_shape().type())
             return;
 
         auto* pm    = ins->module_inputs().front();

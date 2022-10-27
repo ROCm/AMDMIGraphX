@@ -169,8 +169,8 @@ struct mlir_program
         MlirDialectRegistry registry = mlirDialectRegistryCreate();
         mlirRegisterRocMLIRDialects(registry);
         mlirRegisterAllDialects(registry);
-        mlirContextAppendDialectRegistry(ctx, registry);
-        mlirContextLoadAllAvailableDialects(ctx);
+        mlirContextAppendDialectRegistry(ctx.get(), registry);
+        mlirContextLoadAllAvailableDialects(ctx.get());
         mlirDialectRegistryDestroy(registry);
         mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
     }

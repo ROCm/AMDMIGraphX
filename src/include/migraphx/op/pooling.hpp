@@ -64,8 +64,8 @@ struct pooling
 
     void check_attribute_size() const
     {
-        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
-               stride.size() == lengths.size()))
+        if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
+           stride.size() != lengths.size())
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
@@ -83,7 +83,7 @@ struct pooling
         size_t kdims      = input_lens.size() - 2;
         auto input_size   = inputs[0].lens().size();
         auto padding_size = padding.size();
-        if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
+        if(input_size != padding_size / 2 + 2 and input_size != padding_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }

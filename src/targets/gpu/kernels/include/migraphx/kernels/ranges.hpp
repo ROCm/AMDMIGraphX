@@ -21,31 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <test.hpp>
-#include <basic_ops.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/gpu/target.hpp>
-#include <migraphx/gpu/hip.hpp>
+#ifndef MIGRAPHX_GUARD_KERNELS_RANGES_HPP
+#define MIGRAPHX_GUARD_KERNELS_RANGES_HPP
 
-void gpu_literal_test()
+#include <migraphx/kernels/iota_iterator.hpp>
+
+namespace migraphx {
+
+template <class Iterator>
+struct iterator_range
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto lit = generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-    mm->add_literal(lit);
-    p.compile(migraphx::gpu::target{});
-    auto scratch = p.get_parameter("scratch");
-    if(scratch == mm->end())
-    {
-        auto result = p.eval({}).back();
-        EXPECT(lit == migraphx::gpu::from_gpu(result));
-    }
-    else
-    {
-        EXPECT(scratch->get_shape().bytes() == lit.get_shape().bytes());
-    }
-}
+    Iterator start;
+    Iterator last;
 
-int main() { gpu_literal_test(); } // NOLINT (bugprone-exception-escape)
+    constexpr Iterator begin() const { return start; }
+
+    constexpr Iterator end() const { return last; }
+};
+
+constexpr iterator_range<iota_iterator> range(diff_int start, diff_int last)
+{
+    return {{start, {}}, {last, {}}};
+}
+constexpr iterator_range<iota_iterator> range(diff_int last) { return range(0, last); }
+
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_KERNELS_RANGES_HPP

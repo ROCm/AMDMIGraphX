@@ -58,8 +58,8 @@ struct convolution
 
     void check_attribute_size() const
     {
-        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
-               stride.size() == dilation.size()))
+        if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
+           stride.size() != dilation.size())
         {
             MIGRAPHX_THROW("CONVOLUTION: inconsistent attribute sizes");
         }
@@ -74,7 +74,8 @@ struct convolution
         // num of dims of input and attribute should match
         const auto input_size   = inputs[0].max_lens().size();
         const auto padding_size = padding.size();
-        if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
+
+        if(input_size != padding_size / 2 + 2 && input_size != padding_size + 2)
         {
             MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
         }

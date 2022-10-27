@@ -245,8 +245,10 @@ struct miopen_apply
             // auto&& op = any_cast<op::convolution>(ins->get_operator());
 
             // TODO: Use make_op
-            operation conv = make_op("gpu::" + name, {{"op", ins->get_operator().to_value()}, {"int8_x4_format", int8_x4_format}});
-            auto output    = insert_allocation(ins, ins->get_shape());
+            operation conv = make_op(
+                "gpu::" + name,
+                {{"op", ins->get_operator().to_value()}, {"int8_x4_format", int8_x4_format}});
+            auto output = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(ins,
                                             make_op("gpu::miopen_op", {{"op", to_value(conv)}}),

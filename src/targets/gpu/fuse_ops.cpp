@@ -798,6 +798,10 @@ struct find_concat_pointwise
         if(not concat->module_inputs().empty())
             return;
 
+        // TODO: Handle type conversions
+        if (ins->get_shape().type() != concat->get_shape().type())
+            return;
+
         auto* pm    = ins->module_inputs().front();
         auto inputs = concat->inputs();
         inputs.pop_back();

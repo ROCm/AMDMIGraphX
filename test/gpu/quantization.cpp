@@ -30,7 +30,6 @@
 #include <migraphx/ref/target.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/quantization.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/pass_manager.hpp>

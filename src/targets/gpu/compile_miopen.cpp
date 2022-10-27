@@ -61,6 +61,7 @@ MIGRAPHX_REGISTER_OP(miopen_op);
 
 void compile_miopen::apply(module& m) const
 {
+    assert(ctx);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::miopen_op")

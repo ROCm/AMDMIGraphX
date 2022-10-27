@@ -42,7 +42,6 @@
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/unknown.hpp>
-#include <random>
 
 #include <migraphx/serialize.hpp>
 
@@ -391,6 +390,31 @@ TEST_CASE(batch_norm_flat_test)
     add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
 
     auto prog = optimize_onnx("batch_norm_flat_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(batch_norm_rank_2_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {2, 5}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {5}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {5}});
+    auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {5}});
+    auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {5}});
+
+    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
+
+    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
+    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
+    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
+    add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
+
+    auto prog = optimize_onnx("batch_norm_rank_2_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -856,8 +880,7 @@ TEST_CASE(conv_autopad_same_test)
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
     migraphx::op::convolution op;
-    op.padding      = {1, 1, 1, 1};
-    op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.padding = {1, 1, 1, 1};
     mm->add_instruction(op, l0, l1);
 
     auto prog = optimize_onnx("conv_autopad_same_test.onnx");
@@ -1034,15 +1057,11 @@ TEST_CASE(conv_dynamic_batch_same_upper)
     auto l0  = mm->add_parameter(
         "0", {migraphx::shape::float_type, {{1, 10, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}});
     auto l1 = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
-    auto c0 =
-        mm->add_instruction(migraphx::make_op("convolution",
-                                              {{"padding", {1, 1, 1, 1}},
-                                               {"stride", {1, 1}},
-                                               {"dilation", {1, 1}},
-                                               {"padding_mode", migraphx::op::padding_mode_t::same},
-                                               {"use_dynamic_same_auto_pad", false}}),
-                            l0,
-                            l1);
+    auto c0 = mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1, 1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+        l0,
+        l1);
     mm->add_return({c0});
 
     migraphx::onnx_options options;
@@ -1064,8 +1083,7 @@ TEST_CASE(conv_dynamic_img_same_upper)
                           {{"padding", {0, 0}},
                            {"stride", {1, 1}},
                            {"dilation", {1, 1}},
-                           {"padding_mode", migraphx::op::padding_mode_t::same_upper},
-                           {"use_dynamic_same_auto_pad", true}}),
+                           {"padding_mode", migraphx::op::padding_mode_t::same_upper}}),
         l0,
         l1);
     mm->add_return({c0});
@@ -1089,8 +1107,7 @@ TEST_CASE(conv_dynamic_kernel_same_lower)
                           {{"padding", {0, 0}},
                            {"stride", {1, 1}},
                            {"dilation", {1, 1}},
-                           {"padding_mode", migraphx::op::padding_mode_t::same_lower},
-                           {"use_dynamic_same_auto_pad", true}}),
+                           {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
         l0,
         l1);
     mm->add_return({c0});
@@ -3483,6 +3500,21 @@ TEST_CASE(neg_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(neg_dynamic_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int64_type, {{1, 10, 0}, {3, 3, 0}}};
+    auto input = mm->add_parameter("0", s);
+    auto ret   = mm->add_instruction(migraphx::make_op("neg"), input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10, 0};
+    auto prog                     = migraphx::parse_onnx("neg_dynamic_test.onnx", options);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(nms_test)
 {
     migraphx::program p;
@@ -5202,6 +5234,24 @@ TEST_CASE(sinh_test)
     mm->add_instruction(migraphx::make_op("sinh"), input);
 
     auto prog = optimize_onnx("sinh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(sinh_dynamic_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape::dynamic_dimension dd{1, 10, 0};
+    std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
+    dyn_dims.push_back(dd);
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dyn_dims});
+    auto ret   = mm->add_instruction(migraphx::make_op("sinh"), input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = dd;
+    auto prog                     = parse_onnx("sinh_dynamic_test.onnx", options);
 
     EXPECT(p == prog);
 }

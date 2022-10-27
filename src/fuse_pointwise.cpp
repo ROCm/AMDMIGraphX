@@ -39,7 +39,7 @@ static literal get_scalar(instruction_ref ins)
     if(ins->name() == "contiguous")
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(not(s.elements() == 1 or s.scalar()))
+    if(s.elements() != 1 && not(s.scalar()))
         return {};
     if(not ins->can_eval())
         return {};

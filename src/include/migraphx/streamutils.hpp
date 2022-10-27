@@ -26,7 +26,9 @@
 
 #include <ostream>
 #include <algorithm>
+#include <migraphx/reflect.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
 #include <vector>
 
@@ -81,6 +83,20 @@ auto stream_write_value_impl(rank<0>, std::ostream& os, const Range& r)
     os << "{";
     os << stream_range(r);
     os << "}";
+}
+
+template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
+void stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
+{
+    char delim = '{';
+    reflect_each(x, [&](auto&& y, auto name) {
+        os << delim;
+        os << name << "=";
+        stream_write_value_impl(rank<2>{}, os, y);
+        delim = ',';
+    });
+    if(delim == ',')
+        os << "}";
 }
 
 } // namespace detail

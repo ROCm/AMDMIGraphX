@@ -1999,6 +1999,19 @@ TEST_CASE(test_unsqueeze)
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
 }
 
+TEST_CASE(test_unsqueeze_dyn)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4, 3}, {2, 5, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 4, 3}, {2, 5, 0}, {1, 1, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+
+    migraphx::shape s3{migraphx::shape::float_type,
+                       {{1, 4, 3}, {2, 5, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}}};
+    expect_shape(s3, migraphx::make_op("unsqueeze", {{"axes", {2, 4}}}), s1);
+
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2, 4}}, {"steps", {2}}}), s1);
+}
+
 TEST_CASE(test_unsqueeze_step)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
@@ -2030,11 +2043,25 @@ TEST_CASE(test_unsqueeze_mismatch_step_axis)
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2, 3}}}), s1);
 }
 
-TEST_CASE(test_unsqueeze_negative_axis)
+TEST_CASE(test_unsqueeze_negative_axis1)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {4, 5, 1, 3}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_negative_axis2)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 5, 3, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-1}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_negative_axis3)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 1, 5, 3}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-3}}}), s1);
 }
 
 TEST_CASE(test_unsqueeze_scalar)

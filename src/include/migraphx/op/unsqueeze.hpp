@@ -79,8 +79,7 @@ struct unsqueeze
             std::size_t k                                  = 0;
             for(auto i : range(new_ndim))
             {
-                auto axis_idx = std::find(axes.begin(), axes.end(), i) - axes.begin();
-                if(axis_idx < axes.size())
+                if(std::find(axes.begin(), axes.end(), i) != axes.end())
                 {
                     dyn_dims.push_back({1, 1, 0});
                 }

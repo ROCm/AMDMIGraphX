@@ -27,7 +27,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/common.hpp>
 #include <migraphx/dyn_output.hpp>
 
 namespace migraphx {

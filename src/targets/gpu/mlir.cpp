@@ -32,7 +32,8 @@
 #include <mlir-c/Dialect/MIGraphX.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Pass.h>
-#include <mlir-c/Registration.h>
+#include <mlir-c/RegisterEverything.h>
+#include <mlir-c/RegisterRocMLIR.h>
 #endif
 
 #include <migraphx/env.hpp>
@@ -165,9 +166,12 @@ struct mlir_program
           location(mlirLocationUnknownGet(ctx.get())),
           mmodule(mlirModuleCreateEmpty(location))
     {
-        MlirDialectHandle mixr_handle = mlirGetDialectHandle__migraphx__();
-        mlirDialectHandleRegisterDialect(mixr_handle, ctx.get());
-        mlirRegisterAllDialects(ctx.get());
+        MlirDialectRegistry registry = mlirDialectRegistryCreate();
+        mlirRegisterRocMLIRDialects(registry);
+        mlirRegisterAllDialects(registry);
+        mlirContextAppendDialectRegistry(ctx, registry);
+        mlirContextLoadAllAvailableDialects(ctx);
+        mlirDialectRegistryDestroy(registry);
         mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
     }
 

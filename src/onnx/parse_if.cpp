@@ -123,12 +123,7 @@ struct parse_if : op_parser<parse_if>
             auto then_lens = then_out_shape.lens();
             auto else_lens = else_out_shape.lens();
 
-            // Throw error if both branches have zero output shapes. Not possible for static
-            // inputs
-            if(then_lens.empty() and else_lens.empty())
-            {
-                throw_shapes();
-            }
+            assert(not then_lens.empty() and not else_lens.empty());
 
             auto handle_empty_branch = [](module_ref& mdl, int index, const shape& out_shape) {
                 shape gen_shape(shape(out_shape.type(), {1}, {0}));

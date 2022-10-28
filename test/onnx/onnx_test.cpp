@@ -2632,14 +2632,16 @@ TEST_CASE(if_else_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    auto cond = mm->add_literal(migraphx::literal(sc, {0}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
     std::vector<float> ones(s.elements(), 1.0f);
-    auto l1                 = mm->add_literal(s, ones);
-    std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
-    auto l2                 = mm->add_literal(s, rand);
-    auto x                  = mm->add_parameter("x", s);
-    auto y                  = mm->add_parameter("y", s);
+    std::vector<float> rand = {1.3865, -0.494756, -0.283504, 0.200491, -0.490031, 1.32388};
+
+    auto l1   = mm->add_literal(s, ones);
+    auto l2   = mm->add_literal(s, rand);
+    auto x    = mm->add_parameter("x", s);
+    auto y    = mm->add_parameter("y", s);
+    auto cond = mm->add_parameter("cond", sc);
 
     auto* then_mod = p.create_module("If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
@@ -2654,6 +2656,34 @@ TEST_CASE(if_else_test)
     mm->add_return({r});
 
     std::ifstream ifs("if_else_test.onnx", std::ios::binary);
+    ifs.seekg(0, std::ios::end);
+    auto length = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    std::vector<char> onnx_buffer(length);
+    ifs.read(onnx_buffer.data(), length);
+    ifs.close();
+
+    auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_else_test_inlined)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    mm->add_literal(migraphx::literal(sc, {0}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    mm->add_literal(s, ones);
+    std::vector<float> rand = {0.811412, -0.949771, -0.169276, 0.36552, -0.14801, 2.07061};
+    auto l2                 = mm->add_literal(s, rand);
+    mm->add_parameter("x", s);
+    auto y  = mm->add_parameter("y", s);
+    auto re = mm->add_instruction(migraphx::make_op("mul"), y, l2);
+    mm->add_return({re});
+
+    std::ifstream ifs("if_else_test_inlined.onnx", std::ios::binary);
     ifs.seekg(0, std::ios::end);
     auto length = ifs.tellg();
     ifs.seekg(0, std::ios::beg);

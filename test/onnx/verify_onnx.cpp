@@ -590,6 +590,28 @@ TEST_CASE(if_else_test)
     p.compile(migraphx::ref::target{});
     migraphx::shape s_data{migraphx::shape::float_type, {2, 3}};
     std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};
+    migraphx::shape bool_data{migraphx::shape::bool_type, {1}};
+    bool b_data = false;
+
+    migraphx::parameter_map pp;
+    pp["x"]    = migraphx::argument(s_data, data.data());
+    pp["y"]    = migraphx::argument(s_data, data.data());
+    pp["cond"] = migraphx::argument(bool_data, &b_data);
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0.0866565, -0.371067, 0.017719, 0.0250614, 0.0612539, -0.744683};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(if_else_test_inlined)
+{
+    migraphx::program p = migraphx::parse_onnx("if_else_test_inlined.onnx");
+    p.compile(migraphx::ref::target{});
+    migraphx::shape s_data{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};
 
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s_data, data.data());
@@ -599,8 +621,7 @@ TEST_CASE(if_else_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {
-        -0.0364609435, 0.475317657, -0.00417715637, -0.0599277429, 0.0755792186, -0.0218581557};
+    std::vector<float> gold = {0.0507132, -0.712328, 0.0105797, 0.04569, 0.0185013, -1.16472};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

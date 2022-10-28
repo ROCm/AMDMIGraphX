@@ -61,8 +61,8 @@ struct deconvolution
 
     void check_attribute_size() const
     {
-        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
-               stride.size() == dilation.size()))
+        if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
+           stride.size() != dilation.size())
         {
             MIGRAPHX_THROW("deconvolution: inconsistent attribute sizes");
         }

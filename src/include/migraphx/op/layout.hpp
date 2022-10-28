@@ -8,7 +8,6 @@
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/unary.hpp>
-#include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
 

@@ -56,7 +56,7 @@ void transform_convolutions(module& m)
         if(v.at("group").to<int>() > 1)
             continue;
         auto args = ins->inputs();
-        std::transform(args.begin(), args.end(), args.begin(), [&](auto& i) {
+        std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
             return m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
         });
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);

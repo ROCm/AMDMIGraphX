@@ -29,19 +29,14 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/stringutils.hpp>
 
-#include <migraphx/op/convolution.hpp>
-#include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/reshape.hpp>
-#include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
-#include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/compiler.hpp>
@@ -255,37 +250,6 @@ struct miopen_apply
                                             ins->inputs().at(0),
                                             ins->inputs().at(1),
                                             output);
-        });
-    }
-
-    template <typename Op>
-    void add_convolution_op(const std::string& name)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            operation conv =
-                miopen_convolution<Op>{any_cast<Op>(ins->get_operator()), int8_x4_format};
-            migraphx::context ctx         = get_context();
-            size_t ws_bytes               = 0;
-            auto compile_conv_with_format = [&](bool format) {
-                conv     = miopen_convolution<Op>{any_cast<Op>(ins->get_operator()), format};
-                auto ws  = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
-                ws_bytes = ws.get("workspace", 0);
-            };
-
-            try
-            { // for the regular convolution and deconvolution, this try would always succeed
-                compile_conv_with_format(int8_x4_format);
-            }
-            catch(migraphx::exception&)
-            {
-                // In case no solver supports the default format, retry using the other format.
-                compile_conv_with_format(not int8_x4_format);
-            }
-
-            auto args      = ins->inputs();
-            auto output    = insert_allocation(ins, ins->get_shape());
-            auto workspace = insert_allocation(ins, shape{shape::int8_type, {ws_bytes}});
-            return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }
 

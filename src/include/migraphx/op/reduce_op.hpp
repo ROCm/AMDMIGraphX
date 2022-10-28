@@ -109,9 +109,9 @@ struct reduce_op : op_name<Derived>
     /**
      * @brief returns a shape in which the axis or axes named
      * for reduction by this op are set to size 1.
-     * 
+     *
      * @param inputs list of input shapes
-     * @return shape 
+     * @return shape
      */
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -120,7 +120,7 @@ struct reduce_op : op_name<Derived>
         if(s.dynamic())
         {
             auto output_dyn_dims = s.dyn_dims();
-            auto tuned_axes = tune_axes(output_dyn_dims.size());
+            auto tuned_axes      = tune_axes(output_dyn_dims.size());
             for(const auto& axis : tuned_axes)
             {
                 output_dyn_dims[axis] = {1, 1};

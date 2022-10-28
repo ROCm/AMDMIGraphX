@@ -1397,7 +1397,7 @@ void test_reduce_ops()
         throws_shape(T{{4}}, input);
     }
 }
-    
+
 // dynamic shape
 template <class T>
 void test_dyn_reduce_ops()
@@ -1405,14 +1405,16 @@ void test_dyn_reduce_ops()
     {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
         expect_shape(migraphx::shape{migraphx::shape::float_type,
-                                     std::vector<migraphx::shape::dynamic_dimension>({{2, 3, 3}, {1, 1, 0}})},
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{2, 3, 3}, {1, 1, 0}})},
                      T{{-1}},
                      input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
         expect_shape(migraphx::shape{migraphx::shape::float_type,
-                                     std::vector<migraphx::shape::dynamic_dimension>({{1, 1, 0}, {2, 4, 4}})},
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{1, 1, 0}, {2, 4, 4}})},
                      T{{0}},
                      input);
     }

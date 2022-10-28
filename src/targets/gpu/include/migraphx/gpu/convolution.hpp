@@ -145,12 +145,9 @@ struct miopen_convolution
 #endif
     }
 
-    inline void set_conv_descriptor()
+    void set_conv_descriptor()
     {
-        if(cd == nullptr)
-        {
-            cd = (op.name() == "deconvolution") ? make_deconv(op) : make_conv(op);
-        }
+        cd = (op.name() == "deconvolution") ? make_deconv(op) : make_conv(op);
     }
 
     value compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input)
@@ -240,7 +237,6 @@ struct miopen_convolution
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen " + op.name() + " : find convolution failed");
         algo = perf.fwd_algo;
-
         size_t solution_count;
 
         status = miopenConvolutionForwardGetSolutionCount(ctx.get_stream().get_miopen(),

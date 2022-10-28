@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <string>
 
 namespace migraphx {
@@ -32,6 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 struct context;
+struct operation;
 
 namespace gpu {
 
@@ -40,6 +42,7 @@ struct compile_miopen
     context* ctx = nullptr;
     std::string name() const { return "gpu::compile_miopen"; }
     void apply(module& m) const;
+    std::size_t compile(operation& op, instruction_ref ins, bool format) const;
 };
 
 } // namespace gpu

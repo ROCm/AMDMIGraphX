@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/gpu/rocblas.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,16 +60,33 @@ struct miopen_op
 };
 MIGRAPHX_REGISTER_OP(miopen_op);
 
+std::size_t compile_miopen::compile(operation& op, instruction_ref ins, bool format) const
+{
+    op.from_value({{"int8_x4_format", format}});
+    auto v         = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
+    return v.get("workspace", 0);
+}
+
 void compile_miopen::apply(module& m) const
 {
     assert(ctx);
+    const bool int8_x4_format = get_int8_x4_format(any_cast<migraphx::gpu::context>(*ctx));
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::miopen_op")
             continue;
         auto op        = any_cast<miopen_op>(ins->get_operator()).op;
-        auto v         = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
-        std::size_t ws = v.get("workspace", 0);
+        std::size_t ws = 0;
+        try
+        {
+            // for the regular convolution and deconvolution, this try would always succeed
+            ws = compile(op, ins, int8_x4_format);
+        }
+        catch(migraphx::exception&)
+        {
+            // In case no solver supports the default format, retry using the other format.
+            ws = compile(op, ins, not int8_x4_format);
+        }
         auto inputs    = ins->inputs();
         auto alloc     = m.insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(shape{shape::int8_type, {ws}})}}));

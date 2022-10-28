@@ -4979,30 +4979,7 @@ TEST_CASE(reduce_max_axis0)
 }
 
 TEST_CASE(reduce_max_dynamic_axis0)
-{ /*
-     migraphx::program p;
-     auto* mm = p.get_main_module();
-     migraphx::shape::dynamic_dimension dd{3, 2, 2};
-     migraphx::shape s{migraphx::shape::float_type, {dd}};
-     // auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-     // auto l0    = mm->add_literal(input);
-
-
-     auto input = mm->add_parameter("X", s);
-     std::vector<float> input_data{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-     auto populate_op = migraphx::make_op("identity");
-     mm->add_instruction(populate_op, input);
-
-     mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), input);
-
-     // mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), l0);
-     p.compile(migraphx::ref::target{});
-     auto result = p.eval({}).back();
-     std::vector<float> results_vector;
-     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-     std::vector<float> gold{9, 10, 11, 12};
-     EXPECT(results_vector == gold);
- */
+{
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{2, 4, 2}, {3, 5, 3}}};

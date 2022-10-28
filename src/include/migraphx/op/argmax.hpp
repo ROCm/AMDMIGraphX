@@ -56,7 +56,7 @@ struct argmax
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
+        check_shapes{inputs, *this}.has(1);
         auto lens = inputs[0].lens();
 
         lens[axis] = 1;

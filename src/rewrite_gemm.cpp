@@ -78,18 +78,18 @@ void rewrite_gemm::apply(module& m) const
         auto in1_transposed =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", {3, 2, 1, 0}}}), in1);
 
-        auto conv      = m.insert_instruction(ins, make_op("convolution"), {in0_transposed, in1_transposed});
-        auto conv_transpose = m.insert_instruction(
-            ins, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), conv);
+        auto conv =
+            m.insert_instruction(ins, make_op("convolution"), {in0_transposed, in1_transposed});
+        auto conv_transpose =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), conv);
 
-        auto out_lens = conv_transpose->get_shape().lens();
+        auto out_lens           = conv_transpose->get_shape().lens();
         auto conv_transpose_out = conv_transpose;
         if(out_lens.size() != in_size)
         {
             out_lens.erase(out_lens.begin(), out_lens.begin() + (out_lens.size() - in_size));
-            conv_transpose_out = m.insert_instruction(ins,
-                                 make_op("reshape", {{"dims", out_lens}}),
-                                 conv_transpose);
+            conv_transpose_out =
+                m.insert_instruction(ins, make_op("reshape", {{"dims", out_lens}}), conv_transpose);
         }
         m.replace_instruction(ins, conv_transpose_out);
     }

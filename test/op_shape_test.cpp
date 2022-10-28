@@ -1396,6 +1396,19 @@ void test_reduce_ops()
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         throws_shape(T{{4}}, input);
     }
+    // dynamic shape
+    {
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 4}, {2, 4, 4}}};
+        migraphx::shape::dynamic_dimension dd0{2, 3, 4};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>({{2, 3, 4}})},
+                     T{{-1}},
+                     input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>({{2, 4, 4}})},
+                     T{{0}},
+                     input);
+    }
 }
 
 TEST_CASE(reduce_mean) { test_reduce_ops<migraphx::op::reduce_mean>(); }

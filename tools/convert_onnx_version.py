@@ -45,6 +45,9 @@ def parse_args():
                           type=int,
                           required=True,
                           help='The output opset')
+    req_args.add_argument('--infer_shapes',
+                          action='store_true',
+                          help='Infer shapes for output model')
     parser.add_argument('--verbose',
                         action='store_true',
                         help='show verbose information (for debugging)')
@@ -60,6 +63,7 @@ def main():
     out_model_path = args.output
     target_opset = args.opset
     verbose = args.verbose
+    infer_shapes = args.infer_shapes
 
     original_model = onnx.load(model_path)
     if verbose:
@@ -71,12 +75,15 @@ def main():
     converted_model = version_converter.convert_version(
         original_model, target_opset)
 
+    if infer_shapes:
+        converted_model = onnx.shape_inference.infer_shapes(converted_model)
+
     if verbose:
         print(f"The model after conversion:\n{converted_model}")
 
-
     # Save the ONNX model
     onnx.save(converted_model, out_model_path)
+
 
 if __name__ == '__main__':
     main()

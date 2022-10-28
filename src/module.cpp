@@ -34,7 +34,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/json.hpp>
 #include <iostream>
 #include <sstream>

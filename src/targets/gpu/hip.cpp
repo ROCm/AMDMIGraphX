@@ -183,8 +183,8 @@ argument register_on_gpu(const argument& arg)
 {
     auto arg_shared = arg.share();
     auto p          = register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes());
-    return {arg_shared.get_shape(),
-            [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
+    auto s          = arg_shared.get_shape();
+    return {s, [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
 }
 
 argument to_gpu(const argument& arg, bool host)

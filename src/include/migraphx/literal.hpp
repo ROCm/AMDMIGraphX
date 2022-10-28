@@ -48,10 +48,13 @@ struct literal : raw_data<literal>
     /*!
      * Empty literal with a specific shape type
      */
-    explicit literal(shape::type_t shape_type) : m_shape(shape_type, {}) {}
+    explicit literal(shape::type_t shape_type)
+        : m_shape(shape_type, {1}, {0}), buffer(make_shared_array<char>(m_shape.type_size()))
+    {
+    }
 
     template <class U, class T = deduce<U>, shape::type_t ShapeType = shape::get_type<T>{}>
-    literal(U x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(ShapeType)
+    literal(U x) : m_shape(ShapeType), buffer(make_shared_array<char>(sizeof(T)))
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         *(reinterpret_cast<T*>(buffer.get())) = x;
@@ -59,7 +62,7 @@ struct literal : raw_data<literal>
 
     template <class T>
     literal(const shape& s, const std::vector<T>& x)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+        : m_shape(s), buffer(make_shared_array<char>(s.bytes()))
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
@@ -67,7 +70,7 @@ struct literal : raw_data<literal>
 
     template <class T>
     literal(const shape& s, const std::initializer_list<T>& x)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+        : m_shape(s), buffer(make_shared_array<char>(s.bytes()))
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
@@ -75,13 +78,13 @@ struct literal : raw_data<literal>
 
     template <class Iterator>
     literal(const shape& s, Iterator start, Iterator end)
-        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+        : m_shape(s), buffer(make_shared_array<char>(s.bytes()))
     {
         fill(start, end);
     }
 
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
-    literal(const shape& s, T* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    literal(const shape& s, T* x) : m_shape(s), buffer(make_shared_array<char>(s.bytes()))
     {
         std::copy(x, x + s.bytes(), buffer.get());
     }
@@ -104,8 +107,8 @@ struct literal : raw_data<literal>
     }
 
     private:
-    std::shared_ptr<char> buffer;
     shape m_shape;
+    std::shared_ptr<char> buffer;
 
     template <class Iterator>
     void fill(Iterator start, Iterator end)

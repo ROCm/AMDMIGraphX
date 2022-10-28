@@ -22,7 +22,6 @@
 # THE SOFTWARE.
 #####################################################################################
 import argparse
-import numpy as np
 import onnx
 from onnx import version_converter, helper
 

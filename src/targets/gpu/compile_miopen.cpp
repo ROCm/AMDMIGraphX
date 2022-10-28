@@ -63,7 +63,7 @@ MIGRAPHX_REGISTER_OP(miopen_op);
 std::size_t compile_miopen::compile(operation& op, instruction_ref ins, bool format) const
 {
     op.from_value({{"int8_x4_format", format}});
-    auto v         = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
+    auto v = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
     return v.get("workspace", 0);
 }
 
@@ -87,8 +87,8 @@ void compile_miopen::apply(module& m) const
             // In case no solver supports the default format, retry using the other format.
             ws = compile(op, ins, not int8_x4_format);
         }
-        auto inputs    = ins->inputs();
-        auto alloc     = m.insert_instruction(
+        auto inputs = ins->inputs();
+        auto alloc  = m.insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(shape{shape::int8_type, {ws}})}}));
         inputs.insert(std::prev(inputs.end()), alloc);
 

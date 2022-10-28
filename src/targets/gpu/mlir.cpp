@@ -590,10 +590,10 @@ struct mlir_program
 #else
     void find_target()
     {
-        std::string tname = get_device_name();
+        target_arch = get_device_name();
         // HACK: Since MLIR can't handle the full target name
-        target_name = trim(split_string(tname, ':').front());
-        if(tname.size() != target_name.size())
+        target_chip = trim(split_string(target_arch, ':').front());
+        if(target_arch.size() != target_chip.size())
             std::cout
                 << "*************** WARNING: MLIR may not compile the correct target features for: "
                 << tname << std::endl;

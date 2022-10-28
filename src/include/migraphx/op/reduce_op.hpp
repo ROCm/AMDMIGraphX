@@ -109,15 +109,39 @@ struct reduce_op : op_name<Derived>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto s          = inputs.at(0);
-        auto lens       = s.lens();
-        auto tuned_axes = tune_axes(lens.size());
-        for(auto axis : tuned_axes)
+        auto s = inputs.at(0);
+        if(s.dynamic())
         {
-            lens[axis] = 1;
-        }
+            std::vector<shape::dynamic_dimension> output_dyn_dims = {};
 
-        return inputs[0].with_lens(lens);
+            // create a dynamic dimensions vector that leaves out any axis named in this->axes.
+            for(size_t index = 0; index < s.dyn_dims().size(); index++)
+            {
+                auto name_it = std::find_if(this->axes.begin(), this->axes.end(), [&](auto& axis) {
+                    return (axis == index); // if the dim is in this op's axes list, don't include
+                                            // it
+                });
+
+                if(name_it == this->axes.end())
+                {
+                    output_dyn_dims.push_back(s.dyn_dims().at(index));
+                }
+            }
+
+            // compare with what src/include/migraphx/op/convolution.hpp does:
+            return shape{s.type(), output_dyn_dims};
+        }
+        else
+        {
+            auto lens       = s.lens();
+            auto tuned_axes = tune_axes(lens.size());
+            for(auto axis : tuned_axes)
+            {
+                lens[axis] = 1;
+            }
+
+            return inputs[0].with_lens(lens);
+        }
     }
 
     template <class T>
@@ -154,7 +178,7 @@ struct reduce_op : op_name<Derived>
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
-    {  // todo: what should be different about the computation, if anything?
+    {
         argument result{dyn_out.computed_shape};
         auto arg_lens   = args.front().get_shape().lens();
         auto tuned_axes = tune_axes(arg_lens.size());

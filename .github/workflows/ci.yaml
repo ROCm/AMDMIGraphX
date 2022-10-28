@@ -191,6 +191,7 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
+          - ubuntu-22.04
         configuration:
           - debug
           - release
@@ -251,8 +252,8 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
-          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
-          -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
+          -DCMAKE_CXX_FLAGS_DEBUG="-g0 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
+          -DCMAKE_CXX_FLAGS_CODECOV="-g0 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
         ${{ github.workspace }}/cget/bin/ccache -s
@@ -287,6 +288,7 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
+          - ubuntu-22.04
         configuration:
           - debug
           #- release  Uncomment when ready to test release builds
@@ -347,8 +349,8 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
-          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
-          -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
+          -DCMAKE_CXX_FLAGS_DEBUG="-g0 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
+          -DCMAKE_CXX_FLAGS_CODECOV="-g0 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold' \
           -DMIGRAPHX_ENABLE_FPGA=On

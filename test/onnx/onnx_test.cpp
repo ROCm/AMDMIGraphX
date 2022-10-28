@@ -2618,25 +2618,16 @@ TEST_CASE(if_else_empty_shape_test)
     migraphx::shape s_else{migraphx::shape::float_type, {1}, {0}};
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> ones(s.elements(), 1.0f);
-    auto l1                 = mm->add_literal(s, ones);
+    mm->add_literal(s, ones);
     std::vector<float> rand = {0.382157, 0.527744, -1.79717, -1.1778, -0.305901, -0.0392257};
     auto l2                 = mm->add_literal(s, rand);
-    auto x                  = mm->add_parameter("x", s);
-    auto y                  = mm->add_parameter("y", s_else);
+    mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s_else);
 
-    auto* then_mod = p.create_module("If_5_if");
-    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
-    then_mod->add_return({rt});
-
-    auto* else_mod = p.create_module("If_5_else");
     auto broad_y =
-        else_mod->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), y);
-    auto re = else_mod->add_instruction(migraphx::make_op("mul"), broad_y, l2);
-    else_mod->add_return({re});
-
-    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
-    mm->add_return({r});
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), y);
+    auto re = mm->add_instruction(migraphx::make_op("mul"), broad_y, l2);
+    mm->add_return({re});
 
     auto prog = migraphx::parse_onnx("if_else_empty_shape_test.onnx");
     EXPECT(p == prog);

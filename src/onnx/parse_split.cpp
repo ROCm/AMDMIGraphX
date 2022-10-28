@@ -58,7 +58,10 @@ struct parse_split : op_parser<parse_split>
         }
         else if(args.size() == 2)
         {
-            assert(args[1]->can_eval());
+            if(not args[1]->can_eval())
+            {
+                MIGRAPHX_THROW("PARSE_SPLIT: invalid split input arg");
+            }
 
             auto s = args[1]->eval();
             s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });

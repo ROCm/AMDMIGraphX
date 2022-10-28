@@ -51,13 +51,26 @@ template struct test_reduce_op_large<migraphx::op::reduce_min, 1, migraphx::shap
 template struct test_reduce_op_large<migraphx::op::reduce_prod, 2, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
 
-struct test_reduce_mean : verify_program<test_reduce_mean>
+struct test_reduce_mean_1 : verify_program<test_reduce_mean_1>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {1, 384, 1024}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::op::reduce_mean{{1}}, x);
+        return p;
+    };
+};
+
+struct test_reduce_mean_2 : verify_program<test_reduce_mean_2>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {336, 400}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(migraphx::op::reduce_mean{{1}}, x);
         return p;

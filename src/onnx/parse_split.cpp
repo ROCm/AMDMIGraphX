@@ -26,6 +26,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/onnx/checks.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,12 +59,8 @@ struct parse_split : op_parser<parse_split>
         }
         else if(args.size() == 2)
         {
-            if(not args[1]->can_eval())
-            {
-                MIGRAPHX_THROW("PARSE_SPLIT: invalid split input arg");
-            }
-
             auto s = args[1]->eval();
+            check_arg_empty(s, "Split: dynamic shape is not supported");
             s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
         }
         // no split attribute, input is equally divided

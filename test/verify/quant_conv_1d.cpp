@@ -21,44 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ELU_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ELU_HPP
 
-#include <migraphx/op/elu.hpp>
-#include <migraphx/shape.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct miopen_elu
+struct quant_conv_1d : verify_program<quant_conv_1d>
 {
-    op::elu op;
-    shared<activation_descriptor> ad;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::elu"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    void finalize(context&, const shape&, const std::vector<shape>&);
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4}};
+        auto pa = mm->add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3}};
+        auto pc = mm->add_parameter("c", c_shape);
+        mm->add_instruction(
+            migraphx::make_op("quant_convolution",
+                              {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+            pa,
+            pc);
+        return p;
     }
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

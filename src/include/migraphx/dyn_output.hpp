@@ -21,44 +21,55 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ELU_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ELU_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_DYN_OUTPUT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_DYN_OUTPUT_HPP
 
-#include <migraphx/op/elu.hpp>
 #include <migraphx/shape.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct miopen_elu
+struct dyn_output
 {
-    op::elu op;
-    shared<activation_descriptor> ad;
+    // original shape from the instruction
+    shape ins_shape;
+    // shape computed at eval time using input arguments
+    shape computed_shape;
+};
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+/**
+ * Handle dynamic and static shape at evaluation time.
+ * If converted to shape type, returns original ins_shape.
+ * If converted to dyn_output type, will compute an output shape using the input arguments.
+ */
+template <class F>
+struct compute_output_shape
+{
+    F ins_inputs;
+
+    operator dyn_output() const
     {
-        return migraphx::reflect(self.op, f);
+        return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
+            if(ins_shape.dynamic())
+                return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
+            return dyn_output{ins_shape, ins_shape};
+        });
     }
 
-    std::string name() const { return "gpu::elu"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    void finalize(context&, const shape&, const std::vector<shape>&);
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    operator shape() const
     {
-        return shapes.size() - 1;
+        return ins_inputs(
+            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; });
     }
 };
 
-} // namespace gpu
+template <class F>
+compute_output_shape<F> make_compute_output_shape(F f)
+{
+    return {f};
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
 #endif

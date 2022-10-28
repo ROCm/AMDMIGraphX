@@ -151,7 +151,6 @@ struct reduce_op : op_name<Derived>
     {
         for(auto axis : tuned_axes)
         {
-            // todo:  how to change for dynamic shapes?
             out_lens[axis] = in_lens[axis];
         }
     }

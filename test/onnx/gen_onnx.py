@@ -6791,6 +6791,122 @@ def sub_scalar_test():
 
 
 @onnx_test
+def sub_empty_scalar_test():
+    values = np.array([])
+    arg_node = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                             [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    values_tensor = helper.make_tensor(name='const',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=values.shape,
+                                       vals=values.flatten().astype(float))
+
+    arg_const = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['arg_const'],
+        value=values_tensor,
+    )
+
+    node = onnx.helper.make_node(
+        'Sub',
+        inputs=['0', 'arg_const'],
+        outputs=['out'],
+    )
+
+    return ([arg_const, node], [arg_node], [arg_out])
+
+
+@onnx_test
+def mul_empty_scalar_test():
+    values = np.array([])
+    arg_node = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                             [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    values_tensor = helper.make_tensor(name='const',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=values.shape,
+                                       vals=values.flatten().astype(float))
+
+    arg_const = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['arg_const'],
+        value=values_tensor,
+    )
+
+    node = onnx.helper.make_node(
+        'Mul',
+        inputs=['0', 'arg_const'],
+        outputs=['out'],
+    )
+
+    return ([arg_const, node], [arg_node], [arg_out])
+
+
+@onnx_test
+def add_empty_scalar_test():
+    values = np.array([])
+    arg_node = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                             [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    values_tensor = helper.make_tensor(name='const',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=values.shape,
+                                       vals=values.flatten().astype(float))
+
+    arg_const = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['arg_const'],
+        value=values_tensor,
+    )
+
+    node = onnx.helper.make_node(
+        'Add',
+        inputs=['0', 'arg_const'],
+        outputs=['out'],
+    )
+
+    return ([arg_const, node], [arg_node], [arg_out])
+
+
+@onnx_test
+def div_empty_scalar_test():
+    values = np.array([])
+    arg_node = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                             [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    values_tensor = helper.make_tensor(name='const',
+                                       data_type=TensorProto.FLOAT,
+                                       dims=values.shape,
+                                       vals=values.flatten().astype(float))
+
+    arg_const = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['arg_const'],
+        value=values_tensor,
+    )
+
+    node = onnx.helper.make_node(
+        'Div',
+        inputs=['arg_const', '0'],
+        outputs=['out'],
+    )
+
+    return ([arg_const, node], [arg_node], [arg_out])
+
+
+@onnx_test
 def sum_int_test():
     a = helper.make_tensor_value_info('0', TensorProto.INT16, [3])
     b = helper.make_tensor_value_info('1', TensorProto.UINT16, [3])

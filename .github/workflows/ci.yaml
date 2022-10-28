@@ -11,7 +11,7 @@ jobs:
         with:
           access_token: ${{ github.token }}
   tidy:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
@@ -61,7 +61,7 @@ jobs:
         make -j2 -k onnx-proto tf-proto tidy
 
   cppcheck:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
@@ -106,7 +106,7 @@ jobs:
         make -j2 cppcheck
 
   format:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
@@ -142,7 +142,7 @@ jobs:
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
 
   pyflakes:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
@@ -163,7 +163,7 @@ jobs:
         mypy tools/api.py
 
   licensing:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
@@ -190,7 +190,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-18.04
           - ubuntu-20.04
         configuration:
           - debug
@@ -204,7 +203,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.6
+        python-version: 3.7
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
@@ -287,7 +286,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-18.04
           - ubuntu-20.04
         configuration:
           - debug
@@ -301,7 +299,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.6
+        python-version: 3.7
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true

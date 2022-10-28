@@ -86,6 +86,7 @@ struct broadcast
             shape output{t, broadcast_lens, std::move(bcast_strides)};
             if(output.elements() < s0.elements())
             {
+                // don't think this can occur?
                 MIGRAPHX_THROW("BROADCAST: output size must be greater than or equal to s0 size");
             }
             return output;
@@ -125,9 +126,6 @@ struct broadcast
             std::vector<size_t> bcast_strides(s1.ndim(), 0);
             std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
             shape output{t, s1.lens(), std::move(bcast_strides)};
-            if(output.elements() < s0.elements())
-                MIGRAPHX_THROW(
-                    "BROADCAST_2in: output size must be greater than or equal to s0 size");
             return output;
         }
     }

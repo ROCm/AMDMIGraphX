@@ -35,10 +35,11 @@ struct test_slice_concat_add : verify_program<test_slice_concat_add>
         auto* mm = p.get_main_module();
         migraphx::shape s0{migraphx::shape::float_type, {1, 24, 2, 2}};
         migraphx::shape s1{migraphx::shape::float_type, {1, 8, 2, 2}};
-        auto x = mm->add_parameter("x", s0);
-        auto y = mm->add_parameter("y", s1);
-        auto z = mm->add_parameter("z", s0);
-        auto slice = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), x);
+        auto x     = mm->add_parameter("x", s0);
+        auto y     = mm->add_parameter("y", s1);
+        auto z     = mm->add_parameter("z", s0);
+        auto slice = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), x);
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), slice, y, y);
         mm->add_instruction(migraphx::make_op("add"), concat, z);
         return p;

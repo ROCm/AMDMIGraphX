@@ -36,12 +36,13 @@ struct test_concat_broadcast_add : verify_program<test_concat_broadcast_add>
         migraphx::shape s0{migraphx::shape::float_type, {1, 2, 4}};
         migraphx::shape s1{migraphx::shape::float_type, {1, 6, 4}};
         migraphx::shape s2{migraphx::shape::float_type, {6, 1}};
-        auto x = mm->add_parameter("x", s0);
-        auto y = mm->add_parameter("y", s0);
-        auto z = mm->add_parameter("z", s0);
+        auto x      = mm->add_parameter("x", s0);
+        auto y      = mm->add_parameter("y", s0);
+        auto z      = mm->add_parameter("z", s0);
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
-        auto b = mm->add_literal(migraphx::generate_literal(s2, 15));
-        auto bb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), b);
+        auto b      = mm->add_literal(migraphx::generate_literal(s2, 15));
+        auto bb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), b);
         mm->add_instruction(migraphx::make_op("add"), concat, bb);
         return p;
     }

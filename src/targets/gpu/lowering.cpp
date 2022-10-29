@@ -105,7 +105,6 @@ struct miopen_apply
         add_extend_op("topk");
 
         add_convolution_op("convolution");
-        add_convolution_op("convolution");
         add_convolution_op("deconvolution");
         add_convolution_op("quant_convolution");
         add_gemm_op<op::dot>("dot");
@@ -237,9 +236,6 @@ struct miopen_apply
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            // auto&& op = any_cast<op::convolution>(ins->get_operator());
-
-            // TODO: Use make_op
             operation conv = make_op(
                 "gpu::" + name,
                 {{"op", ins->get_operator().to_value()}, {"int8_x4_format", int8_x4_format}});

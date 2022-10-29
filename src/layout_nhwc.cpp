@@ -33,7 +33,7 @@ std::unordered_set<instruction_ref> preserve_output_layout(module& m)
 {
     std::unordered_set<instruction_ref> result;
     std::vector<instruction_ref> outputs =
-        find_lasts(m, [](auto ins) { return ins->get_shape().lens().size() == 4; });
+        find_lasts(m, [](auto ins) { return ins->name() == "convolution" and ins->get_shape().lens().size() == 4; });
     for(auto output : outputs)
     {
         auto permutation = find_permutation(output->get_shape());

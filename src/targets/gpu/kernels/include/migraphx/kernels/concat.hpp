@@ -41,7 +41,9 @@ constexpr auto concat_slice(Output out, Input, Start)
         return Start{} * output_shape.strides[Axis];
     });
     constexpr auto s       = make_shape(lens, strides);
-    return make_tensor_view(&out[offset], s);
+    MIGRAPHX_ASSERT(offset < out.get_shape().element_space());
+    MIGRAPHX_ASSERT((s.element_space() + offset) <= out.get_shape().element_space());
+    return make_tensor_view(out.data() + offset, s);
 }
 
 template <index_int Axis, class Input, class Start, class... Ts>

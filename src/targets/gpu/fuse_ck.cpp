@@ -120,9 +120,9 @@ struct find_ck_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    if (not enabled(MIGRAPHX_DISABLE_CK_GEMM_FUSION{}))
+    if(not enabled(MIGRAPHX_DISABLE_CK_GEMM_FUSION{}))
         match::find_matches(mpm, find_ck_gemm_pointwise{});
-    if (not enabled(MIGRAPHX_DISABLE_CK_GEMM{}))
+    if(not enabled(MIGRAPHX_DISABLE_CK_GEMM{}))
         match::find_matches(mpm, find_ck_gemm{});
 }
 

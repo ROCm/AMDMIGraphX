@@ -59,8 +59,8 @@ def benchmark_ck(config, tuning):
         for line in run_driver(b):
             dtime = get_device_time(line)
             print(dtime)
-            return dtime
-    finally:
+            return float(dtime)
+    except:
         return sys.float_info.max
 
 
@@ -83,6 +83,7 @@ def benchmark_log(f, n):
     result = []
     for config in parse_log(f):
         tuned = benchmark(config, n)
+        print("Tuned:", tuned)
         result.append([config, tuned])
     return result
 

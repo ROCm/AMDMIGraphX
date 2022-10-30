@@ -3,9 +3,13 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_CK_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_CK_GEMM_FUSION);
 
 struct module;
 
@@ -116,8 +120,10 @@ struct find_ck_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm, find_ck_gemm_pointwise{});
-    match::find_matches(mpm, find_ck_gemm{});
+    if (not enabled(MIGRAPHX_DISABLE_CK_GEMM_FUSION{}))
+        match::find_matches(mpm, find_ck_gemm_pointwise{});
+    if (not enabled(MIGRAPHX_DISABLE_CK_GEMM{}))
+        match::find_matches(mpm, find_ck_gemm{});
 }
 
 } // namespace gpu

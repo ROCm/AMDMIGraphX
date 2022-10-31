@@ -76,7 +76,7 @@ TEST_CASE(conv_relu)
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto conv_layout = m2.add_instruction(layout(), conv);
+        m2.add_instruction(layout(), conv);
     }
     EXPECT(m1.sort() == m2.sort());
 }

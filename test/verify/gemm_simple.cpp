@@ -37,7 +37,7 @@ struct gemm_simple : verify_program<gemm_simple>
         migraphx::shape m2_shape{migraphx::shape::float_type, {1, 5, 4}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
-        
+
         mm->add_instruction(migraphx::make_op("dot"), l1, l2);
 
         return p;

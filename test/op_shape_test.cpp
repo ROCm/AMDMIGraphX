@@ -1997,6 +1997,30 @@ TEST_CASE(test_squeeze_all)
     expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
 }
 
+TEST_CASE(test_squeeze_dyn)
+{
+    migraphx::shape s1{migraphx::shape::float_type,
+                       {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {3}}}), s1);
+
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s3, migraphx::make_op("squeeze"), s1);
+
+    throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+}
+
+TEST_CASE(test_squeeze_dyn_neg_axes)
+{
+    migraphx::shape s1{migraphx::shape::float_type,
+                       {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {-2}}}), s1);
+
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s3, migraphx::make_op("squeeze", {{"axes", {-2, -4}}}), s1);
+}
+
 TEST_CASE(test_squeeze_transpose)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 4, 1}, {4, 1, 4}};

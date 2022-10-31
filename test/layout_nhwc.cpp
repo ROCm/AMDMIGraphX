@@ -115,7 +115,7 @@ TEST_CASE(conv_add)
             x,
             w);
         auto conv_layout = m2.add_instruction(layout(), conv);
-        auto b = m2.add_instruction(
+        auto b           = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             y);
         m2.add_instruction(migraphx::make_op("add"), conv_layout, b);

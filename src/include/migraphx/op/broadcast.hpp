@@ -108,7 +108,8 @@ struct broadcast
             }
             if(axis >= s1.ndim())
             {
-                MIGRAPHX_THROW("BROADCAST_2in: axis is out of range");
+                MIGRAPHX_THROW("BROADCAST_2in: axis " + migraphx::to_string(axis) +
+                               " is out of range");
             }
             if(s1.dynamic())
             {

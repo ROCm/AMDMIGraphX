@@ -286,25 +286,13 @@ struct context
 
             std::string current_gfx_arch       = this->current_device->get_device_name();
             std::size_t current_cu_count       = this->current_device->get_cu_count();
-            std::string current_miopen_version = get_miopen_version();
             if(n_cu_count != current_cu_count or v_gfx_arch != current_gfx_arch)
             {
-                std::cerr << "MIGraphX model was compiled for gfx_arch: " << v_gfx_arch
-                          << " with number of CUs=" << n_cu_count
-                          << ", but current device has gfx_arch: " << current_gfx_arch
-                          << " with number of CUs=" << current_cu_count
-                          << ", performance may suffer. \
-                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
-                          << std::endl;
-            }
-            if(current_miopen_version != v_miopen_version)
-            {
-                std::cerr << "MIGraphX model was compiled with MIOpen version : "
-                          << v_miopen_version
-                          << ", but this machine has MIOpen version: " << current_miopen_version
-                          << ", Performance may suffer.\
-                Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
-                          << std::endl;
+                MIGRAPHX_THROW("MIGraphX model was compiled for gfx_arch: " + v_gfx_arch \
+                          + " with number of CUs=" + std::to_string(n_cu_count) \
+                          + ", but current device has gfx_arch: " + current_gfx_arch \
+                          + " with number of CUs=" + std::to_string(current_cu_count) \
+                          + ", performance may suffer. Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model.");
             }
         }
 #endif

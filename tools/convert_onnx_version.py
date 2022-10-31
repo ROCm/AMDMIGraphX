@@ -23,7 +23,7 @@
 #####################################################################################
 import argparse
 import onnx
-from onnx import version_converter, helper
+from onnx import version_converter
 
 
 def parse_args():

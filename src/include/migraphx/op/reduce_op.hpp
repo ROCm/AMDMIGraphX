@@ -108,7 +108,7 @@ struct reduce_op : op_name<Derived>
 
     /**
      * @brief returns a shape in which the axis or axes named
-     * for reduction by this op are set to size 1.
+     * for reduction by this op are set, to size 1.
      *
      * @param inputs list of input shapes
      * @return shape

@@ -141,7 +141,7 @@ struct shape
      * Same as the number of indices required to get a data value.
      */
     std::size_t ndim() const;
-    
+
     /*!
      * Return the number of elements in the tensor.
      */

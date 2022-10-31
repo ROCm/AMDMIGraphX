@@ -104,7 +104,7 @@ inline std::string get_miopen_version()
     size_t major = 0;
     size_t minor = 0;
     size_t patch = 0;
-    auto status = miopenGetVersion(&major, &minor, &patch);
+    auto status  = miopenGetVersion(&major, &minor, &patch);
     if(status != miopenStatusSuccess)
     {
         MIGRAPHX_THROW("MIOpen failed to retrieve miopen version info");

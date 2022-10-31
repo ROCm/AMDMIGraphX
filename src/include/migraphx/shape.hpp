@@ -137,6 +137,12 @@ struct shape
     const std::vector<std::size_t>& strides() const;
 
     /*!
+     * The number of dimensions in the shape.
+     * Same as the number of indices required to get a data value.
+     */
+    std::size_t ndim() const;
+    
+    /*!
      * Return the number of elements in the tensor.
      */
     std::size_t elements() const;

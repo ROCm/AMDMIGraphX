@@ -244,6 +244,15 @@ const std::vector<std::size_t>& shape::lens() const { return impl->m_lens; }
 
 const std::vector<std::size_t>& shape::strides() const { return impl->m_strides; }
 
+std::size_t shape::ndim() const
+{
+    if(this->dynamic())
+    {
+        return dyn_dims().size();
+    }
+    return lens().size();
+}
+
 std::size_t shape::elements() const { return impl->elements(); }
 
 std::size_t shape::bytes() const

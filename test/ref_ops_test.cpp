@@ -1884,7 +1884,7 @@ TEST_CASE(div_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(div_dynamic_test)
+TEST_CASE(div_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

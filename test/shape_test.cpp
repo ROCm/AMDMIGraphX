@@ -205,7 +205,8 @@ TEST_CASE(test_shape_ndim_dyn)
     migraphx::shape s1{migraphx::shape::float_type, {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {2, 4, 0}}};
     EXPECT(s1.ndim() == 4);
 
-    migraphx::shape s2{migraphx::shape::float_type, {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {1, 1, 1}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type,
+                       {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {1, 1, 1}, {3, 3, 0}}};
     EXPECT(s1.ndim() == 5);
 }
 

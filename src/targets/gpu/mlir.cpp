@@ -196,6 +196,7 @@ struct mlir_program
 
     MlirType make_tensor(const shape& s) const
     {
+        assert(s.standard());
         std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
         return mlirRankedTensorTypeGet(
             lens.size(), lens.data(), make_type(s.type()), mlirAttributeGetNull());
@@ -371,7 +372,11 @@ struct mlir_program
 
         mlir_operation_state& add_results(const std::vector<shape>& outputs)
         {
-            auto x = prog->make_tensors(outputs);
+            std::vector<shape> reshaped(outputs.size());
+            std::transform(outputs.begin(), outputs.end(), reshaped.begin(), [](const shape& r) {
+                return shape{r.type(), r.lens()};
+            });
+            auto x = prog->make_tensors(reshaped);
             mlirOperationStateAddResults(&op_state, x.size(), x.data());
             return *this;
         }

@@ -21,31 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <test.hpp>
-#include <basic_ops.hpp>
+
+#include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/gpu/target.hpp>
-#include <migraphx/gpu/hip.hpp>
+#include <migraphx/make_op.hpp>
 
-void gpu_literal_test()
+struct test_pad_large : verify_program<test_pad_large>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto lit = generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-    mm->add_literal(lit);
-    p.compile(migraphx::gpu::target{});
-    auto scratch = p.get_parameter("scratch");
-    if(scratch == mm->end())
+    migraphx::program create_program() const
     {
-        auto result = p.eval({}).back();
-        EXPECT(lit == migraphx::gpu::from_gpu(result));
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {586, 3, 224, 224}};
+        std::vector<int64_t> pads0 = {0, 0, 1, 1, 0, 0, 1, 1};
+        auto l0                    = mm->add_parameter("x", s0);
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads0}}), l0);
+        return p;
     }
-    else
-    {
-        EXPECT(scratch->get_shape().bytes() == lit.get_shape().bytes());
-    }
-}
-
-int main() { gpu_literal_test(); } // NOLINT (bugprone-exception-escape)
+};

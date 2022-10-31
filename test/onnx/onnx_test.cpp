@@ -42,7 +42,6 @@
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/unknown.hpp>
-#include <random>
 
 #include <migraphx/serialize.hpp>
 

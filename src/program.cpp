@@ -636,7 +636,7 @@ void program::from_value(const value& v)
         MIGRAPHX_THROW("Warning: Program version mismatch");
     }
     auto migx_version = v.at("migraphx_version").to<std::string>();
-    if(migx_version != get_migraphx_version())
+    if(migx_version != get_migraphx_version() && enabled(MIGRAPHX_ENABLE_TUNING_WARNINGS{}))
     {
         std::clog << "MIGraphX version mismatch, Operators may not be compatbile." << std::endl;
     }

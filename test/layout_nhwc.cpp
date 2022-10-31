@@ -119,7 +119,6 @@ TEST_CASE(conv_add)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             y);
         m2.add_instruction(migraphx::make_op("add"), conv_layout, b);
-        // m2.add_instruction(layout(), add);
     }
     EXPECT(m1.sort() == m2.sort());
 }

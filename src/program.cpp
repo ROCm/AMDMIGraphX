@@ -493,8 +493,9 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     return ret;
 }
 
-inline std::string get_migraphx_version() {
-    return std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +std::to_string(MIGRAPHX_VERSION_MINOR);
+inline std::string get_migraphx_version()
+{
+    return std::to_string(MIGRAPHX_VERSION_MAJOR) + "." + std::to_string(MIGRAPHX_VERSION_MINOR);
 }
 
 const int program_file_version = 5;
@@ -637,8 +638,7 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::clog << "MIGraphX version mismatch, Operators may not be compatbile."
-                  << std::endl;
+        std::clog << "MIGraphX version mismatch, Operators may not be compatbile." << std::endl;
     }
 
     this->impl->target_name = v.at("target").to<std::string>();

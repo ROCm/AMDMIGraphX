@@ -289,31 +289,34 @@ struct miopen_convolution
                 solution_ptr = miopen_solution{ptr};
                 if(status != miopenStatusSuccess)
                     MIGRAPHX_THROW("MIOpen " + op.name() + ": loading convolution solution failed");
-                if(status == miopenStatusVersionMismatch) {
-                    std::clog << "MIOpen convolution was compiled with different MIOpen version. But this machine has MIOpen version: " << 
-                            get_miopen_version()
-                            << ", Performance may suffer.\
+                if(status == miopenStatusVersionMismatch)
+                {
+                    std::clog << "MIOpen convolution was compiled with different MIOpen version. "
+                                 "But this machine has MIOpen version: "
+                              << get_miopen_version() << ", Performance may suffer.\
                     Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
-                            << std::endl;
+                              << std::endl;
                 }
 
-                auto v = ctx.to_value(); 
+                auto v          = ctx.to_value();
                 auto v_gfx_arch = v.at("gfx_arch").to<std::string>();
 
                 auto v_cu_count        = v.at("cu_count");
                 std::size_t n_cu_count = v_cu_count.without_key().to<std::size_t>();
 
                 std::string v_miopen_version = v.at("miopen_version").to<std::string>();
-                auto current_device = ctx.get_current_device();
-                std::string current_gfx_arch       = current_device.get_device_name();
-                std::size_t current_cu_count       = current_device.get_cu_count();
+                auto current_device          = ctx.get_current_device();
+                std::string current_gfx_arch = current_device.get_device_name();
+                std::size_t current_cu_count = current_device.get_cu_count();
                 if(n_cu_count != current_cu_count or v_gfx_arch != current_gfx_arch)
                 {
-                    MIGRAPHX_THROW("MIGraphX model was compiled for gfx_arch: " + v_gfx_arch \
-                                + " with number of CUs=" + std::to_string(n_cu_count) \
-                                + ", but current device has gfx_arch: " + current_gfx_arch \
-                                + " with number of CUs=" + std::to_string(current_cu_count) \
-                                + ", performance may suffer. Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model.");
+                    MIGRAPHX_THROW(
+                        "MIGraphX model was compiled for gfx_arch: " + v_gfx_arch +
+                        " with number of CUs=" + std::to_string(n_cu_count) +
+                        ", but current device has gfx_arch: " + current_gfx_arch +
+                        " with number of CUs=" + std::to_string(current_cu_count) +
+                        ", performance may suffer. Consider re-compiling the model with "
+                        "environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model.");
                 }
             }
         }

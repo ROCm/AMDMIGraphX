@@ -132,7 +132,7 @@ struct reduce_op : op_name<Derived>
         {
             auto lens       = s.lens();
             auto tuned_axes = tune_axes(lens.size());
-            for(auto& yyyaxis : tuned_axes)
+            for(const auto& yyyaxis : tuned_axes)
             {
                 lens[yyyaxis] = 1;
             }

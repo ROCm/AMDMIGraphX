@@ -128,8 +128,8 @@ struct broadcast
             {
                 MIGRAPHX_THROW("BROADCAST_2in: s0 length doesn't match with static s1 axis "
                                "dimension length (" +
-                               migraphx::to_string(s0.dyn_dims()[0]) +
-                               " != " + migraphx::to_string(s1.dyn_dims()[axis]) + ")");
+                               migraphx::to_string(s0.lens()[0]) +
+                               " != " + migraphx::to_string(s1.lens()[axis]) + ")");
             }
             std::vector<size_t> bcast_strides(s1.ndim(), 0);
             std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);

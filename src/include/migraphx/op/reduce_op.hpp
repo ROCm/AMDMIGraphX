@@ -123,7 +123,7 @@ struct reduce_op : op_name<Derived>
             auto tuned_axes      = tune_axes(output_dyn_dims.size());
             for(const auto& axis : tuned_axes)
             {
-                output_dyn_dims[axis] = {1, 1};
+                output_dyn_dims[axis] = {1, 1, 0};
             }
 
             return shape{s.type(), output_dyn_dims};

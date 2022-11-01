@@ -32,6 +32,7 @@
 #include <memory>
 #include <numeric>
 #include <exception>
+#include <array>
 #include <vector>
 #include <cassert>
 #include <iostream>

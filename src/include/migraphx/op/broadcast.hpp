@@ -142,7 +142,6 @@ struct broadcast
     {
         return args[0].reshape(dyn_out.computed_shape);
     }
-
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

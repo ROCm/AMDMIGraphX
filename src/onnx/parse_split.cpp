@@ -28,6 +28,8 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/onnx/checks.hpp>
 
+#include <migraphx/stringutils.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
@@ -78,18 +80,10 @@ struct parse_split : op_parser<parse_split>
         if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
            static_cast<int64_t>(lens[tuned_axis]))
         {
-            std::string output;
-            for(const auto& index : vec_splits)
-                output += std::to_string(index) + ",";
-
-            std::string len_output;
-            for(const auto& len_vec : lens)
-                len_output += std::to_string(len_vec) + ",";
-
             MIGRAPHX_THROW(
                 "PARSE_SPLIT: sum of split attribute unequal to dim size of axis! tuned axis:" +
-                std::to_string(lens[tuned_axis]) + " Output " + output + " Rank " +
-                std::to_string(n_rank) + " Len outs " + len_output);
+                std::to_string(lens[tuned_axis]) + " Output " + to_string_range(vec_splits) +
+                " Rank " + std::to_string(n_rank) + " Len outs " + to_string_range(lens));
         }
 
         std::vector<instruction_ref> ret_ins;

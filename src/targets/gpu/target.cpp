@@ -41,7 +41,6 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
-#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
@@ -110,8 +109,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         insert_pad{},
         dead_code_elimination{},
-        rewrite_batchnorm{},
-        dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
         inline_module{},
@@ -141,11 +138,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         pack_int8_args{},
         dead_code_elimination{},
-        adjust_allocation{gpu_allocation_model{}},
-        dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
         replace_allocate{gpu_allocation_model{}, options.offload_copy},
+        dead_code_elimination{},
+        adjust_allocation{gpu_allocation_model{}},
         dead_code_elimination{},
         compile_ops{&ctx},
         dead_code_elimination{},

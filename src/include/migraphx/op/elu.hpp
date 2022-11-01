@@ -32,20 +32,24 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct elu
+struct elu : unary<elu>
 {
-    std::string name() const { return "elu"; }
     float alpha = 1;
-    shape compute_shape(std::vector<shape> inputs) const
+
+    std::string point_op() const
     {
-        check_shapes{inputs, *this}.has(1);
-        return inputs.front();
+        return "${function:where}(${0} > 0, ${0}, ${alpha} * (${function:exp}(${0}) - 1))";
     }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.alpha, "alpha"));
+    }
+
+    auto apply() const
+    {
+        return [&](auto x) { return x > 0 ? x : alpha * std::expm1(x); };
     }
 };
 

@@ -43,6 +43,8 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
         return inputs[1];
     }
 
+    virtual bool runs_on_offload_target() const override { return true; }
+
     virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
         if(inputs.size() != 2)
@@ -109,6 +111,47 @@ TEST_CASE(run_sigmoid_with_incorrect_shape)
     EXPECT(test::throws<std::exception>(
         [&] { m.add_instruction(migraphx::operation("sigmoid_custom_op"), {x}); },
         "Error in compute_shape of: sigmoid_custom_op: op must have two inputs"));
+}
+
+struct identity_custom_op final : migraphx::experimental_custom_op_base
+{
+    virtual std::string name() const override { return "identity_custom_op"; }
+    virtual migraphx::argument
+    compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override
+    {
+        return inputs[0];
+    }
+
+    virtual bool runs_on_offload_target() const override { return true; }
+
+    virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
+    {
+        if(inputs.size() != 1)
+        {
+            throw std::runtime_error("Identity op must have only one input");
+        }
+        return inputs.back();
+    }
+
+    virtual std::vector<size_t> output_alias(migraphx::shapes) const override { return {0, 1}; }
+};
+
+TEST_CASE(run_custom_op_with_invalid_output_alias)
+{
+    identity_custom_op i_op;
+    migraphx::register_experimental_custom_op(i_op);
+    auto op = migraphx::operation("identity_custom_op");
+    EXPECT(op.name() == "identity_custom_op");
+
+    migraphx::program p;
+    migraphx::shape s{migraphx_shape_float_type, {12}};
+    migraphx::module m = p.get_main_module();
+    auto x             = m.add_parameter("x", s);
+    auto i_ins         = m.add_instruction(migraphx::operation("identity_custom_op"), {x});
+    migraphx_test_private_disable_exception_catch(true);
+    EXPECT(test::throws<std::exception>(
+        [&] { p.compile(migraphx::target("ref")); },
+        "Currently, CustomOps in MIGraphX only supports one output_alias"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

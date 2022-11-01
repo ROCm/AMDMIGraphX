@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/make_op.hpp"
 #include <migraphx/gpu/mlir.hpp>
 
 #ifdef MIGRAPHX_MLIR
@@ -43,8 +44,9 @@
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/perfdb.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/permutation.hpp>
 #include <deque>
 #include <variant>
 
@@ -370,7 +372,11 @@ struct mlir_program
 
         mlir_operation_state& add_results(const std::vector<shape>& outputs)
         {
-            auto x = prog->make_tensors(outputs);
+            std::vector<shape> reshaped(outputs.size());
+            std::transform(outputs.begin(), outputs.end(), reshaped.begin(), [](const shape& r) {
+                return shape{r.type(), r.lens()};
+            });
+            auto x = prog->make_tensors(reshaped);
             mlirOperationStateAddResults(&op_state, x.size(), x.data());
             return *this;
         }
@@ -502,11 +508,12 @@ struct mlir_program
             {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
-                std::string tuned = get_tune_params();
+                // check if HW supports xdlops
+                bool xdlops       = contains(get_xdlops_archs(), target_name);
+                std::string tuned = get_tune_params(xdlops);
                 if(not tuned.empty())
                     ops.add_attributes({{"perf_config", tuned}});
-                // check if HW supports xdlops
-                if(contains(get_xdlops_archs(), target_name))
+                if(xdlops)
                     ops.add_attributes({{"xdlopsV2", true}});
             }
 
@@ -571,7 +578,7 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    std::string get_tune_params() { return get_mlir_perf_for_conv(pp); }
+    std::string get_tune_params(bool xdlops) { return get_mlir_perf_for_conv(pp, xdlops); }
 
     mlir_context ctx;
     MlirLocation location;
@@ -589,8 +596,54 @@ std::string dump_mlir(const module& m)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-code_object_op compile_mlir(const context&, const module& m)
+void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
 {
+    auto names = m.get_parameter_names();
+    std::sort(names.begin(), names.end());
+    for(auto i : range(names.size()))
+    {
+        const auto& name  = names[i];
+        const auto& input = inputs[i]->get_shape();
+        auto param        = m.get_parameter(name);
+        if(input.standard())
+            continue;
+        auto lens    = input.lens();
+        auto strides = input.strides();
+        std::vector<operation> ops;
+        if(input.transposed())
+        {
+            auto perm  = find_permutation(input);
+            auto iperm = invert_permutation(perm);
+            lens       = reorder_dims(lens, iperm);
+            strides    = reorder_dims(strides, iperm);
+            ops.push_back(make_op("transpose", {{"permutation", perm}}));
+        }
+        if(input.broadcasted())
+        {
+            std::transform(lens.begin(),
+                           lens.end(),
+                           strides.begin(),
+                           lens.begin(),
+                           [](auto len, auto stride) -> std::size_t {
+                               if(stride == 0)
+                                   return 1;
+                               return len;
+                           });
+            ops.push_back(make_op("multibroadcast", {{"out_lens", input.lens()}}));
+        }
+        auto new_param =
+            std::accumulate(ops.begin(),
+                            ops.end(),
+                            m.add_parameter(name + ".0", shape{input.type(), lens}),
+                            [&](auto x, auto op) { return m.insert_instruction(param, op, x); });
+        m.replace_instruction(param, new_param);
+        m.remove_instruction(param);
+    }
+}
+
+code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs)
+{
+    adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
         std::cout << m << std::endl;
@@ -662,12 +715,18 @@ instruction_ref insert_mlir(module& m,
 
 std::string dump_mlir(const module&) { return {}; }
 
-code_object_op compile_mlir(const context&, const module&) { return {}; }
-
 template <class T>
 void use(T&)
 {
 }
+
+// Disabling clang-tidy warning on non-real useage.
+// NOLINTBEGIN(performance-unnecessary-value-param)
+code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&)
+{
+    return {};
+}
+// NOLINTEND(performance-unnecessary-value-param)
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent

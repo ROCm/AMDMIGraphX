@@ -264,12 +264,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
-        .def("__init__",
-             [](migraphx::argument& x, py::buffer b) {
-                 py::buffer_info info = b.request();
-                 new(&x) migraphx::argument(to_shape(info), info.ptr);
-             })
+        .def(py::init([](py::buffer b) {
+            py::buffer_info info = b.request();
+            return migraphx::argument(to_shape(info), info.ptr);
+        }))
         .def("get_shape", &migraphx::argument::get_shape)
+        .def("data_ptr",
+             [](migraphx::argument& x) { return reinterpret_cast<std::uintptr_t>(x.data()); })
         .def("tolist",
              [](migraphx::argument& x) {
                  py::list l{x.get_shape().elements()};
@@ -353,6 +354,23 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                      pm[key]              = migraphx::argument(to_shape(info), info.ptr);
                  }
                  return p.eval(pm);
+             })
+        .def("run_async",
+             [](migraphx::program& p,
+                py::dict params,
+                std::uintptr_t stream,
+                std::string stream_name) {
+                 migraphx::parameter_map pm;
+                 for(auto x : params)
+                 {
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
+                     py::buffer_info info = b.request();
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                 }
+                 migraphx::execution_environment exec_env{
+                     migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
+                 return p.eval(pm, exec_env);
              })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })

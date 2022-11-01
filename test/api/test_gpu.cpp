@@ -25,6 +25,8 @@
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
+
+#include <migraphx/manage_ptr.hpp>
 #include "test.hpp"
 
 TEST_CASE(load_and_run)
@@ -44,7 +46,63 @@ TEST_CASE(load_and_run)
     {
         pp.add(name, migraphx::argument::generate(param_shapes[name]));
     }
+
     auto outputs = p.eval(pp);
+    CHECK(shapes_before.size() == outputs.size());
+    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+}
+
+using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);
+using stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
+
+stream_ptr get_stream()
+{
+    hipStream_t stream;
+    auto err = hipStreamCreateWithFlags(&stream, 0);
+    EXPECT(err == hipSuccess);
+    return stream_ptr{stream};
+}
+
+hip_ptr get_hip_buffer(size_t size)
+{
+    void* ptr;
+    auto err = hipMalloc(&ptr, size);
+    EXPECT(err == hipSuccess);
+    return hip_ptr{ptr};
+}
+
+TEST_CASE(load_and_run_async)
+{
+    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto shapes_before = p.get_output_shapes();
+    migraphx::compile_options options;
+    options.set_offload_copy(false);
+    p.compile(migraphx::target("gpu"), options);
+    auto shapes_after = p.get_output_shapes();
+    CHECK(shapes_before.size() == 1);
+    CHECK(shapes_before.size() == shapes_after.size());
+    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    migraphx::program_parameters pp;
+    auto param_shapes = p.get_parameter_shapes();
+
+    stream_ptr stream = get_stream();
+
+    std::vector<hip_ptr> buffs;
+    std::vector<migraphx::argument> args;
+    for(auto&& name : param_shapes.names())
+    {
+        args.push_back(migraphx::argument::generate(param_shapes[name]));
+        buffs.push_back(get_hip_buffer(args.rbegin()->get_shape().bytes()));
+
+        auto err = hipMemcpy(buffs.rbegin()->get(),
+                             args.rbegin()->data(),
+                             args.rbegin()->get_shape().bytes(),
+                             hipMemcpyHostToDevice);
+        EXPECT(err == hipSuccess);
+        pp.add(name, migraphx::argument(args.rbegin()->get_shape(), buffs.rbegin()->get()));
+    }
+
+    auto outputs = p.run_async(pp, stream.get());
     CHECK(shapes_before.size() == outputs.size());
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
@@ -82,10 +140,10 @@ TEST_CASE(if_pl_test)
         migraphx::program_parameters pp;
         auto param_shapes = p.get_parameter_shapes();
         auto xs           = param_shapes["x"];
-        std::vector<float> xd(xs.bytes() / sizeof(float), 1.0);
+        std::vector<float> xd(xs.elements(), 1.0);
         pp.add("x", migraphx::argument(xs, xd.data()));
         auto ys = param_shapes["y"];
-        std::vector<float> yd(ys.bytes() / sizeof(float), 2.0);
+        std::vector<float> yd(ys.elements(), 2.0);
         pp.add("y", migraphx::argument(ys, yd.data()));
         char ccond = cond;
         pp.add("cond", migraphx::argument(param_shapes["cond"], &ccond));

@@ -37,12 +37,10 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
-#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
-#include <migraphx/memory_coloring.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -77,8 +75,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             simplify_reshapes{},
             eliminate_identity{},
             eliminate_pad{},
-            dead_code_elimination{},
-            rewrite_batchnorm{},
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},

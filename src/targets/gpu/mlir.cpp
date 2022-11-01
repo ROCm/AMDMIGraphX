@@ -514,6 +514,7 @@ struct mlir_program
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
                 // check if HW supports xdlops
+                auto target_chip  = trim(split_string(target_arch, ':').front());
                 bool xdlops       = contains(get_xdlops_archs(), target_chip);
                 std::string tuned = get_tune_params(xdlops);
                 if(not tuned.empty())
@@ -542,7 +543,7 @@ struct mlir_program
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm.get());
         // 2nd pipeline to call
-        mlirMIGraphXAddBackendPipeline(pm.get(), target_chip.c_str(), "amdgcn-amd-amdhsa", "");
+        mlirMIGraphXAddBackendPipeline(pm.get(), target_arch.c_str());
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op{};
@@ -552,16 +553,7 @@ struct mlir_program
         return op;
     }
 
-    void find_target()
-    {
-        target_arch = get_device_name();
-        // HACK: Since MLIR can't handle the full target name
-        target_chip = trim(split_string(target_arch, ':').front());
-        if(target_arch.size() != target_chip.size())
-            std::cout
-                << "*************** WARNING: MLIR may not compile the correct target features for: "
-                << tname << std::endl;
-    }
+    void find_target() { target_arch = get_device_name(); }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
     {
@@ -590,7 +582,6 @@ struct mlir_program
     mlir_module mmodule;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_chip;
     std::string target_arch;
 };
 

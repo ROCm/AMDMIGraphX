@@ -60,7 +60,7 @@ TEST_CASE(literal_nstd_shape)
 
     auto l0 = migraphx::literal{nstd_shape, nstd_data};
     auto l1 = migraphx::literal{std_shape, std_data};
-    EXPECT(l0 == l1);
+    EXPECT(l0 != l1);
 }
 
 TEST_CASE(literal_os1)

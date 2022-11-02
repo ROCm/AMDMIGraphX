@@ -40,6 +40,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  * @brief Represents a raw literal
  * @details This stores the literal has a raw buffer that is owned by this class
+ * If the given shape is non-standard, the literal will be converted to a standard shape at
+ * construction.
  */
 struct literal : raw_data<literal>
 {
@@ -117,14 +119,16 @@ struct literal : raw_data<literal>
         }
         else
         {
+            // make the literal into a standard shape (contiguous)
             auto it = start;
             m_shape.visit_type([&](auto as) {
                 auto output = make_view(m_shape, as.from(buffer.get()));
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
+                shape_for_each_nstd(output.get_shape(), [&](const auto& idx) {
                     output(idx.begin(), idx.end()) = *it; // NOLINT(bugprone-signed-char-misuse)
                     it++;
                 });
             });
+            m_shape = {m_shape.type(), m_shape.lens()};
         }
     }
 };

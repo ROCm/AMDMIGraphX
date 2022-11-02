@@ -21,45 +21,48 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_OP_LAYOUT_HPP
+#define MIGRAPHX_GUARD_OP_LAYOUT_HPP
+
 #include <migraphx/config.hpp>
-#include <migraphx/cpu/dnnl.hpp>
+#include <array>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/op/unary.hpp>
+#include <cmath>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace cpu {
+namespace op {
 
-struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
+struct layout : unary<layout>
 {
-    std::string name() const { return "dnnl::reorder"; }
+    std::vector<int64_t> permutation;
 
-    shape adjust_shape(const shape& x, int, const shape&) const { return x; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        check_shapes{inputs, *this}.has(2);
-        auto r = inputs.back();
-        // Call to get_primitive to make sure an algo is available
-        this->get_primitive(this->to_memory_desc(r, inputs));
-        return r;
-    }
-    // Custom desc class since its missing in dnnl
-    struct desc
-    {
-        dnnl::memory::desc src;
-        dnnl::memory::desc dst;
-    };
-    desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
-    {
-        return {m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)), m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST))};
+        return pack(f(self.permutation, "permutation"));
     }
 
-    auto get_primitive_desc(const desc& d, const dnnl::primitive_attr& attr) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
-        auto& engine = get_dnnl_context().engine;
-        return dnnl::reorder::primitive_desc(engine, d.src, engine, d.dst, attr);
+        check_shapes{inputs, *this}.has(1).only_dims(permutation.size());
+        auto lens = inputs.at(0).lens();
+        auto t    = inputs.at(0).type();
+        return shape::from_permutation(t, lens, permutation);
+    }
+
+    auto apply() const
+    {
+        return [](auto x) { return x; };
     }
 };
 
-} // namespace cpu
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_OP_LAYOUT_HPP

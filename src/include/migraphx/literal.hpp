@@ -40,8 +40,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  * @brief Represents a raw literal
  * @details This stores the literal has a raw buffer that is owned by this class
- * If the given shape is non-standard, the literal will be converted to a standard shape at
- * construction.
  */
 struct literal : raw_data<literal>
 {

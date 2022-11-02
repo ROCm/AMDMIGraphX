@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <sys/time.h>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -59,7 +60,10 @@ void validate_pass(module& mod, const pass& p, tracer trace)
 }
 void run_pass(program& prog, const pass& p, tracer trace)
 {
-    trace("Pass: ", p.name());
+    timeval tnow;
+
+    gettimeofday(&tnow, nullptr);
+    trace("Time (s.us): ", tnow.tv_sec, ".",  tnow.tv_usec, ", Pass: ", p.name());
     p.apply(prog);
     trace(prog);
 }
@@ -93,8 +97,11 @@ struct module_pm : module_pass_manager
     virtual module* get_common_parent() override { return common_parent; }
     virtual void run_pass(const pass& p) override
     {
+	timeval tnow;
         assert(mod);
-        trace("Module: ", mod->name(), ", Pass: ", p.name());
+
+        gettimeofday(&tnow, nullptr);
+        trace("Time (s.us): ", tnow.tv_sec, ".",  tnow.tv_usec,", Module: ", mod->name(), ", Pass: ", p.name());
         assert(mod->validate() == mod->end());
         p.apply(*this);
         trace(*mod);

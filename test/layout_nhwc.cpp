@@ -124,4 +124,39 @@ TEST_CASE(conv_add)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(conv_conv)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto conv1 = m1.add_instruction(
+            migraphx::make_op("convolution"),
+            x,
+            w);
+        m1.add_instruction(
+            migraphx::make_op("convolution"),
+            conv1,
+            w);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto w    = 
+                                 m2.add_literal(migraphx::generate_literal(
+                                     {migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto conv = m2.add_instruction(
+            migraphx::make_op("convolution"),
+            x,
+            add_layout_nhwc(m2, w));
+        auto conv_layout = m2.add_instruction(migraphx::make_op("convolution"), conv, add_layout_nhwc(m2, w));
+        m2.add_instruction(layout(), conv_layout);
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

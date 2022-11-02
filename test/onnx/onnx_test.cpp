@@ -2402,12 +2402,12 @@ TEST_CASE(if_else_trailing_one_shape_test)
 
     auto* then_mod = p.create_module("If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
-    then_mod->add_return({rt});
+    auto broad_rt  = then_mod->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rt);
+    then_mod->add_return({broad_rt});
 
     auto* else_mod = p.create_module("If_5_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
-    auto broad_re  = else_mod->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), re);
-    else_mod->add_return({broad_re});
+    else_mod->add_return({re});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
@@ -2570,12 +2570,12 @@ TEST_CASE(if_then_trailing_one_shape_test)
 
     auto* then_mod = p.create_module("If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
-    auto broad_rt  = then_mod->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), rt);
-    then_mod->add_return({broad_rt});
+    then_mod->add_return({rt});
 
     auto* else_mod = p.create_module("If_5_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
-    else_mod->add_return({re});
+    auto broad_re  = else_mod->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), re);
+    else_mod->add_return({broad_re});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
@@ -2810,18 +2810,18 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     auto x                  = mm->add_parameter("x", s_trail);
     auto y                  = mm->add_parameter("y", s);
 
-    auto* then_mod = p.create_module("If_5_if");
-    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
-    auto rt2       = then_mod->add_instruction(migraphx::make_op("add"), x, x);
-    then_mod->add_return({rt, rt2});
+    auto* then_mod  = p.create_module("If_5_if");
+    auto rt         = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    auto rt2        = then_mod->add_instruction(migraphx::make_op("add"), x, x);
+    auto unsqueeze  = then_mod->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), rt);
+    auto unsqueeze2 = then_mod->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), rt2);
+
+    then_mod->add_return({unsqueeze, unsqueeze2});
 
     auto* else_mod = p.create_module("If_5_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     auto re2       = else_mod->add_instruction(migraphx::make_op("sub"), y, l2);
-    auto unsqueeze = else_mod->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), re);
-    auto unsqueeze2 =
-        else_mod->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), re2);
-    else_mod->add_return({unsqueeze, unsqueeze2});
+    else_mod->add_return({re, re2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);

@@ -48,11 +48,11 @@ inline bool all_but_last_dims_equal(const std::vector<size_t>& lens_a,
     }
 };
 
-void unsqueeze_last_op(module_ref mdl, int index, const std::vector<size_t>& out_shape)
+void squeeze_last_op(module_ref mdl, int index, const std::vector<size_t>& out_shape)
 {
     auto convert_ins =
         mdl->insert_instruction(std::prev(mdl->end()),
-                                make_op("unsqueeze", {{"axes", {out_shape.size() - 1}}}),
+                                make_op("squeeze", {{"axes", {out_shape.size() - 1}}}),
                                 std::prev(mdl->end())->inputs().at(index));
     mdl->replace_instruction(std::prev(mdl->end())->inputs().at(index), convert_ins);
 }
@@ -168,14 +168,14 @@ struct parse_if : op_parser<parse_if>
                 auto last_then = then_lens.back();
                 auto last_else = else_lens.back();
 
-                // Find which dim to unsqueeze
+                // Find which dim to squeeze
                 if((then_lens.size() < else_lens.size()) && (last_else == 1))
                 {
-                    unsqueeze_last_op(then_mdl, i, else_lens);
+                    squeeze_last_op(else_mdl, i, else_lens);
                 }
                 else if((then_lens.size() > else_lens.size()) && (last_then == 1))
                 {
-                    unsqueeze_last_op(else_mdl, i, then_lens);
+                    squeeze_last_op(then_mdl, i, then_lens);
                 }
             }
             else if(rank_delta > 1)

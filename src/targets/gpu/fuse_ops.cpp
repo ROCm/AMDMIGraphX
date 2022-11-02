@@ -772,16 +772,45 @@ struct find_layernorm_pointwise
     {
         auto ins       = r.result;
         auto layernorm = r.instructions["layernorm"];
-        auto* pm       = ins->module_inputs().front();
-
         if(not layernorm->module_inputs().empty())
             return;
-
+        auto* pm    = ins->module_inputs().front();
         auto inputs = layernorm->inputs();
         inputs.pop_back();
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
 
         m.replace_instruction(ins, layernorm->get_operator(), inputs, {pm});
+    }
+};
+
+struct find_concat_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(
+            match::arg(0)(precompile_name("concat").bind("concat")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto concat = r.instructions["concat"];
+        if(not concat->module_inputs().empty())
+            return;
+
+        // TODO: Handle type conversions
+        if(ins->get_shape().type() != concat->get_shape().type())
+            return;
+
+        auto* pm    = ins->module_inputs().front();
+        auto inputs = concat->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
+
+        auto op = concat->get_operator();
+        op.from_value({{"additional_args", ins->inputs().size() - 1}, {"ignore_modules", true}});
+
+        m.replace_instruction(ins, op, inputs, {pm});
     }
 };
 
@@ -793,6 +822,7 @@ void fuse_ops::apply(module& m) const
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
                         find_layernorm_pointwise{},
+                        find_concat_pointwise{},
                         find_gemm_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});

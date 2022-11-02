@@ -66,12 +66,6 @@ struct parse_splitToSequence : op_parser<parse_splitToSequence>
 
             const auto split_shape = s.get_shape();
 
-            // check all split args > 1
-            for(const auto split_arg : split_shape.lens())
-            {
-                assert(split_arg > 0);
-            }
-
             if(split_shape.scalar())
             {
                 // Split equally along one axis based on desired split

@@ -886,6 +886,35 @@ TEST_CASE(contiguous_param_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(contiguous_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape dyn_shape{migraphx::shape::float_type,
+                              {{1, 1, 0}, {2, 6, 0}, {2, 2, 0}, {2, 2, 0}}};
+    auto input = mm->add_parameter("X", dyn_shape);
+    mm->add_instruction(migraphx::make_op("contiguous"), input);
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape static_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
+    std::vector<float> data(12);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(static_shape, data.data());
+    auto result = p.eval(params).back();
+
+    result.visit([&](auto output) {
+        std::vector<size_t> new_strides = {12, 4, 2, 1};
+        EXPECT(bool{output.get_shape().strides() == new_strides});
+    });
+
+    std::vector<float> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(conv_dynamic_batch_test)
 {
     migraphx::program p;

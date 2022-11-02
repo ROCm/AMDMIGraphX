@@ -294,6 +294,12 @@ TEST_CASE(contiguous_shape)
     expect_shape(single, migraphx::make_op("contiguous"), single);
 }
 
+TEST_CASE(contiguous_dyn_shape)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 2}}};
+    expect_shape(s0, migraphx::make_op("contiguous"), s0);
+}
+
 TEST_CASE(contiguous_shape_scalar)
 {
     migraphx::shape output{migraphx::shape::float_type};

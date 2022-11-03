@@ -81,6 +81,14 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
+TEST_CASE(binary_dyn_static_error)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{1, 1, 0}, {4, 4, 4}, {4, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    throws_shape(migraphx::make_op("add"), a_shape, b_shape);
+}
+
 TEST_CASE(broadcast)
 {
     {

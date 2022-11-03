@@ -38,6 +38,27 @@ TEST_CASE(test_shape_default)
     EXPECT(s.elements() == 0);
     EXPECT(s.bytes() == 0);
 }
+
+TEST_CASE(test_dyn_4arg_constructor)
+{
+    migraphx::shape s{migraphx::shape::float_type,
+                      {
+                          1,
+                          4,
+                          4,
+                      },
+                      {
+                          4,
+                          4,
+                          4,
+                      },
+                      {0, 0, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> expected_dyn_dims = {
+        {1, 4, 0}, {4, 4, 0}, {4, 4, 0}};
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims() == expected_dyn_dims);
+}
+
 TEST_CASE(test_shape_assign)
 {
     migraphx::shape s1{migraphx::shape::float_type, {100, 32, 8, 8}};

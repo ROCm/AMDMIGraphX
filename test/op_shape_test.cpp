@@ -1215,6 +1215,21 @@ TEST_CASE(multibroadcast_2in_static_dyn1)
                  a_shape);
 }
 
+TEST_CASE(multibroadcast_2in_static_dyn2)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 6}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{8, 8, 0}, {6, 6, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{8, 8, 0}, {6, 6, 0}}},
+                 migraphx::make_op("multibroadcast", {{"output_dyn_dims", migraphx::to_value(b)}}),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{8, 8, 0}, {6, 6, 0}}},
+                 migraphx::make_op("multibroadcast", {{"output_dyn_dims", migraphx::to_value(b)}}),
+                 b_shape,
+                 a_shape);
+}
+
 TEST_CASE(multibroadcast_2in_static_dyn_error0)
 {
     // doesn't match on first dimension
@@ -1257,6 +1272,22 @@ TEST_CASE(multibroadcast_2in_dyn_dyn0)
                  b_shape);
     expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 4, 2}, {2, 4, 0}}},
                  migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_dyn_dyn1)
+{
+    std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 2}, {2, 4, 0}};
+    migraphx::shape a_shape{migraphx::shape::float_type, a};
+    std::vector<migraphx::shape::dynamic_dimension> b{{2, 4, 2}, {2, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 4, 2}, {2, 4, 0}}},
+                 migraphx::make_op("multibroadcast", {{"output_dyn_dims", migraphx::to_value(a)}}),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 4, 2}, {2, 4, 0}}},
+                 migraphx::make_op("multibroadcast", {{"output_dyn_dims", migraphx::to_value(a)}}),
                  b_shape,
                  a_shape);
 }

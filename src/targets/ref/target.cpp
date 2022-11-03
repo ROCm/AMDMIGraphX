@@ -49,8 +49,8 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
-            // auto_contiguous{},
-            // dead_code_elimination{},
+            auto_contiguous{},
+            dead_code_elimination{},
             lowering{},
             dead_code_elimination{}};
 }

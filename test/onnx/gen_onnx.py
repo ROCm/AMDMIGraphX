@@ -5756,6 +5756,92 @@ def split_test_default():
 
 
 @onnx_test
+def split_test_no_attribute():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [300, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [75, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [75, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [75, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [75, 15])
+
+    split = np.ones(4) * 75
+    split_tensor = helper.make_tensor(name="split",
+                                      data_type=TensorProto.INT64,
+                                      dims=split.shape,
+                                      vals=split.astype(np.int64))
+    const_node = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['split'],
+                                  value=split_tensor)
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x', 'split'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+    )
+
+    return ([const_node, node], [x], [y1, y2, y3, y4])
+
+
+@onnx_test
+def split_test_no_attribute_invalid_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [300, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [75, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [75, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [75, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [75, 15])
+
+    split = np.ones(4)
+    split_tensor = helper.make_tensor(name="split",
+                                      data_type=TensorProto.INT64,
+                                      dims=split.shape,
+                                      vals=split.astype(np.int64))
+    const_node = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['split'],
+                                  value=split_tensor)
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x', 'split'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+    )
+
+    return ([const_node, node], [x], [y1, y2, y3, y4])
+
+
+@onnx_test
+def split_test_invalid_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [10, 7])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [10, 4])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [10, 4])
+
+    node = onnx.helper.make_node('Split',
+                                 inputs=['x'],
+                                 outputs=['y1', 'y2', 'y3'],
+                                 axis=1,
+                                 split=[1, 1, 1])
+
+    return ([node], [x], [y1, y2, y3])
+
+
+@onnx_test
+def split_test_no_attribute_invalid_input_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [10, 7])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [10, 4])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [10, 4])
+
+    node = onnx.helper.make_node('Split',
+                                 inputs=['x'],
+                                 outputs=['y1', 'y2', 'y3'],
+                                 axis=1,
+                                 split=[])
+
+    return ([node], [x], [y1, y2, y3])
+
+
+@onnx_test
 def sqrt_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])

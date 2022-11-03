@@ -123,7 +123,7 @@ struct reduce_op : op_name<Derived>
             auto tuned_axes      = tune_axes(output_dyn_dims.size());
             for(const auto& axis : tuned_axes)
             {
-                output_dyn_dims[axis] = {1, 1};
+                output_dyn_dims[axis] = {1, 1, 0};
             }
 
             return shape{s.type(), output_dyn_dims};
@@ -132,7 +132,7 @@ struct reduce_op : op_name<Derived>
         {
             auto lens       = s.lens();
             auto tuned_axes = tune_axes(lens.size());
-            for(auto& axis : tuned_axes)
+            for(const auto& axis : tuned_axes)
             {
                 lens[axis] = 1;
             }
@@ -146,7 +146,7 @@ struct reduce_op : op_name<Derived>
                    const std::vector<T>& in_lens,
                    std::vector<T>& out_lens) const
     {
-        for(auto axis : tuned_axes)
+        for(const auto& axis : tuned_axes)
         {
             out_lens[axis] = in_lens[axis];
         }

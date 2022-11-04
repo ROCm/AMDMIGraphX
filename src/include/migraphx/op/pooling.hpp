@@ -32,6 +32,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/int_divide.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <cmath>
 #include <utility>
 
@@ -75,35 +76,60 @@ struct pooling
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
+        check_shapes{inputs, *this, true}.has(1);
 
         const shape& input = inputs.at(0);
-
-        auto input_lens   = input.lens();
-        size_t kdims      = input_lens.size() - 2;
-        auto input_size   = inputs[0].lens().size();
-        auto padding_size = padding.size();
-        if(input_size != padding_size / 2 + 2 and input_size != padding_size + 2)
+        auto padding_size  = padding.size();
+        size_t kdims       = input.ndim() - 2;
+        if(input.ndim() != padding_size / 2 + 2 and input.ndim() != padding_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
 
-        std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
+        auto calc_spatial_dim_out = [&](std::vector<std::size_t> input_lens) {
+            std::vector<std::size_t> output_lens{};
+            for(size_t i = 0; i < kdims; ++i)
+            {
+                std::ptrdiff_t dim_size;
+                auto padding_factor = 2 * padding[i];
+                if(padding_size == 2 * kdims)
+                    padding_factor = padding[i] + padding[i + kdims];
+                dim_size = input_lens[i + 2] + padding_factor - lengths[i];
+                assert(dim_size >= 0);
+                std::size_t len = (ceil_mode) ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
+                                              : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);
 
-        for(size_t i = 0; i < kdims; i++)
+                output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(1, len + 1)));
+            }
+            return output_lens;
+        };
+
+        if(input.dynamic())
         {
-            std::ptrdiff_t dim_size;
-            auto padding_factor = 2 * padding[i];
-            if(padding_size == 2 * kdims)
-                padding_factor = padding[i] + padding[i + kdims];
-            dim_size = input_lens[i + 2] + padding_factor - lengths[i];
-            assert(dim_size >= 0);
-            std::size_t len = (ceil_mode) ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
-                                          : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);
-
-            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(1, len + 1)));
+            auto input_dyn_dims = input.dyn_dims();
+            std::vector<shape::dynamic_dimension> output_dyn_dims(input_dyn_dims.begin(),
+                                                                  input_dyn_dims.begin() + 2);
+            auto min_spatial_dims = calc_spatial_dim_out(input.min_lens());
+            auto max_spatial_dims = calc_spatial_dim_out(input.max_lens());
+            auto opt_spatial_dims = calc_spatial_dim_out(input.opt_lens());
+            for(size_t i = 0; i < kdims; ++i)
+            {
+                output_dyn_dims.push_back(shape::dynamic_dimension{
+                    min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
+            }
+            return {input.type(), output_dyn_dims};
         }
-        return inputs[0].with_lens(output_lens);
+        else
+        {
+            auto input_lens = input.lens();
+
+            std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
+
+            auto output_spatial_lens = calc_spatial_dim_out(input_lens);
+            output_lens.insert(
+                output_lens.end(), output_spatial_lens.begin(), output_spatial_lens.end());
+            return inputs[0].with_lens(output_lens);
+        }
     }
 
     size_t kdims() const
@@ -198,21 +224,21 @@ struct pooling
         });
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
             using type = typename decltype(output)::value_type;
             switch(mode)
             {
             case migraphx::op::pooling_mode::average:
-                calc_pooling<type>(output_shape, output, input, avg_pool{});
+                calc_pooling<type>(dyn_out.computed_shape, output, input, avg_pool{});
                 break;
             case migraphx::op::pooling_mode::max:
-                calc_pooling<type>(output_shape, output, input, max_pool{});
+                calc_pooling<type>(dyn_out.computed_shape, output, input, max_pool{});
                 break;
             case migraphx::op::pooling_mode::lpnorm:
-                calc_pooling<type>(output_shape, output, input, lpnorm_pool{lp_order});
+                calc_pooling<type>(dyn_out.computed_shape, output, input, lpnorm_pool{lp_order});
                 break;
             }
         });

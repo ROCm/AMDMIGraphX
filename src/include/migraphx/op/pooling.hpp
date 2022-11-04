@@ -90,16 +90,24 @@ struct pooling
             std::vector<std::size_t> output_lens{};
             for(size_t i = 0; i < kdims; ++i)
             {
-                std::ptrdiff_t dim_size;
-                auto padding_factor = 2 * padding[i];
-                if(padding_size == 2 * kdims)
-                    padding_factor = padding[i] + padding[i + kdims];
-                dim_size = input_lens[i + 2] + padding_factor - lengths[i];
-                assert(dim_size >= 0);
-                std::size_t len = (ceil_mode) ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
-                                              : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);
-
-                output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(1, len + 1)));
+                if(input_lens[i + 2] == 0)
+                {
+                    // handle opt = 0
+                    output_lens.push_back(0);
+                }
+                else
+                {
+                    std::ptrdiff_t dim_size;
+                    auto padding_factor = 2 * padding[i];
+                    if(padding_size == 2 * kdims)
+                        padding_factor = padding[i] + padding[i + kdims];
+                    dim_size = input_lens[i + 2] + padding_factor - lengths[i];
+                    assert(dim_size >= 0);
+                    std::size_t len = (ceil_mode)
+                                          ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
+                                          : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);
+                    output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(1, len + 1)));
+                }
             }
             return output_lens;
         };

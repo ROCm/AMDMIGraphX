@@ -127,8 +127,7 @@ struct parse_if : op_parser<parse_if>
 
             auto handle_empty_branch = [](module_ref& mdl, int index, const shape& out_shape) {
                 shape gen_shape(shape(out_shape.type(), {1}, {0}));
-                auto literal_ins =
-                    mdl->insert_literal(std::prev(mdl->end()), literal(gen_shape, {0}));
+                auto literal_ins   = mdl->add_literal(literal(gen_shape, {0}));
                 auto unsqueeze_ins = mdl->insert_instruction(
                     std::prev(mdl->end()),
                     make_op("scalar", {{"scalar_bcst_dims", out_shape.lens()}}),

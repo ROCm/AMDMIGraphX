@@ -111,21 +111,7 @@ struct literal : raw_data<literal>
     void fill(Iterator start, Iterator end)
     {
         assert(std::distance(start, end) == m_shape.elements());
-        if(m_shape.standard())
-        {
-            m_shape.visit_type([&](auto as) { std::copy(start, end, as.from(buffer.get())); });
-        }
-        else
-        {
-            auto it = start;
-            m_shape.visit_type([&](auto as) {
-                auto output = make_view(m_shape, as.from(buffer.get()));
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) = *it; // NOLINT(bugprone-signed-char-misuse)
-                    it++;
-                });
-            });
-        }
+        m_shape.visit_type([&](auto as) { std::copy(start, end, as.from(buffer.get())); });
     }
 };
 

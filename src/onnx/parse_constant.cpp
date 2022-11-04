@@ -43,7 +43,8 @@ struct parse_constant : op_parser<parse_constant>
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
-            return info.add_literal(literal{v.get_shape().type()});
+            migraphx::shape empty_constant(v.get_shape().type(), {1}, {0});
+            return info.add_literal(literal{empty_constant, {0}});
         }
 
         auto dim_size = info.attributes.at("value").t().dims_size();

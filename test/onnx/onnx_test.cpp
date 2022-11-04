@@ -761,7 +761,7 @@ TEST_CASE(constant_empty_scalar_int64_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {0}});
     auto prog = optimize_onnx("constant_empty_scalar_int64_test.onnx");
 
     EXPECT(p == prog);
@@ -781,8 +781,8 @@ TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal(migraphx::shape::int32_type));
-    migraphx::shape s(migraphx::shape::int64_type, {1}, {0});
+    mm->add_literal(migraphx::literal(migraphx::shape::int32_type, {0}));
+    migraphx::shape s(migraphx::shape::int64_type, {1});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
 
@@ -2425,17 +2425,18 @@ TEST_CASE(if_literal_test)
     auto cond = mm->add_parameter("cond", cond_s);
 
     migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::shape empty_const(migraphx::shape::float_type, {1}, {0});
 
     auto* then_mod           = p.create_module("If_1_if");
     std::vector<float> data1 = {1, 2, 3, 4, 5};
     auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
-    then_mod->add_literal({});
+    then_mod->add_literal({empty_const, {0}});
     then_mod->add_return({l1});
 
     auto* else_mod           = p.create_module("If_1_else");
     std::vector<float> data2 = {5, 4, 3, 2, 1};
     auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
-    else_mod->add_literal({});
+    else_mod->add_literal({empty_const, {0}});
     else_mod->add_return({l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -2599,8 +2600,6 @@ TEST_CASE(if_then_empty_constant_test)
 
     auto* then_mod = p.create_module("If_4_if");
 
-    then_mod->add_literal(migraphx::shape::int64_type);
-
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
     auto literal_ins   = then_mod->add_literal(migraphx::literal(gen_shape, {0}));
     auto unsqueeze_ins = then_mod->add_instruction(
@@ -2635,9 +2634,6 @@ TEST_CASE(if_then_empty_constant_multi_output_test)
     auto y  = mm->add_parameter("y", s);
 
     auto* then_mod = p.create_module("If_4_if");
-
-    then_mod->add_literal(migraphx::shape::int64_type);
-    then_mod->add_literal(migraphx::shape::int64_type);
 
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
     auto literal_ins = then_mod->add_literal(migraphx::literal(gen_shape, {0}));
@@ -2691,8 +2687,6 @@ TEST_CASE(if_else_empty_constant_test)
 
     auto* else_mod = p.create_module("If_4_else");
 
-    else_mod->add_literal(s.type());
-
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
     auto literal_ins = else_mod->add_literal(migraphx::literal(gen_shape, {0}));
 
@@ -2730,9 +2724,6 @@ TEST_CASE(if_else_empty_constant_multi_output_test)
     then_mod->add_return({mul, sub});
 
     auto* else_mod = p.create_module("If_4_else");
-
-    else_mod->add_literal(migraphx::shape::int64_type);
-    else_mod->add_literal(migraphx::shape::int64_type);
 
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
     auto literal_ins   = else_mod->add_literal(migraphx::literal(gen_shape, {0}));

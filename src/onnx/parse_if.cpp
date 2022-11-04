@@ -31,6 +31,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <algorithm>
 
+#include <migraphx/stringutils.hpp>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
@@ -92,7 +93,9 @@ struct parse_if : op_parser<parse_if>
 
         auto throw_shapes = [&]() {
             MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                           " then and else sub_graphs must have compatible shapes ");
+                           " then and else sub_graphs must have compatible shapes " +
+                           to_string_range(then_out_shapes) + " vs " +
+                           to_string_range(else_out_shapes));
         };
 
         if(then_out_shapes.size() != else_out_shapes.size())
@@ -126,16 +129,14 @@ struct parse_if : op_parser<parse_if>
             assert(not(then_lens.empty() and else_lens.empty()));
 
             auto handle_empty_branch = [](module_ref& mdl, int index, const shape& out_shape) {
-                shape gen_shape(shape(out_shape.type(), {1}, {0}));
-                auto literal_ins   = mdl->add_literal(literal(gen_shape, {0}));
-                auto unsqueeze_ins = mdl->insert_instruction(
-                    std::prev(mdl->end()),
-                    make_op("scalar", {{"scalar_bcst_dims", out_shape.lens()}}),
-                    literal_ins);
+                auto scalar_ins =
+                    mdl->insert_instruction(std::prev(mdl->end()),
+                                            make_op("scalar", {{"out_lens", out_shape.lens()}}),
+                                            std::prev(mdl->end()));
                 auto broad_ins = mdl->insert_instruction(
                     std::prev(mdl->end()),
                     make_op("multibroadcast", {{"out_lens", out_shape.lens()}}),
-                    unsqueeze_ins);
+                    scalar_ins);
                 auto contig_out = mdl->insert_instruction(
                     std::prev(mdl->end()), make_op("contiguous"), broad_ins);
                 mdl->replace_instruction(std::prev(mdl->end())->inputs().at(index), contig_out);
@@ -144,11 +145,12 @@ struct parse_if : op_parser<parse_if>
 
             // Handle one empty branch by setting output identical to the other
             // need to update the then_shape before we do further checks
-            if(then_lens.empty())
+
+            if(then_out_shape.strides().empty())
             {
                 then_lens = handle_empty_branch(then_mdl, i, else_out_shape);
             }
-            else if(else_lens.empty())
+            else if(else_out_shape.strides().empty())
             {
                 else_lens = handle_empty_branch(else_mdl, i, then_out_shape);
             }
@@ -182,6 +184,9 @@ struct parse_if : op_parser<parse_if>
                 throw_shapes();
             }
         }
+
+        then_mdl->debug_print();
+        else_mdl->debug_print();
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});
         auto out_s  = if_ret->get_shape();

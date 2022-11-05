@@ -282,8 +282,6 @@ struct context
             auto v_cu_count        = v.at("cu_count");
             std::size_t n_cu_count = v_cu_count.without_key().to<std::size_t>();
 
-            std::string v_miopen_version = v.at("miopen_version").to<std::string>();
-
             std::string current_gfx_arch = this->current_device->get_device_name();
             std::size_t current_cu_count = this->current_device->get_cu_count();
             if(n_cu_count != current_cu_count or v_gfx_arch != current_gfx_arch)

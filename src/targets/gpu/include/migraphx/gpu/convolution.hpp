@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
 
-#include "migraphx/program.hpp"
+#include <migraphx/program.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/operation.hpp>

@@ -129,10 +129,11 @@ struct parse_if : op_parser<parse_if>
             assert(not(then_lens.empty() and else_lens.empty()));
 
             auto handle_empty_branch = [](module_ref& mdl, int index, const shape& out_shape) {
-                auto scalar_ins =
-                    mdl->insert_instruction(std::prev(mdl->end()),
-                                            make_op("scalar", {{"out_lens", out_shape.lens()}}),
-                                            std::prev(mdl->end()));
+                mdl->debug_print();
+                auto scalar_ins = mdl->insert_instruction(
+                    mdl->begin(),
+                    make_op("scalar", {{"scalar_bcst_dims", out_shape.lens()}}),
+                    std::prev(mdl->end()));
                 auto broad_ins = mdl->insert_instruction(
                     std::prev(mdl->end()),
                     make_op("multibroadcast", {{"out_lens", out_shape.lens()}}),
@@ -184,9 +185,6 @@ struct parse_if : op_parser<parse_if>
                 throw_shapes();
             }
         }
-
-        then_mdl->debug_print();
-        else_mdl->debug_print();
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});
         auto out_s  = if_ret->get_shape();

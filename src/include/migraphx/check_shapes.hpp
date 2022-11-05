@@ -119,7 +119,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->max_lens().size() != n)
-                MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
+                MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported " +
+                               std::to_string(begin->max_lens().size()));
         }
         return *this;
     }

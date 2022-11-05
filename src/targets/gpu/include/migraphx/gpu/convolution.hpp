@@ -287,14 +287,16 @@ struct miopen_convolution
                 solution_ptr = miopen_solution{ptr};
                 if(status != miopenStatusSuccess)
                     MIGRAPHX_THROW("MIOpen " + op.name() + ": loading convolution solution failed");
-                if(enabled(MIGRAPHX_ENABLE_TUNING_WARNINGS{})) {
+                if(enabled(MIGRAPHX_ENABLE_TUNING_WARNINGS{}))
+                {
                     if(status == miopenStatusVersionMismatch)
                     {
-                        std::clog << "MIOpen convolution was compiled with different MIOpen version. "
-                                    "But this machine has MIOpen version: "
-                                << get_miopen_version() << ", Performance may suffer.\
+                        std::clog
+                            << "MIOpen convolution was compiled with different MIOpen version. "
+                               "But this machine has MIOpen version: "
+                            << get_miopen_version() << ", Performance may suffer.\
                         Consider re-compiling the model with environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model."
-                                << std::endl;
+                            << std::endl;
                     }
 
                     auto v          = ctx.to_value();

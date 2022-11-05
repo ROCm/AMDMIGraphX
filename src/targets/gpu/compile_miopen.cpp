@@ -64,7 +64,7 @@ std::size_t compile_miopen::compile(operation& op, instruction_ref ins, bool for
 {
     op.from_value({{"int8_x4_format", format}});
     auto v = op.compile(*ctx, ins->get_shape(), to_shapes(ins->inputs()));
-    return v.get("workspace", 0);
+    return v.get<std::size_t>("workspace", 0);
 }
 
 void compile_miopen::apply(module& m) const

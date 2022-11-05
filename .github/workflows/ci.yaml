@@ -18,6 +18,10 @@ jobs:
       run: |
         sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
         du . --max-depth=1 -h
+        ls -la
+        cd /usr/local
+        du . --max-depth=1 -h
+        ls -la
 
     - uses: actions/checkout@v2
 

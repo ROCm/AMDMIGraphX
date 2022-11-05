@@ -33,7 +33,7 @@
 #include <migraphx/config.hpp>
 
 #include <sstream>
-#include <string>
+#include <migraphx/stringutils.hpp>
 
 #ifdef MIGRAPHX_HAS_FIND_MODE_API
 extern "C" miopenStatus_t

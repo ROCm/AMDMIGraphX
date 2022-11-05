@@ -33,6 +33,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
@@ -81,6 +82,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             eliminate_common_subexpression{},
             dead_code_elimination{},
             simplify_algebra{},
+            simplify_reshapes{},
+            layout_nhwc{},
+            dead_code_elimination{},
             simplify_reshapes{},
             simplify_algebra{},
             auto_contiguous{},

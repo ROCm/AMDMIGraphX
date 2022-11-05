@@ -58,7 +58,7 @@ __global__ void ${kernel}(${params})
 
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
-    std::vector<std::string> names() const { return {"pointwise", "contiguous"}; }
+    std::vector<std::string> names() const { return {"pointwise", "contiguous", "layout"}; }
 
     static std::size_t oversubscribe_if(bool b)
     {
@@ -91,12 +91,12 @@ struct pointwise_compiler : compiler<pointwise_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        if(op.name() == "contiguous")
+        if(contains({"layout", "contiguous"}, op.name()))
         {
             return replace(compile_op(
                 ctx,
                 to_shapes(ins->inputs()),
-                {{"lambda", "[](auto x) { return x; }"}, {"kernel", "contiguous_kernel"}}));
+                {{"lambda", "[](auto x) { return x; }"}, {"kernel", op.name() + "_kernel"}}));
         }
         else
         {

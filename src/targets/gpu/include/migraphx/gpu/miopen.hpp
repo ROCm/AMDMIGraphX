@@ -109,9 +109,7 @@ inline std::string get_miopen_version()
     {
         MIGRAPHX_THROW("MIOpen failed to retrieve miopen version info");
     }
-    std::string version =
-        std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
-    return version;
+    return to_string_range({major,minor,patch}, ".");
 }
 
 inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = false)

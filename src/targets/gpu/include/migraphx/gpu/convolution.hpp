@@ -85,9 +85,10 @@ struct miopen_convolution
 
     inline shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, op}.has(4).standard();
+        check_shapes{inputs, op}.has(4);
         std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
-        check_shapes{conv_inputs, op}.max_ndims(5);
+        check_shapes{conv_inputs, *this}.max_ndims(5).packed_layouts(
+            {{0, 1, 2}, {0, 1, 2, 3}, {0, 2, 3, 1}, {0, 1, 2, 3, 4}});
         return migraphx::compute_shape<Op>(op, conv_inputs);
     }
 
@@ -146,12 +147,9 @@ struct miopen_convolution
 #endif
     }
 
-    inline void set_conv_descriptor()
+    void set_conv_descriptor()
     {
-        if(cd == nullptr)
-        {
-            cd = (op.name() == "deconvolution") ? make_deconv(op) : make_conv(op);
-        }
+        cd = (op.name() == "deconvolution") ? make_deconv(op) : make_conv(op);
     }
 
     value compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input)
@@ -241,7 +239,6 @@ struct miopen_convolution
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen " + op.name() + " : find convolution failed");
         algo = perf.fwd_algo;
-
         size_t solution_count;
 
         status = miopenConvolutionForwardGetSolutionCount(ctx.get_stream().get_miopen(),

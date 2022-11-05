@@ -75,7 +75,7 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,
@@ -120,7 +120,7 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,

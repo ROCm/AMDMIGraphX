@@ -22,6 +22,10 @@ jobs:
         cd /usr/local
         du . --max-depth=1 -h
         ls -la
+        cd /usr/local/lib
+        echo $(pwd)
+        du . --max-depth=1 -h
+        ls -la
 
     - uses: actions/checkout@v2
 

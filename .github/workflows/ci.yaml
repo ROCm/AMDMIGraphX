@@ -27,7 +27,7 @@ jobs:
         du . --max-depth=1 -h
         ls -la
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
@@ -76,7 +76,7 @@ jobs:
     steps:
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
@@ -121,7 +121,7 @@ jobs:
     steps:
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
@@ -157,9 +157,9 @@ jobs:
     steps:
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.8
     - name: Install pyflakes
@@ -178,9 +178,9 @@ jobs:
     steps:
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.8
     - name: run License Check
@@ -209,9 +209,9 @@ jobs:
     steps:
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
     - name: Cache dependencies
@@ -305,9 +305,9 @@ jobs:
     steps:
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
     - name: Cache dependencies

@@ -251,7 +251,7 @@ struct miopen_apply
             auto compile_conv_with_format = [&](bool format) {
                 conv     = miopen_convolution<Op>{any_cast<Op>(ins->get_operator()), format};
                 auto ws  = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
-                ws_bytes = ws.get("workspace", 0);
+                ws_bytes = ws.get<std::size_t>("workspace", 0);
             };
 
             try

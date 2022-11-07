@@ -105,9 +105,8 @@ struct module_pm : module_pass_manager
 
         const auto end = std::chrono::system_clock::now();
 
-        const std::chrono::duration<double> timeelapsed = end-start;
-        trace("Pass: ",  p.name(), " completed in (s): ", timeelapsed.count());
-
+        const std::chrono::duration<double> timeelapsed = end - start;
+        trace("Pass: ", p.name(), " completed in (s): ", timeelapsed.count());
     }
 };
 

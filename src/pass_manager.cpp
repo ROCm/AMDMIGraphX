@@ -102,8 +102,10 @@ struct module_pm : module_pass_manager
         p.apply(*this);
         trace(*mod);
         validate_pass(*mod, p, *t);
+
         auto end = std::chrono::system_clock::now();
-        std::chrono::duration<double> timeelapsed = end-start;
+        
+	std::chrono::duration<double> timeelapsed = end-start;
         trace("Pass: ",  p.name(), " completed in (s): ", timeelapsed.count());
 
     }

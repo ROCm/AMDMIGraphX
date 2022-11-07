@@ -661,19 +661,6 @@ void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
             strides    = reorder_dims(strides, iperm);
             ops.push_back(make_op("transpose", {{"permutation", perm}}));
         }
-        if(input.broadcasted())
-        {
-            std::transform(lens.begin(),
-                           lens.end(),
-                           strides.begin(),
-                           lens.begin(),
-                           [](auto len, auto stride) -> std::size_t {
-                               if(stride == 0)
-                                   return 1;
-                               return len;
-                           });
-            ops.push_back(make_op("multibroadcast", {{"out_lens", input.lens()}}));
-        }
         auto new_param =
             std::accumulate(ops.begin(),
                             ops.end(),

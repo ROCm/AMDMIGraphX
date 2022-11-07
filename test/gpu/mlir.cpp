@@ -140,7 +140,7 @@ TEST_CASE(conv)
 {
     const std::string mlir_output = R"__migraphx__(
 module {
-  func.func @main(%arg0: tensor<2x8x3x3xf32>, %arg1: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {kernel = "mixr"} {
+  func.func @main(%arg0: tensor<2x8x3x3xf32>, %arg1: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {arch  =  "",  kernel  =  "mixr"} {
     %0 = migraphx.convolution(%arg1, %arg0) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
     return %0 : tensor<1x2x2x2xf32>
   }
@@ -163,7 +163,7 @@ TEST_CASE(conv_add_relu)
 {
     const std::string mlir_output = R"__migraphx__(
 module {
-  func.func @main(%arg0: tensor<1x2x2x2xf32>, %arg1: tensor<2x8x3x3xf32>, %arg2: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {kernel = "mixr"} {
+  func.func @main(%arg0: tensor<1x2x2x2xf32>, %arg1: tensor<2x8x3x3xf32>, %arg2: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {arch  =  "",  kernel  =  "mixr"} {
     %0 = migraphx.convolution(%arg2, %arg1) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
     %1 = migraphx.add(%0, %arg0) : (tensor<1x2x2x2xf32>, tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
     %2 = migraphx.relu(%1) : (tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
@@ -179,6 +179,77 @@ module {
     auto add  = m.add_instruction(migraphx::make_op("add"), conv, b);
     auto relu = m.add_instruction(migraphx::make_op("relu"), add);
     m.add_return({relu});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    CHECK(encode(s) == encode(mlir_output));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(broadcast_conv_add_relu)
+{
+    const std::string mlir_output = R"__migraphx__(
+module {
+  func.func @main(%arg0: tensor<64xf32>, %arg1: tensor<1x3x224x224xf32>, %arg2: tensor<64x3x7x7xf32>) -> tensor<1x64x112x112xf32> attributes {arch = "", kernel = "mixr"} {
+    %0 = migraphx.convolution(%arg1, %arg2) {dilation = [1, 1], group = 1 : i64, padding = [3, 3, 3, 3], padding_mode = 0 : i64, stride = [2, 2]} : (tensor<1x3x224x224xf32>, tensor<64x3x7x7xf32>) -> tensor<1x64x112x112xf32>
+    %1 = migraphx.broadcast(%arg0) {axis = 1 : i64, out_lens = [1, 64, 112, 112]} : (tensor<64xf32>) -> tensor<1x64x112x112xf32>
+    %2 = migraphx.add(%0, %1) : (tensor<1x64x112x112xf32>, tensor<1x64x112x112xf32>) -> tensor<1x64x112x112xf32>
+    %3 = migraphx.relu(%2) : (tensor<1x64x112x112xf32>) -> tensor<1x64x112x112xf32>
+    return %3 : tensor<1x64x112x112xf32>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0 = m.add_parameter("arg0", {migraphx::shape::float_type, {64}});
+    auto arg1 = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 3, 224, 224}});
+    auto arg2 = m.add_parameter("arg2", {migraphx::shape::float_type, {64, 3, 7, 7}});
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {3, 3, 3, 3}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        arg1,
+        arg2);
+    auto bcast = m.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 64, 112, 112}}}), arg0);
+    auto add  = m.add_instruction(migraphx::make_op("add"), conv, bcast);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), add);
+    m.add_return({relu});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    CHECK(encode(s) == encode(mlir_output));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(broadcast_conv_add_add)
+{
+    const std::string mlir_output = R"__migraphx__(
+module {
+  func.func @main(%arg0: tensor<256xf32>, %arg1: tensor<1x256x56x56xf32>, %arg2: tensor<1x64x56x56xf32>, %arg3: tensor<256x64x1x1xf32>) -> tensor<1x256x56x56xf32> attributes {arch = "", kernel = "mixr"} {
+    %0 = migraphx.convolution(%arg2, %arg3) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x64x56x56xf32>, tensor<256x64x1x1xf32>) -> tensor<1x256x56x56xf32>
+    %1 = migraphx.broadcast(%arg0) {axis = 1 : i64, out_lens = [1, 256, 56, 56]} : (tensor<256xf32>) -> tensor<1x256x56x56xf32>
+    %2 = migraphx.add(%0, %1) : (tensor<1x256x56x56xf32>, tensor<1x256x56x56xf32>) -> tensor<1x256x56x56xf32>
+    %3 = migraphx.add(%2, %arg1) : (tensor<1x256x56x56xf32>, tensor<1x256x56x56xf32>) -> tensor<1x256x56x56xf32>
+    return %3 : tensor<1x256x56x56xf32>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0 = m.add_parameter("arg0", {migraphx::shape::float_type, {256}});
+    auto arg1 = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 256, 56, 56}});
+    auto arg2 = m.add_parameter("arg2", {migraphx::shape::float_type, {1, 64, 56, 56}});
+    auto arg3 = m.add_parameter("arg3", {migraphx::shape::float_type, {256, 64, 1, 1}});
+    auto conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {0, 0, 0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+        arg2,
+        arg3);
+    auto bcast = m.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 256, 56, 56}}}), arg0);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), conv, bcast);
+    auto add2 = m.add_instruction(migraphx::make_op("add"), add1, arg1);
+    m.add_return({add2});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
     if(s.empty())

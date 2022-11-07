@@ -81,18 +81,23 @@ struct find_conv_pointwise
     // Find a convolution followed by a pointwise operation.
     auto matcher() const
     {
-        auto convolution =
-            match::skip(match::name("contiguous"))(is_mlir_conv().bind("convolution"));
-        return match::name("pointwise")(match::any_of[match::inputs()](convolution.bind("x")));
+        auto bcast_match =
+            match::name("contiguous")(match::arg(0)(match::name("broadcast").bind("bcast")))
+                .bind("cont");
+        return match::name("pointwise")(
+            match::any_of(match::all_of(match::any_arg(0, 1)(is_mlir_conv().bind("convolution")),
+                                        match::any_arg(0, 1)(bcast_match)),
+                          match::all_of(match::any_arg(0, 1)(is_mlir_conv().bind("convolution")),
+                                        match::none_of(match::any_arg(0, 1)(bcast_match)))));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto conv_ins = r.instructions["convolution"];
-        auto x_ins    = r.instructions["x"]; // input after contiguous
         auto* pm      = ins->module_inputs().front();
         auto names    = pm->get_parameter_names();
+
         // Whitelist pointwise operators
         if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
                return not contains({"@literal", "@param", "@return", "convolution", "add", "relu"},
@@ -113,24 +118,43 @@ struct find_conv_pointwise
                                    conv_ins->inputs().at(0)->get_shape());
         auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
                                    conv_ins->inputs().at(1)->get_shape());
-        auto conv = mm->add_instruction(conv_ins->get_operator(), {x, w});
-        std::transform(names.begin(),
-                       names.end(),
-                       ins->inputs().begin(),
-                       std::inserter(param_map, param_map.end()),
-                       [&](auto name, auto input) {
-                           if(input == x_ins)
-                               return std::make_pair(pm->get_parameter(name), conv);
-                           return std::make_pair(pm->get_parameter(name),
-                                                 mm->add_parameter(name, input->get_shape()));
-                       });
-        mm->add_return(mm->insert_instructions(mm->end(), pm, param_map));
 
+        auto conv = mm->add_instruction(conv_ins->get_operator(), {x, w});
+
+        std::transform(
+            names.begin(),
+            names.end(),
+            ins->inputs().begin(),
+            std::inserter(param_map, param_map.end()),
+            [&](auto name, auto input) {
+                if(input == conv_ins)
+                    return std::make_pair(pm->get_parameter(name), conv);
+                if(migraphx::contains(r.instructions, "cont") && input == r.instructions["cont"])
+                {
+                    auto bcast_ins = r.instructions["bcast"];
+                    auto bcast_in =
+                        mm->add_parameter("bcast_in", bcast_ins->inputs().at(0)->get_shape());
+                    auto bcast = mm->add_instruction(bcast_ins->get_operator(), {bcast_in});
+                    return std::make_pair(pm->get_parameter(name), bcast);
+                }
+                return std::make_pair(pm->get_parameter(name),
+                                      mm->add_parameter(name, input->get_shape()));
+            });
+
+        mm->add_return(mm->insert_instructions(mm->end(), pm, param_map));
         std::vector<instruction_ref> inputs;
-        std::copy_if(ins->inputs().begin(),
-                     ins->inputs().end(),
-                     std::back_inserter(inputs),
-                     [&](auto input) { return input != conv_ins; });
+        if(migraphx::contains(r.instructions, "bcast"))
+        {
+            auto bcast_ins = r.instructions["bcast"];
+            inputs.push_back(bcast_ins->inputs()[0]);
+        }
+        else
+        {
+            std::copy_if(ins->inputs().begin(),
+                         ins->inputs().end(),
+                         std::back_inserter(inputs),
+                         [&](auto input) { return input != conv_ins; });
+        }
         inputs.insert(inputs.end(), conv_ins->inputs().begin(), conv_ins->inputs().end());
         mpm.get_module().replace_instruction(
             ins, mlir_conv{conv_ins->get_operator()}, inputs, {mm});

@@ -44,6 +44,7 @@ def onnx_test(op_test):
                                           op_info[1], op_info[2])
         model_def = helper.make_model(graph_def,
                                       producer_name=op_test.__name__)
+        print('hello', op_test.__name__)
         onnx.save(model_def, '{}.onnx'.format(op_test.__name__))
 
     return run_test
@@ -4451,6 +4452,18 @@ def reducel1_test():
 
     return ([node], [x], [y])
 
+def reducel1_dyn_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+    axes = [-2]
+
+    node = onnx.helper.make_node('ReduceL1_dyn',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
 
 @onnx_test
 def reducel2_test():

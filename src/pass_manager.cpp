@@ -97,15 +97,15 @@ struct module_pm : module_pass_manager
         assert(mod);
 
         trace("Module: ", mod->name(), ", Pass: ", p.name());
-        auto start = std::chrono::system_clock::now();
+        const auto start = std::chrono::system_clock::now();
         assert(mod->validate() == mod->end());
         p.apply(*this);
         trace(*mod);
         validate_pass(*mod, p, *t);
 
-        auto end = std::chrono::system_clock::now();
-        
-	std::chrono::duration<double> timeelapsed = end-start;
+        const auto end = std::chrono::system_clock::now();
+
+        const std::chrono::duration<double> timeelapsed = end-start;
         trace("Pass: ",  p.name(), " completed in (s): ", timeelapsed.count());
 
     }

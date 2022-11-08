@@ -51,7 +51,7 @@ struct pooling
     int lp_order                     = 2;
 
     // Global pooling with dynamic shape input
-    bool dyn_global                  = false;
+    bool dyn_global = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -70,7 +70,7 @@ struct pooling
     void check_attribute_size() const
     {
         if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
-           stride.size() != lengths.size())
+           (not dyn_global and stride.size() != lengths.size()))
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
@@ -212,7 +212,11 @@ struct pooling
     };
 
     template <class Type, class Out, class In, class Op>
-    void calc_pooling(const shape& output_shape, Out& output, const In& input, const std::vector<std::size_t>& kernel_dims, Op op) const
+    void calc_pooling(const shape& output_shape,
+                      Out& output,
+                      const In& input,
+                      const std::vector<std::size_t>& kernel_dims,
+                      Op op) const
     {
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
@@ -259,7 +263,7 @@ struct pooling
         std::vector<std::size_t> kernel_dims;
         if(dyn_global)
         {
-            kernel_dims.insert(kernel_dims.end(), input_lens.begin()+2, input_lens.end());
+            kernel_dims.insert(kernel_dims.end(), input_lens.begin() + 2, input_lens.end());
         }
         else
         {
@@ -276,7 +280,8 @@ struct pooling
                 calc_pooling<type>(dyn_out.computed_shape, output, input, kernel_dims, max_pool{});
                 break;
             case migraphx::op::pooling_mode::lpnorm:
-                calc_pooling<type>(dyn_out.computed_shape, output, input, kernel_dims, lpnorm_pool{lp_order});
+                calc_pooling<type>(
+                    dyn_out.computed_shape, output, input, kernel_dims, lpnorm_pool{lp_order});
                 break;
             }
         });

@@ -59,21 +59,34 @@ struct parse_pooling : op_parser<parse_pooling>
         std::string mode = opd.op_name;
         if(not contains(mode_map, mode))
         {
-            MIGRAPHX_THROW("onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
+            MIGRAPHX_THROW(
+                "PARSE_POOLING: onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
         }
-        operation op = make_op("pooling", {{"mode", mode_map.at(mode)}});
-        value values = op.to_value();
-        auto l0      = args[0];
-        auto in_lens = l0->get_shape().lens();
-        assert(in_lens.size() > 2);
-        auto kdims = in_lens.size() - 2;
+        operation op  = make_op("pooling", {{"mode", mode_map.at(mode)}});
+        value values  = op.to_value();
+        auto l0       = args[0];
+        auto in_shape = l0->get_shape();
+        assert(in_shape.ndim() > 2);
+        auto kdims = in_shape.ndim() - 2;
 
         if(starts_with(opd.onnx_name, "Global"))
         {
-            values["lengths"] = std::vector<size_t>(in_lens.begin() + 2, in_lens.end());
+            // if spatial dimensions are dynamic use dyn_global flag
+            if(in_shape.dynamic() and std::any_of(in_shape.dyn_dims().cbegin() + 2,
+                                                  in_shape.dyn_dims().cend(),
+                                                  [](auto dd) { return not dd.is_fixed(); }))
+            {
+                values["dyn_global"] = true;
+                values["lengths"]    = std::vector<size_t>();
+            }
+            else
+            {
+                // works with static and fixed dynamic shape
+                auto m_lens       = in_shape.max_lens();
+                values["lengths"] = std::vector<size_t>(m_lens.begin() + 2, m_lens.end());
+            }
         }
 
-        // does not support ceil_mode
         if(contains(info.attributes, "ceil_mode"))
         {
             values["ceil_mode"] = static_cast<bool>(info.attributes.at("ceil_mode").i());
@@ -84,6 +97,11 @@ struct parse_pooling : op_parser<parse_pooling>
         int count_include_pad = 0;
         if(contains(info.attributes, "count_include_pad"))
         {
+            if(in_shape.dynamic())
+            {
+                MIGRAPHX_THROW("PARSE_POOLING: count_include_pad attribute is not handled for "
+                               "dynamic input shape");
+            }
             count_include_pad = info.attributes.at("count_include_pad").i();
         }
 
@@ -93,6 +111,7 @@ struct parse_pooling : op_parser<parse_pooling>
             copy(info.attributes["strides"].ints(), std::back_inserter(values["stride"]));
             check_attr_sizes(kdims, values["stride"].size(), "PARSE_POOLING: inconsistent strides");
         }
+
         if(contains(info.attributes, "kernel_shape"))
         {
             values["lengths"].clear();
@@ -123,14 +142,22 @@ struct parse_pooling : op_parser<parse_pooling>
 
         if(contains(info.attributes, "auto_pad"))
         {
-            values["padding"].clear();
-            // return paddings could be empty, then setting to 0 for no padding
-            cal_auto_padding_size(info,
-                                  values,
-                                  values["lengths"].to_vector<std::size_t>(),
-                                  {1, 1},
-                                  in_lens,
-                                  paddings);
+            if(in_shape.dynamic())
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_POOLING: Auto padding pooling with dynamic input shape not handled");
+            }
+            else
+            {
+                values["padding"].clear();
+                // return paddings could be empty, then setting to 0 for no padding
+                cal_auto_padding_size(info,
+                                      values,
+                                      values["lengths"].to_vector<std::size_t>(),
+                                      {1, 1},
+                                      in_shape.lens(),
+                                      paddings);
+            }
         }
 
         if(paddings.size() != 2 * kdims)
@@ -150,6 +177,7 @@ struct parse_pooling : op_parser<parse_pooling>
             values["stride"].resize(kdims);
             std::fill_n(values["stride"].begin(), kdims, 1);
         }
+
         // used to calculate the supposed output shape
         std::vector<int64_t> orig_padding = paddings;
 
@@ -159,6 +187,11 @@ struct parse_pooling : op_parser<parse_pooling>
 
         if(not slice_start.empty())
         {
+            if(in_shape.dynamic())
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_POOLING: asymmetric padding not handled for dynamic input shape");
+            }
             // calculate expected output shape
             orig_padding.insert(orig_padding.begin() + kdims, 2, 0);
             orig_padding.insert(orig_padding.begin(), 2, 0);

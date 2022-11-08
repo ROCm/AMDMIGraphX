@@ -120,8 +120,10 @@ struct parse_if : op_parser<parse_if>
                 continue;
             }
 
-            auto then_lens = then_out_shape.lens();
-            auto else_lens = else_out_shape.lens();
+            auto then_lens    = then_out_shape.lens();
+            auto else_lens    = else_out_shape.lens();
+            auto then_strides = then_out_shape.strides();
+            auto else_strides = else_out_shape.strides();
 
             assert(not(then_lens.empty() and else_lens.empty()));
 
@@ -144,11 +146,11 @@ struct parse_if : op_parser<parse_if>
 
             // Handle one empty branch by setting output identical to the other
             // need to update the then_shape before we do further checks
-            if(then_lens.empty())
+            if(then_strides.empty() or (then_strides.front() == 0 and then_lens.front() <= 1))
             {
                 then_lens = handle_empty_branch(then_mdl, i, else_out_shape);
             }
-            else if(else_lens.empty())
+            else if(else_strides.empty() or (else_strides.front() == 0 and else_lens.front() <= 1))
             {
                 else_lens = handle_empty_branch(else_mdl, i, then_out_shape);
             }

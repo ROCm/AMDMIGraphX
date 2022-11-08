@@ -68,7 +68,9 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
             // empty input tensor, output is a scalar
             if(args[0]->get_shape().elements() == 0)
             {
-                s = migraphx::shape{type, {1}, {0}};
+                std::vector<size_t> lens(1, 1);
+                std::vector<size_t> strides(1, 0);
+                s = migraphx::shape(type, lens, strides);
             }
             else
             {
@@ -84,8 +86,16 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
             l_val.visit([&](auto val) {
                 using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
                 // l_val contains only one element
-                std::vector<val_type> out_vec(s.elements(), val.front());
-                l_out = literal(s, out_vec);
+                if(s.elements() > 0)
+                {
+                    std::vector<val_type> out_vec(s.elements(), val.front());
+                    l_out = literal(s, out_vec);
+                }
+                else
+                {
+                    std::vector<val_type> out_vec{val.front()};
+                    l_out = literal(s, out_vec);
+                }
             });
 
             return info.add_literal(l_out);

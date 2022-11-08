@@ -54,7 +54,15 @@ struct shape_impl
         : m_type(t), m_lens(std::move(l)), m_standard(true)
     {
         assert(t != shape::tuple_type);
-        this->calculate_strides();
+
+        m_strides.clear();
+        m_strides.resize(m_lens.size(), 0);
+
+        if(m_lens.empty() or (m_lens.front() == 0 and m_lens.size() == 1))
+            m_lens.at(0) = 1;
+        else
+            this->calculate_strides();
+
         assert(m_lens.size() == m_strides.size());
     }
     shape_impl(shape::type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
@@ -83,8 +91,6 @@ struct shape_impl
 
     void calculate_strides()
     {
-        m_strides.clear();
-        m_strides.resize(m_lens.size(), 0);
         if(m_strides.empty())
             return;
         m_strides.back() = 1;

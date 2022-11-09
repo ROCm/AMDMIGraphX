@@ -147,11 +147,12 @@ struct parse_if : op_parser<parse_if>
 
             // Handle one empty branch by setting output identical to the other
             // need to update the then_shape before we do further checks
-            if(then_strides.empty() or (then_strides.front() == 0 and then_lens.front() <= 1))
+            if(then_strides.empty() or (then_strides.front() == 0 and else_strides.front() != 0))
             {
                 then_lens = handle_empty_branch(then_mdl, i, else_out_shape);
             }
-            else if(else_strides.empty() or (else_strides.front() == 0 and else_lens.front() <= 1))
+            else if(else_strides.empty() or
+                    (else_strides.front() == 0 and then_strides.front() != 0))
             {
                 else_lens = handle_empty_branch(else_mdl, i, then_out_shape);
             }

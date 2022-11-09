@@ -58,7 +58,8 @@ struct shape_impl
         if(m_lens.empty() or (m_lens.front() == 0 and m_lens.size() == 1))
         {
             m_strides.resize(m_lens.size(), 0);
-            m_lens.resize(1, 1);
+            m_lens.resize(1);
+            m_lens.at(0) = 1;
         }
         else
             this->calculate_strides();

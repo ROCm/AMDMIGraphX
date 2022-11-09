@@ -167,7 +167,7 @@ struct dnnl_op : auto_register_op<Derived>
         std::iota(result.begin(), result.end(), MIGRAPHX_DNNL_PREFIX(ARG_SRC_0));
         return result;
     }
-    shape base_adjust_shape(const shape& s) const
+    shape base_adjust_shape(const shape& s, const shape& output) const
     {
         if(s.broadcasted())
         {
@@ -183,7 +183,8 @@ struct dnnl_op : auto_register_op<Derived>
                                else
                                    return len;
                            });
-            return shape{s.type(), lens};
+            // Use the permutation of the output
+            return output.with_lens(s.type(), lens);
         }
         return s;
     }
@@ -204,7 +205,10 @@ struct dnnl_op : auto_register_op<Derived>
             i++;
         }
     }
-    shape adjust_shape(const shape& s, int) const { return base_adjust_shape(s); }
+    shape adjust_shape(const shape& s, int, const shape& output) const
+    {
+        return base_adjust_shape(s, output);
+    }
     std::vector<int> create_arg_map(std::size_t input_size) const
     {
         const auto& self     = static_cast<const Derived&>(*this);
@@ -224,12 +228,12 @@ struct dnnl_op : auto_register_op<Derived>
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
         result[MIGRAPHX_DNNL_PREFIX(ARG_DST)] =
-            to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
+            to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size(), output_shape));
         auto m = create_arg_map(inputs.size());
         assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
         {
-            result[m[i]] = to_dnnl_memory_desc(self.adjust_shape(inputs[i], i));
+            result[m[i]] = to_dnnl_memory_desc(self.adjust_shape(inputs[i], i, output_shape));
         }
         return result;
     }

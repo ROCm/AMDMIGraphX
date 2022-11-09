@@ -55,11 +55,11 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
 
-        m_strides.clear();
-        m_strides.resize(m_lens.size(), 0);
-
         if(m_lens.empty() or (m_lens.front() == 0 and m_lens.size() == 1))
+        {
+            m_strides.resize(m_lens.size(), 0);
             m_lens.resize(1, 1);
+        }
         else
             this->calculate_strides();
 
@@ -91,6 +91,8 @@ struct shape_impl
 
     void calculate_strides()
     {
+        m_strides.clear();
+        m_strides.resize(m_lens.size(), 0);
         if(m_strides.empty())
             return;
         m_strides.back() = 1;

@@ -2601,8 +2601,6 @@ TEST_CASE(if_then_empty_constant_test)
 
     auto* then_mod = p.create_module("If_4_if");
 
-    then_mod->add_literal(migraphx::shape::int64_type);
-
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
     auto literal_ins   = then_mod->add_literal(migraphx::literal(gen_shape, {0}));
     auto unsqueeze_ins = then_mod->add_instruction(
@@ -2637,20 +2635,16 @@ TEST_CASE(if_then_empty_constant_multi_output_test)
 
     auto* then_mod = p.create_module("If_4_if");
 
-    then_mod->add_literal(migraphx::shape::int64_type);
-    then_mod->add_literal(migraphx::shape::int64_type);
-
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins = then_mod->add_literal(migraphx::literal(gen_shape, {0}));
+    then_mod->add_literal(migraphx::literal(gen_shape, {0}));
+    migraphx::shape gen_shape2(migraphx::shape(s.type(), {1}, {0}));
+    auto literal_ins2 = then_mod->add_literal(migraphx::literal(gen_shape2, {0}));
 
     auto unsqueeze_ins = then_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins);
+        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins2);
     auto broad_ins = then_mod->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins);
     auto contig_out = then_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins);
-
-    migraphx::shape gen_shape2(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins2 = then_mod->add_literal(migraphx::literal(gen_shape2, {0}));
 
     auto unsqueeze_ins2 = then_mod->add_instruction(
         migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins2);
@@ -2692,8 +2686,6 @@ TEST_CASE(if_else_empty_constant_test)
 
     auto* else_mod = p.create_module("If_4_else");
 
-    else_mod->add_literal(s.type());
-
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
     auto literal_ins = else_mod->add_literal(migraphx::literal(gen_shape, {0}));
 
@@ -2732,19 +2724,17 @@ TEST_CASE(if_else_empty_constant_multi_output_test)
 
     auto* else_mod = p.create_module("If_4_else");
 
-    else_mod->add_literal(migraphx::shape::int64_type);
-    else_mod->add_literal(migraphx::shape::int64_type);
-
     migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins   = else_mod->add_literal(migraphx::literal(gen_shape, {0}));
+    else_mod->add_literal(migraphx::literal(gen_shape, {0}));
+    migraphx::shape gen_shape2(migraphx::shape(s.type(), {1}, {0}));
+    auto literal_ins2 = else_mod->add_literal(migraphx::literal(gen_shape2, {0}));
+
     auto unsqueeze_ins = else_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins);
+        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins2);
     auto broad_ins = else_mod->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins);
     auto contig_out = else_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins);
 
-    migraphx::shape gen_shape2(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins2   = else_mod->add_literal(migraphx::literal(gen_shape2, {0}));
     auto unsqueeze_ins2 = else_mod->add_instruction(
         migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins2);
     auto broad_ins2 = else_mod->add_instruction(

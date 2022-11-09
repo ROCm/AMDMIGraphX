@@ -128,19 +128,20 @@ struct parse_if : op_parser<parse_if>
             assert(not(then_lens.empty() and else_lens.empty()));
 
             auto handle_empty_branch = [](module_ref& mdl, int index, const shape& out_shape) {
-                shape gen_shape(shape(out_shape.type(), {1}, {0}));
-                auto literal_ins   = mdl->add_literal(literal(gen_shape, {0}));
                 auto unsqueeze_ins = mdl->insert_instruction(
                     std::prev(mdl->end()),
                     make_op("scalar", {{"scalar_bcst_dims", out_shape.lens()}}),
-                    literal_ins);
+                    mdl->begin());
                 auto broad_ins = mdl->insert_instruction(
-                    std::prev(mdl->end()),
+                    std::next(unsqueeze_ins),
                     make_op("multibroadcast", {{"out_lens", out_shape.lens()}}),
                     unsqueeze_ins);
                 auto contig_out = mdl->insert_instruction(
                     std::prev(mdl->end()), make_op("contiguous"), broad_ins);
-                mdl->replace_instruction(std::prev(mdl->end())->inputs().at(index), contig_out);
+                if(index == 0)
+                    mdl->replace_return({contig_out});
+                else
+                    mdl->replace_return({std::prev(mdl->end())->inputs().at(0), contig_out});
                 return out_shape.lens();
             };
 

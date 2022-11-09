@@ -54,13 +54,18 @@ TEST_CASE(literal_nstd_shape)
     migraphx::shape nstd_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
     std::vector<float> nstd_data(12);
     std::iota(nstd_data.begin(), nstd_data.end(), 0);
-
-    migraphx::shape std_shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    std::vector<float> std_data = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-
     auto l0 = migraphx::literal{nstd_shape, nstd_data};
-    auto l1 = migraphx::literal{std_shape, std_data};
-    EXPECT(l0 != l1);
+
+    // check data buffer is unchanged
+    auto start = reinterpret_cast<const float*>(l0.data());
+    std::vector<float> l0_data{start, start + 12};
+    EXPECT(l0_data == nstd_data);
+
+    // check that using visit() (that uses a tensor view) gives data in correct order
+    std::vector<float> std_data = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
+    std::vector<float> results_vector(12);
+    l0.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == std_data);
 }
 
 TEST_CASE(literal_os1)

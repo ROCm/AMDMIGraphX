@@ -49,7 +49,7 @@ struct literal : raw_data<literal>
      * Empty literal with a specific shape type
      */
     explicit literal(shape::type_t shape_type)
-        : m_shape(shape_type, {1}, {0}), buffer(make_shared_array<char>(m_shape.type_size()))
+        : m_shape(shape_type, {}, {}), buffer(make_shared_array<char>(m_shape.type_size()))
     {
     }
 

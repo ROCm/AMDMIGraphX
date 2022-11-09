@@ -761,7 +761,8 @@ TEST_CASE(constant_empty_scalar_int64_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
+    migraphx::shape empty_shape{migraphx::shape::int64_type, {1}, {0}};
+    mm->add_literal({empty_shape, {0}});
 
     auto prog = optimize_onnx("constant_empty_scalar_int64_test.onnx");
 
@@ -782,7 +783,8 @@ TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal(migraphx::shape::int32_type));
+    migraphx::shape empty_shape{migraphx::shape::int32_type, {1}, {0}};
+    mm->add_literal({empty_shape, {0}});
     migraphx::shape s(migraphx::shape::int64_type, {1}, {0});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
@@ -6038,8 +6040,7 @@ TEST_CASE(squeeze_empty_axes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape empty_shape{migraphx::shape::int64_type, {1}};
-    mm->add_literal(migraphx::literal{empty_shape, {0}});
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
     auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
     auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), l0);
     mm->add_return({l1});

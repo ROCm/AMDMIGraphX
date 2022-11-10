@@ -30,7 +30,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <sys/time.h>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -96,17 +95,18 @@ struct module_pm : module_pass_manager
     {
         assert(mod);
 
+        timer ts{};
+        using seconds = std::chrono::duration<double>;
+
         trace("Module: ", mod->name(), ", Pass: ", p.name());
-        const auto start = std::chrono::system_clock::now();
+        const double t1 = ts.record<seconds>();
         assert(mod->validate() == mod->end());
         p.apply(*this);
         trace(*mod);
         validate_pass(*mod, p, *t);
 
-        const auto end = std::chrono::system_clock::now();
-
-        const std::chrono::duration<double> timeelapsed = end - start;
-        trace("Pass: ", p.name(), " completed in (s): ", timeelapsed.count());
+        const double t2 = ts.record<seconds>();
+        trace("Pass: ", p.name(), " completed in (s): ", (t2 - t1));
     }
 };
 

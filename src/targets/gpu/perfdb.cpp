@@ -29,7 +29,7 @@
 #include <fstream>
 #include <mutex>
 
-std::mutex g_db_mutex;
+static std::mutex g_db_mutex;
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

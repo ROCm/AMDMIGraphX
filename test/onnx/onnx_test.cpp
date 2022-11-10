@@ -2597,22 +2597,14 @@ TEST_CASE(if_then_empty_constant_test)
     auto l2 = mm->add_literal(s, rand);
     auto y  = mm->add_parameter("y", s);
 
-    auto* then_mod = p.create_module("If_4_if");
-
-    then_mod->add_literal(migraphx::shape::int64_type);
-
-    migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins   = then_mod->add_literal(migraphx::literal(gen_shape, {0}));
-    auto unsqueeze_ins = then_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins);
-    auto broad_ins = then_mod->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins);
-    auto contig_out = then_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins);
-    then_mod->add_return({contig_out});
-
     auto* else_mod = p.create_module("If_4_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     else_mod->add_return({re});
+
+    auto* then_mod = p.create_module("If_4_if");
+    then_mod->add_literal(migraphx::shape::int64_type);
+    auto identity_ins = then_mod->add_instruction(migraphx::make_op("identity"), re);
+    then_mod->add_return({identity_ins});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
@@ -2634,35 +2626,17 @@ TEST_CASE(if_then_empty_constant_multi_output_test)
     auto l2 = mm->add_literal(s, rand);
     auto y  = mm->add_parameter("y", s);
 
-    auto* then_mod = p.create_module("If_4_if");
-
-    then_mod->add_literal(migraphx::shape::int64_type);
-    then_mod->add_literal(migraphx::shape::int64_type);
-
-    migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins = then_mod->add_literal(migraphx::literal(gen_shape, {0}));
-
-    auto unsqueeze_ins = then_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins);
-    auto broad_ins = then_mod->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins);
-    auto contig_out = then_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins);
-
-    migraphx::shape gen_shape2(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins2 = then_mod->add_literal(migraphx::literal(gen_shape2, {0}));
-
-    auto unsqueeze_ins2 = then_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins2);
-    auto broad_ins2 = then_mod->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins2);
-    auto contig_out2 = then_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins2);
-
-    then_mod->add_return({contig_out, contig_out2});
-
     auto* else_mod = p.create_module("If_4_else");
     auto mul       = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     auto sub       = else_mod->add_instruction(migraphx::make_op("sub"), y, l2);
     else_mod->add_return({mul, sub});
+
+    auto* then_mod = p.create_module("If_4_if");
+    then_mod->add_literal(migraphx::shape::int64_type);
+    then_mod->add_literal(migraphx::shape::int64_type);
+    auto identity_ins  = then_mod->add_instruction(migraphx::make_op("identity"), mul);
+    auto identity_ins2 = then_mod->add_instruction(migraphx::make_op("identity"), sub);
+    then_mod->add_return({identity_ins, identity_ins2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
@@ -2690,19 +2664,9 @@ TEST_CASE(if_else_empty_constant_test)
     then_mod->add_return({rt});
 
     auto* else_mod = p.create_module("If_4_else");
-
     else_mod->add_literal(s.type());
-
-    migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins = else_mod->add_literal(migraphx::literal(gen_shape, {0}));
-
-    auto unsqueeze_ins = else_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins);
-    auto broad_ins = else_mod->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins);
-
-    auto contig_out = else_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins);
-    else_mod->add_return({contig_out});
+    auto identity_ins = else_mod->add_instruction(migraphx::make_op("identity"), rt);
+    else_mod->add_return({identity_ins});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
@@ -2730,27 +2694,11 @@ TEST_CASE(if_else_empty_constant_multi_output_test)
     then_mod->add_return({mul, sub});
 
     auto* else_mod = p.create_module("If_4_else");
-
     else_mod->add_literal(migraphx::shape::int64_type);
     else_mod->add_literal(migraphx::shape::int64_type);
-
-    migraphx::shape gen_shape(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins   = else_mod->add_literal(migraphx::literal(gen_shape, {0}));
-    auto unsqueeze_ins = else_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins);
-    auto broad_ins = else_mod->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins);
-    auto contig_out = else_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins);
-
-    migraphx::shape gen_shape2(migraphx::shape(s.type(), {1}, {0}));
-    auto literal_ins2   = else_mod->add_literal(migraphx::literal(gen_shape2, {0}));
-    auto unsqueeze_ins2 = else_mod->add_instruction(
-        migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), literal_ins2);
-    auto broad_ins2 = else_mod->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), unsqueeze_ins2);
-    auto contig_out2 = else_mod->add_instruction(migraphx::make_op("contiguous"), broad_ins2);
-
-    else_mod->add_return({contig_out, contig_out2});
+    auto identity_ins  = else_mod->add_instruction(migraphx::make_op("identity"), mul);
+    auto identity_ins2 = else_mod->add_instruction(migraphx::make_op("identity"), sub);
+    else_mod->add_return({identity_ins, identity_ins2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);

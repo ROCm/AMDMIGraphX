@@ -29,7 +29,7 @@
 #include <fstream>
 #include <mutex>
 
-static mutable std::mutex g_db_mutex;
+static std::mutex g_db_mutex; // NOLINT
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -1724,6 +1724,27 @@ TEST_CASE(test_scalar_nelemnts)
 TEST_CASE(test_scatternd)
 {
     {
+        // good
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+        expect_shape(ds, migraphx::make_op("scatternd_none"), ds, is, us);
+    }
+
+    {
+        // too many inputs
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+        migraphx::shape zs{dtype, {4}};
+        throws_shape(migraphx::make_op("scatternd_none"), ds, is, us, zs);
+    }
+
+    {
         // k > r
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
@@ -1741,6 +1762,28 @@ TEST_CASE(test_scatternd)
         migraphx::shape is{itype, {4, 1}};
         migraphx::shape us{dtype, {2, 2}};
         throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
+    }
+
+    {
+        // one dynamic input; invalid lens is not rejected
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {4}};
+        migraphx::shape is{itype, {4, 13}};
+        migraphx::shape::dynamic_dimension dd{4, 4, 0};
+        migraphx::shape us{dtype, {dd}};
+        expect_shape(ds, migraphx::make_op("scatternd_none"), ds, is, us);
+    }
+
+    {
+        // one dynamic input
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape::dynamic_dimension dd{4, 4, 0};
+        migraphx::shape us{dtype, {dd}};
+        expect_shape(ds, migraphx::make_op("scatternd_none"), ds, is, us);
     }
 }
 

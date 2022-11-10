@@ -28,6 +28,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,36 +37,71 @@ namespace op {
 template <class Derived>
 struct scatternd_op : op_name<Derived>
 {
+    /** Validate input shapes and return the correct output shape.  For Scatter ops, the output
+     * is the same shape as the data tensor (first input), but cast to a standard shape.
+     */
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
-        auto r         = inputs.front().lens().size();
-        auto q         = inputs.at(1).lens().size();
-        auto k         = inputs.at(1).lens().back();
-        auto ind_lens  = inputs.at(1).lens();
-        auto upd_lens  = inputs.back().lens();
-        auto data_lens = inputs.front().lens();
-        if(k > r)
-            MIGRAPHX_THROW("ScatterND: index of size " + std::to_string(k) +
-                           " is too large for tensor of rank " + std::to_string(r));
-        if(not(std::equal(ind_lens.begin(), ind_lens.begin() + q - 1, upd_lens.begin()) and
-               std::equal(data_lens.begin() + k, data_lens.end(), upd_lens.begin() + q - 1)))
-            MIGRAPHX_THROW("ScatterND: incorrect update shape. update.lens != indices.lens[0:q-1] "
-                           "++ data.lens[k:r-1]");
-        auto s = inputs.front();
-        if(s.broadcasted())
+        check_shapes{inputs, *this, true}.has(3);
+
+        if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
         {
-            return {s.type(), s.lens()};
+            auto r         = inputs.front().lens().size();
+            auto q         = inputs.at(1).lens().size();
+            auto k         = inputs.at(1).lens().back();
+            auto ind_lens  = inputs.at(1).lens();
+            auto upd_lens  = inputs.back().lens();
+            auto data_lens = inputs.front().lens();
+
+            if(q + r - ind_lens.back() - 1 != upd_lens.size())
+            {
+                char msg[100];
+                sprintf(msg,
+                        "ScatterND:  ranks of inputs don't match. %lu + %lu - %lu - 1 != %lu\n",
+                        q,
+                        r,
+                        ind_lens.back(),
+                        upd_lens.size());
+                MIGRAPHX_THROW(msg);
+            }
+
+            if(k > r)
+                MIGRAPHX_THROW("ScatterND: index of size " + std::to_string(k) +
+                               " is too large for tensor of rank " + std::to_string(r));
+            if(not(std::equal(ind_lens.begin(), ind_lens.begin() + q - 1, upd_lens.begin()) and
+                   std::equal(data_lens.begin() + k, data_lens.end(), upd_lens.begin() + q - 1)))
+                MIGRAPHX_THROW(
+                    "ScatterND: incorrect update shape. update.lens != indices.lens[0:q-1] "
+                    "++ data.lens[k:r-1]");
+            auto s = inputs.front();
+            if(s.broadcasted())
+            {
+                return {s.type(), s.lens()};
+            }
+            else
+            {
+                return s.with_lens(s.lens());
+            }
         }
         else
         {
+            // One or more inputs are dynamic; shape validation can't be done yet.  Putting off
+            // validation until 3 static shapes are received means that if any inputs are dynamic
+            // shapes, the validation will happen at evaluation time.
+            auto s = inputs.front();
+            if(s.dynamic())
+                return s;
+            if(s.broadcasted())
+                return {s.type(), s.lens()};
             return s.with_lens(s.lens());
         }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    /** The operation's computation.  Populate the output with the data, and scatter the updates
+     * into it.*/
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         auto& self = static_cast<const Derived&>(*this);
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto updates) {
             std::copy(data.begin(), data.end(), output.begin());
@@ -75,7 +111,7 @@ struct scatternd_op : op_name<Derived>
                 auto indices_shape = indices.get_shape();
                 auto k             = indices_shape.lens().back();
                 auto q             = indices_shape.lens().size();
-                auto r             = output_shape.lens().size();
+                auto r             = dyn_out.computed_shape.lens().size();
                 par_for(updates_shape.elements(), [&](const auto i) {
                     auto updates_idx = updates_std.multi(i);
                     std::vector<std::size_t> indices_idx(q, 0);
@@ -89,7 +125,8 @@ struct scatternd_op : op_name<Derived>
                     std::copy(index_start, index_end, out_idx.begin());
                     std::copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
-                    self.reduction()(output[output_shape.index(out_idx)], updates[i]);
+                    // Perform the specific reduction function for the scatter type
+                    self.reduction()(output[dyn_out.computed_shape.index(out_idx)], updates[i]);
                 });
             });
         });

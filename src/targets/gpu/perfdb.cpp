@@ -27,6 +27,9 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/permutation.hpp>
 #include <fstream>
+#include <mutex>
+
+std::mutex g_db_mutex;
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -88,6 +91,8 @@ std::string generate_miopen_config(const problem_params& pp)
 
 auto query_miopen_db(const std::string& query)
 {
+    const std::lock_guard<std::mutex> lock(g_db_mutex);
+
     // TODO: Store db as a static variable
     const auto dbpath = fs::path{"/opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
     // Check if db file exists.

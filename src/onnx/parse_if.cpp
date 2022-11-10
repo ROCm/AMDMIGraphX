@@ -110,7 +110,7 @@ struct parse_if : op_parser<parse_if>
             if(then_out_shape.type() != else_out_shape.type())
             {
                 MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                               " then and else sub_grahps must have same output type! " +
+                               " then and else sub_graphs must have same output type! " +
                                then_out_shape.type_string() + " vs " +
                                else_out_shape.type_string());
             }

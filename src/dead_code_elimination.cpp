@@ -51,7 +51,7 @@ void dead_code_elimination::apply(module& m) const
         // Skip instruction with empty shape as output unless its [dynamic, builtin, undefined,
         // identity, allocate]
         if((not i->get_shape().dynamic() and i->get_shape().elements() == 0) and
-           not i->name().front() == '@' and not contains({"identity", "allocate"}, i->name()) and
+           not(i->name().front() == '@') and not contains({"identity", "allocate"}, i->name()) and
            not i->is_undefined())
             continue;
         assert(std::distance(m.begin(), i) <= std::distance(m.begin(), last));

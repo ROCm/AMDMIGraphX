@@ -5185,9 +5185,11 @@ def scatternd_test():
 
     return ([node], [data, indices, updates], [output])
 
+
 @onnx_test
 def scatternd_dyn_test():
-    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2, 2])
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT,
+                                         [None, 2, 2])
     indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
                                             [None, 1, 2])
     updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,

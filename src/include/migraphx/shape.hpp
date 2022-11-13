@@ -30,6 +30,7 @@
 #include <numeric>
 #include <memory>
 
+#include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
@@ -89,7 +90,10 @@ struct shape
         std::size_t opt = 0;
 
         template <class Self, class F>
-        static auto reflect(Self& self, F f);
+        static auto reflect(Self& self, F f)
+        {
+            return pack(f(self.min, "min"), f(self.max, "max"), f(self.opt, "opt"));
+        }
 
         bool is_fixed() const;
         bool has_optimal() const;
@@ -115,6 +119,12 @@ struct shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
+    // Construct a dynamic shape from three sets of lengths (of the same rank)
+    shape(type_t t,
+          std::vector<std::size_t> mins,
+          std::vector<std::size_t> maxes,
+          std::vector<std::size_t> opts);
+
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
     {
@@ -135,6 +145,12 @@ struct shape
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
+
+    /*!
+     * The number of dimensions in the shape.
+     * Same as the number of indices required to get a data value.
+     */
+    std::size_t ndim() const;
 
     /*!
      * Return the number of elements in the tensor.
@@ -220,6 +236,9 @@ struct shape
     shape with_lens(const std::vector<std::size_t>& l) const;
 
     shape with_type(type_t t) const;
+
+    // convert the shape to an equivalent dynamic shape
+    shape to_dynamic() const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);

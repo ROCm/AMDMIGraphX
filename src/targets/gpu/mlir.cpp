@@ -517,8 +517,8 @@ struct mlir_program
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
                 // check if HW supports xdlops
-                auto target_chip = trim(split_string(target_arch, ':').front());
-                bool xdlops      = contains(get_xdlops_archs(), target_chip);
+                auto target_chip  = trim(split_string(target_arch, ':').front());
+                bool xdlops       = contains(get_xdlops_archs(), target_chip);
                 std::string tuned = get_tune_params(xdlops);
                 if(not tuned.empty())
                     ops.add_attributes({{"perf_config", tuned}});
@@ -668,7 +668,7 @@ instruction_ref insert_mlir(module& m,
     std::size_t last = 0;
     refs.reserve(inputs.size());
     std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    last = refs.size() - 1;
+    last               = refs.size() - 1;
     co.expected_inputs = to_shapes(refs);
     co.output_arg      = last;
     return m.insert_instruction(ins, co, refs);

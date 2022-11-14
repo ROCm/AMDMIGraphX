@@ -58,8 +58,8 @@ struct contiguous
             {
                 return inputs.front();
             }
-            auto lens = inputs.at(0).lens();
-            auto t    = inputs.at(0).type();
+            auto lens = s0.lens();
+            auto t    = s0.type();
             return {t, lens};
         }
     }

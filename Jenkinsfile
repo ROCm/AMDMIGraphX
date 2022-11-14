@@ -39,7 +39,7 @@ def rocmtestnode(Map conf) {
         }
     }
     node(name) {
-        withEnv(['HSA_ENABLE_SDMA=0', 'MIOPEN_DEBUG_GCN_ASM_KERNELS=0']) {
+        withEnv(['HSA_ENABLE_SDMA=0']) {
             stage("checkout ${variant}") {
                 checkout scm
             }

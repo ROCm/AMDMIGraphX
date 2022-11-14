@@ -314,38 +314,108 @@ def averagepool_same_upper_test():
 
 
 @onnx_test
-def batchnorm_1d_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5])
-    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-    mean = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
-    var = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3])
-    out = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1, 3, 5])
+def batch_norm_flat_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [1])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [1])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
 
-    node = onnx.helper.make_node('BatchNormalization',
-                                 inputs=['0', '1', '2', '3', '4'],
-                                 outputs=['5'],
-                                 epsilon=1e-6,
-                                 momentum=0.9)
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
+        epsilon=1e-6)
 
     return ([node], [x, scale, bias, mean, var], [out])
 
 
 @onnx_test
-def batchnorm_3d_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5, 5, 5])
-    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-    mean = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
-    var = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3])
-    out = helper.make_tensor_value_info('5', TensorProto.FLOAT,
-                                        [1, 3, 5, 5, 5])
+def batch_norm_rank_2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [5])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [5])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [5])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [5])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 5])
 
-    node = onnx.helper.make_node('BatchNormalization',
-                                 inputs=['0', '1', '2', '3', '4'],
-                                 outputs=['5'],
-                                 epsilon=1e-6,
-                                 momentum=0.9)
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
+        epsilon=1e-6)
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_1d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [3])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [3])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [3])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3, 4])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'])
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_2d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [3])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [3])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [3])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 4])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'])
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_3d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16,
+                                      [2, 2, 2, 2, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [2])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [2])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT16, [2])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT16, [2])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT16,
+                                        [2, 2, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
+        epsilon=1e-6)
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_invalid_bias_rank_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [3, 1])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [3])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [3])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 4])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'])
 
     return ([node], [x, scale, bias, mean, var], [out])
 
@@ -3579,6 +3649,16 @@ def neg_test():
 
 
 @onnx_test
+def neg_dynamic_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT64, [None, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.INT64, [None, 3])
+
+    node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def nms_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
@@ -5201,6 +5281,20 @@ def sin_test():
 def sinh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Sinh',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def sinh_dynamic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
 
     node = onnx.helper.make_node(
         'Sinh',

@@ -48,4 +48,4 @@ void gpu_literal_test()
     }
 }
 
-int main() { gpu_literal_test(); }
+int main() { gpu_literal_test(); } // NOLINT (bugprone-exception-escape)

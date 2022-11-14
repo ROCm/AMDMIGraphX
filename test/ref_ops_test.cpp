@@ -848,16 +848,11 @@ TEST_CASE(contiguous_test)
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
 
-    result.visit([&](auto output) {
-        std::vector<size_t> new_strides = {12, 4, 2, 1};
-        EXPECT(bool{output.get_shape().strides() == new_strides});
-    });
-
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    std::vector<size_t> new_lens    = {1, 3, 2, 2};
+    std::vector<size_t> new_strides = {12, 1, 6, 3};
+    EXPECT(migraphx::verify_range(results_vector, data));
 }
 
 TEST_CASE(contiguous_param_test)

@@ -31,10 +31,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-/**
- * Iterates the given function over the standard shape indices.
- * Will iterate using standard strides if given a non-standard shape.
- */
 template <class F>
 void shape_for_each(const migraphx::shape& s, F f)
 {
@@ -55,6 +51,7 @@ void shape_for_each(const migraphx::shape& s, F f)
         call(indices);
     }
 }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

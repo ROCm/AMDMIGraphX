@@ -71,6 +71,19 @@ struct shape_impl
     {
     }
 
+    shape_impl(shape::type_t t,
+               std::vector<std::size_t> mins,
+               std::vector<std::size_t> maxes,
+               std::vector<std::size_t> opts)
+        : m_type(t)
+    {
+        assert(mins.size() == maxes.size() and maxes.size() == opts.size());
+        for(size_t i = 0; i < mins.size(); ++i)
+        {
+            m_dyn_dims.push_back(shape::dynamic_dimension{mins[i], maxes[i], opts[i]});
+        }
+    }
+
     shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
 
     shape::type_t m_type;
@@ -224,6 +237,14 @@ shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
 {
 }
 
+shape::shape(type_t t,
+             std::vector<std::size_t> mins,
+             std::vector<std::size_t> maxes,
+             std::vector<std::size_t> opts)
+    : impl(std::make_shared<shape_impl>(t, std::move(mins), std::move(maxes), std::move(opts)))
+{
+}
+
 shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
 shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
@@ -243,6 +264,15 @@ shape::type_t shape::type() const { return impl->m_type; }
 const std::vector<std::size_t>& shape::lens() const { return impl->m_lens; }
 
 const std::vector<std::size_t>& shape::strides() const { return impl->m_strides; }
+
+std::size_t shape::ndim() const
+{
+    if(this->dynamic())
+    {
+        return dyn_dims().size();
+    }
+    return lens().size();
+}
 
 std::size_t shape::elements() const { return impl->elements(); }
 
@@ -437,6 +467,16 @@ shape shape::with_type(type_t t) const
     return {c};
 }
 
+shape shape::to_dynamic() const
+{
+    if(this->dynamic())
+    {
+        return *this;
+    }
+    std::vector<std::size_t> zeroes(this->ndim(), 0);
+    return {type(), lens(), lens(), zeroes};
+}
+
 std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }
@@ -464,15 +504,11 @@ bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max;
 
 bool shape::dynamic_dimension::has_optimal() const { return opt != 0; }
 
-template <class Self, class F>
-auto shape::dynamic_dimension::reflect(Self& self, F f)
-{
-    return pack(f(self.min, "min"), f(self.max, "max"), f(self.opt, "opt"));
-}
-
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
-    return (x.min == y.min and x.max == y.max and x.opt == y.opt);
+    // don't check opt if both are fixed
+    return (x.min == y.min and x.max == y.max and
+            ((x.is_fixed() and y.is_fixed()) or (x.opt == y.opt)));
 }
 
 bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)

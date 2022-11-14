@@ -30,14 +30,15 @@
 #include <mlir-c/BuiltinTypes.h>
 #include <mlir-c/Diagnostics.h>
 #include <mlir-c/Dialect/MIGraphX.h>
+#include <mlir-c/IntegerSet.h>
+#include <mlir-c/Pass.h>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
 #undef MIGRAPHX_MLIR
-#endif
-#include <mlir-c/IntegerSet.h>
-#include <mlir-c/Pass.h>
+#else
 #include <mlir-c/RegisterEverything.h>
 #include <mlir-c/RegisterRocMLIR.h>
+#endif
 #endif
 
 #include <migraphx/env.hpp>

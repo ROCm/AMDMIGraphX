@@ -74,11 +74,8 @@ RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cma
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 
 # Install newer cmake for onnx runtime
-ENV CMAKE_VERSION=3.24.2
-RUN cd /usr/local && \
-    wget -q -O - https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz | tar zxf -
-ENV PATH=/usr/local/cmake-${CMAKE_VERSION}-linux-x86_64/bin:${PATH}
-
+ARG CMAKE_VERSION=3.24.2
+RUN cget -p /opt/rocm install -X binary https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main

@@ -29,8 +29,6 @@
 #include <fstream>
 #include <mutex>
 
-static std::mutex g_db_mutex; // NOLINT
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -91,6 +89,7 @@ std::string generate_miopen_config(const problem_params& pp)
 
 auto query_miopen_db(const std::string& query)
 {
+    static std::mutex g_db_mutex; // NOLINT
     const std::lock_guard<std::mutex> lock(g_db_mutex);
 
     // TODO: Store db as a static variable

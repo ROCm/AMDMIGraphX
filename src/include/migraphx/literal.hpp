@@ -117,7 +117,6 @@ struct literal : raw_data<literal>
             auto output = make_view(m_shape, as.from(buffer.get()));
             std::copy(start, end, output.begin());
         });
-        // this->visit([&](auto view) { std::copy(start, end, view.begin()); });
     }
 };
 

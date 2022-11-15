@@ -109,6 +109,28 @@ struct ck_passthrough
     }
 };
 
+struct ck_scale
+{
+    constexpr ck_scale(float s) : scale(s) {}
+
+    template <class T, class U>
+    constexpr void operator()(T& y, U x) const
+    {
+        y = x  * static_cast<U>(scale);
+    }
+
+    float scale;
+};
+
+struct ck_add
+{
+    template <class T, class U>
+    constexpr void operator()(T& y, U x) const
+    {
+        y += x;
+    }
+};
+
 #ifdef MIGRAPHX_CK_CHECK
 #define MIGRAPHX_CK_STATIC_ASSERT static_assert
 #else

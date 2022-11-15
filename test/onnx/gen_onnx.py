@@ -1987,6 +1987,42 @@ def gemm_half_test():
 
 
 @onnx_test
+def gemm_softmax_gemm_test():
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT16, [1, 1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT16, [1, 1])
+    c = helper.make_tensor_value_info('c', TensorProto.FLOAT16, [1, 1])
+    b1 = helper.make_tensor_value_info('b1', TensorProto.FLOAT16, [1, 1])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [1, 1])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT16, [1, 1])
+
+    scale_array = np.array([(1/8)])
+
+    scale_tensor = helper.make_tensor(name='scale',
+                                    data_type=TensorProto.FLOAT16,
+                                    dims=scale_array.shape,
+                                    vals=scale_array.flatten().astype(np.float16))
+
+    gemm1 = onnx.helper.make_node('MatMul',
+                                 inputs=['a', 'b'],
+                                 outputs=['gemm1_out'])
+    mul1 = onnx.helper.make_node('Mul',
+                                 inputs=['gemm1_out', 'scale'],
+                                 outputs=['mul1_out'])
+    add1 = onnx.helper.make_node('Add',
+                                 inputs=['mul1_out', 'c'],
+                                 outputs=['add1_out'])
+    softmax = onnx.helper.make_node('Softmax',
+                                 inputs=['add1_out'],
+                                 outputs=['softmax_out'])
+    gemm2 = onnx.helper.make_node('MatMul',
+                                 inputs=['softmax_out', 'b1'],
+                                 outputs=['out'])
+    
+
+    return ([gemm1, mul1, add1, softmax, gemm2], [a, b, c, b1, bias], [out], [scale_tensor])
+
+
+@onnx_test
 def globalavgpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])

@@ -26,6 +26,8 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/permutation.hpp>
 
+#include <cstdio>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -116,6 +118,21 @@ void gemm_impl(context& ctx,
     {
         beta = 0;
     }
+    // else
+    // {
+    //     if (args[2].get_shape().lens()[1] == 12 and args[2].get_shape().lens()[2] == 2)
+    //     {
+    //         args[2].visit([&](auto output){
+    //             std::cout << args[2].get_shape() << std::endl;
+    //             for (auto i = 0; i < args[2].get_shape().elements(); ++i)
+    //             {
+    //                 //if (output[i] == 0 )
+    //                     std::cout << output[i] << ", ";
+    //             }
+    //             std::cout << std::endl;
+    //         });
+    //     }
+    // }
 
     bool transa     = is_transposed(args[0].get_shape());
     bool transb     = is_transposed(args[1].get_shape());

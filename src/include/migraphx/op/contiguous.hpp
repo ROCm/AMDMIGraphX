@@ -54,8 +54,8 @@ struct contiguous
         }
         else
         {
-            auto lens = s0.lens();
-            auto t    = s0.type();
+            const auto& lens = s0.lens();
+            auto t           = s0.type();
             return {t, lens};
         }
     }

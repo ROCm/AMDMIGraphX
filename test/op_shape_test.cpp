@@ -81,6 +81,14 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
+TEST_CASE(binary_dyn_static_error)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{1, 1, 0}, {4, 4, 4}, {4, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    throws_shape(migraphx::make_op("add"), a_shape, b_shape);
+}
+
 TEST_CASE(broadcast)
 {
     {
@@ -116,6 +124,69 @@ TEST_CASE(broadcast)
         migraphx::shape input{migraphx::shape::float_type, {4, 4}};
         throws_shape(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", lens}}), input);
     }
+}
+
+TEST_CASE(broadcast_axis_out_of_range_error)
+{
+    std::vector<std::size_t> lens{1, 1};
+    migraphx::shape input{migraphx::shape::float_type, {1}, {0}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 4}, {"out_lens", lens}}), input);
+}
+
+TEST_CASE(broadcast_2in_static_static)
+{
+    migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
+    migraphx::shape b_input{migraphx::shape::float_type, {4, 4}, {4, 1}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 4}, {1, 0}},
+                 migraphx::make_op("broadcast", {{"axis", 0}}),
+                 a_input,
+                 b_input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 4}, {0, 1}},
+                 migraphx::make_op("broadcast", {{"axis", 1}}),
+                 a_input,
+                 b_input);
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 2}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_not_matching_error)
+{
+    migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
+    migraphx::shape b_input{migraphx::shape::float_type, {2, 2}, {2, 1}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_dynamic_s0_error1)
+{
+    migraphx::shape a_input{migraphx::shape::float_type, {4, 2}, {2, 1}};
+    migraphx::shape b_input{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {2, 2, 0}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 0}}), b_input, a_input);
+}
+
+TEST_CASE(broadcast_2in_dynamic_s0_error2)
+{
+    std::vector<migraphx::shape::dynamic_dimension> dd{{4, 4, 0}};
+    migraphx::shape a_input{migraphx::shape::float_type, dd};
+    migraphx::shape b_input{migraphx::shape::float_type, {4, 4}, {4, 1}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 0}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_static_dyn)
+{
+    migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
+    migraphx::shape b_input{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {2, 2, 0}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 0}}), a_input, b_input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {2, 2, 0}}},
+                 migraphx::make_op("broadcast", {{"axis", 1}}),
+                 a_input,
+                 b_input);
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 2}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_dyn_s0_ndim_greater_than_1_error)
+{
+    migraphx::shape a_input{migraphx::shape::float_type, {4, 2}};
+    migraphx::shape b_input{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {2, 2, 0}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 0}}), a_input, b_input);
 }
 
 TEST_CASE(convolution_shape)
@@ -1112,6 +1183,213 @@ TEST_CASE(multibroadcast)
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};
         throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
+}
+
+TEST_CASE(multibroadcast_2in_static_dyn0)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{1, 4, 0}, {4, 4, 4}, {4, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {4, 4, 0}}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {4, 4, 0}}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_dyn1)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 6}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{8, 8, 0}, {6, 6, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{8, 8, 0}, {6, 6, 0}}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{8, 8, 0}, {6, 6, 0}}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_dyn2)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 6}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{8, 8, 0}, {6, 6, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{8, 8, 0}, {6, 6, 0}}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(b)}}),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{8, 8, 0}, {6, 6, 0}}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(b)}}),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_dyn_error0)
+{
+    // doesn't match on first dimension
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{1, 3, 0}, {6, 6, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
+    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_dyn_error1)
+{
+    // doesn't match on first dimension
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{1, 4, 0}, {6, 6, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
+    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_dyn_error2)
+{
+    // doesn't match on first dimension
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{1, 2, 0}, {6, 6, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
+    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_dyn_dyn0)
+{
+    std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 2}, {2, 4, 0}};
+    migraphx::shape a_shape{migraphx::shape::float_type, a};
+    std::vector<migraphx::shape::dynamic_dimension> b{{2, 4, 2}, {2, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 4, 2}, {2, 4, 0}}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 4, 2}, {2, 4, 0}}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_dyn_dyn1)
+{
+    std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 2}, {2, 4, 0}};
+    migraphx::shape a_shape{migraphx::shape::float_type, a};
+    std::vector<migraphx::shape::dynamic_dimension> b{{2, 4, 2}, {2, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 4, 2}, {2, 4, 0}}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(a)}}),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 4, 2}, {2, 4, 0}}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(a)}}),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_dyn_dyn_error0)
+{
+    // max doesn't match on second dimension of a
+    std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 2}, {2, 4, 0}};
+    migraphx::shape a_shape{migraphx::shape::float_type, a};
+    std::vector<migraphx::shape::dynamic_dimension> b{{2, 5, 2}, {2, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
+    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_dyn_dyn_error1)
+{
+    // opt doesn't match on second dimension of a
+    std::vector<migraphx::shape::dynamic_dimension> a{{1, 4, 0}, {2, 4, 2}, {2, 4, 0}};
+    migraphx::shape a_shape{migraphx::shape::float_type, a};
+    std::vector<migraphx::shape::dynamic_dimension> b{{2, 4, 3}, {2, 4, 0}};
+    migraphx::shape b_shape{migraphx::shape::float_type, b};
+    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
+    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_static0)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {3, 6}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 6}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 6}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_static1)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 8}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {4, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}, {0, 1}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}, {8, 1}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_static2)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {8}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {4, 4, 1}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 4, 8}, {0, 0, 1}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 4, 8}, {4, 1, 0}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_static3)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {4, 1}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4, 4}, {16, 4, 1}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4, 4}, {0, 1, 0}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_static4)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 1, 4}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {4, 1}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4, 4}, {4, 0, 1}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4, 4}, {0, 1, 0}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_static_error0)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {4, 3}};
+    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
+    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
 }
 
 TEST_CASE(multinomial)

@@ -80,6 +80,7 @@ struct literal : raw_data<literal>
         fill(start, end);
     }
 
+    // Directly copies buffer of x
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
     literal(const shape& s, T* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
@@ -107,11 +108,16 @@ struct literal : raw_data<literal>
     std::shared_ptr<char> buffer;
     shape m_shape;
 
+    // Keeps the same data ordering as the given container
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
         assert(std::distance(start, end) == m_shape.elements());
-        m_shape.visit_type([&](auto as) { std::copy(start, end, as.from(buffer.get())); });
+        m_shape.visit_type([&](auto as) {
+            auto output = make_view(m_shape, as.from(buffer.get()));
+            std::copy(start, end, output.begin());
+        });
+        // this->visit([&](auto view) { std::copy(start, end, view.begin()); });
     }
 };
 

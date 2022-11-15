@@ -308,17 +308,18 @@ bool instruction::is_undefined() const
     {
         return true;
     }
-    else if(is_context_free(op))
+    else if(this->inputs().empty())
+    {
+        return false;
+    }
+    else
     {
         return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
             return arg->is_undefined();
         });
     }
-    else
-    {
-        return false;
-    }
 }
+
 
 bool instruction::can_eval() const
 {

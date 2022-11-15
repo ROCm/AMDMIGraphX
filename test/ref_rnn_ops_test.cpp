@@ -982,35 +982,32 @@ TEST_CASE(rnn_fp16)
     migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
     float clip = 0.0f;
 
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto seq = mm->add_literal(migraphx::literal{in_shape, input});
-        auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
-        auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto seq = mm->add_literal(migraphx::literal{in_shape, input});
+    auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
+    auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
 
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "rnn",
-                {{"hidden_size", hidden_size},
-                 {"actv_func", {}},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        migraphx::quantize_fp16(p);
-        p.compile(migraphx::ref::target{});
+    auto out_hs = mm->add_instruction(
+        migraphx::make_op("rnn",
+                          {{"hidden_size", hidden_size},
+                           {"actv_func", {}},
+                           {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                           {"clip", clip}}),
+        seq,
+        w,
+        r);
+    mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+    migraphx::quantize_fp16(p);
+    p.compile(migraphx::ref::target{});
 
-        auto last_output = p.eval({}).back();
-        std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+    auto last_output = p.eval({}).back();
+    std::vector<float> last_output_data;
+    last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
-        std::vector<float> last_output_data_gold{
-            0.2935145, -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.};
-        EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold, 5e4));
-    }
+    std::vector<float> last_output_data_gold{
+        0.2935145, -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.};
+    EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold, 5e4));
 }
 
 TEST_CASE(gru_forward)
@@ -2934,48 +2931,45 @@ TEST_CASE(gru_fp16)
     std::vector<float> ih_data{
         -0.0468, 0.5691, -0.0882, 0.8340, 0.1483, -0.3902, -0.5348, 0.4178, 1.0175, 0.9212};
     float clip = 0.0f;
-    // concatenation of hidden states for output
-    {
-        migraphx::program p;
-        auto* mm  = p.get_main_module();
-        auto seq  = mm->add_literal(migraphx::literal{in_shape, input});
-        auto w    = mm->add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
-        auto und  = mm->add_instruction(migraphx::make_op("undefined"));
-        auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip},
-                 {"linear_before_reset", 1}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-        migraphx::quantize_fp16(p);
 
-        p.compile(migraphx::ref::target{});
-        auto hs_concat = p.eval({}).back();
-        std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto seq  = mm->add_literal(migraphx::literal{in_shape, input});
+    auto w    = mm->add_literal(migraphx::literal{w_shape, w_data});
+    auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
+    auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
+    auto und  = mm->add_instruction(migraphx::make_op("undefined"));
+    auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
+    mm->add_instruction(
+        migraphx::make_op("gru",
+                          {{"hidden_size", hidden_size},
+                           {"actv_func",
+                            migraphx::to_value(std::vector<migraphx::operation>{
+                                migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
+                           {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                           {"clip", clip},
+                           {"linear_before_reset", 1}}),
+        seq,
+        w,
+        r,
+        bias,
+        und,
+        ih);
+    migraphx::quantize_fp16(p);
 
-        std::vector<float> hs_data_gold{
-            -0.27298412, 0.42363745,  -0.09368783, 0.4823072,   -0.02183238, -0.6873896,
-            0.16144305,  0.31932795,  0.6104771,   0.79759157,  -0.31791314, 0.5249062,
-            0.08800987,  0.46404213,  -0.11872687, -0.26210734, 0.34448293,  -0.0176422,
-            0.48523626,  0.60002893,  -0.3969709,  0.43360898,  0.35775262,  0.23280787,
-            -0.52179873, -0.21944991, 0.4535257,   -0.13735442, 0.51757574,  0.50380427};
+    p.compile(migraphx::ref::target{});
+    auto hs_concat = p.eval({}).back();
+    std::vector<float> hs_data;
+    hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-        EXPECT(migraphx::verify_range(hs_data, hs_data_gold, 5e4));
-    }
+    std::vector<float> hs_data_gold{-0.27298412, 0.42363745, -0.09368783, 0.4823072,  -0.02183238,
+                                    -0.6873896,  0.16144305, 0.31932795,  0.6104771,  0.79759157,
+                                    -0.31791314, 0.5249062,  0.08800987,  0.46404213, -0.11872687,
+                                    -0.26210734, 0.34448293, -0.0176422,  0.48523626, 0.60002893,
+                                    -0.3969709,  0.43360898, 0.35775262,  0.23280787, -0.52179873,
+                                    -0.21944991, 0.4535257,  -0.13735442, 0.51757574, 0.50380427};
+
+    EXPECT(migraphx::verify_range(hs_data, hs_data_gold, 5e4));
 }
 
 TEST_CASE(lstm_forward)
@@ -4915,54 +4909,51 @@ TEST_CASE(lstm_fp16)
     migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
     migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
 
-    // forward, hidden state concatenation as output
-    {
-        migraphx::program p;
-        auto* mm  = p.get_main_module();
-        auto seq  = mm->add_literal(migraphx::literal{in_shape, input_data});
-        auto w    = mm->add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
-        auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
-        auto ic   = mm->add_literal(migraphx::literal{ic_shape, ic_data});
-        auto und  = mm->add_instruction(migraphx::make_op("undefined"));
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto seq  = mm->add_literal(migraphx::literal{in_shape, input_data});
+    auto w    = mm->add_literal(migraphx::literal{w_shape, w_data});
+    auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
+    auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
+    auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
+    auto ic   = mm->add_literal(migraphx::literal{ic_shape, ic_data});
+    auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
-            migraphx::make_op(
-                "lstm",
-                {{"hidden_size", hidden_size},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip},
-                 {"input_forget", 0}}),
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih,
-            ic,
-            und);
-        migraphx::quantize_fp16(p);
-        p.compile(migraphx::ref::target{});
+    mm->add_instruction(
+        migraphx::make_op(
+            "lstm",
+            {{"hidden_size", hidden_size},
+             {"actv_func",
+              migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                  migraphx::make_op("tanh"),
+                                                                  migraphx::make_op("tanh")})},
+             {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+             {"clip", clip},
+             {"input_forget", 0}}),
+        seq,
+        w,
+        r,
+        bias,
+        und,
+        ih,
+        ic,
+        und);
+    migraphx::quantize_fp16(p);
+    p.compile(migraphx::ref::target{});
 
-        auto hs_concat = p.eval({}).back();
-        std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+    auto hs_concat = p.eval({}).back();
+    std::vector<float> hs_data;
+    hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-        std::vector<float> hs_data_gold{
-            0.0417273, -0.272355,  0.206765,   0.223879,    0.138193,   -0.0322939, -0.0891815,
-            0.15773,   0.19139,    -0.127708,  -0.409371,   -0.136186,  0.0742487,  -0.0800085,
-            0.259897,  0.0670196,  0.184266,   0.0610048,   -0.138041,  0.0963885,  0.0213755,
-            -0.146027, -0.0324509, -0.0620429, -0.00532985, 0.0440265,  0.29654,    -0.0463156,
-            0.0498799, 0.125772,   0.0533032,  -0.131413,   0.0988431,  -0.018085,  -0.159434,
-            0.030266,  -0.0847427, 0.0874114,  0.304256,    -0.0585745, -0.0223018, 0.131113,
-            0.135643,  -0.0566208, 0.142701,   0.0342236,   -0.198664,  0.0702607};
-        EXPECT(migraphx::verify_range(hs_data, hs_data_gold, 5e4));
-    }
+    std::vector<float> hs_data_gold{
+        0.0417273, -0.272355,  0.206765,   0.223879,    0.138193,   -0.0322939, -0.0891815,
+        0.15773,   0.19139,    -0.127708,  -0.409371,   -0.136186,  0.0742487,  -0.0800085,
+        0.259897,  0.0670196,  0.184266,   0.0610048,   -0.138041,  0.0963885,  0.0213755,
+        -0.146027, -0.0324509, -0.0620429, -0.00532985, 0.0440265,  0.29654,    -0.0463156,
+        0.0498799, 0.125772,   0.0533032,  -0.131413,   0.0988431,  -0.018085,  -0.159434,
+        0.030266,  -0.0847427, 0.0874114,  0.304256,    -0.0585745, -0.0223018, 0.131113,
+        0.135643,  -0.0566208, 0.142701,   0.0342236,   -0.198664,  0.0702607};
+    EXPECT(migraphx::verify_range(hs_data, hs_data_gold, 5e4));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

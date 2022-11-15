@@ -383,9 +383,9 @@ struct ref_gemm
     std::string name() const { return "ref::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         migemm(result, args[0], args[1], 1.0f, 0.0f);
 
         return result;

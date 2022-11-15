@@ -36,7 +36,6 @@
 #warning "Incompatible version of rocMLIR library used, disabling"
 #undef MIGRAPHX_MLIR
 #else
-#include <mlir-c/RegisterEverything.h>
 #include <mlir-c/RegisterRocMLIR.h>
 #endif
 #endif
@@ -172,7 +171,6 @@ struct mlir_program
     {
         MlirDialectRegistry registry = mlirDialectRegistryCreate();
         mlirRegisterRocMLIRDialects(registry);
-        mlirRegisterAllDialects(registry);
         mlirContextAppendDialectRegistry(ctx.get(), registry);
         mlirContextLoadAllAvailableDialects(ctx.get());
         mlirDialectRegistryDestroy(registry);

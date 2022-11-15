@@ -848,10 +848,8 @@ TEST_CASE(contiguous_test)
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
 
-    result.visit([&](auto output) {
-        std::vector<size_t> new_strides = {12, 4, 2, 1};
-        EXPECT(bool{output.get_shape().strides() == new_strides});
-    });
+    std::vector<size_t> new_strides = {12, 4, 2, 1};
+    EXPECT(result.get_shape().strides() == new_strides);
 
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -875,10 +873,8 @@ TEST_CASE(contiguous_param_test)
     params["X"] = migraphx::argument(a_shape, data.data());
     auto result = p.eval(params).back();
 
-    result.visit([&](auto output) {
-        std::vector<size_t> new_strides = {12, 4, 2, 1};
-        EXPECT(bool{output.get_shape().strides() == new_strides});
-    });
+    std::vector<size_t> new_strides = {12, 4, 2, 1};
+    EXPECT(result.get_shape().strides() == new_strides);
 
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

@@ -121,10 +121,7 @@ struct C0MatrixMask
 
     __device__ bool IsUpperTriangle(ck::index_t m, ck::index_t n) const { return n > m; }
 
-    __device__ bool IsNOutOfBound(/*ck::index_t m, */ ck::index_t n) const
-    {
-        return n >= NRaw_;
-    }
+    __device__ bool IsNOutOfBound(/*ck::index_t m, */ ck::index_t n) const { return n >= NRaw_; }
 
     __device__ bool IsMaskedElement(ck::index_t m, ck::index_t n) const
     {
@@ -197,8 +194,8 @@ template <typename ALayout,
           ck::LoopScheduler LoopSched = ck::LoopScheduler::Default>
 struct CK_DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 {
-    static constexpr auto matrix_padder =
-        ck::tensor_operation::device::GemmGemmPadder<GemmSpec, ck::index_t, ck::index_t, ck::index_t, ck::index_t>{
+    static constexpr auto matrix_padder = ck::tensor_operation::device::
+        GemmGemmPadder<GemmSpec, ck::index_t, ck::index_t, ck::index_t, ck::index_t>{
             MPerBlock, NPerBlock, KPerBlock, Gemm1NPerBlock};
 
     static constexpr auto get_AK1() { return AK1; };
@@ -215,11 +212,11 @@ struct CK_DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     CElementwiseOperation c_element_op{};
     AccElementwiseOperation acc_element_op{alpha};
 
-    template<typename AGridDesc_AK0_M_AK1,
-        typename BGridDesc_BK0_N_BK1,
-        typename B1GridDesc_BK0_N_BK1,
-        typename CGridDesc_M_N>
-    struct rt_gridwisegemm 
+    template <typename AGridDesc_AK0_M_AK1,
+              typename BGridDesc_BK0_N_BK1,
+              typename B1GridDesc_BK0_N_BK1,
+              typename CGridDesc_M_N>
+    struct rt_gridwisegemm
     {
         // GridwiseGemm
         using GridwiseGemm = ck::GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
@@ -285,7 +282,6 @@ struct CK_DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             MaskOutUpperTriangle>;
     };
 };
-
 
 } // namespace migraphx
 #endif

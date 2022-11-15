@@ -31,6 +31,7 @@ from onnx import TensorProto
 
 
 def onnx_test(op_test):
+
     def run_test():
         op_info = op_test()
         if len(op_info) > 3:
@@ -1995,16 +1996,17 @@ def gemm_softmax_gemm_test():
     bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [1, 1])
     out = helper.make_tensor_value_info('out', TensorProto.FLOAT16, [1, 1])
 
-    scale_array = np.array([(1/8)])
+    scale_array = np.array([(1 / 8)])
 
     scale_tensor = helper.make_tensor(name='scale',
-                                    data_type=TensorProto.FLOAT16,
-                                    dims=scale_array.shape,
-                                    vals=scale_array.flatten().astype(np.float16))
+                                      data_type=TensorProto.FLOAT16,
+                                      dims=scale_array.shape,
+                                      vals=scale_array.flatten().astype(
+                                          np.float16))
 
     gemm1 = onnx.helper.make_node('MatMul',
-                                 inputs=['a', 'b'],
-                                 outputs=['gemm1_out'])
+                                  inputs=['a', 'b'],
+                                  outputs=['gemm1_out'])
     mul1 = onnx.helper.make_node('Mul',
                                  inputs=['gemm1_out', 'scale'],
                                  outputs=['mul1_out'])
@@ -2012,14 +2014,14 @@ def gemm_softmax_gemm_test():
                                  inputs=['mul1_out', 'c'],
                                  outputs=['add1_out'])
     softmax = onnx.helper.make_node('Softmax',
-                                 inputs=['add1_out'],
-                                 outputs=['softmax_out'])
+                                    inputs=['add1_out'],
+                                    outputs=['softmax_out'])
     gemm2 = onnx.helper.make_node('MatMul',
-                                 inputs=['softmax_out', 'b1'],
-                                 outputs=['out'])
-    
+                                  inputs=['softmax_out', 'b1'],
+                                  outputs=['out'])
 
-    return ([gemm1, mul1, add1, softmax, gemm2], [a, b, c, b1, bias], [out], [scale_tensor])
+    return ([gemm1, mul1, add1, softmax, gemm2], [a, b, c, b1,
+                                                  bias], [out], [scale_tensor])
 
 
 @onnx_test

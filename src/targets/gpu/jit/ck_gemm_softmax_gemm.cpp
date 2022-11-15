@@ -213,16 +213,19 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         return "ck::Tuple<" + join_strings(s, ",") + ">";
     }
 
-    std::vector<std::string> names() const { return {"ck_gemm_softmax_gemm", "gpu::ck_gemm_softmax_gemm"}; }
+    std::vector<std::string> names() const
+    {
+        return {"ck_gemm_softmax_gemm", "gpu::ck_gemm_softmax_gemm"};
+    }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
         auto a_shape = inputs[0];
         auto b_shape = inputs[1];
         auto c_shape = inputs.back();
-        auto m = a_shape.lens()[0];
-        auto k = a_shape.lens()[1];
-        auto n = c_shape.lens()[1];
+        auto m       = a_shape.lens()[0];
+        auto k       = a_shape.lens()[1];
+        auto n       = c_shape.lens()[1];
 
         auto rank = a_shape.lens().size();
 
@@ -257,16 +260,17 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         //     gemm_type += "Padding";
         // ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
-        auto gemm1_nperblock = 64;
+        auto gemm1_nperblock  = 64;
         auto gemm01_mperblock = 256;
-        auto blocks_per_batch = int_div_ceil(m, gemm01_mperblock) * int_div_ceil(n, gemm1_nperblock);//ip.get_grid_size(config);
-        auto batch_count      = std::accumulate(c_shape.lens().rbegin() + 2,
+        auto blocks_per_batch = int_div_ceil(m, gemm01_mperblock) *
+                                int_div_ceil(n, gemm1_nperblock); // ip.get_grid_size(config);
+        auto batch_count = std::accumulate(c_shape.lens().rbegin() + 2,
                                            c_shape.lens().rend(),
                                            std::size_t{1},
                                            std::multiplies<std::size_t>());
 
         hip_compile_options options;
-        auto block_size = 256; //ip.get_block_size();
+        auto block_size = 256; // ip.get_block_size();
         auto grid_size  = batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
@@ -278,7 +282,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
             options.params += " -DMIGRAPHX_CK_CHECK=1";
 
         auto src = interpolate_string(ck_gemm_softmax_gemm_kernel,
-                                      {{"instance", ""/* ip.str() */},
+                                      {{"instance", "" /* ip.str() */},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
@@ -296,7 +300,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         {
             auto* pm      = ins->module_inputs().front();
             v["preamble"] = generate_pointwise(*pm, "post_ck_gemm_softmax_gemm_function") +
-                            "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm_softmax_gemm, post_ck_gemm_softmax_gemm_function);";
+                            "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm_softmax_gemm, "
+                            "post_ck_gemm_softmax_gemm_function);";
             v["post"]   = "ck_function_adaptor<post_ck_gemm_softmax_gemm>";
             v["kernel"] = "ck_gemm_softmax_gemm_" + generate_name_from_ops(*pm) + "_kernel";
         }
@@ -306,7 +311,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
             if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
             {
                 std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};
-                std::cout << "ck_gemm_softmax_gemm: " << to_json_string(to_value(gemm_shapes)) << std::endl;
+                std::cout << "ck_gemm_softmax_gemm: " << to_json_string(to_value(gemm_shapes))
+                          << std::endl;
             }
         });
     }

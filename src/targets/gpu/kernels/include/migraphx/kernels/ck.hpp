@@ -116,7 +116,7 @@ struct ck_scale
     template <class T, class U>
     constexpr void operator()(T& y, U x) const
     {
-        y = x  * static_cast<U>(scale);
+        y = x * static_cast<U>(scale);
     }
 
     float scale;

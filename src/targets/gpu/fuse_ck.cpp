@@ -74,12 +74,12 @@ struct ck_gemm_scale_bias_softmax_gemm
         //     MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
-        auto a = inputs[0];
-        auto b = inputs[1];
+        auto a  = inputs[0];
+        auto b  = inputs[1];
         auto b1 = inputs[2];
         for(const auto& input : inputs)
         {
-            //std::cout << input << std::endl;
+            // std::cout << input << std::endl;
             check_gemm_shape(input);
         }
         return op.compute_shape({op.compute_shape({a, b}), b1});
@@ -158,19 +158,22 @@ struct find_ck_gemm_scale_bias_softmax_gemm
 {
     auto matcher() const
     {
-        auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
-        auto pw = match::name("pointwise")(match::any_of[match::inputs()](gemm1)).bind("scale_bias");
+        auto gemm1 =
+            match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
+        auto pw =
+            match::name("pointwise")(match::any_of[match::inputs()](gemm1)).bind("scale_bias");
         auto softmax = match::name("softmax")(match::any_of[match::inputs()](pw)).bind("softmax");
-        return match::name("dot")(is_ck_gemm().bind("gemm2"))(match::any_of[match::inputs()](softmax));
+        return match::name("dot")(is_ck_gemm().bind("gemm2"))(
+            match::any_of[match::inputs()](softmax));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         std::cout << "Matched" << std::endl;
-        auto ins = r.result;
+        auto ins       = r.result;
         auto gemm2_ins = r.instructions["gemm2"];
-        auto sm_ins = r.instructions["softmax"];
-        auto pw_ins = r.instructions["scale_bias"];
+        auto sm_ins    = r.instructions["softmax"];
+        auto pw_ins    = r.instructions["scale_bias"];
         auto gemm1_ins = r.instructions["gemm1"];
 
         gemm2_ins->debug_print();
@@ -178,18 +181,21 @@ struct find_ck_gemm_scale_bias_softmax_gemm
         pw_ins->debug_print();
         gemm1_ins->debug_print();
 
-        auto inputs = gemm1_ins->inputs(); // A, B
+        auto inputs = gemm1_ins->inputs();            // A, B
         inputs.push_back(gemm2_ins->inputs().back()); // B1
-        //inputs.push_back(pw_ins->inputs().back()); // C
+        // inputs.push_back(pw_ins->inputs().back()); // C
 
-        mpm.get_module().replace_instruction(ins, ck_gemm_scale_bias_softmax_gemm{gemm2_ins->get_operator()}, inputs);
+        mpm.get_module().replace_instruction(
+            ins, ck_gemm_scale_bias_softmax_gemm{gemm2_ins->get_operator()}, inputs);
     }
 
     // auto matcher() const
     // {
-    //     auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
-    //     auto softmax = match::name("softmax")(match::any_of[match::inputs()](gemm1)).bind("softmax");
-    //     return match::name("dot")(is_ck_gemm().bind("gemm2"))(match::any_of[match::inputs()](softmax));
+    //     auto gemm1 =
+    //     match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
+    //     auto softmax =
+    //     match::name("softmax")(match::any_of[match::inputs()](gemm1)).bind("softmax"); return
+    //     match::name("dot")(is_ck_gemm().bind("gemm2"))(match::any_of[match::inputs()](softmax));
     // }
 
     // void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -207,7 +213,8 @@ struct find_ck_gemm_scale_bias_softmax_gemm
     //     auto inputs = gemm1_ins->inputs(); // A, B
     //     inputs.push_back(gemm2_ins->inputs().back()); // B1
 
-    //     mpm.get_module().replace_instruction(ins, ck_gemm_scale_bias_softmax_gemm{gemm2_ins->get_operator()}, inputs);
+    //     mpm.get_module().replace_instruction(ins,
+    //     ck_gemm_scale_bias_softmax_gemm{gemm2_ins->get_operator()}, inputs);
     // }
 };
 

@@ -58,7 +58,7 @@ TEST_CASE(literal_nstd_shape_vector)
 
     // check data buffer is read in correctly
     std::vector<float> expected_buffer = {0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11};
-    auto start                         = reinterpret_cast<const float*>(l0.data());
+    const auto& start                  = reinterpret_cast<const float*>(l0.data());
     std::vector<float> l0_data{start, start + 12};
     EXPECT(l0_data == expected_buffer);
 

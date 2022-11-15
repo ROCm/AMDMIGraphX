@@ -320,7 +320,6 @@ bool instruction::is_undefined() const
     }
 }
 
-
 bool instruction::can_eval() const
 {
     if(op.name() == "@literal")

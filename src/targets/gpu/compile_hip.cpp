@@ -176,6 +176,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');
+    options.push_back("-DMIGRAPHX_HIPRTC");
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
@@ -183,7 +184,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
        }))
         options.push_back("-std=c++17");
     options.push_back("-fno-gpu-rdc");
-    options.push_back(" -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
+    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--offload-arch=" + arch);
     prog.compile(options);
@@ -292,14 +293,14 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     return {compiler.compile(srcs)};
 }
 
+#endif // MIGRAPHX_USE_HIPRTC
+
 std::string enum_params(std::size_t count, std::string param)
 {
     std::vector<std::string> items(count);
     transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
     return join_strings(items, ",");
 }
-
-#endif // MIGRAPHX_USE_HIPRTC
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

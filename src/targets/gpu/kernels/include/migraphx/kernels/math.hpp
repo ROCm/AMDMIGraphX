@@ -28,8 +28,7 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
-#include <hip/hip_fp16.h>
-#include <hip/math_functions.h>
+#include <migraphx/kernels/hip.hpp>
 
 namespace migraphx {
 

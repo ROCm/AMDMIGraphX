@@ -29,7 +29,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
-#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,90 +54,52 @@ struct squeeze
     std::string name() const { return "squeeze"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
+        check_shapes{inputs, *this}.has(1);
         auto input_shape = inputs[0];
-        if(input_shape.dynamic())
+        auto type        = input_shape.type();
+        auto old_lens    = input_shape.lens();
+        auto old_strides = input_shape.strides();
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
         {
-            std::vector<shape::dynamic_dimension> one_dyn_dims{{1, 1, 0}, {1, 1, 1}};
-            if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return not contains(one_dyn_dims, input_shape.dyn_dims()[axis]);
-               }))
+            MIGRAPHX_THROW("squeeze axis dimension should be equal to 1");
+        }
+        std::vector<std::size_t> new_lens;
+        std::vector<std::size_t> new_strides;
+        if(axes.empty())
+        {
+            for(auto i : range(old_lens.size()))
             {
-                MIGRAPHX_THROW(
-                    "SQUEEZE: dynamic axis dimension should be equal to {1, 1, 0} or {1, 1, 1}");
-            }
-            std::vector<shape::dynamic_dimension> dyn_dims = {};
-            if(axes.empty())
-            {
-                for(auto i : range(input_shape.ndim()))
+                if(old_lens[i] != 1)
                 {
-                    auto dd = input_shape.dyn_dims()[i];
-                    if(not contains(one_dyn_dims, dd))
-                    {
-                        dyn_dims.push_back(dd);
-                    }
+                    new_lens.push_back(old_lens[i]);
+                    new_strides.push_back(old_strides[i]);
                 }
             }
-            else
-            {
-                for(auto i : range(input_shape.ndim()))
-                {
-                    if(std::find(axes.begin(), axes.end(), i) == axes.end())
-                    {
-                        dyn_dims.push_back(input_shape.dyn_dims()[i]);
-                    }
-                }
-            }
-            return {input_shape.type(), dyn_dims};
         }
         else
         {
-            auto type        = input_shape.type();
-            auto old_lens    = input_shape.lens();
-            auto old_strides = input_shape.strides();
-            if(std::any_of(
-                   axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
+            for(auto i : range(old_lens.size()))
             {
-                MIGRAPHX_THROW("SQUEEZE: static axis dimension should be equal to 1");
-            }
-            std::vector<std::size_t> new_lens;
-            std::vector<std::size_t> new_strides;
-            if(axes.empty())
-            {
-                for(auto i : range(old_lens.size()))
+                if(std::find(axes.begin(), axes.end(), i) == axes.end())
                 {
-                    if(old_lens[i] != 1)
-                    {
-                        new_lens.push_back(old_lens[i]);
-                        new_strides.push_back(old_strides[i]);
-                    }
+                    new_lens.push_back(old_lens[i]);
+                    new_strides.push_back(old_strides[i]);
                 }
             }
-            else
-            {
-                for(auto i : range(old_lens.size()))
-                {
-                    if(std::find(axes.begin(), axes.end(), i) == axes.end())
-                    {
-                        new_lens.push_back(old_lens[i]);
-                        new_strides.push_back(old_strides[i]);
-                    }
-                }
-            }
-            if(new_lens.empty())
-            {
-                return shape{type};
-            }
-            else
-            {
-                return shape{type, new_lens, new_strides};
-            }
+        }
+        if(new_lens.empty())
+        {
+            return shape{type};
+        }
+        else
+        {
+            return shape{type, new_lens, new_strides};
         }
     }
 
-    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
-        return args[0].reshape(dyn_out.computed_shape);
+        return args[0].reshape(output_shape);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

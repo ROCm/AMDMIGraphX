@@ -87,7 +87,7 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
-RUN cget -p /usr/local install ROCmSoftwarePlatform/llvm-project-mlir@64d60eb0edeeca8e554131d47ec568b8d8ae542d -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off
+RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@0e140c77232c1d3d25750648843717cd6aecd00c -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

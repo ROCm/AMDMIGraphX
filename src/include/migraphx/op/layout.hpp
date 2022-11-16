@@ -21,28 +21,48 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#include <migraphx/manage_ptr.hpp>
+#ifndef MIGRAPHX_GUARD_OP_LAYOUT_HPP
+#define MIGRAPHX_GUARD_OP_LAYOUT_HPP
+
 #include <migraphx/config.hpp>
-#include <rocblas/rocblas.h>
+#include <array>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/op/unary.hpp>
+#include <cmath>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
 
-using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
+struct layout : unary<layout>
+{
+    std::vector<int64_t> permutation;
 
-rocblas_handle_ptr create_rocblas_handle_ptr();
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.permutation, "permutation"));
+    }
 
-struct context;
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1).only_dims(permutation.size());
+        auto lens = inputs.at(0).lens();
+        auto t    = inputs.at(0).type();
+        return shape::from_permutation(t, lens, permutation);
+    }
 
-bool get_compute_fp32_flag();
+    auto apply() const
+    {
+        return [](auto x) { return x; };
+    }
+};
 
-bool get_int8_x4_format(context& ctx);
-} // namespace gpu
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_OP_LAYOUT_HPP

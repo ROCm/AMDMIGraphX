@@ -26,6 +26,9 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/onnx/checks.hpp>
+
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,12 +58,12 @@ struct parse_split : op_parser<parse_split>
         {
             literal s = parser.parse_value(info.attributes.at("split"));
             s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
-
-            if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
-               static_cast<int64_t>(lens[tuned_axis]))
-            {
-                MIGRAPHX_THROW("PARSE_SPLIT: sum of split attribute unequal to dim size of axis!");
-            }
+        }
+        else if(args.size() == 2)
+        {
+            auto s = args[1]->eval();
+            check_arg_empty(s, "Split: dynamic shape is not supported");
+            s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
         }
         // no split attribute, input is equally divided
         else
@@ -72,6 +75,15 @@ struct parse_split : op_parser<parse_split>
             }
             auto dl = lens[tuned_axis] / info.num_outputs;
             vec_splits.resize(info.num_outputs, dl);
+        }
+
+        if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
+           static_cast<int64_t>(lens[tuned_axis]))
+        {
+            MIGRAPHX_THROW(
+                "PARSE_SPLIT: sum of split attribute unequal to dim size of axis! tuned axis:" +
+                std::to_string(lens[tuned_axis]) + " Output " + to_string_range(vec_splits) +
+                " Rank " + std::to_string(n_rank) + " Len outs " + to_string_range(lens));
         }
 
         std::vector<instruction_ref> ret_ins;

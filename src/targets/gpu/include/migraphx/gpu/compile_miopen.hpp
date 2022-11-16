@@ -21,28 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#include <migraphx/manage_ptr.hpp>
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
+
 #include <migraphx/config.hpp>
-#include <rocblas/rocblas.h>
+#include <migraphx/instruction_ref.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+struct context;
+struct operation;
+
 namespace gpu {
 
-using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
+struct compile_miopen
+{
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::compile_miopen"; }
+    void apply(module& m) const;
+    std::size_t compile(operation& op, instruction_ref ins, bool format) const;
+};
 
-rocblas_handle_ptr create_rocblas_handle_ptr();
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
-
-struct context;
-
-bool get_compute_fp32_flag();
-
-bool get_int8_x4_format(context& ctx);
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP

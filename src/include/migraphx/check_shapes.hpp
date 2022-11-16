@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CHECK_SHAPES_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CHECK_SHAPES_HPP
 
+#include <migraphx/permutation.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
@@ -229,6 +230,19 @@ struct check_shapes
     {
         if(not this->all_of([](const shape& s) { return s.packed(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are not packed");
+        return *this;
+    }
+
+    /*!
+     * Check all shapes are packed with certain layouts
+     */
+    const check_shapes&
+    packed_layouts(const std::initializer_list<std::vector<int64_t>>& layouts) const
+    {
+        if(not this->all_of([&](const shape& s) {
+               return s.packed() and contains(layouts, find_permutation(s));
+           }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not packed with correct layout");
         return *this;
     }
 

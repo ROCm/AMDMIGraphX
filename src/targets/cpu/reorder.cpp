@@ -32,7 +32,7 @@ struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
 {
     std::string name() const { return "dnnl::reorder"; }
 
-    shape adjust_shape(const shape& x, int) const { return x; }
+    shape adjust_shape(const shape& x, int, const shape&) const { return x; }
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {

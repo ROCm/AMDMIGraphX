@@ -101,7 +101,10 @@ struct mlir_handle
 
     mlir_handle(T p) : handle(ptr{p}) {}
 
-    T get() const { return handle.get().get(); }
+    T get() const
+    {
+        return handle.get().get(); // NOLINT(readability-redundant-smartptr-get)
+    }
 
     T release() { return handle.release().get(); }
 

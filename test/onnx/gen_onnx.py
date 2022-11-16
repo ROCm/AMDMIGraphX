@@ -2074,18 +2074,16 @@ def gemm_dyn_inner_test():
 def gemm_dyn_outer_test():
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [5, None])
     B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [11, 5])
-    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [None, 11])
 
     node = onnx.helper.make_node('Gemm',
-                                 inputs=['A', 'B', 'C'],
+                                 inputs=['A', 'B'],
                                  outputs=['Y'],
                                  alpha=2.0,
-                                 beta=2.0,
                                  transA=1,
                                  transB=1)
 
-    return ([node], [A, B, C], [Y])
+    return ([node], [A, B], [Y])
 
 
 @onnx_test
@@ -2102,7 +2100,7 @@ def gemm_dyn_C_error():
                                  beta=1.0,
                                  transA=1)
 
-    return ([node], [A, B], [Y])
+    return ([node], [A, B, C], [Y])
 
 
 @onnx_test

@@ -45,7 +45,14 @@ static literal get_scalar(instruction_ref ins)
         return {};
     auto e = ins->eval();
     literal r{};
-    e.visit_at([&](auto x) { r = literal{x}; });
+    if(e.get_shape().type() == shape::bool_type)
+    {
+        r = literal{e.at<bool>()};
+    }
+    else
+    {
+        e.visit_at([&](auto x) { r = literal{x}; });
+    }
     return r;
 }
 

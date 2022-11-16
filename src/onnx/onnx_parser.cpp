@@ -397,16 +397,16 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     if(not t.external_data().empty())
     {
         const std::string& data_file = t.external_data().at(0).value();
-        size_t offset = 0;
-        size_t nbytes = t.external_data_size();
+        size_t offset                = 0;
+        size_t nbytes                = t.external_data_size();
 
         if(t.external_data().size() > 1)
         {
-            offset =  std::stoul(t.external_data().at(1).value());
+            offset = std::stoul(t.external_data().at(1).value());
             nbytes = std::stoul(t.external_data().at(2).value());
         }
 
-        auto raw_buffer              = read_buffer(path + "/" + data_file, offset, nbytes);
+        auto raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
         std::string s(raw_buffer.begin(), raw_buffer.end());
         auto type = get_type(t.data_type());
         return create_literal(type, dims, s.data());

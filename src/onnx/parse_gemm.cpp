@@ -39,6 +39,15 @@ struct parse_gemm : op_parser<parse_gemm>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
+        auto A = args[0];
+        auto B = args[1];
+        if(A->get_shape().ndim() != 2 or B->get_shape().ndim() != 2)
+        {
+            MIGRAPHX_THROW("PARSE_GEMM: A and B should be rank 2, A is rank " +
+                           std::to_string(A->get_shape().ndim()) + "B is rank " +
+                           std::to_string(B->get_shape().ndim()));
+        }
+
         float alpha = 1.0f;
         float beta  = 1.0f;
         bool transa = false;
@@ -60,54 +69,59 @@ struct parse_gemm : op_parser<parse_gemm>
             transb = parser.parse_value(info.attributes.at("transB")).at<bool>();
         }
 
-        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        std::vector<int64_t> perm(2);
         std::iota(perm.begin(), perm.end(), int64_t{0});
         // swap the last two elements
         std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
 
-        auto l1       = args[0];
-        auto dot_type = l1->get_shape().type();
+        auto dot_type = A->get_shape().type();
 
         if(alpha != 1.0f)
         {
             auto alpha_literal = info.add_literal(alpha);
-            l1                 = info.add_broadcastable_binary_op("mul", alpha_literal, l1);
-            if(l1->get_shape().type() != dot_type)
+            A                  = info.add_broadcastable_binary_op("mul", alpha_literal, A);
+
+            if(A->get_shape().type() != dot_type)
             {
-                l1 = info.add_instruction(make_op("convert", {{"target_type", dot_type}}), l1);
+                A = info.add_instruction(make_op("convert", {{"target_type", dot_type}}), A);
             }
         }
 
-        l1 =
-            (transa) ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), l1) : l1;
-        auto l2 = (transb)
-                      ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
-                      : args[1];
+        A = (transa) ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), A) : A;
+        B = (transb) ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
+                     : args[1];
 
-        auto ret = info.add_instruction(make_op("dot"), l1, l2);
+        auto ret = info.add_instruction(make_op("dot"), A, B);
 
         if(args.size() == 3)
         {
-            if(not float_equal(beta, 0.0f) && args[2]->get_shape().elements() > 0)
+            // TODO: support dynamic C input
+            if(std::any_of(args.cbegin(), args.cend(), [](auto in_arg) {
+                   return in_arg->get_shape().dynamic();
+               }))
             {
-                auto out_lens   = l1->get_shape().lens();
-                out_lens.back() = l2->get_shape().lens().back();
-                auto l3         = args[2];
-                auto l3_lens    = l3->get_shape().lens();
-                if(not std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
+                MIGRAPHX_THROW("PARSE_GEMM: C input not handled for dynamic input shapes");
+            }
+            if(not float_equal(beta, 0.0f) and args[2]->get_shape().elements() > 0)
+            {
+                auto out_lens   = A->get_shape().lens();
+                out_lens.back() = B->get_shape().lens().back();
+                auto C          = args[2];
+                auto C_lens     = C->get_shape().lens();
+                if(not std::equal(out_lens.begin(), out_lens.end(), C_lens.begin(), C_lens.end()))
                 {
-                    l3 = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
-                                              args[2]);
+                    C = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
+                                             args[2]);
                 }
                 auto beta_literal = info.add_literal(beta);
-                auto beta_l3      = info.add_broadcastable_binary_op("mul", l3, beta_literal);
-                if(beta_l3->get_shape().type() != dot_type)
+                auto beta_C       = info.add_broadcastable_binary_op("mul", C, beta_literal);
+                if(beta_C->get_shape().type() != dot_type)
                 {
-                    beta_l3 = info.add_instruction(make_op("convert", {{"target_type", dot_type}}),
-                                                   beta_l3);
+                    beta_C = info.add_instruction(make_op("convert", {{"target_type", dot_type}}),
+                                                  beta_C);
                 }
 
-                return info.add_instruction(make_op("add"), ret, beta_l3);
+                return info.add_instruction(make_op("add"), ret, beta_C);
             }
         }
 

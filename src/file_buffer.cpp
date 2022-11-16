@@ -44,6 +44,25 @@ T generic_read_file(const std::string& filename)
     return buffer;
 }
 
+template <class T>
+T generic_read_file(const std::string& filename, size_t offset, size_t nbytes)
+{
+    std::ifstream is(filename, std::ios::binary | std::ios::ate);
+    if(nbytes < 1)
+        MIGRAPHX_THROW("Invalid size for: " + filename);
+    is.seekg(offset, std::ios::beg);
+
+    T buffer(nbytes, 0);
+    if(not is.read(&buffer[0], nbytes))
+        MIGRAPHX_THROW("Error reading file: " + filename);
+    return buffer;
+}
+
+std::vector<char> read_buffer(const std::string& filename, size_t offset, size_t nbytes)
+{
+    return generic_read_file<std::vector<char>>(filename, offset, nbytes);
+}
+
 std::vector<char> read_buffer(const std::string& filename)
 {
     return generic_read_file<std::vector<char>>(filename);

@@ -21,28 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/config.hpp>
-#include <rocblas/rocblas.h>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
-
-rocblas_handle_ptr create_rocblas_handle_ptr();
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
-
-struct context;
-
-bool get_compute_fp32_flag();
-
-bool get_int8_x4_format(context& ctx);
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+struct test_slice_concat_add : verify_program<test_slice_concat_add>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 24, 2, 2}};
+        migraphx::shape s1{migraphx::shape::float_type, {1, 8, 2, 2}};
+        auto x     = mm->add_parameter("x", s0);
+        auto y     = mm->add_parameter("y", s1);
+        auto z     = mm->add_parameter("z", s0);
+        auto slice = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), x);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), slice, y, y);
+        mm->add_instruction(migraphx::make_op("add"), concat, z);
+        return p;
+    }
+};

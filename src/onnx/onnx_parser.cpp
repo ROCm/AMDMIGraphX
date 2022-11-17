@@ -402,7 +402,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         {
             size_t offset = std::stoul(t.external_data().at(1).value());
             size_t nbytes = std::stoul(t.external_data().at(2).value());
-            raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
+            raw_buffer    = read_buffer(path + "/" + data_file, offset, nbytes);
         }
         else
         {

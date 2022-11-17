@@ -45,6 +45,8 @@ static literal get_scalar(instruction_ref ins)
         return {};
     auto e = ins->eval();
     literal r{};
+    // needed for bool as visit_at invokes as() which promotes bool to int8
+    // Without this we'll break type checks for logical ops that are fused.
     if(e.get_shape().type() == shape::bool_type)
     {
         r = literal{e.at<bool>()};

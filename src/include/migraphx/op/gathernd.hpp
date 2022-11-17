@@ -47,33 +47,148 @@ struct gathernd
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
-        auto r = inputs.front().lens().size();
-        auto q = inputs.back().lens().size();
-        auto k = inputs.back().lens().back();
-        if(k > r - batch_dims)
+        check_shapes{inputs, *this, true}.has(2);
+        if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
         {
-            MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
-                           " cannot be used to access data of rank " +
-                           std::to_string(r - batch_dims));
+            auto r = inputs.front().lens().size();
+            auto q = inputs.back().lens().size();
+            auto k = inputs.back().lens().back();
+            // printf("asdf static............................... k = %lu q = %lu  r = %lu\n", k, q,
+            // r);
+            if(k > r - batch_dims)
+            {
+                MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
+                               " cannot be used to access data of rank " +
+                               std::to_string(r - batch_dims));
+            }
+            if(batch_dims >= q || batch_dims >= r)
+            {
+                MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
+                               std::to_string(batch_dims));
+            }
+            auto indices_lens_iter = inputs.back().lens().begin();
+            int output_lens_size   = int(q) + r - k - batch_dims - 1;
+            if(output_lens_size <= 0)
+            {
+                MIGRAPHX_THROW("GATHERND: Indices too large for static data input: k=" +
+                               std::to_string(k));
+            }
+            std::vector<std::size_t> output_lens(output_lens_size);
+            std::copy(indices_lens_iter, indices_lens_iter + (q - 1), output_lens.begin());
+            if(k < r - batch_dims)
+            {
+                auto data_lens = inputs.front().lens();
+                std::copy(data_lens.begin() + batch_dims + k,
+                          data_lens.end(),
+                          output_lens.begin() + q - 1);
+            }
+            shape output_shape{inputs.front().type(), output_lens};
+            return output_shape;
         }
-        auto indices_lens_iter = inputs.back().lens().begin();
-        auto output_lens_size  = q + r - k - batch_dims - 1;
-        std::vector<std::size_t> output_lens(output_lens_size);
-        std::copy(indices_lens_iter, indices_lens_iter + (q - 1), output_lens.begin());
-        if(k < r - batch_dims)
+        else
         {
-            auto data_lens = inputs.front().lens();
-            std::copy(
-                data_lens.begin() + batch_dims + k, data_lens.end(), output_lens.begin() + q - 1);
+            // If one or both inputs are dynamic shapes, the output is dynamic
+            auto i_shape    = inputs.back();
+            auto data_shape = inputs.front();
+            size_t k;
+            if(i_shape.dynamic())
+            {
+                // the rank of the output is a function of k, so it must be fixed.
+                // MIGraphX supports dynamic dimensions, but not dynamic NUMBER of dimensions.
+                if(!i_shape.dyn_dims().back().is_fixed())
+                {
+                    MIGRAPHX_THROW(
+                        "GATHERND: last dimension of indices tensor must be fixed (min=max)");
+                }
+                k = i_shape.dyn_dims().back().min;
+            }
+            else
+            {
+                k = i_shape.lens().back();
+            }
+            auto r               = data_shape.ndim();
+            auto q               = i_shape.ndim();
+            int output_dims_size = int(q) + r - k - batch_dims - 1;
+            // printf("asdf dyn............................... k = %lu q = %lu  r = %lu\n", k, q,
+            // r);
+            if(k > r - batch_dims)
+            {
+                MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
+                               " cannot be used to access data of rank " +
+                               std::to_string(r - batch_dims));
+            }
+            if(batch_dims >= q || batch_dims >= r)
+            {
+                MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
+                               std::to_string(batch_dims));
+            }
+            if(output_dims_size <= 0)
+            {
+                MIGRAPHX_THROW("GATHERND: Indices too large for data input: k=" +
+                               std::to_string(k));
+            }
+            // 3 vectors that will be used as constructor arguments for the output shape
+            std::vector<size_t> mins(output_dims_size);
+            std::vector<size_t> maxes(output_dims_size);
+            std::vector<size_t> opts(output_dims_size);
+
+            // Part of the output shape comes from indices tensor, part from data tensor
+            if(!i_shape.dynamic())
+            {
+                const auto& indices_lens_iter = i_shape.lens().begin();
+                std::copy(indices_lens_iter, indices_lens_iter + (q - 1), mins.begin());
+                std::copy(indices_lens_iter, indices_lens_iter + (q - 1), maxes.begin());
+                std::fill(opts.begin(), opts.begin() + (q - 1), size_t(0));
+            }
+            else
+            {
+                for(size_t i = 0; i < q; i++)
+                {
+                    const shape::dynamic_dimension& dd = i_shape.dyn_dims().at(i);
+                    mins[i]                            = dd.min;
+                    maxes[i]                           = dd.max;
+                    opts[i]                            = dd.opt;
+                }
+            }
+
+            // populate from data input
+            if(k < r - batch_dims)
+            {
+                if(!data_shape.dynamic())
+                {
+                    auto data_lens = data_shape.lens();
+                    std::copy(data_lens.begin() + batch_dims + k - 1,
+                              data_lens.end(),
+                              mins.begin() + q - 1);
+                    std::copy(data_lens.begin() + batch_dims + k - 1,
+                              data_lens.end(),
+                              maxes.begin() + q - 1);
+                    std::fill(opts.begin() + q, opts.end(), size_t(0));
+                }
+                else
+                {
+                    size_t i, j;
+                    for(i = batch_dims + k - 1, j = q - 1; i < opts.size(); i++, j++)
+                    {
+                        // printf("asdf now j = %lu\n", j);
+
+                        shape::dynamic_dimension dd = data_shape.dyn_dims()[i];
+                        mins[j]                     = dd.min;
+                        maxes[j]                    = dd.max;
+                        opts[j]                     = dd.opt;
+                    }
+                }
+            }
+            // for(size_t ii = 0; ii < mins.size(); ii++)
+            //     printf("{%lu, %lu, %lu}, ", mins[ii], maxes[ii], opts[ii]);
+            migraphx::shape output_shape{inputs.front().type(), mins, maxes, opts};
+            return output_shape;
         }
-        shape output_shape{inputs.front().type(), output_lens};
-        return output_shape;
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
                 auto indices_shape        = indices.get_shape();

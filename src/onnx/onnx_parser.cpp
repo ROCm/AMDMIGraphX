@@ -394,10 +394,11 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
     auto external_data = t.external_data();
-    std::vector<char> raw_buffer;
     if(not external_data.empty())
     {
         const std::string& data_file = external_data.at(0).value();
+        std::vector<char> raw_buffer;
+
         if(external_data.size() > 1)
         {
             size_t offset = std::stoul(t.external_data().at(1).value());

@@ -136,16 +136,28 @@ struct index
         return (n - _c<1>) / stride + _c<1>;
     }
 
-    template <class F, class I, class D>
-    static constexpr auto invoke_loop(F f, I i, D d) -> decltype(f(i, d), void())
+    template <class N>
+    constexpr auto max_global_stride_iterations(N n) const
     {
-        f(i, d);
+        return max_stride_iterations(n, nglobal());
+    }
+
+    template <class N>
+    constexpr auto max_local_stride_iterations(N n) const
+    {
+        return max_stride_iterations(n, nlocal());
     }
 
     template <class F, class I, class D>
-    static constexpr auto invoke_loop(F f, I i, D) -> decltype(f(i), void())
+    static constexpr auto invoke_loop(F f, I i, D d) -> decltype(f(i, d))
     {
-        f(i);
+        return f(i, d);
+    }
+
+    template <class F, class I, class D>
+    static constexpr auto invoke_loop(F f, I i, D) -> decltype(f(i))
+    {
+        return f(i);
     }
 
     template <class F, class N, class Stride>
@@ -168,6 +180,7 @@ struct index
             }
             else
             {
+                static_assert(max_stride_iterations(n, stride) < 64);
                 sequence(max_stride_iterations(n, stride), [&](auto... ks) {
                     fold([&](auto d, auto k) {
                         auto i = start + stride * k;

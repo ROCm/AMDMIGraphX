@@ -171,7 +171,7 @@ struct inner_storage_tag
 {
 };
 
-template<class T>
+template <class T>
 using is_inner_storage = is_base_of<inner_storage_tag, remove_cv_t<remove_reference_t<T>>>;
 
 template <class R, class F>

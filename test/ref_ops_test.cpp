@@ -7372,16 +7372,15 @@ TEST_CASE(transpose_dyn_test)
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 2, 2, 3}};
     params["X"] = migraphx::argument(input_fixed_shape, data.data());
-    auto result = p.eval({}).back();
+    auto result = p.eval(params).back();
 
-    result.visit([&](auto output) {
-        std::vector<size_t> new_lens = {1, 3, 2, 2};
-        EXPECT(bool{output.get_shape().lens() == new_lens});
-    });
+    std::vector<size_t> new_lens = {1, 3, 2, 2};
+    EXPECT(result.get_shape().lens() == new_lens);
+
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    // no change in the data buffer
-    EXPECT(migraphx::verify_range(results_vector, data));
+    std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 TEST_CASE(unsqueeze_test)

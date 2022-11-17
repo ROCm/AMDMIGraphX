@@ -11,3 +11,4 @@ do
 done
 
 python3 ../tools/tune_ck.py -n 16 -l $LOG -o $TUNING_DB
+export MIGRAPHX_CK_TUNING=$TUNING_DB

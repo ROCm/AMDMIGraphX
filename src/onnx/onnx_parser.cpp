@@ -393,20 +393,21 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
-    // std::cout << "dims: " << to_string_range(dims) << std::endl;
-    if(not t.external_data().empty())
+    auto external_data = t.external_data();
+    std::vector<char> raw_buffer;
+    if(not external_data.empty())
     {
-        const std::string& data_file = t.external_data().at(0).value();
-        size_t offset                = 0;
-        size_t nbytes                = t.external_data_size();
-
-        if(t.external_data().size() > 1)
+        const std::string& data_file = external_data.at(0).value();
+        if(external_data.size() > 1)
         {
-            offset = std::stoul(t.external_data().at(1).value());
-            nbytes = std::stoul(t.external_data().at(2).value());
+            size_t offset = std::stoul(t.external_data().at(1).value());
+            size_t nbytes = std::stoul(t.external_data().at(2).value());
+            raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
         }
-
-        auto raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
+        else
+        {
+            raw_buffer = read_buffer(path + "/" + data_file);
+        }
         std::string s(raw_buffer.begin(), raw_buffer.end());
         auto type = get_type(t.data_type());
         return create_literal(type, dims, s.data());

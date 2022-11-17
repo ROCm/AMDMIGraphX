@@ -22,9 +22,9 @@ def pretty_print(obj):
 
 def run_driver(b):
     print(b)
-    outfile = open("temp2.json", "w")
-    json.dump(b, outfile)
-    outfile.close()
+    #outfile = open("temp2.json", "w")
+    #json.dump(b, outfile)
+    #outfile.close()
     with tmp_file(lambda tf: json.dump(b, tf)) as tf:
         cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
                             capture_output=True,
@@ -134,5 +134,9 @@ def run(args):
     tuned = benchmark_log(args.log, args.n)
     json.dump(tuned, open(args.out, 'w+'))
 
+def tune(log, n, out):
+    tuned = benchmark_log(log, n)
+    json.dump(tuned, open(out, 'w+'))
 
-run(parse_args())
+if __name__ == '__main__':
+    run(parse_args())

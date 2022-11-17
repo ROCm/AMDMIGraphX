@@ -1,4 +1,4 @@
-import os, json, subprocess, tempfile, sys, argparse, contextlib, time
+import os, subprocess, argparse, time
 import tune_ck as tc
 
 
@@ -42,6 +42,8 @@ def tune_models(models, batch_sizes, seq_len, n):
                 shell=True)
 
     tc.tune(log_file, n, json_file)
+    tuning_path = os.path.abspath(json_file)
+    os.environ["MIGRAPHX_CK_TUNING"] = tuning_path
     print("\nTuning results have been saved to:\n{}\n".format(json_file))
 
 

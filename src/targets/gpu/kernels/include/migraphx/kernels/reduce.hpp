@@ -344,16 +344,6 @@ struct block
             });
         }
 
-        // template <class Op, class T, class Read>
-        // __device__ auto reduce(Op op, T init, Read read) const
-        // {
-        //     return sliced(slice, [=](auto x, auto... xs) {
-        //         return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) {
-        //             return vec_reduce(read(x[j], xs[j]...), op);
-        //         });
-        //     });
-        // }
-
         template <class F>
         __device__ void outer(F f) const
         {

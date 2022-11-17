@@ -69,7 +69,7 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
         ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
 
     constexpr const auto b_shape = get_shape_c<B>{};
-    constexpr const auto n       = b_shape.lens[0];    // col-major
+    constexpr const auto n       = b_shape.lens[1];    
     constexpr const auto sb      = b_shape.strides[1]; // col-major
     constexpr const auto BK1     = gemm.get_BK1();
     constexpr const auto BK0     = k / BK1;
@@ -85,9 +85,9 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
         ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
 
     constexpr const auto b1_shape = get_shape_c<B1>{};
-    constexpr const auto k1       = b1_shape.lens[0];    // row-major
-    constexpr const auto n1       = b1_shape.lens[1];    // row-major
-    constexpr const auto sb1      = b1_shape.strides[0]; // rowl-major
+    constexpr const auto k1       = b1_shape.lens[0];    
+    constexpr const auto n1       = b1_shape.lens[1];    
+    constexpr const auto sb1      = b1_shape.strides[0]; // row-major
     constexpr const auto B1K1     = gemm.get_B1K1();
     constexpr const auto B1K0     = k1 / B1K1;
 
@@ -139,11 +139,11 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    static_assert(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1,
-                                              b_grid_desc_bk0_n_bk1,
-                                              b1_grid_desc_bk0_n_bk1,
-                                              c_grid_desc_m_n,
-                                              block_2_ctile_map));
+    // static_assert(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1,
+    //                                           b_grid_desc_bk0_n_bk1,
+    //                                           b1_grid_desc_bk0_n_bk1,
+    //                                           c_grid_desc_m_n,
+    //                                           block_2_ctile_map));
     GridwiseGemm::template Run<HasMainKBlockLoop>(to_ck_const_pointer(a.data()),
                                                   to_ck_const_pointer(b.data()),
                                                   to_ck_const_pointer(b1.data()),

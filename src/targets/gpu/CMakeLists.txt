@@ -90,6 +90,7 @@ add_library(migraphx_gpu
     device_name.cpp
     elu.cpp
     fuse_ck.cpp
+    fuse_ck_gemm_softmax_gemm.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp

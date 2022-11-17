@@ -56,6 +56,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/fuse_ck_gemm_softmax_gemm.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -130,6 +131,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         auto_contiguous{},
         simplify_reshapes{},
         propagate_constant{},
+        dead_code_elimination{},
+        fuse_ck_gemm_softmax_gemm{&ctx},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
         dead_code_elimination{},

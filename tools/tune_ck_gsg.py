@@ -1,6 +1,5 @@
 import os, json, subprocess, tempfile, sys, argparse, contextlib
 
-ck_function = -1
 
 @contextlib.contextmanager
 def tmp_file(dump=None):
@@ -21,9 +20,6 @@ def pretty_print(obj):
 
 def run_driver(b):
     print(b)
-    outfile = open("temp2.json", "w")
-    json.dump(b, outfile)
-    outfile.close()
     with tmp_file(lambda tf: json.dump(b, tf)) as tf:
         cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
                             capture_output=True,
@@ -49,18 +45,7 @@ def get_device_time(s):
 
 def benchmark_ck(config, tuning):
     try:
-        b0 = {
-            'settings': {
-                'iterations': 100
-            },
-            'compile_op': {
-                'name': 'ck_gemm',
-                'check': True,
-                'tuning_val': tuning,
-                'inputs': config
-            }
-        }
-        b1 = {
+        b = {
             'settings': {
                 'iterations': 100
             },
@@ -71,7 +56,6 @@ def benchmark_ck(config, tuning):
                 'inputs': config
             }
         }
-        b = b0 if (ck_function == 0) else b1
         for line in run_driver(b):
             dtime = get_device_time(line)
             print(dtime)
@@ -88,26 +72,17 @@ def benchmark(config, size):
 def parse_log(f):
     for line in open(f).readlines():
         line = line.strip()
-        global ck_function
-        if line.startswith('ck_gemm:'):
-            line = line[len('ck_gemm:'):].strip()
-            config = json.loads(line)
-            ck_function = 0
-            yield config
-        if line.startswith('ck_gemm_softmax_gemm:'):
-            line = line[len('ck_gemm_softmax_gemm:'):].strip()
-            config = json.loads(line)
-            ck_function = 1
-            yield config
-        
+        if not line.startswith('ck_gemm_softmax_gemm:'):
+            continue
+        line = line[len('ck_gemm_softmax_gemm:'):].strip()
+        config = json.loads(line)
+        yield config
 
 
 def benchmark_log(f, n):
     result = []
-    logs = parse_log(f)
-    for config in logs:
-        additional_tv = ck_function * 2
-        tuned = benchmark(config, n + additional_tv)
+    for config in parse_log(f):
+        tuned = benchmark(config, n)
         print("Tuned:", tuned)
         result.append([config, tuned])
     return result

@@ -48,18 +48,14 @@ struct contiguous
     {
         check_shapes{inputs, *this, true}.has(1);
         auto s0 = inputs.front();
-        if(s0.dynamic())
+        if(s0.dynamic() or s0.standard())
         {
             return s0;
         }
         else
         {
-            if(s0.standard())
-            {
-                return inputs.front();
-            }
-            auto lens = inputs.at(0).lens();
-            auto t    = inputs.at(0).type();
+            const auto& lens = s0.lens();
+            auto t           = s0.type();
             return {t, lens};
         }
     }

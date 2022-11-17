@@ -49,20 +49,6 @@ TEST_CASE(literal_test)
     EXPECT(l4.empty());
 }
 
-TEST_CASE(literal_nstd_shape)
-{
-    migraphx::shape nstd_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
-    std::vector<float> nstd_data(12);
-    std::iota(nstd_data.begin(), nstd_data.end(), 0);
-
-    migraphx::shape std_shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    std::vector<float> std_data = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-
-    auto l0 = migraphx::literal{nstd_shape, nstd_data};
-    auto l1 = migraphx::literal{std_shape, std_data};
-    EXPECT(l0 != l1);
-}
-
 TEST_CASE(literal_os1)
 {
     migraphx::literal l{1};

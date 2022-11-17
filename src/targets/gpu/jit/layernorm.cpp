@@ -100,7 +100,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
                                        {"layernorm", v.get("layernorm", std::string{"layernorm"})},
                                        {"axis", to_string(axis)},
                                        {"eps", to_string(eps)}});
-        
+
         return compile_hip_code_object(src, options);
     }
 

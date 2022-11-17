@@ -39,10 +39,11 @@ __device__ void softmax(Input input1, Output output)
 #else
         const auto c = r.reduce(op::max{}, lowest{}, op::id{})(input);
 #endif
-        auto batch_sum = r.reduce(op::sum{}, 0, [&](auto x) {
-            return migraphx::convert<float>(migraphx::exp(x - c));
+        auto exp_in = r.inner([&](auto x) {
+                return migraphx::exp(x - c); 
         })(input);
-        r.inner([&](auto& y, auto x) { y = migraphx::exp(x - c) / batch_sum; })(output, input);
+        auto batch_sum = r.reduce(op::sum{}, 0, [](auto x) { return migraphx::convert<float>(x); })(exp_in);
+        r.inner([&](auto& y, auto x) { y = x / batch_sum; })(output, exp_in);
     });
 }
 

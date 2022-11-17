@@ -2,6 +2,7 @@ import os, json, subprocess, tempfile, sys, argparse, contextlib
 
 ck_function = -1
 
+
 @contextlib.contextmanager
 def tmp_file(dump=None):
     tmp_name = None
@@ -99,7 +100,6 @@ def parse_log(f):
             config = json.loads(line)
             ck_function = 1
             yield config
-        
 
 
 def benchmark_log(f, n):

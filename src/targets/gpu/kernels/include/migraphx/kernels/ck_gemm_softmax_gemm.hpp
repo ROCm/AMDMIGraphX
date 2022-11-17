@@ -69,7 +69,7 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
         ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
 
     constexpr const auto b_shape = get_shape_c<B>{};
-    constexpr const auto n       = b_shape.lens[1];    
+    constexpr const auto n       = b_shape.lens[1];
     constexpr const auto sb      = b_shape.strides[1]; // col-major
     constexpr const auto BK1     = gemm.get_BK1();
     constexpr const auto BK0     = k / BK1;
@@ -85,8 +85,8 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
         ck::make_tuple(ck::Sequence<0, 2>{}, ck::Sequence<1>{}));
 
     constexpr const auto b1_shape = get_shape_c<B1>{};
-    constexpr const auto k1       = b1_shape.lens[0];    
-    constexpr const auto n1       = b1_shape.lens[1];    
+    constexpr const auto k1       = b1_shape.lens[0];
+    constexpr const auto n1       = b1_shape.lens[1];
     constexpr const auto sb1      = b1_shape.strides[0]; // row-major
     constexpr const auto B1K1     = gemm.get_B1K1();
     constexpr const auto B1K0     = k1 / B1K1;

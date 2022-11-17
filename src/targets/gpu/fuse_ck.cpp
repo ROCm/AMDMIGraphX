@@ -162,8 +162,9 @@ struct find_ck_gemm_scale_bias_softmax_gemm
     //         match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
     //     auto pw =
     //         match::name("pointwise")(match::any_of[match::inputs()](gemm1)).bind("scale_bias");
-    //     auto softmax = match::name("softmax")(match::any_of[match::inputs()](pw)).bind("softmax");
-    //     return match::name("dot")(is_ck_gemm().bind("gemm2"))(
+    //     auto softmax =
+    //     match::name("softmax")(match::any_of[match::inputs()](pw)).bind("softmax"); return
+    //     match::name("dot")(is_ck_gemm().bind("gemm2"))(
     //         match::any_of[match::inputs()](softmax));
     // }
 

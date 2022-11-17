@@ -111,8 +111,8 @@ struct instance
 
     void set_gemm(const std::string& s)
     {
-        assert(params[15] == "ck::tensor_operation::device::GemmSpecialization::Default" or 
-                params[15] == "ck::tensor_operation::device::GemmSpecialization::MNKOPadding");
+        assert(params[15] == "ck::tensor_operation::device::GemmSpecialization::Default" or
+               params[15] == "ck::tensor_operation::device::GemmSpecialization::MNKOPadding");
         params[15] = s;
     }
 
@@ -155,12 +155,13 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
 {
     static std::string get_layout(const shape& s)
     {
-        if (not s.transposed())
+        if(not s.transposed())
             return "ck::tensor_layout::gemm::RowMajor";
-        
+
         auto lens = s.lens();
-        return lens[lens.size() - 1] > lens[lens.size() - 2] ? 
-               "ck::tensor_layout::gemm::ColumnMajor" : "ck::tensor_layout::gemm::RowMajor";
+        return lens[lens.size() - 1] > lens[lens.size() - 2]
+                   ? "ck::tensor_layout::gemm::ColumnMajor"
+                   : "ck::tensor_layout::gemm::RowMajor";
     }
 
     static std::string get_type(const shape& s)
@@ -185,23 +186,26 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
-        auto a_shape = inputs[0];
-        auto b_shape = inputs[1];
+        auto a_shape  = inputs[0];
+        auto b_shape  = inputs[1];
         auto b1_shape = inputs[2];
-        auto c_shape = inputs.back();
-        auto m       = a_shape.lens()[0];
-        auto k       = a_shape.lens()[1];
-        auto n       = c_shape.lens()[1];
+        auto c_shape  = inputs.back();
+        auto m        = a_shape.lens()[0];
+        auto k        = a_shape.lens()[1];
+        auto n        = c_shape.lens()[1];
 
         auto rank = a_shape.lens().size();
 
         std::array<char, 4> keys{'M', 'N', 'K', 'O'};
         // config (m0, n0, k0, n1)
-        std::array<std::size_t, 4> config{
-            c_shape.lens()[rank - 2], b_shape.lens()[rank - 2], a_shape.lens().back(), c_shape.lens().back()};
+        std::array<std::size_t, 4> config{c_shape.lens()[rank - 2],
+                                          b_shape.lens()[rank - 2],
+                                          a_shape.lens().back(),
+                                          c_shape.lens().back()};
 
-        auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, b1_shape, c_shape}));
-        auto ip         = instance{get_gsg_instance(tuning_val, [&](const auto& x) -> bool {
+        auto tuning_val =
+            v.get("tuning_val", get_tuning_for({a_shape, b_shape, b1_shape, c_shape}));
+        auto ip = instance{get_gsg_instance(tuning_val, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
                    get_type(b_shape) == x[5] and get_type(c_shape) == x[9];
@@ -220,8 +224,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
             gemm_type += "Padding";
         ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
-        auto blocks_per_batch =  ip.get_grid_size(config);
-        auto batch_count = std::accumulate(c_shape.lens().rbegin() + 2,
+        auto blocks_per_batch = ip.get_grid_size(config);
+        auto batch_count      = std::accumulate(c_shape.lens().rbegin() + 2,
                                            c_shape.lens().rend(),
                                            std::size_t{1},
                                            std::multiplies<std::size_t>());

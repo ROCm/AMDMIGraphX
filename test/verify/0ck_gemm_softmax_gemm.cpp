@@ -50,15 +50,15 @@ struct ck_gemm_softmax_gemm : verify_program<ck_gemm_softmax_gemm>
         // // a = one;
         // // b = one;
         // // b1 = one;
-        // b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        // auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        // auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-        // auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
-        // auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
+        // b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+        // b); auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b); auto scale   =
+        // mm->add_instruction(migraphx::make_op("mul"), gemm1, eight); auto bias    =
+        // mm->add_instruction(migraphx::make_op("add"), scale, zero); auto softmax =
+        // mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
         // mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
 
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm     = p.get_main_module();
         size_t batch = 2;
         migraphx::shape m1_shape{migraphx::shape::half_type, {batch, 384, 2304}};
         migraphx::shape m2_shape{migraphx::shape::half_type, {batch, 12, 384, 384}};
@@ -73,9 +73,12 @@ struct ck_gemm_softmax_gemm : verify_program<ck_gemm_softmax_gemm>
 
         g = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 384, 36, 64}}}), g);
         g = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), g);
-        auto a = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}), g);
-        auto b = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {12}}, {"ends", {24}}}), g);
-        auto b1 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {24}}, {"ends", {36}}}), g);
+        auto a = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}), g);
+        auto b = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {12}}, {"ends", {24}}}), g);
+        auto b1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {24}}, {"ends", {36}}}), g);
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
 
         auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);

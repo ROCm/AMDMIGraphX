@@ -134,9 +134,11 @@ def run(args):
     tuned = benchmark_log(args.log, args.n)
     json.dump(tuned, open(args.out, 'w+'))
 
+
 def tune(log, n, out):
     tuned = benchmark_log(log, n)
     json.dump(tuned, open(out, 'w+'))
+
 
 if __name__ == '__main__':
     run(parse_args())

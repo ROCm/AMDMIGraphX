@@ -28,6 +28,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,19 +43,27 @@ namespace op {
 struct contiguous
 {
     std::string name() const { return "contiguous"; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        if(inputs.front().standard())
-            return inputs.front();
-        auto lens = inputs.at(0).lens();
-        auto t    = inputs.at(0).type();
-        return {t, lens};
+        check_shapes{inputs, *this, true}.has(1);
+        auto s0 = inputs.front();
+        if(s0.dynamic() or s0.standard())
+        {
+            return s0;
+        }
+        else
+        {
+            const auto& lens = s0.lens();
+            auto t           = s0.type();
+            return {t, lens};
+        }
     }
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(output_shape.standard());
-        argument result{output_shape};
+        assert(dyn_out.computed_shape.standard());
+        argument result{dyn_out.computed_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
             shape_for_each(output.get_shape(), [&](const auto& idx) {
                 output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());

@@ -171,6 +171,9 @@ struct inner_storage_tag
 {
 };
 
+template<class T>
+using is_inner_storage = is_base_of<inner_storage_tag, remove_cv_t<remove_reference_t<T>>>;
+
 template <class R, class F>
 struct storage_access : F
 {
@@ -213,7 +216,7 @@ struct reducer_base
     template <class T>
     __device__ auto make_inner_slice(T x) const
     {
-        if constexpr(is_base_of<inner_storage_tag, T>{})
+        if constexpr(is_inner_storage<T>{})
         {
             return x;
         }
@@ -237,7 +240,7 @@ struct reducer_base
     template <class T, class... Ts>
     constexpr auto get_size(T&& x) const
     {
-        if constexpr(is_base_of<inner_storage_tag, T>{})
+        if constexpr(is_inner_storage<T>{})
         {
             return x.rsize();
         }

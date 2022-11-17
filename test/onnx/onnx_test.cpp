@@ -5699,9 +5699,11 @@ TEST_CASE(squeeze_unsqueeze_dyn_test)
     auto l0 = mm->add_parameter(
         "0",
         migraphx::shape{migraphx::shape::float_type,
-                        {{1, 1, 0}, {1, 4, 0}, {1, 1, 0}, {1, 1, 1}, {1, 4, 0}, {1, 1, 0}}});
-    auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), l0);
-    auto ret = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), l1);
+                        {{1, 1, 0}, {1, 4, 0}, {1, 1, 0}, {1, 1, 0}, {1, 4, 0}, {1, 1, 0}}});
+    auto c0  = mm->add_instruction(migraphx::make_op("contiguous"), l0);
+    auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), c0);
+    auto c1  = mm->add_instruction(migraphx::make_op("contiguous"), l1);
+    auto ret = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), c1);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

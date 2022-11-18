@@ -2242,6 +2242,12 @@ TEST_CASE(transpose_dyn_shape1)
     expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
 }
 
+TEST_CASE(transpose_axes_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2}};
+    throws_shape(migraphx::make_op("transpose", {{"permutation", {1}}}), input);
+}
+
 TEST_CASE(step_test)
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 2, 4}};

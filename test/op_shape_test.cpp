@@ -2040,7 +2040,7 @@ TEST_CASE(test_gathernd)
         migraphx::shape is{itype, {2, 2}};
         migraphx::shape ds{dtype, {2, 2}};
 
-        migraphx::shape s0{dtype, {2}}; 
+        migraphx::shape s0{dtype, {2}};
         expect_shape(s0, migraphx::make_op("gathernd"), ds, is);
     }
 
@@ -2054,7 +2054,7 @@ TEST_CASE(test_gathernd)
 
         int batch_dims(1);
         // std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {2, 2, 0},};
-        migraphx::shape s0{dtype, {2, 2}}; 
+        migraphx::shape s0{dtype, {2, 2}};
         expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
     }
 }
@@ -2105,7 +2105,7 @@ TEST_CASE(test_gathernd_dynamic)
         migraphx::shape ds{dtype, b};
 
         migraphx::shape::dynamic_dimension ddout{2, 2, 0};
-        migraphx::shape s0{dtype, {ddout}}; 
+        migraphx::shape s0{dtype, {ddout}};
         expect_shape(s0, migraphx::make_op("gathernd"), ds, is);
     }
 
@@ -2120,7 +2120,7 @@ TEST_CASE(test_gathernd_dynamic)
 
         std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {2, 2, 0}};
         int batch_dims(1);
-        migraphx::shape s0{dtype, {ddout}}; 
+        migraphx::shape s0{dtype, {ddout}};
         expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
     }
 
@@ -2135,7 +2135,7 @@ TEST_CASE(test_gathernd_dynamic)
 
         std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {2, 2, 0}};
         int batch_dims(1);
-        migraphx::shape s0{dtype, {ddout}}; 
+        migraphx::shape s0{dtype, {ddout}};
         expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
     }
 
@@ -2151,7 +2151,7 @@ TEST_CASE(test_gathernd_dynamic)
 
         std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {2, 2, 0}};
         int batch_dims(1);
-        migraphx::shape s0{dtype, {ddout}}; 
+        migraphx::shape s0{dtype, {ddout}};
         expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
     }
 }

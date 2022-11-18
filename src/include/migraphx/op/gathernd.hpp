@@ -181,7 +181,12 @@ struct gathernd
             }
             // for(size_t ii = 0; ii < mins.size(); ii++)
             //     printf("{%lu, %lu, %lu}, ", mins[ii], maxes[ii], opts[ii]);
-            migraphx::shape output_shape{inputs.front().type(), mins, maxes, opts};
+            std::vector<size_t> qwer(opts.size());
+            qwer = opts;
+            std::vector<size_t> dfsgdfhlg; dfsgdfhlg = maxes;
+            std::vector<size_t> fdsa = mins;
+            migraphx::shape jhh (inputs.front().type(), fdsa, dfsgdfhlg, qwer);
+            migraphx::shape output_shape (inputs.front().type(), mins, maxes, opts);
             return output_shape;
         }
     }

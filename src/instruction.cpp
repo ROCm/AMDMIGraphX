@@ -462,6 +462,12 @@ std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
+    for(auto& blerp : args)
+    {
+        printf("********************************************************************\n");
+        blerp->debug_print();
+    }
+
     return op.compute_shape(to_shapes(args));
 }
 

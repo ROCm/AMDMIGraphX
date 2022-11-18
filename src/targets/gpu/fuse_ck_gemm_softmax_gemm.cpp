@@ -8,6 +8,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_CK_GEMM_SOFTMAX_GEMM);
+
 struct module;
 
 namespace gpu {
@@ -91,7 +93,8 @@ struct find_gemm_softmax_gemm_gemm
 
 void fuse_ck_gemm_softmax_gemm::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm, find_gemm_softmax_gemm_gemm{});
+    if(not enabled(MIGRAPHX_DISABLE_CK_GEMM_SOFTMAX_GEMM{}))
+        match::find_matches(mpm, find_gemm_softmax_gemm_gemm{});
 }
 
 } // namespace gpu

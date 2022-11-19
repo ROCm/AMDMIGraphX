@@ -47,28 +47,13 @@ struct parse_pooling : op_parser<parse_pooling>
                 {"GlobalLpPool", "lpnorm"}};
     }
 
-    instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+    value handle_values(const op_desc& opd,
+                        onnx_parser::node_info info,
+                        const shape& in_shape,
+                        value values) const
     {
-        const std::unordered_map<std::string, op::pooling_mode> mode_map = {
-            {"max", op::pooling_mode::max},
-            {"average", op::pooling_mode::average},
-            {"lpnorm", op::pooling_mode::lpnorm}};
         std::string mode = opd.op_name;
-        if(not contains(mode_map, mode))
-        {
-            MIGRAPHX_THROW(
-                "PARSE_POOLING: onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
-        }
-        operation op  = make_op("pooling", {{"mode", mode_map.at(mode)}});
-        value values  = op.to_value();
-        auto l0       = args[0];
-        auto in_shape = l0->get_shape();
-        assert(in_shape.ndim() > 2);
-        auto kdims = in_shape.ndim() - 2;
-
+        auto kdims       = in_shape.ndim() - 2;
         if(starts_with(opd.onnx_name, "Global"))
         {
             // if spatial dimensions are dynamic use dyn_global flag
@@ -90,19 +75,6 @@ struct parse_pooling : op_parser<parse_pooling>
         if(contains(info.attributes, "ceil_mode"))
         {
             values["ceil_mode"] = static_cast<bool>(info.attributes.at("ceil_mode").i());
-        }
-
-        // count include padding, if count include pad is 1, we always use
-        // explicit pad
-        int count_include_pad = 0;
-        if(contains(info.attributes, "count_include_pad"))
-        {
-            if(in_shape.dynamic())
-            {
-                MIGRAPHX_THROW("PARSE_POOLING: count_include_pad attribute is not handled for "
-                               "dynamic input shape");
-            }
-            count_include_pad = info.attributes.at("count_include_pad").i();
         }
 
         if(contains(info.attributes, "strides"))
@@ -129,6 +101,46 @@ struct parse_pooling : op_parser<parse_pooling>
         // ensure pads availabe only when auto_pad is "NOT_SET"
         check_padding_mode(info, "POOLING");
 
+        return values;
+    }
+
+    instruction_ref parse(const op_desc& opd,
+                          const onnx_parser& /*parser*/,
+                          onnx_parser::node_info info,
+                          std::vector<instruction_ref> args) const
+    {
+        std::string mode                                                 = opd.op_name;
+        const std::unordered_map<std::string, op::pooling_mode> mode_map = {
+            {"max", op::pooling_mode::max},
+            {"average", op::pooling_mode::average},
+            {"lpnorm", op::pooling_mode::lpnorm}};
+        if(not contains(mode_map, mode))
+        {
+            MIGRAPHX_THROW(
+                "PARSE_POOLING: onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
+        }
+        operation op  = make_op("pooling", {{"mode", mode_map.at(mode)}});
+        value values  = op.to_value();
+        auto l0       = args[0];
+        auto in_shape = l0->get_shape();
+        assert(in_shape.ndim() > 2);
+        auto kdims = in_shape.ndim() - 2;
+
+        handle_values(opd, info, in_shape, values);
+
+        // count include padding, if count include pad is 1, we always use
+        // explicit pad
+        int count_include_pad = 0;
+        if(contains(info.attributes, "count_include_pad"))
+        {
+            if(in_shape.dynamic())
+            {
+                MIGRAPHX_THROW("PARSE_POOLING: count_include_pad attribute is not supported for "
+                               "dynamic input shape");
+            }
+            count_include_pad = info.attributes.at("count_include_pad").i();
+        }
+
         std::vector<int64_t> paddings;
         float pad_val = ((mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);
 
@@ -145,7 +157,7 @@ struct parse_pooling : op_parser<parse_pooling>
             if(in_shape.dynamic())
             {
                 MIGRAPHX_THROW(
-                    "PARSE_POOLING: Auto padding pooling with dynamic input shape not handled");
+                    "PARSE_POOLING: Auto padding pooling with dynamic input shape not supported");
             }
             else
             {
@@ -190,7 +202,7 @@ struct parse_pooling : op_parser<parse_pooling>
             if(in_shape.dynamic())
             {
                 MIGRAPHX_THROW(
-                    "PARSE_POOLING: asymmetric padding not handled for dynamic input shape");
+                    "PARSE_POOLING: asymmetric padding not supported for dynamic input shape");
             }
             // calculate expected output shape
             orig_padding.insert(orig_padding.begin() + kdims, 2, 0);

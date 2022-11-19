@@ -1581,6 +1581,20 @@ TEST_CASE(pooling_shape2)
                  input);
 }
 
+TEST_CASE(pooling_shape3)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};
+    expect_shape(output,
+                 migraphx::make_op("pooling",
+                                   {{"mode", migraphx::op::pooling_mode::max},
+                                    {"padding", {2, 2}},
+                                    {"stride", {3, 3}},
+                                    {"lengths", {3, 3}},
+                                    {"ceil_mode", true}}),
+                 input);
+}
+
 TEST_CASE(pooling_dyn_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type,
@@ -1636,6 +1650,22 @@ TEST_CASE(pooling_dyn_shape3)
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
                                     {"lengths", {1, 1}}}),
+                 input);
+}
+
+TEST_CASE(pooling_dyn_shape4)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{4, 4, 0}, {3, 3, 0}, {4, 12, 8}, {4, 12, 8}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {{4, 4, 0}, {3, 3, 0}, {3, 6, 4}, {3, 6, 4}}};
+    expect_shape(output,
+                 migraphx::make_op("pooling",
+                                   {{"mode", migraphx::op::pooling_mode::max},
+                                    {"padding", {2, 2}},
+                                    {"stride", {3, 3}},
+                                    {"lengths", {3, 3}},
+                                    {"ceil_mode", true}}),
                  input);
 }
 

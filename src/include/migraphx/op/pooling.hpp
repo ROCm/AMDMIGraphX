@@ -76,6 +76,12 @@ struct pooling
         }
     }
 
+    size_t kdims() const
+    {
+        check_attribute_size();
+        return stride.size();
+    }
+
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const

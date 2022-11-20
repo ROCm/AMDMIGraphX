@@ -52,8 +52,7 @@ struct parse_pooling : op_parser<parse_pooling>
                         const shape& in_shape,
                         value values) const
     {
-        std::string mode = opd.op_name;
-        auto kdims       = in_shape.ndim() - 2;
+        auto kdims = in_shape.ndim() - 2;
         if(starts_with(opd.onnx_name, "Global"))
         {
             // if spatial dimensions are dynamic use dyn_global flag

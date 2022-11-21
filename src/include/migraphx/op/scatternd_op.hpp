@@ -65,8 +65,7 @@ struct scatternd_op : op_name<Derived>
             if(q + r - ind_lens.back() - 1 != upd_lens.size())
             {
                 MIGRAPHX_THROW("ScatterND:  ranks of inputs don't match. " + std::to_string(q) +
-                               " + " + std::to_string(r) + " - "
-                               + std::to_string(ind_lens.back()) +
+                               " + " + std::to_string(r) + " - " + std::to_string(ind_lens.back()) +
                                " - 1 != " + std::to_string(upd_lens.size()));
             }
 

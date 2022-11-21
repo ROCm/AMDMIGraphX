@@ -33,12 +33,21 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
-
+/**
+ * @brief
+ * N-dimensional Scatter operations. This struct is parent class to ops which differ in what formula
+ * is used to reduce (combine old and new values of) the scattered value.  It is an implementation
+ * of the Onnx ScatterND operation (see
+ * https://github.com/onnx/onnx/blob/main/docs/Operators.md#ScatterND)
+ *
+ * @tparam Derived a type erasure parameter represents one of the child operations.
+ */
 template <class Derived>
 struct scatternd_op : op_name<Derived>
 {
     /** Validate input shapes and return the correct output shape.  For Scatter ops, the output
      * is the same shape as the data tensor (first input), but cast to a standard shape.
+     *
      */
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -46,8 +55,8 @@ struct scatternd_op : op_name<Derived>
 
         if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
         {
-            auto r         = inputs.front().lens().size();
-            auto q         = inputs.at(1).lens().size();
+            auto r         = inputs.front().ndim();
+            auto q         = inputs.at(1).ndim();
             auto k         = inputs.at(1).lens().back();
             auto ind_lens  = inputs.at(1).lens();
             auto upd_lens  = inputs.back().lens();
@@ -55,14 +64,10 @@ struct scatternd_op : op_name<Derived>
 
             if(q + r - ind_lens.back() - 1 != upd_lens.size())
             {
-                char msg[100];
-                sprintf(msg,
-                        "ScatterND:  ranks of inputs don't match. %lu + %lu - %lu - 1 != %lu\n",
-                        q,
-                        r,
-                        ind_lens.back(),
-                        upd_lens.size());
-                MIGRAPHX_THROW(msg);
+                MIGRAPHX_THROW("ScatterND:  ranks of inputs don't match. " + std::to_string(q) +
+                               " + " + std::to_string(r) + " - "
+                               + std::to_string(ind_lens.back()) +
+                               " - 1 != " + std::to_string(upd_lens.size()));
             }
 
             if(k > r)
@@ -97,8 +102,6 @@ struct scatternd_op : op_name<Derived>
         }
     }
 
-    /** The operation's computation.  Populate the output with the data, and scatter the updates
-     * into it.*/
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         argument result{dyn_out.computed_shape};
@@ -110,8 +113,8 @@ struct scatternd_op : op_name<Derived>
                 auto updates_std   = shape{updates_shape.type(), updates_shape.lens()};
                 auto indices_shape = indices.get_shape();
                 auto k             = indices_shape.lens().back();
-                auto q             = indices_shape.lens().size();
-                auto r             = dyn_out.computed_shape.lens().size();
+                auto q             = indices_shape.ndim();
+                auto r             = dyn_out.computed_shape.ndim();
                 par_for(updates_shape.elements(), [&](const auto i) {
                     auto updates_idx = updates_std.multi(i);
                     std::vector<std::size_t> indices_idx(q, 0);
@@ -125,7 +128,6 @@ struct scatternd_op : op_name<Derived>
                     std::copy(index_start, index_end, out_idx.begin());
                     std::copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
-                    // Perform the specific reduction function for the scatter type
                     self.reduction()(output[dyn_out.computed_shape.index(out_idx)], updates[i]);
                 });
             });

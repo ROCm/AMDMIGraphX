@@ -6727,7 +6727,6 @@ TEST_CASE(scatternd_reduction_dyn_test)
         migraphx::shape is{itype, {2, 1}};
         migraphx::shape us{dtype, {{2, 2, 0}, dd, dd}};
 
-        // can't use a literal input, as literals of dynamic shapes aren't allowed
         auto xdata    = mm->add_parameter("X", ds);
         auto xindex   = mm->add_parameter("I", is);
         auto xupdates = mm->add_parameter("U", us);

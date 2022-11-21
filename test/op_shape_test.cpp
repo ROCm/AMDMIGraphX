@@ -2018,6 +2018,16 @@ TEST_CASE(test_scatternd)
     }
 
     {
+        // good, broadcasted
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}, {4, 0}};
+        migraphx::shape us{dtype, {4}};
+        expect_shape(ds, migraphx::make_op("scatternd_none"), ds, is, us);
+    }
+
+    {
         // too many inputs
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
@@ -2047,7 +2057,10 @@ TEST_CASE(test_scatternd)
         migraphx::shape us{dtype, {2, 2}};
         throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
     }
-
+}
+ 
+TEST_CASE(test_scatternd_dyn)
+{
     {
         // one dynamic input; invalid lens is not rejected
         auto dtype = migraphx::shape::float_type;

@@ -272,6 +272,35 @@ TEST_CASE(contiguous_input)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(contiguous_boolean_input)
+{
+
+    migraphx::shape s{migraphx::shape::bool_type, {2, 3}};
+    migraphx::shape s_lit{migraphx::shape::bool_type, {1}, {0}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto one = mm->add_literal(migraphx::literal(s_lit, {1.0}));
+        auto yb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), one);
+        auto y    = mm->add_instruction(migraphx::make_op("contiguous"), yb);
+        auto xor1 = mm->add_instruction(migraphx::make_op("logical_xor"), x, y);
+        mm->add_return({xor1});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto xor1 = add_pointwise(p2, "main:pointwise0", {x}, [=](auto* pm, const auto& inputs) {
+            auto y = pm->add_literal(migraphx::literal(s_lit, {1}));
+            return pm->add_instruction(migraphx::make_op("logical_xor"), inputs[0], y);
+        });
+        mm->add_return({xor1});
+    }
+}
+
 TEST_CASE(all_scalar_input)
 {
     migraphx::shape s{migraphx::shape::float_type};

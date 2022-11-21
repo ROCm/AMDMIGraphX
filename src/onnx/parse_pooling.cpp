@@ -125,7 +125,7 @@ struct parse_pooling : op_parser<parse_pooling>
         assert(in_shape.ndim() > 2);
         auto kdims = in_shape.ndim() - 2;
 
-        handle_values(opd, info, in_shape, values);
+        values = handle_values(opd, info, in_shape, values);
 
         // count include padding, if count include pad is 1, we always use
         // explicit pad

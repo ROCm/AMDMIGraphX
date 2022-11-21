@@ -312,6 +312,23 @@ def averagepool_notset_test():
 
 
 @onnx_test
+def averagepool_nt_cip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 1, 1])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[6, 6],
+                                 strides=[2, 2],
+                                 pads=[0, 0, 1, 1],
+                                 auto_pad='NOTSET',
+                                 count_include_pad=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def averagepool_same_lower_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])

@@ -421,6 +421,74 @@ def batch_norm_invalid_bias_rank_test():
 
 
 @onnx_test
+def binary_dyn_brcst_prelu_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'PRelu',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_add_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Add',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_attr_error_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node('Add',
+                                 inputs=['0', '1'],
+                                 outputs=['out'],
+                                 broadcast=1,
+                                 axis=1)
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_mul_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Mul',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
 def cast_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])

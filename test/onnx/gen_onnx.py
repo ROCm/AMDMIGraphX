@@ -1969,6 +1969,17 @@ def gathernd_test():
 
     return ([node], [x, i], [y])
 
+@onnx_test
+def gathernd_dyn_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node('GatherND',
+                                 inputs=['data', 'indices'],
+                                 outputs=['y'])
+
+    return ([node], [x, i], [y])
 
 @onnx_test
 def gathernd_batch_dims_test():

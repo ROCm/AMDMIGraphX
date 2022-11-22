@@ -53,15 +53,13 @@ struct gathernd
             auto r = inputs.front().lens().size();
             auto q = inputs.back().lens().size();
             auto k = inputs.back().lens().back();
-            // printf("asdf static............................... k = %lu q = %lu  r = %lu\n", k, q,
-            // r);
             if(k > r - batch_dims)
             {
                 MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
                                " cannot be used to access data of rank " +
                                std::to_string(r - batch_dims));
             }
-            if(batch_dims >= q || batch_dims >= r)
+            if(batch_dims >= q or batch_dims >= r)
             {
                 MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
                                std::to_string(batch_dims));
@@ -109,8 +107,6 @@ struct gathernd
             auto r               = data_shape.ndim();
             auto q               = i_shape.ndim();
             int output_dims_size = int(q) + r - k - batch_dims - 1;
-            // printf("asdf dyn............................... k = %lu q = %lu  r = %lu\n", k, q,
-            // r);
             if(k > r - batch_dims)
             {
                 MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
@@ -167,11 +163,9 @@ struct gathernd
                 }
                 else
                 {
-                    size_t i, j;
-                    for(i = batch_dims + k - 1, j = q - 1; i < opts.size(); i++, j++)
+                    size_t j;
+                    for(size_t i = batch_dims + k, j = q - 1; i < opts.size(); i++, j++)
                     {
-                        // printf("asdf now j = %lu\n", j);
-
                         shape::dynamic_dimension dd = data_shape.dyn_dims()[i];
                         mins[j]                     = dd.min;
                         maxes[j]                    = dd.max;
@@ -179,14 +173,7 @@ struct gathernd
                     }
                 }
             }
-            // for(size_t ii = 0; ii < mins.size(); ii++)
-            //     printf("{%lu, %lu, %lu}, ", mins[ii], maxes[ii], opts[ii]);
-            std::vector<size_t> qwer(opts.size());
-            qwer = opts;
-            std::vector<size_t> dfsgdfhlg; dfsgdfhlg = maxes;
-            std::vector<size_t> fdsa = mins;
-            migraphx::shape jhh (inputs.front().type(), fdsa, dfsgdfhlg, qwer);
-            migraphx::shape output_shape (inputs.front().type(), mins, maxes, opts);
+            migraphx::shape output_shape(inputs.front().type(), mins, maxes, opts);
             return output_shape;
         }
     }

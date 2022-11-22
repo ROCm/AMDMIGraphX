@@ -75,11 +75,12 @@ using miopen_find_options = MIGRAPHX_MANAGE_PTR(miopenFindOptions_t, miopenDestr
 using miopen_problem      = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
 using miopen_solution     = MIGRAPHX_MANAGE_PTR(miopenSolution_t, miopenDestroySolution);
 
-inline miopen_solution find_solution(miopenHandle_t handle, miopenProblem_t problem)
+inline miopen_solution find_solution(miopenHandle_t handle, const miopenTensorArgument_t* tensor_args, void* workspace, size_t workspace_size, miopenProblem_t problem)
 {
     miopenSolution_t solution;
     size_t found = 0;
-    auto status  = miopenFindSolutions(handle, problem, nullptr, &solution, &found, 1);
+    //auto status = miopenFindSolutions(handle, problem, nullptr, &solution, &found, 1);
+    auto status  = miopenFindSolutions(handle, problem, nullptr, 3, tensor_args, workspace, workspace_size, &solution, &found, 1);
     auto result  = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)
         MIGRAPHX_THROW("MIOpen miopenFindSolutions failed");

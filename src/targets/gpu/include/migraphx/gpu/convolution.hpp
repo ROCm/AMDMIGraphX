@@ -163,39 +163,10 @@ struct miopen_convolution
         auto x_desc                = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
         auto w_desc                = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
         auto y_desc                = make_tensor(reshape_if_1d(output_shape));
+
+        auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         std::size_t workspace_size = 0;
-#ifdef MIGRAPHX_HAS_FIND_2_API
-        {
-            auto conv_problem = make_obj<miopen_problem>(
-                &miopenCreateConvProblem, cd.get(), miopenProblemDirectionForward);
-
-            set_tensor_descriptor(miopenTensorConvolutionX, x_desc, conv_problem);
-            set_tensor_descriptor(miopenTensorConvolutionW, w_desc, conv_problem);
-            set_tensor_descriptor(miopenTensorConvolutionY, y_desc, conv_problem);
-
-            auto* miopen_stream_handle = ctx.get_stream().get_miopen();
-
-            solution_ptr = find_solution(miopen_stream_handle, conv_problem.get());
-            auto status  = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
-            if(status != miopenStatusSuccess)
-                MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
-
-            std::size_t solution_size;
-            status = miopenGetSolutionSize(solution_ptr.get(), &solution_size);
-            if(status != miopenStatusSuccess)
-                MIGRAPHX_THROW("MIOpen" + op.name() + ": Failed to fetch solution size");
-
-            auto solution_binary = std::vector<char>{};
-            solution_binary.resize(solution_size);
-
-            status = miopenSaveSolution(solution_ptr.get(), solution_binary.data());
-            if(status != miopenStatusSuccess)
-                MIGRAPHX_THROW("MIOpen" + op.name() + ": Saving solution failed");
-            solution_object = value::binary{solution_binary.data(), solution_size};
-            return shape{shape::int8_type, {workspace_size}};
-        }
-#else
-        auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
+        auto status = miopenConvolutionForwardGetWorkSpaceSize(miopen_stream_handle,
                                                                w_desc.get(),
                                                                x_desc.get(),
                                                                cd.get(),
@@ -218,6 +189,41 @@ struct miopen_convolution
         auto y         = allocate_gpu(output_shape);
         auto workspace = allocate_gpu(workspace_shape);
 
+#ifdef MIGRAPHX_HAS_FIND_2_API
+        {
+            auto conv_problem = make_obj<miopen_problem>(
+                &miopenCreateConvProblem, cd.get(), miopenProblemDirectionForward);
+
+            set_tensor_descriptor(miopenTensorConvolutionX, x_desc, conv_problem);
+            set_tensor_descriptor(miopenTensorConvolutionW, w_desc, conv_problem);
+            set_tensor_descriptor(miopenTensorConvolutionY, y_desc, conv_problem);
+
+            const miopenTensorArgument_t tensor_args[3] = {
+                {miopenTensorConvolutionX, nullptr, x.implicit()},
+                {miopenTensorConvolutionW, nullptr, w.implicit()},
+                {miopenTensorConvolutionY, nullptr, y.implicit()},
+            };
+
+            solution_ptr = find_solution(miopen_stream_handle, tensor_args, workspace.implicit(), workspace_size, conv_problem.get());
+            status  = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+            if(status != miopenStatusSuccess)
+                MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
+
+            std::size_t solution_size;
+            status = miopenGetSolutionSize(solution_ptr.get(), &solution_size);
+            if(status != miopenStatusSuccess)
+                MIGRAPHX_THROW("MIOpen" + op.name() + ": Failed to fetch solution size");
+
+            auto solution_binary = std::vector<char>{};
+            solution_binary.resize(solution_size);
+
+            status = miopenSaveSolution(solution_ptr.get(), solution_binary.data());
+            if(status != miopenStatusSuccess)
+                MIGRAPHX_THROW("MIOpen" + op.name() + ": Saving solution failed");
+            solution_object = value::binary{solution_binary.data(), solution_size};
+            return shape{shape::int8_type, {workspace_size}};
+        }
+#else
         int algo_count = 1;
         miopenConvAlgoPerf_t perf;
         status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),

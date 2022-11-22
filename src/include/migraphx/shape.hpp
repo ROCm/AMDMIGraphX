@@ -101,6 +101,12 @@ struct shape
         friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y);
         friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y);
         friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x);
+
+        // compare to fixed std::size_t dimension
+        friend bool operator==(const dynamic_dimension& x, const std::size_t& y);
+        friend bool operator==(const std::size_t& x, const dynamic_dimension& y);
+        friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
+        friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
     };
 
     static const std::vector<type_t>& types();

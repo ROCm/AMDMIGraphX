@@ -24,8 +24,8 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
-
 #include <migraphx/gpu/mlir.hpp>
+#include <mutex>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,6 +41,9 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
+        // set mutex while llvm thread support is disabled.
+        static std::mutex g_mlirc_mutex; // NOLINT
+        const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
         return insert(compile_mlir(ctx, *smod, ins->inputs()));
     }
 

@@ -160,13 +160,13 @@ struct miopen_convolution
     shape find(context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
     {
         shape workspace_shape{};
-        auto x_desc                = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
-        auto w_desc                = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
-        auto y_desc                = make_tensor(reshape_if_1d(output_shape));
+        auto x_desc = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
+        auto w_desc = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
+        auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         std::size_t workspace_size = 0;
-        auto status = miopenConvolutionForwardGetWorkSpaceSize(miopen_stream_handle,
+        auto status                = miopenConvolutionForwardGetWorkSpaceSize(miopen_stream_handle,
                                                                w_desc.get(),
                                                                x_desc.get(),
                                                                cd.get(),
@@ -204,8 +204,12 @@ struct miopen_convolution
                 {miopenTensorConvolutionY, nullptr, y.implicit()},
             };
 
-            solution_ptr = find_solution(miopen_stream_handle, tensor_args, workspace.implicit(), workspace_size, conv_problem.get());
-            status  = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+            solution_ptr = find_solution(miopen_stream_handle,
+                                         tensor_args,
+                                         workspace.implicit(),
+                                         workspace_size,
+                                         conv_problem.get());
+            status       = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
 

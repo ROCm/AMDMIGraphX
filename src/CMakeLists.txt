@@ -64,6 +64,7 @@ add_library(migraphx
     normalize_ops.cpp
     op_enums.cpp
     operation.cpp
+    optimize.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
     pad_calc.cpp

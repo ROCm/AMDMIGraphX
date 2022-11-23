@@ -526,8 +526,8 @@ bool operator==(const shape::dynamic_dimension& x, const std::size_t& y)
     return x.min == y and x.max == y;
 }
 bool operator==(const std::size_t& x, const shape::dynamic_dimension& y) { return y == x; }
-bool operator!=(const shape::dynamic_dimension& x, const std::size_t& y) { return !(x == y); }
-bool operator!=(const std::size_t& x, const shape::dynamic_dimension& y) { return !(x == y); }
+bool operator!=(const shape::dynamic_dimension& x, const std::size_t& y) { return not(x == y); }
+bool operator!=(const std::size_t& x, const shape::dynamic_dimension& y) { return not(x == y); }
 
 bool operator==(const shape& x, const shape& y)
 {

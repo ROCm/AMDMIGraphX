@@ -1920,6 +1920,20 @@ TEST_CASE(slice_shape)
 
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
+TEST_CASE(softmax_dyn0)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}};
+    expect_shape(input, migraphx::make_op("softmax", {{"axis", 0}}), input);
+}
+
+TEST_CASE(softmax_dyn1)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 1, 0}, {3, 3, 0}, {4, 6, 0}, {5, 8, 6}}};
+    expect_shape(input, migraphx::make_op("softmax", {{"axis", 0}}), input);
+}
+
 TEST_CASE(test_argmax)
 {
     {

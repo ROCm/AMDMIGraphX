@@ -112,10 +112,11 @@ struct pooling
                         padding_factor = padding[i] + padding[i + kdims];
                     assert(input_lens[i + 2] + padding_factor >= lengths[i]);
                     std::size_t dim_size = input_lens[i + 2] + padding_factor - lengths[i];
-                    std::size_t len =
-                        (ceil_mode)
-                            ? dim_size / stride[i] + (dim_size % stride[i] != 0) // ceil uint divide
-                            : dim_size / stride[i];                              // floor divide
+                    std::size_t len      = (ceil_mode)
+                                          ? dim_size / stride[i] +
+                                                static_cast<std::size_t>(
+                                                    (dim_size % stride[i] != 0)) // ceil uint divide
+                                          : dim_size / stride[i];                // floor divide
                     output_lens.push_back(len + 1);
                 }
             }

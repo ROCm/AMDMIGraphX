@@ -110,7 +110,7 @@ struct pooling
                     std::size_t padding_factor = 2 * padding[i];
                     if(padding_size == 2 * kdims)
                         padding_factor = padding[i] + padding[i + kdims];
-                    assert(input_lens[i + 2] + padding_factor > lengths[i]);
+                    assert(input_lens[i + 2] + padding_factor >= lengths[i]);
                     std::size_t dim_size = input_lens[i + 2] + padding_factor - lengths[i];
                     std::size_t len =
                         (ceil_mode)

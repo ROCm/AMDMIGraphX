@@ -29,6 +29,7 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | --tf | Load file as a tensorflow graph |
 | --migraphx | Load file as a migraphx graph |
 | --migraphx-json | Load file as a migraphx JSON graph |
+| --batch | Set batch size for the model | 
 | --nhwc | Treat tensorflow format as nhwc | 
 | --nchw | Treat tensorflow format as nchw |
 | --skip-unknown-operators | Skip unknown operators when parsing and continue to parse |

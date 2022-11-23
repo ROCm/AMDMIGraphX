@@ -48,10 +48,10 @@ struct layernorm_matcher
 
     auto layernorm_onnx() const
     {
+        auto add_eps = f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps")));
         return f("div")(arg(0)(x_minus_mean()),
 
-                        arg(1)(skip_broadcasts(f("sqrt")(arg(0)(
-                            f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps"))))))));
+                        arg(1)(skip_broadcasts(f("sqrt")(arg(0)(match::any_of(add_eps, variance()))))));
     }
 
     auto matcher() const { return layernorm_onnx(); }

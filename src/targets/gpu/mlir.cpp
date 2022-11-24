@@ -32,6 +32,7 @@
 #include <mlir-c/Dialect/MIGraphX.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Pass.h>
+#include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
 #undef MIGRAPHX_MLIR
@@ -646,6 +647,10 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
         std::cout << m << std::endl;
+
+    // set mutex while llvm thread support is disabled.
+    static std::mutex g_mlirc_mutex; // NOLINT
+    const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
     mlir_program mp;
     mp.find_target();
     mp.parse(m);

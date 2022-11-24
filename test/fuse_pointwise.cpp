@@ -334,12 +334,12 @@ TEST_CASE(greater_convert_kernel)
     migraphx::program p1;
     {
         migraphx::shape s{migraphx::shape::float_type, {5}, {1}};
-        auto* mm = p1.get_main_module();
-        mm->add_parameter("x", s);
-        mm->add_parameter("y", s);
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", s);
         auto l1      = mm->add_literal(migraphx::literal{s, {0.5f, 0.1f, 0.2f, 0.3f, 0.4f}});
         auto l2      = mm->add_literal(migraphx::literal{s, {0.7f, 0.2f, 0.3f, 0.1f, 0.1f}});
-        auto greater = mm->add_instruction(migraphx::make_op("greater"), l1, l2);
+        auto greater = mm->add_instruction(migraphx::make_op("greater"), x, l2);
         mm->add_return({greater});
     }
     run_pass(p1);
@@ -349,10 +349,10 @@ TEST_CASE(greater_convert_kernel)
         auto* mm  = p2.get_main_module();
         auto x    = mm->add_parameter("x", s);
         auto y    = mm->add_parameter("y", s);
-        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto&) {
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto& inputs) {
             auto l1 = pm->add_literal(migraphx::literal{s, {0.5f, 0.1f, 0.2f, 0.3f, 0.4f}});
             auto l2 = pm->add_literal(migraphx::literal{s, {0.7f, 0.2f, 0.3f, 0.1f, 0.1f}});
-            return pm->add_instruction(migraphx::make_op("greater"), l1, l2);
+            return pm->add_instruction(migraphx::make_op("greater"), inputs[0], l2);
         });
         mm->add_return({add1});
     }

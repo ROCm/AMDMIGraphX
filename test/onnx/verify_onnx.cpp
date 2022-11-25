@@ -629,6 +629,34 @@ TEST_CASE(if_else_empty_shape_test)
     p.compile(migraphx::ref::target{});
     migraphx::shape s_data{migraphx::shape::float_type, {2, 3}};
     std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};
+    migraphx::shape bool_data{migraphx::shape::bool_type, {1}};
+    bool b_data = false;
+
+    migraphx::shape s_data_y{migraphx::shape::float_type, {1}, {0}};
+    std::vector<float> data_y = {2.0};
+
+    migraphx::parameter_map pp;
+    pp["x"]    = migraphx::argument(s_data, data.data());
+    pp["y"]    = migraphx::argument(s_data_y, data_y.data());
+    pp["cond"] = migraphx::argument(bool_data, &b_data);
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // onnx multiplies things by a random vector that's baked in.
+    // Needs to be changed everytime we refresh the onnx file
+    std::vector<float> gold = {-2.28666, -2.0852, 1.19362, -0.719711, -0.729583, 1.6431};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(if_else_empty_shape_test_inlined)
+{
+    migraphx::program p = migraphx::parse_onnx("if_else_empty_shape_test_inlined.onnx");
+    p.compile(migraphx::ref::target{});
+    migraphx::shape s_data{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};
 
     migraphx::shape s_data_y{migraphx::shape::float_type, {1}, {0}};
     std::vector<float> data_y = {2.0};

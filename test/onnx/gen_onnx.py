@@ -3678,6 +3678,7 @@ def if_else_trailing_one_shape_test():
     return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
 
 
+@onnx_test
 def if_then_empty_shape_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
@@ -3729,6 +3730,7 @@ def if_then_empty_shape_test():
     return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
 
+@onnx_test
 def if_then_empty_shape_test_inlined():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])

@@ -2586,7 +2586,7 @@ def if_else_empty_shape_test_inlined():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
 
 @onnx_test
@@ -2678,11 +2678,10 @@ def if_then_trailing_one_shape_test_inlined():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([1]).astype(np.bool)
-    cond_tensor = helper.make_tensor(name="cond",
-                                     data_type=TensorProto.BOOL,
-                                     dims=cond.shape,
-                                     vals=cond.astype(bool))
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
     res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('If',
@@ -2691,7 +2690,7 @@ def if_then_trailing_one_shape_test_inlined():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
 
 @onnx_test
@@ -2732,11 +2731,10 @@ def if_then_else_diff_shape_test():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([1]).astype(np.bool)
-    cond_tensor = helper.make_tensor(name="cond",
-                                     data_type=TensorProto.BOOL,
-                                     dims=cond.shape,
-                                     vals=cond.astype(bool))
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
     res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('If',
@@ -2745,7 +2743,7 @@ def if_then_else_diff_shape_test():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
 
 @onnx_test
@@ -2787,11 +2785,10 @@ def if_then_else_incompatible_shape_test():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([1]).astype(np.bool)
-    cond_tensor = helper.make_tensor(name="cond",
-                                     data_type=TensorProto.BOOL,
-                                     dims=cond.shape,
-                                     vals=cond.astype(bool))
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
     res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('If',
@@ -2800,7 +2797,7 @@ def if_then_else_incompatible_shape_test():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
 
 @onnx_test
@@ -2842,11 +2839,10 @@ def if_then_else_incompatible_shape_test2():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([1]).astype(np.bool)
-    cond_tensor = helper.make_tensor(name="cond",
-                                     data_type=TensorProto.BOOL,
-                                     dims=cond.shape,
-                                     vals=cond.astype(bool))
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
     res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('If',
@@ -2905,11 +2901,10 @@ def if_then_else_incompatible_output_shapes_test():
     else_body = onnx.helper.make_graph([else_mul_node, else_sub_node],
                                        'else_body', [], [else_out, else_out2])
 
-    cond = np.array([1]).astype(np.bool)
-    cond_tensor = helper.make_tensor(name="cond",
-                                     data_type=TensorProto.BOOL,
-                                     dims=cond.shape,
-                                     vals=cond.astype(bool))
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
     res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('If',
@@ -2988,7 +2983,7 @@ def if_then_else_multi_output_shapes_test():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
 
 
 @onnx_test
@@ -3153,11 +3148,10 @@ def if_then_else_both_empty_test():
     then_body = onnx.helper.make_graph([shape_const_y], 'then_body', [],
                                        [then_out])
 
-    cond = np.array([0]).astype(np.bool)
-    cond_tensor = helper.make_tensor(name="cond",
-                                     data_type=TensorProto.BOOL,
-                                     dims=cond.shape,
-                                     vals=cond.astype(bool))
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
     res = onnx.helper.make_tensor_value_info('res', TensorProto.INT64, [])
 
     node = onnx.helper.make_node('If',
@@ -3166,7 +3160,7 @@ def if_then_else_both_empty_test():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [], [res], [cond_tensor, empty_ts, empty_ts_y])
+    return ([node], [cond_tensor], [res], [empty_ts, empty_ts_y])
 
 
 @onnx_test

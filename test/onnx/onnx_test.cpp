@@ -2673,15 +2673,15 @@ TEST_CASE(if_else_trailing_one_shape_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    auto cond = mm->add_literal(migraphx::literal(sc, {0}));
     migraphx::shape s{migraphx::shape::float_type, {2, 1}};
     migraphx::shape s_trail{migraphx::shape::float_type, {2}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s, ones);
-    std::vector<float> rand = {0.0466969, 0.389311};
+    std::vector<float> rand = {0.212194, -1.38143};
     auto l2                 = mm->add_literal(s_trail, rand);
     auto x                  = mm->add_parameter("x", s);
     auto y                  = mm->add_parameter("y", s_trail);
+    auto cond               = mm->add_parameter("cond", sc);
 
     auto* then_mod = p.create_module("If_5_if");
     auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
@@ -2697,6 +2697,28 @@ TEST_CASE(if_else_trailing_one_shape_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_else_trailing_one_shape_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_else_trailing_one_shape_test_inlined)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    mm->add_literal(migraphx::literal(sc, {0}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
+    migraphx::shape s_trail{migraphx::shape::float_type, {2}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    mm->add_literal(s, ones);
+    std::vector<float> rand = {0.0466969, 0.389311};
+    auto l2                 = mm->add_literal(s_trail, rand);
+    mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s_trail);
+
+    auto re = mm->add_instruction(migraphx::make_op("mul"), y, l2);
+    mm->add_return({re});
+
+    auto prog = migraphx::parse_onnx("if_else_trailing_one_shape_test_inlined.onnx");
     EXPECT(p == prog);
 }
 

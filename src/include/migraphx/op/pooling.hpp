@@ -154,6 +154,8 @@ struct pooling
             auto input_lens = input.lens();
 
             std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
+            // Used for when normalize_compute_shape() is called again at model eval time
+            // for an originally dynamic shape. Since kernel shape is not used with dyn_global.
             if(dyn_global)
             {
                 for(size_t i = 0; i < kdims; ++i)

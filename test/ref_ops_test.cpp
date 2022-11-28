@@ -697,31 +697,6 @@ TEST_CASE(avgpool_rank5_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(avgpool_rank3_dyn_test)
-{
-    // 1D case 1, input is 3D
-    migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto s      = migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}}};
-    auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::average};
-    op.lengths  = {2};
-    op.padding  = {0};
-    op.stride   = {1};
-    auto param0 = mm->add_parameter("X", s);
-    mm->add_instruction(op, param0);
-    p.compile(migraphx::ref::target{});
-
-    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
-    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 3, 4}};
-    migraphx::parameter_map params;
-    params["X"] = migraphx::argument(input_fixed_shape, data.data());
-    auto result = p.eval(params).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{0.25, 0.3, 0.25, 0.65, 0.7, 0.5, 0.4, 0.4, 0.35};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
 TEST_CASE(broadcast_test)
 {
     migraphx::program p;

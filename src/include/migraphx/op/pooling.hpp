@@ -31,7 +31,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/shape_for_each.hpp>
-#include <migraphx/int_divide.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <cmath>
 #include <utility>
@@ -84,6 +83,35 @@ struct pooling
 
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
+    std::vector<std::size_t> calc_spatial_dim_out(const std::vector<std::size_t>& input_lens,
+                                                  std::size_t kdims) const
+    {
+        std::vector<std::size_t> output_lens{};
+        for(size_t i = 0; i < kdims; ++i)
+        {
+            if(input_lens[i + 2] == 0)
+            {
+                // handle opt = 0
+                output_lens.push_back(0);
+            }
+            else
+            {
+                std::size_t padding_factor = 2 * padding[i];
+                if(padding.size() == 2 * kdims)
+                    padding_factor = padding[i] + padding[i + kdims];
+                assert(input_lens[i + 2] + padding_factor >= lengths[i]);
+                std::size_t dim_size = input_lens[i + 2] + padding_factor - lengths[i];
+                std::size_t len =
+                    (ceil_mode)
+                        ? dim_size / stride[i] + static_cast<std::size_t>((dim_size % stride[i] !=
+                                                                           0)) // ceil uint divide
+                        : dim_size / stride[i];                                // floor divide
+                output_lens.push_back(len + 1);
+            }
+        }
+        return output_lens;
+    }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
@@ -96,32 +124,6 @@ struct pooling
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
-
-        auto calc_spatial_dim_out = [&](std::vector<std::size_t> input_lens) {
-            std::vector<std::size_t> output_lens{};
-            for(size_t i = 0; i < kdims; ++i)
-            {
-                if(input_lens[i + 2] == 0)
-                {
-                    // handle opt = 0
-                    output_lens.push_back(0);
-                }
-                else
-                {
-                    std::ptrdiff_t dim_size;
-                    auto padding_factor = 2 * padding[i];
-                    if(padding_size == 2 * kdims)
-                        padding_factor = padding[i] + padding[i + kdims];
-                    dim_size = input_lens[i + 2] + padding_factor - lengths[i];
-                    assert(dim_size >= 0);
-                    std::size_t len = (ceil_mode)
-                                          ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
-                                          : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);
-                    output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(1, len + 1)));
-                }
-            }
-            return output_lens;
-        };
 
         if(input.dynamic())
         {
@@ -138,9 +140,9 @@ struct pooling
             }
             else
             {
-                auto min_spatial_dims = calc_spatial_dim_out(input.min_lens());
-                auto max_spatial_dims = calc_spatial_dim_out(input.max_lens());
-                auto opt_spatial_dims = calc_spatial_dim_out(input.opt_lens());
+                auto min_spatial_dims = calc_spatial_dim_out(input.min_lens(), kdims);
+                auto max_spatial_dims = calc_spatial_dim_out(input.max_lens(), kdims);
+                auto opt_spatial_dims = calc_spatial_dim_out(input.opt_lens(), kdims);
                 for(size_t i = 0; i < kdims; ++i)
                 {
                     output_dyn_dims.push_back(shape::dynamic_dimension{
@@ -166,7 +168,7 @@ struct pooling
             }
             else
             {
-                auto output_spatial_lens = calc_spatial_dim_out(input_lens);
+                auto output_spatial_lens = calc_spatial_dim_out(input_lens, kdims);
                 output_lens.insert(
                     output_lens.end(), output_spatial_lens.begin(), output_spatial_lens.end());
                 return inputs[0].with_lens(output_lens);

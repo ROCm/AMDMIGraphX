@@ -83,7 +83,8 @@ void rewrite_gemm::apply(module& m) const
         // {
         //     out_lens.erase(out_lens.begin(), out_lens.begin() + (out_lens.size() - in_size));
         //     conv_transpose_out =
-        //         m.insert_instruction(ins, make_op("reshape", {{"dims", out_lens}}), conv_transpose);
+        //         m.insert_instruction(ins, make_op("reshape", {{"dims", out_lens}}),
+        //         conv_transpose);
         // }
         // m.replace_instruction(ins, conv_transpose_out);
 

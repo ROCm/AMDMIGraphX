@@ -92,12 +92,22 @@ struct parse_if : op_parser<parse_if>
                 parser.parse_graph(mod, else_graph);
             }
 
+            instruction_ref ret_ins = std::prev(mod->end());
+            auto num_outputs        = mod->get_output_shapes().size();
+            auto outputs            = ret_ins->inputs();
+
             // inputs of the return instruction are that of the output of the
             // if instruction
-            instruction_ref ret_ins = std::prev(mod->end());
-            auto outputs            = ret_ins->inputs();
             assert(ret_ins->name() == "@return");
-            mod->remove_instruction(ret_ins);
+
+            if(num_outputs > 1)
+            {
+                mod->replace_return(outputs);
+            }
+            else
+            {
+                mod->remove_instruction(ret_ins);
+            }
 
             return outputs;
         }

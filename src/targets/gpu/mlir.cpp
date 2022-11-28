@@ -455,7 +455,7 @@ struct mlir_program
 
         auto ops = create_operation_state("func.func");
         ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
-                            {"sym_name", std::string("main")},
+                            {"sym_name", std::string("mlir_main")},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch}});
         ops.add_region(std::move(region));
@@ -550,7 +550,7 @@ struct mlir_program
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op{};
-        op.symbol_name                = "main";
+        op.symbol_name                = "mlir_main";
         op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
         return op;

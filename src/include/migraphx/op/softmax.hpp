@@ -61,8 +61,7 @@ struct softmax
         }
         else
         {
-            auto lens = s0.lens();
-            return {s0.type(), lens};
+            return {s0.type(), s0.lens()};
         }
     }
 

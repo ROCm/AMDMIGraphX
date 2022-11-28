@@ -3398,6 +3398,60 @@ def if_then_empty_constant_test():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
+    res = onnx.helper.make_tensor_value_info('res', TensorProto.INT64, [2, 1])
+
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['res'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([node], [y, cond_tensor], [res], [empty_ts, yt_tensor])
+
+
+@onnx_test
+def if_then_empty_constant_test_inlined():
+
+    empty_val = np.array([]).astype(np.int64)
+    empty_ts = helper.make_tensor(name='empty_tensor',
+                                  data_type=TensorProto.INT64,
+                                  dims=empty_val.shape,
+                                  vals=empty_val.flatten().astype(int))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape_const'],
+        value=empty_ts,
+    )
+
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.INT64, [2, 1])
+
+    then_out = helper.make_tensor_value_info('shape_const', TensorProto.INT64,
+                                             [])
+    else_out = onnx.helper.make_tensor_value_info('else_out',
+                                                  onnx.TensorProto.INT64,
+                                                  [2, 1])
+
+    yt = np.random.randn(2, 1).astype(np.int64)
+    yt_tensor = helper.make_tensor(name='yt',
+                                   data_type=TensorProto.INT64,
+                                   dims=yt.shape,
+                                   vals=yt.flatten().astype(np.int64))
+
+    else_mul_node = onnx.helper.make_node('Mul',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out'])
+
+    then_body = onnx.helper.make_graph([shape_const], 'then_body', [],
+                                       [then_out])
+
+    else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
+                                       [else_out])
+
     cond = np.array([1]).astype(np.bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,

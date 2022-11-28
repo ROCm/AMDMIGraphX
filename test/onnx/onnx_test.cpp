@@ -2941,12 +2941,12 @@ TEST_CASE(if_then_empty_constant_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    auto cond = mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape s{migraphx::shape::int64_type, {2, 1}};
-    std::vector<int> rand = {-1, 0};
+    std::vector<int> rand = {0, 0};
     mm->add_literal(migraphx::shape::int64_type);
-    auto l2 = mm->add_literal(s, rand);
-    auto y  = mm->add_parameter("y", s);
+    auto l2   = mm->add_literal(s, rand);
+    auto y    = mm->add_parameter("y", s);
+    auto cond = mm->add_parameter("cond", sc);
 
     auto* else_mod = p.create_module("If_4_else");
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
@@ -2962,6 +2962,25 @@ TEST_CASE(if_then_empty_constant_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_then_empty_constant_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_then_empty_constant_test_inlined)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    mm->add_literal(migraphx::literal(sc, {1}));
+    migraphx::shape s{migraphx::shape::int64_type, {2, 1}};
+    std::vector<int> rand = {-1, 0};
+    mm->add_literal(migraphx::shape::int64_type);
+    mm->add_literal(s, rand);
+    mm->add_parameter("y", s);
+    auto lit = mm->add_literal(migraphx::shape::int64_type);
+
+    mm->add_return({lit});
+
+    auto prog = migraphx::parse_onnx("if_then_empty_constant_test_inlined.onnx");
     EXPECT(p == prog);
 }
 

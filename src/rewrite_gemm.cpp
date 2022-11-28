@@ -73,6 +73,20 @@ void rewrite_gemm::apply(module& m) const
             in1 = m.insert_instruction(ins, make_op("reshape", {{"dims", new_lens1}}), in1);
         }
 
+        // auto conv =
+        //     m.insert_instruction(ins, make_op("convolution"), {in0, in1});
+        // auto conv_transpose = conv;
+
+        // auto out_lens           = conv_transpose->get_shape().lens();
+        // auto conv_transpose_out = conv_transpose;
+        // if(out_lens.size() != in_size)
+        // {
+        //     out_lens.erase(out_lens.begin(), out_lens.begin() + (out_lens.size() - in_size));
+        //     conv_transpose_out =
+        //         m.insert_instruction(ins, make_op("reshape", {{"dims", out_lens}}), conv_transpose);
+        // }
+        // m.replace_instruction(ins, conv_transpose_out);
+
         auto in0_transposed =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), in0);
         auto in1_transposed =

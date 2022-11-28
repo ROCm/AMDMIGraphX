@@ -3065,15 +3065,15 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    auto cond = mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::shape s_trail{migraphx::shape::float_type, {2, 3, 1}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s_trail, ones);
-    std::vector<float> rand = {-0.598881, 0.495922, 0.145435, -0.483517, -0.613278, -0.953624};
+    std::vector<float> rand = {-0.976195, -1.64977, -0.300733, 0.596155, 0.58785, 0.490098};
     auto l2                 = mm->add_literal(s, rand);
     auto x                  = mm->add_parameter("x", s_trail);
     auto y                  = mm->add_parameter("y", s);
+    auto cond               = mm->add_parameter("cond", sc);
 
     auto* then_mod  = p.create_module("If_5_if");
     auto rt         = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
@@ -3094,6 +3094,29 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_then_else_multi_output_shapes_test_inlined)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    mm->add_literal(migraphx::literal(sc, {1}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s_trail{migraphx::shape::float_type, {2, 3, 1}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    auto l1                 = mm->add_literal(s_trail, ones);
+    std::vector<float> rand = {-0.598881, 0.495922, 0.145435, -0.483517, -0.613278, -0.953624};
+    mm->add_literal(s, rand);
+    auto x = mm->add_parameter("x", s_trail);
+    mm->add_parameter("y", s);
+
+    auto rt  = mm->add_instruction(migraphx::make_op("add"), x, l1);
+    auto rt2 = mm->add_instruction(migraphx::make_op("add"), x, x);
+
+    mm->add_return({rt, rt2});
+    auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test_inlined.onnx");
     EXPECT(p == prog);
 }
 

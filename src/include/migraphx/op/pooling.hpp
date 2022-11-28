@@ -83,7 +83,7 @@ struct pooling
 
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
-    std::vector<std::size_t> calc_spatial_dim_out(std::vector<std::size_t> input_lens,
+    std::vector<std::size_t> calc_spatial_dim_out(const std::vector<std::size_t>& input_lens,
                                                   std::size_t kdims) const
     {
         std::vector<std::size_t> output_lens{};

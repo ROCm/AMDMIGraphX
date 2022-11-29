@@ -365,6 +365,12 @@ TEST_CASE(contiguous_shape)
     expect_shape(single, migraphx::make_op("contiguous"), single);
 }
 
+TEST_CASE(contiguous_dyn_shape)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 2}}};
+    expect_shape(s0, migraphx::make_op("contiguous"), s0);
+}
+
 TEST_CASE(contiguous_shape_scalar)
 {
     migraphx::shape output{migraphx::shape::float_type};
@@ -2271,6 +2277,28 @@ TEST_CASE(transpose_shape)
     expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1}}}), input);
     expect_shape(output, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), input);
     throws_shape(migraphx::make_op("transpose", {{"permutation", {1, 2}}}), input);
+}
+
+TEST_CASE(transpose_dyn_shape0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}}};
+    migraphx::shape output{migraphx::shape::float_type, {{2, 2, 0}, {1, 4, 0}}};
+    expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1}}}), input);
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), input);
+}
+
+TEST_CASE(transpose_dyn_shape1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {4, 4, 0}}};
+    migraphx::shape output{migraphx::shape::float_type, {{4, 4, 0}, {4, 4, 0}, {1, 4, 0}}};
+    expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1, 2}}}), input);
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
+}
+
+TEST_CASE(transpose_axes_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 2}};
+    throws_shape(migraphx::make_op("transpose", {{"permutation", {1}}}), input);
 }
 
 TEST_CASE(step_test)

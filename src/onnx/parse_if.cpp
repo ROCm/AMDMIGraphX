@@ -100,13 +100,12 @@ struct parse_if : op_parser<parse_if>
             // if instruction
             assert(ret_ins->name() == "@return");
 
+            mod->remove_instruction(ret_ins);
             if(num_outputs > 1)
-            {
-                mod->replace_return(outputs);
-            }
-            else
-            {
-                mod->remove_instruction(ret_ins);
+            { // TODO: Add support for make_tuple operator. This isn't trivial
+                //      Function that does our output aliasing has
+                MIGRAPHX_THROW(
+                    "PARSE_IF: Multi-output if not supported for IF operator const folding");
             }
 
             return outputs;

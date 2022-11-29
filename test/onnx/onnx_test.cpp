@@ -3035,8 +3035,10 @@ TEST_CASE(if_then_empty_constant_multi_output_test_inlined)
     mm->add_return({r1, r2});
     mm->add_return({r1, r2});
 
-    auto prog = migraphx::parse_onnx("if_then_empty_constant_multi_output_test_inlined.onnx");
-    EXPECT(p == prog);
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("if_then_empty_constant_multi_output_test_inlined.onnx"); }));
+    // auto prog = migraphx::parse_onnx("if_then_empty_constant_multi_output_test_inlined.onnx");
+    // EXPECT(p == prog);
 }
 
 TEST_CASE(if_else_empty_constant_test)
@@ -3137,8 +3139,10 @@ TEST_CASE(if_else_empty_constant_multi_output_test_inlined)
     mm->add_return({r1, r2});
     mm->add_return({r1, r2});
 
-    auto prog = migraphx::parse_onnx("if_else_empty_constant_multi_output_test_inlined.onnx");
-    EXPECT(p == prog);
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("if_else_empty_constant_multi_output_test_inlined.onnx"); }));
+    // auto prog = migraphx::parse_onnx("if_else_empty_constant_multi_output_test_inlined.onnx");
+    // EXPECT(p == prog);
 }
 
 TEST_CASE(if_then_else_multi_output_shapes_test)
@@ -3150,7 +3154,7 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     migraphx::shape s_trail{migraphx::shape::float_type, {2, 3, 1}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s_trail, ones);
-    std::vector<float> rand = {-0.976195, -1.64977, -0.300733, 0.596155, 0.58785, 0.490098};
+    std::vector<float> rand = {-2.56716, 1.23189, -0.416891, -1.41806, -0.807962, -0.638497};
     auto l2                 = mm->add_literal(s, rand);
     auto x                  = mm->add_parameter("x", s_trail);
     auto y                  = mm->add_parameter("y", s);
@@ -3197,8 +3201,11 @@ TEST_CASE(if_then_else_multi_output_shapes_test_inlined)
     auto rt2 = mm->add_instruction(migraphx::make_op("add"), x, x);
 
     mm->add_return({rt, rt2});
-    auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test_inlined.onnx");
-    EXPECT(p == prog);
+    // TODO: Expect Multi-output inlining to fail without make_tuple operator and sequence operators
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("if_then_else_multi_output_shapes_test_inlined.onnx"); }));
+    // auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test_inlined.onnx");
+    // EXPECT(p == prog);
 }
 
 TEST_CASE(if_then_else_multi_output_shapes_test2)
@@ -3254,8 +3261,11 @@ TEST_CASE(if_then_else_multi_output_shapes_test2_inlined)
     auto rt2 = mm->add_instruction(migraphx::make_op("add"), x, x);
     mm->add_return({rt, rt2});
 
-    auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test2_inlined.onnx");
-    EXPECT(p == prog);
+    // TODO: Expect Multi-output inlining to fail without make_tuple operator and sequence operators
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("if_then_else_multi_output_shapes_test2_inlined.onnx"); }));
+    // auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test2_inlined.onnx");
+    // EXPECT(p == prog);
 }
 
 TEST_CASE(if_then_else_diff_shape)

@@ -1969,6 +1969,7 @@ def gathernd_test():
 
     return ([node], [x, i], [y])
 
+
 @onnx_test
 def gathernd_dyn_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2])
@@ -1980,6 +1981,7 @@ def gathernd_dyn_test():
                                  outputs=['y'])
 
     return ([node], [x, i], [y])
+
 
 @onnx_test
 def gathernd_batch_dims_test():

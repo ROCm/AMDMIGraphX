@@ -35,13 +35,13 @@
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
+#include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
-#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
@@ -51,6 +51,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -72,6 +73,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 
 struct id_pass
 {
@@ -111,8 +113,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         insert_pad{},
         dead_code_elimination{},
-        rewrite_batchnorm{},
-        dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
         inline_module{},
@@ -123,6 +123,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_common_subexpression{},
         dead_code_elimination{},
         simplify_algebra{},
+        simplify_reshapes{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
+        dead_code_elimination{},
         simplify_reshapes{},
         simplify_algebra{},
         prefuse_ops{},
@@ -142,6 +145,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
+        compile_miopen{&gctx},
+        dead_code_elimination{},
         pack_int8_args{},
         dead_code_elimination{},
         adjust_allocation{gpu_allocation_model{}},
@@ -149,6 +154,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
         replace_allocate{gpu_allocation_model{}, options.offload_copy},
+        dead_code_elimination{},
+        adjust_allocation{gpu_allocation_model{}},
         dead_code_elimination{},
         compile_ops{&ctx},
         dead_code_elimination{},

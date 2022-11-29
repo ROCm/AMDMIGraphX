@@ -332,6 +332,24 @@ def batch_norm_flat_test():
 
 
 @onnx_test
+def batch_norm_rank_2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [5])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [5])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [5])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [5])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 5])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
+        epsilon=1e-6)
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
 def batch_norm_1d_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3, 4])
     scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
@@ -386,23 +404,6 @@ def batch_norm_3d_test():
 
 
 @onnx_test
-def batch_norm_invalid_rank_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [8, 8])
-    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [8])
-    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [8])
-    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [8])
-    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [8])
-    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 8])
-
-    node = onnx.helper.make_node(
-        'BatchNormalization',
-        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
-        outputs=['y'])
-
-    return ([node], [x, scale, bias, mean, var], [out])
-
-
-@onnx_test
 def batch_norm_invalid_bias_rank_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4, 4])
     scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
@@ -417,6 +418,74 @@ def batch_norm_invalid_bias_rank_test():
         outputs=['y'])
 
     return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def binary_dyn_brcst_prelu_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'PRelu',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_add_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Add',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_attr_error_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node('Add',
+                                 inputs=['0', '1'],
+                                 outputs=['out'],
+                                 broadcast=1,
+                                 axis=1)
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_mul_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Mul',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
 
 
 @onnx_test
@@ -3648,6 +3717,16 @@ def neg_test():
 
 
 @onnx_test
+def neg_dynamic_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT64, [None, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.INT64, [None, 3])
+
+    node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def nms_test():
     b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
     s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
@@ -5281,6 +5360,20 @@ def sinh_test():
 
 
 @onnx_test
+def sinh_dynamic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node(
+        'Sinh',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def size_float_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
@@ -5660,6 +5753,92 @@ def split_test_default():
     )
 
     return ([node], [x], [y1, y2])
+
+
+@onnx_test
+def split_test_no_attribute():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [300, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [75, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [75, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [75, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [75, 15])
+
+    split = np.ones(4) * 75
+    split_tensor = helper.make_tensor(name="split",
+                                      data_type=TensorProto.INT64,
+                                      dims=split.shape,
+                                      vals=split.astype(np.int64))
+    const_node = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['split'],
+                                  value=split_tensor)
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x', 'split'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+    )
+
+    return ([const_node, node], [x], [y1, y2, y3, y4])
+
+
+@onnx_test
+def split_test_no_attribute_invalid_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [300, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [75, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [75, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [75, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [75, 15])
+
+    split = np.ones(4)
+    split_tensor = helper.make_tensor(name="split",
+                                      data_type=TensorProto.INT64,
+                                      dims=split.shape,
+                                      vals=split.astype(np.int64))
+    const_node = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['split'],
+                                  value=split_tensor)
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x', 'split'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+    )
+
+    return ([const_node, node], [x], [y1, y2, y3, y4])
+
+
+@onnx_test
+def split_test_invalid_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [10, 7])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [10, 4])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [10, 4])
+
+    node = onnx.helper.make_node('Split',
+                                 inputs=['x'],
+                                 outputs=['y1', 'y2', 'y3'],
+                                 axis=1,
+                                 split=[1, 1, 1])
+
+    return ([node], [x], [y1, y2, y3])
+
+
+@onnx_test
+def split_test_no_attribute_invalid_input_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [10, 7])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [10, 4])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [10, 4])
+
+    node = onnx.helper.make_node('Split',
+                                 inputs=['x'],
+                                 outputs=['y1', 'y2', 'y3'],
+                                 axis=1,
+                                 split=[])
+
+    return ([node], [x], [y1, y2, y3])
 
 
 @onnx_test

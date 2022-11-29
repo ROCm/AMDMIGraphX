@@ -21,50 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_BATCH_NORM_HPP
-#define MIGRAPHX_GUARD_OPERATORS_BATCH_NORM_HPP
 
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/config.hpp>
-#include <cmath>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct batch_norm_inference
+struct test_concat_broadcast_add : verify_program<test_concat_broadcast_add>
 {
-    float epsilon  = 1.0e-6f;
-    float momentum = 0.9f;
-
-    std::string name() const { return "batch_norm_inference"; }
-
-    enum bn_infer_mode_t
+    migraphx::program create_program() const
     {
-        per_activation,
-        spatial,
-    };
-
-    bn_infer_mode_t bn_mode = spatial;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(
-            f(self.epsilon, "epsilon"), f(self.momentum, "momentum"), f(self.bn_mode, "bn_mode"));
-    }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(5);
-        check_shapes{inputs.data(), inputs.data() + 1, *this}.same_ndims();
-        check_shapes{inputs.data() + 1, inputs.data() + inputs.size(), *this}.same_shape();
-        return inputs.front();
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2, 4}};
+        migraphx::shape s1{migraphx::shape::float_type, {1, 6, 4}};
+        migraphx::shape s2{migraphx::shape::float_type, {6, 1}};
+        auto x      = mm->add_parameter("x", s0);
+        auto y      = mm->add_parameter("y", s0);
+        auto z      = mm->add_parameter("z", s0);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
+        auto b      = mm->add_literal(migraphx::generate_literal(s2, 15));
+        auto bb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), b);
+        mm->add_instruction(migraphx::make_op("add"), concat, bb);
+        return p;
     }
 };
-
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

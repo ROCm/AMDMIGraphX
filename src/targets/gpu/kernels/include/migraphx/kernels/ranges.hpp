@@ -21,33 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_KERNELS_RANGES_HPP
+#define MIGRAPHX_GUARD_KERNELS_RANGES_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/kernels/iota_iterator.hpp>
 
-struct test_batchnorm_inference_2 : verify_program<test_batchnorm_inference_2>
+namespace migraphx {
+
+template <class Iterator>
+struct iterator_range
 {
-    const size_t width    = 14;
-    const size_t height   = 14;
-    const size_t channels = 256;
-    const size_t batches  = 1;
+    Iterator start;
+    Iterator last;
 
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
+    constexpr Iterator begin() const { return start; }
 
-        migraphx::shape s{migraphx::shape::float_type, {batches, channels, height, width}};
-        migraphx::shape vars{migraphx::shape::float_type, {channels}};
-        auto x        = mm->add_parameter("x", s);
-        auto scale    = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
-        auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
-        auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
-        auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm->add_instruction(
-            migraphx::make_op("batch_norm_inference"), x, scale, bias, mean, variance);
-        return p;
-    }
+    constexpr Iterator end() const { return last; }
 };
+
+constexpr iterator_range<iota_iterator> range(diff_int start, diff_int last)
+{
+    return {{start, {}}, {last, {}}};
+}
+constexpr iterator_range<iota_iterator> range(diff_int last) { return range(0, last); }
+
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_KERNELS_RANGES_HPP

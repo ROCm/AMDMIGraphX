@@ -41,9 +41,8 @@ struct quant_convolution
     std::vector<std::size_t> stride   = {1, 1};
     std::vector<std::size_t> dilation = {1, 1};
 
-    padding_mode_t padding_mode    = default_;
-    int group                      = 1;
-    bool use_dynamic_same_auto_pad = false;
+    padding_mode_t padding_mode = default_;
+    int group                   = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -52,8 +51,7 @@ struct quant_convolution
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
                     f(self.padding_mode, "padding_mode"),
-                    f(self.group, "group"),
-                    f(self.use_dynamic_same_auto_pad, "use_dynamic_same_auto_pad"));
+                    f(self.group, "group"));
     }
 
     value attributes() const
@@ -65,8 +63,8 @@ struct quant_convolution
 
     void check_attribute_size() const
     {
-        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
-               stride.size() == dilation.size()))
+        if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
+           stride.size() != dilation.size())
         {
             MIGRAPHX_THROW("QUANT_CONVOLUTION: inconsistent attribute sizes");
         }

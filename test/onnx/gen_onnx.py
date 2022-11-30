@@ -1895,6 +1895,19 @@ def flatten_nonstd_test():
 
 
 @onnx_test
+def flatten_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 5])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, 20])
+
+    node = onnx.helper.make_node('Flatten',
+                                 inputs=['0'],
+                                 axis=2,
+                                 outputs=['2'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def floor_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])

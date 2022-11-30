@@ -49,7 +49,7 @@ def onnx_test(external_data=False):
             onnx.save_model(model_def,
                             '{}.onnx'.format(op_test.__name__),
                             save_as_external_data=external_data,
-                            location="./" + op_test.__name__ + ".weight",
+                            location='{}.weight'.format(op_test.__name__),
                             size_threshold=0,
                             convert_attribute=True)
 

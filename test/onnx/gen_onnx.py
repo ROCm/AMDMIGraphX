@@ -6278,6 +6278,21 @@ def transpose_test():
 
 
 @onnx_test
+def transpose_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 2, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 2, 2])
+
+    node = onnx.helper.make_node(
+        'Transpose',
+        perm=[0, 3, 1, 2],
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def transpose_gather_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 5, 4, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32,

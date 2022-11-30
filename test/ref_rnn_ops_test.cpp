@@ -988,17 +988,24 @@ TEST_CASE(rnn_fp16)
     auto w   = mm->add_literal(migraphx::literal{w_shape, w_data});
     auto r   = mm->add_literal(migraphx::literal{r_shape, r_data});
 
+    auto seq_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), seq);
+    auto w_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+    auto r_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), r);
+
     auto out_hs = mm->add_instruction(
         migraphx::make_op("rnn",
                           {{"hidden_size", hidden_size},
                            {"actv_func", {}},
                            {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                            {"clip", clip}}),
-        seq,
-        w,
-        r);
+        seq_half,
+        w_half,
+        r_half);
     mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-    migraphx::quantize_fp16(p);
+
     p.compile(migraphx::ref::target{});
 
     auto last_output = p.eval({}).back();
@@ -2940,6 +2947,20 @@ TEST_CASE(gru_fp16)
     auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
     auto und  = mm->add_instruction(migraphx::make_op("undefined"));
     auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
+
+    auto seq_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), seq);
+    auto w_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+    auto r_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), r);
+    auto bias_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), bias);
+    auto und_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), und);
+    auto ih_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ih);
+
     mm->add_instruction(
         migraphx::make_op("gru",
                           {{"hidden_size", hidden_size},
@@ -2949,13 +2970,12 @@ TEST_CASE(gru_fp16)
                            {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                            {"clip", clip},
                            {"linear_before_reset", 1}}),
-        seq,
-        w,
-        r,
-        bias,
-        und,
-        ih);
-    migraphx::quantize_fp16(p);
+        seq_half,
+        w_half,
+        r_half,
+        bias_half,
+        und_half,
+        ih_half);
 
     p.compile(migraphx::ref::target{});
     auto hs_concat = p.eval({}).back();
@@ -4919,6 +4939,21 @@ TEST_CASE(lstm_fp16)
     auto ic   = mm->add_literal(migraphx::literal{ic_shape, ic_data});
     auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
+    auto seq_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), seq);
+    auto w_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+    auto r_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), r);
+    auto bias_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), bias);
+    auto ih_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ih);
+    auto ic_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ic);
+    auto und_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), und);
+
     mm->add_instruction(
         migraphx::make_op(
             "lstm",
@@ -4930,15 +4965,14 @@ TEST_CASE(lstm_fp16)
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
              {"clip", clip},
              {"input_forget", 0}}),
-        seq,
-        w,
-        r,
-        bias,
-        und,
-        ih,
-        ic,
-        und);
-    migraphx::quantize_fp16(p);
+        seq_half,
+        w_half,
+        r_half,
+        bias_half,
+        und_half,
+        ih_half,
+        ic_half,
+        und_half);
     p.compile(migraphx::ref::target{});
 
     auto hs_concat = p.eval({}).back();

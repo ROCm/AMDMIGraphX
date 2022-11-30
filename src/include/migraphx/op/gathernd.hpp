@@ -93,7 +93,7 @@ struct gathernd
             {
                 // the rank of the output is a function of k, so it must be fixed.
                 // MIGraphX supports dynamic dimensions, but not dynamic NUMBER of dimensions.
-                if(!i_shape.dyn_dims().back().is_fixed())
+                if(not i_shape.dyn_dims().back().is_fixed())
                 {
                     MIGRAPHX_THROW(
                         "GATHERND: last dimension of indices tensor must be fixed (min=max)");
@@ -129,7 +129,7 @@ struct gathernd
             std::vector<size_t> opts(output_dims_size);
 
             // Part of the output shape comes from indices tensor, part from data tensor
-            if(!i_shape.dynamic())
+            if(not i_shape.dynamic())
             {
                 const auto& indices_lens_iter = i_shape.lens().begin();
                 std::copy(indices_lens_iter, indices_lens_iter + (q - 1), mins.begin());
@@ -147,10 +147,10 @@ struct gathernd
                 }
             }
 
-            // populate from data input
+            // fill the rest of output shape from data input
             if(k < r - batch_dims)
             {
-                if(!data_shape.dynamic())
+                if(not data_shape.dynamic())
                 {
                     auto data_lens = data_shape.lens();
                     std::copy(data_lens.begin() + batch_dims + k - 1,
@@ -163,8 +163,7 @@ struct gathernd
                 }
                 else
                 {
-                    size_t j;
-                    for(size_t i = batch_dims + k, j = q - 1; i < opts.size(); i++, j++)
+                    for(size_t i = batch_dims + k - 1, j = q - 1; i < opts.size(); i++, j++)
                     {
                         shape::dynamic_dimension dd = data_shape.dyn_dims()[i];
                         mins[j]                     = dd.min;

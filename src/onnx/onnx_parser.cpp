@@ -419,7 +419,6 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
-        auto type            = get_type(t.data_type());
         return create_literal(type, dims, s.data());
     }
 

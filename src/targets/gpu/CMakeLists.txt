@@ -86,7 +86,6 @@ add_library(migraphx_gpu
     compile_miopen.cpp
     compiler.cpp
     device_name.cpp
-    elu.cpp
     fuse_ck.cpp
     fuse_ck_gemm_softmax_gemm.cpp
     fuse_mlir.cpp

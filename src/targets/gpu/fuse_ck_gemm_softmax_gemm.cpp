@@ -69,8 +69,7 @@ struct find_gemm_softmax_gemm_gemm
         auto gemm1 =
             match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
         auto mul     = match::name("mul")(match::any_of[match::inputs()](gemm1)).bind("scale");
-        auto add     = match::name("add")(match::any_of[match::inputs()](mul));
-        auto softmax = match::name("softmax")(match::any_of[match::inputs()](add)).bind("softmax");
+        auto softmax = match::name("softmax")(match::any_of[match::inputs()](mul)).bind("softmax");
         return match::name("dot")(is_ck_gemm().bind("gemm2"))(
             match::any_of[match::inputs()](softmax));
     }

@@ -400,7 +400,6 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     {
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
-        std::vector<char> raw_buffer;
         size_t offset = 0;
         size_t nbytes = tensor_shape.bytes();
 
@@ -412,7 +411,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         {
             nbytes = std::stoul(t.external_data().at(2).value());
         }
-        raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
+        auto raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
         std::string s(raw_buffer.begin(), raw_buffer.end());
         return create_literal(type, dims, s.data());
     }

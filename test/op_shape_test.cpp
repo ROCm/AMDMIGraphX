@@ -2039,6 +2039,7 @@ TEST_CASE(test_gathernd)
 
         throws_shape(migraphx::make_op("gathernd"), is, ds);
     }
+
     {
         // See Example 4 at https://github.com/onnx/onnx/blob/main/docs/Operators.md#GatherND
         auto dtype = migraphx::shape::float_type;
@@ -2055,11 +2056,9 @@ TEST_CASE(test_gathernd)
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape is{itype, {2, 1}};
-        // std::vector<migraphx::shape::dynamic_dimension> b{{2, 2, 0}, {2, 2, 0}, {2, 2, 0}};
         migraphx::shape ds{dtype, {2, 2, 2}};
 
         int batch_dims(1);
-        // std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {2, 2, 0},};
         migraphx::shape s0{dtype, {2, 2}};
         expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
     }

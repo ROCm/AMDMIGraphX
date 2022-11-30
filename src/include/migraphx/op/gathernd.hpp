@@ -113,7 +113,7 @@ struct gathernd
                                " cannot be used to access data of rank " +
                                std::to_string(r - batch_dims));
             }
-            if(batch_dims >= q || batch_dims >= r)
+            if(batch_dims >= q or batch_dims >= r)
             {
                 MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
                                std::to_string(batch_dims));

@@ -2009,6 +2009,24 @@ TEST_CASE(gathernd_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(gathernd_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("data",
+                                migraphx::shape{migraphx::shape::float_type, {{2, 2, 2}, {2, 2}}});
+    auto l1  = mm->add_parameter("indices",
+                                migraphx::shape{migraphx::shape::int64_type, {{2, 2}, {2, 2}}});
+    auto r   = mm->add_instruction(migraphx::make_op("gathernd"), l0, l1);
+    mm->add_return({r});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["data"]    = {{2, 2, 2}, {2, 2}};
+    options.map_dyn_input_dims["indices"] = {{2, 2}, {2, 2}};
+    auto prog                             = migraphx::parse_onnx("gathernd_dyn_test.onnx", options);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(gathernd_batch_dims_test)
 {
     migraphx::program p;

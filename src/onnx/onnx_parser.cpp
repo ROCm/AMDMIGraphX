@@ -400,8 +400,8 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     {
         const std::string& data_file = external_data.at(0).value();
         size_t num_data_fields       = external_data.size();
-        size_t offset = 0;
-        size_t nbytes = tensor_shape.bytes();
+        size_t offset                = 0;
+        size_t nbytes                = tensor_shape.bytes();
 
         if(num_data_fields > 1) // if offset field is present
         {

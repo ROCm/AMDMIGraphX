@@ -38,6 +38,27 @@ TEST_CASE(test_shape_default)
     EXPECT(s.elements() == 0);
     EXPECT(s.bytes() == 0);
 }
+
+TEST_CASE(test_dyn_4arg_constructor)
+{
+    migraphx::shape s{migraphx::shape::float_type,
+                      {
+                          1,
+                          4,
+                          4,
+                      },
+                      {
+                          4,
+                          4,
+                          4,
+                      },
+                      {0, 0, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> expected_dyn_dims = {
+        {1, 4, 0}, {4, 4, 0}, {4, 4, 0}};
+    EXPECT(s.dynamic());
+    EXPECT(s.dyn_dims() == expected_dyn_dims);
+}
+
 TEST_CASE(test_shape_assign)
 {
     migraphx::shape s1{migraphx::shape::float_type, {100, 32, 8, 8}};
@@ -185,6 +206,31 @@ TEST_CASE(test_shape_packed)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_ndim_static)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
+    EXPECT(s0.ndim() == 2);
+
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 4, 4}};
+    EXPECT(s1.ndim() == 4);
+
+    migraphx::shape s2{migraphx::shape::float_type, {2, 4, 4, 1, 3}};
+    EXPECT(s2.ndim() == 5);
+}
+
+TEST_CASE(test_shape_ndim_dyn)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}}};
+    EXPECT(s0.ndim() == 2);
+
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {2, 4, 0}}};
+    EXPECT(s1.ndim() == 4);
+
+    migraphx::shape s2{migraphx::shape::float_type,
+                       {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {1, 1, 1}, {3, 3, 0}}};
+    EXPECT(s2.ndim() == 5);
+}
+
 TEST_CASE(test_shape_non_packed_single_dim)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 64, 35, 35}, {156800, 1225, 35, 1}};
@@ -210,6 +256,21 @@ TEST_CASE(test_shape_transposed2)
     EXPECT(s.packed());
     EXPECT(not s.transposed());
     EXPECT(not s.broadcasted());
+}
+
+TEST_CASE(test_shape_static_to_dynamic)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {1, 2, 4, 4}};
+    migraphx::shape s1 = s0.to_dynamic();
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 1, 0}, {2, 2, 0}, {4, 4, 0}, {4, 4, 0}}};
+    EXPECT(s1 == s2);
+}
+
+TEST_CASE(test_shape_dyn_to_dynamic)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {2, 4, 0}}};
+    migraphx::shape s1 = s0.to_dynamic();
+    EXPECT(s0 == s1);
 }
 
 TEST_CASE(test_shape_overlap)

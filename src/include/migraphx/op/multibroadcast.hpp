@@ -26,64 +26,105 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/dyn_output.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Broadcast multiple dimensions between two tensors.
+ * Two versions of this operator: one input and two inputs.
+ * One input version uses output_lens attribute and broadcasts to it.
+ * Two inputs version broadcasts both inputs to the common shape at evaluation time.
+ */
 struct multibroadcast
 {
-    std::vector<std::size_t> output_lens;
+    std::vector<std::size_t> output_lens = {};
+
+    // optional attribute
+    std::vector<shape::dynamic_dimension> output_dyn_dims = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.output_lens, "out_lens"));
+        return pack(f(self.output_lens, "out_lens"), f(self.output_dyn_dims, "out_dyn_dims"));
     }
 
     std::string name() const { return "multibroadcast"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto t     = inputs.at(0).type();
-        auto input = inputs.at(0);
+        check_shapes{inputs, *this, true}.has(1, 2);
 
-        if(input.lens().empty())
+        auto t  = inputs.at(0).type();
+        auto s0 = inputs.at(0);
+
+        if(s0.max_lens().empty())
         {
-            MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should be > 0");
+            MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should be > 0");
         }
 
-        if(input.lens().size() > output_lens.size())
-        {
-            MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should <= output size");
-        }
-
-        auto offset = output_lens.size() - input.lens().size();
-        for(std::ptrdiff_t i = input.lens().size() - 1; i >= 0; i--)
-        {
-            if(output_lens[i + offset] != input.lens()[i] and input.lens()[i] != 1)
+        auto make_bcast_strides = [&](std::vector<std::size_t> bcast_lens, std::size_t offset) {
+            std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
+            for(std::ptrdiff_t i = s0.lens().size() - 1; i >= 0; i--)
             {
-                MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(input.lens()) +
-                               "} cannot be broadcasted to {" + to_string_range(output_lens) +
-                               "}!");
+                if(bcast_lens[i + offset] == s0.lens()[i])
+                {
+                    bcast_strides[i + offset] = s0.strides()[i];
+                }
+            }
+            return bcast_strides;
+        };
+
+        if(inputs.size() == 1)
+        {
+            if(s0.lens().size() > output_lens.size())
+            {
+                MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");
+            }
+
+            auto offset = output_lens.size() - s0.lens().size();
+            for(std::ptrdiff_t i = s0.lens().size() - 1; i >= 0; i--)
+            {
+                if(output_lens[i + offset] != s0.lens()[i] and s0.lens()[i] != 1)
+                {
+                    MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(s0.lens()) +
+                                   "} cannot be broadcasted to {" + to_string_range(output_lens) +
+                                   "}!");
+                }
+            }
+
+            auto bcast_strides = make_bcast_strides(output_lens, offset);
+            return {t, output_lens, std::move(bcast_strides)};
+        }
+        else
+        {
+            // two inputs
+            auto s1 = inputs.at(1);
+            if(s0.dynamic() or s1.dynamic())
+            {
+                if(not output_dyn_dims.empty())
+                {
+                    return {t, output_dyn_dims};
+                }
+                return {t, compute_broadcasted_dyn_dims(s0, s1)};
+            }
+            else
+            {
+                auto bcast_lens    = compute_broadcasted_lens(s0.lens(), s1.lens());
+                auto offset        = bcast_lens.size() - s0.lens().size();
+                auto bcast_strides = make_bcast_strides(bcast_lens, offset);
+                return {t, std::move(bcast_lens), std::move(bcast_strides)};
             }
         }
-
-        std::vector<size_t> bcast_strides(output_lens.size(), 0);
-        for(std::ptrdiff_t i = input.lens().size() - 1; i >= 0; i--)
-        {
-            if(output_lens[i + offset] == input.lens()[i])
-            {
-                bcast_strides[i + offset] = input.strides()[i];
-            }
-        }
-        return {t, output_lens, bcast_strides};
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(output_shape);
+        return args[0].reshape(dyn_out.computed_shape);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

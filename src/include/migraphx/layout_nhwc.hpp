@@ -21,28 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#include <migraphx/manage_ptr.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+
+#include <string>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
-#include <rocblas/rocblas.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
+struct module_pass_manager;
 
-rocblas_handle_ptr create_rocblas_handle_ptr();
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
+/**
+ * Transform convolutions to nhwc
+ */
+struct layout_nhwc
+{
+    std::string name() const { return "layout_nhwc"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
-struct context;
-
-bool get_compute_fp32_flag();
-
-bool get_int8_x4_format(context& ctx);
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP

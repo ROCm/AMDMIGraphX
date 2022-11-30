@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-T generic_read_file(const std::string& filename, size_t offset=0, size_t nbytes=0)
+T generic_read_file(const std::string& filename, size_t offset = 0, size_t nbytes = 0)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     if(nbytes == 0)
@@ -38,7 +38,7 @@ T generic_read_file(const std::string& filename, size_t offset=0, size_t nbytes=
         // if there is a non-zero offset and nbytes is not set,
         // calculate size of remaining bytes to read
         nbytes = is.tellg();
-        if (offset > nbytes)
+        if(offset > nbytes)
             MIGRAPHX_THROW("offset is larger than file size");
         nbytes -= offset;
     }

@@ -37,20 +37,24 @@ def onnx_test(external_data=False):
             op_info = op_test()
             if len(op_info) > 3:
                 graph_def = helper.make_graph(op_info[0],
-                                            op_test.__name__,
-                                            op_info[1],
-                                            op_info[2],
-                                            initializer=op_info[3])
+                                              op_test.__name__,
+                                              op_info[1],
+                                              op_info[2],
+                                              initializer=op_info[3])
             else:
                 graph_def = helper.make_graph(op_info[0], op_test.__name__,
-                                            op_info[1], op_info[2])
+                                              op_info[1], op_info[2])
             model_def = helper.make_model(graph_def,
-                                        producer_name=op_test.__name__)
-            onnx.save_model(model_def, '{}.onnx'.format(op_test.__name__), 
-                    save_as_external_data=external_data,
-                    location="./"+op_test.__name__+".weight", size_threshold=0, convert_attribute=True)
+                                          producer_name=op_test.__name__)
+            onnx.save_model(model_def,
+                            '{}.onnx'.format(op_test.__name__),
+                            save_as_external_data=external_data,
+                            location="./" + op_test.__name__ + ".weight",
+                            size_threshold=0,
+                            convert_attribute=True)
 
         return run_test
+
     return create_onnx_test
 
 
@@ -1760,12 +1764,10 @@ def external_constant_test():
     tensor = from_array(x)
     tensor.name = 'const_tensor'
 
-    node = onnx.helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['0'],
-        value=tensor
-    )
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=['0'],
+                                 value=tensor)
 
     return ([node], [], [y])
 

@@ -30,24 +30,18 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-T generic_read_file(const std::string& filename)
+T generic_read_file(const std::string& filename, size_t offset=0, size_t nbytes=0)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
-    std::streamsize size = is.tellg();
-    if(size < 1)
-        MIGRAPHX_THROW("Invalid size for: " + filename);
-    is.seekg(0, std::ios::beg);
-
-    T buffer(size, 0);
-    if(not is.read(&buffer[0], size))
-        MIGRAPHX_THROW("Error reading file: " + filename);
-    return buffer;
-}
-
-template <class T>
-T generic_read_file(const std::string& filename, size_t offset, size_t nbytes)
-{
-    std::ifstream is(filename, std::ios::binary | std::ios::ate);
+    if(nbytes == 0)
+    {
+        // if there is a non-zero offset and nbytes is not set,
+        // calculate size of remaining bytes to read
+        nbytes = is.tellg();
+        if (offset > nbytes)
+            MIGRAPHX_THROW("offset is larger than file size");
+        nbytes -= offset;
+    }
     if(nbytes < 1)
         MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(offset, std::ios::beg);
@@ -61,11 +55,6 @@ T generic_read_file(const std::string& filename, size_t offset, size_t nbytes)
 std::vector<char> read_buffer(const std::string& filename, size_t offset, size_t nbytes)
 {
     return generic_read_file<std::vector<char>>(filename, offset, nbytes);
-}
-
-std::vector<char> read_buffer(const std::string& filename)
-{
-    return generic_read_file<std::vector<char>>(filename);
 }
 
 std::string read_string(const std::string& filename)

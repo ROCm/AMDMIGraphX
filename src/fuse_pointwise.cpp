@@ -39,13 +39,22 @@ static literal get_scalar(instruction_ref ins)
     if(ins->name() == "contiguous")
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(not(s.elements() == 1 or s.scalar()))
+    if(s.elements() != 1 && not(s.scalar()))
         return {};
     if(not ins->can_eval())
         return {};
     auto e = ins->eval();
     literal r{};
-    e.visit_at([&](auto x) { r = literal{x}; });
+    // needed for bool as visit_at invokes as() which promotes bool to int8
+    // Without this we'll break type checks for logical ops that are fused.
+    if(e.get_shape().type() == shape::bool_type)
+    {
+        r = literal{e.at<bool>()};
+    }
+    else
+    {
+        e.visit_at([&](auto x) { r = literal{x}; });
+    }
     return r;
 }
 
@@ -55,6 +64,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     for(auto ins : iterator_for(mpm.get_module()))
     {
         if(not ins->get_operator().attributes().get("pointwise", false))
+            continue;
+        if(ins->get_operator().name() == "layout")
             continue;
         assert(ins->get_operator().attributes().contains("point_op"));
         auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));

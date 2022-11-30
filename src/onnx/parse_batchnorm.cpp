@@ -44,7 +44,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();
         }
-        auto x_lens = args[0]->get_shape().lens();
+        auto x_lens = args[0]->get_shape().max_lens();
         auto x_type = args[0]->get_shape().type();
 
         if(std::any_of(args.cbegin() + 1, args.cend(), [](auto a) {
@@ -54,18 +54,19 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             MIGRAPHX_THROW("PARSE_BATCHNORM: argument scale, bias, mean, or var rank != 1");
         }
 
-        if(x_lens.size() == 1)
+        auto x_rank = x_lens.size();
+        if(x_rank == 1 or x_rank == 2)
         {
-            auto rt   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
-            auto eps  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
-            auto n0   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
-            auto d0   = info.add_broadcastable_binary_op("add", args[4], eps);
-            auto d1   = info.add_broadcastable_binary_op("pow", d0, rt);
-            auto div0 = info.add_broadcastable_binary_op("div", n0, d1);
-            auto r0   = info.add_broadcastable_binary_op("mul", div0, args[1]);
+            auto rt      = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
+            auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto numer   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
+            auto var_eps = info.add_broadcastable_binary_op("add", args[4], eps);
+            auto denom   = info.add_broadcastable_binary_op("pow", var_eps, rt);
+            auto div0    = info.add_broadcastable_binary_op("div", numer, denom);
+            auto r0      = info.add_broadcastable_binary_op("mul", div0, args[1]);
             return info.add_broadcastable_binary_op("add", r0, args[2]);
         }
-        else if(x_lens.size() > 2)
+        else if(x_rank > 2)
         {
             // unsqueeze tensors of shape (C) to broadcast correctly
             std::vector<int64_t> unsqueeze_axes(x_lens.size() - 2);
@@ -89,7 +90,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         }
         else
         {
-            // num dims either 0 or 2
+            // rank == 0
             MIGRAPHX_THROW("PARSE_BATCHNORM: rank " + std::to_string(x_lens.size()) +
                            " input tensor, unhandled data format");
         }

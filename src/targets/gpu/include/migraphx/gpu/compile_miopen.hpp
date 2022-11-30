@@ -21,50 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_BATCH_NORM_HPP
-#define MIGRAPHX_GUARD_OPERATORS_BATCH_NORM_HPP
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
 
-#include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <cmath>
+#include <migraphx/instruction_ref.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct batch_norm_inference
+struct module;
+struct context;
+struct operation;
+
+namespace gpu {
+
+struct compile_miopen
 {
-    float epsilon  = 1.0e-6f;
-    float momentum = 0.9f;
-
-    std::string name() const { return "batch_norm_inference"; }
-
-    enum bn_infer_mode_t
-    {
-        per_activation,
-        spatial,
-    };
-
-    bn_infer_mode_t bn_mode = spatial;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(
-            f(self.epsilon, "epsilon"), f(self.momentum, "momentum"), f(self.bn_mode, "bn_mode"));
-    }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(5);
-        check_shapes{inputs.data(), inputs.data() + 1, *this}.same_ndims();
-        check_shapes{inputs.data() + 1, inputs.data() + inputs.size(), *this}.same_shape();
-        return inputs.front();
-    }
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::compile_miopen"; }
+    void apply(module& m) const;
+    std::size_t compile(operation& op, instruction_ref ins, bool format) const;
 };
 
-} // namespace op
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP

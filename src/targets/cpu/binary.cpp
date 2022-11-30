@@ -51,7 +51,18 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
         auto r  = s0;
         if(s0 != s1 or not s0.packed())
         {
-            r = shape{s0.type(), s0.lens()};
+            if(s0.packed() != s1.packed())
+            {
+                r = s0.packed() ? s0 : s1;
+            }
+            else if(s0.broadcasted() != s1.broadcasted())
+            {
+                r = s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
+            }
+            else
+            {
+                r = {s0.type(), s0.lens()};
+            }
         }
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));

@@ -21,46 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DECONVOLUTION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DECONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_HPP
 
-#include <migraphx/shape.hpp>
-#include <migraphx/op/deconvolution.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
+struct module_pass_manager;
 
-struct miopen_deconvolution
+/**
+ * Runs several passes in a loop
+ */
+struct optimize
 {
-    op::deconvolution op;
-    shared<convolution_descriptor> cd;
-    miopenConvFwdAlgorithm_t algo{};
-    uint64_t solution_id = 0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack_join(op::deconvolution::reflect(self.op, f),
-                         pack(f(self.solution_id, "solution_id")));
-    }
-
-    std::string name() const { return "gpu::deconv"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
+    std::string name() const { return "optimize"; }
+    void apply(module_pass_manager& m) const;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

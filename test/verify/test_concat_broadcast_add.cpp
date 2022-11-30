@@ -25,22 +25,25 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/make_op.hpp>
 
-struct quant_conv_valid_mode : verify_program<quant_conv_valid_mode>
+struct test_concat_broadcast_add : verify_program<test_concat_broadcast_add>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
-        auto pa = mm->add_parameter("a", a_shape);
-        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
-        auto pc = mm->add_parameter("c", c_shape);
-        mm->add_instruction(
-            migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::valid},
-            pa,
-            pc);
+        migraphx::shape s0{migraphx::shape::float_type, {1, 2, 4}};
+        migraphx::shape s1{migraphx::shape::float_type, {1, 6, 4}};
+        migraphx::shape s2{migraphx::shape::float_type, {6, 1}};
+        auto x      = mm->add_parameter("x", s0);
+        auto y      = mm->add_parameter("y", s0);
+        auto z      = mm->add_parameter("z", s0);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
+        auto b      = mm->add_literal(migraphx::generate_literal(s2, 15));
+        auto bb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), b);
+        mm->add_instruction(migraphx::make_op("add"), concat, bb);
         return p;
     }
 };

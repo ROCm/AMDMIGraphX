@@ -21,45 +21,55 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/leaky_relu.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_DYN_OUTPUT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_DYN_OUTPUT_HPP
+
+#include <migraphx/shape.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-shape miopen_leaky_relu::compute_shape(const std::vector<shape>& inputs) const
+struct dyn_output
 {
-    check_shapes{inputs, *this}.has(2).not_broadcasted();
-    return inputs.at(1);
+    // original shape from the instruction
+    shape ins_shape;
+    // shape computed at eval time using input arguments
+    shape computed_shape;
+};
+
+/**
+ * Handle dynamic and static shape at evaluation time.
+ * If converted to shape type, returns original ins_shape.
+ * If converted to dyn_output type, will compute an output shape using the input arguments.
+ */
+template <class F>
+struct compute_output_shape
+{
+    F ins_inputs;
+
+    operator dyn_output() const
+    {
+        return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
+            if(ins_shape.dynamic())
+                return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
+            return dyn_output{ins_shape, ins_shape};
+        });
+    }
+
+    operator shape() const
+    {
+        return ins_inputs(
+            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; });
+    }
+};
+
+template <class F>
+compute_output_shape<F> make_compute_output_shape(F f)
+{
+    return {f};
 }
 
-argument miopen_leaky_relu::compute(context& ctx,
-                                    const shape& output_shape,
-                                    const std::vector<argument>& args) const
-{
-    float alpha = 1;
-    float beta  = 0;
-    auto x_desc = make_tensor(args[0].get_shape());
-    auto y_desc = make_tensor(output_shape);
-    miopenActivationForward(ctx.get_stream().get_miopen(),
-                            ad.get(),
-                            &alpha,
-                            x_desc.get(),
-                            args[0].implicit(),
-                            &beta,
-                            y_desc.get(),
-                            args[1].implicit());
-
-    return args[1];
-}
-
-void miopen_leaky_relu::finalize(context&, const shape&, const std::vector<shape>&)
-{
-    ad = make_leaky_relu(op.alpha);
-}
-
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif

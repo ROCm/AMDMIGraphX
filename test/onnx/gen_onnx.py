@@ -4569,6 +4569,22 @@ def reduce_log_sum_exp_test():
 def reducemax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+
+    axes = [2]
+
+    node = onnx.helper.make_node('ReduceMax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reducemax_dyn_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
     axes = [2]
 
     node = onnx.helper.make_node('ReduceMax',

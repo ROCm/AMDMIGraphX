@@ -4321,8 +4321,12 @@ TEST_CASE(reducel1_dyn_test)
         migraphx::shape{migraphx::shape::float_type, {{3, 3, 0}, {3, 5, 0}, {4, 6, 5}, {5, 7, 6}}});
     auto abs_l0 = mm->add_instruction(migraphx::make_op("abs"), l0);
     auto sum_l0 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-2}}}), abs_l0);
-    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {-2}}}), sum_l0);
-    auto prog = optimize_onnx("reducel1_dyn_test.onnx");
+    auto sq_l0  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {-2}}}), sum_l0);
+    mm->add_return({sq_l0});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{3, 3}, {3, 5}, {4, 6, 5}, {5, 7, 6}};
+    auto prog                       = migraphx::parse_onnx("reducel1_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -4373,6 +4377,24 @@ TEST_CASE(reducemax_test)
     auto l0  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), l0);
     auto prog = optimize_onnx("reducemax_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducemax_dyn_test)
+{
+    // input shape with 4 dynamic dimensions
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}, {6, 6}}});
+    auto r0 = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), l0);
+    auto r1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), r0);
+    mm->add_return({r1});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{3, 3}, {4, 4}, {5, 5}, {6, 6}};
+    auto prog                       = migraphx::parse_onnx("reducemax_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

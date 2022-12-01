@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_LAYERNORM_HPP
 #include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/print.hpp>
 
 namespace migraphx {

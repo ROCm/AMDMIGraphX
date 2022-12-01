@@ -47,7 +47,7 @@ struct parse_transpose : op_parser<parse_transpose>
         }
 
         // if perm is empty, use the default value
-        auto n_dim = args.front()->get_shape().lens().size();
+        auto n_dim = args.front()->get_shape().ndim();
         if(perm.empty())
         {
             perm.resize(n_dim);

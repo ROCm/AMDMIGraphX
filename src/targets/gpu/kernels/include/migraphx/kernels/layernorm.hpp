@@ -65,7 +65,7 @@ __device__ void generic_binary_layernorm(
             auto m = x - mean_x;
 
             // m * rsqrt(mean(m ^ 2) + epsilon)
-            y = compute(m * rsqrt(variance + eps_val), xs...);
+            y = implicit_conversion(compute(m * rsqrt(variance + eps_val), xs...));
         })(output, input1, input2, inputs...);
     });
 }

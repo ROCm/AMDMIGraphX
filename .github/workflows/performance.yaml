@@ -5,14 +5,14 @@ on:
     branches: [develop]
     types: [opened, synchronize, closed]
   schedule:
-    - cron: "0 5 * * 1-6"
+    - cron: "0 6 * * 1-6"
 
   workflow_dispatch:
     inputs:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '5.2'
+        default: '5.3'
       performance_reports_repo:
         description: Result repository
         required: true
@@ -30,9 +30,9 @@ concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
 
 jobs:
   release:
-    uses: rocmsoftwareplatform/migraphx-benchmark/.github/workflows/perf-test.yml@main
+    uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release || '5.2' }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.3' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}
       flags: ${{ github.event.inputs.flags || '-s' }} 
       performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }} 

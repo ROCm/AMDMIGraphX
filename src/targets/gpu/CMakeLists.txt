@@ -109,6 +109,7 @@ add_library(migraphx_gpu
     perfdb.cpp
     pooling.cpp
     reverse.cpp
+    rewrite_ops.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
     scatter.cpp

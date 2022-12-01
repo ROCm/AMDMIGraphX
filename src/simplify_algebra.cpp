@@ -326,7 +326,11 @@ struct find_double_add_lit_broadcast
 
 struct find_inner_broadcast
 {
-    auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
+    auto matcher() const
+    {
+        return pointwise(match::all_of[match::inputs()](match::broadcast()))(
+            match::none_of(match::name("layout")));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {

@@ -43,6 +43,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/gpu/rewrite_ops.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -129,6 +130,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         simplify_algebra{},
         prefuse_ops{},
+        dead_code_elimination{},
+        rewrite_ops{},
         dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},

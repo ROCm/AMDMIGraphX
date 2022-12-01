@@ -35,7 +35,7 @@
 #include <migraphx/half.hpp>
 
 template <class T>
-void dot_2D_test()
+void dot_2d_test()
 {
     migraphx::program p;
 
@@ -82,11 +82,11 @@ void dot_2D_test()
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(c, results_vector));
 }
-TEST_CASE_REGISTER(dot_2D_test<float>)
-TEST_CASE_REGISTER(dot_2D_test<double>)
+TEST_CASE_REGISTER(dot_2d_test<float>)
+TEST_CASE_REGISTER(dot_2d_test<double>)
 
 template <class T>
-void dot_4D_test()
+void dot_4d_test()
 {
     migraphx::program p;
 
@@ -133,8 +133,8 @@ void dot_4D_test()
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(c, results_vector));
 }
-TEST_CASE_REGISTER(dot_4D_test<float>)
-TEST_CASE_REGISTER(dot_4D_test<double>)
+TEST_CASE_REGISTER(dot_4d_test<float>)
+TEST_CASE_REGISTER(dot_4d_test<double>)
 
 TEST_CASE(dot_3D_test)
 {

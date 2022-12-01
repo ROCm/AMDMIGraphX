@@ -42,6 +42,13 @@ static bool try_compute_shape(instruction_ref ins,
     try
     {
         shape new_shape = ins->get_operator().compute_shape(inputs, mods);
+
+        // Cannot tell if a dynamic shape will need to be made contiguous
+        if(new_shape.dynamic())
+        {
+            return false;
+        }
+
         // If the output shape is a standard shape, no need to try its output
         if(new_shape.standard())
         {
@@ -133,14 +140,20 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
         }
     }
 
-    // Perform evaluations in parallel
+    // Perform static contiguous evaluations in parallel
     std::vector<argument> literals(const_instructions.size());
     par_for(const_instructions.size(), 1, [&](const auto i) {
-        auto c      = op::contiguous{};
-        auto prev   = const_instructions[i]->inputs().front();
-        literals[i] = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
+        auto c    = op::contiguous{};
+        auto prev = const_instructions[i]->inputs().front();
+        // compute the output contiguous shape from the previous instruction shape
+        shape computed_shape                   = c.compute_shape({prev->get_shape()});
+        const std::vector<argument>& prev_eval = {prev->eval()};
+        // prev_eval should not be used in make_compute_output_shape() as computed_shape is static
+        auto co_shape = make_compute_output_shape(pack(c, computed_shape, prev_eval));
+        literals[i]   = c.compute(co_shape, prev_eval);
     });
 
+    // Replace static contiguous operations with a literal
     for(size_t i = 0; i < const_instructions.size(); i++)
     {
         auto l = m.add_literal(literals[i].get_shape(), literals[i].data());

@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,17 +46,15 @@ struct transpose
     }
 
     std::string name() const { return "transpose"; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto input         = inputs.at(0);
-        auto input_lens    = input.lens();
-        auto input_strides = input.strides();
-        auto t             = input.type();
+        check_shapes{inputs, *this, true}.has(1);
+        auto input = inputs.at(0);
 
-        if(dims.size() != input_lens.size())
+        if(dims.size() != input.ndim())
         {
-            MIGRAPHX_THROW("Permutation has wrong number of axes");
+            MIGRAPHX_THROW("TRANSPOSE: Permutation has wrong number of axes");
         }
         std::vector<int64_t> axes(dims.size());
         std::iota(axes.begin(), axes.end(), 0);
@@ -63,19 +62,36 @@ struct transpose
         {
             MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
         }
-        std::vector<size_t> output_lens(input_lens.size());
-        std::vector<size_t> output_strides(input_lens.size());
-        for(std::size_t i = 0; i < output_lens.size(); i++)
+
+        if(input.dynamic())
         {
-            output_lens[i]    = input_lens[dims[i]];
-            output_strides[i] = input_strides[dims[i]];
+            std::vector<shape::dynamic_dimension> output_dyn_dims(input.ndim());
+            std::transform(dims.cbegin(), dims.cend(), output_dyn_dims.begin(), [&](auto dim) {
+                return input.dyn_dims()[dim];
+            });
+            return {input.type(), output_dyn_dims};
         }
-        return {t, output_lens, output_strides};
+        else
+        {
+            auto input_lens    = input.lens();
+            auto input_strides = input.strides();
+
+            std::vector<size_t> output_lens(input.ndim());
+            std::vector<size_t> output_strides(input.ndim());
+            for(std::size_t i = 0; i < input.ndim(); i++)
+            {
+                output_lens[i]    = input_lens[dims[i]];
+                output_strides[i] = input_strides[dims[i]];
+            }
+            return {input.type(), output_lens, output_strides};
+        }
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(output_shape);
+        return args[0].reshape(dyn_out.computed_shape);
     }
+
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

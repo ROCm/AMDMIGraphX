@@ -273,6 +273,51 @@ TEST_CASE(averagepool_3d_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(averagepool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        {migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}, {5, 5, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::average},
+                                                      {"padding", {0, 0, 0, 0, 0, 0}},
+                                                      {"stride", {1, 1, 1}},
+                                                      {"lengths", {3, 3, 3}}}),
+                                   l0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("averagepool_dyn_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_dyn_autopad_error_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("averagepool_dyn_autopad_error_test.onnx", options); }));
+}
+
+TEST_CASE(averagepool_dyn_asym_padding_error_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("averagepool_dyn_asym_padding_error_test.onnx", options); }));
+}
+
+TEST_CASE(averagepool_dyn_cip_error_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("averagepool_dyn_cip_error_test.onnx", options); }));
+}
+
 TEST_CASE(averagepool_notset_test)
 {
     migraphx::program p;
@@ -2161,6 +2206,28 @@ TEST_CASE(globalavgpool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(globalavgpool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          {{1, 4, 0}, {3, 3, 0}, {16, 16, 0}, {16, 16, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::average},
+                                                      {"lengths", {16, 16}},
+                                                      {"padding", {0, 0, 0, 0}}}),
+                                   input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("globalavgpool_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(globallppool_test)
 {
     migraphx::program p;
@@ -2178,6 +2245,29 @@ TEST_CASE(globallppool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(globallppool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          {{1, 1, 0}, {3, 3, 0}, {16, 32, 0}, {16, 32, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                      {"dyn_global", true},
+                                                      {"padding", {0, 0, 0, 0}},
+                                                      {"lengths", {}}}),
+                                   input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {16, 32, 0};
+    auto prog                     = migraphx::parse_onnx("globallppool_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(globalmaxpool_test)
 {
     migraphx::program p;
@@ -2191,6 +2281,28 @@ TEST_CASE(globalmaxpool_test)
     mm->add_instruction(op, input);
 
     auto prog = optimize_onnx("globalmaxpool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(globalmaxpool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          {{1, 4, 0}, {3, 3, 0}, {32, 32, 0}, {32, 32, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::max},
+                                                      {"lengths", {32, 32}},
+                                                      {"padding", {0, 0, 0, 0}}}),
+                                   input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("globalmaxpool_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

@@ -236,8 +236,7 @@ get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 
-# TODO: Set default to HAS_FIND_2_API
-set(MIGRAPHX_USE_FIND_2_API OFF CACHE BOOL "")
+set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
 if(MIGRAPHX_USE_FIND_2_API) 
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)

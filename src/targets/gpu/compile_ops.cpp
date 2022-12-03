@@ -42,13 +42,15 @@ struct precompile_op
     operation op                = op::identity{};
     std::size_t additional_args = 1;
     bool ignore_modules         = false;
+    optional<shape> output_shape = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.op, "op"),
                     f(self.additional_args, "additional_args"),
-                    f(self.ignore_modules, "ignore_modules"));
+                    f(self.ignore_modules, "ignore_modules"),
+                    f(self.output_shape, "output_shape"));
     }
 
     std::string name() const { return "gpu::precompile_op"; }
@@ -57,9 +59,14 @@ struct precompile_op
     {
         // Pop off additional args
         inputs.resize(inputs.size() - additional_args);
+        shape r{};
         if(ignore_modules)
-            return op.compute_shape(inputs);
-        return op.compute_shape(inputs, mods);
+            r = op.compute_shape(inputs);
+        else
+            r = op.compute_shape(inputs, mods);
+        if (output_shape.has_value())
+            r = *output_shape;
+        return r;
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const

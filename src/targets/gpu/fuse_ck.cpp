@@ -45,7 +45,7 @@ struct ck_gemm
         for(const auto& input : inputs)
             check_gemm_shape(input);
         auto r = op.compute_shape({a, b});
-        if (mods.empty())
+        if(mods.empty())
             return r;
         return r.with_type(mods.front()->get_output_shapes().front().type());
     }

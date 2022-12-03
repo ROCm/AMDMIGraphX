@@ -44,7 +44,10 @@ struct ck_gemm
         auto b = inputs[1];
         for(const auto& input : inputs)
             check_gemm_shape(input);
-        return op.compute_shape({a, b});
+        auto r = op.compute_shape({a, b});
+        if (mods.empty())
+            return r;
+        return r.with_type(mods.front()->get_output_shapes().front().type());
     }
 };
 MIGRAPHX_REGISTER_OP(ck_gemm);

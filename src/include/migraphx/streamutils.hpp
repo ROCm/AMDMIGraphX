@@ -103,7 +103,7 @@ void stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
 template <class T>
 void stream_write_value_impl(rank<0>, std::ostream& os, const optional<T>& x)
 {
-    if (x.has_value())
+    if(x.has_value())
         stream_write_value_impl(rank<2>{}, os, *x);
     else
         os << "none";

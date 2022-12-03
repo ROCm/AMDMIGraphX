@@ -92,7 +92,7 @@ template <class T>
 auto to_value_impl(rank<4>, const optional<T>& x)
 {
     value result{};
-    if (x.has_value())
+    if(x.has_value())
         to_value(*x);
     return result;
 }
@@ -208,7 +208,7 @@ void from_value_impl(rank<5>, const value& v, T& x)
 template <class T>
 void from_value_impl(rank<6>, const value& v, optional<T>& x)
 {
-    if (not v.is_null())
+    if(not v.is_null())
         x = from_value<T>(v);
 }
 

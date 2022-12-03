@@ -663,15 +663,16 @@ struct find_contiguous_tranpose_precompile
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins       = r.result;
-        auto op_ins      = r.instructions["op"];
+        auto op_ins    = r.instructions["op"];
         auto alloc     = op_ins->inputs().back();
         auto transpose = r.instructions["transpose"];
         auto perm      = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
         auto iperm     = invert_permutation(perm);
-        auto s = shape::from_permutation(op_ins->get_shape().type(), op_ins->get_shape().lens(), iperm);
-        auto v = op_ins->get_operator().to_value();
+        auto s =
+            shape::from_permutation(op_ins->get_shape().type(), op_ins->get_shape().lens(), iperm);
+        auto v            = op_ins->get_operator().to_value();
         v["output_shape"] = to_value(s);
-        auto new_op = make_op("gpu::precompile_op", v);
+        auto new_op       = make_op("gpu::precompile_op", v);
         m.replace_instruction(op_ins, new_op, op_ins->inputs(), op_ins->module_inputs());
     }
 };

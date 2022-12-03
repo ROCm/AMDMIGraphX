@@ -149,8 +149,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         pack_int8_args{},
         dead_code_elimination{},
-        adjust_allocation{gpu_allocation_model{}},
-        dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
         replace_allocate{gpu_allocation_model{}, options.offload_copy},

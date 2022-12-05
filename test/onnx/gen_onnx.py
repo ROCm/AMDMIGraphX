@@ -4700,7 +4700,7 @@ def reducemax_test():
 @onnx_test
 def reducemax_dyn_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 4, 6])
     axes = [2]
 
     node = onnx.helper.make_node('ReduceMax',

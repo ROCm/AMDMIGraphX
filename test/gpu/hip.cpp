@@ -21,33 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <test.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/target.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/op/add.hpp>
-#include <migraphx/make_op.hpp>
-#include <basic_ops.hpp>
-#include <test.hpp>
-#include "make_precompile_op.hpp"
-#include <migraphx/program.hpp>
 
-// Treat some operators as compilable to enable lowering
-MIGRAPHX_GPU_TEST_PRECOMPILE("add", "mul")
-
-TEST_CASE(simple_program_from_gpu)
+TEST_CASE(tuple_to_from_gpu)
 {
-    migraphx::program p;
-
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    auto ones = mm->add_literal(migraphx::literal{s, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}});
-    auto sum  = mm->add_instruction(migraphx::make_op("add"), ones, ones);
-    mm->add_return({sum});
-
-    p.compile(migraphx::gpu::target{});
-
-    auto result = migraphx::gpu::from_gpu(p.eval({}).back());
-    EXPECT(true);
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::int32_type, {2, 4}};
+    std::vector<float> p1_data =  {1.1, 2.2, 3.3, 4.4, 5.5, 6.6};
+    std::vector<int> p2_data = {1, 2, 3, 4, 5, 6, 7, 8};
+    auto p1 = migraphx::argument{s1, p1_data.data()};
+    auto p2 = migraphx::argument{s2, p2_data.data()};
+    auto p1_gpu = migraphx::gpu::to_gpu(p1);    
+    auto p2_gpu = migraphx::gpu::to_gpu(p2);
+    auto p_tuple = migraphx::gpu::from_gpu(migraphx::argument({p1_gpu, p2_gpu}));
+    std::vector<migraphx::argument> results = p_tuple.get_sub_objects();
+    std::vector<float> result1;
+    results[0].visit([&](auto output) { result1.assign(output.begin(), output.end()); });
+    std::vector<int> result2;
+    results[1].visit([&](auto output) { result2.assign(output.begin(), output.end()); });
+    EXPECT(result1 == p1_data);
+    EXPECT(result2 == p2_data);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

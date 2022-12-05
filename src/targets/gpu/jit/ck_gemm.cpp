@@ -50,6 +50,7 @@ using namespace migraphx::gpu::gen; // NOLINT
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING_VALUE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_DEBUG);
 
 // NOLINTNEXTLINE
@@ -163,7 +164,7 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
     if(it == tuning.end())
     {
         std::cout << "*********** Warning: CK tuning missing for config!" << std::endl;
-        return 4;
+        return value_of(MIGRAPHX_CK_TUNING_VALUE{}, 4);
     }
     return it->second;
 }

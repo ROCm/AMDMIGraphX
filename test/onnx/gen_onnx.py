@@ -4622,6 +4622,7 @@ def reducel1_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def reducel1_dyn_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
@@ -4635,6 +4636,7 @@ def reducel1_dyn_test():
                                  keepdims=0)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def reducel2_test():

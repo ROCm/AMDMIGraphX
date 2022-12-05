@@ -47,8 +47,7 @@ extern "C" {
 __global__ void gather_kernel(void* in_data, void* in_indices, void* output) 
 {
     make_tensors()(in_data, in_indices, output)([](auto&&... xs) { 
-        auto settings = make_gather_settings(MIGRAPHX_MAKE_CONSTANT(int64_t{AXIS}));
-        gather(xs..., settings); 
+        gather<${axis}>(xs...); 
     });
 }
 
@@ -58,7 +57,7 @@ __global__ void gather_kernel(void* in_data, void* in_indices, void* output)
 
 )__migraphx__";
 
-struct gathernd_compiler : compiler<gathernd_compiler>
+struct gather_compiler : compiler<gather_compiler>
 {
     std::vector<std::string> names() const { return {"gather"}; }
 
@@ -72,12 +71,13 @@ struct gathernd_compiler : compiler<gathernd_compiler>
         options.kernel_name    = "gather_kernel";
         options.virtual_inputs = inputs;
 
-        // axis attribute
         assert(v.contains("axis"));
-        auto axis = v.at("axis").to<int64_t>();
-        options.params += " -DAXIS=" + std::to_string(axis);
+        auto axis = v.at("axis").to<std::string>();
 
-        return compile_hip_code_object(gather_kernel, options);
+        auto src = interpolate_string(gather_kernel, {{"axis", axis}});
+
+        // axis attribute
+        return compile_hip_code_object(src, options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

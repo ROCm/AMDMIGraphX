@@ -170,9 +170,13 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
 
 struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 {
+    static bool transposed_matrix(const shape& s)
+    {
+        return s.strides().back() != 1;
+    }
     static std::string get_layout(const shape& s)
     {
-        return s.transposed() ? "ck::tensor_layout::gemm::ColumnMajor"
+        return transposed_matrix(s) ? "ck::tensor_layout::gemm::ColumnMajor"
                               : "ck::tensor_layout::gemm::RowMajor";
     }
 
@@ -189,6 +193,22 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         std::vector<std::string> s;
         std::transform(start, last, std::back_inserter(s), f);
         return "ck::Tuple<" + join_strings(s, ",") + ">";
+    }
+
+    static std::vector<shape> adjust_inputs(std::vector<shape> inputs, bool& swap_inputs)
+    {
+        swap_inputs = false;
+        auto c_shape = inputs.back();
+        if (not transposed_matrix(c_shape))
+            return inputs;
+        std::vector<int64_t> perm(c_shape.lens().size());
+        std::iota(perm.begin(), perm.end(), 0);
+        std::swap(perm[perm.size() - 1], perm[perm.size() - 2]);
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](shape s) {
+            return reorder_shape(s, perm);
+        });
+        swap_inputs = true;
+        return inputs;
     }
 
     std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }

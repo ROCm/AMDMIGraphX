@@ -4629,7 +4629,7 @@ def reducel1_dyn_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
     axes = [-2]
 
-    node = onnx.helper.make_node('ReduceL1_dyn',
+    node = onnx.helper.make_node('ReduceL1',
                                  inputs=['x'],
                                  outputs=['y'],
                                  axes=axes,

@@ -59,7 +59,11 @@ __device__ void gather(const T& data_t, const U& indices_t, const V& output_t, S
     auto* output_ptr        = output_t.data();
 
     ind.global_stride(output_shape.elements(), [&](auto i) {
-
+        auto idx      = output_shape.multi(i);
+        auto in_index = indices_ptr[idx[axis]];
+        in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
+        idx[axis]     = in_index;
+        output_ptr[i] = indices_t[idx];
     });
 }
 

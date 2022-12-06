@@ -238,6 +238,64 @@ def averagepool_3d_test():
 
 
 @onnx_test
+def averagepool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 5, 5, 5])
+    out = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                        [None, 3, 3, 3, 3])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 kernel_shape=[3, 3, 3])
+
+    return ([node], [x], [out])
+
+
+@onnx_test
+def averagepool_dyn_autopad_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 5, 5])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 auto_pad='SAME_LOWER')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def averagepool_dyn_asym_padding_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 3, 3])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 strides=[2, 2],
+                                 pads=[0, 0, 1, 1])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def averagepool_dyn_cip_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 1, 1])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 count_include_pad=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def averagepool_notset_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 1, 1])
@@ -2070,8 +2128,38 @@ def globalavgpool_test():
 
 
 @onnx_test
+def globalavgpool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalAveragePool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def globallppool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalLpPool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def globallppool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, 3, None, None])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
 
     node = onnx.helper.make_node(
@@ -2087,6 +2175,21 @@ def globallppool_test():
 def globalmaxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalMaxPool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def globalmaxpool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 1, 1])
 
     node = onnx.helper.make_node(
         'GlobalMaxPool',
@@ -6286,6 +6389,21 @@ def transpose_invalid_perm_test():
 def transpose_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
+
+    node = onnx.helper.make_node(
+        'Transpose',
+        perm=[0, 3, 1, 2],
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def transpose_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 2, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 2, 2])
 
     node = onnx.helper.make_node(
         'Transpose',

@@ -6026,6 +6026,26 @@ def squeeze_unsqueeze_test():
 
 
 @onnx_test
+def squeeze_unsqueeze_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, None, 1, 1, None, 1])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                      [1, 1, None, 1, None, 1])
+
+    node = onnx.helper.make_node('Squeeze',
+                                 inputs=['0'],
+                                 axes=[0, 2, 3, 5],
+                                 outputs=['1'])
+
+    node2 = onnx.helper.make_node('Unsqueeze',
+                                  inputs=['1'],
+                                  axes=[0, 1, 3, 5],
+                                  outputs=['2'])
+
+    return ([node, node2], [x], [y])
+
+
+@onnx_test
 def sub_bcast_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])

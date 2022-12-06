@@ -70,14 +70,10 @@ struct squeeze
             std::vector<shape::dynamic_dimension> dyn_dims = {};
             if(axes.empty())
             {
-                for(auto i : range(input_shape.ndim()))
-                {
-                    auto dd = input_shape.dyn_dims()[i];
-                    if(dd != one_dyn_dim)
-                    {
-                        dyn_dims.push_back(dd);
-                    }
-                }
+                std::copy_if(input_shape.dyn_dims().cbegin(),
+                             input_shape.dyn_dims().cend(),
+                             std::back_inserter(dyn_dims),
+                             [&](auto dd) { return dd != one_dyn_dim; });
             }
             else
             {

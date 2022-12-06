@@ -2104,6 +2104,23 @@ def gemm_dyn_C_error():
 
 
 @onnx_test
+def gemm_rank_error():
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [4, 1, 8, 6])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [4, 1, 8, 7])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [6, 7])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4, 1, 6, 7])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
+                                 alpha=0.5,
+                                 beta=0.8,
+                                 transA=1)
+
+    return ([node], [A, B, C], [Y])
+
+
+@onnx_test
 def globalavgpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])

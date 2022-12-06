@@ -2176,6 +2176,11 @@ TEST_CASE(gemm_dyn_C_error)
     EXPECT(test::throws([&] { migraphx::parse_onnx("gemm_dyn_C_error.onnx", options); }));
 }
 
+TEST_CASE(gemm_rank_error)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("gemm_rank_error.onnx"); }));
+}
+
 TEST_CASE(globalavgpool_test)
 {
     migraphx::program p;

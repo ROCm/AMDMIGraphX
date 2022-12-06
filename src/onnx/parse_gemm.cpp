@@ -44,7 +44,7 @@ struct parse_gemm : op_parser<parse_gemm>
         if(a_arg->get_shape().ndim() != 2 or b_arg->get_shape().ndim() != 2)
         {
             MIGRAPHX_THROW("PARSE_GEMM: A and B should be rank 2, A is rank " +
-                           std::to_string(a_arg->get_shape().ndim()) + "B is rank " +
+                           std::to_string(a_arg->get_shape().ndim()) + ", B is rank " +
                            std::to_string(b_arg->get_shape().ndim()));
         }
 

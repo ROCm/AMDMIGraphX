@@ -674,6 +674,7 @@ struct find_contiguous_tranpose_precompile
         v["output_shape"] = to_value(s);
         auto new_op       = make_op("gpu::precompile_op", v);
         m.replace_instruction(op_ins, new_op, op_ins->inputs(), op_ins->module_inputs());
+        m.replace_instruction(ins, transpose);
     }
 };
 

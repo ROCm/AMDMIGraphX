@@ -84,8 +84,6 @@ add_library(migraphx_gpu
     compile_hip.cpp
     compile_hip_code_object.cpp
     compiler.cpp
-    convolution.cpp
-    deconvolution.cpp
     device_name.cpp
     elu.cpp
     fuse_mlir.cpp
@@ -110,7 +108,6 @@ add_library(migraphx_gpu
     pad.cpp
     perfdb.cpp
     pooling.cpp
-    quant_convolution.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
@@ -146,14 +143,11 @@ register_migraphx_gpu_ops(hip_
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
-    convolution
-    deconvolution
     elu
     int8_conv_pack
     leaky_relu
     lrn
     pooling
-    quant_convolution
 )
 register_op(migraphx_gpu 
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp 
@@ -166,6 +160,9 @@ register_op(migraphx_gpu
 register_op(migraphx_gpu 
     HEADER migraphx/gpu/gemm.hpp 
     OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
+    INCLUDES migraphx/gpu/context.hpp)
+register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp 
+    OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::deconvolution> gpu::miopen_convolution<op::quant_convolution>
     INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
@@ -239,11 +236,13 @@ get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 
-if(HAS_FIND_2_API) 
+set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
+
+if(MIGRAPHX_USE_FIND_2_API) 
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
     message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
 else()
-    message(STATUS "MIOpen does not have Find-2.0 API")
+    message(STATUS "MIGraphx is using legacy Find API in MIOpen")
 endif()
 
 if(HAS_FIND_MODE_API)

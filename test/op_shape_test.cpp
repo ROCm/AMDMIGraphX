@@ -81,6 +81,64 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
+TEST_CASE(argmax_axis0)
+{
+    migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}},
+                 migraphx::make_op("argmax", {{"axis", 0}}),
+                 input);
+}
+
+TEST_CASE(argmax_axis1)
+{
+    migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}},
+                 migraphx::make_op("argmax", {{"axis", 1}}),
+                 input);
+}
+
+TEST_CASE(argmax_axis2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}},
+                 migraphx::make_op("argmax", {{"axis", 2}}),
+                 input);
+}
+
+TEST_CASE(argmax_axis_neg)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}},
+                 migraphx::make_op("argmax", {{"axis", -1}}),
+                 input);
+}
+
+TEST_CASE(argmax_axis_outofbounds)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    throws_shape(migraphx::make_op("argmax", {{"axis", 4}}), input);
+}
+
+TEST_CASE(argmax_dyn0)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {{1, 4, 0}, {1, 1, 0}, {4, 4, 0}, {5, 5, 0}}},
+        migraphx::make_op("argmax", {{"axis", 1}}),
+        input);
+}
+
+TEST_CASE(argmax_dyn1)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {3, 3, 0}, {4, 6, 0}, {4, 6, 0}}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {{1, 4, 0}, {3, 3, 0}, {1, 1, 0}, {4, 6, 0}}},
+        migraphx::make_op("argmax", {{"axis", 2}}),
+        input);
+}
+
 TEST_CASE(binary_dyn_static_error)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};
@@ -2017,42 +2075,6 @@ TEST_CASE(slice_shape)
 
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
-TEST_CASE(test_argmax)
-{
-    {
-        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}},
-                     migraphx::make_op("argmax", {{"axis", 0}}),
-                     input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}},
-                     migraphx::make_op("argmax", {{"axis", 1}}),
-                     input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}},
-                     migraphx::make_op("argmax", {{"axis", 2}}),
-                     input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}},
-                     migraphx::make_op("argmax", {{"axis", 3}}),
-                     input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        throws_shape(migraphx::make_op("argmax", {{"axis", 4}}), input);
-    }
-}
-
 TEST_CASE(test_argmin)
 {
     {
@@ -2139,6 +2161,30 @@ TEST_CASE(test_squeeze_all)
     expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
 }
 
+TEST_CASE(test_squeeze_dyn)
+{
+    migraphx::shape s1{migraphx::shape::float_type,
+                       {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {3}}}), s1);
+
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s3, migraphx::make_op("squeeze"), s1);
+
+    throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+}
+
+TEST_CASE(test_squeeze_dyn_neg_axes)
+{
+    migraphx::shape s1{migraphx::shape::float_type,
+                       {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {-2}}}), s1);
+
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {3, 3, 0}}};
+    expect_shape(s3, migraphx::make_op("squeeze", {{"axes", {-2, -4}}}), s1);
+}
+
 TEST_CASE(test_squeeze_transpose)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 4, 1}, {4, 1, 4}};
@@ -2180,6 +2226,30 @@ TEST_CASE(test_unsqueeze)
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
 }
 
+TEST_CASE(test_unsqueeze_dyn)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4, 3}, {2, 5, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 4, 3}, {2, 5, 0}, {1, 1, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+
+    migraphx::shape s3{migraphx::shape::float_type,
+                       {{1, 4, 3}, {2, 5, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}}};
+    expect_shape(s3, migraphx::make_op("unsqueeze", {{"axes", {2, 4}}}), s1);
+
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2, 4}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_dyn_neg_axes)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4, 3}, {2, 5, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 4, 3}, {2, 5, 0}, {1, 1, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-2}}}), s1);
+
+    migraphx::shape s3{migraphx::shape::float_type,
+                       {{1, 4, 3}, {2, 5, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}}};
+    expect_shape(s3, migraphx::make_op("unsqueeze", {{"axes", {-1, -3}}}), s1);
+}
+
 TEST_CASE(test_unsqueeze_step)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 5, 12}};
@@ -2211,11 +2281,25 @@ TEST_CASE(test_unsqueeze_mismatch_step_axis)
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2, 3}}}), s1);
 }
 
-TEST_CASE(test_unsqueeze_negative_axis)
+TEST_CASE(test_unsqueeze_negative_axis1)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {4, 5, 1, 3}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_negative_axis2)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 5, 3, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-1}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_negative_axis3)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 5, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 1, 5, 3}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-3}}}), s1);
 }
 
 TEST_CASE(test_unsqueeze_scalar)

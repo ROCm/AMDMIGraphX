@@ -33,38 +33,6 @@
 
 namespace migraphx {
 
-template <class T>
-struct implicit_conversion_op
-{
-    T x;
-
-    template <index_int N, class U>
-    constexpr operator vec<U, N>() const
-    {
-        if constexpr(vec_size<T>() == 0)
-        {
-            return x;
-        }
-        else
-        {
-            static_assert(vec_size<T>() == N, "Vector mismatch size");
-            return __builtin_convertvector(x, vec<U, N>);
-        }
-    }
-
-    template <class U>
-    constexpr operator U() const
-    {
-        return x;
-    }
-};
-
-template <class T>
-constexpr implicit_conversion_op<T> implicit_conversion(T x)
-{
-    return {x};
-}
-
 template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {

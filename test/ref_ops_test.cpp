@@ -326,6 +326,28 @@ TEST_CASE(argmax_test_neg_2)
     EXPECT(migraphx::verify_range(result_vec, res_gold));
 }
 
+TEST_CASE(argmax_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{2, 2, 0}, {3, 6, 0}, {3, 6, 0}}};
+    auto dl = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("argmax", {{"axis", 0}}), dl);
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
+                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
+                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 3, 4}};
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<int64_t> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    std::vector<int64_t> res_gold = {0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1};
+    EXPECT(migraphx::verify_range(result_vec, res_gold));
+}
+
 TEST_CASE(argmin_test_0)
 {
     migraphx::program p;
@@ -7294,6 +7316,25 @@ TEST_CASE(squeeze_test)
     }
 }
 
+TEST_CASE(squeeze_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s1{migraphx::shape::float_type,
+                       {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}, {3, 3, 0}}};
+    auto p0 = mm->add_parameter("x", s1);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), p0);
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> input_data(4 * 3 * 3);
+    migraphx::parameter_map params0;
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+    params0["x"] = migraphx::argument(input_fixed_shape0, input_data.data());
+    auto result  = p.eval(params0).back();
+    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    EXPECT(result.get_shape() == s2);
+}
+
 TEST_CASE(step_test)
 {
     {
@@ -7590,6 +7631,25 @@ TEST_CASE(unsqueeze_test)
         auto result = p.eval({}).back();
         EXPECT(result.get_shape() == s2);
     }
+}
+
+TEST_CASE(unsqueeze_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {3, 3, 0}}};
+    auto p0 = mm->add_parameter("x", s1);
+    mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), p0);
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> input_data(4 * 3 * 3);
+    migraphx::parameter_map params0;
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {4, 3, 3}};
+    params0["x"] = migraphx::argument(input_fixed_shape0, input_data.data());
+    auto result  = p.eval(params0).back();
+    migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+    EXPECT(result.get_shape() == s2);
 }
 
 TEST_CASE(where_test)

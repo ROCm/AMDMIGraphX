@@ -795,10 +795,10 @@ static void print_py_op(std::ostream& os, const operation& op)
     os << "migraphx.op(" << enclose_name(op.name());
 
     auto default_values = make_op(op.name()).to_value();
-    for(auto&& x:v)
+    for(auto&& x : v)
     {
         auto name = x.get_key();
-        if (default_values[name] == x)
+        if(default_values[name] == x)
             continue;
         os << ", " << name << "=" << to_json_string(x.without_key());
     }
@@ -823,9 +823,9 @@ static void print_make_op(std::ostream& os, const operation& op)
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 {
     os << "migraphx.shape(" << s.type_string() << ", lens=" << to_json_string(s.lens());
-    if (not s.standard())
+    if(not s.standard())
         os << ", strides=" << to_json_string(s.strides());
-    os << ")"; 
+    os << ")";
 }
 
 static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
@@ -839,8 +839,8 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 
 std::unordered_map<instruction_ref, std::string>
 module::print_py(std::ostream& os,
-                  const std::string& mname,
-                  std::unordered_map<instruction_ref, std::string> names) const
+                 const std::string& mname,
+                 std::unordered_map<instruction_ref, std::string> names) const
 {
     // cppcheck-suppress variableScope
     unsigned long seed = names.size();
@@ -882,7 +882,8 @@ module::print_py(std::ostream& os,
             }
             else if(ins->name() == "@return")
             {
-                os << mname << ".add_return([" << join_strings(input_vars, ", ") << "])" << std::endl;
+                os << mname << ".add_return([" << join_strings(input_vars, ", ") << "])"
+                   << std::endl;
             }
             else
             {

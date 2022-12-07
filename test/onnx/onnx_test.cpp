@@ -4466,14 +4466,15 @@ TEST_CASE(reducel1_dyn_test)
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        // a shape with 4 dynamic dimensions
+        // No axes given in the onnx file.  Parser should default to all axes.
         auto l0      = mm->add_parameter("x",
                                     migraphx::shape{migraphx::shape::float_type,
                                                     {{3, 3, 0}, {3, 5, 0}, {4, 6, 5}, {5, 7, 6}}});
         auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), l0);
         auto sum_ins =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {}}}), abs_ins);
-        auto sq_ins = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {}}}), sum_ins);
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2, 3}}}), abs_ins);
+        auto sq_ins =
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1, 2, 3}}}), sum_ins);
         mm->add_return({sq_ins});
 
         migraphx::onnx_options options;

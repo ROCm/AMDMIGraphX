@@ -196,12 +196,21 @@ argument to_gpu(const argument& arg, bool host)
 argument from_gpu(const argument& arg)
 {
     argument result;
-    arg.visit([&](auto x) {
-        using type = typename decltype(x)::value_type;
-        auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
-        // cppcheck-suppress returnDanglingLifetime
-        result = {x.get_shape(), [v]() mutable { return v.data(); }};
-    });
+    arg.visit(
+        [&](auto x) {
+            using type = typename decltype(x)::value_type;
+            auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
+            // cppcheck-suppress returnDanglingLifetime
+            result = {x.get_shape(), [v]() mutable { return v.data(); }};
+        },
+        [&](const auto& xs) {
+            std::vector<argument> args;
+            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](auto x) {
+                return from_gpu(x);
+            });
+            result = argument{args};
+        });
+
     return result;
 }
 

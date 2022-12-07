@@ -153,7 +153,7 @@ struct gathernd
                 if(not data_shape.dynamic())
                 {
                     auto data_lens = data_shape.lens();
-                    std::copy(data_lens.begin() + batch_dims + k - 1,
+                    std::copy(data_lens.begin() + batch_dims + k,
                               data_lens.end(),
                               mins.begin() + q - 1);
                     std::copy(data_lens.begin() + batch_dims + k - 1,
@@ -163,7 +163,7 @@ struct gathernd
                 }
                 else
                 {
-                    for(size_t i = batch_dims + k - 1, j = q - 1; i < opts.size(); i++, j++)
+                    for(size_t i = batch_dims + k, j = q - 1; i < r; i++, j++)
                     {
                         shape::dynamic_dimension dd = data_shape.dyn_dims()[i];
                         mins[j]                     = dd.min;

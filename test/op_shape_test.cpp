@@ -2111,7 +2111,7 @@ TEST_CASE(test_gathernd_dynamic2)
 TEST_CASE(test_gathernd_dynamic3)
 {
     {
-       // See Example 4 at https://github.com/onnx/onnx/blob/main/docs/Operators.md#GatherND
+        // See Example 4 at https://github.com/onnx/onnx/blob/main/docs/Operators.md#GatherND
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape is{itype, {2, 2}};

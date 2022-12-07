@@ -153,9 +153,8 @@ struct gathernd
                 if(not data_shape.dynamic())
                 {
                     auto data_lens = data_shape.lens();
-                    std::copy(data_lens.begin() + batch_dims + k,
-                              data_lens.end(),
-                              mins.begin() + q - 1);
+                    std::copy(
+                        data_lens.begin() + batch_dims + k, data_lens.end(), mins.begin() + q - 1);
                     std::copy(data_lens.begin() + batch_dims + k - 1,
                               data_lens.end(),
                               maxes.begin() + q - 1);

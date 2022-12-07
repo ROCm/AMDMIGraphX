@@ -198,7 +198,9 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
         std::size_t default_value = 4;
         if(not w.empty())
             default_value = w.front().second;
-        return value_of(MIGRAPHX_CK_TUNING_VALUE{}, default_value);
+        auto tuning_val = value_of(MIGRAPHX_CK_TUNING_VALUE{}, default_value);
+        std::cout << "*********** Warning: CK try tuning: " << tuning_val << std::endl;
+        return tuning_val;
     }
     return it->second;
 }

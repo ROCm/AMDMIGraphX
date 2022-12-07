@@ -4637,6 +4637,18 @@ def reducel1_dyn_test():
 
     return ([node], [x], [y])
 
+@onnx_test
+def reducel1_dyn_noaxes_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceL1',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
 
 @onnx_test
 def reducel2_test():

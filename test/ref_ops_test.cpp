@@ -5742,9 +5742,9 @@ TEST_CASE(reduce_max_dynamic_axis0)
     p.compile(migraphx::ref::target{});
 
     migraphx::parameter_map params;
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {2, 5}};
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 5}};
     std::vector<float> input_data{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-    params["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
+    params["X"] = migraphx::argument(input_fixed_shape, input_data.data());
     auto result = p.eval(params).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

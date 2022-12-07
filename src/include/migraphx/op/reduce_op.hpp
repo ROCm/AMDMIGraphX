@@ -123,6 +123,8 @@ struct reduce_op : op_name<Derived>
             auto tuned_axes      = tune_axes(output_dyn_dims.size());
             for(const auto& axis : tuned_axes)
             {
+                // At the time of writing, there's no functional difference between
+                // optimum of 0 (no opt) or 1.
                 output_dyn_dims[axis] = {1, 1, 0};
             }
 

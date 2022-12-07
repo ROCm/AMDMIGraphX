@@ -1800,6 +1800,15 @@ void test_dyn_reduce_ops()
                      input);
     }
     {
+        // Empty axis argument reduces all axes
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{1, 1, 0}, {1, 1, 0}})},
+                     T{{}},
+                     input);
+    }
+    {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
         throws_shape(T{{4}}, input);
     }

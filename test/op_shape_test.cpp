@@ -2233,7 +2233,7 @@ TEST_CASE(test_scatternd)
         throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
     }
 }
- 
+
 TEST_CASE(test_scatternd_dyn)
 {
     {

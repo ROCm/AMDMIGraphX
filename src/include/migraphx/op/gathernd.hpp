@@ -138,7 +138,7 @@ struct gathernd
             }
             else
             {
-                for(size_t i = 0; i < q; i++)
+                for(size_t i = 0; i < q - 1; i++)
                 {
                     const shape::dynamic_dimension& dd = i_shape.dyn_dims().at(i);
                     mins[i]                            = dd.min;

@@ -2201,6 +2201,29 @@ TEST_CASE(test_scatternd_dyn)
         migraphx::shape us{dtype, {dd}};
         expect_shape(ds, migraphx::make_op("scatternd_none"), ds, is, us);
     }
+
+    {
+        // one dynamic input and broadcasted data
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 3, 1, 4}, {0, 1, 1, 0}};
+        migraphx::shape ds_std{dtype, {2, 3, 1, 4}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape::dynamic_dimension dd{4, 4, 0};
+        migraphx::shape us{dtype, {dd}};
+        expect_shape(ds_std, migraphx::make_op("scatternd_none"), ds, is, us);
+    }
+
+    {
+        // one dynamic input and standard, static data
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 3, 1, 4}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape::dynamic_dimension dd{4, 4, 0};
+        migraphx::shape us{dtype, {dd}};
+        expect_shape(ds, migraphx::make_op("scatternd_none"), ds, is, us);
+    }
 }
 
 TEST_CASE(test_squeeze)

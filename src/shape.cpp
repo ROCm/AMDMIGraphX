@@ -531,7 +531,7 @@ bool operator!=(const std::size_t& x, const shape::dynamic_dimension& y) { retur
 
 shape::dynamic_dimension operator+(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    return {x.min + y, x.max + y, x.opt + y};
+    return {x.min + y, x.max + y, x.opt == 0 ? 0 : x.opt + y};
 }
 shape::dynamic_dimension operator+(const std::size_t& x, const shape::dynamic_dimension& y)
 {
@@ -539,11 +539,11 @@ shape::dynamic_dimension operator+(const std::size_t& x, const shape::dynamic_di
 }
 shape::dynamic_dimension operator-(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    return {x.min - y, x.max - y, x.opt - y};
+    return {x.min - y, x.max - y, x.opt == 0 ? 0 : x.opt - y};
 }
 shape::dynamic_dimension operator-(const std::size_t& x, const shape::dynamic_dimension& y)
 {
-    return {x - y.min, x - y.max, x - y.opt};
+    return {x - y.min, x - y.max, y.opt == 0 ? 0 : x - y.opt};
 }
 
 bool operator==(const shape& x, const shape& y)

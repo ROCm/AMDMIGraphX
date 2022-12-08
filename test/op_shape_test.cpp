@@ -1680,9 +1680,9 @@ TEST_CASE(pad_shape1)
 TEST_CASE(pad_dyn_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type,
-                          {{1, 4, 2}, {3, 3, 0}, {3, 3, 0}, {3, 3, 0}}};
+                          {{1, 4, 2}, {3, 3, 0}, {3, 5, 0}, {3, 5, 0}}};
     migraphx::shape output{migraphx::shape::float_type,
-                           {{1, 4, 2}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}};
+                           {{1, 4, 2}, {3, 3, 0}, {5, 7, 0}, {5, 7, 0}}};
     expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
 }
 

@@ -93,8 +93,8 @@ struct scatternd_op : op_name<Derived>
             // validation until 3 static shapes are received means that if any inputs are dynamic
             // shapes, the validation will happen at evaluation time.
             // TODO: gathernd op. handles the situation differently by checking dynamic shape inputs
-            // in compute_shape() but requiring the last dimension of index (k) to be fixed, which allows the checks to take 
-            // place.  Should the same be done here?
+            // in compute_shape() but requiring the last dimension of index (k) to be fixed, which
+            // allows the checks to take place.  Should the same be done here?
             auto s = inputs.front();
             if(s.dynamic())
                 return s;

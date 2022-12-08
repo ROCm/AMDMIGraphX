@@ -302,6 +302,24 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
     std::replace(module_args.begin(), module_args.end(), old, new_mod);
 }
 
+bool instruction::is_undefined() const
+{
+    if(op.name() == "undefined")
+    {
+        return true;
+    }
+    else if(this->inputs().empty())
+    {
+        return false;
+    }
+    else
+    {
+        return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
+            return arg->is_undefined();
+        });
+    }
+}
+
 bool instruction::can_eval() const
 {
     if(op.name() == "@literal")

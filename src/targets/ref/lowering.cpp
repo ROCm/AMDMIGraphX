@@ -346,10 +346,10 @@ struct ref_pad
 
     std::string name() const { return "ref::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(output_shape.standard());
-        argument result{output_shape};
+        assert(dyn_out.computed_shape.standard());
+        argument result{dyn_out.computed_shape};
         result.visit([&](auto output) {
             using type = typename decltype(output)::value_type;
             std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));

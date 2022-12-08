@@ -1967,6 +1967,19 @@ def flatten_nonstd_test():
 
 
 @onnx_test
+def flatten_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 5])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, 20])
+
+    node = onnx.helper.make_node('Flatten',
+                                 inputs=['0'],
+                                 axis=2,
+                                 outputs=['2'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def floor_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -5797,6 +5810,16 @@ def softmax_nonstd_input_test():
     node1 = onnx.helper.make_node('Softmax', inputs=['1'], outputs=['2'])
 
     return ([node0, node1], [x], [y])
+
+
+@onnx_test
+def softmax_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 4])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 4, 4])
+
+    node = onnx.helper.make_node('Softmax', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test

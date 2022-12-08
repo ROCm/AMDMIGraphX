@@ -1977,6 +1977,23 @@ TEST_CASE(flatten_nonstd_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(flatten_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}});
+    auto c0  = mm->add_instruction(migraphx::make_op("contiguous"), l0);
+    auto ret = mm->add_instruction(migraphx::make_op("flatten", {{"axis", 2}}), c0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("flatten_dyn_test.onnx", options);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(floor_test)
 {
     migraphx::program p;
@@ -5636,6 +5653,23 @@ TEST_CASE(softmax_nonstd_input_test)
     mm->add_return({l2});
 
     auto prog = migraphx::parse_onnx("softmax_nonstd_input_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(softmax_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("softmax_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

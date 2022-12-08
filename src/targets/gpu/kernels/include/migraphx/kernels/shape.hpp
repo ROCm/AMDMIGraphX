@@ -128,6 +128,20 @@ struct shape
         result[0] = tidx;
         return result;
     }
+
+    /// Convert single index into a multi-index
+    constexpr index_array multi_stride(index_int idx) const
+    {
+        index_array result;
+        index_int tidx = idx;
+        for(diff_int is = result.size() - 1; is > 0; is--)
+        {
+            result[is] = tidx % strides[is];
+            tidx       = tidx / strides[is];
+        }
+        result[0] = tidx;
+        return result;
+    }
     /// Convert multi-index into a single index
     constexpr index_int single(index_array idx) const
     {

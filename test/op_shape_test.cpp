@@ -467,6 +467,199 @@ TEST_CASE(deconvolution_shape)
         weights_3d);
 }
 
+TEST_CASE(dot_ndim_error0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_ndim_error1)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 2}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_ndim_error2)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_ndim_error3)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_ndim_error4)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {1, 1, 5, 7}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_mismatch_inner_error0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {10, 8}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_mismatch_inner_error1)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {4, 6}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_mismatch_inner_error2)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {4, 4}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_mismatch_inner_error3)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 1, 4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {1, 2, 5, 7}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_mismatch_outer_error)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 6}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {2, 5, 8}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_2D_test0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_2D_test1)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 4}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {1, 4}}, migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_2D_test2)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_2D_test3)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 1}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {1, 1}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {1, 1}}, migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_3D_test0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 8}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_3D_test_1)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {6, 1, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {6, 1, 4}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_3D_test2)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 7}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 7}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_4D_test)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {1, 6, 1, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {1, 6, 5, 4}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 6, 1, 4}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_dyn_static_test0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4, 0}, {5, 5, 0}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {8, 8, 0}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_dyn_static_mismatch_error)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_dyn_dyn_test0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4, 0}, {5, 5, 0}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {{5, 5, 0}, {6, 8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {6, 8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_dyn_dyn_test1)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4, 0}, {4, 5, 5}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {{4, 5, 5}, {6, 8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {6, 8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_dyn_mismatch_test0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4, 0}, {5, 5, 0}, {5, 5, 0}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(dot_dyn_mismatch_test1)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{4, 4, 0}, {5, 5, 0}, {2, 5, 0}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {4, 5, 8}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
 TEST_CASE(flatten_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 4, 6, 8}};
@@ -635,46 +828,6 @@ TEST_CASE(gather)
         migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
         int axis = -5;
         throws_shape(migraphx::make_op("gather", {{"axis", axis}}), input, indices);
-    }
-}
-
-// 3 input arguments
-TEST_CASE(gemm)
-{
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {10, 8}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {4, 6}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 8}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 6}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {2, 5, 8}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
     }
 }
 
@@ -1128,106 +1281,6 @@ TEST_CASE(lstm)
             r_shape,
             b_shape,
             ih_shape);
-    }
-}
-
-// 2 inputs arguments
-TEST_CASE(matmul)
-{
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {5}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {5, 2}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {5}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {5, 4}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {4, 4}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {6, 1, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {6, 1, 4}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 6, 1, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {1, 6, 5, 4}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 6, 1, 4}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 1}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {1, 1}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 7}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 7}},
-                     migraphx::make_op("dot"),
-                     s_m1,
-                     s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {1, 1, 5, 7}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::float_type, {1, 1, 4, 5}};
-        migraphx::shape s_m2{migraphx::shape::float_type, {1, 2, 5, 7}};
-        throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
     }
 }
 

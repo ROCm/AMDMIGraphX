@@ -150,6 +150,20 @@ def argmax_test():
 
 
 @onnx_test()
+def argmax_dyn_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 4, 6])
+
+    node = onnx.helper.make_node('ArgMax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def argmin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5])
@@ -1975,6 +1989,19 @@ def flatten_nonstd_test():
     node2 = onnx.helper.make_node('Flatten', inputs=['tx'], outputs=['3'])
 
     return ([trans, node, node2], [x], [y, y2])
+
+
+@onnx_test()
+def flatten_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 5])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, 20])
+
+    node = onnx.helper.make_node('Flatten',
+                                 inputs=['0'],
+                                 axis=2,
+                                 outputs=['2'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test()
@@ -5798,6 +5825,16 @@ def softmax_nonstd_input_test():
 
 
 @onnx_test()
+def softmax_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 4])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 4, 4])
+
+    node = onnx.helper.make_node('Softmax', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def softsign_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
@@ -6023,6 +6060,26 @@ def squeeze_unsqueeze_test():
                                       [1, 3, 1, 1, 2, 1])
     y = helper.make_tensor_value_info('2', TensorProto.FLOAT,
                                       [1, 1, 3, 1, 2, 1])
+
+    node = onnx.helper.make_node('Squeeze',
+                                 inputs=['0'],
+                                 axes=[0, 2, 3, 5],
+                                 outputs=['1'])
+
+    node2 = onnx.helper.make_node('Unsqueeze',
+                                  inputs=['1'],
+                                  axes=[0, 1, 3, 5],
+                                  outputs=['2'])
+
+    return ([node, node2], [x], [y])
+
+
+@onnx_test()
+def squeeze_unsqueeze_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, None, 1, 1, None, 1])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                      [1, 1, None, 1, None, 1])
 
     node = onnx.helper.make_node('Squeeze',
                                  inputs=['0'],

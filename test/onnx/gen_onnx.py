@@ -4172,6 +4172,7 @@ def pad_reflect_multiaxis_test():
 
     return ([arg_pad, node], [x], [y])
 
+
 @onnx_test
 def pad_attr_dyn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None])
@@ -4183,6 +4184,7 @@ def pad_attr_dyn_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def pad_cnst_dyn_test():
@@ -4199,11 +4201,10 @@ def pad_cnst_dyn_test():
                                     outputs=['arg_pad'],
                                     value=pad_tensor)
 
-    node = onnx.helper.make_node('Pad',
-                                 inputs=['0', 'arg_pad'],
-                                 outputs=['1'])
+    node = onnx.helper.make_node('Pad', inputs=['0', 'arg_pad'], outputs=['1'])
 
     return ([arg_pad, node], [x], [y])
+
 
 @onnx_test
 def pad_dyn_reflect_error():
@@ -4217,6 +4218,7 @@ def pad_dyn_reflect_error():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def pow_test():

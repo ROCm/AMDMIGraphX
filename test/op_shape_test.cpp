@@ -1667,36 +1667,32 @@ TEST_CASE(pad_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {2, 3, 5, 5}};
-    expect_shape(output,
-                 migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}),
-                 input);
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
 }
 
 TEST_CASE(pad_shape1)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {2, 3, 6, 6}};
-    expect_shape(output,
-                 migraphx::make_op("pad", {{"pads", {0, 0, 2, 2, 0, 0, 1, 1}}}),
-                 input);
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 2, 2, 0, 0, 1, 1}}}), input);
 }
 
 TEST_CASE(pad_dyn_shape0)
 {
-    migraphx::shape input{migraphx::shape::float_type, {{1, 4, 2}, {3, 3, 0}, {3, 3, 0}, {3, 3, 0}}};
-    migraphx::shape output{migraphx::shape::float_type, {{1, 4, 2}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}};
-    expect_shape(output,
-                 migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}),
-                 input);
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 2}, {3, 3, 0}, {3, 3, 0}, {3, 3, 0}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {{1, 4, 2}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}}};
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
 }
 
 TEST_CASE(pad_dyn_shape1)
 {
-    migraphx::shape input{migraphx::shape::float_type, {{1, 4, 2}, {3, 3, 0}, {3, 5, 5}, {3, 5, 5}}};
-    migraphx::shape output{migraphx::shape::float_type, {{1, 4, 2}, {3, 3, 0}, {5, 7, 7}, {5, 7, 7}}};
-    expect_shape(output,
-                 migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}),
-                 input);
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 2}, {3, 3, 0}, {3, 5, 5}, {3, 5, 5}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {{1, 4, 2}, {3, 3, 0}, {5, 7, 7}, {5, 7, 7}}};
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
 }
 
 TEST_CASE(pooling_shape0)

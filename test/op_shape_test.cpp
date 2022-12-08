@@ -495,6 +495,62 @@ TEST_CASE(flatten_shape)
     throws_shape(migraphx::make_op("flatten", {{"axis", -5}}), input);
 }
 
+TEST_CASE(flatten_dyn_axis0)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {4, 4, 0}, {6, 6, 0}, {8, 8, 0}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 1, 0}, {192, 768, 0}}},
+                 migraphx::make_op("flatten", {{"axis", 0}}),
+                 input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 1, 0}, {192, 768, 0}}},
+                 migraphx::make_op("flatten", {{"axis", -4}}),
+                 input);
+}
+
+TEST_CASE(flatten_dyn_axis1)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{2, 2, 2}, {4, 4, 0}, {4, 6, 5}, {4, 6, 5}}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {{2, 2, 2}, {4 * 4 * 4, 4 * 6 * 6, 0}}},
+        migraphx::make_op("flatten", {{"axis", 1}}),
+        input);
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {{2, 2, 2}, {4 * 4 * 4, 4 * 6 * 6, 0}}},
+        migraphx::make_op("flatten", {{"axis", -3}}),
+        input);
+}
+
+TEST_CASE(flatten_dyn_axis2)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{2, 2, 2}, {4, 4, 0}, {4, 6, 5}, {4, 6, 5}}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {{2 * 4, 2 * 4, 0}, {4 * 4, 6 * 6, 5 * 5}}},
+        migraphx::make_op("flatten", {{"axis", 2}}),
+        input);
+}
+
+TEST_CASE(flatten_dyn_axis3)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {4, 4, 0}, {6, 6, 0}, {8, 8, 0}}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {{1 * 4 * 6, 4 * 4 * 6, 0}, {8, 8, 0}}},
+        migraphx::make_op("flatten", {{"axis", 3}}),
+        input);
+}
+
+TEST_CASE(flatten_dyn_axis4)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {4, 4, 0}, {6, 6, 0}, {8, 8, 0}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                 {{1 * 4 * 6 * 8, 4 * 4 * 6 * 8, 0}, {1, 1, 0}}},
+                 migraphx::make_op("flatten", {{"axis", 4}}),
+                 input);
+}
+
 TEST_CASE(gather)
 {
     {

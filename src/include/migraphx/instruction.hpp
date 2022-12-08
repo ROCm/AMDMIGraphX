@@ -121,6 +121,8 @@ struct instruction
 
     bool can_eval() const;
 
+    bool is_undefined() const;
+
     argument eval(bool check_eval = true) const;
 
     void finalize(context& ctx);

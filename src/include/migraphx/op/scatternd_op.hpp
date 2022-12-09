@@ -62,13 +62,10 @@ struct scatternd_op : op_name<Derived>
             auto upd_lens  = inputs.back().lens();
             auto data_lens = inputs.front().lens();
 
-            if(q + r - ind_lens.back() - 1 != upd_lens.size())
-            {
+            if(q + r - k - 1 != upd_lens.size())
                 MIGRAPHX_THROW("ScatterND:  ranks of inputs don't match. " + std::to_string(q) +
-                               " + " + std::to_string(r) + " - " + std::to_string(ind_lens.back()) +
+                               " + " + std::to_string(r) + " - " + std::to_string(k) +
                                " - 1 != " + std::to_string(upd_lens.size()));
-            }
-
             if(k > r)
                 MIGRAPHX_THROW("ScatterND: index of size " + std::to_string(k) +
                                " is too large for tensor of rank " + std::to_string(r));

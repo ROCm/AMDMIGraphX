@@ -2214,20 +2214,30 @@ TEST_CASE(test_scatternd)
     }
 
     {
-        // k > r
+        // passes q + r - k - 1 != upd_lens.size() but k > r
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {8}};
-        migraphx::shape is{itype, {4, 2}};
+        migraphx::shape is{itype, {5, 4, 2}};
         migraphx::shape us{dtype, {4}};
         throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
     }
 
     {
-        // update.lens != indices.lens[0:q-1] ++ data.lens[k:r-1]
+        // q + r - k - 1 != upd_lens.size()
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {2, 2}};
+        throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
+    }
+
+    {
+        // update.lens != indices.lens[0:q-1]
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8, 3}};
         migraphx::shape is{itype, {4, 1}};
         migraphx::shape us{dtype, {2, 2}};
         throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);

@@ -675,6 +675,34 @@ struct find_gemm_pointwise
     }
 };
 
+struct find_contiguous_tranpose_precompile
+{
+    auto matcher() const
+    {
+        return match::name("gpu::contiguous")(match::arg(0)(
+            match::name("transpose")(
+                match::arg(0)(match::name("gpu::precompile_op")(match::used_once()).bind("op")))
+                .bind("transpose")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto op_ins    = r.instructions["op"];
+        auto alloc     = op_ins->inputs().back();
+        auto transpose = r.instructions["transpose"];
+        auto perm      = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
+        auto iperm     = invert_permutation(perm);
+        auto s =
+            shape::from_permutation(op_ins->get_shape().type(), op_ins->get_shape().lens(), iperm);
+        auto v            = op_ins->get_operator().to_value();
+        v["output_shape"] = to_value(s);
+        auto new_op       = make_op("gpu::precompile_op", v);
+        m.replace_instruction(op_ins, new_op, op_ins->inputs(), op_ins->module_inputs());
+        m.replace_instruction(ins, transpose);
+    }
+};
+
 struct find_contiguous_tranpose_gemm
 {
     auto matcher() const
@@ -850,6 +878,7 @@ void fuse_ops::apply(module& m) const
                         find_concat_pointwise{},
                         find_gemm_pointwise{},
                         find_contiguous_tranpose_gemm{},
+                        find_contiguous_tranpose_precompile{},
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});
 }

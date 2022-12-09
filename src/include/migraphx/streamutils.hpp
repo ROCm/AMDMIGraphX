@@ -29,6 +29,7 @@
 #include <migraphx/reflect.hpp>
 #include <migraphx/rank.hpp>
 #include <migraphx/requires.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/config.hpp>
 #include <vector>
 
@@ -99,12 +100,21 @@ void stream_write_value_impl(rank<0>, std::ostream& os, const T& x)
         os << "}";
 }
 
+template <class T>
+void stream_write_value_impl(rank<0>, std::ostream& os, const optional<T>& x)
+{
+    if(x.has_value())
+        stream_write_value_impl(rank<2>{}, os, *x);
+    else
+        os << "none";
+}
+
 } // namespace detail
 
 template <class T>
 void stream_write_value(std::ostream& os, const T& x)
 {
-    detail::stream_write_value_impl(rank<1>{}, os, x);
+    detail::stream_write_value_impl(rank<2>{}, os, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

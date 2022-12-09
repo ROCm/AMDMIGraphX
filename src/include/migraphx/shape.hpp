@@ -112,7 +112,6 @@ struct shape
         friend dynamic_dimension operator+(const dynamic_dimension& x, const std::size_t& y);
         friend dynamic_dimension operator+(const std::size_t& x, const dynamic_dimension& y);
         friend dynamic_dimension operator-(const dynamic_dimension& x, const std::size_t& y);
-        friend dynamic_dimension operator-(const std::size_t& x, const dynamic_dimension& y);
     };
 
     static const std::vector<type_t>& types();

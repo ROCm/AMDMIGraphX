@@ -36,10 +36,19 @@ template <int axis, class T, class U, class V>
 __device__ void gather(const T& data_t, const U& indices_t, const V& output_t)
 {
     auto ind           = make_index();
-    auto axis_dim_size = data_t.get_shape().lens[axis];
+    auto lengths       = data_t.get_shape().lens;
+    auto axis_dim_size = lengths[axis];
+
+    lengths[axis]      = output_t.get_shape().elements();
+
+    auto out_comp = make_shape(lengths, output_t.get_shape().strides);       
+    out_comp.calculate_strides();
+
+    //print_once("axis: ", axis, "\n");
+    //print_once("axis dim:", axis_dim_size, "\n");
 
     ind.global_stride(output_t.get_shape().elements(), [&](auto i) {
-        /* Debug
+        /* Debug 
         print_once("Inputs: ");
         for(auto& item : data_t)
         {
@@ -60,38 +69,43 @@ __device__ void gather(const T& data_t, const U& indices_t, const V& output_t)
             print_once(item, " ");
         }
         print_once("\n"); */
-        auto idx = data_t.get_shape().multi(i);
 
+        auto idx = out_comp.multi(i);
         if(indices_t.get_shape().elements() == 1)
         {
-            idx = data_t.get_shape().multi_stride(i);
+            idx = out_comp.multi_stride(i);
         }
 
-        /*print_once("idx: ");
+        auto in_index = indices_t[idx[axis]];
+
+        auto new_in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
+
+        print("idx: ");
         for(auto& item : idx)
         {
             print_once(item, " ");
         }
-        print_once("\n"); */
-
-        diff_int in_index = indices_t[idx[axis]];
-
-        // print_once("index ", in_index, "\n");
-        auto new_in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
-        // print_once("New index ", new_in_index, "\n");
+        print_once("\n");
+        //print("index ", in_index, "\n");
+        //print("New index ", new_in_index, "\n");
 
         idx[axis] = new_in_index;
+        print("updated idx: ");
+        for(auto& item : idx)
+        {
+            print_once(item, " ");
+        }
+        print_once("\n"); 
 
         output_t[i] = data_t[idx];
 
-        /* Debug
-        print_once("outputs after: ");
+        /* Debug 
+        print("outputs after: ");
         for(auto & item: output_t)
         {
             print_once(item, " ");
         }
-        print_once("\n");
-        */
+        print_once("\n"); */
     });
 }
 

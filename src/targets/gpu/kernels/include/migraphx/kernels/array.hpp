@@ -149,6 +149,9 @@ struct array
     constexpr T* begin() { return d; }
     constexpr const T* begin() const { return d; }
 
+    constexpr T* rbegin() { return d[N -1]; }
+    constexpr const T* rbegin() const { return d[N - 1]; }
+
     constexpr T* end() { return d + size(); }
     constexpr const T* end() const { return d + size(); }
 

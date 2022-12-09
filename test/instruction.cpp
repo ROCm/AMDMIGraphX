@@ -21,33 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
-#define MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
 
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/functional.hpp>
-#include <migraphx/kernels/math.hpp>
-#include <migraphx/kernels/preload.hpp>
-#include <migraphx/kernels/vectorize.hpp>
-#include <migraphx/kernels/args.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include "test.hpp"
 
-namespace migraphx {
-
-template <class F, class T, class... Ts>
-__device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
+TEST_CASE(check_undefined)
 {
-    idx.global_stride(out.get_shape().elements(),
-                      [&](auto i) { out[i] = implicit_conversion(f(xs[i]...)); });
+    migraphx::module m;
+    auto und = m.add_instruction(migraphx::make_op("undefined"));
+    auto cov = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), und);
+    auto abs = m.add_instruction(migraphx::make_op("abs"), cov);
+
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+
+    auto lit = m.add_literal(migraphx::literal(xs, datax));
+    auto mul = m.add_instruction(migraphx::make_op("mul"), lit, lit);
+
+    EXPECT(und->is_undefined());
+    EXPECT(cov->is_undefined());
+    EXPECT(abs->is_undefined());
+    EXPECT(not lit->is_undefined());
+    EXPECT(not mul->is_undefined());
 }
 
-template <class... Transforms>
-__device__ auto pointwise(index idx, Transforms... transforms)
-{
-    return [=](auto f, auto*... ps) {
-        auto t = transform_args(make_tensors(), rotate_last(), transforms...);
-        t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
-    };
-}
-
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

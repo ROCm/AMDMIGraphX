@@ -39,7 +39,7 @@ struct module_pass_manager;
 struct optimize
 {
     std::string name() const { return "optimize"; }
-    void apply(module_pass_manager& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

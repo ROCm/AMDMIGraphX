@@ -33,11 +33,11 @@ struct test_unbatched_gemm_2 : verify_program<test_unbatched_gemm_2>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {4, 384, 768}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {768, 768}};
+        migraphx::shape m1_shape{migraphx::shape::float_type, {4, 32, 64}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {64, 64}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_literal(migraphx::generate_literal(m2_shape));
-        l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 768, 768}}}),
+        l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 64, 64}}}),
                                  l2);
 
         mm->add_instruction(migraphx::make_op("dot"), l1, l2);

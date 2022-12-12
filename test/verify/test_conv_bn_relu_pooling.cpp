@@ -27,6 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/common.hpp>
 
 struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling>
 {
@@ -49,8 +51,26 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling>
         auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        auto bn       = mm->add_instruction(
-            migraphx::make_op("batch_norm_inference"), conv, scale, bias, mean, variance);
+
+        auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+        auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+        auto usq_scale =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
+        auto usq_bias =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), bias);
+        auto usq_mean =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
+        auto usq_var =
+            mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), variance);
+
+        auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {conv, usq_mean});
+        auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+        auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
+        auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
+        auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+        auto bn      = add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
+
         auto relu = mm->add_instruction(migraphx::make_op("relu"), bn);
         mm->add_instruction(migraphx::make_op("pooling",
                                               {{"mode", migraphx::op::pooling_mode::average},

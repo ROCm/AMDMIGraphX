@@ -35,7 +35,6 @@
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/atan.hpp>
 #include <migraphx/op/atanh.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>

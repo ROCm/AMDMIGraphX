@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/make_op.hpp"
 #include <migraphx/gpu/mlir.hpp>
 
 #ifdef MIGRAPHX_MLIR
@@ -31,7 +32,13 @@
 #include <mlir-c/Dialect/MIGraphX.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Pass.h>
-#include <mlir-c/Registration.h>
+#include <mutex>
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
+#warning "Incompatible version of rocMLIR library used, disabling"
+#undef MIGRAPHX_MLIR
+#else
+#include <mlir-c/RegisterRocMLIR.h>
+#endif
 #endif
 
 #include <migraphx/env.hpp>
@@ -43,14 +50,11 @@
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/perfdb.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/permutation.hpp>
 #include <deque>
 #include <variant>
-
-#if defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) && MLIR_MIGRAPHX_DIALECT_API_VERSION >= 2
-#define MIGRAPHX_MLIR_BARE_POINTER
-#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -99,7 +103,10 @@ struct mlir_handle
 
     mlir_handle(T p) : handle(ptr{p}) {}
 
-    T get() const { return handle.get().get(); }
+    T get() const
+    {
+        return handle.get().get(); // NOLINT(readability-redundant-smartptr-get)
+    }
 
     T release() { return handle.release().get(); }
 
@@ -163,9 +170,11 @@ struct mlir_program
           location(mlirLocationUnknownGet(ctx.get())),
           mmodule(mlirModuleCreateEmpty(location))
     {
-        MlirDialectHandle mixr_handle = mlirGetDialectHandle__migraphx__();
-        mlirDialectHandleRegisterDialect(mixr_handle, ctx.get());
-        mlirRegisterAllDialects(ctx.get());
+        MlirDialectRegistry registry = mlirDialectRegistryCreate();
+        mlirRegisterRocMLIRDialects(registry);
+        mlirContextAppendDialectRegistry(ctx.get(), registry);
+        mlirContextLoadAllAvailableDialects(ctx.get());
+        mlirDialectRegistryDestroy(registry);
         mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
     }
 
@@ -370,7 +379,11 @@ struct mlir_program
 
         mlir_operation_state& add_results(const std::vector<shape>& outputs)
         {
-            auto x = prog->make_tensors(outputs);
+            std::vector<shape> reshaped(outputs.size());
+            std::transform(outputs.begin(), outputs.end(), reshaped.begin(), [](const shape& r) {
+                return shape{r.type(), r.lens()};
+            });
+            auto x = prog->make_tensors(reshaped);
             mlirOperationStateAddResults(&op_state, x.size(), x.data());
             return *this;
         }
@@ -443,7 +456,8 @@ struct mlir_program
         auto ops = create_operation_state("func.func");
         ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
                             {"sym_name", std::string("main")},
-                            {"kernel", std::string("mixr")}});
+                            {"kernel", std::string("mixr")},
+                            {"arch", target_arch}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -502,11 +516,13 @@ struct mlir_program
             {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
-                std::string tuned = get_tune_params();
+                // check if HW supports xdlops
+                auto target_chip  = trim(split_string(target_arch, ':').front());
+                bool xdlops       = contains(get_xdlops_archs(), target_chip);
+                std::string tuned = get_tune_params(xdlops);
                 if(not tuned.empty())
                     ops.add_attributes({{"perf_config", tuned}});
-                // check if HW supports xdlops
-                if(contains(get_xdlops_archs(), target_name))
+                if(xdlops)
                     ops.add_attributes({{"xdlopsV2", true}});
             }
 
@@ -530,7 +546,7 @@ struct mlir_program
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm.get());
         // 2nd pipeline to call
-        mlirMIGraphXAddBackendPipeline(pm.get(), target_name.c_str(), "amdgcn-amd-amdhsa", "");
+        mlirMIGraphXAddBackendPipeline(pm.get(), target_arch.c_str());
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op{};
@@ -540,16 +556,7 @@ struct mlir_program
         return op;
     }
 
-    void find_target()
-    {
-        std::string tname = get_device_name();
-        // HACK: Since MLIR can't handle the full target name
-        target_name = trim(split_string(tname, ':').front());
-        if(tname.size() != target_name.size())
-            std::cout
-                << "*************** WARNING: MLIR may not compile the correct target features for: "
-                << tname << std::endl;
-    }
+    void find_target() { target_arch = get_device_name(); }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
     {
@@ -571,14 +578,14 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    std::string get_tune_params() { return get_mlir_perf_for_conv(pp); }
+    std::string get_tune_params(bool xdlops) { return get_mlir_perf_for_conv(pp, xdlops); }
 
     mlir_context ctx;
     MlirLocation location;
     mlir_module mmodule;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_name;
+    std::string target_arch;
 };
 
 std::string dump_mlir(const module& m)
@@ -589,11 +596,61 @@ std::string dump_mlir(const module& m)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-code_object_op compile_mlir(const context&, const module& m)
+void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
 {
+    auto names = m.get_parameter_names();
+    std::sort(names.begin(), names.end());
+    for(auto i : range(names.size()))
+    {
+        const auto& name  = names[i];
+        const auto& input = inputs[i]->get_shape();
+        auto param        = m.get_parameter(name);
+        if(input.standard())
+            continue;
+        auto lens    = input.lens();
+        auto strides = input.strides();
+        std::vector<operation> ops;
+        if(input.transposed())
+        {
+            auto perm  = find_permutation(input);
+            auto iperm = invert_permutation(perm);
+            lens       = reorder_dims(lens, iperm);
+            strides    = reorder_dims(strides, iperm);
+            ops.push_back(make_op("transpose", {{"permutation", perm}}));
+        }
+        if(input.broadcasted())
+        {
+            std::transform(lens.begin(),
+                           lens.end(),
+                           strides.begin(),
+                           lens.begin(),
+                           [](auto len, auto stride) -> std::size_t {
+                               if(stride == 0)
+                                   return 1;
+                               return len;
+                           });
+            ops.push_back(make_op("multibroadcast", {{"out_lens", input.lens()}}));
+        }
+        auto new_param =
+            std::accumulate(ops.begin(),
+                            ops.end(),
+                            m.add_parameter(name + ".0", shape{input.type(), lens}),
+                            [&](auto x, auto op) { return m.insert_instruction(param, op, x); });
+        m.replace_instruction(param, new_param);
+        m.remove_instruction(param);
+    }
+}
+
+code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs)
+{
+    adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     if(trace)
         std::cout << m << std::endl;
+
+    // set mutex while llvm thread support is disabled.
+    static std::mutex g_mlirc_mutex; // NOLINT
+    const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
     mlir_program mp;
     mp.find_target();
     mp.parse(m);
@@ -613,46 +670,9 @@ instruction_ref insert_mlir(module& m,
 
     std::vector<instruction_ref> refs;
     std::size_t last = 0;
-#ifdef MIGRAPHX_MLIR_BARE_POINTER
     refs.reserve(inputs.size());
     std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    last = refs.size() - 1;
-#else
-    refs.reserve(inputs.size() * 15);
-    std::unordered_map<uint64_t, instruction_ref> literal_map{};
-    auto get_literal = [&](uint64_t value) {
-        auto fi = literal_map.find(value);
-        if(fi != literal_map.end())
-            return fi->second;
-        auto lit = m.add_literal(value);
-        literal_map.emplace(value, lit);
-        return lit;
-    };
-
-    for(auto input : inputs)
-    {
-        const size_t offset = 0;
-        auto s              = input->get_shape();
-        last                = refs.size();
-        refs.push_back(input);
-        refs.push_back(input);
-        refs.push_back(get_literal(offset)); // offset
-
-        // dim sizes
-        std::transform(s.lens().begin(),
-                       s.lens().end(),
-                       std::back_inserter(refs),
-                       [&](const auto& lval) { return get_literal(lval); });
-        // refs.push_back(get_literal(1)); // G
-
-        // dim strides
-        std::transform(s.strides().begin(),
-                       s.strides().end(),
-                       std::back_inserter(refs),
-                       [&](const auto& lval) { return get_literal(lval); });
-        // refs.push_back(get_literal(1)); // G
-    }
-#endif
+    last               = refs.size() - 1;
     co.expected_inputs = to_shapes(refs);
     co.output_arg      = last;
     return m.insert_instruction(ins, co, refs);
@@ -662,12 +682,18 @@ instruction_ref insert_mlir(module& m,
 
 std::string dump_mlir(const module&) { return {}; }
 
-code_object_op compile_mlir(const context&, const module&) { return {}; }
-
 template <class T>
 void use(T&)
 {
 }
+
+// Disabling clang-tidy warning on non-real useage.
+// NOLINTBEGIN(performance-unnecessary-value-param)
+code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&)
+{
+    return {};
+}
+// NOLINTEND(performance-unnecessary-value-param)
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent

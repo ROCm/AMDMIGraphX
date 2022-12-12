@@ -95,7 +95,12 @@ struct module_pm : module_pass_manager
     virtual void run_pass(const pass& p) override
     {
         assert(mod);
+
+        timer ts{};
+        using seconds = std::chrono::duration<double>;
+
         trace("Module: ", mod->name(), ", Pass: ", p.name());
+        const double t1 = ts.record<seconds>();
         assert(mod->validate() == mod->end());
         if(enabled(MIGRAPHX_TIME_PASSES{}))
         {
@@ -109,6 +114,9 @@ struct module_pm : module_pass_manager
         }
         trace(*mod);
         validate_pass(*mod, p, *t);
+
+        const double t2 = ts.record<seconds>();
+        trace("Pass: ", p.name(), " completed in (s): ", (t2 - t1));
     }
 };
 

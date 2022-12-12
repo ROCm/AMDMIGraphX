@@ -141,6 +141,20 @@ def argmax_test():
 
 
 @onnx_test
+def argmax_dyn_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 4, 6])
+
+    node = onnx.helper.make_node('ArgMax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def argmin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5])
@@ -238,6 +252,64 @@ def averagepool_3d_test():
 
 
 @onnx_test
+def averagepool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 5, 5, 5])
+    out = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                        [None, 3, 3, 3, 3])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 kernel_shape=[3, 3, 3])
+
+    return ([node], [x], [out])
+
+
+@onnx_test
+def averagepool_dyn_autopad_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 5, 5])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 auto_pad='SAME_LOWER')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def averagepool_dyn_asym_padding_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 3, 3])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 strides=[2, 2],
+                                 pads=[0, 0, 1, 1])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def averagepool_dyn_cip_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 1, 1])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 count_include_pad=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def averagepool_notset_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 1, 1])
@@ -314,40 +386,178 @@ def averagepool_same_upper_test():
 
 
 @onnx_test
-def batchnorm_1d_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5])
-    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-    mean = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
-    var = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3])
-    out = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1, 3, 5])
+def batch_norm_flat_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [1])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [1])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
 
-    node = onnx.helper.make_node('BatchNormalization',
-                                 inputs=['0', '1', '2', '3', '4'],
-                                 outputs=['5'],
-                                 epsilon=1e-6,
-                                 momentum=0.9)
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
+        epsilon=1e-6)
 
     return ([node], [x, scale, bias, mean, var], [out])
 
 
 @onnx_test
-def batchnorm_3d_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5, 5, 5])
-    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-    mean = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
-    var = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3])
-    out = helper.make_tensor_value_info('5', TensorProto.FLOAT,
-                                        [1, 3, 5, 5, 5])
+def batch_norm_rank_2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [5])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [5])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [5])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [5])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 5])
 
-    node = onnx.helper.make_node('BatchNormalization',
-                                 inputs=['0', '1', '2', '3', '4'],
-                                 outputs=['5'],
-                                 epsilon=1e-6,
-                                 momentum=0.9)
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
+        epsilon=1e-6)
 
     return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_1d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [3])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [3])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [3])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3, 4])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'])
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_2d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [3])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [3])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [3])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 4])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'])
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_3d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16,
+                                      [2, 2, 2, 2, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [2])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [2])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT16, [2])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT16, [2])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT16,
+                                        [2, 2, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'],
+        epsilon=1e-6)
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def batch_norm_invalid_bias_rank_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [3])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [3, 1])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [3])
+    var = helper.make_tensor_value_info('variance', TensorProto.FLOAT, [3])
+    out = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 4])
+
+    node = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['x', 'scale', 'bias', 'mean', 'variance'],
+        outputs=['y'])
+
+    return ([node], [x, scale, bias, mean, var], [out])
+
+
+@onnx_test
+def binary_dyn_brcst_prelu_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'PRelu',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_add_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Add',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_attr_error_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node('Add',
+                                 inputs=['0', '1'],
+                                 outputs=['out'],
+                                 broadcast=1,
+                                 axis=1)
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def binary_dyn_brcst_mul_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                         [None, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [None, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Mul',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
 
 
 @onnx_test
@@ -1757,6 +1967,19 @@ def flatten_nonstd_test():
 
 
 @onnx_test
+def flatten_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 5])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, 20])
+
+    node = onnx.helper.make_node('Flatten',
+                                 inputs=['0'],
+                                 axis=2,
+                                 outputs=['2'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def floor_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -1932,8 +2155,38 @@ def globalavgpool_test():
 
 
 @onnx_test
+def globalavgpool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalAveragePool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def globallppool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalLpPool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def globallppool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, 3, None, None])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
 
     node = onnx.helper.make_node(
@@ -1949,6 +2202,21 @@ def globallppool_test():
 def globalmaxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalMaxPool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def globalmaxpool_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 1, 1])
 
     node = onnx.helper.make_node(
         'GlobalMaxPool',
@@ -3572,6 +3840,16 @@ def multinomial_int64_test():
 def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])
+
+    node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def neg_dynamic_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT64, [None, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.INT64, [None, 3])
 
     node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
 
@@ -5212,6 +5490,20 @@ def sinh_test():
 
 
 @onnx_test
+def sinh_dynamic_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node(
+        'Sinh',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def size_float_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
@@ -5508,6 +5800,16 @@ def softmax_nonstd_input_test():
 
 
 @onnx_test
+def softmax_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 4])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 4, 4])
+
+    node = onnx.helper.make_node('Softmax', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def softsign_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
@@ -5594,6 +5896,92 @@ def split_test_default():
 
 
 @onnx_test
+def split_test_no_attribute():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [300, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [75, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [75, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [75, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [75, 15])
+
+    split = np.ones(4) * 75
+    split_tensor = helper.make_tensor(name="split",
+                                      data_type=TensorProto.INT64,
+                                      dims=split.shape,
+                                      vals=split.astype(np.int64))
+    const_node = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['split'],
+                                  value=split_tensor)
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x', 'split'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+    )
+
+    return ([const_node, node], [x], [y1, y2, y3, y4])
+
+
+@onnx_test
+def split_test_no_attribute_invalid_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [300, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [75, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [75, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [75, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [75, 15])
+
+    split = np.ones(4)
+    split_tensor = helper.make_tensor(name="split",
+                                      data_type=TensorProto.INT64,
+                                      dims=split.shape,
+                                      vals=split.astype(np.int64))
+    const_node = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['split'],
+                                  value=split_tensor)
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x', 'split'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+    )
+
+    return ([const_node, node], [x], [y1, y2, y3, y4])
+
+
+@onnx_test
+def split_test_invalid_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [10, 7])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [10, 4])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [10, 4])
+
+    node = onnx.helper.make_node('Split',
+                                 inputs=['x'],
+                                 outputs=['y1', 'y2', 'y3'],
+                                 axis=1,
+                                 split=[1, 1, 1])
+
+    return ([node], [x], [y1, y2, y3])
+
+
+@onnx_test
+def split_test_no_attribute_invalid_input_split():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [10, 7])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [10, 4])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [10, 4])
+
+    node = onnx.helper.make_node('Split',
+                                 inputs=['x'],
+                                 outputs=['y1', 'y2', 'y3'],
+                                 axis=1,
+                                 split=[])
+
+    return ([node], [x], [y1, y2, y3])
+
+
+@onnx_test
 def sqrt_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])
@@ -5647,6 +6035,26 @@ def squeeze_unsqueeze_test():
                                       [1, 3, 1, 1, 2, 1])
     y = helper.make_tensor_value_info('2', TensorProto.FLOAT,
                                       [1, 1, 3, 1, 2, 1])
+
+    node = onnx.helper.make_node('Squeeze',
+                                 inputs=['0'],
+                                 axes=[0, 2, 3, 5],
+                                 outputs=['1'])
+
+    node2 = onnx.helper.make_node('Unsqueeze',
+                                  inputs=['1'],
+                                  axes=[0, 1, 3, 5],
+                                  outputs=['2'])
+
+    return ([node, node2], [x], [y])
+
+
+@onnx_test
+def squeeze_unsqueeze_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [1, None, 1, 1, None, 1])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT,
+                                      [1, 1, None, 1, None, 1])
 
     node = onnx.helper.make_node('Squeeze',
                                  inputs=['0'],
@@ -6018,6 +6426,21 @@ def transpose_invalid_perm_test():
 def transpose_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
+
+    node = onnx.helper.make_node(
+        'Transpose',
+        perm=[0, 3, 1, 2],
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def transpose_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 2, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 2, 2])
 
     node = onnx.helper.make_node(
         'Transpose',

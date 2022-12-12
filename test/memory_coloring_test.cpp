@@ -724,7 +724,7 @@ TEST_CASE(test39)
 
     auto sub_modules = p.get_modules();
     std::reverse(sub_modules.begin(), sub_modules.end());
-    for(auto& smod : sub_modules)
+    for(const auto& smod : sub_modules)
     {
         run_pass(*smod);
     }

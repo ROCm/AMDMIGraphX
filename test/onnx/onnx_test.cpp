@@ -5701,6 +5701,23 @@ TEST_CASE(softmax_nonstd_input_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(softmax_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("softmax_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(softplus_test)
 {
     migraphx::program p;

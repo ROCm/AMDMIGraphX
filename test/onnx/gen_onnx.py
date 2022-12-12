@@ -5844,6 +5844,16 @@ def softmax_nonstd_input_test():
 
 
 @onnx_test
+def softmax_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 4, 4])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 3, 4, 4])
+
+    node = onnx.helper.make_node('Softmax', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def softsign_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])

@@ -103,7 +103,6 @@ struct allocation_segment
 
     const segment* add_segment(instruction_ref ins, segment s)
     {
-        // this->remove(ins);
         return &(ins2segment[ins] = s);
     }
 

@@ -101,10 +101,7 @@ struct allocation_segment
     using segment = std::pair<std::size_t, std::size_t>;
     std::unordered_map<instruction_ref, segment> ins2segment;
 
-    const segment* add_segment(instruction_ref ins, segment s)
-    {
-        return &(ins2segment[ins] = s);
-    }
+    const segment* add_segment(instruction_ref ins, segment s) { return &(ins2segment[ins] = s); }
 
     const segment* get_segment(instruction_ref ins) const
     {

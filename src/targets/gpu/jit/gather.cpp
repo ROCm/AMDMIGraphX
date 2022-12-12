@@ -76,7 +76,6 @@ struct gather_compiler : compiler<gather_compiler>
 
         auto src = interpolate_string(gather_kernel, {{"axis", axis}});
 
-        // axis attribute
         return compile_hip_code_object(src, options);
     }
 

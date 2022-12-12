@@ -44,15 +44,6 @@ struct greater
     }
 };
 
-struct multiplies
-{
-    template<class T>
-    constexpr T operator()(const T &lhs, const T &rhs) const 
-    {
-        return lhs * rhs;
-    }
-};
-
 template <class InputIt, class T, class BinaryOperation>
 constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 {
@@ -61,24 +52,6 @@ constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
         init = op(static_cast<T&&>(init), *first);
     }
     return init;
-}
-
-template<class InputIt, class OutputIt, class BinaryOperation>
-constexpr OutputIt partial_sum(InputIt first, InputIt last, 
-                     OutputIt d_first, BinaryOperation op)
-{
-    if (first == last)
-        return d_first;
-
-    typename std::iterator_traits<InputIt>::value_type sum = *first;
-    *d_first = sum;
-
-    while (++first != last)
-    {
-        sum = op(std::move(sum), *first); // std::move since C++20
-        *++d_first = sum;
-    }
-    return ++d_first;
 }
 
 template <class InputIt, class OutputIt>

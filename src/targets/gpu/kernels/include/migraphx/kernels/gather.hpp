@@ -39,7 +39,7 @@ __device__ void gather(const T& data_t, const U& indices_t, const V& output_t)
     auto lengths       = data_t.get_shape().lens;
     auto axis_dim_size = lengths[axis];
 
-    lengths[axis]      = output_t.get_shape().elements();
+    lengths[axis]      = indices_t.get_shape().elements();
 
     auto out_comp = make_shape(lengths, output_t.get_shape().strides);       
     out_comp.calculate_strides();

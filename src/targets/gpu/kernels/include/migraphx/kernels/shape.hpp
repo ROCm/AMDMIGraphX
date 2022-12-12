@@ -39,22 +39,7 @@ struct shape
 
     constexpr shape() = default;
 
-    constexpr shape(Lens l) : lens(l) {shape{}.calculate_strides();}
-
     constexpr shape(Lens l, Strides s) : lens(l), strides(s) {}
-
-    constexpr auto calculate_strides()
-    {
-        strides.resize(lens.size(), 0);
-        if(strides.empty())
-            return;
-        strides.back() = 1;
-        partial_sum(lens.rbegin(),
-                         lens.rend() - 1,
-                         strides.rbegin() + 1,
-                         multiplies());
-    }
-
 
     constexpr auto elements() const { return _c<Lens{}.product()>; }
 

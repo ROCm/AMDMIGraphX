@@ -178,7 +178,7 @@ struct allocation_segment
     static std::size_t compute_alignment(instruction_ref ins)
     {
         auto alignment = max_type_size(ins->get_shape());
-        // A rough estimate fo the total number of elements
+        // A rough estimate for the total number of elements
         auto n = ins->get_shape().bytes() / alignment;
         // Check for vectorized alignment
         if(n > 4)

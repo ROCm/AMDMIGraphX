@@ -30,24 +30,24 @@
 
 namespace migraphx {
 
-template <int axis, class T, class U, class V>
+template <int Axis, class T, class U, class V>
 __device__ void gather(const T& data_t, const U& indices_t, const V& output_t)
 {
     auto ind           = make_index();
     auto lengths       = data_t.get_shape().lens;
-    auto axis_dim_size = lengths[axis];
+    auto axis_dim_size = lengths[Axis];
 
-    lengths[axis] = indices_t.get_shape().elements();
+    lengths[Axis] = indices_t.get_shape().elements();
 
     auto out_comp = make_shape(lengths, output_t.get_shape().strides);
 
     ind.global_stride(output_t.get_shape().elements(), [&](auto i) {
         auto idx      = out_comp.multi(i);
-        auto in_index = indices_t[idx[axis]];
+        auto in_index = indices_t[idx[Axis]];
 
         auto new_in_index = (in_index < 0) ? in_index + axis_dim_size : in_index;
 
-        idx[axis] = new_in_index;
+        idx[Axis] = new_in_index;
 
         output_t[i] = data_t[idx];
     });

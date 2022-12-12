@@ -122,7 +122,6 @@ struct shape
         index_int tidx = idx;
         for(diff_int is = result.size() - 1; is > 0; is--)
         {
-            MIGRAPHX_ASSERT(lens[is] > 1);
             result[is] = tidx % lens[is];
             tidx       = tidx / lens[is];
         }
@@ -130,20 +129,6 @@ struct shape
         return result;
     }
 
-    /// Convert single index into a multi-index
-    constexpr index_array multi_stride(index_int idx) const
-    {
-        index_array result;
-        index_int tidx = idx;
-        for(diff_int is = result.size() - 1; is > 0; is--)
-        {
-            MIGRAPHX_ASSERT(lens[is] > 1);
-            result[is] = tidx % strides[is];
-            tidx       = tidx / strides[is];
-        }
-        result[0] = tidx;
-        return result;
-    }
     /// Convert multi-index into a single index
     constexpr index_int single(index_array idx) const
     {
@@ -160,8 +145,6 @@ struct shape
         ss << "{" << s.lens << "}, {" << s.strides << "}";
         return ss;
     }
-
-
 };
 
 template <class Lens, class Strides>

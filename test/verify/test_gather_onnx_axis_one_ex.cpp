@@ -34,7 +34,7 @@ struct test_gather_onnx_axis_one_ex : verify_program<test_gather_onnx_axis_one_e
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3, 2}};
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
         migraphx::shape s_indices{migraphx::shape::int32_type, {2, 1}};
         std::vector<int> indices{0, 2};
         auto a0  = mm->add_parameter("data", s);

@@ -2182,6 +2182,21 @@ TEST_CASE(slice_shape)
                  input);
 }
 
+TEST_CASE(slice_dyn_shape)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 2, 0}, {1, 1, 0}, {3, 3, 3}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 2, 0}, {2, 2, 0}, {2, 2, 0}}},
+                 migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}),
+                 input);
+    // expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
+    //              migraphx::make_op(
+    //                  "slice", {{"axes", {0, 1, 2}}, {"starts", {0, 0, 1}}, {"ends", {2, 2, 3}}}),
+    //              input);
+    // expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
+    //              migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {10}}}),
+    //              input);
+}
+
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
 TEST_CASE(softmax_dyn0)

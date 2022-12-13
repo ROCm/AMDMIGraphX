@@ -100,8 +100,27 @@ struct slice
     {
         auto input_shape        = inputs[0];
         auto t                  = input_shape.type();
-        const auto& old_lens    = input_shape.lens();
-        const auto& old_strides = input_shape.strides();
+        // For a static shape, old_lens will be adjusted to a new size
+        // for those axes that are sliced.
+        // For dynamic shape, the adjusted old_lens become the new max values,
+        // while retaining the old mins and opts.
+        std::vector<std::size_t> new_mins;
+        std::vector<std::size_t> new_opts;
+        std::vector<std::size_t> old_lens;
+        std::vector<std::size_t> old_strides;
+        if(input_shape.dynamic())
+        {
+            old_lens = input_shape.max_lens();
+            new_mins = input_shape.min_lens();
+            // old_strides = std::vector<std::size_t>(old_lens.size(), 1);
+            new_opts = input_shape.opt_lens();
+        }
+        else
+        {
+            old_lens    = input_shape.lens();
+            // Will this work??
+            old_strides = input_shape.strides();
+        }
 
         if(std::any_of(
                axes.begin(), axes.end(), [&](auto i) { return (i >= old_lens.size() and i < 0); }))
@@ -120,8 +139,19 @@ struct slice
             auto axis = axes[i];
             new_lens[axis] =
                 fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
+            new_mins[axis] = std::min(new_lens[axis], new_mins[axis]);
+            if(new_opts[axis] < new_mins[axis] or new_opts[axis] > new_lens[axis])
+                new_opts[axis] = 0;
         }
-        return shape{t, new_lens, old_strides};
+
+        if(input_shape.dynamic())
+        {
+            return shape(t, new_mins, new_lens, new_opts);
+        }
+        else
+        {
+            return shape{t, new_lens, old_strides};
+        }
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const

@@ -155,9 +155,8 @@ struct gathernd
                     auto data_lens = data_shape.lens();
                     std::copy(
                         data_lens.begin() + batch_dims + k, data_lens.end(), mins.begin() + q - 1);
-                    std::copy(data_lens.begin() + batch_dims + k,
-                              data_lens.end(),
-                              maxes.begin() + q - 1);
+                    std::copy(
+                        data_lens.begin() + batch_dims + k, data_lens.end(), maxes.begin() + q - 1);
                     std::fill(opts.begin() + q, opts.end(), size_t(0));
                 }
                 else

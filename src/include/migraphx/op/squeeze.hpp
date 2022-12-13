@@ -59,9 +59,8 @@ struct squeeze
         auto input_shape = inputs[0];
         if(input_shape.dynamic())
         {
-            shape::dynamic_dimension one_dyn_dim{1, 1, 0};
             if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return input_shape.dyn_dims()[axis] != one_dyn_dim;
+                   return input_shape.dyn_dims()[axis] != 1;
                }))
             {
                 MIGRAPHX_THROW(
@@ -73,7 +72,7 @@ struct squeeze
                 std::copy_if(input_shape.dyn_dims().cbegin(),
                              input_shape.dyn_dims().cend(),
                              std::back_inserter(dyn_dims),
-                             [&](auto dd) { return dd != one_dyn_dim; });
+                             [&](auto dd) { return dd != 1; });
             }
             else
             {

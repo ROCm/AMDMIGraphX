@@ -21,23 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_FILE_BUFFER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_FILE_BUFFER_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
-#include <vector>
+#include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include "test.hpp"
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+TEST_CASE(check_undefined)
+{
+    migraphx::module m;
+    auto und = m.add_instruction(migraphx::make_op("undefined"));
+    auto cov = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), und);
+    auto abs = m.add_instruction(migraphx::make_op("abs"), cov);
 
-std::vector<char> read_buffer(const std::string& filename, size_t offset = 0, size_t nbytes = 0);
-std::string read_string(const std::string& filename);
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> datax = {1, 2, 3, 4, 5, 6};
 
-void write_buffer(const std::string& filename, const char* buffer, std::size_t size);
-void write_buffer(const std::string& filename, const std::vector<char>& buffer);
+    auto lit = m.add_literal(migraphx::literal(xs, datax));
+    auto mul = m.add_instruction(migraphx::make_op("mul"), lit, lit);
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    EXPECT(und->is_undefined());
+    EXPECT(cov->is_undefined());
+    EXPECT(abs->is_undefined());
+    EXPECT(not lit->is_undefined());
+    EXPECT(not mul->is_undefined());
+}
 
-#endif
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -53,7 +53,7 @@ __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
     constexpr const auto a_grid_desc_m_k = gemm.matrix_padder.PadADescriptor_M_K(to_ck_tensor<A>());
     constexpr const auto b_grid_desc_n_k =
         gemm.matrix_padder.PadBDescriptor_N_K(to_ck_tensor<ck_transposeb<B>>());
-    
+
     constexpr const auto e_grid_desc_m_n = gemm.matrix_padder.PadCDescriptor_M_N(to_ck_tensor<E>());
     constexpr const auto ds_grid_desc_m_n =
         ck::make_tuple(gemm.matrix_padder.PadCDescriptor_M_N(to_ck_tensor<Ds>())...);

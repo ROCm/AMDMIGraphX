@@ -244,6 +244,38 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         return inputs;
     }
 
+    static std::size_t get_batch_count(const shape& s)
+    {
+        return std::accumulate(s.lens().rbegin() + 2,
+                                s.lens().rend(),
+                                std::size_t{1},
+                                std::multiplies<std::size_t>());
+    }
+
+    static void fold_batch_dims(shape& s)
+    {
+        auto lens = s.lens();
+        if (lens.size() <= 2)
+            return;
+        auto batch_count = get_batch_count(s);
+        auto m1 = lens.at(lens.size() - 2);
+        auto m2 = lens.at(lens.size() - 1);
+        if (transposed_matrix(s))
+            s = shape{s.type(), {m1, m2 * batch_count}};
+        else
+            s = shape{s.type(), {m1 * batch_count, m2}};
+    }
+
+    static void remove_batch_dims(shape& s)
+    {
+        auto lens = s.lens();
+        if (lens.size() <= 2)
+            return;
+        auto m1 = lens.at(lens.size() - 2);
+        auto m2 = lens.at(lens.size() - 1);
+        s = shape{s.type(), {m1, m2}};
+    }
+
     std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
@@ -253,11 +285,16 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto c_shape = inputs.back();
 
         auto rank = a_shape.lens().size();
+        auto b_strides = b_shape.strides();
+        bool can_fold_batch = rank >= 3 and b_strides[rank - 3] == 0;
 
+        auto batch_count      = get_batch_count(c_shape);
+        auto m = c_shape.lens()[rank - 2];
+        m = can_fold_batch ? m * batch_count : m;
+        auto n = c_shape.lens().back(); 
+        auto k = a_shape.lens().back();
         std::array<char, 3> keys{'M', 'N', 'K'};
-        std::array<std::size_t, 3> config{
-            c_shape.lens()[rank - 2], c_shape.lens().back(), a_shape.lens().back()};
-
+        std::array<std::size_t, 3> config{m, n, k};
         auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape}));
         auto ip         = instance{get_instance(tuning_val, [&](const auto& x) -> bool {
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
@@ -286,19 +323,23 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
         auto blocks_per_batch = ip.get_grid_size(config);
-        auto batch_count      = std::accumulate(c_shape.lens().rbegin() + 2,
-                                           c_shape.lens().rend(),
-                                           std::size_t{1},
-                                           std::multiplies<std::size_t>());
 
         hip_compile_options options;
         auto block_size = ip.get_block_size();
-        auto grid_size  = batch_count * blocks_per_batch;
+        auto grid_size  = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
         options.output         = c_shape;
         options.kernel_name    = v.get("kernel", "ck_gemm_kernel");
         options.virtual_inputs = inputs;
+        if (can_fold_batch)
+        {
+            auto vinputs = inputs;
+            fold_batch_dims(vinputs[0]);
+            remove_batch_dims(vinputs[1]);
+            std::for_each(vinputs.begin() + 2, vinputs.end(), fold_batch_dims);
+            options.virtual_inputs = vinputs;
+        }
 
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.params += " -DMIGRAPHX_CK_CHECK=1";

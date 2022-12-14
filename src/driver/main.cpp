@@ -44,7 +44,6 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/register_op.hpp>
-#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
@@ -110,8 +109,12 @@ struct loader
         ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
         ap(output_type,
            {"--cpp"},
-           ap.help("Print out the program as cpp program."),
+           ap.help("Print out the program as C++ program."),
            ap.set_value("cpp"));
+        ap(output_type,
+           {"--python", "--py"},
+           ap.help("Print out the program as python program."),
+           ap.set_value("py"));
         ap(output_type, {"--json"}, ap.help("Print out program as json."), ap.set_value("json"));
         ap(output_type,
            {"--text"},
@@ -221,7 +224,6 @@ struct loader
         {
             migraphx::run_passes(*p.get_main_module(),
                                  {
-                                     migraphx::rewrite_batchnorm{},
                                      migraphx::eliminate_identity{},
                                      migraphx::dead_code_elimination{},
                                      migraphx::simplify_algebra{},
@@ -261,7 +263,9 @@ struct loader
                 type = "binary";
         }
 
-        if(type == "cpp")
+        if(type == "py")
+            p.print_py(*os);
+        else if(type == "cpp")
             p.print_cpp(*os);
         else if(type == "graphviz")
             p.print_graph(*os, brief);

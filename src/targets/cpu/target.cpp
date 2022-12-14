@@ -33,16 +33,15 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
-#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
-#include <migraphx/memory_coloring.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -78,13 +77,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             eliminate_identity{},
             eliminate_pad{},
             dead_code_elimination{},
-            rewrite_batchnorm{},
-            dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
             eliminate_common_subexpression{},
             dead_code_elimination{},
             simplify_algebra{},
+            simplify_reshapes{},
+            layout_nhwc{},
+            dead_code_elimination{},
             simplify_reshapes{},
             simplify_algebra{},
             auto_contiguous{},

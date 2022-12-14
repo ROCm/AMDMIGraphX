@@ -107,6 +107,7 @@ struct argument : raw_data<argument>
     data_t m_data{};
 };
 
+std::vector<shape> to_shapes(const std::vector<argument>& args);
 void migraphx_to_value(value& v, const argument& a);
 void migraphx_from_value(const value& v, argument& a);
 

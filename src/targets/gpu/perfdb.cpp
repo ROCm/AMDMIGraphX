@@ -27,6 +27,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/permutation.hpp>
 #include <fstream>
+#include <mutex>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -88,6 +89,9 @@ std::string generate_miopen_config(const problem_params& pp)
 
 auto query_miopen_db(const std::string& query)
 {
+    static std::mutex g_db_mutex; // NOLINT
+    const std::lock_guard<std::mutex> lock(g_db_mutex);
+
     // TODO: Store db as a static variable
     const auto dbpath = fs::path{"/opt"} / "rocm" / "share" / "miopen" / "db" / "miopen.db";
     // Check if db file exists.
@@ -108,16 +112,17 @@ auto query_miopen_db(const std::string& query)
 
 } // namespace
 
-std::string get_mlir_perf_for_conv(const problem_params& pp)
+std::string get_mlir_perf_for_conv(const problem_params& pp, bool xdlops)
 {
-    std::string query = "select P.* \
+    std::string solver = xdlops ? "ConvMlirIgemmFwdXdlops" : "ConvMlirIgemmFwd";
+    std::string query  = "select P.* \
                              from perf_db P, config C \
                              where P.config = C.id AND \
-                             P.solver = 'ConvMlirIgemmFwdXdlops' AND \
+                             P.solver = '${solver}' AND \
                              ${config}";
 
-    auto results =
-        query_miopen_db(interpolate_string(query, {{"config", generate_miopen_config(pp)}}));
+    auto results = query_miopen_db(
+        interpolate_string(query, {{"config", generate_miopen_config(pp)}, {"solver", solver}}));
     if(results.empty())
         return "";
     return results.front().at("params");

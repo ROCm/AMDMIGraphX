@@ -29,7 +29,6 @@
 #include <migraphx/module.hpp>
 #include <sstream>
 #include <string>
-#include <migraphx/make_op.hpp>
 
 #include <migraphx/serialize.hpp>
 

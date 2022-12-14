@@ -383,9 +383,9 @@ struct ref_gemm
     std::string name() const { return "ref::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         migemm(result, args[0], args[1], 1.0f, 0.0f);
 
         return result;
@@ -449,10 +449,10 @@ struct ref_softmax : auto_register_op<ref_softmax<Op>>
     {
         return op.normalize_compute_shape(inputs);
     }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        auto batch_lens        = output_shape.lens();
+        argument result{dyn_out.computed_shape};
+        auto batch_lens        = dyn_out.computed_shape.lens();
         int64_t tuned_axis     = tune_axis(args[0].get_shape().lens().size(), op.axis, op.name());
         std::size_t n_dims     = batch_lens[tuned_axis];
         batch_lens[tuned_axis] = 1;
@@ -475,7 +475,7 @@ struct ref_softmax : auto_register_op<ref_softmax<Op>>
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
                     idx[tuned_axis]   = j;
-                    std::size_t index = output_shape.index(idx);
+                    std::size_t index = dyn_out.computed_shape.index(idx);
                     output[index]     = std::exp(input[index] - batch_max[i]);
                 }
 

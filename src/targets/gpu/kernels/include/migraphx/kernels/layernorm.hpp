@@ -48,26 +48,24 @@ __device__ void generic_binary_layernorm(
 {
     using reduce_output = reduce::with_axis<Input1, Axis>;
     reduce::block::run<reduce_output>([&](auto, auto r) {
-        using value_type         = typename Input1::type;
+        auto input       = r.inner([&](auto x1, auto x2) { return op(x1, x2); })(input1, input2);
+        using value_type = typename Input1::type;
         constexpr auto relements = r.template elements<Input1>();
-        auto means =
-            r.reduce(op::sum{}, make_array<vec_type<value_type>>(0, 0), [&](auto x1, auto x2) {
-                auto x = op(x1, x2);
-                return make_array(x, x * x) * vec_type<value_type>{1.0 / relements};
-            })(input1, input2);
+        auto means = r.reduce(op::sum{}, make_array<vec_type<value_type>>(0, 0), [&](auto x) {
+            return make_array(x, x * x) * vec_type<value_type>{1.0 / relements};
+        })(input);
 
         auto mean_x        = means[0];
         auto mean_x2       = means[1];
         auto variance      = mean_x2 - (mean_x * mean_x);
         value_type eps_val = eps; // implicit conversion for eps
 
-        r.inner([&](auto& y, auto x1, auto x2, auto... xs) {
-            auto x = op(x1, x2);
+        r.inner([&](auto& y, auto x, auto... xs) {
             auto m = x - mean_x;
 
             // m * rsqrt(mean(m ^ 2) + epsilon)
             y = compute(m * rsqrt(variance + eps_val), xs...);
-        })(output, input1, input2, inputs...);
+        })(output, input, inputs...);
     });
 }
 

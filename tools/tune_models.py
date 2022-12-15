@@ -24,10 +24,12 @@ def parse_args():
                         type=int,
                         default=18,
                         help='Number of instances to tune')
-    parser.add_argument('--update',
-                        '-u',
-                        type=str,
-                        help='Existing tuning JSON. Configs already present will not be re-tuned.')
+    parser.add_argument(
+        '--update',
+        '-u',
+        type=str,
+        help=
+        'Existing tuning JSON. Configs already present will not be re-tuned.')
     args = parser.parse_args()
     return args
 
@@ -52,16 +54,22 @@ def tune_models(models, batch_sizes, seq_len, n, existing):
         update_logs = []
         with open(log_file, "r") as lf:
             logs = [line for line in lf]
-            stripped_logs = [line.replace("ck_gemm: ", "").replace("ck_gemm_softmax_gemm: ", "").replace("\"", "'").replace("\n", "") for line in logs]
-            
+            stripped_logs = [
+                line.replace("ck_gemm: ",
+                             "").replace("ck_gemm_softmax_gemm: ",
+                                         "").replace("\"",
+                                                     "'").replace("\n", "")
+                for line in logs
+            ]
+
             for i in range(len(stripped_logs)):
                 if (stripped_logs[i] not in configs):
                     update_logs.append(logs[i])
-        
+
         with open(log_file, "w") as lf:
             for line in update_logs:
                 lf.write(line)
-        
+
         f.close()
 
     tc.tune(log_file, n, json_file)
@@ -82,7 +90,8 @@ def tune_models(models, batch_sizes, seq_len, n, existing):
 
 
 def run(args):
-    tune_models(args.models, args.batch_sizes, args.sequence_length, args.n, args.update)
+    tune_models(args.models, args.batch_sizes, args.sequence_length, args.n,
+                args.update)
 
 
 run(parse_args())

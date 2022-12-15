@@ -22,9 +22,6 @@ def pretty_print(obj):
 
 def run_driver(b):
     print(b)
-    #outfile = open("temp2.json", "w")
-    #json.dump(b, outfile)
-    #outfile.close()
     with tmp_file(lambda tf: json.dump(b, tf)) as tf:
         cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
                             capture_output=True,
@@ -48,31 +45,19 @@ def get_device_time(s):
     return convert_to_float(fields[-1].strip())
 
 
-def benchmark_ck(config, tuning):
+def benchmark_ck(config, name, tuning):
     try:
-        b0 = {
+        b = {
             'settings': {
                 'iterations': 100
             },
             'compile_op': {
-                'name': 'ck_gemm',
+                'name': name,
                 'check': True,
                 'tuning_val': tuning,
                 'inputs': config
             }
         }
-        b1 = {
-            'settings': {
-                'iterations': 100
-            },
-            'compile_op': {
-                'name': 'ck_gemm_softmax_gemm',
-                'check': True,
-                'tuning_val': tuning,
-                'inputs': config
-            }
-        }
-        b = b0 if (ck_function == 0) else b1
         for line in run_driver(b):
             dtime = get_device_time(line)
             print(dtime)
@@ -81,8 +66,8 @@ def benchmark_ck(config, tuning):
         return sys.float_info.max
 
 
-def benchmark(config, size):
-    times = [benchmark_ck(config, i) for i in range(size)]
+def benchmark(config, name, size):
+    times = [benchmark_ck(config, name, i) for i in range(size)]
     return times.index(min(times))
 
 
@@ -93,21 +78,18 @@ def parse_log(f):
         if line.startswith('ck_gemm:'):
             line = line[len('ck_gemm:'):].strip()
             config = json.loads(line)
-            ck_function = 0
-            yield config
+            yield (config, 'ck_gemm')
         if line.startswith('ck_gemm_softmax_gemm:'):
             line = line[len('ck_gemm_softmax_gemm:'):].strip()
             config = json.loads(line)
             ck_function = 1
-            yield config
+            yield (config, 'ck_gemm_softmax_gemm')
 
 
 def benchmark_log(f, n):
     result = []
-    logs = parse_log(f)
-    for config in logs:
-        additional_tv = ck_function * 2
-        tuned = benchmark(config, n + additional_tv)
+    for config, name in parse_log(f):
+        tuned = benchmark(config, name, n)
         print("Tuned:", tuned)
         result.append([config, tuned])
     return result

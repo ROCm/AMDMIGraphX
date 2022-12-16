@@ -60,9 +60,9 @@ struct reflectable_type
             return migraphx::pack(f(self.value, "value"));
         }
     };
-    std::vector<nested_type> nested_types = {};
+    std::vector<nested_type> nested_types                 = {};
     std::tuple<int, nested_type, std::string> tuple_items = std::make_tuple(0, nested_type{0}, "");
-    migraphx::optional<int> opt_value = migraphx::nullopt;
+    migraphx::optional<int> opt_value                     = migraphx::nullopt;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -86,7 +86,9 @@ TEST_CASE(serialize_reflectable_type)
                         {},
                         reflectable_type::simple1,
                         reflectable_type::class_enum::class2,
-                        {{1}, {2}}, {5, {4}, "hello"}, {migraphx::nullopt}};
+                        {{1}, {2}},
+                        {5, {4}, "hello"},
+                        {migraphx::nullopt}};
     migraphx::value v1  = migraphx::to_value(t1);
     reflectable_type t2 = migraphx::from_value<reflectable_type>(v1);
     migraphx::value v2  = migraphx::to_value(t2);

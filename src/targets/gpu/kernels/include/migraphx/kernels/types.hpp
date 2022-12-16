@@ -31,6 +31,10 @@ namespace migraphx {
 
 using index_int = uint32_t;
 using diff_int  = int32_t;
+using int8_t = signed char;
+using uint8_t = unsigned char;
+using int16_t = signed short int;
+using uint16_t = unsigned short int;
 
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 

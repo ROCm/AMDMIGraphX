@@ -195,7 +195,7 @@ if(MIGRAPHX_ENABLE_MLIR)
     target_link_libraries(migraphx_gpu PUBLIC rocMLIR::rockCompiler)
 endif()
 
-set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "")
+set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "")
 if(MIGRAPHX_USE_HIPRTC)
 target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
 else()

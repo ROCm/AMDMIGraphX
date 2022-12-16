@@ -31,7 +31,7 @@
 namespace migraphx {
 
 template <int Axis, class Input, class Indices>
-__device__ constexpr auto gather_shape(Input input, Indices indices)
+constexpr auto gather_shape(Input input, Indices indices)
 {
     auto lengths = input.get_shape().lens;
 

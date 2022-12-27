@@ -115,6 +115,7 @@ struct program
                    print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
+    void print_py(std::ostream& os) const;
     void print_cpp(std::ostream& os) const;
 
     void dry_run(parameter_map params) const;

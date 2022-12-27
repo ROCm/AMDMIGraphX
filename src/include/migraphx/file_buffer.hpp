@@ -31,7 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<char> read_buffer(const std::string& filename);
+std::vector<char> read_buffer(const std::string& filename, size_t offset = 0, size_t nbytes = 0);
 std::string read_string(const std::string& filename);
 
 void write_buffer(const std::string& filename, const char* buffer, std::size_t size);

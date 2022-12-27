@@ -21,28 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_INT_DIVIDE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_INT_DIVIDE_HPP
 
-#include <migraphx/config.hpp>
-#include <cmath>
+#include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include "test.hpp"
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-template <class R, class T, class U>
-R floor_divide(T x, U y)
+TEST_CASE(check_undefined)
 {
-    return R(std::floor(double(x) / double(y)));
+    migraphx::module m;
+    auto und = m.add_instruction(migraphx::make_op("undefined"));
+    auto cov = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), und);
+    auto abs = m.add_instruction(migraphx::make_op("abs"), cov);
+
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+
+    auto lit = m.add_literal(migraphx::literal(xs, datax));
+    auto mul = m.add_instruction(migraphx::make_op("mul"), lit, lit);
+
+    EXPECT(und->is_undefined());
+    EXPECT(cov->is_undefined());
+    EXPECT(abs->is_undefined());
+    EXPECT(not lit->is_undefined());
+    EXPECT(not mul->is_undefined());
 }
 
-template <class R, class T, class U>
-R ceil_divide(T x, U y)
-{
-    return R(std::ceil(double(x) / double(y)));
-}
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

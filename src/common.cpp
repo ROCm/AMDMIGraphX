@@ -77,7 +77,6 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
     }
     auto offset = s1.ndim() - s0.ndim();
     std::vector<shape::dynamic_dimension> out_dims(s1.dyn_dims());
-    shape::dynamic_dimension one_dyn_dim{1, 1, 0};
     std::transform(
         s0.dyn_dims().cbegin(),
         s0.dyn_dims().cend(),
@@ -88,7 +87,7 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
             {
                 return a;
             }
-            else if(a == one_dyn_dim or b == one_dyn_dim)
+            else if(a == 1 or b == 1)
             {
                 // setting opt to 0, may need to be changed
                 return shape::dynamic_dimension{std::max(a.min, b.min), std::max(a.max, b.max), 0};

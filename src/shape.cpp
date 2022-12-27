@@ -539,7 +539,17 @@ shape::dynamic_dimension operator+(const std::size_t& x, const shape::dynamic_di
 }
 shape::dynamic_dimension operator-(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    return {x.min - y, x.max - y, x.opt == 0 ? 0 : x.opt - y};
+    assert(x.min >= y);
+    assert(x.max >= y);
+    if(x.opt == 0)
+    {
+        return {x.min - y, x.max - y, 0};
+    }
+    else
+    {
+        assert(x.opt >= y);
+        return {x.min - y, x.max - y, x.opt - y};
+    }
 }
 
 bool operator==(const shape& x, const shape& y)

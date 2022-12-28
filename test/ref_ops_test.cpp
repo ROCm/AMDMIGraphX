@@ -6102,10 +6102,10 @@ TEST_CASE(reshape_dyn_test)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{1, 4, 0}, {24, 24, 0}, {1, 1, 0}, {1, 1, 0}}};
     std::vector<int64_t> new_shape = {0, 8, 3, 1};
-    auto input = mm->add_parameter("X", s);
+    auto input                     = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     p.compile(migraphx::ref::target{});
-    
+
     std::vector<float> data(48);
     std::iota(data.begin(), data.end(), -3);
     migraphx::parameter_map params;

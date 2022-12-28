@@ -56,7 +56,7 @@ struct reshape
         auto s0 = inputs[0];
         if(s0.dynamic())
         {
-            auto dyn_dims               = s0.dyn_dims();
+            auto dyn_dims       = s0.dyn_dims();
             int not_fixed_index = -1;
             // track number of fixed elements in input and output
             std::size_t num_dims_ele = 1;

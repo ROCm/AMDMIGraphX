@@ -2000,7 +2000,7 @@ TEST_CASE(reshape_dyn_shape)
             }
             else
             {
-                auto d = static_cast<std::size_t>(new_shape[i]);
+                std::size_t d = new_shape[i];
                 out_dyn_dims.push_back({d, d, 0});
             }
         }

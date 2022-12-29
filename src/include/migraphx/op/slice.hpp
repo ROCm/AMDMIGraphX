@@ -65,6 +65,7 @@ struct slice
 
     std::string name() const { return "slice"; }
 
+    // Convert negative index to a value counting backwards from the max index, per numpy convention
     auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
     {
         int64_t r = std::min(index, static_cast<int64_t>(lens[axis]));
@@ -98,8 +99,8 @@ struct slice
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        auto input_shape        = inputs[0];
-        auto t                  = input_shape.type();
+        auto input_shape = inputs[0];
+        auto t           = input_shape.type();
         // For a static shape, old_lens will be adjusted to a new size
         // for those axes that are sliced.
         // For dynamic shape, the adjusted old_lens become the new max values,
@@ -112,12 +113,11 @@ struct slice
         {
             old_lens = input_shape.max_lens();
             new_mins = input_shape.min_lens();
-            // old_strides = std::vector<std::size_t>(old_lens.size(), 1);
             new_opts = input_shape.opt_lens();
         }
         else
         {
-            old_lens    = input_shape.lens();
+            old_lens = input_shape.lens();
             // Will this work??
             old_strides = input_shape.strides();
         }
@@ -139,11 +139,13 @@ struct slice
             auto axis = axes[i];
             new_lens[axis] =
                 fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
-            new_mins[axis] = std::min(new_lens[axis], new_mins[axis]);
-            if(new_opts[axis] < new_mins[axis] or new_opts[axis] > new_lens[axis])
-                new_opts[axis] = 0;
+            if(input_shape.dynamic())
+            {
+                new_mins[axis] = std::min(new_lens[axis], new_mins[axis]);
+                if(new_opts[axis] < new_mins[axis] or new_opts[axis] > new_lens[axis])
+                    new_opts[axis] = 0;
+            }
         }
-
         if(input_shape.dynamic())
         {
             return shape(t, new_mins, new_lens, new_opts);

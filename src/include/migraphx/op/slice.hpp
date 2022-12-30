@@ -118,7 +118,8 @@ struct slice
         else
         {
             old_lens = input_shape.lens();
-            // Will this work??
+            // For static shape (including eval after a dynamic input) the strides are indexed into
+            // the pre-slice array, so they are larger than the apparent size of the resulting shape.
             old_strides = input_shape.strides();
         }
 
@@ -156,11 +157,15 @@ struct slice
         }
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         auto input  = args[0];
-        auto offset = compute_offset(input.get_shape()) * output_shape.type_size();
-        return {std::move(output_shape), [=] { return input.data() + offset; }};
+        if( dyn_out.computed_shape.dynamic())
+            return {std::move(dyn_out.computed_shape), [=] { return input.data(); }};
+        else{
+            auto offset = compute_offset(input.get_shape()) * dyn_out.computed_shape.type_size();
+            return {std::move(dyn_out.computed_shape), [=] { return input.data() + offset; }};
+        }
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

@@ -119,7 +119,8 @@ struct slice
         {
             old_lens = input_shape.lens();
             // For static shape (including eval after a dynamic input) the strides are indexed into
-            // the pre-slice array, so they are larger than the apparent size of the resulting shape.
+            // the pre-slice array, so they are larger than the apparent size of the resulting
+            // shape.
             old_strides = input_shape.strides();
         }
 
@@ -159,10 +160,11 @@ struct slice
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        auto input  = args[0];
-        if( dyn_out.computed_shape.dynamic())
+        auto input = args[0];
+        if(dyn_out.computed_shape.dynamic())
             return {std::move(dyn_out.computed_shape), [=] { return input.data(); }};
-        else{
+        else
+        {
             auto offset = compute_offset(input.get_shape()) * dyn_out.computed_shape.type_size();
             return {std::move(dyn_out.computed_shape), [=] { return input.data() + offset; }};
         }

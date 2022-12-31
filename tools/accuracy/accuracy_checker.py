@@ -33,18 +33,14 @@ def parse_args():
         description=
         'MIGraphX accuracy checker. Use to verify onnx files to ensure MIGraphX\'s output \
                                                   is within tolerance of onnx runtime\'s expected output.'
-    )    
+    )
     file_args = parser.add_argument_group(title='file type arguments')
-    file_args.add_argument('--onnx',
-                          type=str,
-                          help='path to onnx file')
-    file_args.add_argument('--tf',
-                          type=str,
-                          help='path to tf pb file')
+    file_args.add_argument('--onnx', type=str, help='path to onnx file')
+    file_args.add_argument('--tf', type=str, help='path to tf pb file')
     parser.add_argument('--provider',
-                          type=str,
-                          default='CPUExecutionProvider',
-                          help='execution provider for onnx runtime \
+                        type=str,
+                        default='CPUExecutionProvider',
+                        help='execution provider for onnx runtime \
                                 (default = CPUExecutionProvider)')
     parser.add_argument('--batch',
                         type=int,
@@ -64,7 +60,8 @@ def parse_args():
                         type=str,
                         action='append',
                         help='specify input parameter dimension \
-                                with the following format --input_dim input_name:dim0,dim1,dim2...')
+                                with the following format --input_dim input_name:dim0,dim1,dim2...'
+                        )
     args = parser.parse_args()
 
     return args
@@ -116,9 +113,6 @@ def get_np_datatype(in_type):
     return datatypes[in_type]
 
 
-
-
-
 def main():
     args = parse_args()
 
@@ -142,11 +136,13 @@ def main():
             input_dim = ''.join(input.split(':')[:-1])
             dims = [int(dim) for dim in input.split(':')[-1].split(',')]
             input_dims[input_dim] = dims
-    
+
     # print(input_dims)
     if use_onnx:
         if any(input_dims):
-            model = migraphx.parse_onnx(model_name, default_dim_value=batch, map_input_dims=input_dims)
+            model = migraphx.parse_onnx(model_name,
+                                        default_dim_value=batch,
+                                        map_input_dims=input_dims)
         else:
             model = migraphx.parse_onnx(model_name, default_dim_value=batch)
     else:
@@ -187,7 +183,8 @@ def main():
             pred_fw = sess.run(None, ort_params)[-1]
         except:
             if any(input_dims):
-                print('Error: custom input dim not compatible with onnx runtime')
+                print(
+                    'Error: custom input dim not compatible with onnx runtime')
 
     else:
         import tensorflow as tf
@@ -200,9 +197,9 @@ def main():
             with tf.compat.v1.Graph().as_default() as graph:
                 tf.graph_util.import_graph_def(graph_def)
             return graph
-        
+
         graph = load_tf_graph(model_name)
-        graph_ops = [ op.name for op in graph.get_operations() ]
+        graph_ops = [op.name for op in graph.get_operations()]
         graph_ops_set = set(graph_ops)
         # for op in graph.get_operations():
         #     print(op.name)
@@ -213,12 +210,9 @@ def main():
             if tf_name not in graph_ops_set:
                 continue
             x = graph.get_tensor_by_name(f'{tf_name}:0')
-            tf_dict[x] = np.transpose(test_inputs[name], (0,2,3,1))
+            tf_dict[x] = np.transpose(test_inputs[name], (0, 2, 3, 1))
 
         y = graph.get_tensor_by_name(f'{graph_ops[-1]}:0')
-
-
-
 
         with tf.compat.v1.Session(graph=graph) as sess:
             y_out = sess.run(y, feed_dict=tf_dict)

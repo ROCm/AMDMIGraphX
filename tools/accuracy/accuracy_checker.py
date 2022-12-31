@@ -25,6 +25,7 @@ import argparse
 import numpy as np
 import migraphx
 import onnxruntime as ort
+import sys
 
 
 def parse_args():
@@ -32,13 +33,15 @@ def parse_args():
         description=
         'MIGraphX accuracy checker. Use to verify onnx files to ensure MIGraphX\'s output \
                                                   is within tolerance of onnx runtime\'s expected output.'
-    )
-    req_args = parser.add_argument_group(title='required arguments')
-    req_args.add_argument('--onnx',
+    )    
+    file_args = parser.add_argument_group(title='file type arguments')
+    file_args.add_argument('--onnx',
                           type=str,
-                          required=True,
                           help='path to onnx file')
-    req_args.add_argument('--provider',
+    file_args.add_argument('--tf',
+                          type=str,
+                          help='path to tf pb file')
+    parser.add_argument('--provider',
                           type=str,
                           default='CPUExecutionProvider',
                           help='execution provider for onnx runtime \
@@ -57,6 +60,11 @@ def parse_args():
                         type=float,
                         default=1e-3,
                         help='accuracy tolerance (default = 1e-3)')
+    parser.add_argument('--input_dim',
+                        type=str,
+                        action='append',
+                        help='specify input parameter dimension \
+                                with the following format --input_dim input_name:dim0,dim1,dim2...')
     args = parser.parse_args()
 
     return args
@@ -108,13 +116,42 @@ def get_np_datatype(in_type):
     return datatypes[in_type]
 
 
+
+
+
 def main():
     args = parse_args()
 
+    use_onnx = True
+    if args.onnx == None:
+        use_onnx = False
+    if not use_onnx and args.tf == None:
+        print('Error: please specify either an onnx or tf pb file')
+        sys.exit(-1)
+
     model_name = args.onnx
+
     batch = args.batch
 
-    model = migraphx.parse_onnx(model_name, default_dim_value=batch)
+    custom_inputs = args.input_dim
+    # print(custom_inputs)
+
+    input_dims = {}
+    if custom_inputs != None:
+        for input in custom_inputs:
+            input_dim = ''.join(input.split(':')[:-1])
+            dims = [int(dim) for dim in input.split(':')[-1].split(',')]
+            input_dims[input_dim] = dims
+    
+    # print(input_dims)
+    if use_onnx:
+        if any(input_dims):
+            model = migraphx.parse_onnx(model_name, default_dim_value=batch, map_input_dims=input_dims)
+        else:
+            model = migraphx.parse_onnx(model_name, default_dim_value=batch)
+    else:
+        model_name = args.tf
+        model = migraphx.parse_tf(model_name, batch_size=batch)
 
     if args.verbose:
         print(model)
@@ -125,7 +162,7 @@ def main():
     test_inputs = {}
     for name, shape in model.get_parameter_shapes().items():
         if args.verbose:
-            print('Parameter {} -> {}'.format(name, shape))
+            print(f'Parameter {name} -> {shape}')
         in_shape = shape.lens()
         in_type = shape.type_string()
         if not args.fill1:
@@ -138,15 +175,56 @@ def main():
 
     pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
 
-    sess = ort.InferenceSession(model_name, providers=[args.provider])
+    if use_onnx:
 
-    ort_params = {}
-    for input in sess.get_inputs():
-        ort_params[input.name] = test_inputs[input.name]
+        sess = ort.InferenceSession(model_name, providers=[args.provider])
 
-    pred_ort = sess.run(None, ort_params)[-1]
+        ort_params = {}
+        for input in sess.get_inputs():
+            ort_params[input.name] = test_inputs[input.name]
 
-    is_correct = check_correctness(pred_ort, pred_migx, args.tolerance,
+        try:
+            pred_fw = sess.run(None, ort_params)[-1]
+        except:
+            if any(input_dims):
+                print('Error: custom input dim not compatible with onnx runtime')
+
+    else:
+        import tensorflow as tf
+
+        def load_tf_graph(model_name):
+            with tf.io.gfile.GFile(model_name, 'rb') as f:
+                graph_def = tf.compat.v1.GraphDef()
+                graph_def.ParseFromString(f.read())
+
+            with tf.compat.v1.Graph().as_default() as graph:
+                tf.graph_util.import_graph_def(graph_def)
+            return graph
+        
+        graph = load_tf_graph(model_name)
+        graph_ops = [ op.name for op in graph.get_operations() ]
+        graph_ops_set = set(graph_ops)
+        # for op in graph.get_operations():
+        #     print(op.name)
+        tf_dict = {}
+
+        for name in test_inputs.keys():
+            tf_name = f'import/{name}'
+            if tf_name not in graph_ops_set:
+                continue
+            x = graph.get_tensor_by_name(f'{tf_name}:0')
+            tf_dict[x] = np.transpose(test_inputs[name], (0,2,3,1))
+
+        y = graph.get_tensor_by_name(f'{graph_ops[-1]}:0')
+
+
+
+
+        with tf.compat.v1.Session(graph=graph) as sess:
+            y_out = sess.run(y, feed_dict=tf_dict)
+            pred_fw = y_out
+
+    is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
                                    args.tolerance, args.verbose)
     verbose_string = ' Rerun with --verbose for detailed information.' \
             if not args.verbose else ''

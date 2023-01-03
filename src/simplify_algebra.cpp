@@ -1073,7 +1073,7 @@ struct find_split_reshape
         }
 
         std::vector<instruction_ref> vec_rsp(split_outputs.size());
-        std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [&](auto i) {
+        std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [](auto i) {
             assert(i->outputs().size() == 1);
             auto cont = i->outputs().front();
             assert(cont->outputs().size() == 1);

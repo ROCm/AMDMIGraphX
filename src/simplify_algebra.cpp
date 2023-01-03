@@ -1065,17 +1065,18 @@ struct find_split_reshape
             return;
         }
 
+        if(std::any_of(split_outputs.begin(), split_outputs.end(), [](auto i) {
+               return i->outputs().front()->outputs().size() != 1;
+           }))
+        {
+            return;
+        }
+
         std::vector<instruction_ref> vec_rsp(split_outputs.size());
-        std::list<instruction> undef_inss{instruction(make_op("undefined"), {}, {})};
         std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [&](auto i) {
             assert(i->outputs().size() == 1);
             auto cont = i->outputs().front();
-            // cont->outputs size will not necessarily be 1 if the return is a slice,
-            // this causes a segmentation fault when accessing outputs.front
-            if(cont->outputs().size() != 1)
-            {
-                return undef_inss.begin();
-            }
+            assert(cont->outputs().size() == 1);
             return cont->outputs().front();
         });
 

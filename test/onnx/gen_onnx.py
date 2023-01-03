@@ -23,7 +23,7 @@
 #####################################################################################
 # This script generates onnx files for MIGraphX onnx operator tests.
 # To generate an individual onnx file, you can use the following
-# command: python -c "import gen_onnx; gen_onnx.{test_name}_test()"
+# command: python3 -c "import gen_onnx; gen_onnx.{test_name}_test()"
 import numpy as np
 import onnx
 from onnx import helper
@@ -5564,6 +5564,53 @@ def slice_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def slice_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0'],
+                                 axes=[0, 1],
+                                 starts=[1, 0],
+                                 ends=[2, 2],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def slice_3arg_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 5])
+    start = np.array([0, 0])
+    start_tensor = helper.make_tensor(name="start",
+                                      data_type=TensorProto.INT32,
+                                      dims=start.shape,
+                                      vals=start.astype(int))
+
+    arg_start = helper.make_node("Constant",
+                                 inputs=[],
+                                 outputs=['arg_start'],
+                                 value=start_tensor)
+
+    end = np.array([2, 5])
+    end_tensor = helper.make_tensor(name="end",
+                                    data_type=TensorProto.INT32,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node("Constant",
+                               inputs=[],
+                               outputs=['arg_end'],
+                               value=end_tensor)
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0', 'arg_start', 'arg_end'],
+                                 outputs=['1'])
+
+    return ([arg_start, arg_end, node], [x], [y])
 
 
 @onnx_test

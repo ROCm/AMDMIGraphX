@@ -5519,6 +5519,44 @@ TEST_CASE(slice_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(slice_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 2}});
+    auto ret = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 2}}}), l0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 2, 0};
+    auto prog                     = migraphx::parse_onnx("slice_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(slice_3arg_dyn_test)
+{
+    // TODO:  This test still under construction
+    // Arguments other than "axes" not currently supported with dynamic data
+    // migraphx::program p;
+    // auto* mm = p.get_main_module();
+
+    // auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 2}});
+    // auto ret = mm->add_instruction(
+    //     migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 2}}}), l0);
+    // mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 2, 0};
+    // auto prog                     = migraphx::parse_onnx("slice_3arg_dyn_test.onnx", options);
+
+    // EXPECT(p == prog);
+        EXPECT(
+        test::throws([&] { migraphx::parse_onnx("slice_3arg_dyn_test.onnx", options); }));
+}
+
 TEST_CASE(slice_3arg_test)
 {
     migraphx::program p;

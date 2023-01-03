@@ -46,7 +46,8 @@ struct parse_slice : op_parser<parse_slice>
         std::vector<int64_t> steps;
 
         // slice can have up to 5 inputs, we first check the 5th one
-        // to decide whether MIGRAPHX can handle this slice
+        // to decide whether MIGRAPHX can handle this slice.
+printf("a\n");
         if(args.size() == 5)
         {
             migraphx::argument step_arg = args.back()->eval();
@@ -65,6 +66,7 @@ struct parse_slice : op_parser<parse_slice>
             literal s = parser.parse_value(info.attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
         }
+printf("b\n");
 
         if(args.size() >= 3)
         {
@@ -80,15 +82,25 @@ struct parse_slice : op_parser<parse_slice>
 
         if(args.size() >= 2)
         {
+printf("c\n");
             migraphx::argument start_arg = args.at(1)->eval();
             check_arg_empty(start_arg, "PARSE_SLICE: cannot handle variable starts for slice");
+printf("f\n");
+std::cout << start_arg;
+            if(start_arg.get_shape().dynamic()){
+            //TODO: debugging how to make a test with dynamic inputs and multi args
+printf("g\n");
+                MIGRAPHX_THROW("PARSE_SLICE: cannot handle any op. variables except \'axes\' with dynamic inputs");
+            }
             start_arg.visit([&](auto s) { op.starts.assign(s.begin(), s.end()); });
         }
         else if(contains(info.attributes, "starts"))
         {
-            literal s = parser.parse_value(info.attributes.at("starts"));
+ printf("d\n");
+           literal s = parser.parse_value(info.attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
         }
+printf("e\n");
 
         if(op.axes.empty())
         {

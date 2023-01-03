@@ -114,7 +114,8 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
         // if curr_ins has a dynamic output shape use 2 input broadcast
         if(curr_ins->get_shape().dynamic())
         {
-            bias_bcast = mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
+            bias_bcast =
+                mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }
         else
         {

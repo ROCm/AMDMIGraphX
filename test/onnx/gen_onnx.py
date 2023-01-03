@@ -1123,10 +1123,12 @@ def conv_dynamic_batch_test():
 
 @onnx_test()
 def conv_dynamic_bias_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 3, 32, 32])
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
     z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
-    out = helper.make_tensor_value_info('3', TensorProto.FLOAT, [None, 2, 28, 28])
+    out = helper.make_tensor_value_info('3', TensorProto.FLOAT,
+                                        [None, 2, 28, 28])
 
     node = onnx.helper.make_node('Conv',
                                  inputs=['0', '1', '2'],

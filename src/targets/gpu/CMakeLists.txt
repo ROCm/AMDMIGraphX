@@ -83,6 +83,7 @@ add_library(migraphx_gpu
     compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
+    compile_miopen.cpp
     compiler.cpp
     device_name.cpp
     fuse_mlir.cpp
@@ -232,11 +233,14 @@ get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 
-if(HAS_FIND_2_API) 
+# TODO: Set default to HAS_FIND_2_API
+set(MIGRAPHX_USE_FIND_2_API OFF CACHE BOOL "")
+
+if(MIGRAPHX_USE_FIND_2_API) 
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
     message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
 else()
-    message(STATUS "MIOpen does not have Find-2.0 API")
+    message(STATUS "MIGraphx is using legacy Find API in MIOpen")
 endif()
 
 if(HAS_FIND_MODE_API)

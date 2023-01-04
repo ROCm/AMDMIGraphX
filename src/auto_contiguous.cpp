@@ -59,6 +59,8 @@ void auto_contiguous::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
+        if(ins->name() == "layout")
+            continue;
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;

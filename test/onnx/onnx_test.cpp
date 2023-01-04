@@ -181,6 +181,24 @@ TEST_CASE(argmax_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(argmax_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "x",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {5, 5, 0}, {6, 6, 0}}});
+    auto ins = mm->add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), l0);
+    auto ret = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("argmax_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(argmin_test)
 {
     migraphx::program p;
@@ -271,6 +289,51 @@ TEST_CASE(averagepool_3d_test)
 
     auto prog = optimize_onnx("averagepool_3d_test.onnx");
     EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        {migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {5, 5, 0}, {5, 5, 0}, {5, 5, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::average},
+                                                      {"padding", {0, 0, 0, 0, 0, 0}},
+                                                      {"stride", {1, 1, 1}},
+                                                      {"lengths", {3, 3, 3}}}),
+                                   l0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("averagepool_dyn_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_dyn_autopad_error_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("averagepool_dyn_autopad_error_test.onnx", options); }));
+}
+
+TEST_CASE(averagepool_dyn_asym_padding_error_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("averagepool_dyn_asym_padding_error_test.onnx", options); }));
+}
+
+TEST_CASE(averagepool_dyn_cip_error_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("averagepool_dyn_cip_error_test.onnx", options); }));
 }
 
 TEST_CASE(averagepool_notset_test)
@@ -519,6 +582,76 @@ TEST_CASE(batch_norm_invalid_rank)
 TEST_CASE(batch_norm_invalid_bias_rank)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("batch_norm_invalid_bias_rank.onnx"); }));
+}
+
+TEST_CASE(binary_dyn_brcst_prelu_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}});
+    auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+
+    auto ret = add_common_op(*mm, migraphx::make_op("prelu"), {l0, l1});
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog = migraphx::parse_onnx("binary_dyn_brcst_prelu_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(binary_dyn_brcst_add_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::half_type, {4, 5}});
+    auto l1  = mm->add_parameter(
+        "1",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}});
+
+    auto ret = add_common_op(*mm, migraphx::make_op("add"), {l0, l1});
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("binary_dyn_brcst_add_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(binary_dyn_brcst_attr_error_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("binary_dyn_brcst_attr_error_test.onnx", options); }));
+}
+
+TEST_CASE(binary_dyn_brcst_mul_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}});
+    auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 1}});
+
+    auto bl1 = mm->add_instruction(
+        migraphx::make_op("multibroadcast",
+                          {{"out_dyn_dims", to_value(l0->get_shape().dyn_dims())}}),
+        l1,
+        l0);
+    auto ret = mm->add_instruction(migraphx::make_op("mul"), l0, bl1);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("binary_dyn_brcst_mul_test.onnx", options);
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(cast_test)
@@ -1685,6 +1818,16 @@ migraphx::program create_external_data_prog()
     return p;
 }
 
+TEST_CASE(external_constant_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{{migraphx::shape::int64_type, {3}}, {0, 1, 2}});
+
+    auto prog = optimize_onnx("external_constant_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(external_data_test)
 {
     migraphx::program p = create_external_data_prog();
@@ -1841,6 +1984,23 @@ TEST_CASE(flatten_nonstd_test)
     mm->add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), l3);
     auto prog = optimize_onnx("flatten_nonstd_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(flatten_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}});
+    auto c0  = mm->add_instruction(migraphx::make_op("contiguous"), l0);
+    auto ret = mm->add_instruction(migraphx::make_op("flatten", {{"axis", 2}}), c0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("flatten_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -2074,6 +2234,28 @@ TEST_CASE(globalavgpool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(globalavgpool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          {{1, 4, 0}, {3, 3, 0}, {16, 16, 0}, {16, 16, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::average},
+                                                      {"lengths", {16, 16}},
+                                                      {"padding", {0, 0, 0, 0}}}),
+                                   input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("globalavgpool_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(globallppool_test)
 {
     migraphx::program p;
@@ -2091,6 +2273,29 @@ TEST_CASE(globallppool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(globallppool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          {{1, 1, 0}, {3, 3, 0}, {16, 32, 0}, {16, 32, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                      {"dyn_global", true},
+                                                      {"padding", {0, 0, 0, 0}},
+                                                      {"lengths", {}}}),
+                                   input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {16, 32, 0};
+    auto prog                     = migraphx::parse_onnx("globallppool_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(globalmaxpool_test)
 {
     migraphx::program p;
@@ -2104,6 +2309,28 @@ TEST_CASE(globalmaxpool_test)
     mm->add_instruction(op, input);
 
     auto prog = optimize_onnx("globalmaxpool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(globalmaxpool_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          {{1, 4, 0}, {3, 3, 0}, {32, 32, 0}, {32, 32, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("pooling",
+                                                     {{"mode", migraphx::op::pooling_mode::max},
+                                                      {"lengths", {32, 32}},
+                                                      {"padding", {0, 0, 0, 0}}}),
+                                   input);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("globalmaxpool_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -4241,6 +4468,50 @@ TEST_CASE(reducel1_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducel1_dyn_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        // a shape with 4 dynamic dimensions
+        auto l0      = mm->add_parameter("x",
+                                    migraphx::shape{migraphx::shape::float_type,
+                                                    {{3, 3, 0}, {3, 5, 0}, {4, 6, 5}, {5, 7, 6}}});
+        auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), l0);
+        auto sum_ins =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-2}}}), abs_ins);
+        auto sq_ins = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {-2}}}), sum_ins);
+        mm->add_return({sq_ins});
+
+        migraphx::onnx_options options;
+        options.map_dyn_input_dims["x"] = {{3, 3}, {3, 5}, {4, 6, 5}, {5, 7, 6}};
+        auto prog                       = migraphx::parse_onnx("reducel1_dyn_test.onnx", options);
+
+        EXPECT(p == prog);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        // No axes given in the onnx file.  Parser should default to all axes.
+        auto l0      = mm->add_parameter("x",
+                                    migraphx::shape{migraphx::shape::float_type,
+                                                    {{3, 3, 0}, {3, 5, 0}, {4, 6, 5}, {5, 7, 6}}});
+        auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), l0);
+        auto sum_ins =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2, 3}}}), abs_ins);
+        auto sq_ins =
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1, 2, 3}}}), sum_ins);
+        mm->add_return({sq_ins});
+
+        migraphx::onnx_options options;
+        options.map_dyn_input_dims["x"] = {{3, 3}, {3, 5}, {4, 6, 5}, {5, 7, 6}};
+        auto prog = migraphx::parse_onnx("reducel1_dyn_noaxes_test.onnx", options);
+
+        EXPECT(p == prog);
+    }
+}
+
 TEST_CASE(reducel2_test)
 {
     migraphx::program p;
@@ -4287,6 +4558,24 @@ TEST_CASE(reducemax_test)
     auto l0  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), l0);
     auto prog = optimize_onnx("reducemax_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducemax_dyn_test)
+{
+    // input shape with 4 dynamic dimensions
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}, {6, 6}}});
+    auto r0 = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), l0);
+    auto r1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), r0);
+    mm->add_return({r1});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{3, 3}, {4, 4}, {5, 5}, {6, 6}};
+    auto prog                       = migraphx::parse_onnx("reducemax_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -5422,6 +5711,23 @@ TEST_CASE(softmax_nonstd_input_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(softmax_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("softmax_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(softplus_test)
 {
     migraphx::program p;
@@ -5537,6 +5843,31 @@ TEST_CASE(split_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(split_test_no_attribute)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape si{migraphx::shape::int64_type, {4}, {1}};
+    std::vector<int> ind = {75, 75, 75, 75};
+
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {300, 15}});
+    mm->add_literal(migraphx::literal(si, ind));
+    auto r1 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {75}}}), input);
+    auto r2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {75}}, {"ends", {150}}}), input);
+    auto r3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {150}}, {"ends", {225}}}), input);
+    auto r4 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {225}}, {"ends", {300}}}), input);
+
+    mm->add_return({r1, r2, r3, r4});
+
+    auto prog = migraphx::parse_onnx("split_test_no_attribute.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(split_test_default)
 {
     migraphx::program p;
@@ -5550,6 +5881,23 @@ TEST_CASE(split_test_default)
 
     auto prog = migraphx::parse_onnx("split_test_default.onnx");
     EXPECT(p == prog);
+}
+
+TEST_CASE(split_test_no_attribute_invalid_split)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("split_test_no_attribute_invalid_split.onnx"); }));
+}
+
+TEST_CASE(split_test_invalid_split)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("split_test_invalid_split.onnx"); }));
+}
+
+TEST_CASE(split_test_no_attribute_invalid_input_split)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("split_test_no_attribute_invalid_input_split.onnx"); }));
 }
 
 TEST_CASE(sqrt_test)
@@ -5574,6 +5922,29 @@ TEST_CASE(squeeze_unsqueeze_test)
     auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), l0);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), l1);
     auto prog = optimize_onnx("squeeze_unsqueeze_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(squeeze_unsqueeze_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int64_t> squeeze_axes{0, 2, 3, 5};
+    std::vector<int64_t> unsqueeze_axes{0, 1, 3, 5};
+    auto l0 = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type,
+                        {{1, 1, 0}, {1, 4, 0}, {1, 1, 0}, {1, 1, 0}, {1, 4, 0}, {1, 1, 0}}});
+    auto c0  = mm->add_instruction(migraphx::make_op("contiguous"), l0);
+    auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), c0);
+    auto c1  = mm->add_instruction(migraphx::make_op("contiguous"), l1);
+    auto ret = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), c1);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("squeeze_unsqueeze_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -5857,6 +6228,24 @@ TEST_CASE(transpose_test)
     mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), input);
 
     auto prog = optimize_onnx("transpose_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(transpose_dyn_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}, {3, 3, 0}}});
+    std::vector<int64_t> perm{0, 3, 1, 2};
+    auto t0 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), input);
+    mm->add_return({t0});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = migraphx::parse_onnx("transpose_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

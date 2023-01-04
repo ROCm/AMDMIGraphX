@@ -1946,8 +1946,50 @@ void test_reduce_ops()
     }
 }
 
+// dynamic shape
+template <class T>
+void test_dyn_reduce_ops()
+{
+    {
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{2, 3, 3}, {1, 1, 0}})},
+                     T{{-1}},
+                     input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{1, 1, 0}, {2, 4, 4}})},
+                     T{{0}},
+                     input);
+    }
+    {
+        // Empty axis argument reduces all axes
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{1, 1, 0}, {1, 1, 0}})},
+                     T{{}},
+                     input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        throws_shape(T{{4}}, input);
+    }
+}
+
+TEST_CASE(reduce_max) { test_reduce_ops<migraphx::op::reduce_max>(); }
 TEST_CASE(reduce_mean) { test_reduce_ops<migraphx::op::reduce_mean>(); }
+TEST_CASE(reduce_prod) { test_reduce_ops<migraphx::op::reduce_prod>(); }
 TEST_CASE(reduce_sum) { test_reduce_ops<migraphx::op::reduce_sum>(); }
+
+TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_max>(); }
+TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_mean>(); }
+TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_prod>(); }
+TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_sum>(); }
 
 TEST_CASE(reshape_shape)
 {

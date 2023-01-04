@@ -5524,37 +5524,35 @@ TEST_CASE(slice_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 2}});
+    auto l0 = mm->add_parameter(
+        "0", migraphx::shape{migraphx::shape::float_type, {{2, 3, 0}, {2, 2, 0}}});
     auto ret = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 2}}}), l0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {2, 2, 0};
-    auto prog                     = migraphx::parse_onnx("slice_test.onnx", options);
+    options.default_dyn_dim_value = {2, 3, 0};
+    auto prog                     = migraphx::parse_onnx("slice_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }
 
-TEST_CASE(slice_5arg_dyn_test)
+TEST_CASE(slice_step_dyn_test)
 {
-    // TODO:  This test still under construction
-    // Arguments other than "axes" not currently supported with dynamic data
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 2}});
-    auto ret = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 2}}}), l0);
-    mm->add_return({ret});
-
+    // A slice command with non-default steps will have a "Step" instruction added in parsing.
+    // At the time of writing, Step doesn't support dynamic shape input.
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {2, 2, 0};
-    auto prog                     = migraphx::parse_onnx("slice_5arg_dyn_test.onnx", options);
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("slice_step_dyn_test.onnx", options); }));
+}
 
-    EXPECT(p == prog);
-    //     EXPECT(
-    //     test::throws([&] { migraphx::parse_onnx("slice_5arg_dyn_test.onnx", options); }));
+TEST_CASE(slice_reverse_dyn_test)
+{
+    // A slice command with non-default axes will have a "Reverse" instruction added in parsing.
+    // At the time of writing, Reverse doesn't support dynamic shape input.
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("slice_reverse_dyn_test.onnx", options); }));
 }
 
 TEST_CASE(slice_3arg_test)

@@ -1,29 +1,29 @@
 #####################################################################################
-# The MIT License (MIT)
+#The MIT License(MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#Copyright(c) 2015 - 2022 Advanced Micro Devices, Inc.All rights reserved.
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
+#Permission is hereby granted, free of charge, to any person obtaining a copy
+#of this software and associated documentation files(the "Software"), to deal
+#in the Software without restriction, including without limitation the rights
+#to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+#copies of the Software, and to permit persons to whom the Software is
+#furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
+#The above copyright notice and this permission notice shall be included in
+#all copies or substantial portions of the Software.
 #
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+#THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+#AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#THE SOFTWARE.
 #####################################################################################
-# This script generates onnx files for MIGraphX onnx operator tests.
-# To generate an individual onnx file, you can use the following
-# command: python3 -c "import gen_onnx; gen_onnx.{test_name}_test()"
+#This script generates onnx files for MIGraphX onnx operator tests.
+#To generate an individual onnx file, you can use the following
+#command : python3 - c "import gen_onnx; gen_onnx.{test_name}_test()"
 import numpy as np
 import onnx
 from onnx import helper
@@ -108,7 +108,7 @@ def add_fp16_test():
         [node],
         [x, y],
         [z],
-        # '0' -> 1.5, '1' -> 2.5
+#'0'->1.5, '1'->2.5
         [
             onnx.helper.make_tensor('0', TensorProto.FLOAT16, [1], [15872]),
             onnx.helper.make_tensor('1', TensorProto.FLOAT16, [1], [16640])
@@ -5415,7 +5415,7 @@ def shape_test():
 @onnx_test
 def shape_gather_test():
     values = np.array([1])
-    # value = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
+#value     = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [7, 3, 10])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [1])
 
@@ -5582,8 +5582,64 @@ def slice_dyn_test():
 
 
 @onnx_test
-def slice_5arg_dyn_test():
-    step = np.array([1, 1])
+def slice_step_dyn_test():
+#A slice command with non - default steps will have a "Step" instruction added in parsing.
+    step = np.array([2, 1])
+    step_tensor = helper.make_tensor(name="step",
+                                     data_type=TensorProto.INT32,
+                                     dims=step.shape,
+                                     vals=step.astype(int))
+    arg_step = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_step'],
+                                value=step_tensor)
+
+    axis = np.array([-1, -2])
+    axis_tensor = helper.make_tensor(name="axis",
+                                     data_type=TensorProto.INT32,
+                                     dims=axis.shape,
+                                     vals=axis.astype(int))
+    arg_axis = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_axis'],
+                                value=axis_tensor)
+
+    end = np.array([-1, -1])
+    end_tensor = helper.make_tensor(name="end",
+                                    data_type=TensorProto.INT32,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node("Constant",
+                               inputs=[],
+                               outputs=['arg_end'],
+                               value=end_tensor)
+
+    start = np.array([-5, -3])
+    start_tensor = helper.make_tensor(name="start",
+                                      data_type=TensorProto.INT32,
+                                      dims=start.shape,
+                                      vals=start.astype(int))
+    arg_start = helper.make_node("Constant",
+                                 inputs=[],
+                                 outputs=['arg_start'],
+                                 value=start_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 2])
+
+    node = onnx.helper.make_node(
+        'Slice',
+        inputs=['0', 'arg_start', 'arg_end', 'arg_axis', 'arg_step'],
+        outputs=['1'])
+
+    return ([arg_step, arg_axis, arg_end, arg_start, node], [x], [y])
+
+
+@onnx_test
+def slice_reverse_dyn_test():
+#A slice command with negative step on any axis will have a "Reverse" instruction added in parsing.
+
+    step = np.array([-1, 1])
     step_tensor = helper.make_tensor(name="step",
                                      data_type=TensorProto.INT32,
                                      dims=step.shape,

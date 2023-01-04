@@ -45,7 +45,7 @@ struct parse_trilu : op_parser<parse_trilu>
 
         size_t num_rows = *(input_lens.rbegin() + 1);
         size_t num_cols = input_lens.back();
-        size_t k = 0;
+        size_t k        = 0;
 
         if(args.size() > 1)
         {
@@ -55,19 +55,18 @@ struct parse_trilu : op_parser<parse_trilu>
         }
 
         shape::type_t output_type = args[0]->get_shape().type();
-        
 
         std::vector<char> mask_mat(num_rows * num_cols, 1);
         for(size_t i = 0; i < num_rows; i++)
         {
-            for(size_t j= 0; j < k; j++)
+            for(size_t j = 0; j < k; j++)
             {
-                mask_mat[i*num_cols + j] = 0;
+                mask_mat[i * num_cols + j] = 0;
             }
             k++;
         }
-        auto mask = info.add_literal(
-            migraphx::literal{migraphx::shape{output_type, input_lens}, mask_mat});
+        auto mask =
+            info.add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, mask_mat});
 
         return info.add_instruction(make_op("mul"), mask, args[0]);
     }

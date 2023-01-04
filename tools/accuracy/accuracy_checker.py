@@ -128,7 +128,6 @@ def main():
     batch = args.batch
 
     custom_inputs = args.input_dim
-    # print(custom_inputs)
 
     input_dims = {}
     if custom_inputs != None:
@@ -137,7 +136,6 @@ def main():
             dims = [int(dim) for dim in input.split(':')[-1].split(',')]
             input_dims[input_dim] = dims
 
-    # print(input_dims)
     if use_onnx:
         if any(input_dims):
             model = migraphx.parse_onnx(model_name,
@@ -147,6 +145,9 @@ def main():
             model = migraphx.parse_onnx(model_name, default_dim_value=batch)
     else:
         model_name = args.tf
+        if any(input_dims):
+            model = migraphx.parse_tf(model_name, batch_size=batch,
+                                      map_input_dims=input_dims)
         model = migraphx.parse_tf(model_name, batch_size=batch)
 
     if args.verbose:
@@ -172,7 +173,6 @@ def main():
     pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
 
     if use_onnx:
-
         sess = ort.InferenceSession(model_name, providers=[args.provider])
 
         ort_params = {}
@@ -201,8 +201,6 @@ def main():
         graph = load_tf_graph(model_name)
         graph_ops = [op.name for op in graph.get_operations()]
         graph_ops_set = set(graph_ops)
-        # for op in graph.get_operations():
-        #     print(op.name)
         tf_dict = {}
 
         for name in test_inputs.keys():

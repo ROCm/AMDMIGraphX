@@ -586,11 +586,13 @@ struct mlir_program
             fs::path{"/opt"} / "rocm" / "share" / "miopen" / "db" / "rockgemm.tsv";
         std::ifstream table_in(file_path);
         std::string arch, prob, perf;
-        while(getline(table_in, arch, "\t"))
+        while(std::getline(table_in, arch, "\t"))
         {
-            getline(table_in, prob, "\t");
-            getline(table_in, perf, "\t");
-            mlirRockTuningUpdateTable(tuning_table, prob.c_str(), perf.c_str(), 1.0);
+            std::getline(table_in, prob, "\t");
+            std::getline(table_in, perf, "\t");
+            char* prob_cstr = prob.c_str();
+            char* perf_cstr = perf.c_str();
+            mlirRockTuningUpdateTable(tuning_table, prob_cstr, perf_cstr, 1.0);
         }
         table_in.close();
     }

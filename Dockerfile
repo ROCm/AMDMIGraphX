@@ -79,7 +79,7 @@ RUN cget -p /opt/cmake install -X binary https://github.com/Kitware/CMake/releas
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
-ARG ONNXRUNTIME_COMMIT=f4cd35f9b1301f54d65a3e59c525b92e85bf384e
+ARG ONNXRUNTIME_COMMIT=2cb12caf9317f1ded37f6db125cb03ba99320c40
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
     git checkout ${ONNXRUNTIME_COMMIT} && \

@@ -517,11 +517,8 @@ struct mlir_program
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
                 // check if HW supports xdlops
-                auto target_chip  = trim(split_string(target_arch, ':').front());
-                bool xdlops       = contains(get_xdlops_archs(), target_chip);
-                std::string tuned = get_tune_params(xdlops);
-                if(not tuned.empty())
-                    ops.add_attributes({{"perf_config", tuned}});
+                auto target_chip = trim(split_string(target_arch, ':').front());
+                bool xdlops      = contains(get_xdlops_archs(), target_chip);
                 if(xdlops)
                     ops.add_attributes({{"xdlopsV2", true}});
             }
@@ -580,12 +577,39 @@ struct mlir_program
 
     std::string get_tune_params(bool xdlops) { return get_mlir_perf_for_conv(pp, xdlops); }
 
+    void tuning_table_create()
+    {
+        tuning_table = mlirRockTuningTableCreate();
+        const auto file_path =
+            fs::path{"/opt"} / "rocm" / "share" / "miopen" / "db" / "rockgemm.tsv";
+        std::ifstream table_in(file_path);
+        std::string arch, prob, perf;
+        while(getline(table_in, arch, "\t"))
+        {
+            getline(table_in, prob, "\t");
+            getline(table_in, perf, "\t");
+            mlirRockTuningUpdateTable(tuning_tTable, prob.c_str(), perf.c_str(), 1.0);
+        }
+        table_in.close();
+    }
+
+    bool get_module_tuned()
+    {
+        if(!mlirRockTuningSetFromTable(tuning_table, mmodule.get()))
+        {
+            printf("fails to set param\n");
+            return false;
+        }
+        return true;
+    }
+
     mlir_context ctx;
     MlirLocation location;
     mlir_module mmodule;
     problem_params pp;
     std::deque<std::string> strings{};
     std::string target_arch;
+    MlirRockTuningTable tuning_table;
 };
 
 std::string dump_mlir(const module& m)
@@ -654,6 +678,8 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
     mlir_program mp;
     mp.find_target();
     mp.parse(m);
+    mp.tuning_table_create();
+    mp.get_module_tuned();
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;

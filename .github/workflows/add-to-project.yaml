@@ -1,4 +1,4 @@
-name: Add pull requests to projects
+name: Add PRs and issues to GitHub projects
 
 on:
   pull_request:

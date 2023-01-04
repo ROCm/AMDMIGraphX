@@ -38,6 +38,8 @@
 #undef MIGRAPHX_MLIR
 #else
 #include <mlir-c/RegisterRocMLIR.h>
+#include <mlir-c/Dialect/Rock.h>
+#include <fstream>
 #endif
 #endif
 
@@ -588,7 +590,7 @@ struct mlir_program
         {
             getline(table_in, prob, "\t");
             getline(table_in, perf, "\t");
-            mlirRockTuningUpdateTable(tuning_tTable, prob.c_str(), perf.c_str(), 1.0);
+            mlirRockTuningUpdateTable(tuning_table, prob.c_str(), perf.c_str(), 1.0);
         }
         table_in.close();
     }

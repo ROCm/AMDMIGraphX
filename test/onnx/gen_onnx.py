@@ -108,7 +108,7 @@ def add_fp16_test():
         [node],
         [x, y],
         [z],
-#'0'->1.5, '1'->2.5
+        #'0'->1.5, '1'->2.5
         [
             onnx.helper.make_tensor('0', TensorProto.FLOAT16, [1], [15872]),
             onnx.helper.make_tensor('1', TensorProto.FLOAT16, [1], [16640])
@@ -5415,7 +5415,6 @@ def shape_test():
 @onnx_test
 def shape_gather_test():
     values = np.array([1])
-#value     = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [7, 3, 10])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [1])
 
@@ -5583,7 +5582,8 @@ def slice_dyn_test():
 
 @onnx_test
 def slice_step_dyn_test():
-#A slice command with non - default steps will have a "Step" instruction added in parsing.
+    #A slice command with non - default steps will have a "Step" 
+    # instruction added in parsing.
     step = np.array([2, 1])
     step_tensor = helper.make_tensor(name="step",
                                      data_type=TensorProto.INT32,
@@ -5637,7 +5637,8 @@ def slice_step_dyn_test():
 
 @onnx_test
 def slice_reverse_dyn_test():
-#A slice command with negative step on any axis will have a "Reverse" instruction added in parsing.
+    #A slice command with negative step on any axis will have 
+    # a "Reverse" instruction added in parsing.
 
     step = np.array([-1, 1])
     step_tensor = helper.make_tensor(name="step",

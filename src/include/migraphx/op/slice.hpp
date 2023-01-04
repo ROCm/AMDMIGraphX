@@ -150,7 +150,7 @@ struct slice
         }
         if(input_shape.dynamic())
         {
-            return shape {t, new_mins, new_lens, new_opts};
+            return shape{t, new_mins, new_lens, new_opts};
         }
         else
         {

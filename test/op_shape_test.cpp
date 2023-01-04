@@ -2185,18 +2185,20 @@ TEST_CASE(slice_shape)
 TEST_CASE(slice_dyn_shape)
 {
     migraphx::shape input{migraphx::shape::int32_type, {{2, 2, 0}, {7, 7, 0}, {2, 2, 0}}};
-   
+
     // Slice axis 1 to size 4-1=3
     expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 2, 0}, {3, 3, 0}, {2, 2, 0}}},
                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
                  input);
 
     // Slice multiple axes:  axis 0 to size 2-1=1 and axis 1 to size 4-1=3
-    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{1, 1, 0}, {3, 3, 0}, {2, 2, 0}}},
-                 migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
-                 input);
+    expect_shape(
+        migraphx::shape{migraphx::shape::int32_type, {{1, 1, 0}, {3, 3, 0}, {2, 2, 0}}},
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
 
-    // Todo:  When support is added for non-fixed inputs, test  +/- start/end; clipping values too large or small;
+    // Todo:  When support is added for non-fixed inputs, test  +/- start/end; clipping values too
+    // large or small;
     //    what happens if min is less than slice size?
 
     // // Slice axis 1 from dyn. range 2..7 to range 2..3
@@ -2206,13 +2208,12 @@ TEST_CASE(slice_dyn_shape)
     //              migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
     //              input);
 
-    // // Slice axis 1 from dyn. range 2..7 with out-of-bounds end value of 9 
-    // //  leads to size starting at index 1 
+    // // Slice axis 1 from dyn. range 2..7 with out-of-bounds end value of 9
+    // //  leads to size starting at index 1
     // input = {migraphx::shape::int32_type, {{2, 5, 3}, {2, 7, 3}, {2, 4, 0}}};
     // expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 5, 3}, {2, 3, 3}, {2, 4, 0}}},
     //              migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {9}}}),
     //              input);
-
 }
 
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }

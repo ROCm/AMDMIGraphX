@@ -52,11 +52,37 @@ struct register_verify_program_action
     }
 };
 
+struct register_verify_programs_action
+{
+    template <class T>
+    static void apply()
+    {
+        T x;
+        for(auto&& p:x.get_programs())
+        {
+            program_info pi;
+            pi.name        = p.first;
+            pi.section     = x.section();
+            pi.get_program = p.second;
+            register_program_info(pi);
+        }
+    }
+};
+
 template <class T>
 using auto_register_verify_program = migraphx::auto_register<register_verify_program_action, T>;
 
 template <class T>
+using auto_register_verify_programs = migraphx::auto_register<register_verify_programs_action, T>;
+
+template <class T>
 struct verify_program : auto_register_verify_program<T>
+{
+    std::string section() const { return "general"; };
+};
+
+template <class T>
+struct verify_programs : auto_register_verify_programs<T>
 {
     std::string section() const { return "general"; };
 };

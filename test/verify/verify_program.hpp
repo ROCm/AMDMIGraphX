@@ -58,7 +58,7 @@ struct register_verify_programs_action
     static void apply()
     {
         T x;
-        for(auto&& p:x.get_programs())
+        for(auto&& p : x.get_programs())
         {
             program_info pi;
             pi.name        = p.first;

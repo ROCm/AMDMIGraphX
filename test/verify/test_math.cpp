@@ -44,7 +44,7 @@ struct test_unary_math : verify_programs<test_unary_math>
     }
 
     std::string section() const { return "test_math"; };
-    
+
     programs get_programs() const
     {
         programs ps;
@@ -78,7 +78,7 @@ struct test_unary_math : verify_programs<test_unary_math>
         {
             if(migraphx::contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
                 continue;
-            for(const auto& name:names)
+            for(const auto& name : names)
             {
                 std::string test_name = "test_math_" + name + "_" + migraphx::shape::cpp_type(t);
                 ps.push_back(std::make_pair(test_name, generate_program(name, t)));
@@ -86,5 +86,4 @@ struct test_unary_math : verify_programs<test_unary_math>
         }
         return ps;
     }
-
 };

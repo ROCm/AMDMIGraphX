@@ -50,16 +50,16 @@ struct parse_matmul : op_parser<parse_matmul>
 
         instruction_ref dot_res;
         bool is_a_prepended = false;
-        bool is_b_appended = false;
+        bool is_b_appended  = false;
         if(s0.ndim() == 1)
         {
             is_a_prepended = true;
-            a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), args[0]);
+            a0             = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), args[0]);
         }
         if(s1.ndim() == 1)
         {
             is_b_appended = true;
-            a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
+            a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
         }
 
         if(s0.dynamic() or s1.dynamic())
@@ -137,14 +137,12 @@ struct parse_matmul : op_parser<parse_matmul>
         int64_t num_axis = dot_res->get_shape().lens().size();
         if(is_a_prepended)
         {
-            dot_res =
-                info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
+            dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
             --num_axis;
         }
         if(is_b_appended)
         {
-            dot_res =
-                info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
+            dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
         }
 
         return dot_res;

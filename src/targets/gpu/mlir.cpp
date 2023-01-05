@@ -541,12 +541,16 @@ struct mlir_program
 
     code_object_op compile() MIGRAPHX_TIDY_CONST
     {
-        mlir_pass_manager pm{mlirPassManagerCreate(ctx.get())};
+        mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
+        mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         // 1st pipeline to call
-        mlirMIGraphXAddHighLevelPipeline(pm.get());
+        mlirMIGraphXAddHighLevelPipeline(pm_front.get());
+        mlirPassManagerRun(pm_front.get(), mmodule.get());
+
         // 2nd pipeline to call
-        mlirMIGraphXAddBackendPipeline(pm.get(), target_arch.c_str());
-        mlirPassManagerRun(pm.get(), mmodule.get());
+        get_module_tuned();
+        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        mlirPassManagerRun(pm_back.get(), mmodule.get());
 
         code_object_op op{};
         op.symbol_name                = "mlir_main";
@@ -599,7 +603,7 @@ struct mlir_program
     {
         if(!mlirRockTuningSetFromTable(tuning_table, mmodule.get()))
         {
-            printf("fails to set param on %s\n", mlirRockTuningGetKey(tuning_table, module));
+            printf("fails to set param on <%s>\n", mlirRockTuningGetKey(tuning_table, mmodule.get()));
             return false;
         }
         return true;
@@ -681,7 +685,6 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
     mp.find_target();
     mp.parse(m);
     mp.tuning_table_create();
-    mp.get_module_tuned();
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;

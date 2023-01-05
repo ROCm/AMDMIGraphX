@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-/* Test case mirrors the example for for axis = 0 found on the onnx gather documentation */
+/* Test case mirrors the example for axis = 0 found on the onnx gather documentation */
 struct test_gather_onnx_axis_zero_ex : verify_program<test_gather_onnx_axis_zero_ex>
 {
     migraphx::program create_program() const

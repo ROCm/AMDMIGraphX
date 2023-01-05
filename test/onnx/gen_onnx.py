@@ -5653,7 +5653,7 @@ def slice_dyn_test():
 
 @onnx_test
 def slice_step_dyn_test():
-    #A slice command with non - default steps will have a "Step" 
+    # A slice command with non - default steps will have a "Step"
     # instruction added in parsing.
     step = np.array([2, 1])
     step_tensor = helper.make_tensor(name="step",
@@ -5708,7 +5708,7 @@ def slice_step_dyn_test():
 
 @onnx_test
 def slice_reverse_dyn_test():
-    #A slice command with negative step on any axis will have 
+    # A slice command with negative step on any axis will have
     # a "Reverse" instruction added in parsing.
 
     step = np.array([-1, 1])

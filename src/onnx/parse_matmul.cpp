@@ -48,6 +48,20 @@ struct parse_matmul : op_parser<parse_matmul>
         auto s0 = a0->get_shape();
         auto s1 = a1->get_shape();
 
+        instruction_ref dot_res;
+        bool is_a_prepended = false;
+        bool is_b_appended = false;
+        if(s0.ndim() == 1)
+        {
+            is_a_prepended = true;
+            a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), args[0]);
+        }
+        if(s1.ndim() == 1)
+        {
+            is_b_appended = true;
+            a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
+        }
+
         if(s0.dynamic() or s1.dynamic())
         {
             if(opd.op_name == "quant_dot")
@@ -57,20 +71,13 @@ struct parse_matmul : op_parser<parse_matmul>
             auto s0_dds = s0.to_dynamic().dyn_dims();
             auto s1_dds = s1.to_dynamic().dyn_dims();
             // prepend or append 1 dynamic_dimension for 1D tensors
-            bool is_a_prepended = false;
-            if(s0.ndim() == 1)
+            if(is_a_prepended)
             {
-                is_a_prepended = true;
-                s0_dds.insert(s0_dds.begin(), {1, 1, 0});
-                a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), args[0]);
+                s0_dds.insert(s0_dds.begin(), {1, 1});
             }
-
-            bool is_b_appended = false;
-            if(s1.ndim() == 1)
+            if(is_b_appended)
             {
-                is_b_appended = true;
-                s1_dds.push_back({1, 1, 0});
-                a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
+                s1_dds.push_back({1, 1});
             }
 
             // TODO: handling this case requires a new multibroadcast mode
@@ -80,44 +87,20 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW("PARSE_MATMUL: dynamic shape broadcasting not supported");
             }
 
-            instruction_ref dot_res = info.add_instruction(make_op(opd.op_name), a0, a1);
-
-            // squeeze the appended or prepended dimensions
-            int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().ndim());
-            if(is_a_prepended)
-            {
-                dot_res =
-                    info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
-                --num_axis;
-            }
-            if(is_b_appended)
-            {
-                dot_res =
-                    info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
-            }
-
-            return dot_res;
+            dot_res = info.add_instruction(make_op(opd.op_name), a0, a1);
         }
         else
         {
             auto s0_lens = s0.lens();
             auto s1_lens = s1.lens();
 
-            // args[0] is a vector, prepend 1 to the shape
-            bool is_a_prepended = false;
-            if(s0.ndim() == 1)
+            if(is_a_prepended)
             {
-                is_a_prepended = true;
                 s0_lens.insert(s0_lens.begin(), 1);
-                a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), args[0]);
             }
-
-            bool is_b_appended = false;
-            if(s1.ndim() == 1)
+            if(is_b_appended)
             {
-                is_b_appended = true;
                 s1_lens.push_back(1);
-                a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
             }
 
             instruction_ref ba0 = a0;
@@ -147,23 +130,24 @@ struct parse_matmul : op_parser<parse_matmul>
                         make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
                 }
             }
-            instruction_ref dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
-            // squeeze the appended or prepended dimensions
-            int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
-            if(is_a_prepended)
-            {
-                dot_res =
-                    info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
-                --num_axis;
-            }
-            if(is_b_appended)
-            {
-                dot_res =
-                    info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
-            }
-
-            return dot_res;
+            dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
         }
+
+        // squeeze the appended or prepended dimensions
+        int64_t num_axis = dot_res->get_shape().lens().size();
+        if(is_a_prepended)
+        {
+            dot_res =
+                info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
+            --num_axis;
+        }
+        if(is_b_appended)
+        {
+            dot_res =
+                info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
+        }
+
+        return dot_res;
     }
 };
 

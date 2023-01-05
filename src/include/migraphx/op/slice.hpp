@@ -162,11 +162,11 @@ struct slice
     {
         auto input = args[0];
         if(dyn_out.computed_shape.dynamic())
-            return {std::move(dyn_out.computed_shape), [=] { return input.data(); }};
+            return {dyn_out.computed_shape, [=] { return input.data(); }};
         else
         {
             auto offset = compute_offset(input.get_shape()) * dyn_out.computed_shape.type_size();
-            return {std::move(dyn_out.computed_shape), [=] { return input.data() + offset; }};
+            return {dyn_out.computed_shape, [=] { return input.data() + offset; }};
         }
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }

@@ -587,14 +587,15 @@ struct mlir_program
     {
         tuning_table = mlirRockTuningTableCreate();
         std::ifstream table_in("/opt/rocm/share/miopen/db/rockgemm.tsv");
-        std::string arch, prob, perf;
+        std::string arch, prob, perf, key;
         while(std::getline(table_in, arch, '\t'))
         {
             std::getline(table_in, prob, '\t');
             std::getline(table_in, perf, '\t');
-            char* prob_cstr = strdup(prob.c_str());
+            key             = arch + "\t" + prob;
+            char* key_cstr  = strdup(key.c_str());
             char* perf_cstr = strdup(perf.c_str());
-            mlirRockTuningUpdateTable(tuning_table, prob_cstr, perf_cstr, 1.0);
+            mlirRockTuningUpdateTable(tuning_table, key_cstr, perf_cstr, 1.0);
         }
         table_in.close();
     }
@@ -603,7 +604,8 @@ struct mlir_program
     {
         if(!mlirRockTuningSetFromTable(tuning_table, mmodule.get()))
         {
-            printf("fails to set param on <%s>\n", mlirRockTuningGetKey(tuning_table, mmodule.get()));
+            printf("fails to set param on <%s>\n",
+                   mlirRockTuningGetKey(tuning_table, mmodule.get()));
             return false;
         }
         return true;

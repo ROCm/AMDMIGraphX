@@ -69,8 +69,7 @@ struct parse_gemm : op_parser<parse_gemm>
             trans_b = parser.parse_value(info.attributes.at("transB")).at<bool>();
         }
 
-        std::vector<int64_t> perm(2);
-        std::iota(perm.begin(), perm.end(), int64_t{0});
+        std::vector<int64_t> perm = {0, 1};
         // swap the last two elements
         std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
 

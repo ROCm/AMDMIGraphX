@@ -134,7 +134,7 @@ struct parse_matmul : op_parser<parse_matmul>
         }
 
         // squeeze the appended or prepended dimensions
-        int64_t num_axis = dot_res->get_shape().lens().size();
+        int64_t num_axis = dot_res->get_shape().ndim();
         if(is_a_prepended)
         {
             dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);

@@ -69,12 +69,8 @@ struct parse_gemm : op_parser<parse_gemm>
             trans_b = parser.parse_value(info.attributes.at("transB")).at<bool>();
         }
 
-        std::vector<int64_t> perm = {0, 1};
-        // swap the last two elements
-        std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
-
-        auto dot_type = a_arg->get_shape().type();
-
+        std::vector<int64_t> perm = {1, 0};
+        auto dot_type             = a_arg->get_shape().type();
         if(alpha != 1.0f)
         {
             auto alpha_literal = info.add_literal(alpha);

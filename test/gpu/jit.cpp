@@ -35,13 +35,16 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx_kernels.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
 #include <hip/hip_runtime.h>
+#include <migraphx/kernels/types.hpp>
 
+using namespace migraphx;
 extern "C" {
-__global__ void write(int32_t* data) 
+__global__ void write(int8_t* data) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     data[num] = 2;
@@ -56,9 +59,11 @@ int main() {}
 // NOLINTNEXTLINE
 const std::string add_2s_binary = R"__migraphx__(
 #include <hip/hip_runtime.h>
+#include <migraphx/kernels/types.hpp>
+using namespace migraphx;
 
 extern "C" {
-__global__ void add_2(float** x, float** y) 
+__global__ void add_2(int8_t* x, int8_t* y) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     y[num] = x[num] + 2;
@@ -137,7 +142,8 @@ int main() {}
 const std::string math_template = R"__migraphx__(
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/math.hpp>
-
+#include <migraphx/kernels/types.hpp>
+using namespace migraphx;
 extern "C" {
 __global__ void kernel(${type}* p) 
 {
@@ -158,18 +164,31 @@ migraphx::src_file make_src_file(const std::string& name, const std::string& con
 
 TEST_CASE(simple_compile_hip)
 {
+    std::vector<migraphx::src_file> srcs;
+    std::transform(migraphx_kernels().begin(),
+                   migraphx_kernels().end(),
+                   std::back_inserter(srcs),
+                   [](auto&& p) {
+                       auto&& name = p.first;
+                       auto&& c    = p.second;
+                       auto path   = migraphx::fs::path{"migraphx"} / "kernels" / name;
+                       return migraphx::src_file{path, c};
+                   });
+
+    srcs.push_back(make_src_file("main.cpp", write_2s));
+
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", write_2s)}, "", migraphx::gpu::get_device_name());
+        srcs, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
-    migraphx::argument input{{migraphx::shape::int32_type, {5}}};
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
     auto ginput = migraphx::gpu::to_gpu(input);
     migraphx::gpu::kernel k{binaries.front(), "write"};
-    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int32_t>());
+    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
     auto output = migraphx::gpu::from_gpu(ginput);
 
     EXPECT(output != input);
-    auto data = output.get<std::int32_t>();
+    auto data = output.get<std::int8_t>();
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
@@ -210,14 +229,25 @@ TEST_CASE(compile_warnings)
 
 TEST_CASE(code_object_hip)
 {
-    auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", add_2s_binary)}, "", migraphx::gpu::get_device_name());
+    std::vector<migraphx::src_file> srcs;
+    std::transform(migraphx_kernels().begin(),
+                   migraphx_kernels().end(),
+                   std::back_inserter(srcs),
+                   [](auto&& p) {
+                       auto&& name = p.first;
+                       auto&& c    = p.second;
+                       auto path   = migraphx::fs::path{"migraphx"} / "kernels" / name;
+                       return migraphx::src_file{path, c};
+                   });
+
+    srcs.push_back(make_src_file("main.cpp", add_2s_binary));
+
+    auto binaries = migraphx::gpu::compile_hip_src(srcs, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
-    migraphx::shape input{migraphx::shape::float_type, {5}};
-    migraphx::shape expected_input{migraphx::shape::float_type, {5}};
+    migraphx::shape input{migraphx::shape::int8_type, {5}};
 
-    std::vector<migraphx::shape> expected_inputs = {expected_input, expected_input};
+    std::vector<migraphx::shape> expected_inputs = {input, input};
     auto co                                      = migraphx::make_op("gpu::code_object",
                                 {{"code_object", migraphx::value::binary{binaries.front()}},
                                  {"symbol_name", "add_2"},

@@ -36,6 +36,7 @@ using uint8_t = unsigned char;
 using int16_t = signed short int;
 using uint16_t = unsigned short int;
 
+
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
 template <class T, index_int N>

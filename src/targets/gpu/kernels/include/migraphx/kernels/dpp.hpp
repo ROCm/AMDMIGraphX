@@ -31,7 +31,7 @@
 namespace migraphx {
 
 #ifndef MIGRAPHX_HAS_DPP
-#define MIGRAPHX_HAS_DPP 1
+#define MIGRAPHX_HAS_DPP 0
 #endif
 
 #if MIGRAPHX_HAS_DPP
@@ -68,7 +68,11 @@ __device__ T dpp_mov(T& x)
     input.data = x;
     for(index_int i = 0; i < n; i++)
     {
-        output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+        #if defined(__HCC__)
+                output.reg[i] = __llvm_amdgcn_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+        #else
+            output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+        #endif
     }
     return output.data;
 }

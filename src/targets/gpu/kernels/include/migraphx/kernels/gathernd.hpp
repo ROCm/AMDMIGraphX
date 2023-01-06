@@ -56,19 +56,19 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
     std::size_t num_slices  = accumulate(indices_shape_lens.begin(),
                                         indices_shape_lens.end() - 1,
                                         1,
-                                        std::multiplies<std::size_t>());
+                                        multiplies<std::size_t>{});
     std::size_t slice_size  = accumulate(data_shape_lens.begin() + num_slice_dims + batch_dims,
                                         data_shape_lens.end(),
                                         1,
-                                        std::multiplies<std::size_t>());
+                                        multiplies<std::size_t>{});
     const std::size_t num_batches       = accumulate(data_shape_lens.begin(),
                                                data_shape_lens.begin() + batch_dims,
                                                1,
-                                               std::multiplies<std::size_t>());
+                                               multiplies<std::size_t>{});
     const std::size_t data_batch_stride = accumulate(data_shape_lens.begin() + batch_dims,
                                                      data_shape_lens.end(),
                                                      1,
-                                                     std::multiplies<std::size_t>());
+                                                     multiplies<std::size_t>{});
     const auto num_slices_per_batch     = num_slices / num_batches;
 
     ind.global_stride(output_shape.elements(), [&](auto i) {
@@ -83,15 +83,15 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
             int64_t index                   = slice_indices[idx];
             const std::size_t input_dim_idx = batch_dims + idx;
             const auto input_dim            = data_shape_lens[input_dim_idx];
-            assert(index >= -static_cast<int64_t>(input_dim) and
-                   index < static_cast<int64_t>(input_dim));
+            //assert(index >= -static_cast<int64_t>(input_dim) and
+            //       index < static_cast<int64_t>(input_dim));
             if(index < 0)
                 index += input_dim;
             std::size_t size_from_slice_dims =
                 accumulate(data_shape_lens.begin() + batch_dims + idx + 1,
                            data_shape_lens.begin() + batch_dims + num_slice_dims,
                            slice_size,
-                           std::multiplies<std::size_t>());
+                           multiplies<std::size_t>{});
             relative_slice_offset += index * size_from_slice_dims;
         }
 

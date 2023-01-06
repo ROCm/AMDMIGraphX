@@ -25,6 +25,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 
+
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/visit.hpp>
 #include <migraphx/gpu/device/multi_index.hpp>
@@ -34,6 +35,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
+
+#ifndef MIGRAPHX_NO_DPP
+#define MIGRAPHX_NO_DPP 1
+#endif
 
 #ifdef MIGRAPHX_NO_DPP
 template <index_int N,

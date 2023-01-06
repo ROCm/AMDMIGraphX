@@ -63,8 +63,17 @@ def getipynb_markdownBlockAsList():
 
 def hasKeySequence(inputfile, key_message):
     result = False
-    if key_message in inputfile:
-        result = True
+    line_cnt = 0
+    line_limit = 10
+
+    for line in inputfile:
+        line_cnt = line_cnt + 1
+        if key_message in line:
+            result = True
+            break
+
+        if line_cnt >= line_limit:
+            break
 
     return result
 

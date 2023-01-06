@@ -1065,8 +1065,15 @@ struct find_split_reshape
             return;
         }
 
+        // Only want to apply this optimization if each split output is followed by
+        // a contiguous op and a reshape
         if(std::any_of(split_outputs.begin(), split_outputs.end(), [](auto i) {
-               return i->outputs().front()->outputs().size() != 1;
+               if(i->outputs().size() == 1)
+               {
+                   auto cont = i->outputs().front();
+                   return cont->outputs().size() != 1;
+               }
+               return false;
            }))
         {
             return;
@@ -1074,9 +1081,7 @@ struct find_split_reshape
 
         std::vector<instruction_ref> vec_rsp(split_outputs.size());
         std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [](auto i) {
-            assert(i->outputs().size() == 1);
             auto cont = i->outputs().front();
-            assert(cont->outputs().size() == 1);
             return cont->outputs().front();
         });
 

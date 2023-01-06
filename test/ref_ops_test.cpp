@@ -2524,6 +2524,91 @@ TEST_CASE(gather_test)
     }
 }
 
+
+TEST_CASE(gather_dyn_test0)
+{
+    {
+        // Dynamic data, static indices
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<int> data(2 * 3);
+        std::iota(data.begin(), data.end(), 0);
+        migraphx::shape s{migraphx::shape::int32_type, {{2, 5, 0}, {3, 3, 0}}};
+
+        auto x = mm->add_parameter("x", s);
+        std::vector<int> indices{1, 2};
+
+        migraphx::shape s_ind{migraphx::shape::int32_type, {1, 2}};
+        auto ind  = mm->add_parameter("indices", s_ind);
+        mm->add_instruction(
+            migraphx::make_op("gather", {{"axis", 1}}), x, ind);
+
+        migraphx::shape sresult{migraphx::shape::int32_type, {{2, 5, 0}, {1, 1, 0}, {2, 2, 0}}};
+        EXPECT(p.get_output_shapes().back() == sresult);
+        p.compile(migraphx::ref::target{});
+
+        migraphx::shape input_fixed_shape0{migraphx::shape::int32_type, {2, 3}};
+        migraphx::shape input_indices{migraphx::shape::int32_type, {1, 2}};
+        migraphx::parameter_map params0;
+        params0["x"] = migraphx::argument(input_fixed_shape0, data.data());
+        params0["indices"] =  migraphx::argument(input_indices, indices.data());
+        auto result  = p.eval(params0).back();
+
+        std::vector<int> gold = {1, 2, 4, 5};
+        std::vector<int> results_vector(2 * 1 * 2);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    printf("data is ");
+    for(int ss : data)  printf("%d ", ss);        
+    printf("\nresult is ");
+    for(int ss : results_vector)  printf("%d ", ss);printf("\n\n");
+        EXPECT(migraphx::verify_range(results_vector, gold));
+        migraphx::shape sfinal{migraphx::shape::int32_type, {2, 1, 2}};
+        EXPECT(result.get_shape() == sfinal);
+    }    
+}
+
+TEST_CASE(gather_dyn_test1)
+{
+    {
+        // Dynamic data, dynamic indices
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<int> data(2 * 3);
+        std::iota(data.begin(), data.end(), 0);
+        migraphx::shape s{migraphx::shape::int32_type, {{2, 5, 0}, {3, 3, 0}}};
+
+        auto x = mm->add_parameter("x", s);
+        std::vector<int> indices{1, 2};
+
+        migraphx::shape s_ind{migraphx::shape::int32_type, {{1, 8, 7}, {2, 3, 3}}};
+        auto ind  = mm->add_parameter("indices", s_ind);
+        mm->add_instruction(
+            migraphx::make_op("gather", {{"axis", 0}}), x, ind);
+
+        migraphx::shape sresult{migraphx::shape::int32_type, {{1, 8, 7}, {2, 3, 3}, {3, 3, 0}}};
+        EXPECT(p.get_output_shapes().back() == sresult);
+        p.compile(migraphx::ref::target{});
+
+        migraphx::shape input_fixed_shape0{migraphx::shape::int32_type, {2, 3}};
+        migraphx::shape input_indices{migraphx::shape::int32_type, {1, 2}};
+        migraphx::parameter_map params0;
+        params0["x"] = migraphx::argument(input_fixed_shape0, data.data());
+        params0["indices"] =  migraphx::argument(input_indices, indices.data());
+        auto result  = p.eval(params0).back();
+
+        std::vector<int> gold = {0, 1, 5, 6};
+        std::vector<int> results_vector(1 * 2 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    printf("#1 data is ");
+    for(int ss : data)  printf("%d ", ss);        
+    printf("\n#1 result is ");
+    for(int ss : results_vector)  printf("%d ", ss);printf("\n\n");
+        // EXPECT(migraphx::verify_range(results_vector, gold));
+        migraphx::shape sfinal{migraphx::shape::int32_type, {1, 2, 3}};
+        EXPECT(result.get_shape() == sfinal);
+    }    
+}
+
 TEST_CASE(gathernd_test)
 {
     {

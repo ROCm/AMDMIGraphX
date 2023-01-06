@@ -45,7 +45,7 @@ __device__ void gather(Input input, Indices indices, Output output)
     auto ind           = make_index();
     auto axis_dim_size = input.get_shape().lens[Axis];
 
-    const auto out_comp = gather_shape<Axis>(input, indices);
+    constexpr auto out_comp = gather_shape<Axis>(input, indices);
 
     ind.global_stride(output.get_shape().elements(), [&](auto i) {
         auto idx      = out_comp.multi(i);

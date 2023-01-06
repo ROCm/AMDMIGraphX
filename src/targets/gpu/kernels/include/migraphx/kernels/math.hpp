@@ -220,7 +220,7 @@ constexpr auto min(const T& a, const U& b)
 }
 
 // Sin for half is broken on hip, so use cos instead
-template<class T, MIGRAPHX_REQUIRES(is_same<vec_type<T>, half>{})>
+template <class T, MIGRAPHX_REQUIRES(is_same<vec_type<T>, half>{})>
 constexpr T sin(T x)
 {
     constexpr const T shift = M_PI_2;

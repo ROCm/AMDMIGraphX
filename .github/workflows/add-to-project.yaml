@@ -13,7 +13,7 @@ jobs:
     name: Add PRs and issues to MIGX project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/add-to-project@0.4.0
+      - uses: actions/add-to-project@v0.4.0
         with:
           project-url: https://github.com/orgs/ROCmSoftwarePlatform/projects/20
           github-token: $${{ secrets.MIGRAPHX_BOT_TOKEN }}

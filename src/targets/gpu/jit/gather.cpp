@@ -71,7 +71,6 @@ struct gather_compiler : compiler<gather_compiler>
         options.kernel_name    = "gather_kernel";
         options.virtual_inputs = inputs;
 
-        assert(v.contains("axis"));
         auto axis = v.at("axis").to<std::string>();
 
         auto src = interpolate_string(gather_kernel, {{"axis", axis}});

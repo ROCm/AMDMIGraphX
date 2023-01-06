@@ -23,6 +23,7 @@
 #  THE SOFTWARE.
 #####################################################################################
 import subprocess, os
+import datetime
 
 #Debug flag
 debug = False
@@ -65,17 +66,20 @@ def hasKeySequence(inputfile, key_message):
     result = False
     line_cnt = 0
     line_limit = 10
+    target_line = -1
 
     for line in inputfile:
-        line_cnt = line_cnt + 1
         if key_message in line:
             result = True
+            target_line = line_cnt
             break
+
+        line_cnt = line_cnt + 1
 
         if line_cnt >= line_limit:
             break
 
-    return result
+    return [result, target_line]
 
 
 # Header and footer of the comment block
@@ -116,6 +120,10 @@ def openAndWriteFile(filename, message, commentChar):
     save_markdown_lines = []
     modify_markdown = False
 
+    current_year = str(datetime.date.today().year)
+    needs_update = False
+    update_line = -1
+
     #open save old contents and append things here
     if debug is True:
         print("Open", filename, end='')
@@ -155,12 +163,23 @@ def openAndWriteFile(filename, message, commentChar):
                 hasOtherLic = hasKeySequence(save, "Software License")
 
                 #Check if we have a licence stamp already
-                if hasAmdLic or hasOtherLic is True:
-                    if debug is True:
-                        print("....Already Stamped: Skipping  file ")
+                if hasAmdLic[0] or hasOtherLic[0] is True:
+                    hasOldAmdLic = hasKeySequence(
+                        save, "2015-" + current_year +
+                        " Advanced Micro Devices, Inc. All rights reserved.")
 
-                    contents.close()
-                    return
+                    if hasOldAmdLic[0] is True and hasOtherLic[0] is False:
+                        if debug is True:
+                            print("....License Out of Date: Updating file ")
+                        needs_update = True
+                        update_line = hasOldAmdLic[1]
+
+                    else:
+                        if debug is True:
+                            print("....Already Stamped: Skipping  file ")
+
+                        contents.close()
+                        return
 
             except UnicodeDecodeError as eu:
                 if debug is True:
@@ -171,35 +190,50 @@ def openAndWriteFile(filename, message, commentChar):
     if debug is True:
         print("...Writing header", end='')
 
-    with open(filename, 'w') as contents:
-        #append the licence to the top of the file
+    if needs_update is True and update_line > -1:
+        with open(filename, rw) as contents:
 
-        #Append shebang before license
-        if add_shebang is True:
-            contents.write(saved_shebang + "\n")
+            data = [next(filename) for x in range(update_line + 1)]
 
-        #Append markdown hooks before license
-        if modify_markdown is True:
-            contents.write(''.join(str(x) for x in save_markdown_lines))
+            index = data[update_line].index("-")
 
-        delim = topHeader(commentChar)
-        if delim is not None:
-            contents.write(delim)
-            #print(delim)
+            data[update_line] = data[
+                update_line][:index] + current_year + data[update_line][index +
+                                                                        4:]
 
-        if modify_markdown is False:
-            for line in message:
-                if line != '':
-                    contents.write(commentChar + " " + line + "\n")
-                else:
-                    contents.write(commentChar + "\n")
+            #write remaining contents
+            contents.write(data)
 
-        delim = bottomFooter(commentChar)
-        if delim is not None:
-            contents.write(delim)
+    elif needs_update is False:
+        with open(filename, 'w') as contents:
+            #append the licence to the top of the file
 
-        #write remaining contents
-        contents.write(save)
+            #Append shebang before license
+            if add_shebang is True:
+                contents.write(saved_shebang + "\n")
+
+            #Append markdown hooks before license
+            if modify_markdown is True:
+                contents.write(''.join(str(x) for x in save_markdown_lines))
+
+            delim = topHeader(commentChar)
+            if delim is not None:
+                contents.write(delim)
+                #print(delim)
+
+            if modify_markdown is False:
+                for line in message:
+                    if line != '':
+                        contents.write(commentChar + " " + line + "\n")
+                    else:
+                        contents.write(commentChar + "\n")
+
+            delim = bottomFooter(commentChar)
+            if delim is not None:
+                contents.write(delim)
+
+            #write remaining contents
+            contents.write(save)
     if debug is True:
         print("...done")
 

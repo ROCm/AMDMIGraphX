@@ -306,7 +306,7 @@ static std::size_t find_max_alignment(const module& m, const std::string& alloca
 
 void memory_coloring::apply(module& m) const
 {
-    const std::size_t alignment = find_max_alignmen(m, allocation_op);
+    const std::size_t alignment = find_max_alignment(m, allocation_op);
     auto conflict_table         = build_conflict_table(m, allocation_op);
     auto as                     = allocation_segment::build(conflict_table, alignment);
 

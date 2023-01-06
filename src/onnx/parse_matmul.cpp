@@ -68,17 +68,8 @@ struct parse_matmul : op_parser<parse_matmul>
             {
                 MIGRAPHX_THROW("PARSE_MATMUL: dynamic MatMulInteger not supported");
             }
-            auto s0_dds = s0.to_dynamic().dyn_dims();
-            auto s1_dds = s1.to_dynamic().dyn_dims();
-            // prepend or append 1 dynamic_dimension for 1D tensors
-            if(is_a_prepended)
-            {
-                s0_dds.insert(s0_dds.begin(), {1, 1});
-            }
-            if(is_b_appended)
-            {
-                s1_dds.push_back({1, 1});
-            }
+            auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
+            auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
 
             // TODO: handling this case requires a new multibroadcast mode
             if(not std::equal(
@@ -91,18 +82,8 @@ struct parse_matmul : op_parser<parse_matmul>
         }
         else
         {
-            auto s0_lens = s0.lens();
-            auto s1_lens = s1.lens();
-
-            if(is_a_prepended)
-            {
-                s0_lens.insert(s0_lens.begin(), 1);
-            }
-            if(is_b_appended)
-            {
-                s1_lens.push_back(1);
-            }
-
+            auto s0_lens        = a0->get_shape().lens();
+            auto s1_lens        = a1->get_shape().lens();
             instruction_ref ba0 = a0;
             instruction_ref ba1 = a1;
             // try broadcasting if dimensions other than last two do not match

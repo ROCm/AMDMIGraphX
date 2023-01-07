@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_GATHERND_HPP
 
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/argument.hpp>
@@ -50,8 +51,8 @@ struct gathernd
         check_shapes{inputs, *this, true}.has(2);
         if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
         {
-            auto r = inputs.front().lens().size();
-            auto q = inputs.back().lens().size();
+            auto r = inputs.front().ndim();
+            auto q = inputs.back().ndim();
             auto k = inputs.back().lens().back();
             if(k > r - batch_dims)
             {
@@ -92,7 +93,6 @@ struct gathernd
             if(i_shape.dynamic())
             {
                 // the rank of the output is a function of k, so it must be fixed.
-                // MIGraphX supports dynamic dimensions, but not dynamic NUMBER of dimensions.
                 if(not i_shape.dyn_dims().back().is_fixed())
                 {
                     MIGRAPHX_THROW(
@@ -104,9 +104,9 @@ struct gathernd
             {
                 k = i_shape.lens().back();
             }
-            auto r               = data_shape.ndim();
-            auto q               = i_shape.ndim();
-            int output_dims_size = int(q) + r - k - batch_dims - 1;
+            auto r          = data_shape.ndim();
+            auto q          = i_shape.ndim();
+            int output_ndim = int(q) + r - k - batch_dims - 1;
             if(k > r - batch_dims)
             {
                 MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
@@ -118,15 +118,15 @@ struct gathernd
                 MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
                                std::to_string(batch_dims));
             }
-            if(output_dims_size <= 0)
+            if(output_ndim <= 0)
             {
                 MIGRAPHX_THROW("GATHERND: Indices too large for data input: k=" +
                                std::to_string(k));
             }
             // 3 vectors that will be used as constructor arguments for the output shape
-            std::vector<size_t> mins(output_dims_size);
-            std::vector<size_t> maxes(output_dims_size);
-            std::vector<size_t> opts(output_dims_size);
+            std::vector<size_t> mins(output_ndim);
+            std::vector<size_t> maxes(output_ndim);
+            std::vector<size_t> opts(output_ndim);
 
             // Part of the output shape comes from indices tensor, part from data tensor
             if(not i_shape.dynamic())

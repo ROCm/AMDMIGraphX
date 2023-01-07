@@ -1384,7 +1384,6 @@ std::vector<float> gen_trilu_test(const migraphx::program& p)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     return result_vector;
-
 }
 TEST_CASE(trilu_test)
 {
@@ -1392,10 +1391,8 @@ TEST_CASE(trilu_test)
 
     std::vector<float> result_vector = gen_trilu_test(p);
 
-    std::vector<float> gold = {1, 2, 3, 4,
-                               0, 6, 7, 8,
-                               0, 0, 11, 12};
-    
+    std::vector<float> gold = {1, 2, 3, 4, 0, 6, 7, 8, 0, 0, 11, 12};
+
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
@@ -1405,9 +1402,7 @@ TEST_CASE(trilu_lower_test)
 
     std::vector<float> result_vector = gen_trilu_test(p);
 
-    std::vector<float> gold = {0, 0, 0, 0,
-                               5, 0, 0, 0,
-                               9, 10, 0, 0};
+    std::vector<float> gold = {0, 0, 0, 0, 5, 0, 0, 0, 9, 10, 0, 0};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

@@ -6525,12 +6525,7 @@ def trilu_lower_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
 
-    node = onnx.helper.make_node(
-        'Trilu',
-        inputs=['x'],
-        outputs=['y'],
-        upper=0
-    )
+    node = onnx.helper.make_node('Trilu', inputs=['x'], outputs=['y'], upper=0)
     return ([node], [x], [y])
 
 

@@ -55,7 +55,7 @@ struct parse_trilu : op_parser<parse_trilu>
             k = arg_k.at<size_t>();
         }
 
-        if (contains(info.attributes, "upper"))
+        if(contains(info.attributes, "upper"))
         {
             upper = info.attributes.at("upper").i();
         }

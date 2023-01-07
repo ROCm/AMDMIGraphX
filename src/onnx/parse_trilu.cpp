@@ -46,6 +46,7 @@ struct parse_trilu : op_parser<parse_trilu>
         size_t num_rows = *(input_lens.rbegin() + 1);
         size_t num_cols = input_lens.back();
         size_t k        = 0;
+        size_t upper    = 1;
 
         if(args.size() > 1)
         {
@@ -54,17 +55,24 @@ struct parse_trilu : op_parser<parse_trilu>
             k = arg_k.at<size_t>();
         }
 
+        if (contains(info.attributes, "upper"))
+        {
+            upper = info.attributes.at("upper").i();
+        }
+
         shape::type_t output_type = args[0]->get_shape().type();
 
-        std::vector<char> mask_mat(num_rows * num_cols, 1);
+        std::vector<char> mask_mat(num_rows * num_cols, upper);
         for(size_t i = 0; i < num_rows; i++)
         {
             for(size_t j = 0; j < k; j++)
             {
-                mask_mat[i * num_cols + j] = 0;
+                // set value to opposite of upper
+                mask_mat[i * num_cols + j] = 1 ^ upper;
             }
             k++;
         }
+
         auto mask =
             info.add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, mask_mat});
 

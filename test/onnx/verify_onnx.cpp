@@ -1370,4 +1370,46 @@ TEST_CASE(where_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+std::vector<float> gen_trilu_test(const migraphx::program& p)
+{
+    // input data filled with values 1 to 12
+    std::vector<float> x_data(12);
+    std::iota(x_data.begin(), x_data.end(), 1);
+    migraphx::shape sx{migraphx::shape::float_type, {3, 4}};
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(sx, x_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    return result_vector;
+
+}
+TEST_CASE(trilu_test)
+{
+    migraphx::program p = migraphx::parse_onnx("trilu_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test(p);
+
+    std::vector<float> gold = {1, 2, 3, 4,
+                               0, 6, 7, 8,
+                               0, 0, 11, 12};
+    
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(trilu_lower_test)
+{
+    migraphx::program p = migraphx::parse_onnx("trilu_lower_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test(p);
+
+    std::vector<float> gold = {0, 0, 0, 0,
+                               5, 0, 0, 0,
+                               9, 10, 0, 0};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

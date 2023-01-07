@@ -6508,6 +6508,33 @@ def transpose_gather_test():
 
 
 @onnx_test()
+def trilu_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def trilu_lower_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x'],
+        outputs=['y'],
+        upper=0
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def undefined_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])

@@ -63,24 +63,19 @@ def getipynb_markdownBlockAsList():
 
 
 def hasKeySequence(inputfile, key_message):
-    result = False
     line_cnt = 0
-    line_limit = 10
-    target_line = -1
+    line_limit = 5
 
-    for line in inputfile.split("\n"):
-
+    lines = inputfile.split("\n")
+    for line in lines:
         if key_message in line:
-            result = True
-            target_line = line_cnt
-            break
+            return [True, line_cnt]
 
         if line_cnt >= line_limit:
             break
-
         line_cnt = line_cnt + 1
 
-    return [result, target_line]
+    return [False, -1]
 
 
 # Header and footer of the comment block
@@ -158,20 +153,21 @@ def openAndWriteFile(filename, message, commentChar):
 
                 #read remaining lines in the original file
                 save = contents.read()
-                print(save)
+                #print(save)
 
                 hasAmdLic = hasKeySequence(
                     save, "Advanced Micro Devices, Inc. All rights reserved")
                 hasOtherLic = hasKeySequence(save, "Software License")
 
-                print(save)
+                #print(save)
 
                 #Check if we have a licence stamp already
                 if hasAmdLic[0] or hasOtherLic[0] is True:
                     hasOldAmdLic = hasKeySequence(
                         save, "2015-" + current_year +
                         " Advanced Micro Devices, Inc. All rights reserved.")
-                    if hasOldAmdLic[0] is True and hasOtherLic[0] is False:
+                    print(hasOldAmdLic)
+                    if hasOldAmdLic[1] != -1 and hasOtherLic[0] is False:
                         if debug is True:
                             print("....License Out of Date: Updating file ")
                         needs_update = True
@@ -195,7 +191,6 @@ def openAndWriteFile(filename, message, commentChar):
         if debug is True:
             print("...Updating header\n", end='')
 
-#           print(save)
 #
 #        index = data[update_line + 1].find("2015-")
 #        if index != -1:

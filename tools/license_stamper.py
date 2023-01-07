@@ -167,7 +167,6 @@ def openAndWriteFile(filename, message, commentChar):
                     hasOldAmdLic = hasKeySequence(
                         save, "2015-" + current_year +
                         " Advanced Micro Devices, Inc. All rights reserved.")
-
                     if hasOldAmdLic[0] is True and hasOtherLic[0] is False:
                         if debug is True:
                             print("....License Out of Date: Updating file ")
@@ -205,6 +204,7 @@ def openAndWriteFile(filename, message, commentChar):
             contents.write(data)
 
     elif needs_update is False:
+
         with open(filename, 'w') as contents:
             #append the licence to the top of the file
 

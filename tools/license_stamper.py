@@ -26,7 +26,7 @@ import subprocess, os
 import datetime
 
 #Debug flag
-debug = False
+debug = True
 
 __repo_dir__ = os.path.normpath(
     os.path.join(os.path.realpath(__file__), '..', '..'))
@@ -68,16 +68,17 @@ def hasKeySequence(inputfile, key_message):
     line_limit = 10
     target_line = -1
 
-    for line in inputfile:
+    for line in inputfile.split("\n"):
+
         if key_message in line:
             result = True
             target_line = line_cnt
             break
 
-        line_cnt = line_cnt + 1
-
         if line_cnt >= line_limit:
             break
+
+        line_cnt = line_cnt + 1
 
     return [result, target_line]
 
@@ -157,10 +158,13 @@ def openAndWriteFile(filename, message, commentChar):
 
                 #read remaining lines in the original file
                 save = contents.read()
+                print(save)
 
                 hasAmdLic = hasKeySequence(
                     save, "Advanced Micro Devices, Inc. All rights reserved")
                 hasOtherLic = hasKeySequence(save, "Software License")
+
+                print(save)
 
                 #Check if we have a licence stamp already
                 if hasAmdLic[0] or hasOtherLic[0] is True:
@@ -186,24 +190,28 @@ def openAndWriteFile(filename, message, commentChar):
                 contents.close()
                 return
 
-    if debug is True:
-        print("...Writing header", end='')
 
     if needs_update is True and update_line > -1:
-        with open(filename, rw) as contents:
+        if debug is True:
+            print("...Updating header\n", end='')
 
-            data = [next(filename) for x in range(update_line + 1)]
-
-            index = data[update_line].index("-")
-
-            data[update_line] = data[
-                update_line][:index] + current_year + data[update_line][index +
-                                                                        4:]
-
-            #write remaining contents
-            contents.write(data)
+#           print(save)
+#
+#        index = data[update_line + 1].find("2015-")
+#        if index != -1:
+#            save[update_line + 1] = save[
+#                update_line+1][:index + 5] + current_year + save[update_line+1][index + 9:]
+#
+#        print(str(data))
+#
+#        with open(filename, 'w') as contents:
+#            #write remaining contents
+#            contents.seek(0)
+#            contents.write(save)
 
     elif needs_update is False:
+        if debug is True:
+            print("...Writing header", end='')
 
         with open(filename, 'w') as contents:
             #append the licence to the top of the file
@@ -280,9 +288,9 @@ def main():
     fileList = proc.stdout.decode().split('\n')
     message = message.split('\n')
 
-    if debug is True:
-        print("Target file list:\n" + str(fileList))
-        print("Output Message:\n" + str(message))
+    #if debug is True:
+    #print("Target file list:\n" + str(fileList))
+    #print("Output Message:\n" + str(message))
 
     for rfile in fileList:
         file = os.path.join(__repo_dir__, rfile)

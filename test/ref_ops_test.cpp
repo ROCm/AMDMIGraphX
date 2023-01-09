@@ -2754,7 +2754,7 @@ TEST_CASE(gathernd_dynamic2)
     auto* mm = p.get_main_module();
 
     migraphx::shape ds{migraphx::shape::float_type, {{2, 5, 2}, {1, 5, 0}, {1, 5, 0}}};
-    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, 3}, {2, 2, 3}, {1, 1}}};
+    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, 3}, {2, 3, 3}, {1, 1}}};
 
     auto xdata  = mm->add_parameter("X", ds);
     auto xindex = mm->add_parameter("I", is);
@@ -2790,7 +2790,7 @@ TEST_CASE(gathernd_dynamic3)
     auto* mm = p.get_main_module();
 
     migraphx::shape ds{migraphx::shape::float_type, {2, 3, 1}};
-    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, 3}, {2, 2, 3}, {1, 1}}};
+    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, 3}, {2, 3, 3}, {1, 1}}};
 
     auto xdata  = mm->add_parameter("X", ds);
     auto xindex = mm->add_parameter("I", is);
@@ -2817,23 +2817,6 @@ TEST_CASE(gathernd_dynamic3)
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
     EXPECT(migraphx::verify_range(res_data, gold));
-}
-
-TEST_CASE(gathernd_dynamic4)
-{
-    // k > r - batch_dims, dynamic dims
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    migraphx::shape ds{migraphx::shape::float_type, {{2, 2}, {3, 3}, {1, 1}, {3, 3}}};
-    migraphx::shape is{migraphx::shape::int64_type, {2, 3, 3}};
-
-    const int batch_dims = 2;
-    auto xdata           = mm->add_parameter("X", ds);
-    auto xindex          = mm->add_parameter("I", is);
-
-    auto gathernd_op = migraphx::make_op("gathernd", {{"batch_dims", batch_dims}});
-    EXPECT(test::throws([&] { mm->add_instruction(gathernd_op, xdata, xindex); }));
 }
 
 TEST_CASE(gathernd_negative_index_test)

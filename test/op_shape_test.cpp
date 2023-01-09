@@ -2434,10 +2434,10 @@ TEST_CASE(test_gathernd_dynamic6)
     auto itype = migraphx::shape::int64_type;
     std::vector<migraphx::shape::dynamic_dimension> idyn{{2, 2, 0}, {1, 1, 0}};
     migraphx::shape is{itype, idyn};
-    std::vector<migraphx::shape::dynamic_dimension> bdyn{{2, 2, 0}, {2, 2, 0}, {2, 2, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> bdyn{{1, 2, 0}, {1, 2, 0}, {1, 2, 0}};
     migraphx::shape ds{dtype, bdyn};
 
-    std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {2, 2, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {1, 2, 0}};
     int batch_dims(1);
     migraphx::shape s0{dtype, {ddout}};
     expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
@@ -2445,18 +2445,18 @@ TEST_CASE(test_gathernd_dynamic6)
 
 TEST_CASE(test_gathernd_dynamic7)
 {
-        // Same shapes as ref_ops_test gathernd_dynamic
-        // index static shape, data dynamic
-        auto dtype = migraphx::shape::float_type;
-        auto itype = migraphx::shape::int64_type;
-        migraphx::shape is{itype, {2, 2, 1}};
-        std::vector<migraphx::shape::dynamic_dimension> b{{2, 2, 2}, {3, 3, 0}, {1, 1, 0}};
-        migraphx::shape ds{dtype, b};
+    // Same shapes as ref_ops_test gathernd_dynamic
+    // index static shape, data dynamic
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape is{itype, {2, 5, 1}};
+    std::vector<migraphx::shape::dynamic_dimension> b{{6, 7, 7}, {3, 3, 0}, {1, 4, 0}};
+    migraphx::shape ds{dtype, b};
 
-        std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {2, 2, 0}, {1, 1, 0}};
-        int batch_dims(1);
-        migraphx::shape s0{dtype, {ddout}};
-        expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
+    std::vector<migraphx::shape::dynamic_dimension> ddout{{2, 2, 0}, {5, 5, 0}, {1, 4, 0}};
+    int batch_dims(1);
+    migraphx::shape s0{dtype, {ddout}};
+    expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
 }
 
 TEST_CASE(test_scatternd)

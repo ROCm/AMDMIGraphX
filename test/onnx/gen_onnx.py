@@ -3545,7 +3545,7 @@ def matmul_vv_test():
     return ([node], [m1, m2], [y])
 
 
-@onnx_test
+@onnx_test()
 def matmul_dyn_mm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])
@@ -3560,7 +3560,7 @@ def matmul_dyn_mm_test():
     return ([node], [m1, m2], [y])
 
 
-@onnx_test
+@onnx_test()
 def matmul_dyn_mv_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
@@ -3575,7 +3575,7 @@ def matmul_dyn_mv_test():
     return ([node], [m1, m2], [y])
 
 
-@onnx_test
+@onnx_test()
 def matmul_dyn_vm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])
@@ -3590,7 +3590,7 @@ def matmul_dyn_vm_test():
     return ([node], [m1, m2], [y])
 
 
-@onnx_test
+@onnx_test()
 def matmul_dyn_vv_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None])
@@ -3605,6 +3605,22 @@ def matmul_dyn_vv_test():
     return ([node], [m1, m2], [y])
 
 
+@onnx_test()
+def matmul_dyn_broadcast_error():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5, 7, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, None])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
 def matmulinteger_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [3, 6, 16])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 16, 8])
@@ -3619,7 +3635,7 @@ def matmulinteger_test():
     return ([node], [m1, m2], [y])
 
 
-@onnx_test
+@onnx_test()
 def matmulinteger_dyn_error():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [None, 6, 16])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [None, 16, 8])
@@ -3634,7 +3650,7 @@ def matmulinteger_dyn_error():
     return ([node], [m1, m2], [y])
 
 
-@onnx_test
+@onnx_test()
 def max_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

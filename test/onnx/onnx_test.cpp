@@ -3492,6 +3492,13 @@ TEST_CASE(matmul_dyn_vv_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(matmul_dyn_broadcast_error)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("matmul_dyn_broadcast_error.onnx", options); }));
+}
+
 TEST_CASE(matmulinteger_test)
 {
     migraphx::program p;

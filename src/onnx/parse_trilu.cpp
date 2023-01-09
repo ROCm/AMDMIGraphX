@@ -46,7 +46,7 @@ struct parse_trilu : op_parser<parse_trilu>
         size_t num_rows = *(input_lens.rbegin() + 1);
         size_t num_cols = input_lens.back();
         size_t k        = 0;
-        size_t upper    = 1;
+        bool upper    = 1;
 
         if(args.size() > 1)
         {
@@ -57,18 +57,19 @@ struct parse_trilu : op_parser<parse_trilu>
 
         if(contains(info.attributes, "upper"))
         {
-            upper = info.attributes.at("upper").i();
+            upper = static_cast<bool>(info.attributes.at("upper").i());
         }
 
         shape::type_t output_type = args[0]->get_shape().type();
 
-        std::vector<char> mask_mat(num_rows * num_cols, upper);
+        // when creating the mask, if upper == 1,
+        // the inner triangle will have values set to 0
+        std::vector<bool> mask_mat(num_rows * num_cols, upper);
         for(size_t i = 0; i < num_rows; i++)
         {
             for(size_t j = 0; j < k; j++)
             {
-                // set value to opposite of upper
-                mask_mat[i * num_cols + j] = 1 ^ upper;
+                mask_mat[i * num_cols + j] = !upper;
             }
             k++;
         }

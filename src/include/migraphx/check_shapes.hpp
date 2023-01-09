@@ -198,7 +198,7 @@ struct check_shapes
      */
     const check_shapes& same_ndims() const
     {
-        if(not this->same([](const shape& s) { return s.max_lens().size(); }))
+        if(not this->same([](const shape& s) { return s.ndim(); }))
             MIGRAPHX_THROW(prefix() + "Number of dimensions do not match");
         return *this;
     }

@@ -789,6 +789,22 @@ static std::string cpp_var_name(const std::string& name)
     return to_c_id("x_" + replace_string(name, ":", "_module_"));
 }
 
+static void print_py_op(std::ostream& os, const operation& op)
+{
+    auto v = op.to_value();
+    os << "migraphx.op(" << enclose_name(op.name());
+
+    auto default_values = make_op(op.name()).to_value();
+    for(auto&& x : v)
+    {
+        auto name = x.get_key();
+        if(default_values[name] == x)
+            continue;
+        os << ", " << name << "=" << to_json_string(x.without_key());
+    }
+    os << ")";
+}
+
 static void print_make_op(std::ostream& os, const operation& op)
 {
     auto v = op.to_value();
@@ -804,6 +820,14 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
+static void print_py_shape(std::ostream& os, const migraphx::shape& s)
+{
+    os << "migraphx.shape(" << s.type_string() << ", lens=" << to_json_string(s.lens());
+    if(not s.standard())
+        os << ", strides=" << to_json_string(s.strides());
+    os << ")";
+}
+
 static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 {
     os << "migraphx::shape{migraphx::shape::" << s.type_string();
@@ -811,6 +835,68 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     if(not s.standard())
         os << ", {" << to_string_range(s.strides()) << "}";
     os << "}";
+}
+
+std::unordered_map<instruction_ref, std::string>
+module::print_py(std::ostream& os,
+                 const std::string& mname,
+                 std::unordered_map<instruction_ref, std::string> names) const
+{
+    // cppcheck-suppress variableScope
+    unsigned long seed = names.size();
+    auto last          = std::prev(this->end());
+    names              = this->print(
+        [&](auto ins, auto ins_names) {
+            std::vector<std::string> input_vars;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(input_vars),
+                           [&](auto input) { return cpp_var_name(ins_names.at(input)); });
+            if(ins != last)
+                os << cpp_var_name(ins_names.at(ins)) << " = ";
+            if(ins->name() == "@literal")
+            {
+                os << mname << ".add_literal(";
+                bool use_abs = false;
+                ins->get_literal().visit([&](auto v) {
+                    use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                });
+                // Disable abs for now
+                use_abs = false;
+                if(use_abs)
+                    os << "migraphx.abs_literal(";
+                os << "migraphx.generate_literal(";
+                print_py_shape(os, ins->get_shape());
+                os << ", " << seed << ")";
+                if(use_abs)
+                    os << ")";
+                os << ")" << std::endl;
+                seed++;
+            }
+            else if(ins->name() == "@param")
+            {
+                std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
+                os << mname << ".add_parameter(" << enclose_name(name) << ",";
+                print_py_shape(os, ins->get_shape());
+                os << ")" << std::endl;
+            }
+            else if(ins->name() == "@return")
+            {
+                os << mname << ".add_return([" << join_strings(input_vars, ", ") << "])"
+                   << std::endl;
+            }
+            else
+            {
+                assert(ins->name().front() != '@');
+                os << mname << ".add_instruction(";
+                print_py_op(os, ins->get_operator());
+                os << ", [" << join_strings(input_vars, ", ") << "]";
+                os << ")" << std::endl;
+            }
+        },
+        names);
+
+    return names;
 }
 
 std::unordered_map<instruction_ref, std::string>
@@ -873,6 +959,8 @@ module::print_cpp(std::ostream& os,
 
     return names;
 }
+
+void module::print_py(std::ostream& os) const { this->print_py(os, this->name(), {}); }
 
 void module::print_cpp(std::ostream& os) const { this->print_cpp(os, this->name(), {}); }
 

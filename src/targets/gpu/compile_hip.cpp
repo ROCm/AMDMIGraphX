@@ -185,7 +185,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     options.push_back("-fno-gpu-rdc");
     options.push_back(" -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
-    options.push_back("--cuda-gpu-arch=" + arch);
+    options.push_back("--offload-arch=" + arch);
     prog.compile(options);
     return {prog.get_code_obj()};
 }
@@ -237,7 +237,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     }
     else if(is_hip_clang_compiler())
     {
-        params += " --cuda-gpu-arch=" + arch;
+        params += " --offload-arch=" + arch;
         params += " --cuda-device-only";
         params += " -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ";
     }

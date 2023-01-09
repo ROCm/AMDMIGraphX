@@ -854,6 +854,25 @@ void program::print_graph(std::ostream& os, bool brief) const
     mm->print_graph(os, brief);
 }
 
+void program::print_py(std::ostream& os) const
+{
+    auto vec_modules = this->get_modules();
+    std::unordered_map<instruction_ref, std::string> names;
+    os << "p = migraphx.program()\n";
+    for(auto& mod : vec_modules)
+    {
+        std::string var_name = "m" + mod->name();
+        os << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module()";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_py(os, var_name, names);
+        os << std::endl;
+    }
+}
+
 void program::print_cpp(std::ostream& os) const
 {
     auto vec_modules = this->get_modules();

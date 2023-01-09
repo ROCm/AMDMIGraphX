@@ -46,7 +46,7 @@ struct parse_trilu : op_parser<parse_trilu>
         size_t num_rows = *(input_lens.rbegin() + 1);
         size_t num_cols = input_lens.back();
         size_t k        = 0;
-        bool upper    = 1;
+        bool upper      = 1;
 
         if(args.size() > 1)
         {

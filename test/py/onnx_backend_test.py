@@ -92,6 +92,13 @@ def disabled_tests_onnx_1_8_1(backend_test):
     backend_test.exclude(r'test_unsqueeze_three_axes_cpu')
     backend_test.exclude(r'test_unsqueeze_two_axes_cpu')
     backend_test.exclude(r'test_unsqueeze_unsorted_axes_cpu')
+    # unsupported shape attributes
+    backend_test.exclude(r'test_shape_end_1_cpu')
+    backend_test.exclude(r'test_shape_end_negative_1_cpu')
+    backend_test.exclude(r'test_shape_start_1_cpu')
+    backend_test.exclude(r'test_shape_start_1_end_2_cpu')
+    backend_test.exclude(r'test_shape_start_1_end_negative_1_cpu')
+    backend_test.exclude(r'test_shape_start_negative_1_cpu')
 
 
 def create_backend_test(testname=None, target_device=None):

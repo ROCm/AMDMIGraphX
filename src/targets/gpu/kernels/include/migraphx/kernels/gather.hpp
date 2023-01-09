@@ -27,16 +27,17 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
 
 namespace migraphx {
 
 template <int Axis, class Input, class Indices>
 constexpr auto gather_shape(Input input, Indices indices)
 {
-    auto lengths = input.get_shape().lens;
+    auto lengths = input.lens;
 
-    lengths[Axis] = indices.get_shape().elements();
-    return make_shape(lengths, input.get_shape().strides);
+    lengths[Axis] = indices.elements();
+    return make_shape(lengths, input.strides);
 }
 
 template <int Axis, class Input, class Indices, class Output>
@@ -45,7 +46,7 @@ __device__ void gather(Input input, Indices indices, Output output)
     auto ind           = make_index();
     auto axis_dim_size = input.get_shape().lens[Axis];
 
-    constexpr auto out_comp = gather_shape<Axis>(input, indices);
+    constexpr auto out_comp = gather_shape<Axis>(get_shape_c<Input>{}, get_shape_c<Indices>{});
 
     ind.global_stride(output.get_shape().elements(), [&](auto i) {
         auto idx      = out_comp.multi(i);

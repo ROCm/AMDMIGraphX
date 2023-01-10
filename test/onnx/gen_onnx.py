@@ -23,7 +23,7 @@
 #####################################################################################
 # This script generates onnx files for MIGraphX onnx operator tests.
 # To generate an individual onnx file, you can use the following
-# command: python -c "import gen_onnx; gen_onnx.{test_name}_test()"
+# command: python3 -c "import gen_onnx; gen_onnx.{test_name}_test()"
 import numpy as np
 import onnx
 from onnx import helper
@@ -4675,6 +4675,34 @@ def reducel1_test():
     return ([node], [x], [y])
 
 
+@onnx_test
+def reducel1_dyn_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+    axes = [-2]
+
+    node = onnx.helper.make_node('ReduceL1',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reducel1_dyn_noaxes_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceL1',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
 @onnx_test()
 def reducel2_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -4724,6 +4752,22 @@ def reduce_log_sum_exp_test():
 def reducemax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+
+    axes = [2]
+
+    node = onnx.helper.make_node('ReduceMax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reducemax_dyn_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 4, 6])
     axes = [2]
 
     node = onnx.helper.make_node('ReduceMax',

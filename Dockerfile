@@ -111,7 +111,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rocm-smi-lib \
     roctracer-dev \
     hipcub \
-    hipblas \
+    hipblas && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # add this for roctracer dependancies

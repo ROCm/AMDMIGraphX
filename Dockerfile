@@ -100,7 +100,6 @@ RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
 
 #Setup HIPIFY and rocRAND libraries (used for Onnxruntime)
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
-    rocm-dev \
     hipifiy-clang \
     hipfft \
     hipparse \

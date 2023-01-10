@@ -63,18 +63,19 @@ struct gather
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
-        shape data = inputs[0];
+        shape data    = inputs[0];
         shape indices = inputs[1];
-        auto type = data.type();
+        auto type     = data.type();
         // If index_dims is dynamic, convert the data to dynamic too.
-        if(indices.dynamic()){
+        if(indices.dynamic())
+        {
             data = data.to_dynamic();
-        } 
+        }
         if(data.dynamic())
         {
-            std::vector<shape::dynamic_dimension> dims{data.dyn_dims()}; 
+            std::vector<shape::dynamic_dimension> dims{data.dyn_dims()};
             dims.erase(dims.begin() + axis);
-            
+
             if(not indices.scalar())
             {
                 std::vector<shape::dynamic_dimension> index_dims;
@@ -82,7 +83,9 @@ struct gather
                 dims.insert(dims.begin() + axis, index_dims.begin(), index_dims.end());
             }
             return {type, dims};
-        } else{
+        }
+        else
+        {
             // Both data and indices are static.  indices may be scalar
             auto lens = data.lens();
             lens.erase(lens.begin() + axis);

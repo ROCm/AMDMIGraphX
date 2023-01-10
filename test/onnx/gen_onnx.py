@@ -2037,7 +2037,8 @@ def gather_test():
 
 @onnx_test()
 def gather_dyn_test():
-    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 4, 5, 6])
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT,
+                                      [None, 4, 5, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32,
                                       [None, 3, 4, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])

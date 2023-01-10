@@ -98,3 +98,21 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
 
+#Setup HIPIFY and rocRAND libraries (used for Onnxruntime)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+    rocm-dev \
+    hipifiy-clang \
+    hipfft \
+    hipparse \
+    rocthrust \
+    rocrand \
+    rccl \
+    rccl-dev \
+    rocm-smi-lib \
+    roctracer-dev \
+    hipcub \
+    hipblas \
+    rm -rf /var/lib/apt/lists/*
+
+# add this for roctracer dependancies
+RUN pip3 install CppHeaderParser

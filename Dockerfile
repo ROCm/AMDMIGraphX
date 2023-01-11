@@ -5,6 +5,10 @@ ARG PREFIX=/usr/local
 # Support multiarch
 RUN dpkg --add-architecture i386
 
+# Install rocm key
+RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && \
+    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - 
+
 # Add rocm repository
 RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.3/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
 

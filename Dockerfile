@@ -72,10 +72,7 @@ RUN /download_models.sh && rm /download_models.sh
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-
-# Install newer cmake for onnx runtime
-ARG CMAKE_VERSION=3.24.2
-RUN cget -p /opt/cmake install -X binary https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz
+RUN cget -p $PREFIX install kitware/cmake@v3.24.3 -DCMAKE_USE_OPENSSL=OFF 
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main

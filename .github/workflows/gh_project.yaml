@@ -10,7 +10,6 @@ on:
 
 jobs:
   add-to-project:
-    permissions: write-all
     name: Add PRs and issues to MIGX project
     runs-on: ubuntu-latest
     steps:

@@ -39,4 +39,3 @@ struct test_reduce_mean_large_half : verify_program<test_reduce_mean_large_half>
         return p;
     };
 };
-

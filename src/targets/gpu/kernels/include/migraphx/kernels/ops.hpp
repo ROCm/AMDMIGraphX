@@ -56,7 +56,7 @@ struct id
     }
 };
 
-template<class T>
+template <class T>
 struct convert_to
 {
     template <class U>

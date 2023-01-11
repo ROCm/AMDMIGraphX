@@ -187,13 +187,11 @@ constexpr auto fold(F f)
     return [=](auto&&... xs) { return fold_impl(f, static_cast<decltype(xs)&&>(xs)...); };
 }
 
-template<class... Fs>
+template <class... Fs>
 constexpr auto compose(Fs... fs)
 {
     return fold([](auto f, auto g) {
-        return [=](auto&&... xs) {
-            return f(g(static_cast<decltype(xs)>(xs)...));
-        };
+        return [=](auto&&... xs) { return f(g(static_cast<decltype(xs)>(xs)...)); };
     })(fs...);
 }
 

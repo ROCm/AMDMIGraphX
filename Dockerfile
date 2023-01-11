@@ -109,6 +109,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     roctracer-dev \
     hipcub \
     hipblas && \
+    half && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

@@ -104,6 +104,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hipfft \
     rocthrust \
     rocrand \
+    hipsparse \
     rccl \
     rccl-dev \
     rocm-smi-lib \
@@ -116,3 +117,4 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
 
 # add this for roctracer dependancies
 RUN pip3 install CppHeaderParser
+RUN pip3 install packaging==22.0

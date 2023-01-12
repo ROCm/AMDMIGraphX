@@ -26,6 +26,7 @@
 
 #include <migraphx/op/name.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/shape_for_each.hpp>
@@ -105,18 +106,41 @@ struct reduce_op : op_name<Derived>
         return tuned_axes;
     }
 
+    /**
+     * @brief returns a shape in which the axis or axes named
+     * for reduction by this op are set, to size 1.
+     *
+     * @param inputs list of input shapes
+     * @return shape
+     */
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto s          = inputs.at(0);
-        auto lens       = s.lens();
-        auto tuned_axes = tune_axes(lens.size());
-        for(auto axis : tuned_axes)
+        check_shapes{inputs, *this, true}.has(1);
+        auto s = inputs.at(0);
+        if(s.dynamic())
         {
-            lens[axis] = 1;
-        }
+            auto output_dyn_dims = s.dyn_dims();
+            auto tuned_axes      = tune_axes(output_dyn_dims.size());
+            for(const auto& axis : tuned_axes)
+            {
+                // At the time of writing, there's no functional difference between
+                // optimum of 0 (no opt) or 1.
+                output_dyn_dims[axis] = {1, 1, 0};
+            }
 
-        return inputs[0].with_lens(lens);
+            return shape{s.type(), output_dyn_dims};
+        }
+        else
+        {
+            auto lens       = s.lens();
+            auto tuned_axes = tune_axes(lens.size());
+            for(const auto& axis : tuned_axes)
+            {
+                lens[axis] = 1;
+            }
+
+            return inputs[0].with_lens(lens);
+        }
     }
 
     template <class T>
@@ -124,7 +148,7 @@ struct reduce_op : op_name<Derived>
                    const std::vector<T>& in_lens,
                    std::vector<T>& out_lens) const
     {
-        for(auto axis : tuned_axes)
+        for(const auto& axis : tuned_axes)
         {
             out_lens[axis] = in_lens[axis];
         }
@@ -151,17 +175,17 @@ struct reduce_op : op_name<Derived>
             static_cast<const Derived&>(*this).output(batch_shape)(val);
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         auto arg_lens   = args.front().get_shape().lens();
         auto tuned_axes = tune_axes(arg_lens.size());
-        std::vector<std::size_t> batch_lens(output_shape.lens().size(), 1);
+        std::vector<std::size_t> batch_lens(dyn_out.computed_shape.lens().size(), 1);
         tune_dims(tuned_axes, arg_lens, batch_lens);
-        shape batch_shape{output_shape.type(), batch_lens};
+        shape batch_shape{dyn_out.computed_shape.type(), batch_lens};
         visit_all(result, args[0])([&](auto output, auto input) {
-            par_for(output_shape.elements(), [&](auto i) {
-                auto out_idx = output_shape.multi(i);
+            par_for(dyn_out.computed_shape.elements(), [&](auto i) {
+                auto out_idx = dyn_out.computed_shape.multi(i);
                 this->reduce(input, batch_shape, tuned_axes, out_idx, output);
             });
         });

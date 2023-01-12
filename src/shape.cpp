@@ -520,7 +520,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
     this->max -= x;
     if(this->opt != 0)
     {
-        assert(this->opt >= y);
+        assert(this->opt >= x);
         this->opt -= x;
     }
     return *this;

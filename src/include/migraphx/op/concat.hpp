@@ -26,6 +26,7 @@
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
@@ -73,49 +74,103 @@ struct concat
         }
         return offsets;
     }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
+        // Todo:: not using check_shapes struct; it
+        // doesn't have a method to check for at least one shape.
+        // A single input is a no-op, but it is legal
         if(inputs.empty())
         {
-            MIGRAPHX_THROW("CONCAT: Number of input tensors should exceed 0");
+            MIGRAPHX_THROW("CONCAT: called with empty input list");
         }
 
-        const auto& first_shape_lens = inputs.front().lens();
-        const auto& type             = inputs.front().type();
-        for(std::size_t l = 0; l < first_shape_lens.size(); l++)
+        if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
+               return (s.ndim() == inputs[0].ndim() and s.type() == inputs[0].type());
+           }))
         {
-            if(l != axis)
+            MIGRAPHX_THROW("CONCAT: input tensors are not all the same rank or type");
+        }
+
+        if(axis >= inputs[0].ndim())
+            MIGRAPHX_THROW("CONCAT: axis attribute out of range");
+
+        if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
+        {
+            // Static input shapes
+            const auto& first_shape_lens = inputs.front().lens();
+            const auto& type             = inputs.front().type();
+            for(std::size_t l = 0; l < first_shape_lens.size(); l++)
             {
-                if(not std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
-                       return s.lens()[l] == first_shape_lens[l];
-                   }))
+                if(l != axis)
                 {
-                    MIGRAPHX_THROW("CONCAT: Non-axis dimensions should match");
+                    if(not std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
+                           return s.lens()[l] == first_shape_lens[l];
+                       }))
+                    {
+                        MIGRAPHX_THROW("CONCAT: all input dimensions should match along axis " +
+                                       std::to_string(l));
+                    }
                 }
             }
+            std::size_t new_dim_axis = 0;
+            for(const auto& input : inputs)
+            {
+                const auto& lens = input.lens();
+                new_dim_axis += lens[axis];
+            }
+            std::vector<std::size_t> new_lens;
+            std::copy(
+                first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
+            new_lens[axis] = new_dim_axis;
+            return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
-        std::size_t new_dim_axis = 0;
-        for(const auto& input : inputs)
+        else if(std::all_of(
+                    inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
-            const auto& lens = input.lens();
-            new_dim_axis += lens[axis];
+            // Dynamic input shapes
+            for(std::size_t index = 0; index < inputs[0].ndim(); index++)
+            {
+                if(index != axis)
+                {
+                    if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
+                           return s.dyn_dims()[index] == inputs[0].dyn_dims()[index];
+                       }))
+                        MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
+                                       std::to_string(index));
+                }
+            }
+            std::size_t new_min = 0;
+            std::size_t new_max = 0;
+            for(const auto& input : inputs)
+            {
+                auto ddim = input.dyn_dims()[axis];
+                new_min += ddim.min;
+                new_max += ddim.max;
+            }
+
+            auto new_dims  = inputs[0].dyn_dims();
+            new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max, 0};
+            return migraphx::shape(inputs[0].type(), new_dims);
         }
-        std::vector<std::size_t> new_lens;
-        std::copy(first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
-        new_lens[axis] = new_dim_axis;
-        return shape::from_permutation(type, new_lens, find_permutation(inputs));
+        else
+        {
+            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes");
+        }
     }
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        std::vector<std::size_t> coffsets = compute_offsets(output_shape, args);
+        argument result{dyn_out.computed_shape};
+        std::vector<std::size_t> coffsets = compute_offsets(dyn_out.computed_shape, args);
         for(std::size_t l = 0; l < args.size(); l++)
         {
             auto argl = args[l];
             visit_all(result, argl)([&](auto output, auto input) {
-                auto slice_shape =
-                    shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};
-                auto slice = make_view(slice_shape, output.data() + coffsets[l]);
+                auto slice_shape = shape{dyn_out.computed_shape.type(),
+                                         input.get_shape().lens(),
+                                         dyn_out.computed_shape.strides()};
+                auto slice       = make_view(slice_shape, output.data() + coffsets[l]);
                 std::copy(input.begin(), input.end(), slice.begin());
             });
         }

@@ -2695,4 +2695,45 @@ TEST_CASE(roialign_test)
     throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
 }
 
+TEST_CASE(test_concat)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};
+    migraphx::shape sy{migraphx::shape::float_type, {3, 4, 1, 6}};
+    migraphx::shape sout{migraphx::shape::float_type, {3, 4, 6, 6}};
+
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
+
+    // axis out of range
+    throws_shape(migraphx::make_op("concat", {{"axis", 11}}), sx, sy);
+
+    // 1 input; no-op
+    expect_shape(sx, migraphx::make_op("concat", {{"axis", 2}}), sx);
+
+    // rank doesn't match
+    migraphx::shape sbi1{migraphx::shape::int64_type, {2, 3}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, sbi1);
+
+    // non-matching dimension 2
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+}
+
+TEST_CASE(test_dyn_concat)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 3, 3}, {4, 4}, {1, 5, 5}, {6, 6}}};
+    migraphx::shape sy{migraphx::shape::float_type, {{1, 3, 3}, {4, 4}, {1, 4, 4}, {6, 6}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{1, 3, 3}, {4, 4, 0}, {2, 9, 0}, {6, 6}}};
+
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
+
+    // rank doesn't match
+    migraphx::shape sbi1{migraphx::shape::int64_type, {2, 3}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, sbi1);
+
+    // non-matching dimension 2
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+
+    // static and dynamic shapes together
+    migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

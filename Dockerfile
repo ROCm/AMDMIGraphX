@@ -108,6 +108,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rccl \
     rccl-dev \
     rocm-smi-lib \
+    rocm-dev \
     roctracer-dev \
     hipcub  \
     hipblas  \

@@ -16,4 +16,4 @@ jobs:
       - uses: actions/add-to-project@v0.4.0
         with:
           project-url: https://github.com/orgs/ROCmSoftwarePlatform/projects/20
-          github-token: ${{ secrets.MIGRAPHX_BOT_PR_WORKFLOW }}
+          github-token: ${{ secrets.TEST_PR_WORKFLOW }}

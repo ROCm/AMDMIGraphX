@@ -504,6 +504,28 @@ bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max;
 
 bool shape::dynamic_dimension::has_optimal() const { return opt != 0; }
 
+shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t& x)
+{
+    this->min += x;
+    this->max += x;
+    this->opt == 0 ? this->opt = 0 : this->opt += x;
+    return *this;
+}
+
+shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t& x)
+{
+    assert(this->min >= x);
+    assert(this->max >= x);
+    this->min -= x;
+    this->max -= x;
+    if(this->opt != 0)
+    {
+        assert(this->opt >= y);
+        this->opt -= x;
+    }
+    return *this;
+}
+
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     // don't check opt if both are fixed
@@ -531,25 +553,19 @@ bool operator!=(const std::size_t& x, const shape::dynamic_dimension& y) { retur
 
 shape::dynamic_dimension operator+(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    return {x.min + y, x.max + y, x.opt == 0 ? 0 : x.opt + y};
+    auto dd = x;
+    return dd += y;
 }
+
 shape::dynamic_dimension operator+(const std::size_t& x, const shape::dynamic_dimension& y)
 {
     return y + x;
 }
+
 shape::dynamic_dimension operator-(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    assert(x.min >= y);
-    assert(x.max >= y);
-    if(x.opt == 0)
-    {
-        return {x.min - y, x.max - y, 0};
-    }
-    else
-    {
-        assert(x.opt >= y);
-        return {x.min - y, x.max - y, x.opt - y};
-    }
+    auto dd = x;
+    return dd -= y;
 }
 
 bool operator==(const shape& x, const shape& y)

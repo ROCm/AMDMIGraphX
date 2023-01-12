@@ -66,7 +66,7 @@ struct pad
             auto out_dyn_dims = s0.dyn_dims();
             for(std::size_t i = 0; i < s0.ndim(); ++i)
             {
-                out_dyn_dims[i] = out_dyn_dims[i] + pads[i] + pads[i + s0.ndim()];
+                out_dyn_dims[i] += pads[i] + pads[i + s0.ndim()];
             }
             return {s0.type(), out_dyn_dims};
         }

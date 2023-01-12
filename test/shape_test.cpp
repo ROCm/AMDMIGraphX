@@ -179,6 +179,11 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     using migraphx::shape;
     auto a = shape::dynamic_dimension{2, 5, 2};
 
+    a += 3;
+    EXPECT(a == shape::dynamic_dimension{5, 8, 5});
+    a -= 3;
+    EXPECT(a == shape::dynamic_dimension{2, 5, 2});
+
     auto b = shape::dynamic_dimension{3, 6, 3};
     EXPECT((a + 1) == b);
     EXPECT((1 + a) == b);

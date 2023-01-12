@@ -93,8 +93,7 @@ struct reshape
         return {s0.type(), output_dyn_dims};
     }
 
-    template <class T>
-    shape static_compute_shape(std::vector<shape> inputs, T n_neg_dims) const
+    shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
     {
         check_shapes{inputs, *this}.standard();
         auto&& idims = inputs.front().lens();

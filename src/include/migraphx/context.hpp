@@ -66,6 +66,18 @@ any_ptr get_queue_context(T&)
 {
     return {};
 }
+
+template <class T>
+void set_exhaustive_tune_flag_context(T&, bool)
+{
+}
+
+template <class T>
+bool get_exhaustive_tune_flag_context(T&)
+{
+    return false;
+}
+
 template <class T>
 void wait_for_context(T&, any_ptr)
 {
@@ -85,6 +97,10 @@ struct context
     value to_value() const;
     // (optional)
     void from_value(const value& v);
+    // (optional)
+    void set_exhaustive_tune_flag(bool v);
+    // (optional)
+    bool get_exhaustive_tune_flag() const;
     // (optional)
     any_ptr get_queue();
     // (optional)
@@ -172,6 +188,18 @@ struct context
         (*this).private_detail_te_get_handle().from_value(v);
     }
 
+    void set_exhaustive_tune_flag(bool v)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().set_exhaustive_tune_flag(std::move(v));
+    }
+
+    bool get_exhaustive_tune_flag() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().get_exhaustive_tune_flag();
+    }
+
     any_ptr get_queue()
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -181,13 +209,13 @@ struct context
     void wait_for(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait_for(queue);
+        (*this).private_detail_te_get_handle().wait_for(std::move(queue));
     }
 
     void finish_on(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().finish_on(queue);
+        (*this).private_detail_te_get_handle().finish_on(std::move(queue));
     }
 
     void finish() const
@@ -209,12 +237,14 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual value to_value() const          = 0;
-        virtual void from_value(const value& v) = 0;
-        virtual any_ptr get_queue()             = 0;
-        virtual void wait_for(any_ptr queue)    = 0;
-        virtual void finish_on(any_ptr queue)   = 0;
-        virtual void finish() const             = 0;
+        virtual value to_value() const                = 0;
+        virtual void from_value(const value& v)       = 0;
+        virtual void set_exhaustive_tune_flag(bool v) = 0;
+        virtual bool get_exhaustive_tune_flag() const = 0;
+        virtual any_ptr get_queue()                   = 0;
+        virtual void wait_for(any_ptr queue)          = 0;
+        virtual void finish_on(any_ptr queue)         = 0;
+        virtual void finish() const                   = 0;
     };
 
     template <class T>
@@ -246,6 +276,35 @@ struct context
     }
 
     template <class T>
+    static auto
+    private_detail_te_default_set_exhaustive_tune_flag(char, T&& private_detail_te_self, bool v)
+        -> decltype(private_detail_te_self.set_exhaustive_tune_flag(std::move(v)))
+    {
+        private_detail_te_self.set_exhaustive_tune_flag(std::move(v));
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_set_exhaustive_tune_flag(float, T&& private_detail_te_self, bool v)
+    {
+        set_exhaustive_tune_flag_context(private_detail_te_self, std::move(v));
+    }
+
+    template <class T>
+    static auto private_detail_te_default_get_exhaustive_tune_flag(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_exhaustive_tune_flag())
+    {
+        return private_detail_te_self.get_exhaustive_tune_flag();
+    }
+
+    template <class T>
+    static bool private_detail_te_default_get_exhaustive_tune_flag(float,
+                                                                   T&& private_detail_te_self)
+    {
+        return get_exhaustive_tune_flag_context(private_detail_te_self);
+    }
+
+    template <class T>
     static auto private_detail_te_default_get_queue(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.get_queue())
     {
@@ -260,29 +319,29 @@ struct context
 
     template <class T>
     static auto private_detail_te_default_wait_for(char, T&& private_detail_te_self, any_ptr queue)
-        -> decltype(private_detail_te_self.wait_for(queue))
+        -> decltype(private_detail_te_self.wait_for(std::move(queue)))
     {
-        private_detail_te_self.wait_for(queue);
+        private_detail_te_self.wait_for(std::move(queue));
     }
 
     template <class T>
     static void private_detail_te_default_wait_for(float, T&& private_detail_te_self, any_ptr queue)
     {
-        wait_for_context(private_detail_te_self, queue);
+        wait_for_context(private_detail_te_self, std::move(queue));
     }
 
     template <class T>
     static auto private_detail_te_default_finish_on(char, T&& private_detail_te_self, any_ptr queue)
-        -> decltype(private_detail_te_self.finish_on(queue))
+        -> decltype(private_detail_te_self.finish_on(std::move(queue)))
     {
-        private_detail_te_self.finish_on(queue);
+        private_detail_te_self.finish_on(std::move(queue));
     }
 
     template <class T>
     static void
     private_detail_te_default_finish_on(float, T&& private_detail_te_self, any_ptr queue)
     {
-        finish_on_context(private_detail_te_self, queue);
+        finish_on_context(private_detail_te_self, std::move(queue));
     }
 
     template <typename PrivateDetailTypeErasedT>
@@ -302,7 +361,7 @@ struct context
             PrivateDetailTypeErasedT value,
             typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
                                     int>::type* = nullptr) noexcept
-            : private_detail_te_value(value)
+            : private_detail_te_value(std::move(value))
         {
         }
 
@@ -325,6 +384,20 @@ struct context
             private_detail_te_default_from_value(char(0), private_detail_te_value, v);
         }
 
+        void set_exhaustive_tune_flag(bool v) override
+        {
+
+            private_detail_te_default_set_exhaustive_tune_flag(
+                char(0), private_detail_te_value, std::move(v));
+        }
+
+        bool get_exhaustive_tune_flag() const override
+        {
+
+            return private_detail_te_default_get_exhaustive_tune_flag(char(0),
+                                                                      private_detail_te_value);
+        }
+
         any_ptr get_queue() override
         {
 
@@ -334,13 +407,13 @@ struct context
         void wait_for(any_ptr queue) override
         {
 
-            private_detail_te_default_wait_for(char(0), private_detail_te_value, queue);
+            private_detail_te_default_wait_for(char(0), private_detail_te_value, std::move(queue));
         }
 
         void finish_on(any_ptr queue) override
         {
 
-            private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
+            private_detail_te_default_finish_on(char(0), private_detail_te_value, std::move(queue));
         }
 
         void finish() const override { private_detail_te_value.finish(); }
@@ -412,6 +485,7 @@ inline const ValueType& any_cast(const context& x)
 #endif
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
+
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 
 #endif

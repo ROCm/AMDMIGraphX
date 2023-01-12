@@ -508,7 +508,10 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t
 {
     this->min += x;
     this->max += x;
-    this->opt == 0 ? this->opt = 0 : this->opt += x;
+    if(this->opt != 0)
+    {
+        this->opt += x;
+    };
     return *this;
 }
 

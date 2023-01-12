@@ -215,6 +215,10 @@ struct context
         return *current_device;
     }
 
+    bool get_exhaustive_tune_flag() const { return exhaustive_tune; }
+
+    void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -336,7 +340,8 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool measure_perf = false;
+    bool exhaustive_tune = false;
+    bool measure_perf    = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

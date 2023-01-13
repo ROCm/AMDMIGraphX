@@ -760,6 +760,22 @@ def concat_test():
 
 
 @onnx_test()
+def concat_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None, 3])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [9, 4, 3])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['0', '1'],
+        axis=0,
+        outputs=['2'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])

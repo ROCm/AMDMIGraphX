@@ -2736,4 +2736,5 @@ TEST_CASE(test_dyn_concat)
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
 }
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -151,7 +151,7 @@ struct concat
 
             auto new_dims  = inputs[0].dyn_dims();
             new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max, 0};
-            return migraphx::shape(inputs[0].type(), new_dims);
+            return {inputs[0].type(), new_dims};
         }
         else
         {

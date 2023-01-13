@@ -2549,7 +2549,7 @@ TEST_CASE(gather_dyn_test0)
     std::iota(data.begin(), data.end(), 0);
     params["x"]       = migraphx::argument(input_fixed_shape, data.data());
     params["indices"] = migraphx::argument(input_indices, indices.data());
-    auto result        = p.eval(params).back();
+    auto result       = p.eval(params).back();
 
     std::vector<int> gold = {1, 2, 4, 5};
     std::vector<int> results_vector(2 * 1 * 2);

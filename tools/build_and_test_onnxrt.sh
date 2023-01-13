@@ -26,5 +26,5 @@ pip3 install -r requirements.txt
 # Add newer cmake to the path
 export PATH="/opt/cmake/bin:$PATH"
 export CXXFLAGS="-D__HIP_PLATFORM_HCC__=1 -w"
-./build.sh --config Release  --cmake_extra_defines CMAKE_HIP_COMPILER=/opt/rocm/llvm/bin/clang++ --update --build --parallel --cmake_extra_defines ONNXRUNTIME_VERSION=$(cat ./VERSION_NUMBER) --test --use_migraphx --migraphx_home /opt/rocm
+./build.sh --config Release  --cmake_extra_defines CMAKE_HIP_COMPILER=/opt/rocm/llvm/bin/clang++ --update --build --parallel --cmake_extra_defines ONNXRUNTIME_VERSION=$(cat ./VERSION_NUMBER) --skip_tests --use_rocm --rocm_home /opt/rocm --use_migraphx --migraphx_home /opt/rocm --rocm_version=`cat /opt/rocm/.info/version-dev`
 # pip3 install /code/onnxruntime/build/Linux/Release/dist/*.whl

@@ -461,8 +461,8 @@ struct ref_apply
 
     void init()
     {
-        apply_map["dot"]         = extend_op<ref_gemm, op::dot>();
-        apply_map["quant_dot"]   = extend_op<ref_quant_gemm, op::quant_dot>();
+        apply_map["dot"]        = extend_op<ref_gemm, op::dot>();
+        apply_map["quant_dot"]  = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();
         apply_map["lrn"]        = extend_op<ref_lrn, op::lrn>();

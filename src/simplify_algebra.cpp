@@ -51,8 +51,9 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
 
 auto conv_const_weights()
 {
-    return match::name("convolution")(match::used_once(),
-                                      match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
+    return match::name("convolution")(
+        match::used_once(),
+        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
 auto reduction() { return match::name_contains("reduce"); }
@@ -272,10 +273,11 @@ struct find_conv_add
     auto matcher() const
     {
         auto add = match::name("add")(
-                match::either_arg(0, 1)(match::any().bind("x"),
-                                        match::any_of(match::is_constant()).bind("a")), match::used_once());
+            match::either_arg(0, 1)(match::any().bind("x"),
+                                    match::any_of(match::is_constant()).bind("a")),
+            match::used_once());
         return match::name("convolution")(match::used_once(),
-                                      match::args(add, match::is_constant().bind("w")));
+                                          match::args(add, match::is_constant().bind("w")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

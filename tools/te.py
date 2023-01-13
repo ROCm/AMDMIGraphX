@@ -24,8 +24,8 @@
 import string, sys, re
 
 trivial = [
-    'std::size_t', 'instruction_ref', 'support_metric', 'const_module_ref', 
-	'bool', 'any_ptr'
+    'std::size_t', 'instruction_ref', 'support_metric', 'const_module_ref',
+    'bool', 'any_ptr'
 ]
 
 headers = '''

@@ -2919,4 +2919,53 @@ TEST_CASE(reorder_slice_ins_deps)
     EXPECT(m == create_module());
 }
 
+TEST_CASE(dot_fusion_reshape)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 4096, 320}};
+        auto input = m1.add_parameter("input", s);
+
+        auto p0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 0));
+        auto p1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 1));
+
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), input, p0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), input, p1);
+
+        auto r0 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 8, 40}}}), d0);
+        m1.add_return({r0, d1});
+    };
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 4096, 320}};
+        auto input = m2.add_parameter("input", s);
+
+        auto p0 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 0));
+        auto p1 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 1));
+
+        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), p0, p1);
+        auto d = m2.add_instruction(migraphx::make_op("dot"), input, c);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {320}}}), d);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {320}}, {"ends", {640}}}), d);
+
+        auto cont0 = m2.add_instruction(migraphx::make_op("contiguous"), s0);
+        auto r0 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 8, 40}}}), cont0);
+
+        m2.add_return({r0, s1});
+    };
+
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

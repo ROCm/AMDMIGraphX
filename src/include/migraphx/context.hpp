@@ -191,7 +191,7 @@ struct context
     void set_exhaustive_tune_flag(bool v)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().set_exhaustive_tune_flag(std::move(v));
+        (*this).private_detail_te_get_handle().set_exhaustive_tune_flag(v);
     }
 
     bool get_exhaustive_tune_flag() const
@@ -209,13 +209,13 @@ struct context
     void wait_for(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait_for(std::move(queue));
+        (*this).private_detail_te_get_handle().wait_for(queue);
     }
 
     void finish_on(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().finish_on(std::move(queue));
+        (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
     void finish() const
@@ -278,16 +278,16 @@ struct context
     template <class T>
     static auto
     private_detail_te_default_set_exhaustive_tune_flag(char, T&& private_detail_te_self, bool v)
-        -> decltype(private_detail_te_self.set_exhaustive_tune_flag(std::move(v)))
+        -> decltype(private_detail_te_self.set_exhaustive_tune_flag(v))
     {
-        private_detail_te_self.set_exhaustive_tune_flag(std::move(v));
+        private_detail_te_self.set_exhaustive_tune_flag(v);
     }
 
     template <class T>
     static void
     private_detail_te_default_set_exhaustive_tune_flag(float, T&& private_detail_te_self, bool v)
     {
-        set_exhaustive_tune_flag_context(private_detail_te_self, std::move(v));
+        set_exhaustive_tune_flag_context(private_detail_te_self, v);
     }
 
     template <class T>
@@ -319,29 +319,29 @@ struct context
 
     template <class T>
     static auto private_detail_te_default_wait_for(char, T&& private_detail_te_self, any_ptr queue)
-        -> decltype(private_detail_te_self.wait_for(std::move(queue)))
+        -> decltype(private_detail_te_self.wait_for(queue))
     {
-        private_detail_te_self.wait_for(std::move(queue));
+        private_detail_te_self.wait_for(queue);
     }
 
     template <class T>
     static void private_detail_te_default_wait_for(float, T&& private_detail_te_self, any_ptr queue)
     {
-        wait_for_context(private_detail_te_self, std::move(queue));
+        wait_for_context(private_detail_te_self, queue);
     }
 
     template <class T>
     static auto private_detail_te_default_finish_on(char, T&& private_detail_te_self, any_ptr queue)
-        -> decltype(private_detail_te_self.finish_on(std::move(queue)))
+        -> decltype(private_detail_te_self.finish_on(queue))
     {
-        private_detail_te_self.finish_on(std::move(queue));
+        private_detail_te_self.finish_on(queue);
     }
 
     template <class T>
     static void
     private_detail_te_default_finish_on(float, T&& private_detail_te_self, any_ptr queue)
     {
-        finish_on_context(private_detail_te_self, std::move(queue));
+        finish_on_context(private_detail_te_self, queue);
     }
 
     template <typename PrivateDetailTypeErasedT>
@@ -387,8 +387,7 @@ struct context
         void set_exhaustive_tune_flag(bool v) override
         {
 
-            private_detail_te_default_set_exhaustive_tune_flag(
-                char(0), private_detail_te_value, std::move(v));
+            private_detail_te_default_set_exhaustive_tune_flag(char(0), private_detail_te_value, v);
         }
 
         bool get_exhaustive_tune_flag() const override
@@ -407,13 +406,13 @@ struct context
         void wait_for(any_ptr queue) override
         {
 
-            private_detail_te_default_wait_for(char(0), private_detail_te_value, std::move(queue));
+            private_detail_te_default_wait_for(char(0), private_detail_te_value, queue);
         }
 
         void finish_on(any_ptr queue) override
         {
 
-            private_detail_te_default_finish_on(char(0), private_detail_te_value, std::move(queue));
+            private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
         }
 
         void finish() const override { private_detail_te_value.finish(); }

@@ -2421,7 +2421,6 @@ TEST_CASE(test_gathernd_dynamic1)
     throws_shape(migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
 }
 
-
 TEST_CASE(test_gathernd_dynamic2)
 {
     // batch_dims >= r
@@ -2433,7 +2432,6 @@ TEST_CASE(test_gathernd_dynamic2)
     int batch_dims(3);
     throws_shape(migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
 }
-
 
 TEST_CASE(test_gathernd_dynamic3)
 {

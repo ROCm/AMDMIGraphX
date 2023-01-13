@@ -34,11 +34,11 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class Output, class T, class Padding, class Stride>
+template <class Output, class T, class Padding, class Stride>
 void convolution(Output output, T input, T weights, Padding padding, Stride stride, int group)
 {
     auto output_shape = output.get_shape();
-    auto in_lens = input.get_shape().lens();
+    auto in_lens      = input.get_shape().lens();
 
     auto wei_lens = weights.get_shape().lens();
     auto wei_n    = wei_lens[0];
@@ -68,22 +68,21 @@ void convolution(Output output, T input, T weights, Padding padding, Stride stri
             std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
             idx[1] = in_ch;
             std::transform(idx_win.begin() + 1,
-                            idx_win.end(),
-                            win_start.begin(),
-                            idx.begin() + 2,
-                            [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
+                           idx_win.end(),
+                           win_start.begin(),
+                           idx.begin() + 2,
+                           [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
             std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
             idx_wei[0] = w;
             std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
             if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                std::equal(idx.begin(),
-                            idx.end(),
-                            in_lens.begin(),
-                            in_lens.end(),
-                            std::less<std::ptrdiff_t>{}))
+               std::equal(idx.begin(),
+                          idx.end(),
+                          in_lens.begin(),
+                          in_lens.end(),
+                          std::less<std::ptrdiff_t>{}))
             {
-                acc +=
-                    input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
+                acc += input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
             }
         });
 

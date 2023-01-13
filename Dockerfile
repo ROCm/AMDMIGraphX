@@ -95,9 +95,7 @@ RUN cget -p $PREFIX install kitware/cmake@v3.24.3
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
-#ARG ONNXRUNTIME_COMMIT=3d8b596cb9e5e3e9640c44789e591aaf0c91c72b
-#Commit just before Abseil update Dec17th
-ARG ONNXRUNTIME_COMMIT=6fb54fc607d94de50a18997430d7c87b0d921e87
+ARG ONNXRUNTIME_COMMIT=c9a53c925510a101f5ca94d5ecda0924e40a8463
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
     git checkout ${ONNXRUNTIME_COMMIT} && \

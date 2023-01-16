@@ -54,6 +54,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# add this for roctracer dependancies
+RUN pip3 install CppHeaderParser packaging==22.0
+
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
@@ -90,7 +93,7 @@ RUN /download_models.sh && rm /download_models.sh
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p $PREFIX install kitware/cmake@v3.24.3
+RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
 
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
@@ -114,6 +117,3 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
 
-# add this for roctracer dependancies
-RUN pip3 install CppHeaderParser
-RUN pip3 install packaging==22.0

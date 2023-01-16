@@ -874,12 +874,25 @@ TEST_CASE(gather_dyn2)
 
 TEST_CASE(gather_dyn3)
 {
-    // Insert dynamic index into static shape
+    // Insert dynamic index into static shape, axis 1
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 6, 12}};
     migraphx::shape indices{migraphx::shape::int32_type, {{2, 3, 2}, {3, 4, 3}}};
     int axis = 1;
     expect_shape(migraphx::shape{migraphx::shape::float_type,
                                  {{2, 2, 0}, {2, 3, 2}, {3, 4, 3}, {6, 6, 0}, {12, 12, 0}}},
+                 migraphx::make_op("gather", {{"axis", axis}}),
+                 input,
+                 indices);
+}
+
+TEST_CASE(gather_dyn4)
+{
+    // Insert dynamic index into static shape, axis 0
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 6, 12}};
+    migraphx::shape indices{migraphx::shape::int32_type, {{2, 3, 2}, {3, 4, 3}}};
+    int axis = 0;
+    expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                 {{2, 3, 2}, {3, 4, 3}, {3, 3, 0}, {6, 6, 0}, {12, 12, 0}}},
                  migraphx::make_op("gather", {{"axis", axis}}),
                  input,
                  indices);

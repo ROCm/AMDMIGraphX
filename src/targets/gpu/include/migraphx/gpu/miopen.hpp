@@ -33,6 +33,7 @@
 #include <migraphx/config.hpp>
 
 #include <sstream>
+#include <migraphx/stringutils.hpp>
 
 #ifdef MIGRAPHX_HAS_FIND_MODE_API
 extern "C" miopenStatus_t
@@ -97,6 +98,19 @@ inline void set_tensor_descriptor(miopenTensorArgumentId_t name,
     }
 }
 #endif
+
+inline std::string get_miopen_version()
+{
+    size_t major = 0;
+    size_t minor = 0;
+    size_t patch = 0;
+    auto status  = miopenGetVersion(&major, &minor, &patch);
+    if(status != miopenStatusSuccess)
+    {
+        MIGRAPHX_THROW("MIOpen failed to retrieve miopen version info");
+    }
+    return to_string_range({major, minor, patch}, ".");
+}
 
 inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = false)
 {

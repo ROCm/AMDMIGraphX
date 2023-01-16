@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/version.h>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -492,13 +493,19 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     return ret;
 }
 
+inline std::string get_migraphx_version()
+{
+    return std::to_string(MIGRAPHX_VERSION_MAJOR) + "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+}
+
 const int program_file_version = 5;
 
 value program::to_value() const
 {
     value result;
-    result["version"] = program_file_version;
-    result["target"]  = this->impl->target_name;
+    result["version"]          = program_file_version;
+    result["migraphx_version"] = get_migraphx_version();
+    result["target"]           = this->impl->target_name;
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
 
@@ -627,6 +634,11 @@ void program::from_value(const value& v)
     if(version != program_file_version)
     {
         MIGRAPHX_THROW("Warning: Program version mismatch");
+    }
+    auto migx_version = v.at("migraphx_version").to<std::string>();
+    if(migx_version != get_migraphx_version() && enabled(MIGRAPHX_ENABLE_TUNING_WARNINGS{}))
+    {
+        std::clog << "MIGraphX version mismatch, Operators may not be compatbile." << std::endl;
     }
 
     this->impl->target_name = v.at("target").to<std::string>();

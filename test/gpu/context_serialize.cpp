@@ -33,7 +33,7 @@ TEST_CASE(gpu_context_serialize)
     migraphx::context ctx = migraphx::gpu::context{0, 3};
 
     auto v = ctx.to_value();
-    EXPECT(v.size() == 2);
+    EXPECT(v.size() == 5);
 
     EXPECT(v.contains("events"));
     EXPECT(v.at("events").without_key().to<std::size_t>() == 0);

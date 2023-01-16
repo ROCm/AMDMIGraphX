@@ -258,9 +258,11 @@ struct context
     value to_value() const
     {
         value result;
-        result["events"]  = events.size();
-        result["streams"] = current_device->nstreams();
-
+        result["events"]         = events.size();
+        result["streams"]        = current_device->nstreams();
+        result["gfx_arch"]       = current_device->get_device_name();
+        result["cu_count"]       = current_device->get_cu_count();
+        result["miopen_version"] = get_miopen_version();
         return result;
     }
 
@@ -272,8 +274,27 @@ struct context
 
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
+        this->current_device  = std::make_shared<hip_device>(0, n_streams);
+#ifdef MIGRAPHX_HAS_FIND_2_API
+        {
+            auto v_gfx_arch = v.at("gfx_arch").to<std::string>();
 
-        this->current_device = std::make_shared<hip_device>(0, n_streams);
+            auto v_cu_count        = v.at("cu_count");
+            std::size_t n_cu_count = v_cu_count.without_key().to<std::size_t>();
+
+            std::string current_gfx_arch = this->current_device->get_device_name();
+            std::size_t current_cu_count = this->current_device->get_cu_count();
+            if(n_cu_count != current_cu_count or v_gfx_arch != current_gfx_arch)
+            {
+                MIGRAPHX_THROW("MIGraphX model was compiled for gfx_arch: " + v_gfx_arch +
+                               " with number of CUs=" + std::to_string(n_cu_count) +
+                               ", but current device has gfx_arch: " + current_gfx_arch +
+                               " with number of CUs=" + std::to_string(current_cu_count) +
+                               ", performance may suffer. Consider re-compiling the model with "
+                               "environment variable MIOPEN_FIND_ENFORCE=3 to re-tune the model.");
+            }
+        }
+#endif
     }
 
     void wait_for(any_ptr queue)

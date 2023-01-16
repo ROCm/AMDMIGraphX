@@ -1027,7 +1027,7 @@ TEST_CASE(contiguous_dyn_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_dynamic_batch_test)
+TEST_CASE(conv_dyn_batch_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

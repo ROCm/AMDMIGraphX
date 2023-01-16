@@ -1118,6 +1118,25 @@ TEST_CASE(conv_dynamic_batch_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(conv_dynamic_bias_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x0  = mm->add_parameter(
+        "0", {migraphx::shape::float_type, {{1, 6, 0}, {3, 3, 0}, {32, 32, 0}, {32, 32, 0}}});
+    auto x1 = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
+    auto x2 = mm->add_parameter("2", {migraphx::shape::float_type, {1}});
+    auto x3 = mm->add_instruction(migraphx::make_op("convolution"), x0, x1);
+    auto x4 = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), x2, x3);
+    auto x5 = mm->add_instruction(migraphx::make_op("add"), x3, x4);
+    mm->add_return({x5});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 6, 0};
+    auto prog                     = migraphx::parse_onnx("conv_dynamic_bias_test.onnx", options);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(conv_dynamic_img_test)
 {
     migraphx::program p;
@@ -3413,6 +3432,92 @@ TEST_CASE(matmul_vv_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(matmul_dyn_mm_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "1", migraphx::shape{migraphx::shape::float_type, {{4, 8, 6}, {7, 7, 0}}});
+    auto l1 = mm->add_parameter(
+        "2", migraphx::shape{migraphx::shape::float_type, {{7, 7, 0}, {1, 5, 3}}});
+    auto ret = migraphx::add_apply_alpha_beta(*mm, {l0, l1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["1"] = {{4, 8, 6}, {7, 7, 0}};
+    options.map_dyn_input_dims["2"] = {{7, 7, 0}, {1, 5, 3}};
+    auto prog                       = parse_onnx("matmul_dyn_mm_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_dyn_mv_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "1", migraphx::shape{migraphx::shape::float_type, {{4, 8, 6}, {7, 7, 0}}});
+    auto l1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto sl1 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l1);
+    auto res = migraphx::add_apply_alpha_beta(*mm, {l0, sl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto ret = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), res);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["1"] = {{4, 8, 6}, {7, 7, 0}};
+    auto prog                       = parse_onnx("matmul_dyn_mv_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_dyn_vm_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l1  = mm->add_parameter(
+        "2", migraphx::shape{migraphx::shape::float_type, {{7, 7, 0}, {4, 10, 8}}});
+    auto sl0 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l0);
+    auto res = migraphx::add_apply_alpha_beta(*mm, {sl0, l1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto ret = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), res);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["2"] = {{7, 7, 0}, {4, 10, 8}};
+    auto prog                       = parse_onnx("matmul_dyn_vm_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_dyn_vv_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape::dynamic_dimension dd{5, 8, 7};
+    auto l0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {dd}});
+    auto l1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {dd}});
+    auto sl0 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l0);
+    auto sl1 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l1);
+    auto res =
+        migraphx::add_apply_alpha_beta(*mm, {sl0, sl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto sr0 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), res);
+    auto ret = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sr0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = dd;
+    auto prog                     = parse_onnx("matmul_dyn_vv_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_dyn_broadcast_error)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("matmul_dyn_broadcast_error.onnx", options); }));
+}
+
 TEST_CASE(matmulinteger_test)
 {
     migraphx::program p;
@@ -3424,6 +3529,13 @@ TEST_CASE(matmulinteger_test)
     auto prog = optimize_onnx("matmulinteger_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(matmulinteger_dyn_error)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("matmulinteger_dyn_error.onnx", options); }));
 }
 
 TEST_CASE(max_test)

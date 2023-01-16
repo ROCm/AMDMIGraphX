@@ -90,7 +90,6 @@ struct miopen_apply
 
         add_extend_op("argmax");
         add_extend_op("argmin");
-        add_extend_op("gather");
         add_extend_op("logsoftmax");
         add_extend_op("lrn");
         add_extend_op("multinomial");

@@ -588,10 +588,11 @@ struct mlir_program
         tuning_table = mlirRockTuningTableCreate();
         std::ifstream table_in("/opt/rocm/share/miopen/db/rockgemm.tsv");
         std::string arch, prob, perf, key;
+        std::getline(table_in, arch);
         while(std::getline(table_in, arch, '\t'))
         {
             std::getline(table_in, prob, '\t');
-            std::getline(table_in, perf, '\t');
+            std::getline(table_in, perf);
             key             = arch + "\t" + prob;
             char* key_cstr  = strdup(key.c_str());
             char* perf_cstr = strdup(perf.c_str());

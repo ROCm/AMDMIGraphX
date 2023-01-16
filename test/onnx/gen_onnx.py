@@ -6600,6 +6600,7 @@ def trilu_out_k_test():
     node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
     return ([node], [x], [y], [k_tensor])
 
+
 @onnx_test()
 def undefined_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])

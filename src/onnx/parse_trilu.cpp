@@ -42,7 +42,7 @@ struct parse_trilu : op_parser<parse_trilu>
     {
         auto input_shape = args[0]->get_shape();
         assert(input_shape.ndim() >= 2);
-        auto input_lens  = input_shape.lens();
+        auto input_lens = input_shape.lens();
 
         size_t num_rows = *(input_lens.rbegin() + 1);
         size_t num_cols = input_lens.back();
@@ -58,7 +58,6 @@ struct parse_trilu : op_parser<parse_trilu>
 
         if(k < 0)
             MIGRAPHX_THROW("PARSE_TRILU: negative k values not supported");
-        
 
         if(contains(info.attributes, "upper"))
         {
@@ -79,8 +78,8 @@ struct parse_trilu : op_parser<parse_trilu>
             k++;
         }
 
-        auto mask =
-            info.add_literal(migraphx::literal{migraphx::shape{output_type, {num_rows, num_cols}}, mask_mat});
+        auto mask = info.add_literal(
+            migraphx::literal{migraphx::shape{output_type, {num_rows, num_cols}}, mask_mat});
 
         return info.add_broadcastable_binary_op("mul", mask, args[0]);
     }

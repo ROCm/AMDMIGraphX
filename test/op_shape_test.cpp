@@ -864,7 +864,11 @@ TEST_CASE(gather_dyn2)
     // Insert scalar (static) index into dynamic shape
     migraphx::shape input{migraphx::shape::float_type,
                           {{2, 3, 2}, {3, 4, 3}, {6, 9, 7}, {12, 14, 13}}};
-    migraphx::shape indices{migraphx::shape::int32_type, {}};
+
+    std::vector<std::size_t> mins;
+    std::vector<std::size_t> maxes;
+    std::vector<std::size_t> opts;                          
+    migraphx::shape indices{migraphx::shape::int32_type, mins, maxes, opts};
     int axis = 1;
     expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 3, 2}, {6, 9, 7}, {12, 14, 13}}},
                  migraphx::make_op("gather", {{"axis", axis}}),

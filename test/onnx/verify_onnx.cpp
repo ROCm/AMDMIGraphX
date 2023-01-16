@@ -1407,4 +1407,15 @@ TEST_CASE(trilu_lower_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(trilu_out_k_test)
+{
+    migraphx::program p = migraphx::parse_onnx("trilu_out_k_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test(p);
+
+    std::vector<float> gold(12, 0);
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -41,19 +41,24 @@ struct parse_trilu : op_parser<parse_trilu>
                           std::vector<instruction_ref> args) const
     {
         auto input_shape = args[0]->get_shape();
+        assert(input_shape.ndim() >= 2);
         auto input_lens  = input_shape.lens();
 
         size_t num_rows = *(input_lens.rbegin() + 1);
         size_t num_cols = input_lens.back();
-        size_t k        = 0;
+        int k           = 0;
         bool upper      = true;
 
         if(args.size() > 1)
         {
             auto arg_k = args[1]->eval();
             check_arg_empty(arg_k, "PARSE_TRILU: dynamic k not supported");
-            k = arg_k.at<size_t>();
+            k = arg_k.at<int>();
         }
+
+        if(k < 0)
+            MIGRAPHX_THROW("PARSE_TRILU: negative k values not supported");
+        
 
         if(contains(info.attributes, "upper"))
         {
@@ -67,7 +72,7 @@ struct parse_trilu : op_parser<parse_trilu>
         std::vector<bool> mask_mat(num_rows * num_cols, upper);
         for(size_t i = 0; i < num_rows; i++)
         {
-            for(size_t j = 0; j < k; j++)
+            for(size_t j = 0; j < std::min(k, static_cast<int>(num_cols)); j++)
             {
                 mask_mat[i * num_cols + j] = not upper;
             }
@@ -75,9 +80,9 @@ struct parse_trilu : op_parser<parse_trilu>
         }
 
         auto mask =
-            info.add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, mask_mat});
+            info.add_literal(migraphx::literal{migraphx::shape{output_type, {num_rows, num_cols}}, mask_mat});
 
-        return info.add_instruction(make_op("mul"), mask, args[0]);
+        return info.add_broadcastable_binary_op("mul", mask, args[0]);
     }
 };
 

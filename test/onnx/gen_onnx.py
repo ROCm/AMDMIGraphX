@@ -6574,6 +6574,33 @@ def trilu_lower_test():
 
 
 @onnx_test()
+def trilu_neg_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([-1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_out_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
+    return ([node], [x], [y], [k_tensor])
+
+@onnx_test()
 def undefined_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])

@@ -867,7 +867,7 @@ TEST_CASE(gather_dyn2)
 
     std::vector<std::size_t> mins;
     std::vector<std::size_t> maxes;
-    std::vector<std::size_t> opts;                          
+    std::vector<std::size_t> opts;
     migraphx::shape indices{migraphx::shape::int32_type, mins, maxes, opts};
     int axis = 1;
     expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 3, 2}, {6, 9, 7}, {12, 14, 13}}},

@@ -6693,16 +6693,18 @@ TEST_CASE(where_test)
     EXPECT(p == prog);
 }
 
-
 TEST_CASE(where_dyn_test)
 {
     // TODO: broadcasting for dynamic shapes isn't implemented at time of writing.
     // Update this test case to use shapes that require broadcasting, when available.
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto lc  = mm->add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
-    auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
-    auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
+    auto lc  = mm->add_parameter(
+        "c", migraphx::shape{migraphx::shape::bool_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
+    auto lx = mm->add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
+    auto ly = mm->add_parameter(
+        "y", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
 
     auto r = mm->add_instruction(migraphx::make_op("where"), lc, lx, ly);
     mm->add_return({r});
@@ -6717,7 +6719,8 @@ TEST_CASE(where_dyn_test)
     // migraphx::program p;
     // auto l0  = mm->add_parameter(
     //     "x",
-    //     migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {5, 5, 0}, {6, 6, 0}}});
+    //     migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {5, 5, 0}, {6, 6,
+    //     0}}});
     // auto ins = mm->add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), l0);
     // auto ret = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
     // mm->add_return({ret});
@@ -6726,7 +6729,7 @@ TEST_CASE(where_dyn_test)
     // options.default_dyn_dim_value = {1, 4, 0};
     // auto prog                     = parse_onnx("argmax_dyn_test.onnx", options);
 
-    // EXPECT(p == prog);    
+    // EXPECT(p == prog);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

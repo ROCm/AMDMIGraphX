@@ -44,15 +44,16 @@ struct where
     {
         check_shapes{inputs, *this, true}.has(3).same_dims();
         auto s_pred = inputs.at(0);
-        auto s1 = inputs.at(1);
-        auto s2 = inputs.at(2);
+        auto s1     = inputs.at(1);
+        auto s2     = inputs.at(2);
         if(s1.dynamic() or s2.dynamic())
         {
             if(s1 == s2)
                 return s1;
-            // MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");  what is point_function() for?
+            // MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");  what
+            // is point_function() for?
             MIGRAPHX_THROW("WHERE: fixed-dyn shape for inputs");
-        }        
+        }
 
         // Compare two static shapes, returning a standard shape
         if(s1 == s2 and s1.packed())

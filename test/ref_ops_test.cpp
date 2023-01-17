@@ -7789,7 +7789,7 @@ TEST_CASE(where_dyn_test)
     auto* mm = p.get_main_module();
     migraphx::shape sb{migraphx::shape::bool_type, {{2, 3, 0}, {2, 3, 0}}};
     migraphx::shape sx{migraphx::shape::float_type, {{2, 3, 0}, {2, 3, 0}}};
-    
+
     auto lb = mm->add_parameter("predicate", sb);
     auto lx = mm->add_parameter("X", sx);
     auto ly = mm->add_parameter("Y", sx);
@@ -7807,7 +7807,7 @@ TEST_CASE(where_dyn_test)
 
     params["predicate"] = migraphx::argument(input_fixed_shape1, b.data());
     
-    auto result  = p.eval(params).back();
+    auto result = p.eval(params).back();
     std::vector<float> results_vector(3 * 3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1, 1, 1, 2, 2, 2, 1, 2, 1};

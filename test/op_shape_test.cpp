@@ -2723,7 +2723,6 @@ TEST_CASE(where_dyn_input1)
     throws_shape(migraphx::make_op("where"), s3, s1, s2);
 }
 
-
 TEST_CASE(where_dyn_input2)
 {
     // dynamic shapes
@@ -2732,7 +2731,6 @@ TEST_CASE(where_dyn_input2)
     migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 3, 0}}};
     expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
 }
-
 
 TEST_CASE(roialign_test)
 {

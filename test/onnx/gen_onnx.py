@@ -6828,7 +6828,7 @@ def where_test():
 
 @onnx_test()
 def where_dyn_test():
-    c = helper.make_tensor_value_info('c', TensorProto.BOOL,  [None, 2, 2])
+    c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 2, 2])
 

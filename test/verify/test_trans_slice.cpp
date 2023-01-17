@@ -27,24 +27,29 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <int Index>
-struct test_gather_1d_index : verify_program<test_gather_1d_index<Index>>
+struct test_trans_slice : verify_program<test_trans_slice>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1}};
-        std::vector<int> indices{Index};
-        auto a0  = mm->add_parameter("data", s);
-        auto a1  = mm->add_literal(migraphx::literal{s_indices, indices});
-        int axis = -1;
-        mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
+
+        auto x = mm->add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});
+        auto transpose =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), x);
+        auto slice1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}),
+            transpose);
+        auto slice2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {12}}, {"ends", {24}}}),
+            transpose);
+        auto transpose2 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), slice2);
+        auto slice3 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {24}}, {"ends", {36}}}),
+            transpose);
+        mm->add_return({slice1, transpose2, slice3});
+
         return p;
     }
 };
-
-// Test for positive and negative single dim indices
-template struct test_gather_1d_index<1>;
-template struct test_gather_1d_index<-1>;

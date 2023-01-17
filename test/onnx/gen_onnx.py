@@ -1122,6 +1122,24 @@ def conv_dynamic_batch_test():
 
 
 @onnx_test()
+def conv_dynamic_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('3', TensorProto.FLOAT,
+                                        [None, 2, 28, 28])
+
+    node = onnx.helper.make_node('Conv',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z], [out])
+
+
+@onnx_test()
 def conv_dynamic_img_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
                                       [1, 3, None, None])
@@ -3546,10 +3564,100 @@ def matmul_vv_test():
 
 
 @onnx_test()
+def matmul_dyn_mm_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, None])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmul_dyn_mv_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmul_dyn_vm_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, None])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmul_dyn_vv_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmul_dyn_broadcast_error():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5, 7, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, None])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
 def matmulinteger_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [3, 6, 16])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 16, 8])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [3, 6, 8])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmulinteger_dyn_error():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [None, 6, 16])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [None, 16, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [None, 6, 8])
 
     node = onnx.helper.make_node(
         'MatMulInteger',
@@ -4196,6 +4304,53 @@ def pad_reflect_multiaxis_test():
                                  outputs=['1'])
 
     return ([arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_attr_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None])
+
+    node = onnx.helper.make_node('Pad',
+                                 inputs=['0'],
+                                 pads=[1, 1, 1, 1],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def pad_cnst_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None])
+
+    sizes = np.array([0, 2, 0, 1])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    node = onnx.helper.make_node('Pad', inputs=['0', 'arg_pad'], outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_dyn_reflect_error():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None])
+
+    node = onnx.helper.make_node('Pad',
+                                 mode='reflect',
+                                 inputs=['0'],
+                                 pads=[0, 2, 0, 1],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test()

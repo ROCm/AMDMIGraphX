@@ -7796,7 +7796,7 @@ TEST_CASE(where_dyn_test)
     mm->add_instruction(migraphx::make_op("where"), lb, lx, ly);
     p.compile(migraphx::ref::target{});
 
-    std::vector<char> b{true, true, true, false, false, false, true, false, true};
+    std::vector<char> b{1, 1, 1, 0, 0, 0, 1, 0, 1};
     std::vector<float> x(9, 1.0);
     std::vector<float> y(9, 2.0);
     migraphx::parameter_map params;

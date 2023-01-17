@@ -73,13 +73,12 @@ struct gather
         }
         if(data.dynamic())
         {
-            std::vector<shape::dynamic_dimension> dims{data.dyn_dims()};
+            auto dims = data.dyn_dims();
             dims.erase(dims.begin() + axis);
 
             if(not indices.scalar())
             {
-                std::vector<shape::dynamic_dimension> index_dims;
-                index_dims = indices.to_dynamic().dyn_dims();
+                auto index_dims = indices.to_dynamic().dyn_dims();
                 dims.insert(dims.begin() + axis, index_dims.begin(), index_dims.end());
             }
             return {type, dims};

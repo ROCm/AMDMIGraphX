@@ -5071,6 +5071,26 @@ TEST_CASE(pad_test_lowest_half)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(pad_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4, 2}, {2, 4, 2}}};
+    auto x = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("pad", {{"pads", {1, 1, 1, 1}}}), x);
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> data = {1, 2, 3, 4};
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 2}};
+    params["x"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 0, 0, 0, 0, 0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(pointwise_test)
 {
     migraphx::program p;

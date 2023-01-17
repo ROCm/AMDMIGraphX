@@ -113,15 +113,19 @@ struct parse_gemm : op_parser<parse_gemm>
                             make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
                     }
                 }
-                auto beta_literal = info.add_literal(beta);
-                auto beta_c       = info.add_broadcastable_binary_op("mul", c_arg, beta_literal);
-                if(beta_c->get_shape().type() != dot_type)
+
+                if(not float_equal(beta, 1.0f))
                 {
-                    beta_c = info.add_instruction(make_op("convert", {{"target_type", dot_type}}),
-                                                  beta_c);
+                    auto beta_literal = info.add_literal(beta);
+                    c_arg = info.add_broadcastable_binary_op("mul", c_arg, beta_literal);
+                    if(c_arg->get_shape().type() != dot_type)
+                    {
+                        c_arg = info.add_instruction(
+                            make_op("convert", {{"target_type", dot_type}}), c_arg);
+                    }
                 }
 
-                return info.add_instruction(make_op("add"), dot_ins, beta_c);
+                return info.add_instruction(make_op("add"), dot_ins, c_arg);
             }
         }
         return dot_ins;

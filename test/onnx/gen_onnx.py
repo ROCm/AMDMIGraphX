@@ -2215,7 +2215,7 @@ def gemm_dyn_outer_test():
 
 
 @onnx_test()
-def gemm_dyn_C_error():
+def gemm_dyn_bias_test():
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [8, None])
     B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [8, 7])
     C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [1, 7])

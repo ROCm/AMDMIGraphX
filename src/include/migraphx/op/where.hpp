@@ -43,8 +43,8 @@ struct where
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(3).same_dims();
-        auto s1     = inputs.at(1);
-        auto s2     = inputs.at(2);
+        auto s1 = inputs.at(1);
+        auto s2 = inputs.at(2);
         if(s1.dynamic() or s2.dynamic())
         {
             if(s1 == s2)

@@ -39,6 +39,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REMOVE_LAST_OUTPUT);
+
 namespace onnx {
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
@@ -362,6 +364,8 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
                    std::back_inserter(output_ins),
                    [&](const auto& name) { return instructions[name]; });
 
+    if(enabled(MIGRAPHX_REMOVE_LAST_OUTPUT{}) and output_ins.size() > 1)
+        output_ins.pop_back();
     // add the return instuction
     mod->add_return(output_ins);
 

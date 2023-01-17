@@ -40,28 +40,41 @@ struct parse_where : op_parser<parse_where>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto lens =
-            compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
-        lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
-        if(args[0]->get_shape().lens() != lens)
+        // This op. doesn't currently support a mix of static and dynamic shapes.
+        // Also, TODO: broadcasting for dynamic shapes isn't implemented at time of writing.
+        //   When it becomes available, add broadcasting steps in the dynamic shape case.
+        // For now for dynamic shapes, just insert the Where op.  All shapes must be the
+        // same for it to succeed.
+        if(std::all_of(args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
         {
-            args[0] =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[0]);
+            return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
         }
-
-        if(args[1]->get_shape().lens() != lens)
+        else
         {
-            args[1] =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[1]);
-        }
+            // If shapes are static and any are broadcasted, insert multibroadcast ops
+            auto lens =
+                compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
+            lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
+            if(args[0]->get_shape().lens() != lens)
+            {
+                args[0] =
+                    info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[0]);
+            }
 
-        if(args[2]->get_shape().lens() != lens)
-        {
-            args[2] =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[2]);
-        }
+            if(args[1]->get_shape().lens() != lens)
+            {
+                args[1] =
+                    info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[1]);
+            }
 
-        return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
+            if(args[2]->get_shape().lens() != lens)
+            {
+                args[2] =
+                    info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[2]);
+            }
+
+            return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
+        }
     }
 };
 

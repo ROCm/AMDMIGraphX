@@ -2278,13 +2278,6 @@ TEST_CASE(gemm_dyn_outer_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(gemm_dyn_C_error)
-{
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4, 0};
-    EXPECT(test::throws([&] { migraphx::parse_onnx("gemm_dyn_C_error.onnx", options); }));
-}
-
 TEST_CASE(gemm_rank_error)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("gemm_rank_error.onnx"); }));

@@ -2058,6 +2058,55 @@ TEST_CASE(reshape_shape)
     }
 }
 
+TEST_CASE(reshape_dyn_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {1, 1, 0}, {1, 1, 0}}};
+    for(auto&& new_shape : std::vector<std::vector<int64_t>>{
+            {-1, 1, 1, 24}, {0, 8, 3, 1}, {-1, 3, 4, 2}, {0, 2, 4, 3}})
+    {
+        std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims{};
+        for(std::size_t i = 0; i < new_shape.size(); ++i)
+        {
+            if(new_shape[i] == 0 or new_shape[i] == -1)
+            {
+                out_dyn_dims.push_back(input.dyn_dims().at(i));
+            }
+            else
+            {
+                std::size_t d = new_shape[i];
+                out_dyn_dims.push_back({d, d, 0});
+            }
+        }
+        migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
+        expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    }
+}
+
+TEST_CASE(reshape_multiple_non_fixed_error)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {10, 20, 0}, {1, 1, 0}}};
+    std::vector<int64_t> new_shape = {0, 1, 0, 24};
+    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_fixed_ele_not_matching_error)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {10, 10, 0}, {1, 1, 0}}};
+    std::vector<int64_t> new_shape = {0, 1, 5, 24};
+    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_non_fixed_not_matching_error)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {1, 1, 0}, {1, 1, 0}}};
+    std::vector<int64_t> new_shape = {2, 1, 1, 24};
+    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
 TEST_CASE(rnn)
 {
     {

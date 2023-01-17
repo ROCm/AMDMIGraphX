@@ -7806,7 +7806,7 @@ TEST_CASE(where_dyn_test)
     params["Y"] = migraphx::argument(input_fixed_shape0, y.data());
 
     params["predicate"] = migraphx::argument(input_fixed_shape1, b.data());
-    
+
     auto result = p.eval(params).back();
     std::vector<float> results_vector(3 * 3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

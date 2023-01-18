@@ -66,7 +66,7 @@ TEST_CASE(load_and_run_init_list)
 
 TEST_CASE(quantize_fp16)
 {
-    auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");
+    auto p1        = migraphx::parse_onnx("gemm_test.onnx");
     const auto& p2 = p1;
     const auto& p3 = p1;
     migraphx::quantize_fp16(p1);
@@ -82,7 +82,7 @@ TEST_CASE(quantize_fp16)
 
 TEST_CASE(quantize_int8)
 {
-    auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");
+    auto p1        = migraphx::parse_onnx("gemm_test.onnx");
     const auto& p2 = p1;
     auto t         = migraphx::target("ref");
     migraphx::quantize_int8_options options;

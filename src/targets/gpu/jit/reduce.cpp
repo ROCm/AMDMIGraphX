@@ -156,16 +156,25 @@ struct reduce_compiler : compiler<reduce_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        value v              = value::object{};
-        auto reduce_elements = get_reduce_elements(ins->inputs());
+        value v = value::object{};
         if(op.name() == "reduce_sum")
         {
             v["reduction"] = "op::sum{}";
         }
         else if(op.name() == "reduce_mean")
         {
-            v["reduction"] = "op::sum{}";
-            v["write"]     = "op::mean{" + std::to_string(reduce_elements) + "}";
+            auto reduce_elements = get_reduce_elements(ins->inputs());
+            auto reduce_type     = ins->inputs().front()->get_shape().type();
+            v["reduction"]       = "op::sum{}";
+            std::string mean     = "op::mean{" + std::to_string(reduce_elements) + "}";
+            // Use float accumulator when reduction size is too large for half
+            if(reduce_type == shape::half_type and reduce_elements > 16384)
+                v["read"] = "compose(" + mean + ", op::convert_to<float>{})";
+            else if(contains({shape::float_type, shape::half_type, shape::double_type},
+                             reduce_type))
+                v["read"] = mean;
+            else
+                v["write"] = mean;
         }
         else if(op.name() == "reduce_max")
         {

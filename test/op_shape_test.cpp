@@ -1716,6 +1716,38 @@ TEST_CASE(nms_shape)
                  score_thres_s);
 }
 
+TEST_CASE(pad_shape0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 3, 5, 5}};
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
+}
+
+TEST_CASE(pad_shape1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 3, 6, 6}};
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 2, 2, 0, 0, 1, 1}}}), input);
+}
+
+TEST_CASE(pad_dyn_shape0)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 2}, {3, 3, 0}, {3, 5, 0}, {3, 5, 0}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {{1, 4, 2}, {3, 3, 0}, {5, 7, 0}, {5, 7, 0}}};
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
+}
+
+TEST_CASE(pad_dyn_shape1)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 2}, {3, 3, 0}, {3, 5, 5}, {3, 5, 5}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {{1, 4, 2}, {3, 3, 0}, {5, 7, 7}, {5, 7, 7}}};
+    expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
+}
+
 TEST_CASE(pooling_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
@@ -1946,8 +1978,50 @@ void test_reduce_ops()
     }
 }
 
+// dynamic shape
+template <class T>
+void test_dyn_reduce_ops()
+{
+    {
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{2, 3, 3}, {1, 1, 0}})},
+                     T{{-1}},
+                     input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{1, 1, 0}, {2, 4, 4}})},
+                     T{{0}},
+                     input);
+    }
+    {
+        // Empty axis argument reduces all axes
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     std::vector<migraphx::shape::dynamic_dimension>(
+                                         {{1, 1, 0}, {1, 1, 0}})},
+                     T{{}},
+                     input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, 3}, {2, 4, 4}}};
+        throws_shape(T{{4}}, input);
+    }
+}
+
+TEST_CASE(reduce_max) { test_reduce_ops<migraphx::op::reduce_max>(); }
 TEST_CASE(reduce_mean) { test_reduce_ops<migraphx::op::reduce_mean>(); }
+TEST_CASE(reduce_prod) { test_reduce_ops<migraphx::op::reduce_prod>(); }
 TEST_CASE(reduce_sum) { test_reduce_ops<migraphx::op::reduce_sum>(); }
+
+TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_max>(); }
+TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_mean>(); }
+TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_prod>(); }
+TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_sum>(); }
 
 TEST_CASE(reshape_shape)
 {
@@ -1982,6 +2056,55 @@ TEST_CASE(reshape_shape)
     {
         expect_shape(it.second, migraphx::make_op("reshape", {{"dims", it.first}}), input);
     }
+}
+
+TEST_CASE(reshape_dyn_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {1, 1, 0}, {1, 1, 0}}};
+    for(auto&& new_shape : std::vector<std::vector<int64_t>>{
+            {-1, 1, 1, 24}, {0, 8, 3, 1}, {-1, 3, 4, 2}, {0, 2, 4, 3}})
+    {
+        std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims{};
+        for(std::size_t i = 0; i < new_shape.size(); ++i)
+        {
+            if(new_shape[i] == 0 or new_shape[i] == -1)
+            {
+                out_dyn_dims.push_back(input.dyn_dims().at(i));
+            }
+            else
+            {
+                std::size_t d = new_shape[i];
+                out_dyn_dims.push_back({d, d, 0});
+            }
+        }
+        migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
+        expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    }
+}
+
+TEST_CASE(reshape_multiple_non_fixed_error)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {10, 20, 0}, {1, 1, 0}}};
+    std::vector<int64_t> new_shape = {0, 1, 0, 24};
+    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_fixed_ele_not_matching_error)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {10, 10, 0}, {1, 1, 0}}};
+    std::vector<int64_t> new_shape = {0, 1, 5, 24};
+    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_non_fixed_not_matching_error)
+{
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{1, 4, 0}, {24, 24, 0}, {1, 1, 0}, {1, 1, 0}}};
+    std::vector<int64_t> new_shape = {2, 1, 1, 24};
+    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
 TEST_CASE(rnn)

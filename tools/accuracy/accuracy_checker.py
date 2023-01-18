@@ -49,6 +49,9 @@ def parse_args():
     parser.add_argument('--fill1',
                         action='store_true',
                         help='fill all arguments with a value of 1')
+    parser.add_argument('--fill0',
+                        action='store_true',
+                        help='fill all arguments with a value of 0')
     parser.add_argument('--verbose',
                         action='store_true',
                         help='show verbose information (for debugging)')
@@ -163,11 +166,13 @@ def main():
             print(f'Parameter {name} -> {shape}')
         in_shape = shape.lens()
         in_type = shape.type_string()
-        if not args.fill1:
+        if not args.fill1 and not args.fill0:
             test_input = np.random.rand(*(in_shape)).astype(
                 get_np_datatype(in_type))
-        else:
+        elif not args.fill0:
             test_input = np.ones(in_shape).astype(get_np_datatype(in_type))
+        else:
+            test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
         params[name] = migraphx.to_gpu(migraphx.argument(test_input))
 
@@ -209,7 +214,11 @@ def main():
             if tf_name not in graph_ops_set:
                 continue
             x = graph.get_tensor_by_name(f'{tf_name}:0')
-            tf_dict[x] = np.transpose(test_inputs[name], (0, 2, 3, 1))
+            tf_input = test_inputs[name]
+            if tf_input.ndim == 4:
+                tf_dict[x] = np.transpose(tf_input, (0, 2, 3, 1))
+            else:
+                tf_dict[x] = tf_input
 
         y = graph.get_tensor_by_name(f'{graph_ops[-1]}:0')
 

@@ -98,14 +98,16 @@ RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
-RUN export ONNXRUNTIME_COMMIT=$(cat test/onnx/.onnxrt-commit.txt)
+RUN export ONNXRUNTIME_COMMIT=$(cat test/onnx/.onnxrt-commit)
+
+# Let us know which commit where're using for CI
+RUN echo "Onnxruntime Commit:" && echo $ONNXRUNTIME_COMMIT
+
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
     git checkout ${ONNXRUNTIME_COMMIT} && \
     /bin/sh dockerfiles/scripts/install_common_deps.sh
 
-# Let us know which commit where're using for CI
-RUN echo "Onnxruntime Commit:" && echo $ONNXRUNTIME_COMMIT
 
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh

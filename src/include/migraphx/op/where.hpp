@@ -49,9 +49,7 @@ struct where
         {
             if(s1 == s2)
                 return s1;
-            // MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");  what
-            // is point_function() for?
-            MIGRAPHX_THROW("WHERE: fixed-dyn shape for inputs");
+            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same");
         }
 
         // Compare two static shapes, returning a standard shape

@@ -1,7 +1,8 @@
 name: Onnxruntime main weekly sync
 on:
   schedule:
-    - cron: '24 22 * * 3'
+    - cron: "00 01 * * 4"
+
 jobs:
   sync:
     steps:

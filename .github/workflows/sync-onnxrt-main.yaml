@@ -1,7 +1,7 @@
 name: Onnxruntime main weekly sync
 on:
   schedule:
-    - cron: "00 01 * * 4"
+    - cron: "05 09 * * 5"
 
 jobs:
   sync:
@@ -39,7 +39,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           title: Sync Onnxruntime main
-          reviewer: TedThemistokleous, pfultz2, causten
-          assignee: TedThemistokleous, pfultz2, causten
+          reviewer: pfultz2, causten
+          assignee: TedThemistokleous
           label: automatic, onnxruntime
           target_branch: develop

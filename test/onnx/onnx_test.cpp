@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -5770,8 +5770,8 @@ TEST_CASE(slice_step_dyn_test)
 
 TEST_CASE(slice_reverse_dyn_test)
 {
-    // A slice command with non-default axes will have a "Reverse" instruction added in parsing.
-    // At the time of writing, Reverse doesn't support dynamic shape input.
+    // A slice command with negative step on any axis will have a "Reverse" instruction added in
+    // parsing. At the time of writing, Reverse doesn't support dynamic shape input.
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4, 0};
     EXPECT(test::throws([&] { migraphx::parse_onnx("slice_reverse_dyn_test.onnx", options); }));

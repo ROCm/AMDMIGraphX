@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -100,12 +100,13 @@ struct slice
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
+        check_shapes{inputs, *this, true}.has(1);
         auto input_shape = inputs[0];
         auto t           = input_shape.type();
         // For a static shape, old_lens will be adjusted to a new size
         // for those axes that are sliced.
         // For dynamic shape, the adjusted old_lens become the new max values,
-        // while retaining the old mins and opts.
+        // while retaining the old mins and opts if possible.
         std::vector<std::size_t> new_mins;
         std::vector<std::size_t> new_opts;
         std::vector<std::size_t> old_lens;
@@ -126,22 +127,25 @@ struct slice
         }
 
         if(std::any_of(
-               axes.begin(), axes.end(), [&](auto i) { return (i >= old_lens.size() and i < 0); }))
+               axes.begin(), axes.end(), [&](auto i) { return (i >= old_lens.size() or i < 0); }))
         {
             MIGRAPHX_THROW("SLICE: input axis " + to_string_range(axes) + " out of range");
         }
 
         if(starts.size() != axes.size() or axes.size() != ends.size())
         {
-            MIGRAPHX_THROW("SLICE: inconsistent sizes");
+            MIGRAPHX_THROW("SLICE: inputs have inconsistent sizes");
         }
 
         std::vector<std::size_t> new_lens = old_lens;
         for(std::size_t i = 0; i < axes.size(); i++)
         {
             auto axis = axes[i];
-            new_lens[axis] =
+            auto sliced_length =
                 fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
+            // A Numpy indexing convention: a slice size larger than the actual dimension
+            // is legal and is clipped to the axis size
+            new_lens[axis] = std::min(new_lens[axis], sliced_length);
             if(input_shape.dynamic())
             {
                 new_mins[axis] = std::min(new_lens[axis], new_mins[axis]);
@@ -162,13 +166,9 @@ struct slice
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         auto input = args[0];
-        if(dyn_out.computed_shape.dynamic())
-            return {dyn_out.computed_shape, [=] { return input.data(); }};
-        else
-        {
-            auto offset = compute_offset(input.get_shape()) * dyn_out.computed_shape.type_size();
-            return {dyn_out.computed_shape, [=] { return input.data() + offset; }};
-        }
+
+        auto offset = compute_offset(input.get_shape()) * dyn_out.computed_shape.type_size();
+        return {dyn_out.computed_shape, [=] { return input.data() + offset; }};
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

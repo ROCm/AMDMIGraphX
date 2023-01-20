@@ -2806,9 +2806,12 @@ TEST_CASE(test_dyn_concat)
 
     expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
 
+    // axis out of range
+    throws_shape(migraphx::make_op("concat", {{"axis", 4}}), sx, sy);
+
     // rank doesn't match
-    migraphx::shape sbi1{migraphx::shape::int64_type, {2, 3}};
-    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, sbi1);
+    migraphx::shape srank{migraphx::shape::int64_type, {{1, 3, 3}, {4, 4}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, srank);
 
     // non-matching dimension 2
     throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);

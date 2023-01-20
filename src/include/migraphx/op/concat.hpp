@@ -77,8 +77,8 @@ struct concat
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        // Todo:: not using check_shapes struct; it
-        // doesn't have a method to check for at least one shape.
+        // Not using check_shapes struct to count arguments.
+        // This operator can take any number of args. >= 1 (variadic)
         // A single input is a no-op, but it is legal
         if(inputs.empty())
         {
@@ -92,7 +92,7 @@ struct concat
             MIGRAPHX_THROW("CONCAT: input tensors are not all the same rank or type");
         }
 
-        if(axis >= inputs[0].ndim())
+        if(axis >= inputs[0].ndim() or axis < 0)
             MIGRAPHX_THROW("CONCAT: axis attribute out of range");
 
         if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
@@ -100,16 +100,16 @@ struct concat
             // Static input shapes
             const auto& first_shape_lens = inputs.front().lens();
             const auto& type             = inputs.front().type();
-            for(std::size_t l = 0; l < first_shape_lens.size(); l++)
+            for(std::size_t ll = 0; ll < first_shape_lens.size(); ll++)
             {
-                if(l != axis)
+                if(ll != axis)
                 {
                     if(not std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
-                           return s.lens()[l] == first_shape_lens[l];
+                           return s.lens()[ll] == first_shape_lens[ll];
                        }))
                     {
                         MIGRAPHX_THROW("CONCAT: all input dimensions should match along axis " +
-                                       std::to_string(l));
+                                       std::to_string(ll));
                     }
                 }
             }

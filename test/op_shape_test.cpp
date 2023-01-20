@@ -2331,7 +2331,7 @@ TEST_CASE(slice_dyn_shape2)
 {
     migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
     // Sliced range max bigger than dimension; is clipped
-    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {7, 7, 0}, {2, 3, 0}}},
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {6, 7, 0}, {2, 3, 0}}},
                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {10}}}),
                  input);
 }
@@ -2361,6 +2361,14 @@ TEST_CASE(slice_dyn_shape5)
     // Axis out of range
     throws_shape(
         migraphx::make_op("slice", {{"axes", {0, 20}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
+}
+TEST_CASE(slice_dyn_shape6)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
+    // Argument vectors aren't the same size
+    throws_shape(
+        migraphx::make_op("slice", {{"axes", {0, 1, 2}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
         input);
 }
 

@@ -66,7 +66,8 @@ struct slice
 
     std::string name() const { return "slice"; }
 
-    // Convert negative index to a value counting backwards from the max index, per numpy convention
+    // Convert negative index to a value counting backwards from the max index, per numpy slicing
+    // convention, and clip large values to 1 more than the largest index.
     auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
     {
         int64_t r = std::min(index, static_cast<int64_t>(lens[axis]));
@@ -134,7 +135,8 @@ struct slice
 
         if(starts.size() != axes.size() or axes.size() != ends.size())
         {
-            MIGRAPHX_THROW("SLICE: inputs have inconsistent sizes");
+            MIGRAPHX_THROW(
+                "SLICE: inputs \"starts\", \"ends\", and \"axes\" must all be the same size");
         }
 
         std::vector<std::size_t> new_lens = old_lens;
@@ -144,11 +146,12 @@ struct slice
             auto sliced_length =
                 fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
             // A Numpy indexing convention: a slice size larger than the actual dimension
-            // is legal and is clipped to the axis size
+            // is legal and the "ends" value is clipped to the axis size
             new_lens[axis] = std::min(new_lens[axis], sliced_length);
             if(input_shape.dynamic())
             {
-                new_mins[axis] = std::min(new_lens[axis], new_mins[axis]);
+                auto sliced_min_length = fix_index(new_mins, axis, ends[i]) - fix_index(new_mins, axis, starts[i]);
+                new_mins[axis] = std::min(sliced_min_length, new_mins[axis]);
                 if(new_opts[axis] < new_mins[axis] or new_opts[axis] > new_lens[axis])
                     new_opts[axis] = 0;
             }

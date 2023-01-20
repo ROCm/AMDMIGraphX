@@ -2321,8 +2321,8 @@ TEST_CASE(slice_dyn_shape0)
 TEST_CASE(slice_dyn_shape1)
 {
     migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
-    // Slice axis 1 to size 4-1=3, negative index
-    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {3, 3, 0}, {2, 3, 0}}},
+    // Slice axis 1 to    min size 7-4-1=2/max size 8-4-1=3,   negative index
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {2, 3, 0}, {2, 3, 0}}},
                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {-4}}}),
                  input);
 }

@@ -56,6 +56,16 @@ struct id
     }
 };
 
+template <class T>
+struct convert_to
+{
+    template <class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(U x) const
+    {
+        return convert<T>(x);
+    }
+};
+
 struct mean
 {
     index_int item_num = 1;

@@ -119,10 +119,8 @@ struct concat
                 const auto& lens = input.lens();
                 new_dim_axis += lens[axis];
             }
-            std::vector<std::size_t> new_lens;
-            std::copy(
-                first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
-            new_lens[axis] = new_dim_axis;
+            std::vector<std::size_t> new_lens = first_shape_lens;
+            new_lens[axis]                    = new_dim_axis;
             return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
         else if(std::all_of(

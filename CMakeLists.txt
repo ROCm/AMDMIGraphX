@@ -272,7 +272,7 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
-
+rocm_package_setup_component(test DEPENDS COMPONENT runtime)
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"

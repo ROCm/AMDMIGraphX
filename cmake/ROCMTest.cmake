@@ -10,7 +10,7 @@ add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${
 add_custom_target(tests COMMENT "Build all tests.")
 add_dependencies(check tests)
 
-rocm_package_setup_component(COMPONENT test DEPENDS runtime)
+# rocm_package_setup_component(test DEPENDS COMPONENT runtime)
 
 define_property(TARGET PROPERTY "ROCM_TEST_INSTALLDIR" BRIEF_DOCS "Install dir for tests" FULL_DOCS "Install dir for tests")
 
@@ -26,7 +26,11 @@ function(rocm_set_install_dir_property)
         message(FATAL_ERROR "Unknown keywords given to rocm_set_install_dir_property(): \"${PARSE_UNPARSED_ARGUMENTS}\"")
     endif()
 
-    set_target_properties(${PARSE_TARGETS} PROPERTIES ROCM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${DESTINATION})
+    if(PARSE_DESTINATION MATCHES "^/|$")
+        set_target_properties(${PARSE_TARGETS} PROPERTIES ROCM_INSTALL_DIR ${PARSE_DESTINATION})
+    else()
+        set_target_properties(${PARSE_TARGETS} PROPERTIES ROCM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${PARSE_DESTINATION})
+    endif()
 endfunction()
 
 add_library(rocm_test_dependencies INTERFACE)
@@ -49,7 +53,9 @@ set(_rocm_test_config_content "")
 
 set(_rocm_test_package_dir ${CMAKE_BINARY_DIR}/rocm-test-package)
 set(_rocm_test_config_file ${_rocm_test_package_dir}/CTestTestfile.cmake)
-set(_rocm_test_save_tests)
+set(_rocm_test_run_save_tests ${_rocm_test_package_dir}/run-save-tests.cmake)
+file(MAKE_DIRECTORY ${_rocm_test_package_dir})
+file(WRITE ${_rocm_test_run_save_tests} "")
 
 function(rocm_save_test)
     set(options)
@@ -70,20 +76,50 @@ function(rocm_save_test)
     set(COMMAND "")
     foreach(ARG ${PARSE_COMMAND})
         if(TARGET ${ARG})
-            string(APPEND COMMAND " \"$<TARGET_PROPERTY:${ARG},ROCM_INSTALL_DIR>/$<TARGET_FILE_NAME:${ARG}>\"")
+            string(APPEND COMMAND " \"$<GENEX_EVAL:$<TARGET_PROPERTY:${ARG},ROCM_INSTALL_DIR>>/$<TARGET_FILE_NAME:${ARG}>\"")
         else()
             string(APPEND COMMAND " \"${ARG}\"")
         endif()
     endforeach()
     file(APPEND ${_rocm_test_config_file}.in "add_test(${PARSE_NAME} ${COMMAND})\n")
+    set(PROP_NAMES
+        ATTACHED_FILES
+        ATTACHED_FILES_ON_FAIL
+        COST
+        DEPENDS
+        DISABLED
+        ENVIRONMENT
+        ENVIRONMENT_MODIFICATION
+        FAIL_REGULAR_EXPRESSION
+        FIXTURES_CLEANUP
+        FIXTURES_REQUIRED
+        FIXTURES_SETUP
+        LABELS
+        MEASUREMENT
+        PASS_REGULAR_EXPRESSION
+        PROCESSOR_AFFINITY
+        PROCESSORS
+        REQUIRED_FILES
+        RESOURCE_GROUPS
+        RESOURCE_LOCK
+        RUN_SERIAL
+        SKIP_REGULAR_EXPRESSION
+        SKIP_RETURN_CODE
+        TIMEOUT
+        TIMEOUT_AFTER_MATCH
+        WILL_FAIL
+        WORKING_DIRECTORY
+    )
     set(PROPS "")
-    foreach(PROPERTY "FAILED")
+    foreach(PROPERTY ${PROP_NAMES})
         get_test_property(${PARSE_NAME} ${PROPERTY} VALUE)
         if(VALUE)
             string(APPEND PROPS " ${PROPERTY} \"${VALUE}\"")
         endif()
     endforeach()
-    file(APPEND ${_rocm_test_config_file}.in "set_tests_properties(${PARSE_NAME} PROPERTIES ${PROPS})\n")
+    if(PROPS)
+        file(APPEND ${_rocm_test_config_file}.in "set_tests_properties(${PARSE_NAME} PROPERTIES ${PROPS})\n")
+    endif()
 endfunction()
 
 function(rocm_add_test)
@@ -102,11 +138,12 @@ function(rocm_add_test)
     if(NOT PARSE_COMMAND)
         message(FATAL_ERROR "Missing COMMAND in rocm_add_test()")
     endif()
-    string(APPEND _rocm_test_save_tests "rocm_save_test(NAME ${PARSE_NAME} COMMAND ${PARSE_COMMAND})\n")
+    file(APPEND ${_rocm_test_run_save_tests} "rocm_save_test(NAME ${PARSE_NAME} COMMAND ${PARSE_COMMAND})\n")
 
     set(COMMAND ${PARSE_COMMAND})
     list(GET COMMAND 0 COMMAND_EXE)
-    list(POP_FRONT COMMAND COMMAND_ARGS)
+    set(COMMAND_ARGS ${COMMAND})
+    list(POP_FRONT COMMAND_ARGS)
 
 
     if(ROCM_TEST_GDB AND TARGET ${COMMAND_EXE})
@@ -117,7 +154,7 @@ function(rocm_add_test)
         #     -ex run
         #     -ex backtrace
         #     --args $<TARGET_FILE:${EXE}> ${ARGN})
-        set(TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/gdb/test_${NAME})
+        set(TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/gdb/test_${PARSE_NAME})
         file(MAKE_DIRECTORY ${TEST_DIR})
         if (NOT EXISTS ${TEST_DIR})
             message(FATAL_ERROR "Failed to create test directory: ${TEST_DIR}")
@@ -176,10 +213,11 @@ function(rocm_install_test)
     if(PARSE_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "Unknown keywords given to rocm_install_test(): \"${PARSE_UNPARSED_ARGUMENTS}\"")
     endif()
-    get_target_property(INSTALL_PREFIX tests ROCM_TEST_INSTALLDIR)
+    set(INSTALL_PREFIX "$<TARGET_PROPERTY:tests,ROCM_TEST_INSTALLDIR>")
     if(PARSE_TARGETS)
         install(TARGETS ${PARSE_TARGETS} COMPONENT test DESTINATION ${INSTALL_PREFIX}/bin)
         rocm_set_install_dir_property(TARGETS ${PARSE_TARGETS} DESTINATION ${INSTALL_PREFIX}/bin)
+        get_target_property(INSTALLDIR ${PARSE_TARGETS} ROCM_INSTALL_DIR)
     endif()
     if(PARSE_FILES)
         install(FILES ${PARSE_FILES} COMPONENT test DESTINATION ${INSTALL_PREFIX}/${PARSE_DESTINATION})
@@ -223,9 +261,8 @@ function(rocm_test_install_ctest)
     endif()
 
     set_target_properties(tests PROPERTIES ROCM_TEST_INSTALLDIR ${CMAKE_INSTALL_PREFIX}/share/test/${PARSE_NAME})
-    file(MAKE_DIRECTORY ${_rocm_test_package_dir})
-    file(WRITE ${_rocm_test_package_dir}/run-save-tests.cmake CONTENT ${_rocm_test_save_tests})
-    include(${_rocm_test_package_dir}/run-save-tests.cmake)
+    file(WRITE ${_rocm_test_config_file}.in "")
+    include(${_rocm_test_run_save_tests})
     file(GENERATE OUTPUT ${_rocm_test_config_file} INPUT ${_rocm_test_config_file}.in)
     rocm_install_test(FILES ${_rocm_test_config_file})
 endfunction()

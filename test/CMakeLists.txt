@@ -211,3 +211,5 @@ test_headers(migraphx/ref ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/r
 if(MIGRAPHX_ENABLE_GPU)
 test_headers(migraphx/gpu ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp)
 endif()
+
+rocm_test_install_ctest(NAME migraphx)

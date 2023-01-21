@@ -2795,7 +2795,8 @@ TEST_CASE(gathernd_dynamic3)
     auto xdata  = mm->add_parameter("X", ds);
     auto xindex = mm->add_parameter("I", is);
 
-    auto gathernd_op = migraphx::make_op("gathernd");
+    int batch_dims{1};
+    auto gathernd_op = migraphx::make_op("gathernd", {{"batch_dims", batch_dims}});
     auto gathernd    = mm->add_instruction(gathernd_op, xdata, xindex);
 
     mm->add_return({gathernd});
@@ -2813,9 +2814,9 @@ TEST_CASE(gathernd_dynamic3)
 
     auto result = p.eval(params).back();
     std::vector<float> res_data{};
-    std::vector<float> gold{3, 4, 5, 0, 1, 2, 0, 1, 2, 3, 4, 5};
+    std::vector<float> gold{1, 0, 3, 4};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-
+for(auto ii : res_data) std::cout << ii << "  ";std::cout << "\n";
     EXPECT(migraphx::verify_range(res_data, gold));
 }
 

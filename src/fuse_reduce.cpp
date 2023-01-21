@@ -163,6 +163,7 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
     create_reduce_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm, find_reduce_pointwise{});
+    mpm.run_pass(dead_code_elimination{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

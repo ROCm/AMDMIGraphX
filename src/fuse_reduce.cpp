@@ -57,7 +57,7 @@ struct fused_reduce
         check_shapes{inputs, *this}.has(sm->get_parameter_shapes().size()).same_dims();
         auto s    = inputs.at(0);
         auto lens = s.lens();
-        if (lens != sm->get_output_shapes().front().lens())
+        if(lens != sm->get_output_shapes().front().lens())
         {
             for(const auto& axis : axes)
             {
@@ -65,7 +65,8 @@ struct fused_reduce
             }
         }
 
-        return shape::from_permutation(sm->get_output_shapes().front().type(), lens, find_permutation(inputs));
+        return shape::from_permutation(
+            sm->get_output_shapes().front().type(), lens, find_permutation(inputs));
     }
 
     std::string name() const { return "fused_reduce"; }
@@ -92,7 +93,8 @@ static void create_reduce_modules(module_pass_manager& mpm)
         rm->add_return({r});
 
         auto v = ins->get_operator().to_value();
-        mpm.get_module().replace_instruction(ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});
+        mpm.get_module().replace_instruction(
+            ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});
     }
 }
 
@@ -135,7 +137,7 @@ struct find_reduce_pointwise
         auto reduce = r.instructions["reduce"];
 
         const auto* old_rm = reduce->module_inputs().front();
-        auto* rm     = mpm.create_module(old_rm->name() + ":pointwise");
+        auto* rm           = mpm.create_module(old_rm->name() + ":pointwise");
         rm->set_bypass();
         // Copy module instructions
         rm->add_instructions(old_rm);

@@ -32,7 +32,7 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 #include <hip/math_functions.h>
-#else 
+#else
 #include <hip/hip_common.h>
 #endif // MIGRAPHX_HIPRTC
 #include <hip/hip_math_constants.h>

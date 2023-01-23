@@ -49,7 +49,7 @@ struct mlir_conv
     std::string name() const { return "gpu::mlir_conv"; }
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        check_shapes{inputs, *this}.standard();
+        check_shapes{inputs, *this}.packed_or_broadcasted();
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
@@ -61,13 +61,28 @@ struct mlir_conv
 MIGRAPHX_REGISTER_OP(mlir_conv);
 
 namespace {
+
+MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    value v    = ins->get_operator().to_value();
+    auto group = v.at("group").to<int>();
+    if(group != 1)
+        return false;
+    // Avoid MLIR assertion: Index < Length && "Invalid index!"
+    if(ins->get_shape().lens().size() != 4)
+        return false;
+    return true;
+}
+
 struct find_conv_pointwise
 {
     // Find a convolution followed by a pointwise operation.
     auto matcher() const
     {
         auto convolution =
-            match::skip(match::name("contiguous"))(match::name("convolution").bind("convolution"));
+            match::skip(match::name("contiguous"))(is_mlir_conv().bind("convolution"));
         return match::name("pointwise")(match::any_of[match::inputs()](convolution.bind("x")));
     }
 
@@ -84,9 +99,10 @@ struct find_conv_pointwise
                                    i.name());
            }))
             return;
-        // Only fuse with fp32 for now
+        // Only fuse with fp32/fp16
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-               return i->get_shape().type() != shape::type_t::float_type;
+               return not contains({shape::type_t::float_type, shape::type_t::half_type},
+                                   i->get_shape().type());
            }))
             return;
         std::sort(names.begin(), names.end());

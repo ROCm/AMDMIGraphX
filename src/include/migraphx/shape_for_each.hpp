@@ -31,6 +31,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/**
+ * Iterates the given function over the indices from the shape in order.
+ */
 template <class F>
 void shape_for_each(const migraphx::shape& s, F f)
 {
@@ -51,7 +54,6 @@ void shape_for_each(const migraphx::shape& s, F f)
         call(indices);
     }
 }
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -147,7 +147,13 @@ struct parse_pad : op_parser<parse_pad>
         {
             auto mode = info.attributes.at("mode").s();
             if(mode == "reflect")
+            {
+                if(args.front()->get_shape().dynamic())
+                {
+                    MIGRAPHX_THROW("PARSE_PAD: reflect padding with dynamic shape not supported");
+                }
                 return reflect_pad(info, pads, args.front());
+            }
             if(mode != "constant")
             {
                 MIGRAPHX_THROW(

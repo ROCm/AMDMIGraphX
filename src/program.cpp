@@ -398,7 +398,7 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, make_trace);
 }
 
-std::vector<argument> program::eval(parameter_map params) const
+std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -423,6 +423,12 @@ std::vector<argument> program::eval(parameter_map params) const
 #endif
 
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+    std::vector<argument> ret;
+
+    if(exec_env.async)
+    {
+        ctx.wait_for(exec_env.queue);
+    }
 
     if(trace_level > 0)
     {
@@ -434,49 +440,56 @@ std::vector<argument> program::eval(parameter_map params) const
             ins_out[x] = ss.str();
         });
 
-        return generic_eval(*this,
-                            ctx,
-                            std::move(params),
-                            with_check_context([&](auto& ins, auto f, auto&& check_context) {
-                                ctx.finish();
-                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                                timer t{};
-                                auto result = check_context(f);
-                                double t1   = t.record<milliseconds>();
-                                ctx.finish();
-                                double t2 = t.record<milliseconds>();
-                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                                if(trace_level > 1 and ins->name().front() != '@' and
-                                   ins->name() != "load" and not result.empty())
-                                {
-                                    target tgt  = make_target(this->impl->target_name);
-                                    auto buffer = tgt.copy_from(result);
-                                    if(trace_level == 2)
-                                    {
-                                        std::cout << "Output has "
-                                                  << to_string_range(classify_argument(buffer))
-                                                  << std::endl;
-                                        std::cout << "Output: ";
-                                        preview_argument(std::cout, buffer);
-                                        std::cout << std::endl;
-                                    }
-                                    else
-                                    {
-                                        std::cout << "Output: " << buffer << std::endl;
-                                    }
-                                }
-                                return result;
-                            }));
+        ret = generic_eval(*this,
+                           ctx,
+                           std::move(params),
+                           with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                               ctx.finish();
+                               std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                               timer t{};
+                               auto result = check_context(f);
+                               double t1   = t.record<milliseconds>();
+                               ctx.finish();
+                               double t2 = t.record<milliseconds>();
+                               std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                               if(trace_level > 1 and ins->name().front() != '@' and
+                                  ins->name() != "load" and not result.empty())
+                               {
+                                   target tgt  = make_target(this->impl->target_name);
+                                   auto buffer = tgt.copy_from(result);
+                                   if(trace_level == 2)
+                                   {
+                                       std::cout << "Output has "
+                                                 << to_string_range(classify_argument(buffer))
+                                                 << std::endl;
+                                       std::cout << "Output: ";
+                                       preview_argument(std::cout, buffer);
+                                       std::cout << std::endl;
+                                   }
+                                   else
+                                   {
+                                       std::cout << "Output: " << buffer << std::endl;
+                                   }
+                               }
+                               return result;
+                           }));
     }
     else
     {
-        return generic_eval(*this,
-                            ctx,
-                            std::move(params),
-                            with_check_context([&](auto&, auto f, auto&& check_context) {
-                                return check_context(f);
-                            }));
+        ret = generic_eval(*this,
+                           ctx,
+                           std::move(params),
+                           with_check_context([&](auto&, auto f, auto&& check_context) {
+                               return check_context(f);
+                           }));
     }
+
+    if(exec_env.async)
+    {
+        ctx.finish_on(exec_env.queue);
+    }
+
+    return ret;
 }
 
 const int program_file_version = 5;
@@ -839,6 +852,25 @@ void program::print_graph(std::ostream& os, bool brief) const
 {
     const auto* mm = this->get_main_module();
     mm->print_graph(os, brief);
+}
+
+void program::print_py(std::ostream& os) const
+{
+    auto vec_modules = this->get_modules();
+    std::unordered_map<instruction_ref, std::string> names;
+    os << "p = migraphx.program()\n";
+    for(auto& mod : vec_modules)
+    {
+        std::string var_name = "m" + mod->name();
+        os << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module()";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_py(os, var_name, names);
+        os << std::endl;
+    }
 }
 
 void program::print_cpp(std::ostream& os) const

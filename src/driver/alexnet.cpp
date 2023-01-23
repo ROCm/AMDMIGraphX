@@ -74,9 +74,9 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
     auto x_main_module_19 = mmain->add_literal(migraphx::generate_literal(
         migraphx::shape{migraphx::shape::float_type, {64, 3, 11, 11}}, 18));
     auto x_main_module_20 = mmain->add_instruction(
-        migraphx::make_json_op("convolution",
-                               "{dilation:[1,1],group:1,padding:[2,2,2,2],padding_mode:0,stride:[4,"
-                               "4],use_dynamic_same_auto_pad:0}"),
+        migraphx::make_json_op(
+            "convolution",
+            "{dilation:[1,1],group:1,padding:[2,2,2,2],padding_mode:0,stride:[4,4]}"),
         x_0,
         x_main_module_19);
     auto x_main_module_21 = mmain->add_instruction(
@@ -90,9 +90,9 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
             "{ceil_mode:0,lengths:[3,3],lp_order:2,mode:1,padding:[0,0,0,0],stride:[2,2]}"),
         x_main_module_23);
     auto x_main_module_25 = mmain->add_instruction(
-        migraphx::make_json_op("convolution",
-                               "{dilation:[1,1],group:1,padding:[2,2,2,2],padding_mode:0,stride:[1,"
-                               "1],use_dynamic_same_auto_pad:0}"),
+        migraphx::make_json_op(
+            "convolution",
+            "{dilation:[1,1],group:1,padding:[2,2,2,2],padding_mode:0,stride:[1,1]}"),
         x_main_module_24,
         x_main_module_17);
     auto x_main_module_26 = mmain->add_instruction(
@@ -106,9 +106,9 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
             "{ceil_mode:0,lengths:[3,3],lp_order:2,mode:1,padding:[0,0,0,0],stride:[2,2]}"),
         x_main_module_28);
     auto x_main_module_30 = mmain->add_instruction(
-        migraphx::make_json_op("convolution",
-                               "{dilation:[1,1],group:1,padding:[1,1,1,1],padding_mode:0,stride:[1,"
-                               "1],use_dynamic_same_auto_pad:0}"),
+        migraphx::make_json_op(
+            "convolution",
+            "{dilation:[1,1],group:1,padding:[1,1,1,1],padding_mode:0,stride:[1,1]}"),
         x_main_module_29,
         x_main_module_15);
     auto x_main_module_31 = mmain->add_instruction(
@@ -117,9 +117,9 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
         mmain->add_instruction(migraphx::make_op("add"), x_main_module_30, x_main_module_31);
     auto x_main_module_33 = mmain->add_instruction(migraphx::make_op("relu"), x_main_module_32);
     auto x_main_module_34 = mmain->add_instruction(
-        migraphx::make_json_op("convolution",
-                               "{dilation:[1,1],group:1,padding:[1,1,1,1],padding_mode:0,stride:[1,"
-                               "1],use_dynamic_same_auto_pad:0}"),
+        migraphx::make_json_op(
+            "convolution",
+            "{dilation:[1,1],group:1,padding:[1,1,1,1],padding_mode:0,stride:[1,1]}"),
         x_main_module_33,
         x_main_module_13);
     auto x_main_module_35 = mmain->add_instruction(
@@ -128,9 +128,9 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
         mmain->add_instruction(migraphx::make_op("add"), x_main_module_34, x_main_module_35);
     auto x_main_module_37 = mmain->add_instruction(migraphx::make_op("relu"), x_main_module_36);
     auto x_main_module_38 = mmain->add_instruction(
-        migraphx::make_json_op("convolution",
-                               "{dilation:[1,1],group:1,padding:[1,1,1,1],padding_mode:0,stride:[1,"
-                               "1],use_dynamic_same_auto_pad:0}"),
+        migraphx::make_json_op(
+            "convolution",
+            "{dilation:[1,1],group:1,padding:[1,1,1,1],padding_mode:0,stride:[1,1]}"),
         x_main_module_37,
         x_main_module_11);
     auto x_main_module_39 = mmain->add_instruction(

@@ -170,7 +170,7 @@ struct hiprtc_program
 };
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
-                                               const std::string& params,
+                                               std::string params,
                                                const std::string& arch)
 {
     hiprtc_program prog(srcs);

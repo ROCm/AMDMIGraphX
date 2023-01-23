@@ -98,7 +98,7 @@ RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
-RUN export ONNXRUNTIME_COMMIT=$(cat test/onnx/.onnxrt-commit)
+ARG ONNXRUNTIME_COMMIT=$(cat test/onnx/.onnxrt-commit)
 
 # Let us know which commit where're using for CI
 RUN echo "Onnxruntime Commit:" && echo $ONNXRUNTIME_COMMIT

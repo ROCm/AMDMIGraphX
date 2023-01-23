@@ -39,10 +39,19 @@ struct parse_gemm : op_parser<parse_gemm>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        float alpha = 1.0f;
-        float beta  = 1.0f;
-        bool transa = false;
-        bool transb = false;
+        auto a_arg = args[0];
+        auto b_arg = args[1];
+        if(a_arg->get_shape().ndim() != 2 or b_arg->get_shape().ndim() != 2)
+        {
+            MIGRAPHX_THROW("PARSE_GEMM: A and B should be rank 2, A is rank " +
+                           std::to_string(a_arg->get_shape().ndim()) + ", B is rank " +
+                           std::to_string(b_arg->get_shape().ndim()));
+        }
+
+        float alpha  = 1.0f;
+        float beta   = 1.0f;
+        bool trans_a = false;
+        bool trans_b = false;
         if(contains(info.attributes, "alpha"))
         {
             alpha = parser.parse_value(info.attributes.at("alpha")).at<float>();
@@ -53,65 +62,73 @@ struct parse_gemm : op_parser<parse_gemm>
         }
         if(contains(info.attributes, "transA"))
         {
-            transa = parser.parse_value(info.attributes.at("transA")).at<bool>();
+            trans_a = parser.parse_value(info.attributes.at("transA")).at<bool>();
         }
         if(contains(info.attributes, "transB"))
         {
-            transb = parser.parse_value(info.attributes.at("transB")).at<bool>();
+            trans_b = parser.parse_value(info.attributes.at("transB")).at<bool>();
         }
 
-        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
-        std::iota(perm.begin(), perm.end(), int64_t{0});
-        // swap the last two elements
-        std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
-
-        auto l1       = args[0];
-        auto dot_type = l1->get_shape().type();
-
+        std::vector<int64_t> perm = {1, 0};
+        auto dot_type             = a_arg->get_shape().type();
         if(alpha != 1.0f)
         {
             auto alpha_literal = info.add_literal(alpha);
-            l1                 = info.add_broadcastable_binary_op("mul", alpha_literal, l1);
-            if(l1->get_shape().type() != dot_type)
+            a_arg              = info.add_broadcastable_binary_op("mul", alpha_literal, a_arg);
+
+            if(a_arg->get_shape().type() != dot_type)
             {
-                l1 = info.add_instruction(make_op("convert", {{"target_type", dot_type}}), l1);
+                a_arg =
+                    info.add_instruction(make_op("convert", {{"target_type", dot_type}}), a_arg);
             }
         }
 
-        l1 =
-            (transa) ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), l1) : l1;
-        auto l2 = (transb)
-                      ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
-                      : args[1];
+        a_arg = (trans_a)
+                    ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), a_arg)
+                    : a_arg;
+        b_arg = (trans_b)
+                    ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
+                    : args[1];
 
-        auto ret = info.add_instruction(make_op("dot"), l1, l2);
+        auto dot_ins = info.add_instruction(make_op("dot"), a_arg, b_arg);
 
         if(args.size() == 3)
         {
-            if(not float_equal(beta, 0.0f) && args[2]->get_shape().elements() > 0)
+            if(not float_equal(beta, 0.0f))
             {
-                auto out_lens   = l1->get_shape().lens();
-                out_lens.back() = l2->get_shape().lens().back();
-                auto l3         = args[2];
-                auto l3_lens    = l3->get_shape().lens();
-                if(not std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
+                auto c_arg = args[2];
+                if(dot_ins->get_shape().dynamic())
                 {
-                    l3 = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
-                                              args[2]);
+                    c_arg = info.add_instruction(make_op("multibroadcast"), args[2], dot_ins);
                 }
-                auto beta_literal = info.add_literal(beta);
-                auto beta_l3      = info.add_broadcastable_binary_op("mul", l3, beta_literal);
-                if(beta_l3->get_shape().type() != dot_type)
+                else
                 {
-                    beta_l3 = info.add_instruction(make_op("convert", {{"target_type", dot_type}}),
-                                                   beta_l3);
+                    auto out_lens   = a_arg->get_shape().lens();
+                    out_lens.back() = b_arg->get_shape().lens().back();
+                    auto c_lens     = c_arg->get_shape().lens();
+                    if(not std::equal(
+                           out_lens.begin(), out_lens.end(), c_lens.begin(), c_lens.end()))
+                    {
+                        c_arg = info.add_instruction(
+                            make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
+                    }
                 }
 
-                return info.add_instruction(make_op("add"), ret, beta_l3);
+                if(not float_equal(beta, 1.0f))
+                {
+                    auto beta_literal = info.add_literal(beta);
+                    c_arg = info.add_broadcastable_binary_op("mul", c_arg, beta_literal);
+                    if(c_arg->get_shape().type() != dot_type)
+                    {
+                        c_arg = info.add_instruction(
+                            make_op("convert", {{"target_type", dot_type}}), c_arg);
+                    }
+                }
+
+                return info.add_instruction(make_op("add"), dot_ins, c_arg);
             }
         }
-
-        return ret;
+        return dot_ins;
     }
 };
 

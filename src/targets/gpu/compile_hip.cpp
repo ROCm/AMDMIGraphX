@@ -169,8 +169,9 @@ struct hiprtc_program
     }
 };
 
-std::vector<std::vector<char>>
-compile_hip_src(const std::vector<src_file>& srcs, const std::string& params, const std::string& arch)
+std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
+                                               const std::string& params,
+                                               const std::string& arch)
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');

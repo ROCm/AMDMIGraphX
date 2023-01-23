@@ -155,7 +155,7 @@ struct hiprtc_program
         MIGRAPHX_HIPRTC(hiprtcGetProgramLogSize(prog.get(), &n));
         if(n == 0)
             return {};
-        std::string buffer(n, '\0'); 
+        std::string buffer(n, '\0');
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
         return buffer;
     }

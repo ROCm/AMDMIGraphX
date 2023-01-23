@@ -110,17 +110,17 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
-}, clang_debug: rocmnode('vega') { cmake_build ->
+}, hiprtc_debug : rocmnode('vega') { cmake_build ->
     stage('HipRTC Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On")
     }
-}, clang_gpu_debug: rocmnode('vega') { cmake_build ->
+}, hiprtc_gpu_debug: rocmnode('vega') { cmake_build ->
     stage('HipRTC GPU Debug') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true)
     }
-}, clang_release: rocmnode('vega') { cmake_build ->
+}, hiprtc_release: rocmnode('vega') { cmake_build ->
     stage('HipRTC Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On")
         stash includes: 'build/*.deb', name: 'migraphx-package'

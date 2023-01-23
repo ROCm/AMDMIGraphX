@@ -184,7 +184,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
 #else
     options.params += " -Werror";
 #endif
-    auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
+    auto cos = compile_hip_src(srcs, params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return code_object_op{value::binary{cos.front()},

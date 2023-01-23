@@ -35,7 +35,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-#ifdef MIGRAPHX_USE_HIPRTC
+#if MIGRAPHX_USE_HIPRTC
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
                                                const std::string& params,
                                                const std::string& arch);

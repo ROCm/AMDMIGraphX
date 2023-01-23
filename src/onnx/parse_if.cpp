@@ -57,7 +57,7 @@ void squeeze_last_op(module_ref mdl, int index, const std::vector<size_t>& out_s
     mdl->replace_instruction(std::prev(mdl->end())->inputs().at(index), convert_ins);
 }
 
-std::vector<instruction_ref> fold_arguments(module* mod)
+static std::vector<instruction_ref> cleanup_arguments(module* mod)
 {
     auto num_outputs = mod->get_output_shapes().size();
 
@@ -106,15 +106,15 @@ struct parse_if : op_parser<parse_if>
             // then branch
             if(cond_arg.at<bool>())
             {
-                parser.parse_graph(mod, then_graph);
+                parser.parse_graph(mod, then_graph, true);
             }
             // else branch
             else
             {
-                parser.parse_graph(mod, else_graph);
+                parser.parse_graph(mod, else_graph, true);
             }
 
-            return fold_arguments(mod);
+            return cleanup_arguments(mod);
         }
 
         std::string then_name = info.name + "_if";

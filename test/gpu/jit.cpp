@@ -177,8 +177,7 @@ TEST_CASE(simple_compile_hip)
 
     srcs.push_back(make_src_file("main.cpp", write_2s));
 
-    auto binaries = migraphx::gpu::compile_hip_src(
-        srcs, "", migraphx::gpu::get_device_name());
+    auto binaries = migraphx::gpu::compile_hip_src(srcs, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::argument input{{migraphx::shape::int8_type, {5}}};

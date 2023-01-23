@@ -25,7 +25,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_HPP
 
-
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/visit.hpp>
 #include <migraphx/gpu/device/multi_index.hpp>

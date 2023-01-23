@@ -45,10 +45,9 @@ struct greater
 };
 
 template <class T>
-struct multiplies {
-    constexpr T operator()(const T& lhs, const T& rhs) {
-        return lhs * rhs;
-    }
+struct multiplies
+{
+    constexpr T operator()(const T& lhs, const T& rhs) { return lhs * rhs; }
 };
 
 template <class InputIt, class T, class BinaryOperation>
@@ -60,8 +59,6 @@ constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
     }
     return init;
 }
-
-
 
 template <class InputIt, class OutputIt>
 constexpr OutputIt copy(InputIt first, InputIt last, OutputIt d_first)

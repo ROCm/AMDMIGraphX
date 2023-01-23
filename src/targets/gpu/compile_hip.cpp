@@ -32,7 +32,6 @@
 #if MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
-#include <migraphx/env.hpp>
 #else
 #include <migraphx/compile_src.hpp>
 #include <migraphx/process.hpp>
@@ -149,7 +148,7 @@ struct hiprtc_program
             MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");
     }
 
-    std::string log()
+    std::string log() const
     {
         std::size_t n = 0;
         MIGRAPHX_HIPRTC(hiprtcGetProgramLogSize(prog.get(), &n));
@@ -160,7 +159,7 @@ struct hiprtc_program
         return buffer;
     }
 
-    std::vector<char> get_code_obj()
+    std::vector<char> get_code_obj() const
     {
         std::size_t n = 0;
         MIGRAPHX_HIPRTC(hiprtcGetCodeSize(prog.get(), &n));
@@ -171,7 +170,7 @@ struct hiprtc_program
 };
 
 std::vector<std::vector<char>>
-compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+compile_hip_src(const std::vector<src_file>& srcs, const std::string& params, const std::string& arch)
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');

@@ -6673,6 +6673,24 @@ def trilu_test():
 
 
 @onnx_test()
+def trilu_batch_diff_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    k = np.array([2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', 'k'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
 def trilu_lower_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
@@ -6706,6 +6724,24 @@ def trilu_out_k_test():
                                   vals=k.astype(np.int64))
 
     node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_row_one_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4])
+    k = np.array([1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', 'k'],
+        outputs=['y'],
+    )
     return ([node], [x], [y], [k_tensor])
 
 

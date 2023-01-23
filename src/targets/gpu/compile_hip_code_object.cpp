@@ -178,6 +178,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     options.params += " " + join_strings(compiler_warnings(), " ");
     options.params += " -ftemplate-backtrace-limit=0";
 #ifdef MIGRAPHX_USE_HIPRTC
+    options.params += " -DMIGRAPHX_USE_HIPRTC";
     options.params += " -Wno-reserved-identifier";
     options.params += " -Wno-gnu-line-marker";
     options.params += " -Wno-old-style-cast";

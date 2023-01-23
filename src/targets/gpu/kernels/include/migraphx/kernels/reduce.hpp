@@ -31,7 +31,11 @@
 
 namespace migraphx {
 
-#if MIGRAPHX_HAS_DPP
+#ifdef MIGRAPHX_USE_HIPRTC
+#define MIGRAPHX_NO_DPP
+#endif
+
+#ifndef MIGRAPHX_NO_DPP
 
 template <class T, class Op>
 __device__ void dpp_reduce(T& in, Op op)

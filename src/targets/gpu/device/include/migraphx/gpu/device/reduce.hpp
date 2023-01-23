@@ -35,11 +35,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-#ifndef MIGRAPHX_NO_DPP
-#define MIGRAPHX_NO_DPP 1
+#ifdef MIGRAHPX_USE_HIPRTC
+#define MIGRAPHX_NO_DPP
 #endif
 
 #ifdef MIGRAPHX_NO_DPP
+
 template <index_int N,
           class Op,
           class T,

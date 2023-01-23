@@ -264,7 +264,7 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
+void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
@@ -375,8 +375,11 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
     // add the return instuction
     mod->add_return(output_ins);
 
-    // remove instructions added in this mod
-    erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
+    if(not inlining)
+    {
+        // Remove instructions added in module (this is turned off for subgraph inlining)
+        erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
+    }
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

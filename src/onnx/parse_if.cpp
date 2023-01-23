@@ -33,6 +33,28 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+static std::vector<instruction_ref> cleanup_arguments(module* mod)
+{
+    auto num_outputs = mod->get_output_shapes().size();
+
+    if(num_outputs > 1)
+    { // TODO: Add support for make_tuple operator. This isn't trivial
+        //      Function that does our output aliasing has
+        MIGRAPHX_THROW("PARSE_IF: Multi-output if not supported for IF operator const folding");
+    }
+
+    instruction_ref ret_ins = std::prev(mod->end());
+    auto outputs            = ret_ins->inputs();
+
+    // inputs of the return instruction are that of the output of the
+    // if instruction
+    assert(ret_ins->name() == "@return");
+
+    mod->remove_instruction(ret_ins);
+
+    return outputs;
+}
+
 struct parse_if : op_parser<parse_if>
 {
     std::vector<op_desc> operators() const { return {{"If"}}; }
@@ -49,6 +71,26 @@ struct parse_if : op_parser<parse_if>
         {
             MIGRAPHX_THROW("PARSE_IF: " + info.name +
                            " condition input can have only one element!");
+        }
+
+        // Fold instruction if condition is constant thus can be evaled
+        // prior to inference
+        if(args.front()->can_eval())
+        {
+            auto cond_arg = args.front()->eval();
+            auto* mod     = info.mod;
+            // then branch
+            if(cond_arg.at<bool>())
+            {
+                parser.parse_graph(mod, then_graph, true);
+            }
+            // else branch
+            else
+            {
+                parser.parse_graph(mod, else_graph, true);
+            }
+
+            return cleanup_arguments(mod);
         }
 
         std::string then_name = info.name + "_if";

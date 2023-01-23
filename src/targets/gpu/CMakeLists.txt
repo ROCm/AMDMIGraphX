@@ -205,8 +205,10 @@ if(MIGRAPHX_ENABLE_MLIR)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
+    message(STATUS "MIGraphX is using hipRTC")
     target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
 else()
+    messgae(STATUS "MIGraphX is using HIP Clang")
     # Get flags needed to compile hip
     include(TargetFlags)
     target_flags(HIP_COMPILER_FLAGS hip::device)

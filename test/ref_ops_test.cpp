@@ -7194,11 +7194,11 @@ TEST_CASE(slice_dyn_test0)
     // large
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type, {{2, 3, 0}, {2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape s{migraphx::shape::int32_type, {{2, 3, 0}, {2, 2, 0}, {3, 3, 0}}};
     auto x = mm->add_parameter("x", s);
     mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 1}}, {"ends", {1, 6}}}), x);
-    migraphx::shape s2{migraphx::shape::int32_type, {{2, 3, 0}, {1, 1, 0}, {1, 2, 0}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {{2, 3, 0}, {1, 1, 0}, {2, 2, 0}}};
     EXPECT(p.get_output_shapes().back() == s2);
     p.compile(migraphx::ref::target{});
 
@@ -7225,14 +7225,14 @@ TEST_CASE(slice_dyn_test1)
     // Slice all three dynamic dimensions
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type, {{1, 2, 0}, {1, 2, 0}, {1, 3, 0}}};
+    migraphx::shape s{migraphx::shape::int32_type, {{2, 2, 0}, {2, 2, 0}, {3, 3, 0}}};
     auto x = mm->add_parameter("x", s);
     mm->add_instruction(
         migraphx::make_op("slice",
                           {{"axes", {0, 1, 2}}, {"starts", {0, 0, 0}}, {"ends", {2, 2, 2}}}),
         x);
 
-    migraphx::shape s2{migraphx::shape::int32_type, {{1, 2, 0}, {1, 2, 0}, {1, 2, 0}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {{2, 2, 0}, {2, 2, 0}, {2, 2, 0}}};
     EXPECT(p.get_output_shapes().back() == s2);
     p.compile(migraphx::ref::target{});
     migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};

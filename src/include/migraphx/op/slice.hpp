@@ -66,16 +66,6 @@ struct slice
 
     std::string name() const { return "slice"; }
 
-    // Convert negative index to a value counting backwards from the max index, per numpy slicing
-    // convention, and clip large values to 1 more than the largest index.
-    auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
-    {
-        int64_t r = std::min(index, static_cast<int64_t>(lens[axis]));
-        if(r < 0)
-            r += lens[axis];
-        return std::size_t(r);
-    }
-
     auto compute_offset(const shape& s) const
     {
         const std::vector<std::size_t>& lens    = s.lens();
@@ -86,14 +76,14 @@ struct slice
             for(std::size_t i = 0; i < axes.size(); i++)
             {
                 auto axis = axes[i];
-                offset += fix_index(lens, axis, starts[i]) * strides[axis];
+                offset += starts[i] * strides[axis];
             }
         }
         else
         {
             for(std::size_t axis = 0; axis < lens.size(); axis++)
             {
-                offset += fix_index(lens, axis, starts[axis]) * strides[axis];
+                offset += starts[axis] * strides[axis];
             }
         }
         return offset;
@@ -101,13 +91,22 @@ struct slice
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
         auto input_shape = inputs[0];
         auto t           = input_shape.type();
+
+        // TODO:  When support for dynamic shapes is added to normalize_attributes,
+        //  remove this restriction.
+        if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return !input_shape.dyn_dims()[axis].is_fixed();
+           }))
+        {
+            MIGRAPHX_THROW("SLICE: slicing is not allowed on non-fixed dynamic input axis ");
+        }
+
         // For a static shape, old_lens will be adjusted to a new size
         // for those axes that are sliced.
         // For dynamic shape, the adjusted old_lens become the new max values,
-        // while retaining the old mins and opts if possible.
+        // while updating the old mins and opts if possible.
         std::vector<std::size_t> new_mins;
         std::vector<std::size_t> new_opts;
         std::vector<std::size_t> old_lens;
@@ -121,37 +120,36 @@ struct slice
         else
         {
             old_lens = input_shape.lens();
-            // For static shape (including eval after a dynamic input) the strides are indexed into
-            // the pre-slice array, so they are larger than the apparent size of the resulting
-            // shape.
+            // For static shape (including during eval step after a dynamic input) the strides are
+            // indexed into the pre-slice array, so they are larger than the apparent size of the
+            // resulting shape.
             old_strides = input_shape.strides();
         }
 
-        if(std::any_of(
-               axes.begin(), axes.end(), [&](auto i) { return (i >= old_lens.size() or i < 0); }))
-        {
-            MIGRAPHX_THROW("SLICE: input axis " + to_string_range(axes) + " out of range");
-        }
-
+        // Axis out of range should never happen as normalize_attributes prevents it.
         if(starts.size() != axes.size() or axes.size() != ends.size())
         {
             MIGRAPHX_THROW(
-                "SLICE: inputs \"starts\", \"ends\", and \"axes\" must all be the same size");
+                "SLICE: attributes \"starts\", \"ends\", and \"axes\" must all be the same size");
         }
 
         std::vector<std::size_t> new_lens = old_lens;
         for(std::size_t i = 0; i < axes.size(); i++)
         {
-            auto axis = axes[i];
-            auto sliced_length =
-                fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
+            auto axis            = axes[i];
+            size_t sliced_length = ends[i] - starts[i];
             // A Numpy indexing convention: a slice size larger than the actual dimension
             // is legal and the "ends" value is clipped to the axis size
             new_lens[axis] = std::min(new_lens[axis], sliced_length);
             if(input_shape.dynamic())
             {
-                auto sliced_min_length = fix_index(new_mins, axis, ends[i]) - fix_index(new_mins, axis, starts[i]);
+                std::size_t sliced_min_length = ends[i] - starts[i];
+                // if the slice size is smaller than maxes but larger than mins
                 new_mins[axis] = std::min(sliced_min_length, new_mins[axis]);
+
+                auto sliced_opt_length = ends[i] - starts[i];
+                if(new_opts[axis] != 0)
+                    new_opts[axis] = sliced_opt_length;
                 if(new_opts[axis] < new_mins[axis] or new_opts[axis] > new_lens[axis])
                     new_opts[axis] = 0;
             }

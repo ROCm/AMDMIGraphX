@@ -130,6 +130,7 @@ struct program
 
     // module related api
     module* create_module(const std::string& name);
+    module* copy_module(const std::string& in_name, const std::string& out_name);
     module* get_module(const std::string& name);
     const module* get_module(const std::string& name) const;
 

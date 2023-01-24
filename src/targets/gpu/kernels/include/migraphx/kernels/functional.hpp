@@ -195,13 +195,11 @@ constexpr auto compose(Fs... fs)
     })(fs...);
 }
 
-template<class F>
+template <class F>
 constexpr auto partial(F f)
 {
     return [=](auto... xs) {
-        return [=](auto&&... ys) {
-            return f(xs..., static_cast<decltype(ys)>(ys)...);
-        };
+        return [=](auto&&... ys) { return f(xs..., static_cast<decltype(ys)>(ys)...); };
     };
 }
 

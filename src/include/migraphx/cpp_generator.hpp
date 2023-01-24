@@ -106,7 +106,9 @@ struct cpp_generator
 
     std::string create_function(const function& f);
 
-    static std::vector<std::string> to_args(const std::vector<instruction_ref>& inputs, const std::unordered_map<instruction_ref, std::string>& names);
+    static std::vector<std::string>
+    to_args(const std::vector<instruction_ref>& inputs,
+            const std::unordered_map<instruction_ref, std::string>& names);
 
     private:
     std::unique_ptr<cpp_generator_impl> impl;

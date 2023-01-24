@@ -207,9 +207,9 @@ struct reduce_op
 {
     std::string input;
     std::string reduction = "";
-    std::string init = "0";
-    std::string read = "op::id{}";
-    std::string write = "op::id{}";
+    std::string init      = "0";
+    std::string read      = "op::id{}";
+    std::string write     = "op::id{}";
     std::string str() const
     {
         return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
@@ -225,7 +225,7 @@ struct reduce_op
         {
             auto reduce_elements = get_reduce_elements(ins->inputs());
             auto reduce_type     = ins->inputs().front()->get_shape().type();
-            r.reduction       = "op::sum{}";
+            r.reduction          = "op::sum{}";
             std::string mean     = "op::mean{" + std::to_string(reduce_elements) + "}";
             // Use float accumulator when reduction size is too large for half
             if(reduce_type == shape::half_type and reduce_elements > 16384)
@@ -267,17 +267,18 @@ std::string generate_reduce(const module& rm, const std::string& name)
     module m = rm;
     cpp_generator g;
     std::size_t i = 0;
-    auto f = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
-        if (contains(ins->name(), "reduce"))
+    auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
+        if(contains(ins->name(), "reduce"))
         {
             return reduce_op::generate(ins, names.at(ins->inputs().front()));
         }
-        else if (ins->name() == "pointwise")
+        else if(ins->name() == "pointwise")
         {
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
             generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
-            return pointwise_name + "(" + join_strings(cpp_generator::to_args(ins->inputs(), names), ", ") + ")";
+            return pointwise_name + "(" +
+                   join_strings(cpp_generator::to_args(ins->inputs(), names), ", ") + ")";
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
@@ -294,7 +295,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if (ins.name() == "pointwise")
+        if(ins.name() == "pointwise")
         {
             auto names = get_op_names(*ins.module_inputs().front());
             result.insert(result.end(), names.begin(), names.end());

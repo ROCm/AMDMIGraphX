@@ -84,10 +84,10 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
     return reduce_lens;
 }
 
-template<class T>
+template <class T>
 static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
 {
-    auto lens       = s.lens();
+    auto lens = s.lens();
     for(const auto& axis : axes)
         lens[axis] = 1;
     return shape{s.type(), lens};
@@ -112,16 +112,14 @@ static std::string get_reduce_algo(const std::vector<shape>& inputs)
 
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
-    std::vector<std::string> names() const
-    {
-        return {"fused_reduce"};
-    }
+    std::vector<std::string> names() const { return {"fused_reduce"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto virtual_inputs = inputs;
-        virtual_inputs.push_back(get_reduced_shape(inputs.front(), v.at("axes").to_vector<std::size_t>()));
-        virtual_inputs = reduce_dims(virtual_inputs);
+        virtual_inputs.push_back(
+            get_reduced_shape(inputs.front(), v.at("axes").to_vector<std::size_t>()));
+        virtual_inputs     = reduce_dims(virtual_inputs);
         auto reduced_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
 
@@ -155,15 +153,16 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         }
         options.kernel_name  = v.get("kernel", "reduce_kernel");
         std::string identity = "[](auto x) { return x; }";
-        auto src             = interpolate_string(simple_reduce_kernel,
-                                      {{"kernel", options.kernel_name},
-                                       {"params", enum_params(inputs.size(), "void * private_p")},
-                                       {"args", enum_params(inputs.size(), "private_p")},
-                                       {"algo", algo},
-                                       {"reduced", "decltype(" + generate_make_shape(reduced_shape) + ")"},
-                                       {"lambda", v.at("lambda").to<std::string>()},
-                                       {"transformers", make_transformer_args(vec)},
-                                       {"preamble", v.get("preamble", std::string{})}});
+        auto src =
+            interpolate_string(simple_reduce_kernel,
+                               {{"kernel", options.kernel_name},
+                                {"params", enum_params(inputs.size(), "void * private_p")},
+                                {"args", enum_params(inputs.size(), "private_p")},
+                                {"algo", algo},
+                                {"reduced", "decltype(" + generate_make_shape(reduced_shape) + ")"},
+                                {"lambda", v.at("lambda").to<std::string>()},
+                                {"transformers", make_transformer_args(vec)},
+                                {"preamble", v.get("preamble", std::string{})}});
         options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }
@@ -171,16 +170,12 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         assert(not ins->module_inputs().empty());
-        auto v = op.to_value();
-        auto* rm           = ins->module_inputs().front();
-        v["preamble"]            = generate_reduce(*rm, "fused_reduce_op");
-        v["lambda"] = "MIGRAPHX_LIFT(fused_reduce_op)";
+        auto v        = op.to_value();
+        auto* rm      = ins->module_inputs().front();
+        v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
+        v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
-        return replace(
-            compile_op(ctx,
-                       to_shapes(ins->inputs()),
-                       v));
-
+        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
     }
 };
 } // namespace gpu

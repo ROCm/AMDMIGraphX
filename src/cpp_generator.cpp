@@ -108,7 +108,7 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
 
 cpp_generator::function& cpp_generator::function::add_generic_param(const std::string& name)
 {
-    params.push_back({name, "T"+name});
+    params.push_back({name, "T" + name});
     tparams.push_back("class T" + name);
     return *this;
 }
@@ -189,7 +189,8 @@ std::string cpp_generator::generate_point_op(const operation& op,
 
 std::string cpp_generator::str() const { return impl->fs.str(); }
 
-cpp_generator::function cpp_generator::generate_module(const module& m, const generate_module_callback& g)
+cpp_generator::function cpp_generator::generate_module(const module& m,
+                                                       const generate_module_callback& g)
 {
     function f;
     auto name = transform_string(m.name(), [](char c) {
@@ -211,13 +212,14 @@ cpp_generator::function cpp_generator::generate_module(const module& m, const ge
     return f;
 }
 
-std::vector<std::string> cpp_generator::to_args(const std::vector<instruction_ref>& inputs, const std::unordered_map<instruction_ref, std::string>& names)
+std::vector<std::string>
+cpp_generator::to_args(const std::vector<instruction_ref>& inputs,
+                       const std::unordered_map<instruction_ref, std::string>& names)
 {
     std::vector<std::string> args;
-    std::transform(inputs.begin(),
-                    inputs.end(),
-                    std::back_inserter(args),
-                    [&](auto i) { return names.at(i); });
+    std::transform(inputs.begin(), inputs.end(), std::back_inserter(args), [&](auto i) {
+        return names.at(i);
+    });
     return args;
 }
 

@@ -471,8 +471,7 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
 }
 
 template <class Algo, class Reduced, class Output, class F>
-__device__ void
-fused_reduce(Output output, F f)
+__device__ void fused_reduce(Output output, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
         auto result = f(r);

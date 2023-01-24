@@ -50,10 +50,16 @@ __device__ void generic_binary_layernorm(
     reduce::block::run<reduce_output>([&](auto, auto r) {
         using value_type         = typename Input1::type;
         constexpr auto relements = r.template elements<Input1>();
+        auto relements_r         = vec_type<value_type>{1.0 / relements};
+        auto relements_rsqrt     = sqrt(relements_r);
         auto means =
             r.reduce(op::sum{}, make_array<vec_type<value_type>>(0, 0), [&](auto x1, auto x2) {
-                auto x = op(x1, x2);
-                return make_array(x, x * x) * vec_type<value_type>{1.0 / relements};
+                auto x     = op(x1, x2);
+                auto x_out = x * relements_r;
+                // dividing x by sqrt(relements) before squaring allows computing higher values
+                // before overflow in low precision
+                auto x2_sqrt = x * relements_rsqrt;
+                return make_array(x_out, x2_sqrt * x2_sqrt);
             })(input1, input2);
 
         auto mean_x        = means[0];

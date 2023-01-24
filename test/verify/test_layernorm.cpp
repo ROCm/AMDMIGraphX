@@ -98,7 +98,7 @@ struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
         migraphx::program p;
         auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 24, 64};
-        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, dims});
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, dims});
         add_layernorm(*mm, x, dims);
         return p;
     }

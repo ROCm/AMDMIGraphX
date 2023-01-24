@@ -99,11 +99,7 @@ struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
         auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 24, 64};
         auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, dims});
-        auto scale = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {256.0}});
-        auto scale_mb =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), scale);
-        auto x_scaled = mm->add_instruction(migraphx::make_op("mul"), x, scale_mb);
-        add_layernorm(*mm, x_scaled, dims);
+        add_layernorm(*mm, x, dims);
         return p;
     }
 };

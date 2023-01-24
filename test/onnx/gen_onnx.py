@@ -2565,19 +2565,6 @@ def if_else_test_inlined():
     return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
 
 
-                                    dims=cond.shape,
-                                     vals=cond.astype(bool))
-    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
-
-    node = onnx.helper.make_node('If',
-                                 inputs=['cond'],
-                                 outputs=['res'],
-                                 then_branch=then_body,
-                                 else_branch=else_body)
-
-    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
-
-
 @onnx_test()
 def if_literal_test():
     then_out = onnx.helper.make_tensor_value_info('then_out',

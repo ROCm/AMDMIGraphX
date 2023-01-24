@@ -72,7 +72,7 @@ static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
     return shape{s.type(), lens};
 }
 
-template<class ReduceLens>
+template <class ReduceLens>
 static std::string get_reduce_algo(const std::vector<shape>& inputs, ReduceLens rlens)
 {
 #if 0
@@ -117,7 +117,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         }
         auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
         auto nelements = options.virtual_inputs.back().elements();
-        auto algo      = v.get("algo", get_reduce_algo(options.virtual_inputs, reduced_shape.lens()));
+        auto algo = v.get("algo", get_reduce_algo(options.virtual_inputs, reduced_shape.lens()));
         if(algo == "block")
         {
             auto block_size = compute_block_size(relements, 256);

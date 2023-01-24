@@ -2116,71 +2116,136 @@ def gathernd_batch_dims_test():
 
 @onnx_test()
 def gemm_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 7])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [11, 5])
-    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [])
-    a = helper.make_tensor_value_info('3', TensorProto.FLOAT, [7, 11])
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [8, 6])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [8, 7])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [6, 7])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [6, 7])
 
     node = onnx.helper.make_node('Gemm',
-                                 inputs=['0', '1', '2'],
-                                 outputs=['3'],
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
+                                 alpha=0.5,
+                                 beta=0.8,
+                                 transA=1)
+
+    return ([node], [A, B, C], [Y])
+
+
+@onnx_test()
+def gemm_no_C_test():
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [5, 7])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [11, 5])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [7, 11])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
                                  alpha=2.0,
                                  beta=2.0,
                                  transA=1,
                                  transB=1)
 
-    return ([node], [x, y, z], [a])
+    return ([node], [A, B, C], [Y])
 
 
 @onnx_test()
-def gemm_ex_test():
-    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 8, 6])
-    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 8, 7])
-    m3 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 1, 6, 7])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 7])
+def gemm_brcst_C_test():
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [5, 6])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [5, 7])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [6, 1])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [6, 7])
 
     node = onnx.helper.make_node('Gemm',
-                                 inputs=['1', '2', '3'],
-                                 outputs=['y'],
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
                                  alpha=0.5,
                                  beta=0.8,
                                  transA=1)
 
-    return ([node], [m1, m2, m3], [y])
-
-
-@onnx_test()
-def gemm_ex_brcst_test():
-    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5, 6])
-    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 5, 7])
-    m3 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 1, 6, 1])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 7])
-
-    node = onnx.helper.make_node('Gemm',
-                                 inputs=['1', '2', '3'],
-                                 outputs=['y'],
-                                 alpha=0.5,
-                                 beta=0.8,
-                                 transA=1)
-
-    return ([node], [m1, m2, m3], [y])
+    return ([node], [A, B, C], [Y])
 
 
 @onnx_test()
 def gemm_half_test():
-    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1, 1, 8, 6])
-    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [1, 1, 8, 7])
-    m3 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [1, 1, 6, 1])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 7])
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT16, [8, 6])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT16, [8, 7])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT16, [6, 1])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT16, [6, 7])
 
     node = onnx.helper.make_node('Gemm',
-                                 inputs=['1', '2', '3'],
-                                 outputs=['y'],
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
                                  alpha=0.5,
                                  beta=0.8,
                                  transA=1)
 
-    return ([node], [m1, m2, m3], [y])
+    return ([node], [A, B, C], [Y])
+
+
+@onnx_test()
+def gemm_dyn_inner_test():
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [None, 6])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [None, 7])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [6, 7])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['A', 'B'],
+                                 outputs=['Y'],
+                                 alpha=0.5,
+                                 transA=1)
+
+    return ([node], [A, B], [Y])
+
+
+@onnx_test()
+def gemm_dyn_outer_test():
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [5, None])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [11, 5])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [None, 11])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['A', 'B'],
+                                 outputs=['Y'],
+                                 alpha=2.0,
+                                 transA=1,
+                                 transB=1)
+
+    return ([node], [A, B], [Y])
+
+
+@onnx_test()
+def gemm_dyn_bias_test():
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [8, None])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [8, 7])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [1, 7])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [None, 7])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
+                                 alpha=1.0,
+                                 beta=1.0,
+                                 transA=1)
+
+    return ([node], [A, B, C], [Y])
+
+
+@onnx_test()
+def gemm_rank_error():
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [4, 1, 8, 6])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [4, 1, 8, 7])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [6, 7])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4, 1, 6, 7])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['A', 'B', 'C'],
+                                 outputs=['Y'],
+                                 alpha=0.5,
+                                 beta=0.8,
+                                 transA=1)
+
+    return ([node], [A, B, C], [Y])
 
 
 @onnx_test()
@@ -6704,6 +6769,92 @@ def transpose_gather_test():
     )
 
     return ([td, ti, node], [x, i], [y])
+
+
+@onnx_test()
+def trilu_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def trilu_batch_diff_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    k = np.array([2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', 'k'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_lower_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node('Trilu', inputs=['x'], outputs=['y'], upper=0)
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def trilu_neg_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([-1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_out_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_row_one_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4])
+    k = np.array([1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', 'k'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y], [k_tensor])
 
 
 @onnx_test()

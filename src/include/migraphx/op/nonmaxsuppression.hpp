@@ -308,6 +308,13 @@ struct nonmaxsuppression
         {
             return result;
         }
+
+        //#bound the max amount of boxes allowed to the max of boxes
+        if(max_output_boxes_per_class > args[1].get_shape().lens()[2])
+        {
+            max_output_boxes_per_class = args[1].get_shape().lens()[2];
+        }
+
         double iou_threshold     = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
         double score_threshold   = (args.size() > 4) ? (args.at(4).at<double>()) : 0.0f;
         std::size_t num_selected = 0;

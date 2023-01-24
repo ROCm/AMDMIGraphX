@@ -223,7 +223,7 @@ struct reduce_op
         }
         else if(ins->name() == "reduce_mean")
         {
-            auto s = ins->inputs().front()->get_shape();
+            auto s               = ins->inputs().front()->get_shape();
             auto reduce_elements = s.elements() / ins->get_shape().elements();
             auto reduce_type     = s.type();
             r.reduction          = "op::sum{}";

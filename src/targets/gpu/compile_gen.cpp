@@ -223,8 +223,9 @@ struct reduce_op
         }
         else if(ins->name() == "reduce_mean")
         {
-            auto reduce_elements = get_reduce_elements(ins->inputs());
-            auto reduce_type     = ins->inputs().front()->get_shape().type();
+            auto s = ins->inputs().front()->get_shape();
+            auto reduce_elements = s.elements() / ins->get_shape().elements();
+            auto reduce_type     = s.type();
             r.reduction          = "op::sum{}";
             std::string mean     = "op::mean{" + std::to_string(reduce_elements) + "}";
             // Use float accumulator when reduction size is too large for half

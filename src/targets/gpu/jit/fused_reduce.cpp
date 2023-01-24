@@ -47,7 +47,7 @@ ${preamble}
 extern "C" {
 __global__ void ${kernel}(${params})
 {
-    transform_args(make_tensors(), ${transformers})(${args})([](auto y, auto... xs) {
+    transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, auto... xs) {
         fused_reduce<reduce::${algo}, ${reduced}>(y, partial(${lambda})(xs...));
     });
 }
@@ -57,11 +57,6 @@ __global__ void ${kernel}(${params})
 } // namespace migraphx
 
 )__migraphx__";
-
-static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
-{
-    return inputs.front().elements() / inputs.back().elements();
-}
 
 template <class T>
 static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
@@ -115,7 +110,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         {
             vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
         }
-        auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
+        auto relements = reduced_shape.elements() / vec.size;
         auto nelements = options.virtual_inputs.back().elements();
         auto algo = v.get("algo", get_reduce_algo(options.virtual_inputs, reduced_shape.lens()));
         if(algo == "block")

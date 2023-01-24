@@ -470,5 +470,22 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
     });
 }
 
+template <class Algo, class Reduced, class Output, class F>
+__device__ void
+fused_reduce(Output output, F f)
+{
+    Algo::template run<Reduced>([&](auto out_idx, auto r) {
+        auto result = f(r);
+        if constexpr(reduce::is_inner_storage<decltype(result)>{})
+        {
+            r.inner([&](auto& y, auto x) { y = x; })(output, result);
+        }
+        else
+        {
+            r.outer([&] { output[out_idx] = result; });
+        }
+    });
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_REDUCE_HPP

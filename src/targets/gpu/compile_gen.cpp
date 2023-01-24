@@ -168,7 +168,7 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-std::string generate_pointwise(const module& pm, const std::string& name)
+void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
 {
     module m = pm;
     run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
@@ -184,8 +184,106 @@ std::string generate_pointwise(const module& pm, const std::string& name)
     // Add explict conversions
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
-    g.create_function(
+    gg.create_function(
         g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m).set_name(name));
+}
+std::string generate_pointwise(const module& pm, const std::string& name)
+{
+    cpp_generator g;
+    generate_pointwise(g, pm, name);
+    return g.str();
+}
+// TODO: Remvoe from reduce.cpp
+static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
+{
+    return inputs.front().elements() / inputs.back().elements();
+}
+static std::size_t get_reduce_elements(const std::vector<instruction_ref>& inputs)
+{
+    return get_reduce_elements(to_shapes(inputs));
+}
+
+struct reduce_op
+{
+    std::string input;
+    std::string reduction = "";
+    std::string init = "0";
+    std::string read = "op::id{}";
+    std::string write = "op::id{}";
+    std::string str() const
+    {
+        return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
+    }
+    static std::string generate(instruction_ref ins, const std::string& x)
+    {
+        reduce_op r{x};
+        if(ins->name() == "reduce_sum")
+        {
+            r.reduction = "op::sum{}";
+        }
+        else if(ins->name() == "reduce_mean")
+        {
+            auto reduce_elements = get_reduce_elements(ins->inputs());
+            auto reduce_type     = ins->inputs().front()->get_shape().type();
+            r.reduction       = "op::sum{}";
+            std::string mean     = "op::mean{" + std::to_string(reduce_elements) + "}";
+            // Use float accumulator when reduction size is too large for half
+            if(reduce_type == shape::half_type and reduce_elements > 16384)
+                r.read = "compose(" + mean + ", op::convert_to<float>{})";
+            else if(contains({shape::float_type, shape::half_type, shape::double_type},
+                             reduce_type))
+                r.read = mean;
+            else
+                r.write = mean;
+        }
+        else if(ins->name() == "reduce_max")
+        {
+            r.reduction = "op::max{}";
+            r.init      = "lowest{}";
+        }
+        else if(ins->name() == "reduce_min")
+        {
+            r.reduction = "op::min{}";
+            r.init      = "highest{}";
+        }
+        else if(ins->name() == "reduce_prod")
+        {
+            r.reduction = "op::product{}";
+            r.init      = "1";
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unsupported reduce");
+        }
+        return r.str();
+    }
+};
+
+// const std::string& generate_reduce_body = R"__migraphx__(
+// )__migraphx__";
+
+std::string generate_reduce(const module& rm, const std::string& name)
+{
+    module m = rm;
+    cpp_generator g;
+    std::size_t i = 0;
+    auto f = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
+        if (contains(ins->name(), "reduce"))
+        {
+            return reduce_op::generate(ins, names.at(ins->inputs().front()));
+        }
+        else if (ins->name() == "pointwise")
+        {
+            auto pointwise_name = "pointwise" + std::to_string(i);
+            i++;
+            generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
+            return pointwise_name + "(" + join_strings(cpp_generator::to_args(ins->inputs(), names), ", ") + ")";
+        }
+        MIGRAPHX_THROW("Unknown operator: " + ins->name());
+    });
+    f.set_attributes({"__device__"}).set_generic_types(m).set_name(name);
+    f.add_generic_param("r");
+    g.create_function(f);
     return g.str();
 }
 
@@ -196,7 +294,15 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        result.push_back(ins.name());
+        if (ins.name() == "pointwise")
+        {
+            auto names = get_op_names(*ins.module_inputs().front());
+            result.insert(result.end(), names.begin(), names.end());
+        }
+        else
+        {
+            result.push_back(ins.name());
+        }
     }
     return result;
 }

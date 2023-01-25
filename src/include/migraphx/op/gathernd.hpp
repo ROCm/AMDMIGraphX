@@ -67,7 +67,10 @@ struct gathernd
             }
             auto indices_lens_iter = inputs.back().lens().begin();
             int output_lens_size   = int(q) + r - k - batch_dims - 1;
-            if(output_lens_size <= 0)
+            // A rank 0 output is a scalar
+            if(output_lens_size == 0)
+                return shape{inputs.front().type(), {1}};
+            if(output_lens_size < 0)
             {
                 MIGRAPHX_THROW("GATHERND: Indices too large for static data input: k=" +
                                std::to_string(k));
@@ -118,7 +121,12 @@ struct gathernd
                 MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
                                std::to_string(batch_dims));
             }
-            if(output_ndim <= 0)
+
+            // A rank 0 output is a scalar
+            if(output_ndim == 0)
+                return shape(inputs.front().type(), {shape::dynamic_dimension({1, 1, 0})});
+
+            if(output_ndim < 0)
             {
                 MIGRAPHX_THROW("GATHERND: Indices too large for data input: k=" +
                                std::to_string(k));

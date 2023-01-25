@@ -80,7 +80,7 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
             const std::size_t input_dim_idx = batch_dims + idx;
             const auto input_dim            = data_shape_lens[input_dim_idx];
             MIGRAPHX_ASSERT(index >= -static_cast<int64_t>(input_dim) and
-                  index < static_cast<int64_t>(input_dim));
+                            index < static_cast<int64_t>(input_dim));
             if(index < 0)
                 index += input_dim;
             std::size_t size_from_slice_dims =

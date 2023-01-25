@@ -198,10 +198,10 @@ static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
 {
     return inputs.front().elements() / inputs.back().elements();
 }
-static std::size_t get_reduce_elements(const std::vector<instruction_ref>& inputs)
-{
-    return get_reduce_elements(to_shapes(inputs));
-}
+// static std::size_t get_reduce_elements(const std::vector<instruction_ref>& inputs)
+// {
+//     return get_reduce_elements(to_shapes(inputs));
+// }
 
 struct reduce_op
 {

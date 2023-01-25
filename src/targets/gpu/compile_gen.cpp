@@ -303,6 +303,10 @@ std::string generate_reduce(const module& rm, const std::string& name)
                                        {"args", join_strings(args, ", ")},
                                        {"call", call_function}});
         }
+        else if(ins->name() == "multibroadcast")
+        {
+            return names.at(ins->inputs().front());
+        }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
     f.set_attributes({"__device__"}).set_generic_types(m).set_name(name);

@@ -70,7 +70,7 @@ struct gathernd
             // A rank 0 output is a scalar
             if(output_lens_size == 0)
                 return shape{inputs.front().type(), {1}};
-            if(output_lens_size < 0)
+            else if(output_lens_size < 0)
             {
                 MIGRAPHX_THROW("GATHERND: Indices too large for static data input: k=" +
                                std::to_string(k));
@@ -125,8 +125,7 @@ struct gathernd
             // A rank 0 output is a scalar
             if(output_ndim == 0)
                 return shape(inputs.front().type(), {shape::dynamic_dimension({1, 1, 0})});
-
-            if(output_ndim < 0)
+            else if(output_ndim < 0)
             {
                 MIGRAPHX_THROW("GATHERND: Indices too large for data input: k=" +
                                std::to_string(k));

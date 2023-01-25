@@ -264,7 +264,7 @@ std::string generate_reduce(const module& rm, const std::string& name)
 {
     module m = rm;
     cpp_generator g;
-    auto ilens = rm.get_parameter_shapes().begin()->second.lens();
+    auto ilens    = rm.get_parameter_shapes().begin()->second.lens();
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
@@ -277,23 +277,31 @@ std::string generate_reduce(const module& rm, const std::string& name)
             i++;
             generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
             std::vector<instruction_ref> tensors;
-            std::copy_if(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(tensors), [&](auto input) {
-                return input->get_shape().lens() == ilens and not input->get_shape().broadcasted();
-            });
+            std::copy_if(ins->inputs().begin(),
+                         ins->inputs().end(),
+                         std::back_inserter(tensors),
+                         [&](auto input) {
+                             return input->get_shape().lens() == ilens and
+                                    not input->get_shape().broadcasted();
+                         });
             auto inner_names = names;
-            for(auto input:tensors)
+            for(auto input : tensors)
                 inner_names[input] += "_lambda_param";
-            auto call_function = pointwise_name + "(" +
-                   join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") + ")";
-            if (tensors.empty())
+            auto call_function =
+                pointwise_name + "(" +
+                join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") + ")";
+            if(tensors.empty())
                 return call_function;
-            const std::string inner_template = "r.inner([=](${params}) { return ${call}; })(${args})";
-            auto args = cpp_generator::to_args(tensors, names);
+            const std::string inner_template =
+                "r.inner([=](${params}) { return ${call}; })(${args})";
+            auto args   = cpp_generator::to_args(tensors, names);
             auto params = cpp_generator::to_args(tensors, inner_names);
-            std::transform(params.begin(), params.end(), params.begin(), [](auto s) {
-                return "auto " + s;
-            });
-            return interpolate_string(inner_template, {{"params", join_strings(params, ", ")}, {"args", join_strings(args, ", ")}, {"call", call_function}});
+            std::transform(
+                params.begin(), params.end(), params.begin(), [](auto s) { return "auto " + s; });
+            return interpolate_string(inner_template,
+                                      {{"params", join_strings(params, ", ")},
+                                       {"args", join_strings(args, ", ")},
+                                       {"call", call_function}});
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });

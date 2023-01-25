@@ -179,6 +179,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     options.params += " -ftemplate-backtrace-limit=0";
 #ifdef MIGRAPHX_USE_HIPRTC
     options.params += " -DMIGRAPHX_USE_HIPRTC";
+    // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in rocm release,
+    // add -Werror flag for hipRTC when fixes are available 
     options.params += " -Wno-reserved-identifier";
     options.params += " -Wno-gnu-line-marker";
     options.params += " -Wno-old-style-cast";

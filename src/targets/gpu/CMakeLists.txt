@@ -175,13 +175,7 @@ rocm_clang_tidy_check(migraphx_gpu)
 # look for offload bundler
 get_filename_component(CMAKE_CXX_COMPILER_PATH "${CMAKE_CXX_COMPILER}" PATH)
 
-if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+$")
-    find_program(MIGRAPHX_OFFLOADBUNDLER_BIN clang-offload-bundler
-        HINTS ${CMAKE_CXX_COMPILER_PATH}
-        PATH_SUFFIXES bin
-        PATHS /opt/rocm/llvm
-    )
-else()
+if(NOT CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+$")
     find_program(MIGRAPHX_EXTRACT_KERNEL extractkernel
         PATH_SUFFIXES bin
         HINTS ${CMAKE_CXX_COMPILER_PATH}
@@ -192,7 +186,6 @@ else()
     )
 endif()
 
-message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
@@ -210,6 +203,7 @@ if(MIGRAPHX_USE_HIPRTC)
     target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
 else()
     message(STATUS "MIGraphX is using HIP Clang")
+
     # Get flags needed to compile hip
     include(TargetFlags)
     target_flags(HIP_COMPILER_FLAGS hip::device)
@@ -229,7 +223,6 @@ else()
     target_compile_definitions(migraphx_gpu PRIVATE
         "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}"
         "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}"
-        "-DMIGRAPHX_OFFLOADBUNDLER_BIN=${MIGRAPHX_OFFLOADBUNDLER_BIN}"
         "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
     )
 

@@ -33,6 +33,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
 #include <iterator>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -73,31 +74,6 @@ struct fused_reduce
 };
 MIGRAPHX_REGISTER_OP(fused_reduce);
 
-static void create_reduce_modules(module_pass_manager& mpm)
-{
-    std::size_t n = 0;
-    for(auto ins : iterator_for(mpm.get_module()))
-    {
-        if(not ins->get_operator().attributes().get("reduce", false))
-            continue;
-        if(ins->inputs().size() != 1)
-            continue;
-
-        auto* rm =
-            mpm.create_module(mpm.get_module().name() + ":" + ins->name() + std::to_string(n++));
-        rm->set_bypass();
-
-        // TODO: Ensure standard shape
-        auto x0 = rm->add_parameter("x0", ins->inputs().front()->get_shape());
-        auto r  = rm->add_instruction(ins->get_operator(), x0);
-        rm->add_return({r});
-
-        auto v = ins->get_operator().to_value();
-        mpm.get_module().replace_instruction(
-            ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});
-    }
-}
-
 static std::unordered_map<instruction_ref, instruction_ref>
 get_ins_param_map(const std::vector<instruction_ref>& inputs, const_module_ref sm)
 {
@@ -115,6 +91,84 @@ get_ins_param_map(const std::vector<instruction_ref>& inputs, const_module_ref s
     return result;
 }
 
+static void insert_params(module_ref sm, instruction_ref ins, std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    auto n = sm->get_parameter_shapes().size();
+    for(auto input:ins->inputs())
+    {
+        if(contains(map_ins, input))
+            continue;
+        // TODO: Ensure standard shape
+        map_ins[input] = sm->add_parameter("x" + std::to_string(n++), input->get_shape());
+    }
+}
+
+static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins, std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    insert_params(sm, ins, map_ins);
+    return sm->add_instructions({ins}, map_ins);
+}
+
+static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
+{
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    return insert_ins_in_submodule(sm, ins, map_ins);
+}
+
+static auto insert_module_in_submodule(module_ref sm, instruction_ref ins, std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    insert_params(sm, ins, map_ins);
+    auto* m = ins->module_inputs().front();
+    auto param_map = get_ins_param_map(ins->inputs(), m);
+    for(auto&& [input, param]:param_map)
+    {
+        map_ins[param] = map_ins.at(input);
+    }
+    return sm->add_instructions(m, map_ins);
+}
+
+static std::vector<instruction_ref> find_inputs(module_ref sm, const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    std::vector<instruction_ref> result;
+    std::map<std::string, instruction_ref> names;
+    for(auto&& [input, param]:map_ins)
+    {
+        if(not sm->has_instruction(param))
+            continue;
+        if(param->name() != "@param")
+            continue;
+        auto v = param->get_operator().to_value();
+        auto name = v.at("parameter").to<std::string>();
+        names[name] = input;
+    }
+    std::transform(names.begin(), names.end(), std::back_inserter(result), [](const auto& p) {
+        return p.second;
+    });
+    return result;
+}
+
+static void create_reduce_modules(module_pass_manager& mpm)
+{
+    std::size_t n = 0;
+    for(auto ins : iterator_for(mpm.get_module()))
+    {
+        if(not ins->get_operator().attributes().get("reduce", false))
+            continue;
+        if(ins->inputs().size() != 1)
+            continue;
+
+        auto* rm =
+            mpm.create_module(mpm.get_module().name() + ":" + ins->name() + std::to_string(n++));
+        rm->set_bypass();
+
+        rm->add_return(insert_ins_in_submodule(rm, ins));
+
+        auto v = ins->get_operator().to_value();
+        mpm.get_module().replace_instruction(
+            ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});
+    }
+}
+
 static std::vector<instruction_ref> get_returns(module& m)
 {
     auto last = std::prev(m.end());
@@ -122,6 +176,36 @@ static std::vector<instruction_ref> get_returns(module& m)
         return last->inputs();
     return {last};
 }
+
+namespace {
+struct find_pointwise_reduce
+{
+    auto matcher() const
+    {
+        return match::name("fused_reduce")(match::any_of[match::inputs()](match::name("pointwise")(match::used_once()).bind("pointwise")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto reduce    = r.result;
+        auto pw = r.instructions["pointwise"];
+
+        const auto* pm = pw->module_inputs().front();
+        // const auto* old_rm = reduce->module_inputs().front();
+        auto* rm           = mpm.create_module(pm->name() + ":reduce");
+        rm->set_bypass();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        // Insert pointwise
+        auto rins = insert_ins_in_submodule(rm, pw, map_ins).front();
+        map_ins[pw] = rins;
+        // Insert fused_reduce
+        insert_module_in_submodule(rm, reduce, map_ins);
+
+        auto new_inputs = find_inputs(rm, map_ins);
+        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
+    }
+};
 
 struct find_reduce_pointwise
 {
@@ -133,43 +217,31 @@ struct find_reduce_pointwise
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins    = r.result;
+        auto pw    = r.result;
         auto reduce = r.instructions["reduce"];
 
         const auto* old_rm = reduce->module_inputs().front();
         auto* rm           = mpm.create_module(old_rm->name() + ":pointwise");
         rm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // Copy module instructions
-        rm->add_instructions(old_rm);
-        auto map_ins    = get_ins_param_map(reduce->inputs(), rm);
-        auto new_inputs = reduce->inputs();
-        for(auto input : ins->inputs())
-        {
-            if(contains(map_ins, input))
-                continue;
-            if(input == reduce)
-            {
-                map_ins[input] = get_returns(*rm).front();
-            }
-            else
-            {
-                map_ins[input] =
-                    rm->add_parameter("x" + std::to_string(new_inputs.size()), input->get_shape());
-                new_inputs.push_back(input);
-            }
-        }
+        insert_module_in_submodule(rm, reduce, map_ins);
+        map_ins[reduce] = get_returns(*rm).front();
 
-        auto out = rm->add_instructions({ins}, map_ins);
-        rm->add_return(out);
-        mpm.get_module().replace_instruction(ins, reduce->get_operator(), new_inputs, {rm});
+        auto out = insert_ins_in_submodule(rm, pw, map_ins);
+        rm->replace_return(out);
+
+        auto new_inputs = find_inputs(rm, map_ins);
+        mpm.get_module().replace_instruction(pw, reduce->get_operator(), new_inputs, {rm});
     }
 };
+}
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
 {
     create_reduce_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
-    match::find_matches(mpm, find_reduce_pointwise{});
+    match::find_matches(mpm, find_reduce_pointwise{}, find_pointwise_reduce{});
     mpm.run_pass(dead_code_elimination{});
 }
 

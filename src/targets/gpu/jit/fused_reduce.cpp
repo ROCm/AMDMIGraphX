@@ -37,6 +37,7 @@ using namespace migraphx::gpu::gen; // NOLINT
 static const char* const simple_reduce_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/vectorize.hpp>
 #include <args.hpp>
 

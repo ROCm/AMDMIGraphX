@@ -50,6 +50,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 #ifdef MIGRAPHX_USE_HIPRTC
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS);
 
 std::string hiprtc_error(hiprtcResult err, const std::string& msg)
 {
@@ -174,13 +175,15 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');
-    options.push_back("-DMIGRAPHX_HIPRTC=1");
+    options.push_back("-DMIGRAPHX_HIPRTC");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
-    options.push_back("-DMIGRAPHX_HAS_DPP=0");
-    options.push_back("-Wno-reserved-identifier");
-    options.push_back("-Wno-gnu-line-marker");
-    options.push_back("-Wno-old-style-cast");
-
+    if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{})) {
+        options.push_back("-DMIGRAPHX_HAS_DPP=0");
+        options.push_back("-Wno-reserved-identifier");
+        options.push_back("-Wno-gnu-line-marker");
+        options.push_back("-Wno-old-style-cast");
+    }
+    
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {

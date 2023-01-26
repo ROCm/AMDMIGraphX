@@ -35,10 +35,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-#ifdef MIGRAHPX_USE_HIPRTC
-#define MIGRAPHX_NO_DPP
-#endif
-
 #ifdef MIGRAPHX_NO_DPP
 
 template <index_int N,
@@ -67,6 +63,7 @@ __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
     }
     return buffer[0];
 }
+
 #else
 constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110u | x; }
 
@@ -315,4 +312,4 @@ void reduce(hipStream_t stream,
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_NO_DPP

@@ -30,11 +30,11 @@
 
 namespace migraphx {
 
-#ifdef MIGRAPHX_USE_HIPRTC
-#define MIGRAPHX_NO_DPP
+#ifndef MIGRAPHX_HAS_DPP
+#define MIGRAPHX_HAS_DPP 1
 #endif
 
-#ifndef MIGRAPHX_NO_DPP
+#ifdef MIGRAPHX_HAS_DPP
 constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110u | x; }
 
 constexpr unsigned int dpp_row_bcast(unsigned int x)
@@ -76,7 +76,7 @@ __device__ T dpp_mov(T& x)
     }
     return output.data;
 }
-#endif // MIGRAPHX_NO_DPP
+#endif // MIGRAPHX_HAS_DPP
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_DPP_HPP

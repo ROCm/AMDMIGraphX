@@ -26,7 +26,7 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
-
+#include <migraphx/kernels/ops.hpp>
 namespace migraphx {
 
 template <class T>
@@ -54,17 +54,17 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
     auto data_shape_lens    = data_shape.lens;
     auto num_slice_dims     = indices_shape_lens.back();
     std::size_t num_slices  = accumulate(
-        indices_shape_lens.begin(), indices_shape_lens.end() - 1, 1, multiplies<std::size_t>{});
+        indices_shape_lens.begin(), indices_shape_lens.end() - 1, 1, op::product{});
     std::size_t slice_size = accumulate(data_shape_lens.begin() + num_slice_dims + batch_dims,
                                         data_shape_lens.end(),
                                         1,
-                                        multiplies<std::size_t>{});
+                                        op::product{});
     const std::size_t num_batches       = accumulate(data_shape_lens.begin(),
                                                data_shape_lens.begin() + batch_dims,
                                                1,
-                                               multiplies<std::size_t>{});
+                                               op::product{});
     const std::size_t data_batch_stride = accumulate(
-        data_shape_lens.begin() + batch_dims, data_shape_lens.end(), 1, multiplies<std::size_t>{});
+        data_shape_lens.begin() + batch_dims, data_shape_lens.end(), 1, op::product{});
     const auto num_slices_per_batch = num_slices / num_batches;
 
     ind.global_stride(output_shape.elements(), [&](auto i) {
@@ -87,7 +87,7 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
                 accumulate(data_shape_lens.begin() + batch_dims + idx + 1,
                            data_shape_lens.begin() + batch_dims + num_slice_dims,
                            slice_size,
-                           multiplies<std::size_t>{});
+                           op::product{});
             relative_slice_offset += index * size_from_slice_dims;
         }
 

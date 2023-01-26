@@ -40,7 +40,6 @@ file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 add_embed_library(migraphx_kernels ${KERNEL_FILES})
-target_compile_definitions(migraphx_kernels PRIVATE -DMIGRAPHX_USE_HIPRTC)
 
 file(GLOB DEVICE_GPU_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})

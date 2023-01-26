@@ -460,7 +460,7 @@ struct lane
             }
         };
 
-        template<class Size, class F>
+        template <class Size, class F>
         constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
         {
             return {f};
@@ -496,9 +496,7 @@ struct lane
         template <class R, class F, class N, class... Ts>
         __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            return make_inner_storage(n, [=](auto j, auto d) {
-                return f(xs(j, d)...);
-            });
+            return make_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
         }
     };
     template <class Slicer>

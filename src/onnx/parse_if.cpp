@@ -35,14 +35,6 @@ namespace onnx {
 
 static std::vector<instruction_ref> remove_return(module* mod)
 {
-    auto num_outputs = mod->get_output_shapes().size();
-
-    if(num_outputs > 1)
-    { // TODO: Add support for make_tuple operator. This isn't trivial
-        //      Function that does our output aliasing has
-        MIGRAPHX_THROW("PARSE_IF: Multi-output if not supported for IF operator const folding");
-    }
-
     instruction_ref ret_ins = std::prev(mod->end());
     auto outputs            = ret_ins->inputs();
 

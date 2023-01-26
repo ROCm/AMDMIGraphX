@@ -86,7 +86,7 @@ struct concat
             MIGRAPHX_THROW("CONCAT: input tensors are not all the same rank or type");
         }
 
-        if(axis >= inputs[0].ndim())
+        if(axis >= inputs[0].ndim() or axis < 0)
             MIGRAPHX_THROW("CONCAT: axis attribute out of range");
 
         if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
@@ -94,16 +94,16 @@ struct concat
             // Static input shapes
             const auto& first_shape_lens = inputs.front().lens();
             const auto& type             = inputs.front().type();
-            for(std::size_t l = 0; l < first_shape_lens.size(); l++)
+            for(std::size_t ll = 0; ll < first_shape_lens.size(); ll++)
             {
-                if(l != axis)
+                if(ll != axis)
                 {
                     if(not std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
-                           return s.lens()[l] == first_shape_lens[l];
+                           return s.lens()[ll] == first_shape_lens[ll];
                        }))
                     {
                         MIGRAPHX_THROW("CONCAT: all input dimensions should match along axis " +
-                                       std::to_string(l));
+                                       std::to_string(ll));
                     }
                 }
             }
@@ -113,10 +113,8 @@ struct concat
                 const auto& lens = input.lens();
                 new_dim_axis += lens[axis];
             }
-            std::vector<std::size_t> new_lens;
-            std::copy(
-                first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
-            new_lens[axis] = new_dim_axis;
+            std::vector<std::size_t> new_lens = first_shape_lens;
+            new_lens[axis]                    = new_dim_axis;
             return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
         else if(std::all_of(

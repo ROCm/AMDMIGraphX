@@ -1,4 +1,4 @@
-name: Update Github Project
+name: Add items to GH project
 
 on:
   pull_request:
@@ -16,4 +16,4 @@ jobs:
       - uses: actions/add-to-project@v0.4.0
         with:
           project-url: https://github.com/orgs/ROCmSoftwarePlatform/projects/20
-          github-token: $${{ ${{ github.token }} }}
+          github-token: ${{ secrets.TEST_PR_WORKFLOW }}

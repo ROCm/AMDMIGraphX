@@ -66,7 +66,7 @@ struct convert_to
     }
 };
 
-template<index_int N>
+template <index_int N>
 struct mean
 {
     template <class T>

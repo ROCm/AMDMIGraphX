@@ -77,13 +77,7 @@ struct concat
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        // Todo:: not using check_shapes struct; it
-        // doesn't have a method to check for at least one shape.
-        // A single input is a no-op, but it is legal
-        if(inputs.empty())
-        {
-            MIGRAPHX_THROW("CONCAT: called with empty input list");
-        }
+        migraphx::check_shapes{inputs, *this, true}.has_at_least(1);
 
         if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
                return (s.ndim() == inputs[0].ndim() and s.type() == inputs[0].type());

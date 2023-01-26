@@ -61,7 +61,6 @@ target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
-target_compile_definitions(migraphx_device PRIVATE -DMIGRAPHX_USE_HIPRTC)
 
 add_library(kernel_file_check EXCLUDE_FROM_ALL)
 
@@ -171,7 +170,6 @@ register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-# look for offload bundler
 get_filename_component(CMAKE_CXX_COMPILER_PATH "${CMAKE_CXX_COMPILER}" PATH)
 
 if(NOT CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+$")

@@ -155,9 +155,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
 {
     static std::string get_layout(const shape& s)
     {
-        return s.strides().back() == 1
-                   ? "ck::tensor_layout::gemm::RowMajor"
-                   : "ck::tensor_layout::gemm::ColumnMajor";
+        return s.strides().back() == 1 ? "ck::tensor_layout::gemm::RowMajor"
+                                       : "ck::tensor_layout::gemm::ColumnMajor";
     }
 
     static std::string get_type(const shape& s)

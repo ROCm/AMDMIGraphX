@@ -160,7 +160,8 @@ migraphx::src_file make_src_file(const std::string& name, const std::string& con
 
 TEST_CASE(simple_compile_hip)
 {
-    auto binaries = migraphx::gpu::compile_hip_src({make_src_file("main.cpp", write_2s)}, "", migraphx::gpu::get_device_name());
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::argument input{{migraphx::shape::int8_type, {5}}};
@@ -211,7 +212,8 @@ TEST_CASE(compile_warnings)
 
 TEST_CASE(code_object_hip)
 {
-    auto binaries = migraphx::gpu::compile_hip_src({make_src_file("main.cpp", add_2s_binary)}, "", migraphx::gpu::get_device_name());
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", add_2s_binary)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::shape input{migraphx::shape::int8_type, {5}};

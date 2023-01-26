@@ -143,9 +143,10 @@ struct hiprtc_program
                        options.end(),
                        std::back_inserter(c_options),
                        [](const std::string& s) { return s.c_str(); });
-        auto result = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
-        auto prog_log = log(); 
-        if(not prog_log.empty()) {
+        auto result   = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
+        auto prog_log = log();
+        if(not prog_log.empty())
+        {
             std::cerr << prog_log << std::endl;
         }
         if(result != HIPRTC_SUCCESS)

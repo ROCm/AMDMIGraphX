@@ -179,7 +179,7 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_l
 #endif
 
 #define MIGRAPHX_STATIC_ASSERT_FOR(...) \
-    static_assert(__VA_ARGS__); \
+    static_assert(__VA_ARGS__);         \
     if constexpr(__VA_ARGS__)
 
 } // namespace migraphx

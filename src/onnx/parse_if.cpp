@@ -33,7 +33,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-static std::vector<instruction_ref> cleanup_arguments(module* mod)
+static std::vector<instruction_ref> remove_return(module* mod)
 {
     auto num_outputs = mod->get_output_shapes().size();
 
@@ -90,7 +90,7 @@ struct parse_if : op_parser<parse_if>
                 parser.parse_graph(mod, else_graph, true);
             }
 
-            return cleanup_arguments(mod);
+            return remove_return(mod);
         }
 
         std::string then_name = info.name + "_if";

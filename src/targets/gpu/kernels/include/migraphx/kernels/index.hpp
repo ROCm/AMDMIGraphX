@@ -180,15 +180,17 @@ struct index
             }
             else
             {
-                static_assert(max_stride_iterations(n, stride) < 64);
-                sequence(max_stride_iterations(n, stride), [&](auto... ks) {
-                    fold([&](auto d, auto k) {
-                        auto i = start + stride * k;
-                        if(i < n)
-                            invoke_loop(f, i, d);
-                        return d + _c<1>;
-                    })(_c<0>, ks...);
-                });
+                MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
+                {
+                    sequence(max_stride_iterations(n, stride), [&](auto... ks) {
+                        fold([&](auto d, auto k) {
+                            auto i = start + stride * k;
+                            if(i < n)
+                                invoke_loop(f, i, d);
+                            return d + _c<1>;
+                        })(_c<0>, ks...);
+                    });
+                }
             }
         }
         else

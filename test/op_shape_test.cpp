@@ -2732,6 +2732,15 @@ TEST_CASE(where_dyn_input2)
     expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
 }
 
+TEST_CASE(where_dyn_input3)
+{
+    // dynamic shapes, predicate shape is different
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 4, 0}}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
 TEST_CASE(roialign_test)
 {
     migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};

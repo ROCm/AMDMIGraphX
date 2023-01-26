@@ -390,57 +390,6 @@ struct block
 
 struct lane
 {
-#if 0
-    template <class Slicer>
-    struct reducer
-    {
-        index idx;
-        Slicer slice;
-        template <class Op, class T, class Read>
-        __device__ auto reduce(Op op, T init, Read read) const
-        {
-            return sliced(slice, [=](auto x, auto... xs) {
-                using type = typename decltype(x)::type;
-                type r     = init;
-                for(index_int j = 0; j < x.get_shape().elements(); j++)
-                {
-                    r = op(r, read(x[j], xs[j]...));
-                }
-                return r;
-            });
-        }
-
-        template <class F>
-        __device__ void outer(F f) const
-        {
-            f();
-        }
-
-        template <class F>
-        __device__ auto inner(F f) const
-        {
-            return sliced(slice, [=](auto x, auto... xs) {
-                for(index_int j = 0; j < x.get_shape().elements(); j++)
-                {
-                    f(x[j], xs[j]...);
-                }
-            });
-        }
-
-        template <class Input>
-        constexpr auto elements() const
-        {
-            using reduce_type = decltype(slice(Input{}));
-            return get_shape_c<reduce_type>{}.elements();
-        }
-    };
-
-    template <class Slicer>
-    static __device__ auto make(index idx, Slicer slicer)
-    {
-        return reducer<Slicer>{idx, slicer};
-    }
-#else
     template <class Slicer>
     struct reducer : reducer_base<reducer<Slicer>>
     {
@@ -504,7 +453,6 @@ struct lane
     {
         return reducer<Slicer>{{}, idx, slicer};
     }
-#endif
 
     template <class Output, class F>
     static __device__ void run(F f)

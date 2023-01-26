@@ -6942,50 +6942,47 @@ TEST_CASE(scatternd_reduction_test)
 
 TEST_CASE(scatternd_reduction_dyn_test)
 {
-    {
-        // reduction = add with dynamic input shapes
-        migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto dtype = migraphx::shape::float_type;
-        auto itype = migraphx::shape::int64_type;
-        migraphx::shape::dynamic_dimension dd{3, 6, 0};
-        migraphx::shape ds{migraphx::shape::float_type, {dd, dd, dd}};
-        migraphx::shape is{itype, {2, 1}};
-        migraphx::shape us{dtype, {{2, 2, 0}, dd, dd}};
+    // reduction = add, with dynamic input shapes
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape::dynamic_dimension dd{3, 6, 0};
+    migraphx::shape ds{migraphx::shape::float_type, {dd, dd, dd}};
+    migraphx::shape is{itype, {2, 1}};
+    migraphx::shape us{dtype, {{2, 2, 0}, dd, dd}};
 
-        auto xdata    = mm->add_parameter("X", ds);
-        auto xindex   = mm->add_parameter("I", is);
-        auto xupdates = mm->add_parameter("U", us);
+    auto xdata    = mm->add_parameter("X", ds);
+    auto xindex   = mm->add_parameter("I", is);
+    auto xupdates = mm->add_parameter("U", us);
 
-        auto scatternd_add_op = migraphx::make_op("scatternd_add");
-        auto scatternd        = mm->add_instruction(scatternd_add_op, xdata, xindex, xupdates);
-        mm->add_return({scatternd});
-        p.compile(migraphx::ref::target{});
+    auto scatternd_add_op = migraphx::make_op("scatternd_add");
+    auto scatternd        = mm->add_instruction(scatternd_add_op, xdata, xindex, xupdates);
+    mm->add_return({scatternd});
+    p.compile(migraphx::ref::target{});
 
-        migraphx::parameter_map params;
-        migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {4, 4, 4}}; // data
-        std::vector<float> input_data{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
-                                      1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
-                                      8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8,
-                                      8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
-        std::vector<uint64_t> input_index{0, 2};
-        migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {2, 4, 4}}; // updates
-        std::vector<float> input_updates{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8,
-                                         1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {4, 4, 4}}; // data
+    std::vector<float> input_data{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6,
+                                  7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4,
+                                  5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<uint64_t> input_index{0, 2};
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {2, 4, 4}}; // updates
+    std::vector<float> input_updates{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8,
+                                     1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
 
-        params["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
-        params["I"] = migraphx::argument(is, input_index.data());
-        params["U"] = migraphx::argument(input_fixed_shape1, input_updates.data());
+    params["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
+    params["I"] = migraphx::argument(is, input_index.data());
+    params["U"] = migraphx::argument(input_fixed_shape1, input_updates.data());
 
-        auto result = p.eval(params).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{6, 7, 8, 9, 11, 12, 13, 14, 15, 14, 13, 12, 12, 11, 10, 9,
-                                1, 2, 3, 4, 5,  6,  7,  8,  8,  7,  6,  5,  4,  3,  2,  1,
-                                9, 8, 7, 6, 6,  5,  4,  3,  4,  5,  6,  7,  9,  10, 11, 12,
-                                8, 7, 6, 5, 4,  3,  2,  1,  1,  2,  3,  4,  5,  6,  7,  8};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{6, 7, 8, 9, 11, 12, 13, 14, 15, 14, 13, 12, 12, 11, 10, 9,
+                            1, 2, 3, 4, 5,  6,  7,  8,  8,  7,  6,  5,  4,  3,  2,  1,
+                            9, 8, 7, 6, 6,  5,  4,  3,  4,  5,  6,  7,  9,  10, 11, 12,
+                            8, 7, 6, 5, 4,  3,  2,  1,  1,  2,  3,  4,  5,  6,  7,  8};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 TEST_CASE(sigmoid_test)

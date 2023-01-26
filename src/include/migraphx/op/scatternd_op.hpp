@@ -52,52 +52,74 @@ struct scatternd_op : op_name<Derived>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(3);
+        auto sshape = inputs.front();
+
+        auto r = sshape.ndim();
+        auto q = inputs.at(1).ndim();
+        size_t k;
+        auto i_shape = inputs.at(1);
+        if(i_shape.dynamic())
+        {
+            // the rank of the output is a function of k, so it must be fixed.
+            if(not i_shape.dyn_dims().back().is_fixed())
+            {
+                MIGRAPHX_THROW(
+                    "GATHERND: last dimension of indices tensor must be fixed (min=max)");
+            }
+            k = i_shape.dyn_dims().back().min;
+        }
+        else
+            k = i_shape.lens().back();
+
+        // Checks on the sizes of input tensors
+        if(q + r != inputs.back().ndim() + k + 1)
+            MIGRAPHX_THROW("ScatterND:  ranks of inputs don't match. " + std::to_string(q) + " + " +
+                           std::to_string(r) + " - " + std::to_string(k) +
+                           " - 1 != " + std::to_string(inputs.back().ndim()));
+        if(k > r)
+            MIGRAPHX_THROW("ScatterND: index of size " + std::to_string(k) +
+                           " is too large for tensor of rank " + std::to_string(r));
 
         if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
         {
-            auto r         = inputs.front().ndim();
-            auto q         = inputs.at(1).ndim();
-            auto k         = inputs.at(1).lens().back();
             auto ind_lens  = inputs.at(1).lens();
             auto upd_lens  = inputs.back().lens();
             auto data_lens = inputs.front().lens();
 
-            if(q + r - k - 1 != upd_lens.size())
-                MIGRAPHX_THROW("ScatterND:  ranks of inputs don't match. " + std::to_string(q) +
-                               " + " + std::to_string(r) + " - " + std::to_string(k) +
-                               " - 1 != " + std::to_string(upd_lens.size()));
-            if(k > r)
-                MIGRAPHX_THROW("ScatterND: index of size " + std::to_string(k) +
-                               " is too large for tensor of rank " + std::to_string(r));
+            // Check that corresponding portions of tensor shapes match
             if(not(std::equal(ind_lens.begin(), ind_lens.begin() + q - 1, upd_lens.begin()) and
                    std::equal(data_lens.begin() + k, data_lens.end(), upd_lens.begin() + q - 1)))
                 MIGRAPHX_THROW(
                     "ScatterND: incorrect update shape. update.lens != indices.lens[0:q-1] "
                     "++ data.lens[k:r-1]");
-            auto s = inputs.front();
-            if(s.broadcasted())
+            if(sshape.broadcasted())
             {
-                return {s.type(), s.lens()};
+                return {sshape.type(), sshape.lens()};
             }
             else
             {
-                return s.with_lens(s.lens());
+                return sshape.with_lens(sshape.lens());
             }
         }
         else
         {
-            // One or more inputs are dynamic; shape validation can't be done yet.  Putting off
-            // validation until 3 static shapes are received means that if any inputs are dynamic
-            // shapes, the validation will happen at evaluation time.
-            // TODO: gathernd op. handles the situation differently by checking dynamic shape inputs
-            // in compute_shape() but requiring the last dimension of index (k) to be fixed, which
-            // allows the checks to take place.  Should the same be done here?
-            auto s = inputs.front();
-            if(s.dynamic())
-                return s;
-            if(s.broadcasted())
-                return {s.type(), s.lens()};
-            return s.with_lens(s.lens());
+            // It's possible for some of the 3 inputs to be dynamic shapes and some static,
+            // but any dynamic dimension that's compared to a static dimension must be fixed.
+            auto ind_dims  = inputs.at(1).to_dynamic().dyn_dims();
+            auto upd_dims  = inputs.back().to_dynamic().dyn_dims();
+            auto data_dims = inputs.front().to_dynamic().dyn_dims();
+
+            // Check that corresponding portions of tensor shapes match.
+            if(not(std::equal(ind_dims.begin(), ind_dims.begin() + q - 1, upd_dims.begin()) and
+                   std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + q - 1)))
+                MIGRAPHX_THROW("ScatterND: incorrect update shape. update dimensions must match "
+                               "indices and data.");
+
+            if(sshape.dynamic())
+                return sshape;
+            if(sshape.broadcasted())
+                return {sshape.type(), sshape.lens()};
+            return sshape.with_lens(sshape.lens());
         }
     }
 

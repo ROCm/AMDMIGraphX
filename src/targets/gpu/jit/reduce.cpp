@@ -164,7 +164,7 @@ struct reduce_compiler : compiler<reduce_compiler>
             auto reduce_elements = get_reduce_elements(ins->inputs());
             auto reduce_type     = ins->inputs().front()->get_shape().type();
             v["reduction"]       = "op::sum{}";
-            std::string mean     = "op::mean{" + std::to_string(reduce_elements) + "}";
+            std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
             // Use float accumulator when reduction size is too large for half
             if(reduce_type == shape::half_type and reduce_elements > 16384)
                 v["read"] = "compose(" + mean + ", op::convert_to<float>{})";

@@ -390,6 +390,7 @@ struct block
 
 struct lane
 {
+#if 0
     template <class Slicer>
     struct reducer
     {
@@ -439,6 +440,73 @@ struct lane
     {
         return reducer<Slicer>{idx, slicer};
     }
+#else
+    template <class Slicer>
+    struct reducer : reducer_base<reducer<Slicer>>
+    {
+        index idx;
+        Slicer slice;
+
+        template <class Size, class F>
+        struct inner_storage : inner_storage_tag
+        {
+            using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
+            F f;
+            constexpr Size rsize() const { return {}; }
+            template <class U, class V>
+            constexpr auto operator()(U j, V d) const
+            {
+                return f(j, d);
+            }
+        };
+
+        template<class Size, class F>
+        constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
+        {
+            return {f};
+        }
+
+        template <class Op, class T, class Read, class N, class U, class... Us>
+        __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
+        {
+            using type = remove_reference_t<decltype(x(0, _c<0>))>;
+            type r     = init;
+            for(index_int j = 0; j < n; j++)
+            {
+                r = op(r, read(x(j, _c<0>), xs(j, _c<0>)...));
+            }
+            return r;
+        }
+
+        template <class F>
+        __device__ void outer(F f) const
+        {
+            f();
+        }
+
+        template <class F, class N, class... Ts>
+        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
+        {
+            for(index_int j = 0; j < n; j++)
+            {
+                f(xs(j, _c<0>)...);
+            }
+        }
+
+        template <class R, class F, class N, class... Ts>
+        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
+        {
+            return make_inner_storage(n, [=](auto j, auto d) {
+                return f(xs(j, d)...);
+            });
+        }
+    };
+    template <class Slicer>
+    static __device__ auto make(index idx, Slicer slicer)
+    {
+        return reducer<Slicer>{{}, idx, slicer};
+    }
+#endif
 
     template <class Output, class F>
     static __device__ void run(F f)

@@ -160,7 +160,7 @@ struct index
         return f(i);
     }
 
-    template <class F, class N, class Stride>
+    template <bool Unroll, class F, class N, class Stride>
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
         MIGRAPHX_ASSERT(start < stride);
@@ -178,7 +178,7 @@ struct index
                     invoke_loop(f, start, _c<0>);
                 }
             }
-            else
+            else if constexpr(Unroll)
             {
                 MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
                 {
@@ -190,6 +190,15 @@ struct index
                             return d + _c<1>;
                         })(_c<0>, ks...);
                     });
+                }
+            }
+            else
+            {
+                index_int k = 0;
+                for(index_int i = start; i < n; i += stride)
+                {
+                    invoke_loop(f, i, k);
+                    k++;
                 }
             }
         }
@@ -207,13 +216,13 @@ struct index
     template <class F, class N>
     __device__ void global_stride(N n, F f) const
     {
-        for_stride(global, n, nglobal(), f);
+        for_stride<false>(global, n, nglobal(), f);
     }
 
     template <class F, class N>
     __device__ void local_stride(N n, F f) const
     {
-        for_stride(local, n, nlocal(), f);
+        for_stride<true>(local, n, nlocal(), f);
     }
 };
 

@@ -135,7 +135,7 @@ insert_module_in_submodule(module_ref sm,
 }
 
 static std::vector<instruction_ref>
-find_inputs(module_ref sm, const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+find_inputs(module_ref sm, const module& parent, const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     std::vector<instruction_ref> result;
     std::map<std::string, instruction_ref> names;
@@ -145,6 +145,8 @@ find_inputs(module_ref sm, const std::unordered_map<instruction_ref, instruction
             continue;
         if(param->name() != "@param")
             continue;
+        if(not parent.has_instruction(input))
+            continue;
         auto v      = param->get_operator().to_value();
         auto name   = v.at("parameter").to<std::string>();
         names[name] = input;
@@ -152,6 +154,7 @@ find_inputs(module_ref sm, const std::unordered_map<instruction_ref, instruction
     std::transform(names.begin(), names.end(), std::back_inserter(result), [](const auto& p) {
         return p.second;
     });
+    assert(result.size() == sm->get_parameter_shapes().size());
     return result;
 }
 
@@ -211,7 +214,7 @@ struct find_pointwise_reduce
         // Insert fused_reduce
         insert_module_in_submodule(rm, reduce, map_ins);
 
-        auto new_inputs = find_inputs(rm, map_ins);
+        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
     }
 };
@@ -266,7 +269,7 @@ struct find_reduce_pointwise
         auto out = insert_ins_in_submodule(rm, pw, map_ins);
         rm->replace_return(out);
 
-        auto new_inputs = find_inputs(rm, map_ins);
+        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(pw, reduce->get_operator(), new_inputs, {rm});
     }
 };
@@ -300,7 +303,7 @@ struct find_reduce_reduce
         auto out = insert_module_in_submodule(rm, reduce1, map_ins);
         rm->replace_return(out);
 
-        auto new_inputs = find_inputs(rm, map_ins);
+        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce1, reduce1->get_operator(), new_inputs, {rm});
     }
 };

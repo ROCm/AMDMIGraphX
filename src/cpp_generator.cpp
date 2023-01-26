@@ -106,10 +106,10 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
     return *this;
 }
 
-cpp_generator::function& cpp_generator::function::add_generic_param(const std::string& name)
+cpp_generator::function& cpp_generator::function::add_generic_param(const std::string& pname)
 {
-    params.push_back({name, "T" + name});
-    tparams.push_back("class T" + name);
+    params.push_back({pname, "T" + pname});
+    tparams.push_back("class T" + pname);
     return *this;
 }
 

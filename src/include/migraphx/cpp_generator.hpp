@@ -77,7 +77,7 @@ struct cpp_generator
         function& set_types(const module& m);
         function& set_types(const module& m, const std::function<std::string(shape)>& parse);
         function& set_generic_types(const module& m);
-        function& add_generic_param(const std::string& name);
+        function& add_generic_param(const std::string& pname);
     };
 
     cpp_generator();

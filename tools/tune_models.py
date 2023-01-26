@@ -40,9 +40,12 @@ def tune_models(models, batch_sizes, seq_len, n, existing):
     json_file = "ck_tuning_{}.json".format(time_stamp)
     for model in models:
         for batch in batch_sizes:
+            params = "--input-dim @sample {} 4 64 64 @timestep 1 @encoder_hidden_states {} 64 1024 --fp16 ".format(batch, batch)
+            if "bert" in model:
+                params = "--fill1 input_ids --input-dim @input_ids {} {} ".format(batch, seq_len)
             out = subprocess.run(
-                'MIGRAPHX_LOG_CK_GEMM=1 ../build/bin/driver run {} -g --fill1 input_ids --input-dim @input_ids {} {}  | grep \'ck_gemm.*: \[{{\' | sort -u >> {}'
-                .format(model, batch, seq_len, log_file),
+                'MIGRAPHX_LOG_CK_GEMM=1 ../build/bin/driver run {} -g {} | grep \'ck_gemm.*: \[{{\' | sort -u >> {}'
+                .format(model, params, log_file),
                 capture_output=True,
                 check=True,
                 shell=True)

@@ -155,13 +155,9 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
 {
     static std::string get_layout(const shape& s)
     {
-        if(not s.transposed())
-            return "ck::tensor_layout::gemm::RowMajor";
-
-        auto lens = s.lens();
-        return lens[lens.size() - 1] > lens[lens.size() - 2]
-                   ? "ck::tensor_layout::gemm::ColumnMajor"
-                   : "ck::tensor_layout::gemm::RowMajor";
+        return s.strides().back() == 1
+                   ? "ck::tensor_layout::gemm::RowMajor"
+                   : "ck::tensor_layout::gemm::ColumnMajor";
     }
 
     static std::string get_type(const shape& s)

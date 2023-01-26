@@ -182,7 +182,7 @@ struct index
             }
             else
             {
-                static_assert(max_stride_iterations(n, stride) < 64);
+                static_assert(max_stride_iterations(n, stride) < 128);
                 sequence(max_stride_iterations(n, stride), [&](auto... ks) {
                     fold([&](auto d, auto k) {
                         auto i = start + stride * k;

@@ -34,7 +34,7 @@ namespace migraphx {
 #define MIGRAPHX_HAS_DPP 1
 #endif
 
-#ifdef MIGRAPHX_HAS_DPP
+#if MIGRAPHX_HAS_DPP
 constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110u | x; }
 
 constexpr unsigned int dpp_row_bcast(unsigned int x)

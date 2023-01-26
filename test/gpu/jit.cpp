@@ -40,11 +40,9 @@
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
 #include <hip/hip_runtime.h>
-#include <migraphx/kernels/types.hpp>
 
-using namespace migraphx;
 extern "C" {
-__global__ void write(int8_t* data) 
+__global__ void write(char* data) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     data[num] = 2;
@@ -59,11 +57,9 @@ int main() {}
 // NOLINTNEXTLINE
 const std::string add_2s_binary = R"__migraphx__(
 #include <hip/hip_runtime.h>
-#include <migraphx/kernels/types.hpp>
-using namespace migraphx;
 
 extern "C" {
-__global__ void add_2(int8_t* x, int8_t* y) 
+__global__ void add_2(char* x, char* y) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     y[num] = x[num] + 2;
@@ -164,20 +160,7 @@ migraphx::src_file make_src_file(const std::string& name, const std::string& con
 
 TEST_CASE(simple_compile_hip)
 {
-    std::vector<migraphx::src_file> srcs;
-    std::transform(migraphx_kernels().begin(),
-                   migraphx_kernels().end(),
-                   std::back_inserter(srcs),
-                   [](auto&& p) {
-                       auto&& name = p.first;
-                       auto&& c    = p.second;
-                       auto path   = migraphx::fs::path{"migraphx"} / "kernels" / name;
-                       return migraphx::src_file{path, c};
-                   });
-
-    srcs.push_back(make_src_file("main.cpp", write_2s));
-
-    auto binaries = migraphx::gpu::compile_hip_src(srcs, "", migraphx::gpu::get_device_name());
+    auto binaries = migraphx::gpu::compile_hip_src({make_src_file("main.cpp", write_2s)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::argument input{{migraphx::shape::int8_type, {5}}};
@@ -228,20 +211,7 @@ TEST_CASE(compile_warnings)
 
 TEST_CASE(code_object_hip)
 {
-    std::vector<migraphx::src_file> srcs;
-    std::transform(migraphx_kernels().begin(),
-                   migraphx_kernels().end(),
-                   std::back_inserter(srcs),
-                   [](auto&& p) {
-                       auto&& name = p.first;
-                       auto&& c    = p.second;
-                       auto path   = migraphx::fs::path{"migraphx"} / "kernels" / name;
-                       return migraphx::src_file{path, c};
-                   });
-
-    srcs.push_back(make_src_file("main.cpp", add_2s_binary));
-
-    auto binaries = migraphx::gpu::compile_hip_src(srcs, "", migraphx::gpu::get_device_name());
+    auto binaries = migraphx::gpu::compile_hip_src({make_src_file("main.cpp", add_2s_binary)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::shape input{migraphx::shape::int8_type, {5}};

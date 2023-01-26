@@ -174,7 +174,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');
-    options.push_back("-DMIGRAPHX_HIPRTC");
+    options.push_back("-DMIGRAPHX_HIPRTC=1");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
     options.push_back("-DMIGRAPHX_HAS_DPP=0");
     options.push_back("-Wno-reserved-identifier");

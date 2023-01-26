@@ -44,7 +44,6 @@ struct greater
     }
 };
 
-
 template <class InputIt, class T, class BinaryOperation>
 constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 {

@@ -97,7 +97,7 @@ struct slice
         // TODO:  When support for dynamic shapes is added to normalize_attributes,
         //  remove this restriction.
         if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-               return !input_shape.dyn_dims()[axis].is_fixed();
+               return not input_shape.dyn_dims()[axis].is_fixed();
            }))
         {
             MIGRAPHX_THROW("SLICE: slicing is not allowed on non-fixed dynamic input axis ");

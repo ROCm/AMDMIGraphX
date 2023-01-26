@@ -135,7 +135,9 @@ insert_module_in_submodule(module_ref sm,
 }
 
 static std::vector<instruction_ref>
-find_inputs(module_ref sm, const module& parent, const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+find_inputs(module_ref sm,
+            const module& parent,
+            const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     std::vector<instruction_ref> result;
     std::map<std::string, instruction_ref> names;

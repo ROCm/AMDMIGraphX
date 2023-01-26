@@ -144,7 +144,10 @@ struct hiprtc_program
                        std::back_inserter(c_options),
                        [](const std::string& s) { return s.c_str(); });
         auto result = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
-        std::cerr << log() << std::endl;
+        auto prog_log = log(); 
+        if(not prog_log.empty()) {
+            std::cerr << prog_log << std::endl;
+        }
         if(result != HIPRTC_SUCCESS)
             MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");
     }
@@ -175,7 +178,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');
-    options.push_back("-DMIGRAPHX_HIPRTC");
+    options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
     if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
     {

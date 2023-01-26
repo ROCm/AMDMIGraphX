@@ -24,30 +24,29 @@
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
 
-#include <cstdint>
 #include <migraphx/kernels/hip.hpp>
 #include <initializer_list>
 
 namespace migraphx {
 
-#ifdef MIGRAPHX_USE_HIPRTC
-using uint8_t  = unsigned char;
-using uint16_t = unsigned short;
-using uint32_t = unsigned int32_t;
-using uint64_t = unsigned long long;
+#ifdef MIGRAPHX_USE_HIPRTC 
 using int8_t   = signed char;
+using uint8_t  = unsigned char;
 using int16_t  = signed short;
+using uint16_t = unsigned short;
 using int32_t  = signed int;
+using uint32_t =  unsigned int;
 using int64_t  = signed long long;
+using uint64_t = unsigned long long;
 #else
-using uint8_t  = std::uint8_t;
-using uint16_t = std::uint16_t;
-using uint32_t = std::uint32_t;
-using uint64_t = std::uint64_t;
 using int8_t   = std::int8_t;
+using uint8_t  = std::uint8_t;
 using int16_t  = std::int16_t;
+using uint16_t = std::uint16_t;
 using int32_t  = std::int32_t;
+using uint32_t = std::uint32_t;
 using int64_t  = std::int64_t;
+using uint64_t = std::uint64_t;
 #endif // MIGRAPHX_USE_HIPRTC
 using index_int = uint32_t;
 using diff_int  = int32_t;

@@ -119,7 +119,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.virtual_inputs = virtual_inputs;
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
-        auto nelements = options.virtual_inputs.back().elements();
+        auto nelements = output_shape.elements();
         auto algo = v.get("algo", get_reduce_algo(options.virtual_inputs, reduced_shape.lens()));
         if(algo == "block")
         {

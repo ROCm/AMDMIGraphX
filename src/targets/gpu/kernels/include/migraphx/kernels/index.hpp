@@ -160,7 +160,7 @@ struct index
         return f(i);
     }
 
-    template <bool Unroll, class F, class N, class Stride>
+    template <class F, class N, class Stride>
     static constexpr void for_stride_loop_unroll(index_int start, N n, Stride stride, F f)
     {
         sequence(max_stride_iterations(n, stride), [&](auto... ks) {
@@ -173,7 +173,7 @@ struct index
         });
     }
 
-    template <bool Unroll, class F, class N, class Stride>
+    template <class F, class N, class Stride>
     static constexpr void for_stride_loop(index_int start, N n, Stride stride, F f)
     {
         index_int k = 0;

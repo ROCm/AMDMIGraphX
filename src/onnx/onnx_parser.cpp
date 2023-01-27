@@ -110,9 +110,19 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
 {
     if(args.size() == 3)
     {
-        auto bias_bcast = mod->add_instruction(
-            make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
-            args[2]);
+        instruction_ref bias_bcast;
+        // if curr_ins has a dynamic output shape use 2 input broadcast
+        if(curr_ins->get_shape().dynamic())
+        {
+            bias_bcast =
+                mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
+        }
+        else
+        {
+            bias_bcast = mod->add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
+                args[2]);
+        }
         return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
@@ -393,18 +403,31 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
-    if(not t.external_data().empty())
+    auto type = get_type(t.data_type());
+    shape tensor_shape(type, dims);
+    auto external_data = t.external_data();
+    if(not external_data.empty())
     {
-        const std::string& data_file = t.external_data().at(0).value();
-        auto raw_buffer              = read_buffer(path + "/" + data_file);
+        const std::string& data_file = external_data.at(0).value();
+        size_t num_data_fields       = external_data.size();
+        size_t offset                = 0;
+        size_t nbytes                = tensor_shape.bytes();
+
+        if(num_data_fields > 1) // if offset field is present
+        {
+            offset = std::stoul(t.external_data().at(1).value());
+        }
+        if(num_data_fields > 2) // if nbytes field is present
+        {
+            nbytes = std::stoul(t.external_data().at(2).value());
+        }
+        auto raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
         std::string s(raw_buffer.begin(), raw_buffer.end());
-        auto type = get_type(t.data_type());
         return create_literal(type, dims, s.data());
     }
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
-        auto type            = get_type(t.data_type());
         return create_literal(type, dims, s.data());
     }
 

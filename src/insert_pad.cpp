@@ -77,14 +77,14 @@ static void update_pooling(const instruction_ref& input, const instruction_ref& 
     {
         return;
     }
-    auto kdims = input->get_shape().lens().size() - 2;
+    auto kdims = input->get_shape().ndim() - 2;
     if(std::equal(op.padding.begin(),
                   op.padding.begin() + kdims,
                   op.padding.begin() + kdims,
                   op.padding.end()))
         return;
 
-    std::vector<int64_t> padding(input->get_shape().lens().size() * 2, 0);
+    std::vector<int64_t> padding(input->get_shape().ndim() * 2, 0);
     std::vector<size_t> pads_l(op.padding.begin(), op.padding.begin() + kdims);
     std::vector<size_t> pads_r(op.padding.begin() + kdims, op.padding.end());
     op.padding = std::vector<size_t>(kdims * 2, 0);

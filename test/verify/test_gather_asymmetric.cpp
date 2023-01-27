@@ -21,28 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_INT_DIVIDE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_INT_DIVIDE_HPP
 
-#include <migraphx/config.hpp>
-#include <cmath>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-template <class R, class T, class U>
-R floor_divide(T x, U y)
+struct test_gather_asymmetric : verify_program<test_gather_asymmetric>
 {
-    return R(std::floor(double(x) / double(y)));
-}
-
-template <class R, class T, class U>
-R ceil_divide(T x, U y)
-{
-    return R(std::ceil(double(x) / double(y)));
-}
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {2, 1}};
+        std::vector<int> indices{1, 2};
+        auto a0  = mm->add_parameter("data", s);
+        auto a1  = mm->add_literal(migraphx::literal{s_indices, indices});
+        int axis = 0;
+        mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
+        return p;
+    }
+};

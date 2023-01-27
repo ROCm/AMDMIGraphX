@@ -109,8 +109,12 @@ struct loader
         ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
         ap(output_type,
            {"--cpp"},
-           ap.help("Print out the program as cpp program."),
+           ap.help("Print out the program as C++ program."),
            ap.set_value("cpp"));
+        ap(output_type,
+           {"--python", "--py"},
+           ap.help("Print out the program as python program."),
+           ap.set_value("py"));
         ap(output_type, {"--json"}, ap.help("Print out program as json."), ap.set_value("json"));
         ap(output_type,
            {"--text"},
@@ -259,7 +263,9 @@ struct loader
                 type = "binary";
         }
 
-        if(type == "cpp")
+        if(type == "py")
+            p.print_py(*os);
+        else if(type == "cpp")
             p.print_cpp(*os);
         else if(type == "graphviz")
             p.print_graph(*os, brief);

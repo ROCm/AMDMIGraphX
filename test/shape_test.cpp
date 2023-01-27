@@ -160,6 +160,47 @@ TEST_CASE(test_shape_dynamic_compares)
     EXPECT(ss0.str() != ss3.str());
 }
 
+TEST_CASE(dynamic_dimension_size_t_compares)
+{
+    using migraphx::shape;
+    auto a = shape::dynamic_dimension{2, 2, 2};
+    EXPECT(a == 2);
+    EXPECT(a != 3);
+    EXPECT(static_cast<std::size_t>(2) == a);
+    EXPECT(static_cast<std::size_t>(3) != a);
+
+    auto b = shape::dynamic_dimension{2, 4, 0};
+    EXPECT(b != 2);
+    EXPECT(static_cast<std::size_t>(2) != b);
+}
+
+TEST_CASE(dynamic_dimension_add_sub_fixed)
+{
+    using migraphx::shape;
+    auto a = shape::dynamic_dimension{2, 5, 2};
+
+    a += 3;
+    EXPECT(a == shape::dynamic_dimension{5, 8, 5});
+    a -= 3;
+    EXPECT(a == shape::dynamic_dimension{2, 5, 2});
+
+    auto b = shape::dynamic_dimension{3, 6, 3};
+    EXPECT((a + 1) == b);
+    EXPECT((1 + a) == b);
+    EXPECT((b - 1) == a);
+
+    auto c = shape::dynamic_dimension{4, 7, 4};
+    EXPECT((a + 2) == c);
+    EXPECT((2 + a) == c);
+    EXPECT((c - 2) == a);
+
+    auto d = shape::dynamic_dimension{4, 8, 0};
+    auto e = shape::dynamic_dimension{2, 6, 0};
+    EXPECT((d - 2) == e);
+    EXPECT((e + 2) == d);
+    EXPECT((2 + e) == d);
+}
+
 TEST_CASE(test_shape_dynamic_errors)
 {
     using migraphx::shape;

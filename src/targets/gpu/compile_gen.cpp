@@ -185,7 +185,7 @@ void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& 
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
     gg.create_function(
-        g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m).set_name(name));
+        g.generate_module(m).set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name));
 }
 std::string generate_pointwise(const module& pm, const std::string& name)
 {
@@ -319,7 +319,7 @@ std::string generate_reduce(const module& rm, const std::string& name)
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
-    f.set_attributes({"__device__"}).set_generic_types(m).set_name(name);
+    f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
     g.create_function(f);
     return g.str();

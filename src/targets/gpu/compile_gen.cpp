@@ -227,7 +227,7 @@ struct reduce_op
             auto reduce_elements = s.elements() / ins->get_shape().elements();
             auto reduce_type     = s.type();
             r.reduction          = "op::sum{}";
-            std::string mean     = "op::mean{" + std::to_string(reduce_elements) + "}";
+            std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
             // Use float accumulator when reduction size is too large for half
             if(reduce_type == shape::half_type and reduce_elements > 16384)
                 r.read = "compose(" + mean + ", op::convert_to<float>{})";

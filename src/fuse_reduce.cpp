@@ -204,9 +204,9 @@ struct find_pointwise_reduce
         auto reduce = r.result;
         auto pw     = r.instructions["pointwise"];
 
-        const auto* pm = pw->module_inputs().front();
+        const auto* pm     = pw->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
-        auto* rm = mpm.create_module(pm->name() + ":" + old_rm->name());
+        auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
         rm->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
@@ -250,7 +250,7 @@ struct find_reduce_pointwise
         auto reduce = r.instructions["reduce"];
         auto input  = r.instructions["input"];
 
-        const auto* pm = pw->module_inputs().front();
+        const auto* pm     = pw->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
         auto* rm           = mpm.create_module(old_rm->name() + ":" + pm->name());
         rm->set_bypass();

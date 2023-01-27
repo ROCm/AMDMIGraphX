@@ -61,10 +61,7 @@ __global__ void groupnorm_kernel(${params})
 
 struct groupnorm_compiler : compiler<groupnorm_compiler>
 {
-    std::vector<std::string> names() const
-    {
-        return {"groupnorm"};
-    }
+    std::vector<std::string> names() const { return {"groupnorm"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {

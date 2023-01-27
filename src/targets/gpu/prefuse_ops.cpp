@@ -117,7 +117,7 @@ struct find_add_layernorm
 
 void prefuse_ops::apply(module& m) const
 {
-    // match::find_matches(m, find_add_layernorm{}, find_layernorm{});
+    match::find_matches(m, find_add_layernorm{}, find_layernorm{});
 }
 
 } // namespace gpu

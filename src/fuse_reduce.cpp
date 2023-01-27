@@ -225,8 +225,7 @@ template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
     return match::skip(match::name("contiguous"))(
-        match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
-            .bind("broadcast"));
+        match::name("multibroadcast")(match::arg(0)(ms...), match::used_once()).bind("broadcast"));
 }
 
 template <class... Ms>
@@ -237,8 +236,8 @@ static auto any_input(Ms... ms)
 
 static auto match_reduce_input()
 {
-    auto reduce       = match::name("fused_reduce")(match::used_once()).bind("reduce");
-    auto reduce_input = any_input(reduce, match::used_once());
+    auto reduce                 = match::name("fused_reduce")(match::used_once()).bind("reduce");
+    auto reduce_input           = any_input(reduce, match::used_once());
     auto broadcast_reduce_input = any_input(match_broadcast(reduce), match::used_once());
     return match::any_of(reduce_input, broadcast_reduce_input);
 }
@@ -246,10 +245,7 @@ static auto match_reduce_input()
 struct find_reduce_pointwise
 {
 
-    auto matcher() const
-    {
-        return match::name("pointwise")(match_reduce_input());
-    }
+    auto matcher() const { return match::name("pointwise")(match_reduce_input()); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -286,16 +282,13 @@ struct find_reduce_pointwise
 
 struct find_reduce_reduce
 {
-    auto matcher() const
-    {
-        return match::name("fused_reduce")(match_reduce_input());
-    }
+    auto matcher() const { return match::name("fused_reduce")(match_reduce_input()); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce1 = r.result;
         auto reduce2 = r.instructions["reduce"];
-        auto input  = r.instructions["input"];
+        auto input   = r.instructions["input"];
 
         if(reduce1->get_operator() != reduce2->get_operator())
             return;

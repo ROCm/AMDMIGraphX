@@ -29,20 +29,18 @@
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 
-
-migraphx::instruction_ref add_groupnorm(migraphx::module& m,
-                                        migraphx::instruction_ref x,
-                                        float eps = 1e-12f)
+migraphx::instruction_ref
+add_groupnorm(migraphx::module& m, migraphx::instruction_ref x, float eps = 1e-12f)
 {
-    auto lens = x->get_shape().lens();
+    auto lens      = x->get_shape().lens();
     auto reduce_op = migraphx::make_op("reduce_mean", {{"axes", -1}});
-    auto reduce1 = m.add_instruction(reduce_op, x);
-    auto sqdiff = migraphx::add_common_op(m, migraphx::make_op("sqdiff"), {x, reduce1});
-    auto reduce2 = m.add_instruction(reduce_op, sqdiff);
-    auto sub = migraphx::add_common_op(m, migraphx::make_op("sub"), {x, reduce1});
-    auto epsilon  = m.add_literal(eps);
-    auto add = migraphx::add_common_op(m, migraphx::make_op("add"), {epsilon, reduce2});
-    auto rsqrt = m.add_instruction(migraphx::make_op("rsqrt"), add);
+    auto reduce1   = m.add_instruction(reduce_op, x);
+    auto sqdiff    = migraphx::add_common_op(m, migraphx::make_op("sqdiff"), {x, reduce1});
+    auto reduce2   = m.add_instruction(reduce_op, sqdiff);
+    auto sub       = migraphx::add_common_op(m, migraphx::make_op("sub"), {x, reduce1});
+    auto epsilon   = m.add_literal(eps);
+    auto add       = migraphx::add_common_op(m, migraphx::make_op("add"), {epsilon, reduce2});
+    auto rsqrt     = m.add_instruction(migraphx::make_op("rsqrt"), add);
     return migraphx::add_common_op(m, migraphx::make_op("mul"), {rsqrt, sub});
 }
 

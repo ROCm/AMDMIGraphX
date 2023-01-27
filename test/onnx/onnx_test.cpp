@@ -5741,20 +5741,23 @@ TEST_CASE(slice_test)
     EXPECT(p == prog);
 }
 
+
 TEST_CASE(slice_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
     auto l0 = mm->add_parameter(
-        "0", migraphx::shape{migraphx::shape::float_type, {{2, 3, 0}, {2, 2, 0}}});
+        "0", migraphx::shape{migraphx::shape::float_type, {{3, 3, 0}, {1, 3, 0}, {2, 2, 0}}});
     auto ret = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 2}}}), l0);
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), l0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {2, 3, 0};
-    auto prog                     = migraphx::parse_onnx("slice_dyn_test.onnx", options);
+    // Input must have one non-fixed dynamic dimension, or the parser will convert the shape to static.
+    // Slicing is not allowed along the non-fixed axis 1.
+    options.map_dyn_input_dims["0"] = {{3, 3, 0}, {1, 3, 0}, {2, 2, 0}};
+    auto prog                     = migraphx::parse_onnx("slice_dyn_test1.onnx", options);
 
     EXPECT(p == prog);
 }

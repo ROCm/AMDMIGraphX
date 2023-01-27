@@ -5790,16 +5790,16 @@ def slice_test():
     return ([node], [x], [y])
 
 
-@onnx_test
+@onnx_test()
 def slice_dyn_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 2])
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None, 2])
 
     node = onnx.helper.make_node('Slice',
                                  inputs=['0'],
-                                 axes=[0, 1],
-                                 starts=[1, 0],
-                                 ends=[2, 2],
+                                 axes=[0],
+                                 starts=[1],
+                                 ends=[2],
                                  outputs=['1'])
 
     return ([node], [x], [y])

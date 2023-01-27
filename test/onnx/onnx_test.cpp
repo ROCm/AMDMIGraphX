@@ -5753,10 +5753,10 @@ TEST_CASE(slice_dyn_test)
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    // Input must have one non-fixed dynamic dimension, or the parser will convert the shape to
-    // static. Slicing is not allowed along the non-fixed axis 1.
+    // Parser converts the dynamic input shape to static unless there is at least one non-fixed
+    // dynamic dimension. Slicing is not allowed along the non-fixed axis 1.
     options.map_dyn_input_dims["0"] = {{3, 3, 0}, {1, 3, 0}, {2, 2, 0}};
-    auto prog                       = migraphx::parse_onnx("slice_dyn_test1.onnx", options);
+    auto prog                       = migraphx::parse_onnx("slice_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

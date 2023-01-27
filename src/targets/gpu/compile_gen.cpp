@@ -262,7 +262,7 @@ struct reduce_op
 
 static bool use_lazy_inner(instruction_ref ins)
 {
-    if (ins->outputs().size() != 1)
+    if(ins->outputs().size() != 1)
         return false;
     auto output = ins->outputs().front();
     return contains(output->name(), "reduce") or output->name() == "@return";
@@ -303,8 +303,8 @@ std::string generate_reduce(const module& rm, const std::string& name)
             const std::string inner_template =
                 "r.${inner}([=](${params}) { return ${call}; })(${args})";
             std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
-            auto args   = cpp_generator::to_args(tensors, names);
-            auto params = cpp_generator::to_args(tensors, inner_names);
+            auto args              = cpp_generator::to_args(tensors, names);
+            auto params            = cpp_generator::to_args(tensors, inner_names);
             std::transform(
                 params.begin(), params.end(), params.begin(), [](auto s) { return "auto " + s; });
             return interpolate_string(inner_template,

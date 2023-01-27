@@ -33,7 +33,7 @@ migraphx::instruction_ref
 add_groupnorm(migraphx::module& m, migraphx::instruction_ref x, float eps = 1e-12f)
 {
     auto lens      = x->get_shape().lens();
-    auto reduce_op = migraphx::make_op("reduce_mean", {{"axes", -1}});
+    auto reduce_op = migraphx::make_op("reduce_mean", {{"axes", {-1}}});
     auto reduce1   = m.add_instruction(reduce_op, x);
     auto sqdiff    = migraphx::add_common_op(m, migraphx::make_op("sqdiff"), {x, reduce1});
     auto reduce2   = m.add_instruction(reduce_op, sqdiff);

@@ -161,6 +161,30 @@ struct index
     }
 
     template <bool Unroll, class F, class N, class Stride>
+    static constexpr void for_stride_loop_unroll(index_int start, N n, Stride stride, F f)
+    {
+        sequence(max_stride_iterations(n, stride), [&](auto... ks) {
+            fold([&](auto d, auto k) {
+                auto i = start + stride * k;
+                if(i < n)
+                    invoke_loop(f, i, d);
+                return d + _c<1>;
+            })(_c<0>, ks...);
+        });
+    }
+
+    template <bool Unroll, class F, class N, class Stride>
+    static constexpr void for_stride_loop(index_int start, N n, Stride stride, F f)
+    {
+        index_int k = 0;
+        for(index_int i = start; i < n; i += stride)
+        {
+            invoke_loop(f, i, k);
+            k++;
+        }
+    }
+
+    template <bool Unroll, class F, class N, class Stride>
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
         MIGRAPHX_ASSERT(start < stride);
@@ -182,34 +206,17 @@ struct index
             {
                 MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
                 {
-                    sequence(max_stride_iterations(n, stride), [&](auto... ks) {
-                        fold([&](auto d, auto k) {
-                            auto i = start + stride * k;
-                            if(i < n)
-                                invoke_loop(f, i, d);
-                            return d + _c<1>;
-                        })(_c<0>, ks...);
-                    });
+                    for_stride_loop_unroll(start, n, stride, f);
                 }
             }
             else
             {
-                index_int k = 0;
-                for(index_int i = start; i < n; i += stride)
-                {
-                    invoke_loop(f, i, k);
-                    k++;
-                }
+                for_stride_loop(start, n, stride, f);
             }
         }
         else
         {
-            index_int k = 0;
-            for(index_int i = start; i < n; i += stride)
-            {
-                invoke_loop(f, i, k);
-                k++;
-            }
+            for_stride_loop(start, n, stride, f);
         }
     }
 

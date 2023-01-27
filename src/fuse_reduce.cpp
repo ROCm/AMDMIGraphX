@@ -227,7 +227,8 @@ struct find_reduce_pointwise
     static auto match_broadcast(Ms... ms)
     {
         return match::skip(match::name("contiguous"))(
-            match::name("multibroadcast")(match::arg(0)(ms...), match::used_once()).bind("broadcast"));
+            match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
+                .bind("broadcast"));
     }
 
     template <class... Ms>

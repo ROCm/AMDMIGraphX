@@ -103,11 +103,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto axes = v.at("axes").to_vector<std::size_t>();
+        auto axes           = v.at("axes").to_vector<std::size_t>();
         auto virtual_inputs = inputs;
         virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
         virtual_inputs.push_back(get_output_shape(inputs.front(), axes));
-        virtual_inputs     = reduce_dims(virtual_inputs);
+        virtual_inputs    = reduce_dims(virtual_inputs);
         auto output_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
         auto reduced_shape = virtual_inputs.back();

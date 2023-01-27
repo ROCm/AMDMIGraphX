@@ -8,8 +8,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-        ref: develop
-        path: ../
+          ref: develop
+          path: ../
 
   get_date:
     steps:

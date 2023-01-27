@@ -221,28 +221,34 @@ struct find_pointwise_reduce
     }
 };
 
+template <class... Ms>
+static auto match_broadcast(Ms... ms)
+{
+    return match::skip(match::name("contiguous"))(
+        match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
+            .bind("broadcast"));
+}
+
+template <class... Ms>
+static auto any_input(Ms... ms)
+{
+    return match::any_of[match::inputs()](match::any(ms...).bind("input"));
+}
+
+static auto match_reduce_input()
+{
+    auto reduce       = match::name("fused_reduce")(match::used_once()).bind("reduce");
+    auto reduce_input = any_input(reduce, match::used_once());
+    auto broadcast_reduce_input = any_input(match_broadcast(reduce), match::used_once());
+    return match::any_of(reduce_input, broadcast_reduce_input);
+}
+
 struct find_reduce_pointwise
 {
-    template <class... Ms>
-    static auto match_broadcast(Ms... ms)
-    {
-        return match::skip(match::name("contiguous"))(
-            match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
-                .bind("broadcast"));
-    }
-
-    template <class... Ms>
-    static auto any_input(Ms... ms)
-    {
-        return match::any_of[match::inputs()](match::any(ms...).bind("input"));
-    }
 
     auto matcher() const
     {
-        auto reduce       = match::name("fused_reduce")(match::used_once()).bind("reduce");
-        auto reduce_input = any_input(reduce, match::used_once());
-        auto broadcast_reduce_input = any_input(match_broadcast(reduce), match::used_once());
-        return match::name("pointwise")(match::any_of(reduce_input, broadcast_reduce_input));
+        return match::name("pointwise")(match_reduce_input());
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -282,14 +288,14 @@ struct find_reduce_reduce
 {
     auto matcher() const
     {
-        return match::name("fused_reduce")(match::any_of[match::inputs()](
-            match::name("fused_reduce")(match::used_once()).bind("reduce")));
+        return match::name("fused_reduce")(match_reduce_input());
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce1 = r.result;
         auto reduce2 = r.instructions["reduce"];
+        auto input  = r.instructions["input"];
 
         if(reduce1->get_operator() != reduce2->get_operator())
             return;
@@ -302,7 +308,17 @@ struct find_reduce_reduce
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // Copy reduce1 instructions
         insert_module_in_submodule(rm, reduce2, map_ins);
-        map_ins[reduce2] = get_returns(*rm).front();
+        if(contains(r.instructions, "broadcast"))
+        {
+            auto broadcast                       = r.instructions["broadcast"];
+            map_ins[broadcast->inputs().front()] = get_returns(*rm).front();
+            auto bout                            = insert_ins_in_submodule(rm, broadcast, map_ins);
+            map_ins[input]                       = bout.front();
+        }
+        else
+        {
+            map_ins[input] = get_returns(*rm).front();
+        }
 
         auto out = insert_module_in_submodule(rm, reduce1, map_ins);
         rm->replace_return(out);

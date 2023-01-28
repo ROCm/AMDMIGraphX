@@ -255,7 +255,6 @@ jobs:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CCACHE_LOGFILE: /tmp/ccache.log
         CXXFLAGS: -Werror -pthread --param ggc-min-expand=5 --param ggc-min-heapsize=8192
-        MIGRAPHX_DEBUG_MEMORY_COLORING: 1
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"

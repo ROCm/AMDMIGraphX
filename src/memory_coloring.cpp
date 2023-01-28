@@ -240,11 +240,12 @@ struct allocation_segment
         return s;
     }
 
-    static std::unordered_map<instruction_ref, int> create_allocation_index(const module& m, const instruction_set_map& conflict_table)
+    static std::unordered_map<instruction_ref, int>
+    create_allocation_index(const module& m, const instruction_set_map& conflict_table)
     {
         std::unordered_map<instruction_ref, int> result;
         int i = 0;
-        for(auto ins:iterator_for(m))
+        for(auto ins : iterator_for(m))
         {
             if(not contains(conflict_table, ins))
                 continue;
@@ -254,8 +255,8 @@ struct allocation_segment
     }
 
     // Build the allocation_color class from the conflict_table
-    static allocation_segment build(const module& m, const instruction_set_map& conflict_table,
-                                    std::size_t alignment)
+    static allocation_segment
+    build(const module& m, const instruction_set_map& conflict_table, std::size_t alignment)
     {
         allocation_segment as{};
         std::vector<instruction_ref> conflict_queue;
@@ -270,8 +271,9 @@ struct allocation_segment
         // Sort the conflict queue so we process the allocation with the least
         // number of adjacent allocations first
         std::sort(conflict_queue.begin(), conflict_queue.end(), by(std::less<>{}, [&](auto x) {
-            return std::make_tuple(conflict_table.at(x).size(), x->get_shape().bytes(), alloc_index.at(x));
-        }));
+                      return std::make_tuple(
+                          conflict_table.at(x).size(), x->get_shape().bytes(), alloc_index.at(x));
+                  }));
         // Process the conflict_queue, we refer to the current allocation as
         // the parent and the adjacent allocations as children
         for(auto parent : conflict_queue)
@@ -280,8 +282,8 @@ struct allocation_segment
             std::vector<instruction_ref> children(conflict_table.at(parent).begin(),
                                                   conflict_table.at(parent).end());
             std::sort(children.begin(), children.end(), by(std::less<>{}, [&](auto x) {
-                return std::make_tuple(x->get_shape().bytes(), alloc_index.at(x));
-            }));
+                          return std::make_tuple(x->get_shape().bytes(), alloc_index.at(x));
+                      }));
             assert(not contains(children, parent));
             // This set is to track the segments already processed
             std::set<segment> segments;

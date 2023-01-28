@@ -270,7 +270,7 @@ struct allocation_segment
 
         // Sort the conflict queue so we process the allocation with the least
         // number of adjacent allocations first
-        std::sort(conflict_queue.begin(), conflict_queue.end(), by(std::less<>{}, [&](auto x) {
+        std::sort(conflict_queue.begin(), conflict_queue.end(), by(std::greater<>{}, [&](auto x) {
                       return std::make_tuple(
                           conflict_table.at(x).size(), x->get_shape().bytes(), alloc_index.at(x));
                   }));

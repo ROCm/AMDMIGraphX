@@ -38,7 +38,7 @@
 #include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
-#include <migraphx/optimize.hpp>
+#include <migraphx/optimize_module.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
@@ -119,13 +119,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_pooling{},
         dead_code_elimination{},
         rewrite_gelu{},
-        optimize{},
+        optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
-        optimize{},
+        optimize_module{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
         dead_code_elimination{},
         fuse_mlir{&ctx},

@@ -21,29 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
+
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void optimize::apply(module_pass_manager& mpm) const
+struct module_pass_manager;
+
+/**
+ * Runs several passes in a loop
+ */
+struct optimize_module
 {
-    for(int i = 0; i < 2; i++)
-    {
-        mpm.run_pass(simplify_reshapes{});
-        mpm.run_pass(simplify_algebra{});
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{});
-        mpm.run_pass(dead_code_elimination{});
-    }
-}
+    std::string name() const { return "optimize_module"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

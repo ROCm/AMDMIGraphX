@@ -240,8 +240,21 @@ struct allocation_segment
         return s;
     }
 
+    static std::unordered_map<instruction_ref, int> create_allocation_index(const module& m, const instruction_set_map& conflict_table)
+    {
+        std::unordered_map<instruction_ref, int> result;
+        int i = 0;
+        for(auto ins:iterator_for(m))
+        {
+            if(not contains(conflict_table, ins))
+                continue;
+            result[ins] = i++;
+        }
+        return result;
+    }
+
     // Build the allocation_color class from the conflict_table
-    static allocation_segment build(const instruction_set_map& conflict_table,
+    static allocation_segment build(const module& m, const instruction_set_map& conflict_table,
                                     std::size_t alignment)
     {
         allocation_segment as{};
@@ -252,12 +265,13 @@ struct allocation_segment
                        std::back_inserter(conflict_queue),
                        [](auto&& pp) { return pp.first; });
 
+        auto alloc_index = create_allocation_index(m, conflict_table);
+
         // Sort the conflict queue so we process the allocation with the least
         // number of adjacent allocations first
-        std::sort(conflict_queue.begin(), conflict_queue.end(), [&](auto x, auto y) {
-            return std::make_tuple(conflict_table.at(x).size(), x->get_shape().bytes()) <
-                   std::make_tuple(conflict_table.at(y).size(), y->get_shape().bytes());
-        });
+        std::sort(conflict_queue.begin(), conflict_queue.end(), by(std::less<>{}, [&](auto x) {
+            return std::make_tuple(conflict_table.at(x).size(), x->get_shape().bytes(), alloc_index.at(x));
+        }));
         // Process the conflict_queue, we refer to the current allocation as
         // the parent and the adjacent allocations as children
         for(auto parent : conflict_queue)
@@ -265,9 +279,9 @@ struct allocation_segment
             // Sort children by size
             std::vector<instruction_ref> children(conflict_table.at(parent).begin(),
                                                   conflict_table.at(parent).end());
-            std::sort(children.begin(), children.end(), [](auto x, auto y) {
-                return x->get_shape().bytes() < y->get_shape().bytes();
-            });
+            std::sort(children.begin(), children.end(), by(std::less<>{}, [&](auto x) {
+                return std::make_tuple(x->get_shape().bytes(), alloc_index.at(x));
+            }));
             assert(not contains(children, parent));
             // This set is to track the segments already processed
             std::set<segment> segments;
@@ -331,7 +345,7 @@ void memory_coloring::apply(module& m) const
 {
     const std::size_t alignment = find_max_alignment(m, allocation_op);
     auto conflict_table         = build_conflict_table(m, allocation_op);
-    auto as                     = allocation_segment::build(conflict_table, alignment);
+    auto as                     = allocation_segment::build(m, conflict_table, alignment);
 
     // All allocations should have a segment
     assert(std::all_of(conflict_table.begin(), conflict_table.end(), [&](auto&& pp) {

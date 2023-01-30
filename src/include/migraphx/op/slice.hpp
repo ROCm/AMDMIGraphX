@@ -91,8 +91,15 @@ struct slice
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
+        check_shapes{inputs, *this, true}.has(1);
         auto input_shape = inputs[0];
         auto t           = input_shape.type();
+
+        if(starts.size() != axes.size() or axes.size() != ends.size())
+        {
+            MIGRAPHX_THROW(
+                "SLICE: attributes \"starts\", \"ends\", and \"axes\" must all be the same size");
+        }
 
         // TODO:  When support for dynamic shapes is added to normalize_attributes,
         //  remove this restriction.
@@ -124,13 +131,6 @@ struct slice
             // indexed into the pre-slice array, so they are larger than the apparent size of the
             // resulting shape.
             old_strides = input_shape.strides();
-        }
-
-        // Axis out of range should never happen as normalize_attributes prevents it.
-        if(starts.size() != axes.size() or axes.size() != ends.size())
-        {
-            MIGRAPHX_THROW(
-                "SLICE: attributes \"starts\", \"ends\", and \"axes\" must all be the same size");
         }
 
         std::vector<std::size_t> new_lens = old_lens;

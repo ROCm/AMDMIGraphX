@@ -34,7 +34,7 @@
 #include <hip/math_functions.h>
 #else
 #include <hip/hip_common.h>
-#endif // MIGRAPHX_USE_HIPRTC
+#endif
 #include <hip/hip_math_constants.h>
 
 #endif // MIGRAPHX_GUARD_KERNELS_HIP_HPP

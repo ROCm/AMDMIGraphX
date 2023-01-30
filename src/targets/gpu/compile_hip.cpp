@@ -49,7 +49,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS);
 
 std::string hiprtc_error(hiprtcResult err, const std::string& msg)
@@ -161,6 +161,7 @@ struct hiprtc_program
             return {};
         std::string buffer(n, '\0');
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
+        assert(buffer.back() != 0);
         return buffer;
     }
 
@@ -184,6 +185,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
     {
         options.push_back("-DMIGRAPHX_HAS_DPP=0");
+        options.push_back("-DMIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=1");
         options.push_back("-Wno-reserved-identifier");
         options.push_back("-Wno-gnu-line-marker");
         options.push_back("-Wno-old-style-cast");

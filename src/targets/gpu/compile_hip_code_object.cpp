@@ -29,7 +29,6 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
-#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -178,7 +177,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     options.params += " " + join_strings(compiler_warnings(), " ");
     options.params += " -ftemplate-backtrace-limit=0";
     options.params += " -Werror";
-    auto cos = compile_hip_src(srcs, options.params, get_device_name());
+    auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return code_object_op{value::binary{cos.front()},

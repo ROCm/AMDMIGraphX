@@ -29,7 +29,7 @@
 
 namespace migraphx {
 
-#ifdef MIGRAPHX_USE_HIPRTC
+#if defined(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS) and defined(MIGRAPHX_USE_HIPRTC)
 using int8_t   = signed char;
 using uint8_t  = unsigned char;
 using int16_t  = signed short;
@@ -38,6 +38,15 @@ using int32_t  = signed int;
 using uint32_t = unsigned int;
 using int64_t  = signed long long;
 using uint64_t = unsigned long long;
+#elif defined(MIGRAPHX_USE_HIPRTC)
+using int8_t   = __hip_int8_t;
+using uint8_t  = __hip_uint8_t;
+using int16_t  = __hip_int16_t;
+using uint16_t = __hip_uint16_t;
+using int32_t  = __hip_int32_t;
+using uint32_t = __hip_uint32_t;
+using int64_t  = __hip_int64_t;
+using uint64_t = __hip_uint64_t;
 #else
 using int8_t   = std::int8_t;
 using uint8_t  = std::uint8_t;

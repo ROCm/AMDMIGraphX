@@ -59,7 +59,7 @@ def parse_args():
                         type=float,
                         default=1e-3,
                         help='accuracy tolerance (default = 1e-3)')
-    parser.add_argument('--input_dim',
+    parser.add_argument('--input-dim',
                         type=str,
                         action='append',
                         help='specify input parameter dimension \
@@ -210,16 +210,20 @@ def main():
         tf_dict = {}
 
         for name in test_inputs.keys():
+            # graph.get_operations() adds 'import/' to the op name
             tf_name = f'import/{name}'
             if tf_name not in graph_ops_set:
                 continue
             x = graph.get_tensor_by_name(f'{tf_name}:0')
             tf_input = test_inputs[name]
+            # lazy check for image model (NHWC layout)
             if tf_input.ndim == 4:
                 tf_dict[x] = np.transpose(tf_input, (0, 2, 3, 1))
             else:
                 tf_dict[x] = tf_input
 
+        # assume last node in graph is output
+        # TODO: let user specify op name for output
         y = graph.get_tensor_by_name(f'{graph_ops[-1]}:0')
 
         with tf.compat.v1.Session(graph=graph) as sess:

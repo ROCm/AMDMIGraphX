@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,8 +41,9 @@ struct parse_where : op_parser<parse_where>
                           std::vector<instruction_ref> args) const
     {
         // This op. doesn't currently support a mix of static and dynamic shapes.
-        // Also, TODO: broadcasting for dynamic shapes isn't implemented at time of writing.
-        //   When it becomes available, add broadcasting steps in the dynamic shape case.
+        // Also, TODO: broadcasting for dynamic shapes is only implemented
+        // for binary ops at time of writing, not ternary ops.
+        //   When it becomes available, add multibroadcasting steps in the dynamic shape case.
         // For now for dynamic shapes, just insert the Where op.  All shapes must be the
         // same for it to succeed.
         if(std::all_of(args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))

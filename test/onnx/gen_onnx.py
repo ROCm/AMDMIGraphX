@@ -2624,15 +2624,17 @@ def if_then_else_multi_output_shapes_inlined_test():
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
                                      vals=cond.astype(bool))
-    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
+
+    res1 = onnx.helper.make_tensor_value_info('res1', TensorProto.FLOAT, [])
+    res2 = onnx.helper.make_tensor_value_info('res2', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('If',
                                  inputs=['cond'],
-                                 outputs=['res'],
+                                 outputs=['res1', 'res2'],
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+    return ([node], [x, y], [res1, res2], [cond_tensor, xt_tensor, yt_tensor])
 
 
 @onnx_test()
@@ -2694,15 +2696,16 @@ def if_then_else_multi_output_shapes_test():
                                                      onnx.TensorProto.BOOL,
                                                      [1])
 
-    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
+    res1 = onnx.helper.make_tensor_value_info('res1', TensorProto.FLOAT, [])
+    res2 = onnx.helper.make_tensor_value_info('res2', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('If',
                                  inputs=['cond'],
-                                 outputs=['res'],
+                                 outputs=['res1', 'res2'],
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
+    return ([node], [x, y, cond_tensor], [res1, res2], [xt_tensor, yt_tensor])
 
 
 @onnx_test()

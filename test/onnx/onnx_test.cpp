@@ -2766,16 +2766,16 @@ TEST_CASE(if_then_else_multi_output_shapes_inlined_test)
     std::vector<float> ones(s.elements(), 1.0f);
 
     auto l1                 = mm->add_literal(s_trail, ones);
-    std::vector<float> rand = {-0.598881, 0.495922, 0.145435, -0.483517, -0.613278, -0.953624};
+    std::vector<float> rand = {-1.01837, -0.305541, -0.254105, 0.892955, 1.38714, -0.584205};
     mm->add_literal(s, rand);
 
     auto x = mm->add_parameter("x", s_trail);
     mm->add_parameter("y", s);
 
-    auto rt = mm->add_instruction(migraphx::make_op("add"), x, l1);
-    mm->add_instruction(migraphx::make_op("add"), x, x);
+    auto rt  = mm->add_instruction(migraphx::make_op("add"), x, l1);
+    auto rt2 = mm->add_instruction(migraphx::make_op("add"), x, x);
 
-    mm->add_return({rt});
+    mm->add_return({rt, rt2});
 
     auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_inlined_test.onnx");
     EXPECT(p == prog);
@@ -2792,7 +2792,7 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     std::vector<float> ones(s.elements(), 1.0f);
 
     auto l1                 = mm->add_literal(s_trail, ones);
-    std::vector<float> rand = {1.04385, 0.836675, 0.169143, 0.430799, 0.0639222, -0.146888};
+    std::vector<float> rand = {-0.753997, 0.707831, -0.865795, 2.49574, 0.464937, -0.168745};
     auto l2                 = mm->add_literal(s, rand);
     auto x                  = mm->add_parameter("x", s_trail);
     auto y                  = mm->add_parameter("y", s);
@@ -2809,9 +2809,9 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
     else_mod->add_return({re, re2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
-    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
-    mm->add_return({r});
+    auto r1  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    auto r2  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
+    mm->add_return({r1, r2});
 
     auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_test.onnx");
     EXPECT(p == prog);

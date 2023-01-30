@@ -26,6 +26,7 @@
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
@@ -61,35 +62,59 @@ struct gather
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
-        auto lens = inputs[0].lens();
-        auto type = inputs[0].type();
-        lens.erase(lens.begin() + axis);
-        if(not inputs[1].scalar())
+        check_shapes{inputs, *this, true}.has(2);
+        shape data    = inputs[0];
+        shape indices = inputs[1];
+        auto type     = data.type();
+        // If index_dims is dynamic, convert the data to dynamic too.
+        if(indices.dynamic())
         {
-            auto ind_lens = inputs[1].lens();
-            lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());
+            data = data.to_dynamic();
         }
-
-        // for scalar output
-        if(lens.empty())
+        if(data.dynamic())
         {
-            return {type};
-        }
+            auto dims = data.dyn_dims();
+            dims.erase(dims.begin() + axis);
 
-        return {type, lens};
+            if(not indices.scalar())
+            {
+                auto index_dims = indices.to_dynamic().dyn_dims();
+                dims.insert(dims.begin() + axis, index_dims.begin(), index_dims.end());
+            }
+            return {type, dims};
+        }
+        else
+        {
+            // Both data and indices are static.  indices may be scalar
+            auto lens = data.lens();
+            lens.erase(lens.begin() + axis);
+
+            if(not indices.scalar())
+            {
+                auto ind_lens = indices.lens();
+                lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());
+            }
+
+            // for scalar output
+            if(lens.empty())
+            {
+                return {type};
+            }
+
+            return {type, lens};
+        }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         // negative axis means counting dimensions from back
         auto lens                 = args[0].get_shape().lens();
         std::size_t axis_dim_size = lens[axis];
         // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
-                if(output_shape.scalar())
+                if(dyn_out.computed_shape.scalar())
                 {
                     auto in_index = indices.front();
                     in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;

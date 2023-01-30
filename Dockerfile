@@ -95,20 +95,16 @@ RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cma
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
 
-RUN export ONNXRT_COMMIT=$(cat test/onnx/.onnxrt-commit)
+COPY ./test/onnx/.onnxrt-commit /
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
-ARG ONNXRUNTIME_COMMIT=$ONNXRT_COMMIT
-
-# Let us know which commit where're using for CI
-RUN echo "Onnxruntime Commit:" && echo $ONNXRUNTIME_COMMIT
+ARG ONNXRUNTIME_COMMIT
 
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
-    git checkout ${ONNXRUNTIME_COMMIT} && \
-    /bin/sh dockerfiles/scripts/install_common_deps.sh
-
+    if [ -z "$ONNXRUNTIME_COMMIT" ] ; then git checkout $(cat /.onnxrt-commit) ; else git checkout ${ONNXRUNTIME_COMMIT} ; fi && \
+    /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
 
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh

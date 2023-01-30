@@ -262,7 +262,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto virtual_inputs = inputs;
         virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
         virtual_inputs.push_back(get_output_shape(inputs.front(), axes));
-        virtual_inputs    = reduce_dims(virtual_inputs);
+        virtual_inputs           = reduce_dims(virtual_inputs);
         auto reduce_output_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
         auto reduction_shape = virtual_inputs.back();
@@ -294,17 +294,17 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         {
             MIGRAPHX_THROW("Unknown reduce algo: " + algo);
         }
-        options.kernel_name  = v.get("kernel", "reduce_kernel");
-        auto src =
-            interpolate_string(fused_reduce_kernel,
-                               {{"kernel", options.kernel_name},
-                                {"params", enum_params(inputs.size(), "void * private_p")},
-                                {"args", enum_params(inputs.size(), "private_p")},
-                                {"algo", algo},
-                                {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
-                                {"lambda", v.at("lambda").to<std::string>()},
-                                {"transformers", make_transformer_args(vec)},
-                                {"preamble", v.get("preamble", std::string{})}});
+        options.kernel_name = v.get("kernel", "reduce_kernel");
+        auto src            = interpolate_string(
+            fused_reduce_kernel,
+            {{"kernel", options.kernel_name},
+             {"params", enum_params(inputs.size(), "void * private_p")},
+             {"args", enum_params(inputs.size(), "private_p")},
+             {"algo", algo},
+             {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
+             {"lambda", v.at("lambda").to<std::string>()},
+             {"transformers", make_transformer_args(vec)},
+             {"preamble", v.get("preamble", std::string{})}});
         options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }

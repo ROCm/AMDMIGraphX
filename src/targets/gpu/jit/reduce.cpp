@@ -263,9 +263,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
         virtual_inputs.push_back(get_output_shape(inputs.front(), axes));
         virtual_inputs    = reduce_dims(virtual_inputs);
-        auto output_shape = virtual_inputs.back();
+        auto reduce_output_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
-        auto reduced_shape = virtual_inputs.back();
+        auto reduction_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
 
         hip_compile_options options;
@@ -274,14 +274,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         options.virtual_inputs = virtual_inputs;
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
-        auto nelements = output_shape.elements();
-        auto algo = v.get("algo", get_reduce_algo(options.virtual_inputs, reduced_shape.lens()));
+        auto nelements = reduce_output_shape.elements();
+        auto algo = v.get("algo", get_reduce_algo(options.virtual_inputs, reduction_shape.lens()));
         if(algo == "block")
         {
             // Vectorize if the axis is a reduction axis
-            if(output_shape.lens()[faxis] == 1)
+            if(reduce_output_shape.lens()[faxis] == 1)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-            auto relements  = reduced_shape.elements() / vec.size;
+            auto relements  = reduction_shape.elements() / vec.size;
             auto block_size = compute_block_size(relements, 256);
             options.set_launch_params(
                 v, compute_global_for(ctx, nelements * block_size, 256), block_size);
@@ -295,14 +295,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             MIGRAPHX_THROW("Unknown reduce algo: " + algo);
         }
         options.kernel_name  = v.get("kernel", "reduce_kernel");
-        std::string identity = "[](auto x) { return x; }";
         auto src =
             interpolate_string(fused_reduce_kernel,
                                {{"kernel", options.kernel_name},
                                 {"params", enum_params(inputs.size(), "void * private_p")},
                                 {"args", enum_params(inputs.size(), "private_p")},
                                 {"algo", algo},
-                                {"reduced", "decltype(" + generate_make_shape(output_shape) + ")"},
+                                {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
                                 {"lambda", v.at("lambda").to<std::string>()},
                                 {"transformers", make_transformer_args(vec)},
                                 {"preamble", v.get("preamble", std::string{})}});

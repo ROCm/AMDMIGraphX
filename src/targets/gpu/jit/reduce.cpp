@@ -86,9 +86,9 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
     return reduce_lens;
 }
 
-static std::string get_reduce_algo(const std::vector<shape>& inputs)
+template <class ReduceLens>
+static std::string get_reduce_algo(const std::vector<shape>& inputs, ReduceLens rlens)
 {
-    auto rlens      = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
     const auto init = std::numeric_limits<std::size_t>::max();
     // The minimum stride
     auto min_stride = std::inner_product(
@@ -103,11 +103,17 @@ static std::string get_reduce_algo(const std::vector<shape>& inputs)
     return "block";
 }
 
-struct reduce_compiler : compiler<reduce_compiler>
+static std::string get_reduce_algo(const std::vector<shape>& inputs)
+{
+    auto rlens      = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
+    return get_reduce_algo(inputs, rlens);
+}
+
+struct simple_reduce_compiler : compiler<simple_reduce_compiler>
 {
     std::vector<std::string> names() const
     {
-        return {"reduce", "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod"};
+        return {"simple_reduce", "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod"};
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
@@ -193,6 +199,121 @@ struct reduce_compiler : compiler<reduce_compiler>
         {
             MIGRAPHX_THROW("Unsupported reduce");
         }
+        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
+    }
+};
+
+static const char* const fused_reduce_kernel = R"__migraphx__(
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/pointwise.hpp>
+#include <migraphx/kernels/vectorize.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+${preamble}
+
+extern "C" {
+MIGRAPHX_GLOBAL void ${kernel}(${params})
+{
+    transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, auto... xs) {
+        fused_reduce<reduce::${algo}, ${reduced}>(y, partial(${lambda})(xs...));
+    });
+}
+    
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+template <class T>
+static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
+{
+    auto lens = s.lens();
+    std::fill(lens.begin(), lens.end(), 1);
+    for(const auto& axis : axes)
+        lens[axis] = s.lens()[axis];
+    return shape{s.type(), lens};
+}
+
+template <class T>
+static shape get_output_shape(const shape& s, const std::vector<T>& axes)
+{
+    auto lens = s.lens();
+    for(const auto& axis : axes)
+        lens[axis] = 1;
+    return shape{s.type(), lens};
+}
+
+
+struct fused_reduce_compiler : compiler<fused_reduce_compiler>
+{
+    std::vector<std::string> names() const { return {"fused_reduce"}; }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        auto axes           = v.at("axes").to_vector<std::size_t>();
+        auto virtual_inputs = inputs;
+        virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
+        virtual_inputs.push_back(get_output_shape(inputs.front(), axes));
+        virtual_inputs    = reduce_dims(virtual_inputs);
+        auto output_shape = virtual_inputs.back();
+        virtual_inputs.pop_back();
+        auto reduced_shape = virtual_inputs.back();
+        virtual_inputs.pop_back();
+
+        hip_compile_options options;
+        options.inputs         = inputs;
+        options.output         = inputs.back();
+        options.virtual_inputs = virtual_inputs;
+        auto faxis             = find_fast_axis({options.virtual_inputs.front()});
+        vectorize vec{};
+        auto nelements = output_shape.elements();
+        auto algo = v.get("algo", get_reduce_algo(options.virtual_inputs, reduced_shape.lens()));
+        if(algo == "block")
+        {
+            // Vectorize if the axis is a reduction axis
+            if(output_shape.lens()[faxis] == 1)
+                vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
+            auto relements  = reduced_shape.elements() / vec.size;
+            auto block_size = compute_block_size(relements, 256);
+            options.set_launch_params(
+                v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+        }
+        else if(algo == "lane")
+        {
+            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unknown reduce algo: " + algo);
+        }
+        options.kernel_name  = v.get("kernel", "reduce_kernel");
+        std::string identity = "[](auto x) { return x; }";
+        auto src =
+            interpolate_string(fused_reduce_kernel,
+                               {{"kernel", options.kernel_name},
+                                {"params", enum_params(inputs.size(), "void * private_p")},
+                                {"args", enum_params(inputs.size(), "private_p")},
+                                {"algo", algo},
+                                {"reduced", "decltype(" + generate_make_shape(output_shape) + ")"},
+                                {"lambda", v.at("lambda").to<std::string>()},
+                                {"transformers", make_transformer_args(vec)},
+                                {"preamble", v.get("preamble", std::string{})}});
+        options.params += "-Wno-float-equal";
+        return compile_hip_code_object(src, options);
+    }
+
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        assert(not ins->module_inputs().empty());
+        auto v        = op.to_value();
+        auto* rm      = ins->module_inputs().front();
+        v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
+        v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
+        v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
     }
 };

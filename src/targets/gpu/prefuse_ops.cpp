@@ -100,7 +100,8 @@ struct find_add_layernorm
 {
     auto matcher() const
     {
-        return match::layernorm()(match::var("x")(match::name("add").bind("add")));
+        return match::layernorm()(
+            match::var("x")(match::name("add")(match::used_once()).bind("add")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

@@ -45,10 +45,10 @@ template <index_int N,
           MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
 __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
-    using type = decltype(f(deduce_for_stride(fs)));
+    using type = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N];
     type x = init;
-    fs([&](auto i) { x = op(x, f(i)); });
+    idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     buffer[idx.local] = x;
     __syncthreads();
 
@@ -120,7 +120,7 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
     in  = op(in, out);
-#endif
+#endif // AMDGCN_WAVEFRONT_SIZE_64
 }
 
 __device__ inline void dpp_reduce(float& x, sum)
@@ -141,31 +141,26 @@ __device__ inline void dpp_reduce(float& x, sum)
                      "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"
-#endif
+#endif // AMDGCN_WAVEFRONT_SIZE_64
                      "s_nop 1\n"
                      : "=v"(x)
                      : "0"(x));
-#endif
+#endif // MIGRAPHX_USE_CLANG_TIDY | CPPCHECK
 }
 
-template <index_int N,
-          class Op,
-          class T,
-          class ForStride,
-          class F,
-          MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
-__device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
+template <index_int N, class Op, class T, class F>
+__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 {
 
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     constexpr index_int nthreads = 16;
 #else
     constexpr index_int nthreads = 64;
-#endif
-    using type                   = decltype(f(deduce_for_stride(fs)));
+#endif // AMDGCN_WAVEFROM_SIZE_32
+    using type                   = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N / nthreads];
     type x = init;
-    fs([&](auto i) { x = op(x, f(i)); });
+    idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     dpp_reduce(x, op);
 
     const auto ldsidx = idx.local / nthreads;
@@ -182,17 +177,8 @@ __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
     }
     return y;
 }
-#endif
-template <index_int N, class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
-{
-    auto midx = make_multi_index(idx.local, idx.nlocal());
-    // Workaround hcc, create a local array
-    auto fs = midx.id;
-    fs[0]   = n;
-    return block_reduce<N>(
-        idx, op, init, midx.for_stride(fs), [&](auto mi) __device__ { return f(mi[0]); });
-}
+#endif // MIGRAPHX_NO_DPP
+
 constexpr index_int compute_block_size(index_int n, index_int max_block_size)
 {
     size_t block_size = 64;

@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip /opt/rocm/hcc)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip)
 find_package(miopen)
 
 # rocblas
@@ -170,20 +170,6 @@ register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-get_filename_component(CMAKE_CXX_COMPILER_PATH "${CMAKE_CXX_COMPILER}" PATH)
-
-if(NOT CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+$")
-    find_program(MIGRAPHX_EXTRACT_KERNEL extractkernel
-        PATH_SUFFIXES bin
-        HINTS ${CMAKE_CXX_COMPILER_PATH}
-        PATHS
-        /opt/rocm/hip
-        /opt/rocm/hcc
-        /opt/rocm
-    )
-endif()
-
-message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 
@@ -220,7 +206,7 @@ else()
     target_compile_definitions(migraphx_gpu PRIVATE
         "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}"
         "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}"
-        "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
+        "-DMIGRAPHX_USE_HIPRTC=0"
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
@@ -253,8 +239,6 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
-# Workaround broken rocblas headers
-target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 

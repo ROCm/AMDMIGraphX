@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,30 +49,56 @@ struct gathernd
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
+        auto i_shape    = inputs.back();
+        auto data_shape = inputs.front();
+        auto r          = data_shape.ndim();
+        auto q          = i_shape.ndim();
+
+        size_t k;
+        if(i_shape.dynamic())
+        {
+            // the rank of the output is a function of k, so it must be fixed.
+            if(not i_shape.dyn_dims().back().is_fixed())
+            {
+                MIGRAPHX_THROW(
+                    "GATHERND: last dimension of indices tensor must be fixed (min=max)");
+            }
+            k = i_shape.dyn_dims().back().min;
+        }
+        else       
+            k = i_shape.lens().back();
+
+        // Begin input validation checks.
+        int output_ndim = int(q) + r - k - batch_dims - 1;
+
+        if(k > r - batch_dims)
+        {
+            MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
+                            " cannot be used to access data of rank " +
+                            std::to_string(r - batch_dims));
+        }
+        
+        if(batch_dims >= q or batch_dims >= r)
+        {
+            MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
+                            std::to_string(batch_dims));
+        }
+
+        if(output_ndim < 0)
+        {
+            MIGRAPHX_THROW("GATHERND: Indices too large for static data input: k=" +
+                            std::to_string(k));
+        }
+
         if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
         {
-            auto r = inputs.front().ndim();
-            auto q = inputs.back().ndim();
-            auto k = inputs.back().lens().back();
-            if(k > r - batch_dims)
-            {
-                MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
-                               " cannot be used to access data of rank " +
-                               std::to_string(r - batch_dims));
-            }
-            if(batch_dims >= q or batch_dims >= r)
-            {
-                MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
-                               std::to_string(batch_dims));
-            }
             auto indices_lens_iter = inputs.back().lens().begin();
-            int output_lens_size   = int(q) + r - k - batch_dims - 1;
-            if(output_lens_size <= 0)
-            {
-                MIGRAPHX_THROW("GATHERND: Indices too large for static data input: k=" +
-                               std::to_string(k));
-            }
-            std::vector<std::size_t> output_lens(output_lens_size);
+
+            // A rank 0 output is a scalar
+            if(output_ndim == 0)
+                return shape{inputs.front().type(), {1}};
+
+            std::vector<std::size_t> output_lens(output_ndim);
             std::copy(indices_lens_iter, indices_lens_iter + (q - 1), output_lens.begin());
             if(k < r - batch_dims)
             {
@@ -87,42 +113,11 @@ struct gathernd
         else
         {
             // If one or both inputs are dynamic shapes, the output is dynamic
-            auto i_shape    = inputs.back();
-            auto data_shape = inputs.front();
-            size_t k;
-            if(i_shape.dynamic())
-            {
-                // the rank of the output is a function of k, so it must be fixed.
-                if(not i_shape.dyn_dims().back().is_fixed())
-                {
-                    MIGRAPHX_THROW(
-                        "GATHERND: last dimension of indices tensor must be fixed (min=max)");
-                }
-                k = i_shape.dyn_dims().back().min;
-            }
-            else
-            {
-                k = i_shape.lens().back();
-            }
-            auto r          = data_shape.ndim();
-            auto q          = i_shape.ndim();
-            int output_ndim = int(q) + r - k - batch_dims - 1;
-            if(k > r - batch_dims)
-            {
-                MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
-                               " cannot be used to access data of rank " +
-                               std::to_string(r - batch_dims));
-            }
-            if(batch_dims >= q or batch_dims >= r)
-            {
-                MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
-                               std::to_string(batch_dims));
-            }
-            if(output_ndim <= 0)
-            {
-                MIGRAPHX_THROW("GATHERND: Indices too large for data input: k=" +
-                               std::to_string(k));
-            }
+
+            // A rank 0 output is a scalar
+            if(output_ndim == 0)
+                return shape(inputs.front().type(), {shape::dynamic_dimension({1, 1, 0})});
+
             // 3 vectors that will be used as constructor arguments for the output shape
             std::vector<size_t> mins(output_ndim);
             std::vector<size_t> maxes(output_ndim);

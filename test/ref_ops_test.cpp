@@ -2785,7 +2785,7 @@ TEST_CASE(gathernd_dynamic2)
 
 TEST_CASE(gathernd_dynamic3)
 {
-    // dynamic index, static data
+    // dynamic index, static data and a batch_dims input
     migraphx::program p;
     auto* mm = p.get_main_module();
 
@@ -2816,7 +2816,42 @@ TEST_CASE(gathernd_dynamic3)
     std::vector<float> res_data{};
     std::vector<float> gold{1, 0, 3, 4};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-for(auto ii : res_data) std::cout << ii << "  ";std::cout << "\n";
+    EXPECT(migraphx::verify_range(res_data, gold));
+}
+
+TEST_CASE(gathernd_dynamic4)
+{
+    // int(q) + r - k - batch_dims - 1 = 0 => returns a scalar
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape ds{migraphx::shape::float_type,
+                       {migraphx::shape::dynamic_dimension({2, 2, 0})}};
+    migraphx::shape is{migraphx::shape::int64_type, {1}};
+
+    auto xdata  = mm->add_parameter("X", ds);
+    auto xindex = mm->add_parameter("I", is);
+
+    auto gathernd_op = migraphx::make_op("gathernd");
+    auto gathernd    = mm->add_instruction(gathernd_op, xdata, xindex);
+
+    mm->add_return({gathernd});
+    p.compile(migraphx::ref::target{});
+
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {2}}; // data
+    migraphx::shape input_fixed_shape1{migraphx::shape::int64_type, {1}}; // index
+
+    std::vector<float> data_vec(2);
+    std::iota(data_vec.begin(), data_vec.end(), 4);
+    std::vector<int64_t> indices_vec{1};
+    params["X"] = migraphx::argument(input_fixed_shape0, data_vec.data());
+    params["I"] = migraphx::argument(input_fixed_shape1, indices_vec.data());
+
+    auto result = p.eval(params).back();
+    std::vector<float> res_data{};
+    std::vector<float> gold{5};
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(res_data, gold));
 }
 

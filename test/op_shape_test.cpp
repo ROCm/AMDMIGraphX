@@ -2361,14 +2361,14 @@ TEST_CASE(test_gathernd)
     }
 
     {
-        // int(q) + r - k - batch_dims - 1 = 0
+        // int(q) + r - k - batch_dims - 1 = 0 => returns a scalar
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
-        migraphx::shape is{itype, {2, 4}};
-        std::vector<size_t> b{2};
-        migraphx::shape ds{dtype, b};
+        migraphx::shape is{itype, {1}};
+        migraphx::shape ds{dtype, {2}};
 
-        throws_shape(migraphx::make_op("gathernd"), is, ds);
+        migraphx::shape s0{dtype, {1}};
+        expect_shape(s0, migraphx::make_op("gathernd"), ds, is);
     }
 
     {
@@ -2435,14 +2435,16 @@ TEST_CASE(test_gathernd_dynamic2)
 
 TEST_CASE(test_gathernd_dynamic3)
 {
-    // int(q) + r - k - batch_dims - 1 = 0
+    // int(q) + r - k - batch_dims - 1 = 0 => returns a scalar
     auto dtype = migraphx::shape::float_type;
     auto itype = migraphx::shape::int64_type;
-    migraphx::shape is{itype, {2, 4}};
+    migraphx::shape is{itype, {1}};
     std::vector<migraphx::shape::dynamic_dimension> b{{2, 2, 0}};
     migraphx::shape ds{dtype, b};
 
-    throws_shape(migraphx::make_op("gathernd"), is, ds);
+    migraphx::shape::dynamic_dimension ddout{1, 1, 0};
+    migraphx::shape s0{dtype, {ddout}};
+    expect_shape(s0, migraphx::make_op("gathernd"), ds, is);
 }
 
 TEST_CASE(test_gathernd_dynamic4)

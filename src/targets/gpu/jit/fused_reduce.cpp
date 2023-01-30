@@ -81,7 +81,6 @@ static shape get_output_shape(const shape& s, const std::vector<T>& axes)
 template <class ReduceLens>
 static std::string get_reduce_algo(const std::vector<shape>& inputs, ReduceLens rlens)
 {
-#if 0
     const auto init = std::numeric_limits<std::size_t>::max();
     // The minimum stride
     auto min_stride = std::inner_product(
@@ -93,7 +92,6 @@ static std::string get_reduce_algo(const std::vector<shape>& inputs, ReduceLens 
         [](auto len, auto stride) { return len == 1 ? init : stride; });
     if(min_stride > 2)
         return "lane";
-#endif
     return "block";
 }
 

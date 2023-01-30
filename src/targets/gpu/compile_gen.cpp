@@ -195,72 +195,59 @@ std::string generate_pointwise(const module& pm, const std::string& name)
     generate_pointwise(g, pm, name);
     return g.str();
 }
-// TODO: Remvoe from reduce.cpp
-static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
-{
-    return inputs.front().elements() / inputs.back().elements();
-}
-// static std::size_t get_reduce_elements(const std::vector<instruction_ref>& inputs)
-// {
-//     return get_reduce_elements(to_shapes(inputs));
-// }
 
-struct reduce_op
+std::string reduce_op::str() const
 {
-    std::string input;
-    std::string reduction = "";
-    std::string init      = "0";
-    std::string read      = "op::id{}";
-    std::string write     = "op::id{}";
-    std::string str() const
+    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
+}
+void reduce_op::set(instruction_ref ins, const operation& op)
+{
+    if(op.name() == "reduce_sum")
     {
-        return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
+        reduction = "op::sum{}";
     }
-    static std::string generate(instruction_ref ins, const std::string& x)
+    else if(op.name() == "reduce_mean")
     {
-        reduce_op r{x};
-        if(ins->name() == "reduce_sum")
-        {
-            r.reduction = "op::sum{}";
-        }
-        else if(ins->name() == "reduce_mean")
-        {
-            auto s               = ins->inputs().front()->get_shape();
-            auto reduce_elements = s.elements() / ins->get_shape().elements();
-            auto reduce_type     = s.type();
-            r.reduction          = "op::sum{}";
-            std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
-            // Use float accumulator when reduction size is too large for half
-            if(reduce_type == shape::half_type and reduce_elements > 16384)
-                r.read = "compose(" + mean + ", op::convert_to<float>{})";
-            else if(contains({shape::float_type, shape::half_type, shape::double_type},
-                             reduce_type))
-                r.read = mean;
-            else
-                r.write = mean;
-        }
-        else if(ins->name() == "reduce_max")
-        {
-            r.reduction = "op::max{}";
-            r.init      = "lowest{}";
-        }
-        else if(ins->name() == "reduce_min")
-        {
-            r.reduction = "op::min{}";
-            r.init      = "highest{}";
-        }
-        else if(ins->name() == "reduce_prod")
-        {
-            r.reduction = "op::product{}";
-            r.init      = "1";
-        }
+        auto s               = ins->inputs().front()->get_shape();
+        auto reduce_elements = s.elements() / ins->get_shape().elements();
+        auto reduce_type     = s.type();
+        reduction          = "op::sum{}";
+        std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
+        // Use float accumulator when reduction size is too large for half
+        if(reduce_type == shape::half_type and reduce_elements > 16384)
+            read = "compose(" + mean + ", op::convert_to<float>{})";
+        else if(contains({shape::float_type, shape::half_type, shape::double_type},
+                         reduce_type))
+            read = mean;
         else
-        {
-            MIGRAPHX_THROW("Unsupported reduce");
-        }
-        return r.str();
+            write = mean;
     }
-};
+    else if(op.name() == "reduce_max")
+    {
+        reduction = "op::max{}";
+        init      = "lowest{}";
+    }
+    else if(op.name() == "reduce_min")
+    {
+        reduction = "op::min{}";
+        init      = "highest{}";
+    }
+    else if(op.name() == "reduce_prod")
+    {
+        reduction = "op::product{}";
+        init      = "1";
+    }
+    else
+    {
+        MIGRAPHX_THROW("Unsupported reduce");
+    }
+}
+std::string reduce_op::generate(instruction_ref ins, const std::string& x)
+{
+    reduce_op r{x};
+    r.set(ins, ins->get_operator());
+    return r.str();
+}
 
 static bool use_lazy_inner(instruction_ref ins)
 {

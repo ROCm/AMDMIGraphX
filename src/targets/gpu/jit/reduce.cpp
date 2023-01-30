@@ -60,15 +60,6 @@ __global__ void reduce_kernel(void* input_p, void* output_p)
 
 )__migraphx__";
 
-static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
-{
-    return inputs.front().elements() / inputs.back().elements();
-}
-static std::size_t get_reduce_elements(const std::vector<instruction_ref>& inputs)
-{
-    return get_reduce_elements(to_shapes(inputs));
-}
-
 static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& input_lens,
                                                 const std::vector<std::size_t>& output_lens)
 {
@@ -84,6 +75,25 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
                            return y;
                    });
     return reduce_lens;
+}
+
+template <class T>
+static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
+{
+    auto lens = s.lens();
+    std::fill(lens.begin(), lens.end(), 1);
+    for(const auto& axis : axes)
+        lens[axis] = s.lens()[axis];
+    return shape{s.type(), lens};
+}
+
+template <class T>
+static shape get_output_shape(const shape& s, const std::vector<T>& axes)
+{
+    auto lens = s.lens();
+    for(const auto& axis : axes)
+        lens[axis] = 1;
+    return shape{s.type(), lens};
 }
 
 template <class ReduceLens>
@@ -119,6 +129,11 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                 "reduce_max",
                 "reduce_min",
                 "reduce_prod"};
+    }
+
+    static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
+    {
+        return inputs.front().elements() / inputs.back().elements();
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
@@ -166,44 +181,12 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         value v = value::object{};
-        if(op.name() == "reduce_sum")
-        {
-            v["reduction"] = "op::sum{}";
-        }
-        else if(op.name() == "reduce_mean")
-        {
-            auto reduce_elements = get_reduce_elements(ins->inputs());
-            auto reduce_type     = ins->inputs().front()->get_shape().type();
-            v["reduction"]       = "op::sum{}";
-            std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
-            // Use float accumulator when reduction size is too large for half
-            if(reduce_type == shape::half_type and reduce_elements > 16384)
-                v["read"] = "compose(" + mean + ", op::convert_to<float>{})";
-            else if(contains({shape::float_type, shape::half_type, shape::double_type},
-                             reduce_type))
-                v["read"] = mean;
-            else
-                v["write"] = mean;
-        }
-        else if(op.name() == "reduce_max")
-        {
-            v["reduction"] = "op::max{}";
-            v["init"]      = "lowest{}";
-        }
-        else if(op.name() == "reduce_min")
-        {
-            v["reduction"] = "op::min{}";
-            v["init"]      = "highest{}";
-        }
-        else if(op.name() == "reduce_prod")
-        {
-            v["reduction"] = "op::product{}";
-            v["init"]      = "1";
-        }
-        else
-        {
-            MIGRAPHX_THROW("Unsupported reduce");
-        }
+        reduce_op r{};
+        r.set(ins, op);
+        v["reduction"] = r.reduction;
+        v["read"] = r.read;
+        v["write"] = r.write;
+        v["init"] = r.init;
         return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
     }
 };
@@ -232,25 +215,6 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 } // namespace migraphx
 
 )__migraphx__";
-
-template <class T>
-static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
-{
-    auto lens = s.lens();
-    std::fill(lens.begin(), lens.end(), 1);
-    for(const auto& axis : axes)
-        lens[axis] = s.lens()[axis];
-    return shape{s.type(), lens};
-}
-
-template <class T>
-static shape get_output_shape(const shape& s, const std::vector<T>& axes)
-{
-    auto lens = s.lens();
-    for(const auto& axis : axes)
-        lens[axis] = 1;
-    return shape{s.type(), lens};
-}
 
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {

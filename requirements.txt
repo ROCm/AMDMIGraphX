@@ -23,8 +23,8 @@
 #####################################################################################
 google/protobuf@v3.11.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
 nlohmann/json@v3.8.0
-live-clones/blaze@v3.8 -X header -DHEADER_DIR=blaze -H sha256:d0ff011f47538285178908ea5f2cab46bb6a8f55b1edb6e03224a82dbc1a3212
-half,https://github.com/ROCmSoftwarePlatform/half/archive/1.12.0.tar.gz -X header -H sha256:0a08660b68abb176ebc2a0cdf8de46e3182a7f46c66443bb80dbfaaec98cf969
+live-clones/blaze@v3.8 -X header -DHEADER_DIR=blaze -H sha256:9d1bae81c9855395c97c6a9651aa3c8017247596f278136a78531401bcd1e6a9
+half,https://github.com/ROCmSoftwarePlatform/half/archive/1.12.0.tar.gz -X header -H sha256:a203e1525a3096d6977c9fd7b0e51c9708140702d0e6f508d718d61f54800bb6
 pybind/pybind11@d159a563383d10c821ba7b2a71905d1207db6de4 --build
 msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
 sqlite3@3.17 -DCMAKE_POSITION_INDEPENDENT_CODE=On

@@ -100,8 +100,8 @@ static void insert_params(module_ref sm,
     {
         if(contains(map_ins, input))
             continue;
-        // TODO: Ensure standard shape
-        map_ins[input] = sm->add_parameter("x" + std::to_string(n++), input->get_shape());
+        auto s = shape{input->get_shape().type(), input->get_shape().lens()};
+        map_ins[input] = sm->add_parameter("x" + std::to_string(n++), s);
     }
 }
 

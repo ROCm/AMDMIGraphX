@@ -182,14 +182,6 @@ static void create_reduce_modules(module_pass_manager& mpm)
     }
 }
 
-static std::vector<instruction_ref> get_returns(module& m)
-{
-    auto last = std::prev(m.end());
-    if(last->name() == "@return")
-        return last->inputs();
-    return {last};
-}
-
 namespace {
 struct find_pointwise_reduce
 {
@@ -263,13 +255,13 @@ struct find_reduce_pointwise
         if(contains(r.instructions, "broadcast"))
         {
             auto broadcast                       = r.instructions["broadcast"];
-            map_ins[broadcast->inputs().front()] = get_returns(*rm).front();
+            map_ins[broadcast->inputs().front()] = rm->get_returns().front();
             auto bout                            = insert_ins_in_submodule(rm, broadcast, map_ins);
             map_ins[input]                       = bout.front();
         }
         else
         {
-            map_ins[input] = get_returns(*rm).front();
+            map_ins[input] = rm->get_returns().front();
         }
 
         auto out = insert_ins_in_submodule(rm, pw, map_ins);
@@ -304,13 +296,13 @@ struct find_reduce_reduce
         if(contains(r.instructions, "broadcast"))
         {
             auto broadcast                       = r.instructions["broadcast"];
-            map_ins[broadcast->inputs().front()] = get_returns(*rm).front();
+            map_ins[broadcast->inputs().front()] = rm->get_returns().front();
             auto bout                            = insert_ins_in_submodule(rm, broadcast, map_ins);
             map_ins[input]                       = bout.front();
         }
         else
         {
-            map_ins[input] = get_returns(*rm).front();
+            map_ins[input] = rm->get_returns().front();
         }
 
         auto out = insert_module_in_submodule(rm, reduce1, map_ins);

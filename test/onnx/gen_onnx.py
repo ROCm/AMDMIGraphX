@@ -2054,6 +2054,40 @@ def gather_test():
 
 
 @onnx_test()
+def gather_scalar_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32, [])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 5, 6])
+
+    node = onnx.helper.make_node(
+        'Gather',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        axis=1,
+    )
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test()
+def gather_dyn_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT,
+                                      [None, 4, 5, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
+                                      [None, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Gather',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        axis=1,
+    )
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test()
 def gather_elements_axis0_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32, [2, 3])
@@ -2215,7 +2249,7 @@ def gemm_dyn_outer_test():
 
 
 @onnx_test()
-def gemm_dyn_C_error():
+def gemm_dyn_bias_test():
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [8, None])
     B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [8, 7])
     C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [1, 7])
@@ -6769,6 +6803,92 @@ def transpose_gather_test():
     )
 
     return ([td, ti, node], [x, i], [y])
+
+
+@onnx_test()
+def trilu_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def trilu_batch_diff_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    k = np.array([2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', 'k'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_lower_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node('Trilu', inputs=['x'], outputs=['y'], upper=0)
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def trilu_neg_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([-1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_out_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def trilu_row_one_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4])
+    k = np.array([1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node(
+        'Trilu',
+        inputs=['x', 'k'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y], [k_tensor])
 
 
 @onnx_test()

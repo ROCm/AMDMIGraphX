@@ -44,11 +44,9 @@ struct layernorm_matcher
     auto variance() const
     {
         return f("reduce_mean")(arg(0)(any_of(
-                f("pow")(arg(0)(x_minus_mean()), arg(1)(has_value(2.0f))),
-                f("mul")(arg(0)(x_minus_mean()), arg(1)(x_minus_mean())),
-                f("sqdiff")(either_arg(0, 1)(any().bind("x"), skip_broadcasts(f("reduce_mean"))))
-            )
-        ));
+            f("pow")(arg(0)(x_minus_mean()), arg(1)(has_value(2.0f))),
+            f("mul")(arg(0)(x_minus_mean()), arg(1)(x_minus_mean())),
+            f("sqdiff")(either_arg(0, 1)(any().bind("x"), skip_broadcasts(f("reduce_mean")))))));
     }
 
     auto sqrt_add_eps(const std::string& name) const
@@ -59,8 +57,7 @@ struct layernorm_matcher
 
     auto layernorm_onnx() const
     {
-        auto div_sqrt = f("div")(arg(0)(x_minus_mean()),
-                        arg(1)(sqrt_add_eps("sqrt")));
+        auto div_sqrt  = f("div")(arg(0)(x_minus_mean()), arg(1)(sqrt_add_eps("sqrt")));
         auto mul_rsqrt = f("mul")(either_arg(0, 1)(x_minus_mean(), sqrt_add_eps("rsqrt")));
         return any(any_of(div_sqrt, mul_rsqrt));
     }

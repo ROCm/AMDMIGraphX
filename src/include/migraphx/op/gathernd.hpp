@@ -65,7 +65,7 @@ struct gathernd
             }
             k = i_shape.dyn_dims().back().min;
         }
-        else       
+        else
             k = i_shape.lens().back();
 
         // Begin input validation checks.
@@ -74,20 +74,20 @@ struct gathernd
         if(k > r - batch_dims)
         {
             MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
-                            " cannot be used to access data of rank " +
-                            std::to_string(r - batch_dims));
+                           " cannot be used to access data of rank " +
+                           std::to_string(r - batch_dims));
         }
-        
+
         if(batch_dims >= q or batch_dims >= r)
         {
             MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
-                            std::to_string(batch_dims));
+                           std::to_string(batch_dims));
         }
 
         if(output_ndim < 0)
         {
             MIGRAPHX_THROW("GATHERND: Indices too large for static data input: k=" +
-                            std::to_string(k));
+                           std::to_string(k));
         }
 
         if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))

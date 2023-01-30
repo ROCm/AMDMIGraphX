@@ -184,9 +184,9 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         reduce_op r{};
         r.set(ins, op);
         v["reduction"] = r.reduction;
-        v["read"] = r.read;
-        v["write"] = r.write;
-        v["init"] = r.init;
+        v["read"]      = r.read;
+        v["write"]     = r.write;
+        v["init"]      = r.init;
         return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
     }
 };

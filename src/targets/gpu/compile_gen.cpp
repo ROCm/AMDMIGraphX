@@ -211,13 +211,12 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         auto s               = ins->inputs().front()->get_shape();
         auto reduce_elements = s.elements() / ins->get_shape().elements();
         auto reduce_type     = s.type();
-        reduction          = "op::sum{}";
+        reduction            = "op::sum{}";
         std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
         // Use float accumulator when reduction size is too large for half
         if(reduce_type == shape::half_type and reduce_elements > 16384)
             read = "compose(" + mean + ", op::convert_to<float>{})";
-        else if(contains({shape::float_type, shape::half_type, shape::double_type},
-                         reduce_type))
+        else if(contains({shape::float_type, shape::half_type, shape::double_type}, reduce_type))
             read = mean;
         else
             write = mean;

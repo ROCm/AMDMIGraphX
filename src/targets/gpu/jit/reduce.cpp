@@ -105,7 +105,7 @@ static std::string get_reduce_algo(const std::vector<shape>& inputs, ReduceLens 
 
 static std::string get_reduce_algo(const std::vector<shape>& inputs)
 {
-    auto rlens      = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
+    auto rlens = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
     return get_reduce_algo(inputs, rlens);
 }
 
@@ -113,7 +113,12 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
 {
     std::vector<std::string> names() const
     {
-        return {"simple_reduce", "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod"};
+        return {"simple_reduce",
+                "reduce_sum",
+                "reduce_mean",
+                "reduce_max",
+                "reduce_min",
+                "reduce_prod"};
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
@@ -246,7 +251,6 @@ static shape get_output_shape(const shape& s, const std::vector<T>& axes)
         lens[axis] = 1;
     return shape{s.type(), lens};
 }
-
 
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {

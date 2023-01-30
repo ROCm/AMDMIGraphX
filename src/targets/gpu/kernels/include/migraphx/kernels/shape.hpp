@@ -128,6 +128,7 @@ struct shape
         result[0] = tidx;
         return result;
     }
+
     /// Convert multi-index into a single index
     constexpr index_int single(index_array idx) const
     {

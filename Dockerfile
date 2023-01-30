@@ -99,15 +99,12 @@ COPY ./test/onnx/.onnxrt-commit /
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
-
-# Let us know which commit where're using for CI
-RUN echo "Onnxruntime Commit:" $(cat /.onnxrt-commit)
+ARG ONNXRUNTIME_COMMIT
 
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
-    git checkout $(cat /.onnxrt-commit) && \
-    /bin/sh dockerfiles/scripts/install_common_deps.sh
-
+    if [ -z "$ONNXRUNTIME_COMMIT" ] ; then git checkout $(cat /.onnxrt-commit) ; else git checkout ${ONNXRUNTIME_COMMIT} ; fi && \
+    /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
 
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh

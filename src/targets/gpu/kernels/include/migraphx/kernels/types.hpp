@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
 
 #include <migraphx/kernels/hip.hpp>
-#include <initializer_list>
 
 namespace migraphx {
 

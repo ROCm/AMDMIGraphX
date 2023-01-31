@@ -33,20 +33,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-static std::vector<instruction_ref> remove_return(module* mod)
-{
-    instruction_ref ret_ins = std::prev(mod->end());
-    auto outputs            = ret_ins->inputs();
-
-    // inputs of the return instruction are that of the output of the
-    // if instruction
-    assert(ret_ins->name() == "@return");
-
-    mod->remove_instruction(ret_ins);
-
-    return outputs;
-}
-
 struct parse_if : op_parser<parse_if>
 {
     std::vector<op_desc> operators() const { return {{"If"}}; }
@@ -74,15 +60,13 @@ struct parse_if : op_parser<parse_if>
             // then branch
             if(cond_arg.at<bool>())
             {
-                parser.parse_graph(mod, then_graph, true);
+                return parser.parse_graph(mod, then_graph, true);
             }
             // else branch
             else
             {
-                parser.parse_graph(mod, else_graph, true);
+                return parser.parse_graph(mod, else_graph, true);
             }
-
-            return remove_return(mod);
         }
 
         std::string then_name = info.name + "_if";
@@ -92,10 +76,10 @@ struct parse_if : op_parser<parse_if>
         module_ref else_mdl   = parser.prog.create_module(else_name);
 
         // parse the then sub_graph
-        parser.parse_graph(then_mdl, then_graph);
+        (void)parser.parse_graph(then_mdl, then_graph);
 
         // parse_the else sub_graph
-        parser.parse_graph(else_mdl, else_graph);
+        (void)parser.parse_graph(else_mdl, else_graph);
 
         auto then_out_shapes = then_mdl->get_output_shapes();
         auto else_out_shapes = else_mdl->get_output_shapes();

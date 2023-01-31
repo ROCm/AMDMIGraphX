@@ -43,11 +43,11 @@ struct src_file
 
 struct src_compiler
 {
-    std::string compiler                      = "c++";
-    std::string flags                         = "";
-    std::string output                        = "";
-    std::string launcher                      = "";
-    std::string out_ext                       = ".o";
+    std::string compiler = "c++";
+    std::string flags    = "";
+    std::string output   = "";
+    std::string launcher = "";
+    std::string out_ext  = ".o";
     std::vector<char> compile(const std::vector<src_file>& srcs) const;
 };
 

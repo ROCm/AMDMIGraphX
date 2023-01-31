@@ -118,16 +118,14 @@ struct reduce_compiler : compiler<reduce_compiler>
         options.virtual_inputs = reduce_dims(inputs);
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
-        // Vectorize if the axis is a reduction axis
-        if(options.virtual_inputs.back().lens()[faxis] == 1)
-        {
-            vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-        }
-        auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
         auto nelements = options.virtual_inputs.back().elements();
         auto algo      = v.get("algo", get_reduce_algo(options.virtual_inputs));
         if(algo == "block")
         {
+            // Vectorize if the axis is a reduction axis
+            if(options.virtual_inputs.back().lens()[faxis] == 1)
+                vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
+            auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             auto block_size = compute_block_size(relements, 256);
             options.set_launch_params(
                 v, compute_global_for(ctx, nelements * block_size, 256), block_size);
@@ -166,7 +164,7 @@ struct reduce_compiler : compiler<reduce_compiler>
             auto reduce_elements = get_reduce_elements(ins->inputs());
             auto reduce_type     = ins->inputs().front()->get_shape().type();
             v["reduction"]       = "op::sum{}";
-            std::string mean     = "op::mean{" + std::to_string(reduce_elements) + "}";
+            std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
             // Use float accumulator when reduction size is too large for half
             if(reduce_type == shape::half_type and reduce_elements > 16384)
                 v["read"] = "compose(" + mean + ", op::convert_to<float>{})";

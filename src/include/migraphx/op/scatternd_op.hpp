@@ -81,45 +81,27 @@ struct scatternd_op : op_name<Derived>
             MIGRAPHX_THROW("ScatterND: index of size " + std::to_string(k) +
                            " is too large for tensor of rank " + std::to_string(r));
 
-        if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
-        {
-            auto ind_lens  = index_shape.lens();
-            auto upd_lens  = upd_shape.lens();
-            auto data_lens = data_shape.lens();
+        // Convert all static shape dimensions to dynamic so they can be compared.
+        // It's possible for some of the 3 inputs to be dynamic shapes and some static,
+        // but any dynamic dimension that's compared to a static dimension must be fixed.
+        auto ind_dims  = index_shape.to_dynamic().dyn_dims();
+        auto upd_dims  = upd_shape.to_dynamic().dyn_dims();
+        auto data_dims = data_shape.to_dynamic().dyn_dims();
 
-            // Check that corresponding portions of tensor shapes match
-            if(not(std::equal(ind_lens.begin(), ind_lens.begin() + q - 1, upd_lens.begin()) and
-                   std::equal(data_lens.begin() + k, data_lens.end(), upd_lens.begin() + q - 1)))
-                MIGRAPHX_THROW(
-                    "ScatterND: incorrect update shape. update.lens != indices.lens[0:q-1] "
-                    "++ data.lens[k:r-1]");
-            if(data_shape.broadcasted())
-            {
-                return {data_shape.type(), data_shape.lens()};
-            }
-            else
-            {
-                return data_shape.with_lens(data_shape.lens());
-            }
+        // Check that corresponding portions of tensor shapes match.
+        if(not(std::equal(ind_dims.begin(), ind_dims.begin() + q - 1, upd_dims.begin()) and
+               std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + q - 1)))
+            MIGRAPHX_THROW("ScatterND: incorrect update shape. Update dimensions must match "
+                           "indices and data.");
+
+        if(data_shape.dynamic())
+            return data_shape;
+        else if(data_shape.broadcasted())
+        {
+            return {data_shape.type(), data_shape.lens()};
         }
         else
         {
-            // It's possible for some of the 3 inputs to be dynamic shapes and some static,
-            // but any dynamic dimension that's compared to a static dimension must be fixed.
-            auto ind_dims  = index_shape.to_dynamic().dyn_dims();
-            auto upd_dims  = upd_shape.to_dynamic().dyn_dims();
-            auto data_dims = data_shape.to_dynamic().dyn_dims();
-
-            // Check that corresponding portions of tensor shapes match.
-            if(not(std::equal(ind_dims.begin(), ind_dims.begin() + q - 1, upd_dims.begin()) and
-                   std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + q - 1)))
-                MIGRAPHX_THROW("ScatterND: incorrect update shape. Update dimensions must match "
-                               "indices and data.");
-
-            if(data_shape.dynamic())
-                return data_shape;
-            if(data_shape.broadcasted())
-                return {data_shape.type(), data_shape.lens()};
             return data_shape.with_lens(data_shape.lens());
         }
     }

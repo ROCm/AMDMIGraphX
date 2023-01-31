@@ -2303,9 +2303,10 @@ TEST_CASE(select_module_dyn)
 TEST_CASE(select_module_static)
 {
     migraphx::shape input{migraphx::shape::float_type, {3, 3, 255, 255}};
+    migraphx::shape out_attr = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1000, 1000}}};
     expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 1000}},
                  migraphx::make_op("select_module",
-                                   {{"output_dyn_shape", {{1, 4}, {1000, 1000}}},
+                                   {{"output_dyn_shape", migraphx::to_value(out_attr)},
                                     {"output_batch_index", 0},
                                     {"input_batch_index", 0}}),
                  input);

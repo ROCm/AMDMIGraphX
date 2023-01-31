@@ -52,8 +52,8 @@ struct select_module
 
     std::string name() const { return "select_module"; }
 
-    // this should run once during model compilation with dynamic shape input
-    // run once on each model evaluation with static shape input
+    // runs once during model compilation with dynamic shape input
+    // may run on each model evaluation with static shape input
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
@@ -95,7 +95,7 @@ struct select_module
         {
             // find submodule with the same parameter shape as the input data
             auto p_shape = mod->get_parameter_shape(dyn_batch_param_name);
-            if(p_shape == dyn_out.computed_shape)
+            if(p_shape == args.at(0).get_shape())
             {
                 modules_to_run.push_back(mod);
                 break;
@@ -105,17 +105,18 @@ struct select_module
 
         if(modules_to_run.empty())
         {
-            MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found");
+            MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for input shape: " +
+                           migraphx::to_string(args.at(0).get_shape()));
         }
         std::set<std::string> pnames;
         for(const auto& mod : modules_to_run)
         {
-            // If all the modules have the same parameters, this would only need to run once
+            // TODO If all the modules have the same parameters, this would only need to run once
             auto names = mod->get_parameter_names();
             pnames.insert(names.begin(), names.end());
         }
 
-        assert(pnames.size() < args.size());
+        assert(pnames.size() <= args.size());
         std::unordered_map<std::string, argument> params;
         std::transform(pnames.begin(),
                        pnames.end(),
@@ -125,7 +126,7 @@ struct select_module
 
         // TODO run multiple modules and split the parameter data to each batch size
         auto results = run(modules_to_run.at(0), params);
-        return argument{results};
+        return results.at(0);
     }
 };
 

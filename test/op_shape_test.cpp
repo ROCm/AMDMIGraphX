@@ -831,6 +831,77 @@ TEST_CASE(gather)
     }
 }
 
+TEST_CASE(gather_dyn0)
+{
+    // Insert dynamic index into dynamic shape
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{2, 3, 2}, {3, 4, 3}, {6, 9, 7}, {12, 14, 13}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {{2, 7, 3}, {3, 3, 0}}};
+    int axis = 1;
+    expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                 {{2, 3, 2}, {2, 7, 3}, {3, 3, 0}, {6, 9, 7}, {12, 14, 13}}},
+                 migraphx::make_op("gather", {{"axis", axis}}),
+                 input,
+                 indices);
+}
+
+TEST_CASE(gather_dyn1)
+{
+    // Insert static index into dynamic shape
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{2, 3, 2}, {3, 4, 3}, {6, 9, 7}, {12, 14, 13}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
+    int axis = 1;
+    expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                 {{2, 3, 2}, {2, 2, 0}, {3, 3, 0}, {6, 9, 7}, {12, 14, 13}}},
+                 migraphx::make_op("gather", {{"axis", axis}}),
+                 input,
+                 indices);
+}
+
+TEST_CASE(gather_dyn2)
+{
+    // Insert scalar (static) index into dynamic shape
+    migraphx::shape input{migraphx::shape::float_type,
+                          {{2, 3, 2}, {3, 4, 3}, {6, 9, 7}, {12, 14, 13}}};
+
+    std::vector<std::size_t> mins;
+    std::vector<std::size_t> maxes;
+    std::vector<std::size_t> opts;
+    migraphx::shape indices{migraphx::shape::int32_type, mins, maxes, opts};
+    int axis = 1;
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 3, 2}, {6, 9, 7}, {12, 14, 13}}},
+                 migraphx::make_op("gather", {{"axis", axis}}),
+                 input,
+                 indices);
+}
+
+TEST_CASE(gather_dyn3)
+{
+    // Insert dynamic index into static shape, axis 1
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 6, 12}};
+    migraphx::shape indices{migraphx::shape::int32_type, {{2, 3, 2}, {3, 4, 3}}};
+    int axis = 1;
+    expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                 {{2, 2, 0}, {2, 3, 2}, {3, 4, 3}, {6, 6, 0}, {12, 12, 0}}},
+                 migraphx::make_op("gather", {{"axis", axis}}),
+                 input,
+                 indices);
+}
+
+TEST_CASE(gather_dyn4)
+{
+    // Insert dynamic index into static shape, axis 0
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 6, 12}};
+    migraphx::shape indices{migraphx::shape::int32_type, {{2, 3, 2}, {3, 4, 3}}};
+    int axis = 0;
+    expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                 {{2, 3, 2}, {3, 4, 3}, {3, 3, 0}, {6, 6, 0}, {12, 12, 0}}},
+                 migraphx::make_op("gather", {{"axis", axis}}),
+                 input,
+                 indices);
+}
+
 TEST_CASE(get_tuple_elem_test)
 {
     migraphx::shape s0{migraphx::shape::bool_type, {1, 1}};

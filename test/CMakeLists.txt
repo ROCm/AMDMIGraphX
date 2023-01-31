@@ -1,4 +1,4 @@
-#####################################################################################
+# ####################################################################################
 # The MIT License (MIT)
 #
 # Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
@@ -20,7 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-#####################################################################################
+# ####################################################################################
 
 cmake_policy(SET CMP0057 NEW)
 
@@ -49,27 +49,31 @@ function(add_test_command NAME EXE)
         set_tests_properties(${NAME} PROPERTIES DISABLED On)
     elseif(WIN32)
         set(WINPATH)
+
         foreach(PATH ${CMAKE_FIND_ROOT_PATH})
             list(APPEND WINPATH ${PATH}/bin)
         endforeach()
+
         file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd"
             CONTENT "set PATH=${WINPATH};%PATH%
                     %1 ${ARGN}")
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
         if(MIGRAPHX_TEST_GDB)
-            # add_test(NAME ${NAME} COMMAND ${MIGRAPHX_GDB} 
-            #     --batch
-            #     --return-child-result
-            #     -ex "set disable-randomization off"
-            #     -ex run
-            #     -ex backtrace
-            #     --args $<TARGET_FILE:${EXE}> ${ARGN})
+            # add_test(NAME ${NAME} COMMAND ${MIGRAPHX_GDB}
+            # --batch
+            # --return-child-result
+            # -ex "set disable-randomization off"
+            # -ex run
+            # -ex backtrace
+            # --args $<TARGET_FILE:${EXE}> ${ARGN})
             set(TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/gdb/test_${NAME})
             file(MAKE_DIRECTORY ${TEST_DIR})
-            if (NOT EXISTS ${TEST_DIR})
+
+            if(NOT EXISTS ${TEST_DIR})
                 message(FATAL_ERROR "Failed to create test directory: ${TEST_DIR}")
             endif()
+
             file(GENERATE OUTPUT "${TEST_DIR}/run.cmake"
                 CONTENT "
                 # Remove previous core dump
@@ -90,22 +94,27 @@ function(add_test_command NAME EXE)
             add_test(NAME ${NAME} COMMAND ${EXE} ${ARGN})
         endif()
     endif()
+
     set_tests_properties(${NAME} PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
 endfunction()
 
 function(add_test_executable TEST_NAME)
-    add_executable (${TEST_NAME} EXCLUDE_FROM_ALL ${ARGN})
+    add_executable(${TEST_NAME} EXCLUDE_FROM_ALL ${ARGN})
     target_link_libraries(${TEST_NAME} ${CMAKE_THREAD_LIBS_INIT})
+
     # Cmake does not add flags correctly for gcc
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU") 
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         set_target_properties(${TEST_NAME} PROPERTIES COMPILE_FLAGS -pthread LINK_FLAGS -pthread)
     endif()
+
     separate_arguments(MIOPEN_TEST_FLAGS_ARGS UNIX_COMMAND ${MIOPEN_TEST_FLAGS})
+
     if(MIOPEN_TEST_ALL)
         set(TEST_COMMAND ${TEST_NAME} ${MIOPEN_TEST_FLOAT_ARG} --all ${MIOPEN_TEST_FLAGS_ARGS})
     else()
         set(TEST_COMMAND ${TEST_NAME} ${MIOPEN_TEST_FLOAT_ARG} ${MIOPEN_TEST_FLAGS_ARGS})
     endif()
+
     add_test_command(${TEST_NAME} ${TEST_COMMAND})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
@@ -129,11 +138,11 @@ if(MIGRAPHX_ENABLE_GPU)
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
         add_test_executable(test_gpu_${BASE_NAME} ${TEST})
         rocm_clang_tidy_check(test_gpu_${BASE_NAME})
-        set_tests_properties(test_gpu_${BASE_NAME} PROPERTIES 
-            COST 10 
+        set_tests_properties(test_gpu_${BASE_NAME} PROPERTIES
+            COST 10
             RESOURCE_LOCK gpu
         )
-        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu)
+        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels)
     endforeach()
 endif()
 
@@ -145,8 +154,8 @@ if(MIGRAPHX_ENABLE_FPGA)
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
         add_test_executable(test_fpga_${BASE_NAME} ${TEST})
         rocm_clang_tidy_check(test_fpga_${BASE_NAME})
-        set_tests_properties(test_fpga_${BASE_NAME} PROPERTIES 
-            COST 10 
+        set_tests_properties(test_fpga_${BASE_NAME} PROPERTIES
+            COST 10
             RESOURCE_LOCK fpga
         )
         target_link_libraries(test_fpga_${BASE_NAME} migraphx_fpga)
@@ -155,7 +164,8 @@ endif()
 
 # Onnx test
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
-file (GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)
+file(GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)
+
 foreach(ONNX_TEST ${ONNX_TESTS})
     get_filename_component(BASE_NAME ${ONNX_TEST} NAME_WE)
     set(TEST_NAME test_${BASE_NAME})
@@ -163,7 +173,7 @@ foreach(ONNX_TEST ${ONNX_TESTS})
     rocm_clang_tidy_check(${TEST_NAME})
     target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref)
     target_include_directories(${TEST_NAME} PUBLIC include)
-    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR}) 
+    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
 endforeach()
@@ -174,26 +184,26 @@ add_executable(test_tf tf/tf_test.cpp)
 rocm_clang_tidy_check(test_tf)
 target_link_libraries(test_tf migraphx_tf migraphx_ref)
 target_include_directories(test_tf PUBLIC include)
-add_test(NAME test_tf COMMAND $<TARGET_FILE:test_tf> WORKING_DIRECTORY ${TEST_TF_DIR}) 
+add_test(NAME test_tf COMMAND $<TARGET_FILE:test_tf> WORKING_DIRECTORY ${TEST_TF_DIR})
 add_dependencies(tests test_tf)
 add_dependencies(check test_tf)
 
 add_subdirectory(api)
 add_subdirectory(verify)
+
 if(MIGRAPHX_ENABLE_PYTHON)
-add_subdirectory(py)
+    add_subdirectory(py)
 endif()
 
 function(test_header NAME HEADER)
-
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
         "#include <${HEADER}>\nint main() {}\n"
     )
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp 
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
         "#include <${HEADER}>\n"
     )
     add_test_executable(${NAME}
-        ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 
+        ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
     )
 endfunction()
@@ -206,6 +216,7 @@ function(test_headers PREFIX)
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
+
         if(MIGRAPHX_ENABLE_GPU)
             target_link_libraries(header_${TEST_NAME} migraphx_gpu)
         endif()
@@ -214,6 +225,7 @@ endfunction()
 
 test_headers(migraphx ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
 test_headers(migraphx/ref ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/ref/*.hpp)
+
 if(MIGRAPHX_ENABLE_GPU)
-test_headers(migraphx/gpu ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp)
+    test_headers(migraphx/gpu ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp)
 endif()

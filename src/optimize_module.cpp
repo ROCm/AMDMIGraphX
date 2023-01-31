@@ -21,57 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_MATCH_LAYERNORM_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_MATCH_LAYERNORM_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/matcher.hpp>
+#include <migraphx/optimize_module.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/propagate_constant.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace match {
 
-namespace detail {
-template <class F>
-struct layernorm_matcher
+void optimize_module::apply(module_pass_manager& mpm) const
 {
-    F f;
-    auto x_minus_mean() const
+    for(int i = 0; i < 2; i++)
     {
-        return f("sub")(arg(0)(any().bind("x")), arg(1)(skip_broadcasts(f("reduce_mean"))));
+        mpm.run_pass(simplify_reshapes{});
+        mpm.run_pass(simplify_algebra{});
+        mpm.run_pass(eliminate_common_subexpression{});
+        mpm.run_pass(dead_code_elimination{});
+        mpm.run_pass(propagate_constant{});
+        mpm.run_pass(dead_code_elimination{});
     }
-
-    auto variance() const
-    {
-        return f("reduce_mean")(arg(0)(f("pow")(arg(0)(x_minus_mean()), arg(1)(has_value(2.0f)))));
-    }
-
-    auto layernorm_onnx() const
-    {
-        auto add_eps = f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps")));
-        return f("div")(
-            arg(0)(x_minus_mean()),
-
-            arg(1)(skip_broadcasts(f("sqrt")(arg(0)(match::any_of(add_eps, variance()))))));
-    }
-
-    auto matcher() const { return layernorm_onnx(); }
-};
-} // namespace detail
-
-template <class F>
-auto layernorm(F f)
-{
-    return detail::layernorm_matcher<F>{f}.matcher();
 }
 
-inline auto layernorm()
-{
-    return layernorm([](auto x) { return name(x); });
-}
-
-} // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

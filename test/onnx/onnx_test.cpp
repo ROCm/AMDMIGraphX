@@ -6828,4 +6828,12 @@ TEST_CASE(where_dyn_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(where_mixed_test)
+{
+    //  mixture of static and dynamic input shapes is not supported
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("where_mixed_test.onnx", options); }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

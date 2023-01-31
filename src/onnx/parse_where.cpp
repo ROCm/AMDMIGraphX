@@ -40,8 +40,7 @@ struct parse_where : op_parser<parse_where>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        // This op. doesn't currently support a mix of static and dynamic shapes.
-        // Also, TODO: broadcasting for dynamic shapes is only implemented
+        // TODO: broadcasting for dynamic shapes is only implemented
         // for binary ops at time of writing, not ternary ops.
         //   When it becomes available, add multibroadcasting steps in the dynamic shape case.
         // For now for dynamic shapes, just insert the Where op.  All shapes must be the
@@ -50,7 +49,8 @@ struct parse_where : op_parser<parse_where>
         {
             return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
         }
-        else
+        else if(std::none_of(
+                    args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
         {
             // If shapes are static and any are broadcasted, insert multibroadcast ops
             auto lens =
@@ -76,6 +76,8 @@ struct parse_where : op_parser<parse_where>
 
             return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
         }
+        else
+            MIGRAPHX_THROW("PARSE_WHERE: doesn't support mixed static and dynamic shape inputs");
     }
 };
 

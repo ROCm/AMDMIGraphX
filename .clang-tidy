@@ -9,6 +9,8 @@ CheckOptions:
     value:           risky   
   - key:             modernize-loop-convert.NamingStyle
     value:           lower_case
+  - key:             misc-const-correctness.AnalyzeValues
+    value:           'false'
   - key:             performance-unnecessary-copy-initialization.AllowedTypes
     value:           'shape'
   - key:             performance-unnecessary-value-param.AllowedTypes

@@ -92,9 +92,9 @@ struct find_layernorm
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        float eps = 0;
+        float eps  = 0;
         if(contains(r.instructions, "eps"))
-            eps   = r.instructions["eps"]->eval().at<float>();
+            eps = r.instructions["eps"]->eval().at<float>();
 
         m.replace_instruction(ins, layernorm{eps}, x_ins);
     }
@@ -104,14 +104,15 @@ struct find_add_layernorm
 {
     auto matcher() const
     {
-        return match::name("gpu::prelayernorm")(match::args(match::name("add")(match::used_once()).bind("add")));
+        return match::name("gpu::prelayernorm")(
+            match::args(match::name("add")(match::used_once()).bind("add")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto add_ins = r.instructions["add"];
-        auto op = any_cast<layernorm>(ins->get_operator());
+        auto op      = any_cast<layernorm>(ins->get_operator());
 
         m.replace_instruction(ins, add_layernorm{op.epsilon}, add_ins->inputs());
     }

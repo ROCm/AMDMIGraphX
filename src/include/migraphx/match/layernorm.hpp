@@ -52,7 +52,7 @@ struct layernorm_matcher
     auto sqrt_add_eps(const std::string& name) const
     {
         auto add_eps = f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps")));
-        return skip_broadcasts(f(name)(arg(0)(add_eps)));
+        return skip_broadcasts(f(name)(arg(0)(any_of(add_eps, variance()))));
     }
 
     auto layernorm_onnx() const

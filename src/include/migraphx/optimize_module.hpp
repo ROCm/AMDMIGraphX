@@ -21,27 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
 
-#include <migraphx/config.hpp>
 #include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
-namespace gpu {
-
-struct prefuse_ops
+/**
+ * Runs several passes in a loop
+ */
+struct optimize_module
 {
-    std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& m) const;
+    std::string name() const { return "optimize_module"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+#endif

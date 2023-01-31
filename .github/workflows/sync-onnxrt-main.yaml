@@ -1,15 +1,16 @@
 name: Onnxruntime main weekly sync
 on:
   schedule:
-    - cron: "05 09 * * 5"
+    - cron: "05 17 * * 1"
 
 jobs:
+  runs-on: ubuntu-latest
   sync:
     steps:
       - uses: actions/checkout@v3
         with:
-        ref: develop
-        path: ../
+          ref: develop
+          path: ../
 
   get_date:
     steps:

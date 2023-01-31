@@ -100,14 +100,17 @@ struct find_add_layernorm
 {
     auto matcher() const
     {
-        return match::layernorm()(match::var("x")(match::name("add").bind("add")));
+        return match::layernorm()(
+            match::var("x")(match::name("add")(match::used_once()).bind("add")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto add_ins = r.instructions["add"];
-        auto eps     = r.instructions["eps"]->eval().at<float>();
+        float eps    = 0;
+        if(contains(r.instructions, "eps"))
+            eps = r.instructions["eps"]->eval().at<float>();
 
         m.replace_instruction(ins, add_layernorm{eps}, add_ins->inputs());
     }

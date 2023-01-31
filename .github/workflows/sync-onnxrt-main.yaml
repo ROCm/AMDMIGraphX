@@ -1,0 +1,46 @@
+name: Onnxruntime main weekly sync
+on:
+  schedule:
+    - cron: "05 17 * * 1"
+
+jobs:
+  runs-on: ubuntu-latest
+  sync:
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: develop
+          path: ../
+
+  get_date:
+    steps:
+      - run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+  update_file:
+    needs: [sync get_date]
+    steps:
+      - run: git clone https://github.com/microsoft/onnxruntime.git && cd onnxruntime && git rev-parse HEAD >> ../test/onnx/.onnxrt-commit
+
+  Add_commit:
+    needs: update_file
+    steps:
+      - name: Add & Commit
+        uses: EndBug/add-and-commit@v9.1.1
+        with:
+          new_branch: onnxruntime-sync-${{ steps.date.outputs.date }}
+          add: ../test/onnx/.onnxrt-commit
+          message: Update Onnxruntime commit to latest release
+          default_author: github_actions
+          push: true
+  PR:
+    needs: Add_commit
+    steps:
+      - name: GitHub Action for creating Pull Requests
+        uses: devops-infra/action-pull-request@v0.5.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          title: Sync Onnxruntime main
+          reviewer: pfultz2, causten
+          assignee: TedThemistokleous
+          label: automatic, onnxruntime
+          target_branch: develop

@@ -2361,7 +2361,7 @@ TEST_CASE(test_scatternd2)
 
 TEST_CASE(test_scatternd3)
 {
-    // passes q + r - k - 1 != upd_lens.size() but k > r
+    // q + r - k - 1 matches upd_lens.size(), but k > r
     auto dtype = migraphx::shape::float_type;
     auto itype = migraphx::shape::int64_type;
     migraphx::shape ds{dtype, {8}};
@@ -2383,7 +2383,7 @@ TEST_CASE(test_scatternd4)
 
 TEST_CASE(test_scatternd5)
 {
-    // update.lens != indices.lens[0:q-1]
+    // dimensions don't match: update.lens != indices.lens[0:q-1]
     auto dtype = migraphx::shape::float_type;
     auto itype = migraphx::shape::int64_type;
     migraphx::shape ds{dtype, {8, 3}};
@@ -2439,6 +2439,31 @@ TEST_CASE(test_scatternd_dyn3)
     migraphx::shape::dynamic_dimension dd{4, 4, 0};
     migraphx::shape us{dtype, {dd}};
     expect_shape(ds, migraphx::make_op("scatternd_none"), ds, is, us);
+}
+
+TEST_CASE(test_scatternd_dyn4)
+{
+    // index is dynamic with last dimension not fixed
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape ds{dtype, {2, 3, 1, 4}};
+    migraphx::shape::dynamic_dimension dd{4, 5, 0};
+    migraphx::shape is{itype, {dd, dd}};
+    migraphx::shape us{dtype, {dd}};
+    throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
+}
+
+TEST_CASE(test_scatternd_dyn5)
+{
+    // dimensions don't match: update.lens != indices.lens[0:q-1]
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape ds{dtype, {2, 3, 1, 4}};
+    migraphx::shape::dynamic_dimension dd{4, 4, 0};
+    migraphx::shape::dynamic_dimension dbad{2, 3, 0};
+    migraphx::shape is{itype, {dd, dd}};
+    migraphx::shape us{dtype, {dbad}};
+    throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
 }
 
 TEST_CASE(test_squeeze)

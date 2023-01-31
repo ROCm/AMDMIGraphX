@@ -28,8 +28,7 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
-#include <hip/hip_fp16.h>
-#include <hip/math_functions.h>
+#include <migraphx/kernels/hip.hpp>
 
 namespace migraphx {
 
@@ -222,7 +221,7 @@ constexpr auto min(const T& a, const U& b)
 template <class T, MIGRAPHX_REQUIRES(is_same<vec_type<T>, half>{})>
 constexpr T sin(T x)
 {
-    constexpr const T shift = M_PI_2;
+    constexpr const T shift = HIP_PIO2_F;
     return migraphx::cos(shift - x);
 }
 

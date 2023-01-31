@@ -36,6 +36,7 @@ namespace gpu {
 namespace device {
 
 #ifdef MIGRAPHX_NO_DPP
+
 template <index_int N,
           class Op,
           class T,
@@ -62,6 +63,7 @@ __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
     }
     return buffer[0];
 }
+
 #else
 constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110u | x; }
 
@@ -96,11 +98,7 @@ __device__ T dpp_mov(T& x)
     input.data = x;
     for(index_int i = 0; i < n; i++)
     {
-#if defined(__HCC__)
-        output.reg[i] = __llvm_amdgcn_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
-#else
         output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
-#endif
     }
     return output.data;
 }
@@ -310,4 +308,4 @@ void reduce(hipStream_t stream,
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_NO_DPP

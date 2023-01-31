@@ -29,10 +29,9 @@
 #include <cassert>
 #include <iostream>
 
-#if MIGRAPHX_USE_HIPRTC
+#ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
-#include <migraphx/env.hpp>
 #else
 #include <migraphx/compile_src.hpp>
 #include <migraphx/process.hpp>
@@ -48,9 +47,10 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
-#if MIGRAPHX_USE_HIPRTC
+#ifdef MIGRAPHX_USE_HIPRTC
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS);
 
 std::string hiprtc_error(hiprtcResult err, const std::string& msg)
 {
@@ -143,25 +143,29 @@ struct hiprtc_program
                        options.end(),
                        std::back_inserter(c_options),
                        [](const std::string& s) { return s.c_str(); });
-        auto result = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
-        std::cerr << log() << std::endl;
+        auto result   = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
+        auto prog_log = log();
+        if(not prog_log.empty())
+        {
+            std::cerr << prog_log << std::endl;
+        }
         if(result != HIPRTC_SUCCESS)
             MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");
     }
 
-    std::string log()
+    std::string log() const
     {
         std::size_t n = 0;
         MIGRAPHX_HIPRTC(hiprtcGetProgramLogSize(prog.get(), &n));
-        if(n < 2)
+        if(n == 0)
             return {};
-        std::vector<char> buffer(n);
+        std::string buffer(n, '\0');
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
-        assert(buffer.back() == 0);
-        return {buffer.begin(), buffer.end() - 1};
+        assert(buffer.back() != 0);
+        return buffer;
     }
 
-    std::vector<char> get_code_obj()
+    std::vector<char> get_code_obj() const
     {
         std::size_t n = 0;
         MIGRAPHX_HIPRTC(hiprtcGetCodeSize(prog.get(), &n));
@@ -176,6 +180,17 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');
+    options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
+    // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
+    if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
+    {
+        options.push_back("-DMIGRAPHX_HAS_DPP=0");
+        options.push_back("-DMIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=1");
+        options.push_back("-Wno-reserved-identifier");
+        options.push_back("-Wno-gnu-line-marker");
+        options.push_back("-Wno-old-style-cast");
+    }
+
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
@@ -183,7 +198,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
        }))
         options.push_back("-std=c++17");
     options.push_back("-fno-gpu-rdc");
-    options.push_back(" -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
+    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--offload-arch=" + arch);
     prog.compile(options);
@@ -292,14 +307,14 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     return {compiler.compile(srcs)};
 }
 
+#endif // MIGRAPHX_USE_HIPRTC
+
 std::string enum_params(std::size_t count, std::string param)
 {
     std::vector<std::string> items(count);
     transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
     return join_strings(items, ",");
 }
-
-#endif // MIGRAPHX_USE_HIPRTC
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -21,56 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_MATCH_LAYERNORM_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_MATCH_LAYERNORM_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
 
+#include <string>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/matcher.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace match {
 
-namespace detail {
-template <class F>
-struct layernorm_matcher
+struct module_pass_manager;
+
+/**
+ * Runs several passes in a loop
+ */
+struct optimize_module
 {
-    F f;
-    auto x_minus_mean() const
-    {
-        return f("sub")(arg(0)(any().bind("x")), arg(1)(skip_broadcasts(f("reduce_mean"))));
-    }
-
-    auto variance() const
-    {
-        return f("reduce_mean")(arg(0)(f("pow")(arg(0)(x_minus_mean()), arg(1)(has_value(2.0f)))));
-    }
-
-    auto layernorm_onnx() const
-    {
-        auto add_eps = f("add")(either_arg(0, 1)(variance(), is_constant().bind("eps")));
-        return f("div")(
-            arg(0)(x_minus_mean()),
-
-            arg(1)(skip_broadcasts(f("sqrt")(arg(0)(match::any_of(add_eps, variance()))))));
-    }
-
-    auto matcher() const { return layernorm_onnx(); }
+    std::string name() const { return "optimize_module"; }
+    void apply(module_pass_manager& mpm) const;
 };
-} // namespace detail
 
-template <class F>
-auto layernorm(F f)
-{
-    return detail::layernorm_matcher<F>{f}.matcher();
-}
-
-inline auto layernorm()
-{
-    return layernorm([](auto x) { return name(x); });
-}
-
-} // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

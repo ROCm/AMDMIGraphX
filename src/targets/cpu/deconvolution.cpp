@@ -37,9 +37,9 @@ struct dnnl_deconvolution
         return {MIGRAPHX_DNNL_PREFIX(ARG_SRC), MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)};
     }
 
-    shape adjust_shape(const shape& x, int i) const
+    shape adjust_shape(const shape& x, int i, const shape& output) const
     {
-        auto s = base_adjust_shape(x);
+        auto s = base_adjust_shape(x, output);
         if(i == 1)
         {
             // The input and output channels are flipped for dnnl

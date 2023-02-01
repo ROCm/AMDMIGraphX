@@ -205,6 +205,12 @@ struct module
 
     void print_graph(std::ostream& os, bool brief = false) const;
 
+    void print_py(std::ostream& os) const;
+    std::unordered_map<instruction_ref, std::string>
+    print_py(std::ostream& os,
+             const std::string& mname,
+             std::unordered_map<instruction_ref, std::string> names) const;
+
     void print_cpp(std::ostream& os) const;
     std::unordered_map<instruction_ref, std::string>
     print_cpp(std::ostream& os,

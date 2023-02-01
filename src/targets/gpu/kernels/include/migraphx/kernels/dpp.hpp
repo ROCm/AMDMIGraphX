@@ -72,7 +72,7 @@ __device__ T dpp_mov(T& x)
     }
     return output.data;
 }
-#endif
+#endif // MIGRAPHX_HAS_DPP
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_DPP_HPP

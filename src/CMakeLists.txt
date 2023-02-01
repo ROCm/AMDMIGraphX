@@ -55,6 +55,7 @@ add_library(migraphx
     insert_pad.cpp
     instruction.cpp
     json.cpp
+    layout_nhwc.cpp
     load_save.cpp
     make_op.cpp
     module.cpp
@@ -63,6 +64,7 @@ add_library(migraphx
     normalize_ops.cpp
     op_enums.cpp
     operation.cpp
+    optimize_module.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
     pad_calc.cpp
@@ -144,6 +146,7 @@ register_migraphx_ops(
     if_op
     im2col
     isnan
+    layout
     leaky_relu
     less
     load

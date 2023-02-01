@@ -41,7 +41,7 @@ migraphx::instruction* as_address(const instruction_ref& ins) noexcept;
 
 namespace std {
 template <>
-struct hash<migraphx::instruction_ref>
+struct hash<migraphx::instruction_ref> // NOLINT
 {
     using argument_type = migraphx::instruction_ref;
     using result_type   = std::size_t;
@@ -52,7 +52,7 @@ struct hash<migraphx::instruction_ref>
 };
 
 template <>
-struct equal_to<migraphx::instruction_ref>
+struct equal_to<migraphx::instruction_ref> // NOLINT
 {
     using argument_type = migraphx::instruction_ref;
     using result_type   = bool;

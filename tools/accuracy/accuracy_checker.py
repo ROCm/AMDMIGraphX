@@ -151,7 +151,7 @@ def main():
                                         map_input_dims=input_dims)
     else:
         model_name = args.tf
-        
+
         if not input_dims:
             model = migraphx.parse_tf(model_name, batch_size=batch)
         else:

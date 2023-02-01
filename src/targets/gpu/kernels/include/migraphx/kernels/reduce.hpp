@@ -391,22 +391,40 @@ struct block
 struct lane
 {
     template <class Slicer>
-    struct reducer
+    struct reducer : reducer_base<reducer<Slicer>>
     {
         index idx;
         Slicer slice;
-        template <class Op, class T, class Read>
-        __device__ auto reduce(Op op, T init, Read read) const
+
+        template <class Size, class F>
+        struct inner_storage : inner_storage_tag
         {
-            return sliced(slice, [=](auto x, auto... xs) {
-                using type = typename decltype(x)::type;
-                type r     = init;
-                for(index_int j = 0; j < x.get_shape().elements(); j++)
-                {
-                    r = op(r, read(x[j], xs[j]...));
-                }
-                return r;
-            });
+            using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
+            F f;
+            constexpr Size rsize() const { return {}; }
+            template <class U, class V>
+            constexpr auto operator()(U j, V d) const
+            {
+                return f(j, d);
+            }
+        };
+
+        template <class Size, class F>
+        constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
+        {
+            return {f};
+        }
+
+        template <class Op, class T, class Read, class N, class U, class... Us>
+        __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
+        {
+            using type = remove_reference_t<decltype(x(0, _c<0>))>;
+            type r     = init;
+            for(index_int j = 0; j < n; j++)
+            {
+                r = op(r, read(x(j, _c<0>), xs(j, _c<0>)...));
+            }
+            return r;
         }
 
         template <class F>
@@ -415,29 +433,25 @@ struct lane
             f();
         }
 
-        template <class F>
-        __device__ auto inner(F f) const
+        template <class F, class N, class... Ts>
+        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
         {
-            return sliced(slice, [=](auto x, auto... xs) {
-                for(index_int j = 0; j < x.get_shape().elements(); j++)
-                {
-                    f(x[j], xs[j]...);
-                }
-            });
+            for(index_int j = 0; j < n; j++)
+            {
+                f(xs(j, _c<0>)...);
+            }
         }
 
-        template <class Input>
-        constexpr auto elements() const
+        template <class R, class F, class N, class... Ts>
+        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            using reduce_type = decltype(slice(Input{}));
-            return get_shape_c<reduce_type>{}.elements();
+            return make_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
         }
     };
-
     template <class Slicer>
     static __device__ auto make(index idx, Slicer slicer)
     {
-        return reducer<Slicer>{idx, slicer};
+        return reducer<Slicer>{{}, idx, slicer};
     }
 
     template <class Output, class F>

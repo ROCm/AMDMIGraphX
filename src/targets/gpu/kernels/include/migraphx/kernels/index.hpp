@@ -163,6 +163,30 @@ struct index
     }
 
     template <class F, class N, class Stride>
+    static constexpr void for_stride_loop_unroll(index_int start, N n, Stride stride, F f)
+    {
+        sequence(max_stride_iterations(n, stride), [&](auto... ks) {
+            fold([&](auto d, auto k) {
+                auto i = start + stride * k;
+                if(i < n)
+                    invoke_loop(f, i, d);
+                return d + _c<1>;
+            })(_c<0>, ks...);
+        });
+    }
+
+    template <class F, class N, class Stride>
+    static constexpr void for_stride_loop(index_int start, N n, Stride stride, F f)
+    {
+        index_int k = 0;
+        for(index_int i = start; i < n; i += stride)
+        {
+            invoke_loop(f, i, k);
+            k++;
+        }
+    }
+
+    template <bool Unroll, class F, class N, class Stride>
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
         MIGRAPHX_ASSERT(start < stride);
@@ -180,40 +204,34 @@ struct index
                     invoke_loop(f, start, _c<0>);
                 }
             }
+            else if constexpr(Unroll)
+            {
+                MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
+                {
+                    for_stride_loop_unroll(start, n, stride, f);
+                }
+            }
             else
             {
-                static_assert(max_stride_iterations(n, stride) < 128);
-                sequence(max_stride_iterations(n, stride), [&](auto... ks) {
-                    fold([&](auto d, auto k) {
-                        auto i = start + stride * k;
-                        if(i < n)
-                            invoke_loop(f, i, d);
-                        return d + _c<1>;
-                    })(_c<0>, ks...);
-                });
+                for_stride_loop(start, n, stride, f);
             }
         }
         else
         {
-            index_int k = 0;
-            for(index_int i = start; i < n; i += stride)
-            {
-                invoke_loop(f, i, k);
-                k++;
-            }
+            for_stride_loop(start, n, stride, f);
         }
     }
 
     template <class F, class N>
     __device__ void global_stride(N n, F f) const
     {
-        for_stride(global, n, nglobal(), f);
+        for_stride<false>(global, n, nglobal(), f);
     }
 
     template <class F, class N>
     __device__ void local_stride(N n, F f) const
     {
-        for_stride(local, n, nlocal(), f);
+        for_stride<true>(local, n, nlocal(), f);
     }
 
     template <class F, class N>

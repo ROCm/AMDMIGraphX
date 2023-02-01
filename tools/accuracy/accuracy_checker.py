@@ -195,7 +195,8 @@ def main():
         except Exception as e:
             if any(input_dims):
                 print(
-                    'Error: custom input dim may not be compatible with onnx runtime')
+                    'Error: custom input dim may not be compatible with onnx runtime'
+                )
             raise e
     else:
         import tensorflow as tf

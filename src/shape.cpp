@@ -62,8 +62,11 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
         assert(m_lens.size() == m_strides.size());
-        m_standard = this->elements() == this->element_space() and not skips() and
-                     std::is_sorted(m_strides.rbegin(), m_strides.rend());
+        std::vector<std::size_t> std_strides = {};
+        this->calculate_standard_strides(std_strides);
+        bool is_scalar = std::accumulate(m_strides.begin(), m_strides.end(), std::size_t(0)) == 0;
+        m_standard     = this->elements() == this->element_space() and not skips() and
+                     (m_strides == std_strides or is_scalar);
     }
 
     shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)
@@ -94,16 +97,18 @@ struct shape_impl
 
     std::vector<shape::dynamic_dimension> m_dyn_dims = {};
 
-    void calculate_strides()
+    void calculate_strides() { this->calculate_standard_strides(m_strides); }
+
+    void calculate_standard_strides(std::vector<std::size_t>& strides)
     {
-        m_strides.clear();
-        m_strides.resize(m_lens.size(), 0);
-        if(m_strides.empty())
+        strides.clear();
+        strides.resize(m_lens.size(), 0);
+        if(strides.empty())
             return;
-        m_strides.back() = 1;
+        strides.back() = 1;
         std::partial_sum(m_lens.rbegin(),
                          m_lens.rend() - 1,
-                         m_strides.rbegin() + 1,
+                         strides.rbegin() + 1,
                          std::multiplies<std::size_t>());
     }
 

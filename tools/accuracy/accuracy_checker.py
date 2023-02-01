@@ -59,9 +59,6 @@ def parse_args():
                         type=float,
                         default=1e-3,
                         help='accuracy tolerance (default = 1e-3)')
-    parser.add_argument('--nchw',
-                        action='store_true',
-                        help='set tf data layout to NCHW (default is NHWC)')
     parser.add_argument('--input-dim',
                         type=str,
                         action='append',
@@ -162,7 +159,7 @@ def main():
     if args.verbose:
         print(model)
 
-    model.compile(migraphx.get_target('gpu'), offload_copy=False)
+    model.compile(migraphx.get_target('gpu'))
 
     params = {}
     test_inputs = {}
@@ -179,9 +176,9 @@ def main():
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
-        params[name] = migraphx.to_gpu(migraphx.argument(test_input))
+        params[name] = migraphx.argument(test_input)
 
-    pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
+    pred_migx = np.array(model.run(params)[-1])
 
     if use_onnx:
         sess = ort.InferenceSession(model_name, providers=[args.provider])
@@ -215,8 +212,9 @@ def main():
         graph_ops = []
         for op in graph.get_operations():
             graph_ops.append(op.name)
-            if 'Conv' in op.node_def.op and not args.nchw:
-                is_nhwc = True
+            if 'Conv' in op.node_def.op:
+                if 'NHWC' in op.get_attr('data_format').decode('utf-8'):
+                    is_nhwc = True
         graph_ops_set = set(graph_ops)
         tf_dict = {}
 
@@ -227,7 +225,7 @@ def main():
                 continue
             x = graph.get_tensor_by_name(f'{tf_name}:0')
             tf_input = test_inputs[name]
-            # lazy check for image model (NHWC layout)
+            # transpose input for NHWC model
             if tf_input.ndim == 4 and is_nhwc:
                 tf_dict[x] = np.transpose(tf_input, (0, 2, 3, 1))
             else:

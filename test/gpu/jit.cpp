@@ -35,13 +35,14 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx_kernels.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
 #include <hip/hip_runtime.h>
 
 extern "C" {
-__global__ void write(int8_t* data) 
+__global__ void write(char* data) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     data[num] = 2;
@@ -58,7 +59,7 @@ const std::string add_2s_binary = R"__migraphx__(
 #include <hip/hip_runtime.h>
 
 extern "C" {
-__global__ void add_2(std::int8_t* x, std::int8_t* y) 
+__global__ void add_2(char* x, char* y) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     y[num] = x[num] + 2;
@@ -137,7 +138,8 @@ int main() {}
 const std::string math_template = R"__migraphx__(
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/math.hpp>
-
+#include <migraphx/kernels/types.hpp>
+using namespace migraphx;
 extern "C" {
 __global__ void kernel(${type}* p) 
 {

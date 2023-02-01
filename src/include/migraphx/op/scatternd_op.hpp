@@ -36,11 +36,13 @@ namespace op {
 /**
  * @brief
  * N-dimensional Scatter operations. This struct is parent class to ops which differ in what formula
- * is used to reduce (combine old and new values of) the scattered value.  It is an implementation
- * of the Onnx ScatterND operation (see
- * https://github.com/onnx/onnx/blob/main/docs/Operators.md#ScatterND)
+ * is used to reduce (combine old and new values of) the scattered value.  It was originally based
+ * on Onnx ScatterND operation (see
+ * https://github.com/onnx/onnx/blob/main/docs/Operators.md#ScatterND) and is also similar to Numpy
+ * numpy.add.at().
  *
- * @tparam Derived a type erasure parameter represents one of the child operations.
+ * @tparam Derived   a template parameter in the CRTP inheritance idiom, represents one of the child
+ * operations.
  */
 template <class Derived>
 struct scatternd_op : op_name<Derived>

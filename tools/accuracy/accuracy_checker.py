@@ -192,11 +192,11 @@ def main():
 
         try:
             pred_fw = sess.run(None, ort_params)[-1]
-        except:
+        except Exception as e:
             if any(input_dims):
                 print(
-                    'Error: custom input dim not compatible with onnx runtime')
-
+                    'Error: custom input dim may not be compatible with onnx runtime')
+            raise e
     else:
         import tensorflow as tf
 

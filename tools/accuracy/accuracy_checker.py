@@ -59,6 +59,9 @@ def parse_args():
                         type=float,
                         default=1e-3,
                         help='accuracy tolerance (default = 1e-3)')
+    parser.add_argument('--nchw',
+                        action='store_true',
+                        help='set tf data layout to NCHW (default is NHWC)')
     parser.add_argument('--input-dim',
                         type=str,
                         action='append',
@@ -140,19 +143,21 @@ def main():
             input_dims[input_dim] = dims
 
     if use_onnx:
-        if any(input_dims):
+        if not input_dims:
+            model = migraphx.parse_onnx(model_name, default_dim_value=batch)
+        else:
             model = migraphx.parse_onnx(model_name,
                                         default_dim_value=batch,
                                         map_input_dims=input_dims)
-        else:
-            model = migraphx.parse_onnx(model_name, default_dim_value=batch)
     else:
         model_name = args.tf
-        if any(input_dims):
+        
+        if not input_dims:
+            model = migraphx.parse_tf(model_name, batch_size=batch)
+        else:
             model = migraphx.parse_tf(model_name,
                                       batch_size=batch,
                                       map_input_dims=input_dims)
-        model = migraphx.parse_tf(model_name, batch_size=batch)
 
     if args.verbose:
         print(model)
@@ -205,7 +210,12 @@ def main():
             return graph
 
         graph = load_tf_graph(model_name)
-        graph_ops = [op.name for op in graph.get_operations()]
+        is_nhwc = False
+        graph_ops = []
+        for op in graph.get_operations():
+            graph_ops.append(op.name)
+            if 'Conv' in op.node_def.op and not args.nchw:
+                is_nhwc = True
         graph_ops_set = set(graph_ops)
         tf_dict = {}
 
@@ -217,7 +227,7 @@ def main():
             x = graph.get_tensor_by_name(f'{tf_name}:0')
             tf_input = test_inputs[name]
             # lazy check for image model (NHWC layout)
-            if tf_input.ndim == 4:
+            if tf_input.ndim == 4 and is_nhwc:
                 tf_dict[x] = np.transpose(tf_input, (0, 2, 3, 1))
             else:
                 tf_dict[x] = tf_input

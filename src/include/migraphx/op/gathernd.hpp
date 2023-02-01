@@ -92,80 +92,52 @@ struct gathernd
 
         if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
         {
-            auto indices_lens_iter = inputs.back().lens().begin();
+            auto indices_lens_iter = i_shape.lens().begin();
 
             // A rank 0 output is a scalar
             if(output_ndim == 0)
-                return shape{inputs.front().type(), {1}};
+                return shape{data_shape.type(), {1}};
 
+            // Part of the output shape comes from indices tensor, part from data tensor
             std::vector<std::size_t> output_lens(output_ndim);
             std::copy(indices_lens_iter, indices_lens_iter + (q - 1), output_lens.begin());
-            if(k < r - batch_dims)
+            // fill the rest of output shape from data tensor
+            if(k + batch_dims < r)
             {
-                auto data_lens = inputs.front().lens();
+                auto data_lens = data_shape.lens();
                 std::copy(data_lens.begin() + batch_dims + k,
                           data_lens.end(),
                           output_lens.begin() + q - 1);
             }
-            shape output_shape{inputs.front().type(), output_lens};
+            shape output_shape{data_shape.type(), output_lens};
             return output_shape;
         }
         else
         {
-            // If one or both inputs are dynamic shapes, the output is dynamic
+            // If one or both inputs are dynamic shapes, the output is dynamic.
+            // Make both inputs dynamic to simplify computations.
+            data_shape = data_shape.to_dynamic();
+            i_shape    = i_shape.to_dynamic();
 
             // A rank 0 output is a scalar
             if(output_ndim == 0)
-                return shape(inputs.front().type(), {shape::dynamic_dimension({1, 1, 0})});
-
-            // 3 vectors that will be used as constructor arguments for the output shape
-            std::vector<size_t> mins(output_ndim);
-            std::vector<size_t> maxes(output_ndim);
-            std::vector<size_t> opts(output_ndim);
+                return shape(data_shape.type(), {shape::dynamic_dimension({1, 1, 0})});
 
             // Part of the output shape comes from indices tensor, part from data tensor
-            if(not i_shape.dynamic())
-            {
-                const auto& indices_lens_iter = i_shape.lens().begin();
-                std::copy(indices_lens_iter, indices_lens_iter + (q - 1), mins.begin());
-                std::copy(indices_lens_iter, indices_lens_iter + (q - 1), maxes.begin());
-                std::fill(opts.begin(), opts.begin() + (q - 1), size_t(0));
-            }
-            else
-            {
-                for(size_t i = 0; i < q - 1; i++)
-                {
-                    const shape::dynamic_dimension& dd = i_shape.dyn_dims().at(i);
-                    mins[i]                            = dd.min;
-                    maxes[i]                           = dd.max;
-                    opts[i]                            = dd.opt;
-                }
-            }
+            std::vector<shape::dynamic_dimension> output_dims(output_ndim);
+            std::copy(i_shape.dyn_dims().begin(),
+                      i_shape.dyn_dims().begin() + q - 1,
+                      output_dims.begin());
 
-            // fill the rest of output shape from data input
-            if(k < r - batch_dims)
+            // fill the rest of output shape from data tensor
+            if(k + batch_dims < r)
             {
-                if(not data_shape.dynamic())
-                {
-                    auto data_lens = data_shape.lens();
-                    std::copy(
-                        data_lens.begin() + batch_dims + k, data_lens.end(), mins.begin() + q - 1);
-                    std::copy(
-                        data_lens.begin() + batch_dims + k, data_lens.end(), maxes.begin() + q - 1);
-                    std::fill(opts.begin() + q, opts.end(), size_t(0));
-                }
-                else
-                {
-                    for(size_t i = batch_dims + k, j = q - 1; i < r; i++, j++)
-                    {
-                        shape::dynamic_dimension dd = data_shape.dyn_dims()[i];
-                        mins[j]                     = dd.min;
-                        maxes[j]                    = dd.max;
-                        opts[j]                     = dd.opt;
-                    }
-                }
+                auto data_dims = data_shape.dyn_dims();
+                std::copy(data_dims.begin() + batch_dims + k,
+                          data_dims.begin() + r,
+                          output_dims.begin() + q - 1);
             }
-            migraphx::shape output_shape(inputs.front().type(), mins, maxes, opts);
+            shape output_shape(data_shape.type(), output_dims);
             return output_shape;
         }
     }

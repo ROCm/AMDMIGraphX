@@ -237,7 +237,7 @@ struct index
     template <class F, class N>
     __device__ void group_stride(N n, F f) const
     {
-        for_stride(group, n, ngroup(), f);
+        for_stride<false>(group, n, ngroup(), f);
     }
 };
 

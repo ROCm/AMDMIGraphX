@@ -201,27 +201,13 @@ if(MIGRAPHX_USE_HIPRTC)
     message(STATUS "MIGraphX is using hipRTC")
     target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
 else()
-# Get flags needed to compile hip
-include(TargetFlags)
-target_flags(HIP_COMPILER_FLAGS hip::device)
-# Remove cuda arch flags
-string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-# Skip library paths since hip will incorrectly treat it as a source file
-string(APPEND HIP_COMPILER_FLAGS " ")
-# Add ck includes
-find_path(CK_INCLUDE_PATH ck/ck.hpp)
-message(STATUS "CK path: ${CK_INCLUDE_PATH}")
-string(APPEND HIP_COMPILER_FLAGS " -isystem ${CK_INCLUDE_PATH}")
-foreach(_unused RANGE 2)
-    string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-endforeach()
     message(STATUS "MIGraphX is using HIP Clang")
 
     # Get flags needed to compile hip
     include(TargetFlags)
+    message(STATUS "HIP COMPILER FLAGS: ${HIP_COMPILER_FLAGS}")
     target_flags(HIP_COMPILER_FLAGS hip::device)
-
+    message(STATUS "HIP COMPILER FLAGS: ${HIP_COMPILER_FLAGS}")
     # Remove cuda arch flags
     string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
@@ -232,6 +218,11 @@ endforeach()
     foreach(_unused RANGE 2)
         string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     endforeach()
+
+    # Add ck includes
+    find_path(CK_INCLUDE_PATH ck/ck.hpp)
+    message(STATUS "CK path: ${CK_INCLUDE_PATH}")
+    string(APPEND HIP_COMPILER_FLAGS " -isystem ${CK_INCLUDE_PATH}")
 
     message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
     target_compile_definitions(migraphx_gpu PRIVATE

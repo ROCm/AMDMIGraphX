@@ -5,8 +5,12 @@ ARG PREFIX=/usr/local
 # Support multiarch
 RUN dpkg --add-architecture i386
 
+# Install rocm key
+RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && \
+    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - 
+
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.3/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.4.2/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -32,9 +36,26 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libnuma-dev \
     miopen-hip \
     rocblas \
+    hipfft \
+    rocthrust \
+    rocrand \
+    hipsparse \
+    rccl \
+    rccl-dev \
+    rocm-smi-lib \
+    rocm-dev \
+    roctracer-dev \
+    hipcub  \
+    hipblas  \
+    hipify-clang \
+    half \
+    libssl-dev \
     zlib1g-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# add this for roctracer dependancies
+RUN pip3 install CppHeaderParser packaging==22.0
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm
@@ -72,22 +93,23 @@ RUN /download_models.sh && rm /download_models.sh
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
+RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
 
-# Install newer cmake for onnx runtime
-ARG CMAKE_VERSION=3.24.2
-RUN cget -p /opt/cmake install -X binary https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz
+COPY ./test/onnx/.onnxrt-commit /
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=main
-ARG ONNXRUNTIME_COMMIT=24f1bd6156cf5968bbc76dfb0e801a9b9c56b9fc
+ARG ONNXRUNTIME_COMMIT
+
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
-    git checkout ${ONNXRUNTIME_COMMIT} && \
-    /bin/sh dockerfiles/scripts/install_common_deps.sh
+    if [ -z "$ONNXRUNTIME_COMMIT" ] ; then git checkout $(cat /.onnxrt-commit) ; else git checkout ${ONNXRUNTIME_COMMIT} ; fi && \
+    /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
+
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
-RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@0f38fb33f518b53b94b541feb9b079668c5518e8 -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
+RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@78b706fe9879587ab98b6614ae539265374a3fae -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

@@ -65,6 +65,7 @@ add_library(migraphx
     normalize_ops.cpp
     op_enums.cpp
     operation.cpp
+    optimize_module.cpp
     pad_calc.cpp
     pass_manager.cpp
     permutation.cpp

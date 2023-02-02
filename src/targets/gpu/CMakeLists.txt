@@ -170,7 +170,6 @@ register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
@@ -206,7 +205,6 @@ else()
     target_compile_definitions(migraphx_gpu PRIVATE
         "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}"
         "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}"
-        "-DMIGRAPHX_USE_HIPRTC=0"
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)

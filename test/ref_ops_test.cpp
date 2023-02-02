@@ -6989,6 +6989,49 @@ TEST_CASE(scatternd_reduction_test)
     }
 }
 
+TEST_CASE(select_module_test)
+{
+    migraphx::program p;
+
+    // create batch submodules
+    auto create_submodule = [&](std::size_t batch_size, std::string module_name) {
+        auto* submod = p.create_module(module_name);
+        migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 2, 2}};
+        auto sm_input = submod->add_parameter("data", sm_shape);
+        auto reduce_ins =
+            submod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), sm_input);
+        auto squeeze_ins = submod->add_instruction(migraphx::make_op("squeeze"), reduce_ins);
+        submod->add_return({squeeze_ins});
+        return submod;
+    };
+    auto* batch1 = create_submodule(1, "batch_1");
+    auto* batch2 = create_submodule(2, "batch_2");
+    auto* batch4 = create_submodule(4, "batch_4");
+
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {2, 2}, {2, 2}}};
+    auto input               = mm->add_parameter("data", s);
+    migraphx::shape out_attr = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 2}}};
+    mm->add_instruction(migraphx::make_op("select_module",
+                                          {{"output_dyn_shape", migraphx::to_value(out_attr)},
+                                           {"output_batch_index", 0},
+                                           {"input_batch_index", 0},
+                                           {"dyn_batch_param_name", "data"}}),
+                        {input},
+                        {batch1, batch2, batch4});
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> input_data{-4, 8, -1, 4, -1, 8, 8, -4};
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 2, 2}};
+    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
+    auto result    = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{-5, 12, 7, 4};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(sigmoid_test)
 {
     migraphx::program p;

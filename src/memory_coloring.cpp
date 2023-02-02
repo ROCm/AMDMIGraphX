@@ -287,11 +287,8 @@ struct allocation_segment
                 [&](auto child) { return as.get_segment(child); },
                 [&](auto child) { return *as.get_segment(child); });
 
-            // Get the segment for the parent
-            const auto* parent_segment = as.get_segment(parent);
-            // Add segment for the parent if there is none or segment overlaps with the children
-            if(parent_segment == nullptr or overlaps(segments, *parent_segment))
-                as.add_segment(parent, next_segment(segments, parent, alignment));
+            assert(as.get_segment(parent) == nullptr);
+            as.add_segment(parent, next_segment(segments, parent, alignment));
         }
         // Reduce the number of segments
         for(std::size_t n = 0; n < 3; n++)

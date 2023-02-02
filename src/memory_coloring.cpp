@@ -260,7 +260,7 @@ struct allocation_segment
 
         auto alloc_index = create_allocation_index(m, conflict_table);
 
-        // Sort the conflict queue so we process the allocation with the least
+        // Sort the conflict queue so we process the allocation with the most
         // number of adjacent allocations first
         std::sort(conflict_queue.begin(), conflict_queue.end(), by(std::greater<>{}, [&](auto x) {
                       return std::make_tuple(

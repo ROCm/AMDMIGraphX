@@ -168,25 +168,17 @@ struct allocation_segment
 
     static auto find_gap(const std::set<segment>& segments, std::size_t n)
     {
-        auto start = segments.begin();
-        while(true)
-        {
-            start = std::adjacent_find(start, segments.end(), [&](segment x, segment y) {
-                if(is_overlap(x, y))
-                    return false;
-                assert(y.first >= x.second);
-                auto k = y.first - x.second;
-                return (k >= n);
-            });
-            if(start == segments.end())
-                return start;
-            if(overlaps(segments.begin(), start, *start))
-            {
-                start++;
-                continue;
-            }
-            return start;
-        }
+        std::size_t max_end = 0;
+        return std::adjacent_find(segments.begin(), segments.end(), [&](segment x, segment y) {
+            if (x.second < max_end)
+                return false;
+            max_end = x.second;
+            if(is_overlap(x, y))
+                return false;
+            assert(y.first >= x.second);
+            auto k = y.first - x.second;
+            return (k >= n);
+        });
     }
 
     static std::size_t max_type_size(const shape& s)

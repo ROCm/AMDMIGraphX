@@ -2048,6 +2048,46 @@ TEST_CASE(gather_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(gather_scalar_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0 = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    std::vector<size_t> idims{1};
+    auto l1 =
+        mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, idims, {0}});
+    int axis = 1;
+    mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), l0, l1);
+    auto prog = optimize_onnx("gather_scalar_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(gather_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "data",
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {4, 4, 0}, {5, 5, 0}, {6, 6, 0}}});
+    auto l1 = mm->add_parameter(
+        "indices",
+        migraphx::shape{migraphx::shape::int32_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}, {5, 5, 0}}});
+    auto cont_l0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
+    auto cont_l1 = mm->add_instruction(migraphx::make_op("contiguous"), l1);
+
+    int axis       = 1;
+    auto gather_op = migraphx::make_op("gather", {{"axis", axis}});
+    auto ret       = mm->add_instruction(gather_op, cont_l0, cont_l1);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("gather_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(gather_elements_axis0_test)
 {
     migraphx::program p;
@@ -2278,11 +2318,24 @@ TEST_CASE(gemm_dyn_outer_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(gemm_dyn_C_error)
+TEST_CASE(gemm_dyn_bias_test)
 {
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x0 =
+        mm->add_parameter("A", migraphx::shape{migraphx::shape::float_type, {{8, 8}, {1, 10}}});
+    auto x1   = mm->add_parameter("B", migraphx::shape{migraphx::shape::float_type, {8, 7}});
+    auto x2   = mm->add_parameter("C", migraphx::shape{migraphx::shape::float_type, {1, 7}});
+    auto x0_t = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x0);
+    auto dot  = mm->add_instruction(migraphx::make_op("dot"), x0_t, x1);
+    auto x2_b = mm->add_instruction(migraphx::make_op("multibroadcast"), x2, dot);
+    auto ret  = mm->add_instruction(migraphx::make_op("add"), dot, x2_b);
+    mm->add_return({ret});
+
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4, 0};
-    EXPECT(test::throws([&] { migraphx::parse_onnx("gemm_dyn_C_error.onnx", options); }));
+    options.default_dyn_dim_value = {1, 10};
+    auto prog                     = parse_onnx("gemm_dyn_bias_test.onnx", options);
+    EXPECT(p == prog);
 }
 
 TEST_CASE(gemm_rank_error)
@@ -6537,6 +6590,11 @@ TEST_CASE(transpose_gather_test)
     auto prog = optimize_onnx("transpose_gather_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(trilu_neg_k_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("trilu_neg_k_test.onnx"); }));
 }
 
 TEST_CASE(undefined_test)

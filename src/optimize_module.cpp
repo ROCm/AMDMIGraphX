@@ -21,58 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_DPP_HPP
-#define MIGRAPHX_GUARD_KERNELS_DPP_HPP
-
-#include <migraphx/kernels/hip.hpp>
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/debug.hpp>
+#include <migraphx/optimize_module.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/propagate_constant.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-#ifndef MIGRAPHX_HAS_DPP
-#define MIGRAPHX_HAS_DPP 1
-#endif
-
-#if MIGRAPHX_HAS_DPP
-constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110u | x; }
-
-constexpr unsigned int dpp_row_bcast(unsigned int x)
+void optimize_module::apply(module_pass_manager& mpm) const
 {
-    unsigned int y = 0;
-    switch(x)
+    for(int i = 0; i < 2; i++)
     {
-    case 15: y = 0x142; break;
-    case 31: y = 0x143; break;
-    default: MIGRAPHX_UNREACHABLE();
+        mpm.run_pass(simplify_reshapes{});
+        mpm.run_pass(simplify_algebra{});
+        mpm.run_pass(eliminate_common_subexpression{});
+        mpm.run_pass(dead_code_elimination{});
+        mpm.run_pass(propagate_constant{});
+        mpm.run_pass(dead_code_elimination{});
     }
-    return y;
 }
 
-template <unsigned int DppCtrl,
-          unsigned int RowMask  = 0xf,
-          unsigned int BankMask = 0xf,
-          bool BoundCtrl        = false,
-          class T>
-__device__ T dpp_mov(T& x)
-{
-    static const index_int n = sizeof(T) < 4 ? 1 : sizeof(T) / 4;
-    union type
-    {
-        uint32_t reg[n];
-        T data;
-    };
-    type output{};
-    type input{};
-    // cppcheck-suppress unreadVariable
-    input.data = x;
-    for(index_int i = 0; i < n; i++)
-    {
-        output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
-    }
-    return output.data;
-}
-#endif // MIGRAPHX_HAS_DPP
-
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_DPP_HPP

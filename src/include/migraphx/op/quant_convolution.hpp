@@ -25,8 +25,10 @@
 #define MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 
 #include <migraphx/op/common.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/convolution.hpp>
 #include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
@@ -113,6 +115,17 @@ struct quant_convolution
     {
         check_attribute_size();
         return stride.size();
+    }
+
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        result.visit([&](auto output) {
+            visit_all(args[0], args[1])([&](auto input, auto weights) {
+                migraphx::convolution(output, input, weights, padding, stride, group);
+            });
+        });
+        return result;
     }
 };
 

@@ -31,6 +31,7 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
@@ -51,8 +52,9 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
 
 auto conv_const_weights()
 {
-    return match::name("convolution")(match::used_once(),
-                                      match::args(match::any(), match::is_constant().bind("w")));
+    return match::name("convolution")(
+        match::used_once(),
+        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
 auto reduction() { return match::name_contains("reduce"); }
@@ -267,6 +269,32 @@ struct find_dot_add
     }
 };
 
+struct find_conv_add
+{
+    auto matcher() const
+    {
+        auto add = match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"),
+                                    match::any_of(match::is_constant()).bind("a")),
+            match::used_once());
+        return match::name("convolution")(match::used_once(),
+                                          match::args(add, match::is_constant().bind("w")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto x_ins = r.instructions["x"];
+        auto w_ins = r.instructions["w"];
+
+        auto conv1 = m.insert_instruction(ins, ins->get_operator(), a_ins, w_ins);
+        auto conv2 = m.insert_instruction(ins, ins->get_operator(), x_ins, w_ins);
+
+        m.replace_instruction(ins, make_op("add"), conv1, conv2);
+    }
+};
+
 struct find_add_lit_broadcast
 {
     auto matcher() const
@@ -340,12 +368,18 @@ struct find_inner_broadcast
                        std::back_inserter(inputs),
                        [](auto i) { return i->inputs().front(); });
         if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
-               return i->get_shape() != inputs.front()->get_shape();
+               return i->get_shape() != inputs.front()->get_shape() and
+                      i->get_shape().elements() != 1;
            }))
             return;
 
-        auto op = m.insert_instruction(ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        auto b_it = std::find_if(broadcasts.begin(), broadcasts.end(), [&](auto i) {
+            return not i->get_shape().scalar();
+        });
+        if(b_it == broadcasts.end())
+            b_it = broadcasts.begin();
+        auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, (*b_it)->get_operator(), op);
     }
 };
 
@@ -1232,6 +1266,7 @@ void simplify_algebra::apply(module& m) const
                             find_neg_unit_ops{},
                             find_zero_ops{},
                             find_dot_add{},
+                            find_conv_add{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

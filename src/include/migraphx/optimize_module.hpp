@@ -21,58 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_DPP_HPP
-#define MIGRAPHX_GUARD_KERNELS_DPP_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
 
-#include <migraphx/kernels/hip.hpp>
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/debug.hpp>
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-#ifndef MIGRAPHX_HAS_DPP
-#define MIGRAPHX_HAS_DPP 1
-#endif
+struct module_pass_manager;
 
-#if MIGRAPHX_HAS_DPP
-constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110u | x; }
-
-constexpr unsigned int dpp_row_bcast(unsigned int x)
+/**
+ * Runs several passes in a loop
+ */
+struct optimize_module
 {
-    unsigned int y = 0;
-    switch(x)
-    {
-    case 15: y = 0x142; break;
-    case 31: y = 0x143; break;
-    default: MIGRAPHX_UNREACHABLE();
-    }
-    return y;
-}
+    std::string name() const { return "optimize_module"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
-template <unsigned int DppCtrl,
-          unsigned int RowMask  = 0xf,
-          unsigned int BankMask = 0xf,
-          bool BoundCtrl        = false,
-          class T>
-__device__ T dpp_mov(T& x)
-{
-    static const index_int n = sizeof(T) < 4 ? 1 : sizeof(T) / 4;
-    union type
-    {
-        uint32_t reg[n];
-        T data;
-    };
-    type output{};
-    type input{};
-    // cppcheck-suppress unreadVariable
-    input.data = x;
-    for(index_int i = 0; i < n; i++)
-    {
-        output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
-    }
-    return output.data;
-}
-#endif // MIGRAPHX_HAS_DPP
-
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_KERNELS_DPP_HPP
+
+#endif

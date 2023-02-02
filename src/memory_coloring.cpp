@@ -170,7 +170,7 @@ struct allocation_segment
     {
         std::size_t max_end = 0;
         return std::adjacent_find(segments.begin(), segments.end(), [&](segment x, segment y) {
-            if (x.second < max_end)
+            if(x.second < max_end)
                 return false;
             max_end = x.second;
             if(is_overlap(x, y))

@@ -38,15 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * lens: lens passed when calling normalize_attributes(op&, lens)
  * Could replace lens with a shape to handle dynamic shapes.
  *
- * normalize_attribute settings:
- * use_input (default) vs. use_output: changes the rank of the attribute. use_input -> lens.size(), use_output -> lens.size() + vec.size(). Used in unsqueeze.
- * use_rank (default) vs use_len: use_rank sets max value of attribute as the rank of lens. use_lens sets the max value as the corresponding values in lens at as axes
- * use_len is for something like slicing dimensions
- * use_rank is for max axes
- * clip_min vs. not_clip_min (default): clip values less than the minimum to the minimum or not
- * include_min vs. exclude_min (default): include the minimum value or exclude it for range checking and clipping
- * clip_max vs not_clip_max (default): clip values greater than the maximum or not
- * include_max vs. exclude_max (default): include or exclude the maximum value for range checking and clipping
+ * See normalize_attribute.hpp for explaining the options
  */
 auto tune_attribute(const std::vector<int64_t>& vec, 
                     const std::vector<int64_t>& axes,

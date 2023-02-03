@@ -31,18 +31,22 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-// different attributes
-// 1) use_input(default)/use_output
-// 2) use_rank(default)/use_len
-// 3) clip_min(default)/not_clip_min
-//   3.1) include_min(default)/exclude_min
-// 4) clip_max(default)/not_clip_max
-//   4.1) exclude_max(default)/include_max
-// 5) normalize padding
+/**
+ * normalize_attribute settings:
+ * 1. use_input (default) vs. use_output: changes the rank of the attribute. use_input -> lens.size(), use_output -> lens.size() + vec.size(). Used in unsqueeze.
+ * 2. use_rank (default) vs use_len: use_rank sets max value of attribute as the rank of lens. use_lens sets the max value as the corresponding values in lens at as axes
+ * use_len is for something like slicing dimensions
+ * use_rank is for max axes
+ * 3. clip_min vs. not_clip_min (default): clip values less than the minimum to the minimum or not
+ * 4. include_min vs. exclude_min (default): include the minimum value or exclude it for range checking and clipping
+ * 5. clip_max vs not_clip_max (default): clip values greater than the maximum or not
+ * 6. include_max vs. exclude_max (default): include or exclude the maximum value for range checking and clipping
+ * 7. normalize_padding: to normalize the padding to 2*(pad ndim) or not
+ */
 enum class normalize_attribute
 {
-    use_len,
     use_output,
+    use_len,
     clip_max,
     clip_min,
     include_max,

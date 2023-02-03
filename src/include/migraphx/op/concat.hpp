@@ -148,7 +148,7 @@ struct concat
         }
         else
         {
-            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes");
+            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");
         }
     }
 

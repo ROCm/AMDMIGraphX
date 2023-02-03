@@ -37,7 +37,7 @@ namespace gpu {
 struct prefuse_ops
 {
     std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

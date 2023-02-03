@@ -46,7 +46,7 @@ template <index_int Axis,
 __device__ void generic_binary_layernorm(
     F compute, BinOp op, float eps, Output output, Input1 input1, Input2 input2, Inputs... inputs)
 {
-    using block = reduce::auto_block<reduce::reduce_elements_with_axis<Input1, Axis>()>;
+    using block         = reduce::auto_block<reduce::reduce_elements_with_axis<Input1, Axis>()>;
     using reduce_output = reduce::with_axis<Input1, Axis>;
     block::template run<reduce_output>([&](auto, auto r) {
         auto input       = r.inner([&](auto x1, auto x2) { return op(x1, x2); })(input1, input2);

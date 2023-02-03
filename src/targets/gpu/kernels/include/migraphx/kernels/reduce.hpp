@@ -540,16 +540,16 @@ struct lane
 };
 
 // TODO: Remove these in the future when they can be selected in the compiler class
-template<index_int RElements>
+template <index_int RElements>
 constexpr auto pick_block()
 {
     using nlocal = decltype(index{}.max_nlocal());
-    if constexpr(RElements < nlocal{}*256)
+    if constexpr(RElements < nlocal{} * 256)
         return block{};
     else
         return block_large{};
 }
-template<index_int RElements>
+template <index_int RElements>
 using auto_block = decltype(pick_block<RElements>());
 
 template <class Input, index_int Axis>

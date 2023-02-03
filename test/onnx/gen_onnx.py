@@ -5969,6 +5969,24 @@ def scatternd_test():
 
 
 @onnx_test()
+def scatternd_dyn_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT,
+                                         [None, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [None, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [None, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [None, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'])
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
 def selu_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3])

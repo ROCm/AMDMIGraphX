@@ -105,7 +105,7 @@ struct check_shapes
      * method for ops that can take any number (variadic) of inputs.
      * \param n min. number of shapes
      */
-    const check_shapes& has_at_least(int64_t n) const
+    const check_shapes& has_at_least(std::size_t n) const
     {
         if(this->size() < n)
             MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected at least " +

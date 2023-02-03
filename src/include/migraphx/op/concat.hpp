@@ -79,16 +79,7 @@ struct concat
     {
         // inputs can contain 1 or more shapes (variadic).  compute_shape_op ensures there must
         // be at least 1.
-
-        if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
-               return (s.ndim() == inputs[0].ndim() and s.type() == inputs[0].type());
-           }))
-        {
-            MIGRAPHX_THROW("CONCAT: input tensors are not all the same rank or type");
-        }
-
-        if(axis >= inputs[0].ndim() or axis < 0)
-            MIGRAPHX_THROW("CONCAT: axis attribute out of range");
+        check_shapes{inputs, *this, true}.same_ndims().same_type();
 
         if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {

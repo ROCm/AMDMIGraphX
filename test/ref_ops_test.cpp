@@ -968,9 +968,9 @@ TEST_CASE(concat_dyn_test)
     mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), input0, input1, input2);
     p.compile(migraphx::ref::target{});
 
-    migraphx::shape static_shape0{migraphx::shape::int32_type, {2, 2}, {2, 1}};
-    migraphx::shape static_shape1{migraphx::shape::int32_type, {3, 2}, {2, 1}};
-    migraphx::shape static_shape2{migraphx::shape::int32_type, {1, 2}, {2, 1}};
+    migraphx::shape static_shape0{migraphx::shape::int32_type, {2, 2}};
+    migraphx::shape static_shape1{migraphx::shape::int32_type, {3, 2}};
+    migraphx::shape static_shape2{migraphx::shape::int32_type, {1, 2}};
     std::vector<int> data0 = {0, 1, 2, 3};
     std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
     std::vector<int> data2 = {10, 11};

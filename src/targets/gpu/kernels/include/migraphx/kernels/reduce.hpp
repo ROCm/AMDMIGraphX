@@ -388,6 +388,79 @@ struct block
     }
 };
 
+struct block_large
+{
+    template <class Slicer>
+    struct reducer : reducer_base<reducer<Slicer>>
+    {
+        index idx;
+        Slicer slice;
+
+        template <class Size, class F>
+        struct inner_storage : inner_storage_tag
+        {
+            using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
+            F f;
+            constexpr Size rsize() const { return {}; }
+            template <class U, class V>
+            constexpr auto operator()(U j, V d) const
+            {
+                return f(j, d);
+            }
+        };
+
+        template <class Size, class F>
+        constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
+        {
+            return {f};
+        }
+
+        template <class Op, class T, class Read, class N, class... Ts>
+        __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
+        {
+            return block_reduce(idx, op, init, index_int{n}, [&](auto j, auto d) {
+                return vec_reduce(read(xs(j, d)...), op);
+            });
+        }
+
+        template <class F>
+        __device__ void outer(F f) const
+        {
+            if(idx.local == 0)
+                f();
+        }
+
+        template <class F, class N, class... Ts>
+        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
+        {
+            idx.local_stride(index_int{n}, [&](auto j, auto d) { f(xs(j, d)...); });
+        }
+
+        template <class R, class F, class N, class... Ts>
+        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
+        {
+            return make_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
+        }
+    };
+
+    template <class Slicer>
+    static __device__ auto make(index idx, Slicer slicer)
+    {
+        return reducer<Slicer>{{}, idx, slicer};
+    }
+
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx                 = make_index();
+        constexpr auto nelements = get_shape_c<Output>{}.elements();
+        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
+            const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
+            f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
+        });
+    }
+};
+
 struct lane
 {
     template <class Slicer>

@@ -30,14 +30,25 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// different attributes
-// 1) use_input(default)/use_output
-// 2) use_rank(default)/use_len
-// 3) clip_min(default)/not_clip_min
-//   3.1) include_min(default)/exclude_min
-// 4) clip_max(default)/not_clip_max
-//   4.1) exclude_max(default)/include_max
-auto tune_attribute(const std::vector<int64_t>& vec,
+/**
+ * Params:
+ * vec: the vector attribute to normalize
+ * axes: the operator's axes attribute if it exists, empty otherwise
+ * val: the normalize_axes key and options. Ex: normalize["axes"]   = value::array{normalize_attribute::include_min};
+ * lens: lens passed when calling normalize_attributes(op&, lens)
+ * Could replace lens with a shape to handle dynamic shapes.
+ *
+ * normalize_attribute settings:
+ * use_input (default) vs. use_output: changes the rank of the attribute. use_input -> lens.size(), use_output -> lens.size() + vec.size(). Used in unsqueeze.
+ * use_rank (default) vs use_len: use_rank sets max value of attribute as the rank of lens. use_lens sets the max value as the corresponding values in lens at as axes
+ * use_len is for something like slicing dimensions
+ * use_rank is for max axes
+ * clip_min vs. not_clip_min (default): clip values less than the minimum to the minimum or not
+ * include_min vs. exclude_min (default): include the minimum value or exclude it for range checking and clipping
+ * clip_max vs not_clip_max (default): clip values greater than the maximum or not
+ * include_max vs. exclude_max (default): include or exclude the maximum value for range checking and clipping
+ */
+auto tune_attribute(const std::vector<int64_t>& vec, 
                     const std::vector<int64_t>& axes,
                     const value& val,
                     const std::vector<std::size_t>& lens)
@@ -156,12 +167,13 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
+	// Makes it so padding is either 2*(pad ndim), copies if it has (pad ndim) values
     if(attrs.contains("normalize_padding"))
     {
         auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
         auto padding_size = padding.size();
         // for now, assume the dimensions to pad start at dim 2
-        auto padding_start = 2;
+			auto padding_start = 2;
 
         if(padding_size == 2 * (lens.size() - padding_start))
             tuned = true;

@@ -141,8 +141,9 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs))
 {
     dependent_type<operation, T> y = x;
-    if(not inputs.empty())
-        normalize_attributes(y, inputs[0].max_lens());
+    if(inputs.empty())
+        MIGRAPHX_THROW("No input shapes: " + x.name());
+    normalize_attributes(y, inputs[0].max_lens());
     return any_cast<T>(y).normalize_compute_shape(inputs);
 }
 

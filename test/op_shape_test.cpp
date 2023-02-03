@@ -2867,6 +2867,9 @@ TEST_CASE(test_concat)
 
     // non-matching dimension 2
     throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+
+    // no input shapes (at least one is required)
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
 }
 
 TEST_CASE(test_dyn_concat)
@@ -2890,12 +2893,6 @@ TEST_CASE(test_dyn_concat)
     // static and dynamic shapes together
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
-}
-
-TEST_CASE(concat_dyn_shape7)
-{
-    // no input shapes (at least one is required)
-    throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

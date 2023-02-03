@@ -77,7 +77,8 @@ struct concat
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        migraphx::check_shapes{inputs, *this, true}.has_at_least(1);
+        // inputs can contain 1 or more shapes (variadic).  compute_shape_op ensures there must
+        // be at least 1.
 
         if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
                return (s.ndim() == inputs[0].ndim() and s.type() == inputs[0].type());

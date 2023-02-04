@@ -68,17 +68,6 @@ any_ptr get_queue_context(T&)
 }
 
 template <class T>
-void set_exhaustive_tune_flag_context(T&, bool)
-{
-}
-
-template <class T>
-bool get_exhaustive_tune_flag_context(T&)
-{
-    return false;
-}
-
-template <class T>
 void wait_for_context(T&, any_ptr)
 {
 }
@@ -97,10 +86,6 @@ struct context
     value to_value() const;
     // (optional)
     void from_value(const value& v);
-    // (optional)
-    void set_exhaustive_tune_flag(bool v);
-    // (optional)
-    bool get_exhaustive_tune_flag() const;
     // (optional)
     any_ptr get_queue();
     // (optional)
@@ -188,18 +173,6 @@ struct context
         (*this).private_detail_te_get_handle().from_value(v);
     }
 
-    void set_exhaustive_tune_flag(bool v)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().set_exhaustive_tune_flag(v);
-    }
-
-    bool get_exhaustive_tune_flag() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_exhaustive_tune_flag();
-    }
-
     any_ptr get_queue()
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -237,14 +210,12 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual value to_value() const                = 0;
-        virtual void from_value(const value& v)       = 0;
-        virtual void set_exhaustive_tune_flag(bool v) = 0;
-        virtual bool get_exhaustive_tune_flag() const = 0;
-        virtual any_ptr get_queue()                   = 0;
-        virtual void wait_for(any_ptr queue)          = 0;
-        virtual void finish_on(any_ptr queue)         = 0;
-        virtual void finish() const                   = 0;
+        virtual value to_value() const          = 0;
+        virtual void from_value(const value& v) = 0;
+        virtual any_ptr get_queue()             = 0;
+        virtual void wait_for(any_ptr queue)    = 0;
+        virtual void finish_on(any_ptr queue)   = 0;
+        virtual void finish() const             = 0;
     };
 
     template <class T>
@@ -273,35 +244,6 @@ struct context
     private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
     {
         from_value_context(private_detail_te_self, v);
-    }
-
-    template <class T>
-    static auto
-    private_detail_te_default_set_exhaustive_tune_flag(char, T&& private_detail_te_self, bool v)
-        -> decltype(private_detail_te_self.set_exhaustive_tune_flag(v))
-    {
-        private_detail_te_self.set_exhaustive_tune_flag(v);
-    }
-
-    template <class T>
-    static void
-    private_detail_te_default_set_exhaustive_tune_flag(float, T&& private_detail_te_self, bool v)
-    {
-        set_exhaustive_tune_flag_context(private_detail_te_self, v);
-    }
-
-    template <class T>
-    static auto private_detail_te_default_get_exhaustive_tune_flag(char, T&& private_detail_te_self)
-        -> decltype(private_detail_te_self.get_exhaustive_tune_flag())
-    {
-        return private_detail_te_self.get_exhaustive_tune_flag();
-    }
-
-    template <class T>
-    static bool private_detail_te_default_get_exhaustive_tune_flag(float,
-                                                                   T&& private_detail_te_self)
-    {
-        return get_exhaustive_tune_flag_context(private_detail_te_self);
     }
 
     template <class T>
@@ -382,19 +324,6 @@ struct context
         {
 
             private_detail_te_default_from_value(char(0), private_detail_te_value, v);
-        }
-
-        void set_exhaustive_tune_flag(bool v) override
-        {
-
-            private_detail_te_default_set_exhaustive_tune_flag(char(0), private_detail_te_value, v);
-        }
-
-        bool get_exhaustive_tune_flag() const override
-        {
-
-            return private_detail_te_default_get_exhaustive_tune_flag(char(0),
-                                                                      private_detail_te_value);
         }
 
         any_ptr get_queue() override

@@ -90,11 +90,6 @@ struct id_ctx_final_op
     int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
 };
 
-struct empty_context
-{
-    void finish() const {}
-};
-
 struct reverse_pass
 {
     std::string name() const { return "reverse_pass"; }
@@ -110,7 +105,7 @@ struct reverse_target
     {
         return {reverse_pass{}};
     }
-    migraphx::context get_context() const { return empty_context{}; }
+    migraphx::context get_context() const { return {}; }
 };
 
 struct invert_pass
@@ -141,7 +136,7 @@ struct invert_target
     {
         return {invert_pass{}};
     }
-    migraphx::context get_context() const { return empty_context{}; }
+    migraphx::context get_context() const { return {}; }
 };
 
 struct double_invert_target
@@ -152,7 +147,7 @@ struct double_invert_target
     {
         return {invert_pass{}, invert_pass{}};
     }
-    migraphx::context get_context() const { return empty_context{}; }
+    migraphx::context get_context() const { return {}; }
 };
 
 TEST_CASE(literal_test1)

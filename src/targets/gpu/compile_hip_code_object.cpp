@@ -29,7 +29,6 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
-#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -80,6 +79,7 @@ std::string generate_args_hpp(const std::vector<shape>& inputs)
 
 #include <migraphx/kernels/args.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
 

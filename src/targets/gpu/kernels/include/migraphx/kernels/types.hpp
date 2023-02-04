@@ -28,8 +28,45 @@
 
 namespace migraphx {
 
-using index_int = std::uint32_t;
-using diff_int  = std::int32_t;
+#if defined(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS) and defined(MIGRAPHX_USE_HIPRTC)
+using int8_t   = signed char;
+using uint8_t  = unsigned char;
+using int16_t  = signed short;
+using uint16_t = unsigned short;
+using int32_t  = signed int;
+using uint32_t = unsigned int;
+using int64_t  = signed long long;
+using uint64_t = unsigned long long;
+#elif defined(MIGRAPHX_USE_HIPRTC)
+using int8_t   = __hip_int8_t;
+using uint8_t  = __hip_uint8_t;
+using int16_t  = __hip_int16_t;
+using uint16_t = __hip_uint16_t;
+using int32_t  = __hip_int32_t;
+using uint32_t = __hip_uint32_t;
+using int64_t  = __hip_int64_t;
+using uint64_t = __hip_uint64_t;
+#else
+using int8_t   = std::int8_t;
+using uint8_t  = std::uint8_t;
+using int16_t  = std::int16_t;
+using uint16_t = std::uint16_t;
+using int32_t  = std::int32_t;
+using uint32_t = std::uint32_t;
+using int64_t  = std::int64_t;
+using uint64_t = std::uint64_t;
+#endif // MIGRAPHX_USE_HIPRTC
+using index_int = uint32_t;
+using diff_int  = int32_t;
+
+static_assert(sizeof(int8_t) == 1, "int8_t must be 1 bytes");
+static_assert(sizeof(uint8_t) == 1, "uint8_t must be 1 bytes");
+static_assert(sizeof(int16_t) == 2, "int16_t must be 2 bytes");
+static_assert(sizeof(uint16_t) == 2, "uint16_t must be 2 bytes");
+static_assert(sizeof(int32_t) == 4, "int32_t must be 4 bytes");
+static_assert(sizeof(uint32_t) == 4, "uint32_t must be 4 bytes");
+static_assert(sizeof(int64_t) == 8, "int64_t must be 8 bytes");
+static_assert(sizeof(uint64_t) == 8, "uint64_t must be 8 bytes");
 
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 

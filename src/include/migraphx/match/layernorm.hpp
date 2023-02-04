@@ -41,19 +41,16 @@ struct layernorm_matcher
     {
         return make_basic_pred_matcher([](instruction_ref ins) {
             auto v = ins->get_operator().to_value();
-            if (not v.contains("axes"))
+            if(not v.contains("axes"))
                 return false;
             auto axes = v["axes"].to_vector<std::size_t>();
-            if (axes.size() != 1)
+            if(axes.size() != 1)
                 return false;
             return axes.front() == ins->inputs().front()->get_shape().lens().size() - 1;
         });
     }
 
-    auto reduce_mean() const
-    {
-        return f("reduce_mean")(last_axis());
-    }
+    auto reduce_mean() const { return f("reduce_mean")(last_axis()); }
 
     auto x_minus_mean() const
     {

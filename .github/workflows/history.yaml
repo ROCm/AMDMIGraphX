@@ -1,0 +1,30 @@
+name: History
+
+on:
+
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: Start date for results analysis
+        required: true
+        default: 'yyyy-mm-dd'
+      end_date:
+        description: End date for results analysis
+        required: true
+        default: 'yyyy-mm-dd'
+      history_repo:
+        description: Repository for history results between dates
+        required: true
+        default: 'ROCmSoftwarePlatform/migraphx-reports'
+
+jobs:
+  release:
+    uses: migraphx-benchmark/actions/.github/workflows/history.yml@main
+    with:
+      start_date: ${{ github.event.inputs.start_date || 'yyyy-mm-dd' }}
+      end_date: ${{ github.event.inputs.end_date || 'yyyy-mm-dd' }}
+      history_repo: ${{ github.event.inputs.history_repo || 'ROCmSoftwarePlatform/migraphx-reports' }}
+    secrets:
+      gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+      mail_user: ${{ secrets.MAIL_USERNAME }}
+      mail_pass: ${{ secrets.MAIL_PASSWORD }}

@@ -21,28 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_INT_DIVIDE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_INT_DIVIDE_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP
 
+#include <string>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
-#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class R, class T, class U>
-R floor_divide(T x, U y)
-{
-    return R(std::floor(double(x) / double(y)));
-}
+struct module_pass_manager;
 
-template <class R, class T, class U>
-R ceil_divide(T x, U y)
+/**
+ * Transform convolutions to nhwc
+ */
+struct layout_nhwc
 {
-    return R(std::ceil(double(x) / double(y)));
-}
+    std::string name() const { return "layout_nhwc"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_NHWC_HPP

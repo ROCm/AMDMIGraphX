@@ -185,5 +185,37 @@ constexpr auto vec_reduce(T x, Op op)
     }
 }
 
+template <class T>
+struct implicit_conversion_op
+{
+    T x;
+
+    template <index_int N, class U>
+    constexpr operator vec<U, N>() const
+    {
+        if constexpr(vec_size<T>() == 0)
+        {
+            return x;
+        }
+        else
+        {
+            static_assert(vec_size<T>() == N, "Vector mismatch size");
+            return __builtin_convertvector(x, vec<U, N>);
+        }
+    }
+
+    template <class U>
+    constexpr operator U() const
+    {
+        return x;
+    }
+};
+
+template <class T>
+constexpr implicit_conversion_op<T> implicit_conversion(T x)
+{
+    return {x};
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_VEC_HPP

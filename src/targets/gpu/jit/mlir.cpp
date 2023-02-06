@@ -24,7 +24,6 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
-
 #include <migraphx/gpu/mlir.hpp>
 
 namespace migraphx {

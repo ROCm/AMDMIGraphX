@@ -164,12 +164,10 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
-    // Makes it so padding is either 2*(pad ndim), copies if it has (pad ndim) values
     if(attrs.contains("normalize_padding"))
     {
-        auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
-        auto padding_size = padding.size();
-        // for now, assume the dimensions to pad start at dim 2
+        auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
+        auto padding_size  = padding.size();
         auto padding_start = 2;
 
         if(padding_size == 2 * (lens.size() - padding_start))

@@ -58,14 +58,14 @@ add_library(migraphx
     layout_nhwc.cpp
     load_save.cpp
     make_op.cpp
+    memory_coloring.cpp
     module.cpp
     msgpack.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
     operation.cpp
-    opt/memory_coloring.cpp
-    opt/memory_coloring_impl.cpp
+    optimize_module.cpp
     pad_calc.cpp
     pass_manager.cpp
     permutation.cpp

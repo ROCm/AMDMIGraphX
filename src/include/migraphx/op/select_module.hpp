@@ -33,7 +33,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-
 // Make this work just for exact matches
 // can get rid of the other attributes and just check all the parameters are the same
 // GPU version of this might have to deal with output parameters
@@ -41,8 +40,7 @@ namespace op {
 // Can have multiple inputs but only one output?
 struct select_module
 {
-    // output shape of the dynamic model
-    shape output_dyn_shape;
+    shape output_dyn_shapes;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -52,11 +50,7 @@ struct select_module
 
     std::string name() const { return "select_module"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this, true};
-		return shape{output_dyn_shape};
-    }
+    shape compute_shape(std::vector<shape>) const { return shape{output_dyn_shapes}; }
 
     argument compute(const shape&,
                      const std::vector<argument>& args,
@@ -64,21 +58,23 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-		// find submodule with parameter shapes exactly the same as the input arguments
-		// assuming arguments are in the same order as the parameters
-        auto module_to_run = std::find_if(submodule_list.begin(), submodule_list.end(), [&](module_ref mr) {
-			auto param_names = mr.get_parameter_names();
-			std::equal(args.cbegin(), args.cend(), param_names.cbegin(), [&](auto a, auto p_name) {
-				return a.get_shape() == mr.get_parameter_shape(p_name);
-			});
-		});
+        // find submodule with parameter shapes exactly the same as the input arguments
+        // assuming arguments are in the same order as the parameters
+        auto module_iter =
+            std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
+                auto param_names = mr->get_parameter_names();
+                std::equal(
+                    args.cbegin(), args.cend(), param_names.cbegin(), [&](auto a, auto p_name) {
+                        return a.get_shape() == mr->get_parameter_shape(p_name);
+                    });
+            });
 
-        if(module_to_run == submodule_list.end())
+        if(module_iter == submodule_list.end())
         {
             MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
         }
-			
-        auto param_names = module_to_run.get_parameter_names();
+        auto module_to_run = *module_iter;
+        auto param_names   = module_to_run->get_parameter_names();
         assert(pnames.size() <= args.size());
         std::unordered_map<std::string, argument> params;
         std::transform(param_names.begin(),

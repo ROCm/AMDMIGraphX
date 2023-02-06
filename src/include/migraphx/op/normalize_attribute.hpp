@@ -32,16 +32,24 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * normalize_attribute settings:
- * 1. use_input (default) vs. use_output: changes the rank of the attribute. use_input -> lens.size(), use_output -> lens.size() + vec.size(). Used in unsqueeze.
- * 2. use_rank (default) vs use_len: use_rank sets max value of attribute as the rank of lens. use_lens sets the max value as the corresponding values in lens at as axes
- * use_len is for something like slicing dimensions
- * use_rank is for max axes
- * 3. clip_min vs. not_clip_min (default): clip values less than the minimum to the minimum or not
- * 4. include_min vs. exclude_min (default): include the minimum value or exclude it for range checking and clipping
- * 5. clip_max vs not_clip_max (default): clip values greater than the maximum or not
- * 6. include_max vs. exclude_max (default): include or exclude the maximum value for range checking and clipping
- * 7. normalize_padding: to normalize the padding to 2*(pad ndim) or not
+ * `normalize_attribute` settings:
+ * Note that default options are not included as enums.
+ * 1. `use_input` (default) vs. `use_output`:
+ *  Affects the rank of the attribute.
+ *  `use_input -> lens.size()`, `use_output -> lens.size() + vec.size()`.
+ * 2. use_rank (default) vs use_len:
+ *  `use_rank` sets the max value of the attribute as the rank of lens.
+ *  `use_lens` sets the max value as the corresponding value in lens at the axes index.
+ * 3. `clip_min` vs. `not_clip_min` (default):
+ *  Clip values less than the minimum to the minimum or not.
+ * 4. `include_min` vs. `exclude_min` (default):
+ *  Include or exclude the minimum index for range checking and clipping.
+ * 5. `clip_max` vs. `not_clip_max` (default):
+ *  Clip values greater than the maximum or not.
+ * 6. `include_max` vs. `exclude_max` (default):
+ *  Include or exclude the maximum index for range checking and clipping.
+ * 7. `normalize_padding`:
+ *  To normalize the padding to `2*(pad ndim)` dimensions.
  */
 enum class normalize_attribute
 {

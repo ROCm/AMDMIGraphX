@@ -31,16 +31,16 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * Params:
+ * Parameters:
  * vec: the vector attribute to normalize
  * axes: the operator's axes attribute if it exists, empty otherwise
- * val: the normalize_axes key and options. Ex: normalize["axes"]   = value::array{normalize_attribute::include_min};
- * lens: lens passed when calling normalize_attributes(op&, lens)
- * Could replace lens with a shape to handle dynamic shapes.
+ * val: the normalize_axes key and options. Ex: normalize["axes"] =
+ * value::array{normalize_attribute::include_min}; lens: shape dimensions passed when calling
+ * normalize_attributes(op&, lens)
  *
- * See normalize_attribute.hpp for explaining the options
+ * See normalize_attribute.hpp for explaining the options.
  */
-auto tune_attribute(const std::vector<int64_t>& vec, 
+auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<int64_t>& axes,
                     const value& val,
                     const std::vector<std::size_t>& lens)
@@ -154,18 +154,23 @@ auto tune_pad_attribute(const value& val)
     return result;
 }
 
+/**
+ * Assumptions:
+ *  Dimensions to pad start from the third dimension (index 2).
+ *  Called by compute_shape_op() with the `lens` of the first input.
+ */
 bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
 {
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
-	// Makes it so padding is either 2*(pad ndim), copies if it has (pad ndim) values
+    // Makes it so padding is either 2*(pad ndim), copies if it has (pad ndim) values
     if(attrs.contains("normalize_padding"))
     {
         auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
         auto padding_size = padding.size();
         // for now, assume the dimensions to pad start at dim 2
-			auto padding_start = 2;
+        auto padding_start = 2;
 
         if(padding_size == 2 * (lens.size() - padding_start))
             tuned = true;

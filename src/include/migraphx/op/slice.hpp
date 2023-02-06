@@ -47,6 +47,10 @@ struct slice
         return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
     }
 
+    /**
+     * Ensure that attribute vectors axes, starts, and ends are all the same size and values are in
+     * limits.
+     */
     value attributes() const
     {
         value normalize     = value::object{};
@@ -94,12 +98,6 @@ struct slice
         check_shapes{inputs, *this, true}.has(1);
         auto input_shape = inputs[0];
         auto t           = input_shape.type();
-
-        if(starts.size() != axes.size() or axes.size() != ends.size())
-        {
-            MIGRAPHX_THROW(
-                "SLICE: attributes \"starts\", \"ends\", and \"axes\" must all be the same size");
-        }
 
         // TODO:  When support for dynamic shapes is added to normalize_attributes,
         //  remove this restriction.

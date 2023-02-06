@@ -2435,15 +2435,6 @@ TEST_CASE(slice_dyn_shape5)
         input);
 }
 
-TEST_CASE(slice_dyn_shape6)
-{
-    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
-    // Argument vectors aren't the same size
-    throws_shape(
-        migraphx::make_op("slice", {{"axes", {0, 1, 2}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
-        input);
-}
-
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
 TEST_CASE(softmax_dyn0)

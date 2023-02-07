@@ -222,7 +222,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
         if(model.has_graph())
         {
-            this->parse_graph(mm, model.graph());
+            (void)this->parse_graph(mm, model.graph());
         }
     }
     else
@@ -242,7 +242,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 
         if(model.has_graph())
         {
-            this->parse_graph(mm, model.graph());
+            (void)this->parse_graph(mm, model.graph());
         }
     }
     else
@@ -266,7 +266,8 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
+std::vector<instruction_ref>
+onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
@@ -376,11 +377,17 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 
     if(enabled(MIGRAPHX_REMOVE_LAST_OUTPUT{}) and output_ins.size() > 1)
         output_ins.pop_back();
-    // add the return instuction
-    mod->add_return(output_ins);
+        
+    if(not inlining)
+    {
+        // add the return instuction
+        mod->add_return(output_ins);
 
-    // remove instructions added in this mod
-    erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
+        // Remove instructions added in module (this is turned off for subgraph inlining)
+        erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
+    }
+
+    return output_ins;
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

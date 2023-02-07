@@ -42,7 +42,9 @@ models="bvlc_alexnet \
 
 for name in $models
 do
-curl https://s3.amazonaws.com/download.onnx/models/opset_9/$name.tar.gz --output $tmp_dir/$name.tar.gz
-tar -xzvf $tmp_dir/$name.tar.gz --directory $model_dir && rm $tmp_dir/$name.tar.gz
+# TODO : temporarily disable model downloads to get CI running again
+# See https://github.com/onnx/onnx/issues/4857 for problem
+#curl https://s3.amazonaws.com/download.onnx/models/opset_9/$name.tar.gz --output $tmp_dir/$name.tar.gz
+#tar -xzvf $tmp_dir/$name.tar.gz --directory $model_dir && rm $tmp_dir/$name.tar.gz
 done
 

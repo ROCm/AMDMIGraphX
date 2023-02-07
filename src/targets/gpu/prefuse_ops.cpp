@@ -101,8 +101,7 @@ struct find_add_layernorm
     auto matcher() const
     {
         // CK branch does not work with the used_once() limitation
-        return match::layernorm()(
-            match::var("x")(match::name("add").bind("add")));
+        return match::layernorm()(match::var("x")(match::name("add").bind("add")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

@@ -71,7 +71,7 @@ struct parse_loop : op_parser<parse_loop>
         module_ref sub_mod    = parser.prog.create_module(mod_name);
 
         // parse the sub_graph
-        parser.parse_graph(sub_mod, sub_graph);
+        (void)parser.parse_graph(sub_mod, sub_graph);
 
         auto ret = info.add_instruction(
             make_op("loop", {{"max_iterations", max_iterations}}), args, {sub_mod});

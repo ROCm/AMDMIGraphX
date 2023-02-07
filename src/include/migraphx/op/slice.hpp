@@ -141,6 +141,8 @@ struct slice
             new_lens[axis] = std::min(new_lens[axis], sliced_length);
             if(input_shape.dynamic())
             {
+                // TODO: when non-fixed shape slicing is allowed, this will be different than
+                // sliced_length, making use of TBD start/end values.
                 std::size_t sliced_min_length = ends[i] - starts[i];
                 // if the slice size is smaller than maxes but larger than mins
                 new_mins[axis] = std::min(sliced_min_length, new_mins[axis]);

@@ -2407,14 +2407,19 @@ TEST_CASE(slice_dyn_shape2)
                  input);
 }
 
-// TEST_CASE(slice_dyn_shape3)
-// {
-//     migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
-//     // TODO: When variable dimension slicing is allowed, Slice to a size smaller than min.
-//     expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {1, 1, 0}, {2, 3, 0}}},
-//                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
-//                  input);
-// }
+TEST_CASE(slice_dyn_shape3)
+{
+    // TODO: When variable dimension slicing is allowed, Slice to a size smaller than min.
+    // Until then, this action is an error.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+                 input);
+    // clang-format off
+    //     expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {1, 1, 0}, {2, 3, 0}}},
+    //                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+    //                  input);
+    // clang-format on
+}
 
 TEST_CASE(slice_dyn_shape4)
 {

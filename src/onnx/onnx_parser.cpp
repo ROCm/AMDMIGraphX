@@ -377,7 +377,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
     if(enabled(MIGRAPHX_REMOVE_LAST_OUTPUT{}) and output_ins.size() > 1)
         output_ins.pop_back();
-        
+
     if(not inlining)
     {
         // add the return instuction

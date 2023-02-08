@@ -380,7 +380,7 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
-        if(not ins->get_shape().dynamic())
+        if(not ins->get_shape().any_of_dynamic())
         {
             assert(results.at(ins).get_shape() == ins->get_shape());
         }

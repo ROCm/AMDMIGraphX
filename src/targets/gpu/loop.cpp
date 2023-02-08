@@ -76,6 +76,11 @@ struct gpu_loop
         }
     }
 
+    /**
+     * This finds the output parameters for a module and returns a map between the parameter name
+     * and output argument indicies. Needs to have the module names mapped to the correct input
+     * parameters to begin with; not sure where those indices are set.
+     */
     std::unordered_map<std::string, int> get_output_params(const module& m) const
     {
         auto get_output_index = [](const std::string& name) {

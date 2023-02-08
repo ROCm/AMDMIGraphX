@@ -33,8 +33,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-// Make this work just for exact matches
-// can get rid of the other attributes and just check all the parameters are the same
 // GPU version of this might have to deal with output parameters
 // see loop op for how the output parameters are dealt with there
 // Can have multiple inputs but only one output?
@@ -45,12 +43,46 @@ struct select_module
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.output_dyn_shape, "output_dyn_shape"));
+        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"));
     }
 
     std::string name() const { return "select_module"; }
 
-    shape compute_shape(std::vector<shape>) const { return shape{output_dyn_shapes}; }
+    shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
+    {
+        // if(std::none_of(inputs.cbegin(), inputs.cend(), [](auto input){ return input.dynamic();
+        // }))
+        //{
+        //    if(mods.size() != 1)
+        //    {
+        //        MIGRAPHX_THROW("SELECT_MODULE: operator should have one submodule during eval.");
+        //    }
+        //    return {mods.front()->get_output_shapes()};
+        //}
+        return shape{output_dyn_shapes};
+    }
+
+    std::vector<std::string> get_input_parameter_names(module_ref mod) const
+    {
+        auto param_names = mod->get_parameter_names();
+        std::vector<std::string> ret;
+        std::copy_if(param_names.cbegin(),
+                     param_names.cend(),
+                     std::back_inserter(ret),
+                     [](auto pn) { return not contains(pn, "#output_"); });
+        return ret;
+    }
+
+    std::vector<std::string> get_output_parameter_names(module_ref mod) const
+    {
+        auto param_names = mod->get_parameter_names();
+        std::vector<std::string> ret;
+        std::copy_if(param_names.cbegin(),
+                     param_names.cend(),
+                     std::back_inserter(ret),
+                     [](auto pn) { return contains(pn, "#output_"); });
+        return ret;
+    }
 
     argument compute(const shape&,
                      const std::vector<argument>& args,
@@ -58,15 +90,17 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // find submodule with parameter shapes exactly the same as the input arguments
-        // assuming arguments are in the same order as the parameters
+        // find submodule with input parameter shapes exactly the same as the input arguments
+        // assuming arguments are in the same order as the input parameters
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
-                auto param_names = mr->get_parameter_names();
-                std::equal(
-                    args.cbegin(), args.cend(), param_names.cbegin(), [&](auto a, auto p_name) {
-                        return a.get_shape() == mr->get_parameter_shape(p_name);
-                    });
+                auto input_param_names = get_input_parameter_names(mr);
+                return std::equal(args.cbegin(),
+                                  args.cend(),
+                                  input_param_names.cbegin(),
+                                  [&](auto a, auto p_name) {
+                                      return a.get_shape() == mr->get_parameter_shape(p_name);
+                                  });
             });
 
         if(module_iter == submodule_list.end())
@@ -74,14 +108,27 @@ struct select_module
             MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
         }
         auto module_to_run = *module_iter;
-        auto param_names   = module_to_run->get_parameter_names();
-        assert(pnames.size() <= args.size());
         std::unordered_map<std::string, argument> params;
-        std::transform(param_names.begin(),
-                       param_names.end(),
-                       args.begin(),
+
+        // add input parameters
+        auto input_param_names = get_input_parameter_names(module_to_run);
+        assert(input_param_names.size() <= args.size());
+        std::transform(input_param_names.cbegin(),
+                       input_param_names.cend(),
+                       args.cbegin(),
                        std::inserter(params, params.end()),
-                       [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
+                       [](auto&& name, auto&& a) { return std::make_pair(name, a); });
+
+        // add output parameter (empty if on ref)
+        // assuming the order of the output parameters is in the same order as input parameters
+        // need to set up the buffers for the output parameters
+        auto output_param_names = get_output_parameter_names(module_to_run);
+        assert(output_param_names.size() <= args.size());
+        std::transform(output_param_names.cbegin(),
+                       output_param_names.cend(),
+                       args.cbegin(),
+                       std::inserter(params, params.end()),
+                       [](auto&& name, auto&& a) { return std::make_pair(name, a); });
 
         auto results = run(module_to_run, params);
         return argument{results};

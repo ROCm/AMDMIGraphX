@@ -185,7 +185,16 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {
-            m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
+            if(x.second.dynamic())
+            {
+                // create static shape using maximum dimensions
+                migraphx::shape static_shape{x.second.type(), x.second.max_lens()};
+                m[x.first] = migraphx::generate_argument(static_shape, get_hash(x.first));
+            }
+            else
+            {
+                m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
+            }
         }
 
         auto gold_f = detach_async([=] { return run_ref(p, m); });

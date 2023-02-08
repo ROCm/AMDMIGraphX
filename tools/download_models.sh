@@ -26,10 +26,12 @@
 
 if [ -z "$ONNX_HOME" ]
 then
-   ONNX_HOME=$HOME
+   # The onnx library uses ONNX_HOME, by default if it doesn't exist
+   # the path of " ~/.onnx " is used
+   ONNX_HOME=$HOME/.onnx
 fi
 
-model_dir=$ONNX_HOME/.onnx/models
+model_dir=$ONNX_HOME/models
 tmp_dir=$ONNX_HOME/tmp/
 mkdir -p $model_dir
 mkdir -p $tmp_dir

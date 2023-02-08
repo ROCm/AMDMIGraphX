@@ -32,7 +32,8 @@ namespace migraphx {
 template <index_int Axis, class Input, class Output>
 __device__ void softmax(Input input1, Output output)
 {
-    reduce::block::run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
+    using block = reduce::auto_block<reduce::reduce_elements_with_axis<Input, Axis>()>;
+    block::template run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
         auto input = r.inner(op::id{})(input1);
 #ifdef MIGRAPHX_USE_FAST_SOFTMAX
         const auto c = vec_at(r.slice(input1)[0], 0);

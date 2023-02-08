@@ -128,7 +128,7 @@ template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
-    using type = decltype(f(0));
+    using type = decltype(index::invoke_loop(f, 0, _c<0>));
     __shared__ type buffer[idx.max_nlocal()];
     type x = init;
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
@@ -388,6 +388,79 @@ struct block
     }
 };
 
+struct block_large
+{
+    template <class Slicer>
+    struct reducer : reducer_base<reducer<Slicer>>
+    {
+        index idx;
+        Slicer slice;
+
+        template <class Size, class F>
+        struct inner_storage : inner_storage_tag
+        {
+            using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
+            F f;
+            constexpr Size rsize() const { return {}; }
+            template <class U, class V>
+            constexpr auto operator()(U j, V d) const
+            {
+                return f(j, d);
+            }
+        };
+
+        template <class Size, class F>
+        constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
+        {
+            return {f};
+        }
+
+        template <class Op, class T, class Read, class N, class... Ts>
+        __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
+        {
+            return block_reduce(idx, op, init, index_int{n}, [&](auto j, auto d) {
+                return vec_reduce(read(xs(j, d)...), op);
+            });
+        }
+
+        template <class F>
+        __device__ void outer(F f) const
+        {
+            if(idx.local == 0)
+                f();
+        }
+
+        template <class F, class N, class... Ts>
+        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
+        {
+            idx.local_stride(index_int{n}, [&](auto j, auto d) { f(xs(j, d)...); });
+        }
+
+        template <class R, class F, class N, class... Ts>
+        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
+        {
+            return make_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
+        }
+    };
+
+    template <class Slicer>
+    static __device__ auto make(index idx, Slicer slicer)
+    {
+        return reducer<Slicer>{{}, idx, slicer};
+    }
+
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx                 = make_index();
+        constexpr auto nelements = get_shape_c<Output>{}.elements();
+        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
+            const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
+            f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
+        });
+    }
+};
+
 struct lane
 {
     template <class Slicer>
@@ -465,6 +538,26 @@ struct lane
         });
     }
 };
+
+// TODO: Remove these in the future when they can be selected in the compiler class
+template <index_int RElements>
+constexpr auto pick_block()
+{
+    using nlocal = decltype(index{}.max_nlocal());
+    if constexpr(RElements < nlocal{} * 256)
+        return block{};
+    else
+        return block_large{};
+}
+template <index_int RElements>
+using auto_block = decltype(pick_block<RElements>());
+
+template <class Input, index_int Axis>
+constexpr auto reduce_elements_with_axis()
+{
+    constexpr auto s = get_shape_c<Input>{};
+    return s.lens[Axis];
+}
 
 } // namespace reduce
 

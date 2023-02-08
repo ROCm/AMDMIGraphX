@@ -250,19 +250,15 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_ZeroPad2d*')
 
         # # Onnx native model tests
-        # TODO add back, nothing wrong with these tests, it the location
-        # where onnx gets them from has been removed (AWS)
-        # See onnx/onnx#4857 and microsoft/onnxruntime#14606 for details
-        #
-        # backend_test.include(r'.*test_bvlc_alexnet.*')
-        # backend_test.include(r'.*test_densenet121.*')
-        # backend_test.include(r'.*test_inception_v1.*')
-        # backend_test.include(r'.*test_inception_v2.*')
-        # backend_test.include(r'.*test_resnet50.*')
-        # backend_test.include(r'.*test_shufflenet.*')
-        # backend_test.include(r'.*test_squeezenet.*')
-        # backend_test.include(r'.*test_vgg19.*')
-        # backend_test.include(r'.*test_zfnet512.*')
+        backend_test.include(r'.*test_bvlc_alexnet.*')
+        backend_test.include(r'.*test_densenet121.*')
+        backend_test.include(r'.*test_inception_v1.*')
+        backend_test.include(r'.*test_inception_v2.*')
+        backend_test.include(r'.*test_resnet50.*')
+        backend_test.include(r'.*test_shufflenet.*')
+        backend_test.include(r'.*test_squeezenet.*')
+        backend_test.include(r'.*test_vgg19.*')
+        backend_test.include(r'.*test_zfnet512.*')
 
         # exclude unenabled ops get pulled in with wildcards
         # test_constant_pad gets pulled in with the test_constant* wildcard. Explicitly disable padding tests for now.

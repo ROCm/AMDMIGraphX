@@ -26,10 +26,12 @@
 
 if [ -z "$ONNX_HOME" ]
 then
-   ONNX_HOME=$HOME
+   # The onnx library uses ONNX_HOME, by default if it doesn't exist
+   # the path of " ~/.onnx " is used
+   ONNX_HOME=$HOME/.onnx
 fi
 
-model_dir=$ONNX_HOME/.onnx/models
+model_dir=$ONNX_HOME/models
 tmp_dir=$ONNX_HOME/tmp/
 mkdir -p $model_dir
 mkdir -p $tmp_dir
@@ -42,7 +44,6 @@ models="bvlc_alexnet \
 
 for name in $models
 do
-curl https://s3.amazonaws.com/download.onnx/models/opset_9/$name.tar.gz --output $tmp_dir/$name.tar.gz
+curl https://download.onnxruntime.ai/onnx/models/$name.tar.gz --output $tmp_dir/$name.tar.gz
 tar -xzvf $tmp_dir/$name.tar.gz --directory $model_dir && rm $tmp_dir/$name.tar.gz
 done
-

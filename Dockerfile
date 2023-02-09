@@ -86,7 +86,7 @@ ADD doc/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Download real models to run onnx unit tests
-ENV ONNX_HOME=$HOME
+ENV ONNX_HOME=/.onnx
 COPY ./tools/download_models.sh /
 RUN /download_models.sh && rm /download_models.sh
 

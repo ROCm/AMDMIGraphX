@@ -114,8 +114,8 @@ struct hiprtc_program
     {
         for(auto&& src : srcs)
         {
-            std::string content{src.content.first, src.content.second};
             std::string path = src.path.string();
+            std::string content{src.content.first, src.content.second};
             if(src.path.extension().string() == ".cpp")
             {
                 cpp_src  = std::move(content);
@@ -236,57 +236,28 @@ std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     assert(not srcs.empty());
-    if(not is_hcc_compiler() and not is_hip_clang_compiler())
-        MIGRAPHX_THROW("Unknown hip compiler: " +
-                       std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
-
-    if(params.find("-std=") == std::string::npos)
-        params += " --std=c++17";
-    params += " -fno-gpu-rdc";
-    if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
-        params += " -g";
-    params += " -c";
-    if(is_hcc_compiler())
-    {
-        params += " -amdgpu-target=" + arch;
-    }
-    else if(is_hip_clang_compiler())
-    {
-        params += " --offload-arch=" + arch;
-        params += " --cuda-device-only";
-        params += " -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ";
-    }
+    params += " -DMIGRAPHX_USE_HIPRTC=1";
+    params += " -DMIGRAPHX_HAS_DPP=0";
+    params += " -DMIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=1";
+    params += " -Wno-reserved-identifier";
+    params += " -Wno-gnu-line-marker";
+    params += " -Wno-old-style-cast";
 
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         params += " -DMIGRAPHX_DEBUG";
-
-    params += " -Wno-unused-command-line-argument -Wno-cuda-compat ";
-    params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
+    params += " -std=c++17";
+    params += " -fno-gpu-rdc";
+    params += " -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3");
+    params += " -Wno-cuda-compat";
+    params += " --offload-arch=" + arch;
 
     src_compiler compiler;
     compiler.flags    = params;
-    compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+    compiler.compiler = "/home/umayadav/repo/hiprtc-driver/build/hiprtc-driver";
 #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
     if(has_compiler_launcher())
         compiler.launcher = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER);
 #endif
-
-    if(is_hcc_compiler())
-        compiler.process = [&](const fs::path& obj_path) -> fs::path {
-            process{MIGRAPHX_STRINGIZE(MIGRAPHX_EXTRACT_KERNEL) + std::string{" -i "} +
-                    obj_path.string()}
-                .cwd(obj_path.parent_path());
-            for(const auto& entry : fs::directory_iterator{obj_path.parent_path()})
-            {
-                const auto& hsaco_path = entry.path();
-                if(not fs::is_regular_file(hsaco_path))
-                    continue;
-                if(hsaco_path.extension() != ".hsaco")
-                    continue;
-                return hsaco_path;
-            }
-            MIGRAPHX_THROW("Missing hsaco");
-        };
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {
@@ -306,6 +277,81 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
     return {compiler.compile(srcs)};
 }
+
+// std::vector<std::vector<char>>
+// compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+// {
+//     assert(not srcs.empty());
+//     if(not is_hcc_compiler() and not is_hip_clang_compiler())
+//         MIGRAPHX_THROW("Unknown hip compiler: " +
+//                        std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
+
+//     if(params.find("-std=") == std::string::npos)
+//         params += " --std=c++17";
+//     params += " -fno-gpu-rdc";
+//     if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
+//         params += " -g";
+//     params += " -c";
+//     if(is_hcc_compiler())
+//     {
+//         params += " -amdgpu-target=" + arch;
+//     }
+//     else if(is_hip_clang_compiler())
+//     {
+//         params += " --offload-arch=" + arch;
+//         params += " --cuda-device-only";
+//         params += " -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ";
+//     }
+
+//     if(enabled(MIGRAPHX_GPU_DEBUG{}))
+//         params += " -DMIGRAPHX_DEBUG";
+
+//     params += " -Wno-unused-command-line-argument -Wno-cuda-compat ";
+//     params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
+
+//     src_compiler compiler;
+//     compiler.flags    = params;
+//     compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+// #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
+//     if(has_compiler_launcher())
+//         compiler.launcher = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER);
+// #endif
+
+//     if(is_hcc_compiler())
+//         compiler.process = [&](const fs::path& obj_path) -> fs::path {
+//             process{MIGRAPHX_STRINGIZE(MIGRAPHX_EXTRACT_KERNEL) + std::string{" -i "} +
+//                     obj_path.string()}
+//                 .cwd(obj_path.parent_path());
+//             for(const auto& entry : fs::directory_iterator{obj_path.parent_path()})
+//             {
+//                 const auto& hsaco_path = entry.path();
+//                 if(not fs::is_regular_file(hsaco_path))
+//                     continue;
+//                 if(hsaco_path.extension() != ".hsaco")
+//                     continue;
+//                 return hsaco_path;
+//             }
+//             MIGRAPHX_THROW("Missing hsaco");
+//         };
+
+//     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
+//     {
+//         for(const auto& src : srcs)
+//         {
+//             if(src.path.extension() != ".cpp")
+//                 continue;
+//             std::cout << std::string(src.content.first, src.len()) << std::endl;
+//         }
+//     }
+
+//     if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
+//     {
+
+//         std::cout << assemble(compiler).compile(srcs).data() << std::endl;
+//     }
+
+//     return {compiler.compile(srcs)};
+// }
 
 #endif // MIGRAPHX_USE_HIPRTC
 

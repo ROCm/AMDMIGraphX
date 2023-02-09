@@ -37,7 +37,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
     tmp_dir td{"compile"};
     auto params = flags;
 
-    params += " -I.";
+    // params += " -I.";
 
     auto out = output;
 
@@ -49,13 +49,13 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         write_buffer(full_path.string(), src.content.first, src.len());
         if(src.path.extension().string() == ".cpp")
         {
-            params += " " + src.path.filename().string();
+            //params += " " + src.path.filename().string();
             if(out.empty())
                 out = src.path.stem().string() + out_ext;
         }
     }
 
-    params += " -o " + out;
+    // params += " -o " + out;
 
     if(not launcher.empty())
     {

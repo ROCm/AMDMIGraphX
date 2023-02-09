@@ -25,9 +25,6 @@ def rocmtestnode(Map conf) {
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
             env
-            whoami
-            echo $UID
-            ls -la /root
             rm -rf build
             mkdir build
             cd build

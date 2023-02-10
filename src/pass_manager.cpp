@@ -39,6 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
 
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
@@ -94,19 +95,19 @@ struct module_pm : module_pass_manager
     virtual void run_pass(const pass& p) override
     {
         assert(mod);
-
-        timer ts{};
-        using seconds = std::chrono::duration<double>;
-
-        trace("Module: ", mod->name(), ", Pass: ", p.name());
-        const double t1 = ts.record<seconds>();
         assert(mod->validate() == mod->end());
-        p.apply(*this);
+        if(enabled(MIGRAPHX_TIME_PASSES{}))
+        {
+            using milliseconds = std::chrono::duration<double, std::milli>;
+            auto ms            = time<milliseconds>([&] { p.apply(*this); });
+            std::cout << p.name() << ": " << ms << "ms\n";
+        }
+        else
+        {
+            p.apply(*this);
+        }
         trace(*mod);
         validate_pass(*mod, p, *t);
-
-        const double t2 = ts.record<seconds>();
-        trace("Pass: ", p.name(), " completed in (s): ", (t2 - t1));
     }
 };
 

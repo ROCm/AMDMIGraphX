@@ -112,6 +112,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_nms_op();
+        add_select_module_op();
     }
 
     void copy_params() const
@@ -357,6 +358,42 @@ struct miopen_apply
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
             return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    // void add_select_module_op()
+    //{
+    //    // make maximum buffer size allocation for output parameters
+    //    apply_map.emplace("select_module", [=](instruction_ref ins) {
+    //        std::vector<instruction_ref> inputs = ins->inputs();
+    //        auto mod_args = ins->module_inputs();
+    //        for(const auto* smod : mod_args)
+    //        {
+    //            auto pn_list = smod->get_parameter_names();
+    //            std::transform(pn_list.begin(),
+    //                           pn_list.end(),
+    //                           std::back_inserter(inputs),
+    //                           [&](auto pn) { return insert_allocation(ins,
+    //                           smod->get_parameter_shape(pn)); });
+    //        }
+    //        return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+    //    });
+    //}
+
+    void add_select_module_op()
+    {
+        // make maximum buffer size allocation for output parameters
+        apply_map.emplace("select_module", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            auto output_sub_shapes              = ins->get_shape().sub_shapes();
+            std::transform(output_sub_shapes.begin(),
+                           output_sub_shapes.end(),
+                           std::back_inserter(inputs),
+                           [&](auto s) {
+                               shape max_shape{s.type(), s.max_lens()};
+                               return insert_allocation(ins, max_shape);
+                           });
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }
 };

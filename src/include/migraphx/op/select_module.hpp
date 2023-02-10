@@ -26,16 +26,11 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/dyn_output.hpp>
-#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-// GPU version of this might have to deal with output parameters
-// see loop op for how the output parameters are dealt with there
-// Can have multiple inputs but only one output?
 struct select_module
 {
     shape output_dyn_shapes;
@@ -48,7 +43,7 @@ struct select_module
 
     std::string name() const { return "select_module"; }
 
-    shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
+    shape compute_shape(const std::vector<shape>&, std::vector<module_ref>) const
     {
         // if(std::none_of(inputs.cbegin(), inputs.cend(), [](auto input){ return input.dynamic();
         // }))
@@ -113,22 +108,21 @@ struct select_module
         // add input parameters
         auto input_param_names = get_input_parameter_names(module_to_run);
         assert(input_param_names.size() <= args.size());
-        std::transform(input_param_names.cbegin(),
-                       input_param_names.cend(),
-                       args.cbegin(),
+        std::transform(input_param_names.begin(),
+                       input_param_names.end(),
+                       args.begin(),
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& a) { return std::make_pair(name, a); });
 
-        // add output parameter (empty if on ref)
-        // assuming the order of the output parameters is in the same order as input parameters
-        // need to set up the buffers for the output parameters
+        // add output parameters (none if on ref)
         auto output_param_names = get_output_parameter_names(module_to_run);
-        assert(output_param_names.size() <= args.size());
-        std::transform(output_param_names.cbegin(),
-                       output_param_names.cend(),
-                       args.cbegin(),
+        std::transform(output_param_names.begin(),
+                       output_param_names.end(),
                        std::inserter(params, params.end()),
-                       [](auto&& name, auto&& a) { return std::make_pair(name, a); });
+                       [&module_to_run](auto&& name) {
+                           return std::make_pair(
+                               name, argument{module_to_run->get_parameter_shape(name)});
+                       });
 
         auto results = run(module_to_run, params);
         return argument{results};

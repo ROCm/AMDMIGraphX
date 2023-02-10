@@ -2133,6 +2133,19 @@ def gathernd_test():
 
 
 @onnx_test()
+def gathernd_dyn_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node('GatherND',
+                                 inputs=['data', 'indices'],
+                                 outputs=['y'])
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test()
 def gathernd_batch_dims_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
     i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 1])
@@ -5947,6 +5960,24 @@ def scatternd_test():
                                             [2, 1, 2])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
                                            [2, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'])
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
+def scatternd_dyn_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT,
+                                         [None, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [None, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [None, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [None, 2, 2])
 
     node = onnx.helper.make_node('ScatterND',
                                  inputs=['data', 'indices', 'updates'],

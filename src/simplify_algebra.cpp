@@ -975,6 +975,9 @@ struct find_neg_unit_ops
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
 
+        if(c_in->name() == "@param")
+            return;
+
         auto neg = m.add_instruction(make_op("neg"), c_in);
         m.replace_instruction(ins, neg);
     }

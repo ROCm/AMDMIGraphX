@@ -273,7 +273,11 @@ struct context
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
 
-        this->current_device = std::make_shared<hip_device>(0, n_streams);
+        int device;
+        auto status = hipGetDevice(&device);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to get hip device");
+        this->current_device = std::make_shared<hip_device>(device, n_streams);
     }
 
     void wait_for(any_ptr queue)

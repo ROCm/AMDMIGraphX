@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -8108,6 +8108,37 @@ TEST_CASE(where_test)
         gold[i] = b[i] ? x[i] : y[i];
 
     EXPECT(migraphx::verify_range(result_vec, gold));
+}
+
+TEST_CASE(where_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::bool_type, {{2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape sx{migraphx::shape::float_type, {{2, 3, 0}, {2, 3, 0}}};
+
+    auto lb = mm->add_parameter("predicate", sb);
+    auto lx = mm->add_parameter("X", sx);
+    auto ly = mm->add_parameter("Y", sx);
+    mm->add_instruction(migraphx::make_op("where"), lb, lx, ly);
+    p.compile(migraphx::ref::target{});
+
+    std::vector<char> b{1, 1, 1, 0, 0, 0, 1, 0, 1};
+    std::vector<float> x(9, 1.0);
+    std::vector<float> y(9, 2.0);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape input_fixed_shape1{migraphx::shape::uint8_type, {3, 3}};
+    params["X"] = migraphx::argument(input_fixed_shape0, x.data());
+    params["Y"] = migraphx::argument(input_fixed_shape0, y.data());
+
+    params["predicate"] = migraphx::argument(input_fixed_shape1, b.data());
+
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector(3 * 3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1, 1, 1, 2, 2, 2, 1, 2, 1};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 TEST_CASE(where_broadcasted_inputs_test)

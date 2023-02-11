@@ -1042,15 +1042,15 @@ TEST_CASE(simplify_neg_unit_mult_const)
     migraphx::module m1;
     {
         auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 6}});
-        auto unit = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type, {1,6}},
-            std::vector<int>(6, -1)});
+        auto unit = m1.add_literal(
+            migraphx::literal{{migraphx::shape::int32_type, {1, 6}}, std::vector<int>(6, -1)});
         m1.add_instruction(migraphx::make_op("mul"), x, unit);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 6}});
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 6}});
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }
@@ -1070,7 +1070,7 @@ TEST_CASE(simplify_neg_unit_mult_const2)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }
@@ -1084,14 +1084,14 @@ TEST_CASE(simplify_neg_unit_mult_const_add)
     {
         auto unit = m1.add_literal(-1);
         auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto x2 = m1.add_instruction(migraphx::make_op("mul"), unit, x);
+        auto x2   = m1.add_instruction(migraphx::make_op("mul"), unit, x);
         m1.add_instruction(migraphx::make_op("add"), x2, x2);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("add"), x2, x2);
     }
@@ -1115,7 +1115,7 @@ TEST_CASE(simplify_neg_unit_mul_const_vec)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
+        auto x  = m2.add_parameter("x", x_shape);
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }
@@ -1139,7 +1139,7 @@ TEST_CASE(simplify_neg_unit_mul_const_vec2)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
+        auto x  = m2.add_parameter("x", x_shape);
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }
@@ -1159,7 +1159,7 @@ TEST_CASE(simplify_neg_unit_div_const)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }
@@ -1183,7 +1183,7 @@ TEST_CASE(simplify_neg_unit_div_const_vec)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
+        auto x  = m2.add_parameter("x", x_shape);
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }
@@ -1244,7 +1244,7 @@ TEST_CASE(simplify_sub_neg_zero_const)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }
@@ -1267,7 +1267,7 @@ TEST_CASE(simplify_sub_neg_zero_const_vec)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
+        auto x  = m2.add_parameter("x", x_shape);
         auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
         m2.add_instruction(migraphx::make_op("identity"), x2);
     }

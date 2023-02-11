@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -3155,6 +3155,42 @@ TEST_CASE(where_broadcast_input)
     migraphx::shape s2{migraphx::shape::float_type, {2, 2}};
     migraphx::shape s3{migraphx::shape::bool_type, {2, 2}};
     expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input0)
+{
+    // dynamic shapes not the same
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input1)
+{
+    // mixed static/dynamic inputs (not allowed)
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {2, 1}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}, {2, 1}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input2)
+{
+    // dynamic shapes
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input3)
+{
+    // dynamic shapes, predicate shape is different
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 4, 0}}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
 }
 
 TEST_CASE(roialign_test)

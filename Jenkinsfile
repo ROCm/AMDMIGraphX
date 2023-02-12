@@ -25,6 +25,7 @@ def rocmtestnode(Map conf) {
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
             env
+            find /.onnx |xargs ls -la
             rm -rf build
             mkdir build
             cd build

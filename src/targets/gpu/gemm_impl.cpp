@@ -140,13 +140,8 @@ void gemm_impl(context& ctx,
             compute_type = rocblas_datatype_f32_r;
     }
 
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
     rocblas_gemm_flags flag =
         int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
-#else
-    (void)int8_x4_format;
-    int flag = 0;
-#endif
 
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
@@ -164,11 +159,10 @@ void gemm_impl(context& ctx,
             beta_v  = &beta;
         }
 
-        auto out_lens   = output_shape.lens();
-        rocblas_int m   = out_lens[dim_0];
-        rocblas_int n   = out_lens[dim_1];
-        rocblas_int k   = args[0].get_shape().lens()[dim_1];
-        auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
+        auto out_lens = output_shape.lens();
+        rocblas_int m = out_lens[dim_0];
+        rocblas_int n = out_lens[dim_1];
+        rocblas_int k = args[0].get_shape().lens()[dim_1];
         if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0 and int8_x4_format)
         {
             MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
@@ -195,17 +189,17 @@ void gemm_impl(context& ctx,
                            m,
                            k,
                            alpha_v,
-                           to_pointer(args.at(1)),
+                           args[1].data(),
                            arg_type,
                            ldb,
-                           to_pointer(args.at(0)),
+                           args[0].data(),
                            arg_type,
                            lda,
                            beta_v,
-                           to_pointer(args[2]),
+                           args[2].data(),
                            output_type,
                            ldc,
-                           is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                           is_3inputs ? args[3].data() : args[2].data(),
                            output_type,
                            ldd,
                            compute_type,
@@ -227,20 +221,20 @@ void gemm_impl(context& ctx,
                            m,
                            k,
                            alpha_v,
-                           to_pointer(args.at(1)),
+                           args[1].data(),
                            arg_type,
                            ldb,
                            b_stride,
-                           to_pointer(args.at(0)),
+                           args[0].data(),
                            arg_type,
                            lda,
                            a_stride,
                            beta_v,
-                           to_pointer(args[2]),
+                           args[2].data(),
                            output_type,
                            ldc,
                            c_stride,
-                           is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                           is_3inputs ? args[3].data() : args[2].data(),
                            output_type,
                            ldd,
                            d_stride,

@@ -840,6 +840,25 @@ TEST_CASE(concat_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(concat_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {1, 4, 0}, {3, 3, 0}}});
+    auto l1 = mm->add_parameter(
+        "1", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {1, 4, 0}, {3, 3, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("concat"), l0, l1);
+
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("concat_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(constant_test)
 {
     migraphx::program p;
@@ -6984,6 +7003,37 @@ TEST_CASE(where_test)
     auto prog = migraphx::parse_onnx("where_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(where_dyn_test)
+{
+    // TODO: broadcasting for dynamic shapes isn't implemented at time of writing.
+    // Update this test case to use shapes that require broadcasting, when available.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto lc  = mm->add_parameter(
+        "c", migraphx::shape{migraphx::shape::bool_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
+    auto lx = mm->add_parameter(
+        "x", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
+    auto ly = mm->add_parameter(
+        "y", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}}});
+
+    auto r = mm->add_instruction(migraphx::make_op("where"), lc, lx, ly);
+    mm->add_return({r});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("where_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(where_mixed_test)
+{
+    //  mixture of static and dynamic input shapes is not supported
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("where_mixed_test.onnx", options); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

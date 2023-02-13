@@ -3221,6 +3221,42 @@ TEST_CASE(where_broadcast_input)
     expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
 }
 
+TEST_CASE(where_dyn_input0)
+{
+    // dynamic shapes not the same
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input1)
+{
+    // mixed static/dynamic inputs (not allowed)
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {2, 1}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}, {2, 1}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input2)
+{
+    // dynamic shapes
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input3)
+{
+    // dynamic shapes, predicate shape is different
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 4, 0}}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
 TEST_CASE(roialign_test)
 {
     migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};
@@ -3241,6 +3277,54 @@ TEST_CASE(roialign_test)
 
     migraphx::shape srois2{migraphx::shape::float_type, {2, 3}};
     throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
+}
+
+TEST_CASE(test_concat)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};
+    migraphx::shape sy{migraphx::shape::float_type, {3, 4, 1, 6}};
+    migraphx::shape sout{migraphx::shape::float_type, {3, 4, 6, 6}};
+
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
+
+    // axis out of range
+    throws_shape(migraphx::make_op("concat", {{"axis", 11}}), sx, sy);
+
+    // 1 input; no-op
+    expect_shape(sx, migraphx::make_op("concat", {{"axis", 2}}), sx);
+
+    // rank doesn't match
+    migraphx::shape sbi1{migraphx::shape::int64_type, {2, 3}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, sbi1);
+
+    // non-matching dimension 2
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+
+    // no input shapes (at least one is required)
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
+}
+
+TEST_CASE(test_dyn_concat)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 3, 3}, {4, 4}, {1, 5, 5}, {6, 6}}};
+    migraphx::shape sy{migraphx::shape::float_type, {{1, 3, 3}, {4, 4}, {1, 4, 4}, {6, 6}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{1, 3, 3}, {4, 4, 0}, {2, 9, 0}, {6, 6}}};
+
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
+
+    // axis out of range
+    throws_shape(migraphx::make_op("concat", {{"axis", 4}}), sx, sy);
+
+    // rank doesn't match
+    migraphx::shape srank{migraphx::shape::int64_type, {{1, 3, 3}, {4, 4}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, srank);
+
+    // non-matching dimension 2
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+
+    // static and dynamic shapes together
+    migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

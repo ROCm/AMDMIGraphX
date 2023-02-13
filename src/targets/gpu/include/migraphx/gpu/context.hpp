@@ -274,7 +274,7 @@ struct context
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
 
-        auto device = get_device_id();
+        auto device          = get_device_id();
         this->current_device = std::make_shared<hip_device>(device, n_streams);
     }
 

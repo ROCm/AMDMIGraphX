@@ -760,6 +760,22 @@ def concat_test():
 
 
 @onnx_test()
+def concat_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None, 3])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, None, 3])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['0', '1'],
+        axis=0,
+        outputs=['2'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
@@ -7283,6 +7299,35 @@ def where_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 1, 2, 2])
 
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 2, 2, 2])
+    node = onnx.helper.make_node('Where',
+                                 inputs=['c', 'x', 'y'],
+                                 outputs=['z'])
+
+    return ([node], [c, x, y], [z])
+
+
+@onnx_test()
+def where_dyn_test():
+    c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 2, 2])
+
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [None, 2, 2])
+    node = onnx.helper.make_node('Where',
+                                 inputs=['c', 'x', 'y'],
+                                 outputs=['z'])
+
+    return ([node], [c, x, y], [z])
+
+
+@onnx_test()
+def where_mixed_test():
+    # mixture of static and dynamic input shapes is not supported
+    c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 2, 2])
+
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [None, 2, 2])
     node = onnx.helper.make_node('Where',
                                  inputs=['c', 'x', 'y'],
                                  outputs=['z'])

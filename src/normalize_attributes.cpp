@@ -30,13 +30,16 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// different attributes
-// 1) use_input(default)/use_output
-// 2) use_rank(default)/use_len
-// 3) clip_min(default)/not_clip_min
-//   3.1) include_min(default)/exclude_min
-// 4) clip_max(default)/not_clip_max
-//   4.1) exclude_max(default)/include_max
+/**
+ * Parameters:
+ * vec: the vector attribute to normalize
+ * axes: the operator's axes attribute if it exists, empty otherwise
+ * val: the normalize_axes key and options. Ex: normalize["axes"] =
+ * value::array{normalize_attribute::include_min}; lens: shape dimensions passed when calling
+ * normalize_attributes(op&, lens)
+ *
+ * See normalize_attribute.hpp for explaining the options.
+ */
 auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<int64_t>& axes,
                     const value& val,
@@ -151,6 +154,11 @@ auto tune_pad_attribute(const value& val)
     return result;
 }
 
+/**
+ * Assumptions:
+ *  Dimensions to pad start from the third dimension (index 2).
+ *  Called by compute_shape_op() with the `lens` of the first input.
+ */
 bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
 {
     bool tuned = false;
@@ -158,9 +166,8 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
-        auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
-        auto padding_size = padding.size();
-        // for now, assume the dimensions to pad start at dim 2
+        auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
+        auto padding_size  = padding.size();
         auto padding_start = 2;
 
         if(padding_size == 2 * (lens.size() - padding_start))

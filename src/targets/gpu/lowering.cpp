@@ -361,9 +361,11 @@ struct miopen_apply
         });
     }
 
+    // This might work, but it's going to have many arguments.
+    // Will need a map between submodules and argument index
+    // Also allocates seperate memory for each batch size...
     // void add_select_module_op()
     //{
-    //    // make maximum buffer size allocation for output parameters
     //    apply_map.emplace("select_module", [=](instruction_ref ins) {
     //        std::vector<instruction_ref> inputs = ins->inputs();
     //        auto mod_args = ins->module_inputs();
@@ -380,20 +382,74 @@ struct miopen_apply
     //    });
     //}
 
+    // Wrong output parameter shape error with this
+    // Try instead to have allocates occur in the submodule
+    // void add_select_module_op()
+    //{
+    //    // make maximum buffer size allocation for output parameters
+    //    apply_map.emplace("select_module", [=](instruction_ref ins) {
+    //        std::vector<instruction_ref> inputs = ins->inputs();
+    //        auto output_sub_shapes              = ins->get_shape().sub_shapes();
+    //        std::transform(output_sub_shapes.begin(),
+    //                       output_sub_shapes.end(),
+    //                       std::back_inserter(inputs),
+    //                       [&](auto s) {
+    //                           shape max_shape{s.type(), s.max_lens()};
+    //                           return insert_allocation(ins, max_shape);
+    //                       });
+    //        return mod->replace_instruction(ins, ins->get_operator(), inputs,
+    //        ins->module_inputs());
+    //    });
+    //}
+
+    // do a copy to cpu of the submodule alloc
+    // void add_select_module_op()
+    //{
+    //    apply_map.emplace("select_module", [=](instruction_ref ins) {
+    //        std::vector<instruction_ref> inputs = ins->inputs();
+    //        auto mod_args = ins->module_inputs();
+    //        for(auto smod : mod_args)
+    //        {
+    //            auto last_ins = std::prev(smod->end());
+    //            if(last_ins->name() == "@return")
+    //            {
+    //                const auto& prog_outputs = last_ins->inputs();
+    //                std::vector<instruction_ref> outputs_alias(prog_outputs.size());
+    //                std::transform(prog_outputs.begin(),
+    //                        prog_outputs.end(),
+    //                        outputs_alias.begin(),
+    //                        [](const auto& i) { return instruction::get_output_alias(i); });
+    //                for(auto out_ins : outputs_alias)
+    //                {
+    //                    std::cout << "output_alias_ins: " << out_ins->name() << std::endl;
+    //                    smod->insert_instruction(out_ins->outputs()[0],
+    //                    make_op("hip::copy_from_gpu"), out_ins->inputs()[1]);
+    //                }
+    //            }
+    //        }
+    //        return ins;
+    //    });
+    //}
+
     void add_select_module_op()
     {
-        // make maximum buffer size allocation for output parameters
         apply_map.emplace("select_module", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            auto output_sub_shapes              = ins->get_shape().sub_shapes();
-            std::transform(output_sub_shapes.begin(),
-                           output_sub_shapes.end(),
-                           std::back_inserter(inputs),
-                           [&](auto s) {
-                               shape max_shape{s.type(), s.max_lens()};
-                               return insert_allocation(ins, max_shape);
-                           });
-            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+            auto mod_args                       = ins->module_inputs();
+            for(auto smod : mod_args)
+            {
+                auto last_ins = std::prev(smod->end());
+                if(last_ins->name() == "@return")
+                {
+                    for(auto out_ins : last_ins->inputs())
+                    {
+                        auto sync_out = smod->insert_instruction(
+                            last_ins, make_op("hip::sync_stream"), out_ins);
+                        smod->replace_return({sync_out});
+                    }
+                }
+            }
+            return ins;
         });
     }
 };

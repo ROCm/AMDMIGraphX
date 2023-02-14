@@ -54,6 +54,8 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
  */
 struct module
 {
+    bool use_local_alloc = true;
+
     module(const std::string& name = "");
 
     // move constructor

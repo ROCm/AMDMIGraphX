@@ -90,10 +90,11 @@ struct select_module
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
                 auto input_param_names = get_input_parameter_names(mr);
-                return std::equal(args.cbegin(),
-                                  args.cend(),
-                                  input_param_names.cbegin(),
-                                  [&](auto a, auto p_name) {
+                assert(input_param_names.size() <= args.size());
+                return std::equal(input_param_names.cbegin(),
+                                  input_param_names.cend(),
+                                  args.cbegin(),
+                                  [&](auto p_name, auto a) {
                                       return a.get_shape() == mr->get_parameter_shape(p_name);
                                   });
             });
@@ -114,15 +115,15 @@ struct select_module
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& a) { return std::make_pair(name, a); });
 
-        // add output parameters (none if on ref)
-        auto output_param_names = get_output_parameter_names(module_to_run);
-        std::transform(output_param_names.begin(),
-                       output_param_names.end(),
-                       std::inserter(params, params.end()),
-                       [&module_to_run](auto&& name) {
-                           return std::make_pair(
-                               name, argument{module_to_run->get_parameter_shape(name)});
-                       });
+        // add output parameters from arguments (none if on ref)
+        // auto output_param_names = get_output_parameter_names(module_to_run);
+        // std::transform(output_param_names.begin(),
+        //               output_param_names.end(),
+        //               args.begin() + input_param_names.size(),
+        //               std::inserter(params, params.end()),
+        //               [](auto&& name, auto&& a) {
+        //                   return std::make_pair(name, a);
+        //               });
 
         auto results = run(module_to_run, params);
         return argument{results};

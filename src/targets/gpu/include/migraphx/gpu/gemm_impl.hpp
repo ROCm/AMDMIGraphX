@@ -97,7 +97,8 @@ static rocblas_int get_batch_stride(const shape& a) { return a.strides()[a.strid
 template <class F, class Pack, class... Ts>
 auto rocblas_invoke(F f, Pack p, Ts... xs)
 {
-    std::cout << "rocblas invoke\n";
+    // TODO : Validate that return status is rocblas_status_success, if it is not look for
+    // perf_degraded status and show warning, else, THROW.
     return p([=](auto... ws) { return f(ws..., xs...); });
 }
 

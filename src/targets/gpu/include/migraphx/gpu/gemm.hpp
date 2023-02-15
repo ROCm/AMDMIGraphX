@@ -50,7 +50,7 @@ struct rocblas_gemm
     bool int8_x4_format  = true;
     bool compute_fp32    = false;
     unsigned trans_batch = 0;
-    int32_t solution_idx = 0;
+    int32_t solution_idx = 0; // TODO: make this migraphx::optional
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

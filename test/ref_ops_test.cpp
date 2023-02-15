@@ -6989,6 +6989,53 @@ TEST_CASE(scatternd_reduction_test)
     }
 }
 
+TEST_CASE(select_module_add_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
+
+    // create batch submodules
+    auto create_submodule = [&](std::size_t batch_size, std::string module_name) {
+        auto* submod = p.create_module(module_name);
+        migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
+        auto sm_input = submod->add_parameter("data", sm_shape);
+        auto broadcast_lit =
+            submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
+        auto add_ins = submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
+        submod->add_return({add_ins});
+        return submod;
+    };
+    auto* batch1 = create_submodule(1, "batch_1");
+    auto* batch2 = create_submodule(2, "batch_2");
+    auto* batch3 = create_submodule(3, "batch_3");
+    auto* batch4 = create_submodule(4, "batch_4");
+
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+    auto input                              = mm->add_parameter("data", s);
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
+    migraphx::shape out_attr = migraphx::shape{sub_shapes};
+    auto sm_ins              = mm->add_instruction(
+        migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+        {input},
+        {batch1, batch2, batch3, batch4});
+    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+    mm->add_return({ret});
+    p.compile(migraphx::ref::target{});
+
+    std::vector<float> input_data{-4, 8, -1, 4, -1, 8, 8, -4};
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 4}};
+    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
+    auto result    = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{2, 14, 5, 10, 5, 14, 14, 2};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(select_module_reduce_test0)
 {
     migraphx::program p;

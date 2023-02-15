@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_select_module : verify_program<test_select_module>
+struct test_select_module_reduce : verify_program<test_select_module_reduce>
 {
     migraphx::program create_program() const
     {

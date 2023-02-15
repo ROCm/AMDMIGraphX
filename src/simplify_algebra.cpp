@@ -31,6 +31,7 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
@@ -340,12 +341,18 @@ struct find_inner_broadcast
                        std::back_inserter(inputs),
                        [](auto i) { return i->inputs().front(); });
         if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
-               return i->get_shape() != inputs.front()->get_shape();
+               return i->get_shape() != inputs.front()->get_shape() and
+                      i->get_shape().elements() != 1;
            }))
             return;
 
-        auto op = m.insert_instruction(ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        auto b_it = std::find_if(broadcasts.begin(), broadcasts.end(), [&](auto i) {
+            return not i->get_shape().scalar();
+        });
+        if(b_it == broadcasts.end())
+            b_it = broadcasts.begin();
+        auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, (*b_it)->get_operator(), op);
     }
 };
 
@@ -975,7 +982,7 @@ struct find_neg_unit_ops
         auto ins  = r.result;
         auto c_in = r.instructions["x"];
 
-        auto neg = m.add_instruction(make_op("neg"), c_in);
+        auto neg = m.insert_instruction(ins, make_op("neg"), c_in);
         m.replace_instruction(ins, neg);
     }
 };

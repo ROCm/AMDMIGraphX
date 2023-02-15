@@ -30,7 +30,6 @@ TEST_CASE(load_save_default)
     std::string filename = "migraphx_api_load_save.mxr";
     auto p1              = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto s1              = p1.get_output_shapes();
-
     migraphx::save(p1, filename.c_str());
     auto p2 = migraphx::load(filename.c_str());
     auto s2 = p2.get_output_shapes();

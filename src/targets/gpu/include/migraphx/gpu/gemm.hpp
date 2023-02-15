@@ -24,6 +24,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 
+#include <algorithm>
+#include <iterator>
 #include <migraphx/errors.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/value.hpp>
@@ -43,11 +45,12 @@ template <class Op>
 struct rocblas_gemm
 {
     Op op;
-    float alpha          = 1;
-    float beta           = 0;
-    bool int8_x4_format  = true;
-    bool compute_fp32    = false;
-    unsigned trans_batch = 0;
+    float alpha                              = 1;
+    float beta                               = 0;
+    bool int8_x4_format                      = true;
+    bool compute_fp32                        = false;
+    unsigned trans_batch                     = 0;
+    int32_t solution_idx = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -57,7 +60,8 @@ struct rocblas_gemm
                               f(self.beta, "beta"),
                               f(self.int8_x4_format, "int8_x4_format"),
                               f(self.compute_fp32, "compute_fp32"),
-                              f(self.trans_batch, "trans_batch")));
+                              f(self.trans_batch, "trans_batch"),
+                              f(self.solution_idx, "solution_idx")));
     }
 
     std::string name() const
@@ -106,16 +110,21 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
+        std::vector<shape> input_shapes;
+        std::transform(args.begin(),
+                       args.end(),
+                       std::back_inserter(input_shapes),
+                       [](const argument& x) { return x.get_shape(); });
         if(this->name() == "gpu::gemm")
         {
-            gemm_impl<float>(output_shape, args, alpha, beta, int8_x4_format, compute_fp32)
-                .run(ctx, args);
+            gemm_impl<float>(output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
+                .run(ctx, args, solution_idx);
         }
         else
         {
-
-            gemm_impl<int32_t>(output_shape, args, alpha, beta, int8_x4_format, compute_fp32)
-                .run(ctx, args);
+            gemm_impl<int32_t>(
+                output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
+                .run(ctx, args, solution_idx);
         }
         return args.back();
     }
@@ -123,6 +132,32 @@ struct rocblas_gemm
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
+    }
+
+    void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
+    {
+        if(ctx.get_exhaustive_tune_flag())
+        {
+            if(this->name() == "gpu::gemm")
+            {
+                solution_idx =
+                    gemm_impl<float>(
+                        output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
+                        .tune(ctx, input_shapes);
+            }
+            else
+            {
+
+                solution_idx =
+                    gemm_impl<int32_t>(
+                        output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
+                        .tune(ctx, input_shapes);
+            }
+        }
+        else if(solution_idx != 0)
+        {
+            // TODO: validate non-default solution
+        }
     }
 };
 

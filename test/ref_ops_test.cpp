@@ -6989,7 +6989,7 @@ TEST_CASE(scatternd_reduction_test)
     }
 }
 
-TEST_CASE(select_module_test0)
+TEST_CASE(select_module_reduce_test0)
 {
     migraphx::program p;
 
@@ -7035,7 +7035,7 @@ TEST_CASE(select_module_test0)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(select_module_test1)
+TEST_CASE(select_module_reduce_test1)
 {
     migraphx::program p;
 

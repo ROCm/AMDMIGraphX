@@ -54,7 +54,9 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
  */
 struct module
 {
-    bool use_local_alloc = true;
+    // used by replace_allocate pass
+    // allocate memory in this module rather than using output parmaeters
+    bool use_local_alloc = false;
 
     module(const std::string& name = "");
 

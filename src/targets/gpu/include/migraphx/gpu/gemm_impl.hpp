@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 
+#include <iterator>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -91,14 +92,12 @@ static bool is_transposed(const shape& s)
     return s.strides().back() != 1;
 }
 
-static rocblas_int get_batch_stride(const argument& a)
-{
-    return a.get_shape().strides()[a.get_shape().strides().size() - 3];
-}
+static rocblas_int get_batch_stride(const shape& a) { return a.strides()[a.strides().size() - 3]; }
 
 template <class F, class Pack, class... Ts>
 auto rocblas_invoke(F f, Pack p, Ts... xs)
 {
+    std::cout << "rocblas invoke\n";
     return p([=](auto... ws) { return f(ws..., xs...); });
 }
 
@@ -106,30 +105,30 @@ template <typename T>
 struct gemm_impl
 {
     gemm_impl(const shape& output_shape,
-              const std::vector<argument>& args,
+              const std::vector<shape>& input_shapes,
               T alpha_param,
               T beta_param,
               bool int8_x4_format,
               bool compute_fp32_flag)
         : alpha(alpha_param), beta(beta_param), compute_fp32(compute_fp32_flag)
     {
-        is_3inputs = (args.size() == 4);
+        is_3inputs = (input_shapes.size() == 4);
         if(not is_3inputs)
         {
             beta = 0;
         }
 
-        transa     = is_transposed(args[0].get_shape());
-        transb     = is_transposed(args[1].get_shape());
+        transa     = is_transposed(input_shapes[0]);
+        transb     = is_transposed(input_shapes[1]);
         auto n_dim = output_shape.lens().size();
         auto dim_0 = n_dim - 2;
         auto dim_1 = n_dim - 1;
-        lda        = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
-        ldb        = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
-        ldc        = args[2].get_shape().strides()[dim_0];
-        ldd        = is_3inputs ? args[3].get_shape().strides()[dim_0] : ldc;
+        lda        = input_shapes[0].strides()[transa ? dim_1 : dim_0];
+        ldb        = input_shapes[1].strides()[transb ? dim_1 : dim_0];
+        ldc        = input_shapes[2].strides()[dim_0];
+        ldd        = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
 
-        arg_type    = get_type(args[0].get_shape().type());
+        arg_type    = get_type(input_shapes[0].type());
         output_type = arg_type;
         if(output_type == rocblas_datatype_i8_r)
         {
@@ -160,21 +159,21 @@ struct gemm_impl
             }
         });
 
-        auto a_lens = args[0].get_shape().lens();
-        auto b_lens = args[1].get_shape().lens();
+        auto a_lens = input_shapes[0].lens();
+        auto b_lens = input_shapes[1].lens();
 
         auto out_lens = output_shape.lens();
         m             = out_lens[dim_0];
         n             = out_lens[dim_1];
-        k             = args[0].get_shape().lens()[dim_1];
-        if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0 and int8_x4_format)
+        k             = input_shapes[0].lens()[dim_1];
+        if(input_shapes[0].type() == shape::int8_type and (k % 4) != 0 and int8_x4_format)
         {
             MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
         }
-        a_stride     = get_batch_stride(args[0]);
-        b_stride     = get_batch_stride(args[1]);
-        c_stride     = get_batch_stride(args[2]);
-        d_stride     = is_3inputs ? get_batch_stride(args[3]) : c_stride;
+        a_stride     = get_batch_stride(input_shapes[0]);
+        b_stride     = get_batch_stride(input_shapes[1]);
+        c_stride     = get_batch_stride(input_shapes[2]);
+        d_stride     = is_3inputs ? get_batch_stride(input_shapes[3]) : c_stride;
         num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
 
@@ -188,7 +187,7 @@ struct gemm_impl
         }
     }
 
-    auto create_gemm_args(context& ctx, const std::vector<argument>& args)
+    auto create_gemm_args(context& ctx, const std::vector<argument>& args, int32_t solution_idx = 0)
     {
         // the rocblas_gemm API handles inputs and output matrices as
         // column-major format. When doing a C = A * B, we actually do
@@ -215,12 +214,15 @@ struct gemm_impl
                     output_type,
                     ldd,
                     compute_type,
-                    rocblas_gemm_algo_standard,
+                    rocblas_gemm_algo_standard, // TODO: Need to change this flag to
+                                                // rocblas_gemm_algo_solution_index
                     solution_idx,
-                    flag);
+                    flag); // TODO: rename this flag to int8_flag
     }
 
-    auto create_strided_batched_gemm_args(context& ctx, const std::vector<argument>& args)
+    auto create_strided_batched_gemm_args(context& ctx,
+                                          const std::vector<argument>& args,
+                                          int32_t solution_idx = 0)
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -253,17 +255,17 @@ struct gemm_impl
                     flag);
     }
 
-    void run(context& ctx, const std::vector<argument>& input_args)
+    void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0)
     {
 
         if(strided_batched)
         {
-            auto gemm_args = create_strided_batched_gemm_args(ctx, input_args);
+            auto gemm_args = create_strided_batched_gemm_args(ctx, input_args, solution_idx);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
         }
         else
         {
-            auto gemm_args = create_gemm_args(ctx, input_args);
+            auto gemm_args = create_gemm_args(ctx, input_args, solution_idx);
             rocblas_invoke(&rocblas_gemm_ex, gemm_args);
         }
     }
@@ -282,7 +284,21 @@ struct gemm_impl
         std::cout << "arg type : " << arg_type << " compute_type: " << compute_type
                   << " output_type: " << output_type << "\n";
         std::cout << "flag: " << flag << "\n";
-        std::cout << "solution_idx: " << solution_idx << "\n";
+    }
+
+    int tune(context& ctx, const std::vector<shape>& input_shapes) const
+    {
+        std::vector<argument> input_args;
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       std::back_inserter(input_args),
+                       [](const shape& x) {
+                           return argument{x, nullptr};
+                       });
+        (void)(ctx);
+        // TODO : add code for tuning
+        // return best_solution_idx;
+        return 0;
     }
 
     private:
@@ -294,7 +310,6 @@ struct gemm_impl
     void* beta_v  = nullptr;
     rocblas_gemm_flags flag;
     rocblas_int lda, ldb, ldc, ldd;
-    rocblas_int solution_idx = 0;
     rocblas_int a_stride, b_stride, c_stride, d_stride;
     rocblas_datatype compute_type, arg_type, output_type;
     bool strided_batched = true, is_3inputs = false, compute_fp32 = true;

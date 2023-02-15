@@ -39,11 +39,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct context;
-
-void blas_shape(const shape& s);
-shape transpose_batch(const shape& s, unsigned trans_batch);
-
 template <class Op>
 struct rocblas_gemm
 {
@@ -113,17 +108,14 @@ struct rocblas_gemm
     {
         if(this->name() == "gpu::gemm")
         {
-            gemm(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
+            gemm_impl<float>(output_shape, args, alpha, beta, int8_x4_format, compute_fp32)
+                .run(ctx, args);
         }
         else
         {
-            gemm(ctx,
-                 output_shape,
-                 args,
-                 int32_t(alpha),
-                 int32_t(beta),
-                 int8_x4_format,
-                 compute_fp32);
+
+            gemm_impl<int32_t>(output_shape, args, alpha, beta, int8_x4_format, compute_fp32)
+                .run(ctx, args);
         }
         return args.back();
     }

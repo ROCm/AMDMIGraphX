@@ -45,38 +45,7 @@ struct select_module
 
     shape compute_shape(const std::vector<shape>&, std::vector<module_ref>) const
     {
-        // if(std::none_of(inputs.cbegin(), inputs.cend(), [](auto input){ return input.dynamic();
-        // }))
-        //{
-        //    if(mods.size() != 1)
-        //    {
-        //        MIGRAPHX_THROW("SELECT_MODULE: operator should have one submodule during eval.");
-        //    }
-        //    return {mods.front()->get_output_shapes()};
-        //}
         return shape{output_dyn_shapes};
-    }
-
-    std::vector<std::string> get_input_parameter_names(module_ref mod) const
-    {
-        auto param_names = mod->get_parameter_names();
-        std::vector<std::string> ret;
-        std::copy_if(param_names.cbegin(),
-                     param_names.cend(),
-                     std::back_inserter(ret),
-                     [](auto pn) { return not contains(pn, "#output_"); });
-        return ret;
-    }
-
-    std::vector<std::string> get_output_parameter_names(module_ref mod) const
-    {
-        auto param_names = mod->get_parameter_names();
-        std::vector<std::string> ret;
-        std::copy_if(param_names.cbegin(),
-                     param_names.cend(),
-                     std::back_inserter(ret),
-                     [](auto pn) { return contains(pn, "#output_"); });
-        return ret;
     }
 
     argument compute(const shape&,
@@ -89,10 +58,10 @@ struct select_module
         // assuming arguments are in the same order as the input parameters
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
-                auto input_param_names = get_input_parameter_names(mr);
-                assert(input_param_names.size() <= args.size());
-                return std::equal(input_param_names.cbegin(),
-                                  input_param_names.cend(),
+                auto param_names = mr->get_parameter_names();
+                assert(param_names.size() <= args.size());
+                return std::equal(param_names.cbegin(),
+                                  param_names.cend(),
                                   args.cbegin(),
                                   [&](auto p_name, auto a) {
                                       return a.get_shape() == mr->get_parameter_shape(p_name);
@@ -107,23 +76,13 @@ struct select_module
         std::unordered_map<std::string, argument> params;
 
         // add input parameters
-        auto input_param_names = get_input_parameter_names(module_to_run);
-        assert(input_param_names.size() <= args.size());
-        std::transform(input_param_names.begin(),
-                       input_param_names.end(),
+        auto param_names = module_to_run->get_parameter_names();
+        assert(param_names.size() <= args.size());
+        std::transform(param_names.begin(),
+                       param_names.end(),
                        args.begin(),
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& a) { return std::make_pair(name, a); });
-
-        // add output parameters from arguments (none if on ref)
-        // auto output_param_names = get_output_parameter_names(module_to_run);
-        // std::transform(output_param_names.begin(),
-        //               output_param_names.end(),
-        //               args.begin() + input_param_names.size(),
-        //               std::inserter(params, params.end()),
-        //               [](auto&& name, auto&& a) {
-        //                   return std::make_pair(name, a);
-        //               });
 
         auto results = run(module_to_run, params);
         return argument{results};

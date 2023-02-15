@@ -77,8 +77,7 @@ endif()
 
 # Set compiler to clang++ if not set
 if(NOT DEFINED ENV{CXX} AND NOT DEFINED CMAKE_CXX_COMPILER AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    find_program(CLANG clang++ PATHS /opt/rocm PATH_SUFFIXES bin)
-
+    find_program(CLANG clang++ PATHS /opt/rocm /opt/rocm/llvm PATH_SUFFIXES bin)
     if(CLANG)
         set(ENV{CXX} ${CLANG})
     else()

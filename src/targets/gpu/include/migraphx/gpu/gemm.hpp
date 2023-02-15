@@ -45,11 +45,11 @@ template <class Op>
 struct rocblas_gemm
 {
     Op op;
-    float alpha                              = 1;
-    float beta                               = 0;
-    bool int8_x4_format                      = true;
-    bool compute_fp32                        = false;
-    unsigned trans_batch                     = 0;
+    float alpha          = 1;
+    float beta           = 0;
+    bool int8_x4_format  = true;
+    bool compute_fp32    = false;
+    unsigned trans_batch = 0;
     int32_t solution_idx = 0;
 
     template <class Self, class F>

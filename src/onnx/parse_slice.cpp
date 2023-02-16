@@ -46,7 +46,7 @@ struct parse_slice : op_parser<parse_slice>
         std::vector<int64_t> steps;
 
         // slice can have up to 5 inputs, we first check the 5th one
-        // to decide whether MIGRAPHX can handle this slice
+        // to decide whether MIGRAPHX can handle this slice.
         if(args.size() == 5)
         {
             migraphx::argument step_arg = args.back()->eval();
@@ -90,9 +90,10 @@ struct parse_slice : op_parser<parse_slice>
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
         }
 
+        // If axes arg is not given, the default is all of them.
         if(op.axes.empty())
         {
-            std::vector<int64_t> axes(args[0]->get_shape().lens().size());
+            std::vector<int64_t> axes(args[0]->get_shape().ndim());
             std::iota(axes.begin(), axes.end(), int64_t{0});
             op.axes = axes;
         }
@@ -103,6 +104,7 @@ struct parse_slice : op_parser<parse_slice>
         assert(op.axes.size() == op.starts.size());
         assert(op.axes.size() == op.ends.size());
 
+        // If any axes have negative step, prepare to add a "reverse" op
         for(auto i : range(steps.size()))
         {
             if(steps[i] >= 0)
@@ -117,7 +119,10 @@ struct parse_slice : op_parser<parse_slice>
 
         auto ins = info.add_instruction(op, args[0]);
         if(not raxes.empty())
+        {
             ins = info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
+        }
+        // If any steps are other than default 1, add a "steps" op
         if(std::any_of(steps.begin(), steps.end(), [](auto s) { return std::abs(s) != 1; }))
         {
             std::vector<int64_t> nsteps;

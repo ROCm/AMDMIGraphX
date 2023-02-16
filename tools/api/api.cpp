@@ -134,6 +134,11 @@ void set_offload_copy(compile_options& options, bool value) { options.offload_co
 
 void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
 
+void set_exhaustive_tune_flag(compile_options& options, bool value)
+{
+    options.exhaustive_tune = value;
+}
+
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 void set_default_dim_value(onnx_options& options, size_t value)

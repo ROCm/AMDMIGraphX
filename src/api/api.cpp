@@ -134,6 +134,11 @@ void set_offload_copy(compile_options& options, bool value) { options.offload_co
 
 void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
 
+void set_exhaustive_tune_flag(compile_options& options, bool value)
+{
+    options.exhaustive_tune = value;
+}
+
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 void set_default_dim_value(onnx_options& options, size_t value)
@@ -1686,6 +1691,19 @@ migraphx_compile_options_set_fast_math(migraphx_compile_options_t compile_option
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter compile_options: Null pointer");
         migraphx::set_fast_math((compile_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t compile_options,
+                                                  bool value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_exhaustive_tune_flag((compile_options->object), (value));
     });
     return api_error_result;
 }

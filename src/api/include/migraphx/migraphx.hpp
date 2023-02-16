@@ -1015,6 +1015,12 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     {
         call(&migraphx_compile_options_set_fast_math, this->get_handle_ptr(), value);
     }
+
+    /// Set or un-set exhaustive search to find fastest kernel
+    void set_exhaustive_tune_flag(bool value = true)
+    {
+        call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
+    }
 };
 
 /// A program represents the all computation graphs to be compiled and executed

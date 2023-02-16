@@ -30,5 +30,4 @@ Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://
 - Changes inside JIT to temporarily use cosine to compute sine function.
 
 ### Changed
-- Upgraded CI environment to RCOm 5.4.2
 - Changed version/location of 3rd party build dependencies to pick up fixes

@@ -7,7 +7,7 @@ Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://
 ### Added
 - Y-Model feature to store tuning information with the optimized model
 - Accuracy checker tool based on ONNX Runtime
-- NNX Operators parse_split, and Trilu 
+- ONNX Operators parse_split, and Trilu 
 - Build support for ROCm MLIR
 - Added migraphx-driver flag to print optimizations in python (--python)
 

@@ -33,11 +33,9 @@ def rocmtestnode(Map conf) {
         """
         echo cmd
         sh cmd
-        if (compiler != "hcc") {
-            // Only archive from master or develop
-            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
-            }
+        // Only archive from master or develop
+        if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
         }
     }
     node(name) {

@@ -75,7 +75,7 @@ An example command line combined with rocprof for tracing purposes is given belo
 
     /opt/rocm/bin/rocprof --hip-trace --roctx-trace --flush-rate 1ms --timestamp on -d <OUTPUT_PATH> --obj-tracking on /opt/rocm/bin/migraphx-driver roctx <ONNX_FILE> <MIGRAPHX_OPTIONS>
 
-After `rocprof` is run, the output directory will contain trace information for HIP and ROCTX in seperate `.txt` files.
+After `rocprof` is run, the output directory will contain trace information for HIP, HCC and ROCTX in seperate `.txt` files.
 To understand the interactions between API calls, it is recommended to utilize `roctx.py` helper script as desribed in :ref:`dev/tools:rocTX` section. 
 
 .. include:: ./driver/compile.rst

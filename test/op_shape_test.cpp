@@ -2364,23 +2364,13 @@ TEST_CASE(rnn)
 TEST_CASE(select_module_dyn)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {255, 255}, {255, 255}}};
-    migraphx::shape out_attr = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1000, 1000}}};
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1000, 1000}}});
+    migraphx::shape out_attr = migraphx::shape{sub_shapes};
     expect_shape(
-        migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1000, 1000}}},
-        migraphx::make_op("select_module", {{"output_dyn_shape", migraphx::to_value(out_attr)}}),
+        out_attr,
+        migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
         input);
-}
-
-TEST_CASE(select_module_static)
-{
-    migraphx::shape input{migraphx::shape::float_type, {3, 3, 255, 255}};
-    migraphx::shape out_attr = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1000, 1000}}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 1000}},
-                 migraphx::make_op("select_module",
-                                   {{"output_dyn_shape", migraphx::to_value(out_attr)},
-                                    {"output_batch_index", 0},
-                                    {"input_batch_index", 0}}),
-                 input);
 }
 
 TEST_CASE(slice_shape)

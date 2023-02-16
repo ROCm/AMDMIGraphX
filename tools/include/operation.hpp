@@ -168,22 +168,13 @@ shape compute_shape_op(const T& x, const std::vector<shape>& inputs)
 }
 
 template <class T>
-auto mod_compute_shape_op(rank<2>,
+auto mod_compute_shape_op(rank<1>,
                           const T& x,
                           const std::vector<shape>& inputs,
                           const std::vector<module_ref>& mod_args)
     -> decltype(x.compute_shape(inputs, mod_args))
 {
     return x.compute_shape(inputs, mod_args);
-}
-
-template <class T>
-auto mod_compute_shape_op(rank<1>,
-                          const T& x,
-                          const std::vector<shape>& inputs,
-                          const std::vector<module_ref>&) -> decltype(x.compute_shape(inputs))
-{
-    return x.compute_shape(inputs);
 }
 
 template <class T>

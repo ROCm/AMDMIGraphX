@@ -2,7 +2,7 @@
 
 Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://rocmsoftwareplatform.github.io/AMDMIGraphX/doc/html/).
 
-## AMDMIGraphX 2.5 for ROCm 5.5.0
+## MIGraphX 2.5 for ROCm 5.5.0
 
 ### Added
 - Y-Model feature to store tuning information with the optimized model

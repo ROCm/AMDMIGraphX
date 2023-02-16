@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/config.hpp>
+#define ROCBLAS_BETA_FEATURES_API 1
 #include <rocblas/rocblas.h>
 
 namespace migraphx {

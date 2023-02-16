@@ -136,6 +136,8 @@ struct rocblas_gemm
 
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
+        // Error:  Brian doesn't see this message when he runs the test
+        printf("******************************** finalize ************************************\n");
         if(ctx.get_exhaustive_tune_flag())
         {
             if(this->name() == "gpu::gemm")

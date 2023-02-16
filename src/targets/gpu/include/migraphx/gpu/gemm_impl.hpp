@@ -29,6 +29,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/reduce_dims.hpp>
+#include <rocblas/rocblas.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -124,6 +125,7 @@ struct gemm_impl
         auto n_dim = output_shape.lens().size();
         auto dim_0 = n_dim - 2;
         auto dim_1 = n_dim - 1;
+        // Leading dimensions of matrices
         lda        = input_shapes[0].strides()[transa ? dim_1 : dim_0];
         ldb        = input_shapes[1].strides()[transb ? dim_1 : dim_0];
         ldc        = input_shapes[2].strides()[dim_0];
@@ -188,7 +190,7 @@ struct gemm_impl
         }
     }
 
-    auto create_gemm_args(context& ctx, const std::vector<argument>& args, int32_t solution_idx = 0)
+    auto create_gemm_args(context& ctx, const std::vector<argument>& args, int32_t solution_idx = 0) const
     {
         // the rocblas_gemm API handles inputs and output matrices as
         // column-major format. When doing a C = A * B, we actually do
@@ -223,7 +225,7 @@ struct gemm_impl
 
     auto create_strided_batched_gemm_args(context& ctx,
                                           const std::vector<argument>& args,
-                                          int32_t solution_idx = 0)
+                                          int32_t solution_idx = 0) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -287,6 +289,52 @@ struct gemm_impl
         std::cout << "flag: " << flag << "\n";
     }
 
+    // @param[out]
+    // list_array [rocblas_int *]
+    //            output array for solution indices or NULL if getting number of solutions
+    // @param[in,out]
+    // list_size  [rocblas_int *]
+    //            size of list_array if getting solution indices or output with number of solutions
+    //            if list_array is NULL
+    auto create_gemm_ex_get_solutions_args(context& ctx,
+                                          const std::vector<argument>& args,
+                                          rocblas_int * list_array,
+                                          rocblas_int *list_size) const {
+
+#define GEMM_EX_ARGS                                                                             \
+    handle, transa, transb, m, n, k, &alpha, da, type, lda, db, type, ldb, &beta, dc, type, ldc, \
+        dc, type, ldc, type, rocblas_gemm_algo_solution_index                    
+
+                    return pack(ctx.get_stream().get_rocblas(),
+                    transa ? rocblas_operation_transpose : rocblas_operation_none,
+                    transb ? rocblas_operation_transpose : rocblas_operation_none,
+                    m,
+                    n,
+                    k,
+                    alpha_v,
+                    args[0].data(),
+                    arg_type,
+                    lda,
+                    args[1].data(),
+                    arg_type,  // todo: gemm_ex_get_solutions allows different data types for each matrix--do we?
+                    ldb,
+                    beta_v,
+                    args[2].data(),
+                  arg_type, //  output_type,
+                    ldc,
+                    is_3inputs ? args[3].data() : args[2].data(),
+                    arg_type, // output_type,
+                    ldd,
+                    compute_type,
+                    rocblas_gemm_algo_standard,
+                    flags,
+                    list_array,
+                    list_size
+
+                    );
+
+    }
+
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         std::vector<argument> input_args;
@@ -297,6 +345,25 @@ struct gemm_impl
                            return argument{x, nullptr};
                        });
         (void)(ctx);
+
+        // Find out how many solutions there are
+        rocblas_int list_size;
+        auto arg_list = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
+        rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);        
+        // if( rocblas_gemm_ex_get_solutions(gemm_args) != rocblas_status_success)
+        //     MIGRAPHX_THROW ("GEMM_IMPL: setup call to rocblas_gemm_ex_get_solutions() failed");
+
+printf("----------------------------------------- list size %d\n", list_size);
+exit(343);        
+
+        // Fill array with list of solutions
+        std::vector<rocblas_int> ary(list_size);
+        auto arg_list_solutions = create_gemm_ex_get_solutions_args(ctx, input_args, ary.data(), &list_size);
+        rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);        
+
+        // if(rocblas_gemm_ex_get_solutions(arg_list_solutions) != rocblas_status_success)
+        //             MIGRAPHX_THROW ("GEMM_IMPL: follow-up call to rocblas_gemm_ex_get_solutions() failed");
+
         // TODO : add code for tuning
         // return best_solution_idx;
         return 0;
@@ -314,6 +381,7 @@ struct gemm_impl
     rocblas_int a_stride, b_stride, c_stride, d_stride;
     rocblas_datatype compute_type, arg_type, output_type;
     bool strided_batched = true, is_3inputs = false, compute_fp32 = true;
+    uint32_t  flags = 0; //  optional gemm flags.
 };
 
 } // namespace gpu

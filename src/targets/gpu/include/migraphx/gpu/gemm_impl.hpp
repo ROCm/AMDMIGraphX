@@ -29,7 +29,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/reduce_dims.hpp>
-#include <rocblas/rocblas.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -354,7 +353,6 @@ struct gemm_impl
         //     MIGRAPHX_THROW ("GEMM_IMPL: setup call to rocblas_gemm_ex_get_solutions() failed");
 
 printf("----------------------------------------- list size %d\n", list_size);
-exit(343);        
 
         // Fill array with list of solutions
         std::vector<rocblas_int> ary(list_size);

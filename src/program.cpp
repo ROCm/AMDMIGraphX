@@ -210,17 +210,15 @@ void program::compile(const target& t, compile_options options)
     assert(not this->is_compiled());
     this->impl->target_name = t.name();
     this->impl->ctx         = t.get_context();
+
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
 
     options.trace(*this);
     options.trace();
-
     auto&& passes = t.get_passes(this->impl->ctx, options);
     run_passes(*this, passes, options.trace);
-
     auto mods = this->get_modules();
-
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {

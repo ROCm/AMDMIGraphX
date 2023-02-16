@@ -75,12 +75,19 @@ using miopen_find_options = MIGRAPHX_MANAGE_PTR(miopenFindOptions_t, miopenDestr
 using miopen_problem      = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
 using miopen_solution     = MIGRAPHX_MANAGE_PTR(miopenSolution_t, miopenDestroySolution);
 
-inline miopen_solution find_solution(miopenHandle_t handle, miopenProblem_t problem)
+inline miopen_solution
+find_solution(miopenHandle_t handle, miopenProblem_t problem, bool tune = false)
 {
     miopenSolution_t solution;
-    size_t found = 0;
-    auto status  = miopenFindSolutions(handle, problem, nullptr, &solution, &found, 1);
-    auto result  = miopen_solution{solution};
+    size_t found           = 0;
+    miopen_find_options fo = nullptr;
+    if(tune)
+    {
+        fo = make_obj<miopen_find_options>(&miopenCreateFindOptions);
+        miopenSetFindOptionTuning(fo.get(), 1);
+    }
+    auto status = miopenFindSolutions(handle, problem, fo.get(), &solution, &found, 1);
+    auto result = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)
         MIGRAPHX_THROW("MIOpen miopenFindSolutions failed");
     return result;

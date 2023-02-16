@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -748,6 +748,22 @@ def concat_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 4, 3])
     z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [9, 4, 3])
+
+    node = onnx.helper.make_node(
+        'Concat',
+        inputs=['0', '1'],
+        axis=0,
+        outputs=['2'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def concat_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None, 3])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, None, 3])
 
     node = onnx.helper.make_node(
         'Concat',
@@ -2054,6 +2070,40 @@ def gather_test():
 
 
 @onnx_test()
+def gather_scalar_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32, [])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 5, 6])
+
+    node = onnx.helper.make_node(
+        'Gather',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        axis=1,
+    )
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test()
+def gather_dyn_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT,
+                                      [None, 4, 5, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
+                                      [None, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Gather',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        axis=1,
+    )
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test()
 def gather_elements_axis0_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32, [2, 3])
@@ -2088,6 +2138,19 @@ def gather_elements_axis1_test():
 @onnx_test()
 def gathernd_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
+
+    node = onnx.helper.make_node('GatherND',
+                                 inputs=['data', 'indices'],
+                                 outputs=['y'])
+
+    return ([node], [x, i], [y])
+
+
+@onnx_test()
+def gathernd_dyn_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2])
     i = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2])
 
@@ -2497,6 +2560,58 @@ def if_else_test():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['res'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
+
+
+@onnx_test()
+def if_else_test_inlined():
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+
+    then_out = onnx.helper.make_tensor_value_info('then_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+    else_out = onnx.helper.make_tensor_value_info('else_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+
+    xt = np.ones((2, 3)).astype(np.float)
+    xt_tensor = helper.make_tensor(name='xt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=xt.shape,
+                                   vals=xt.flatten().astype(np.float32))
+
+    yt = np.random.randn(2, 3).astype(np.float)
+    yt_tensor = helper.make_tensor(name='yt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=yt.shape,
+                                   vals=yt.flatten().astype(np.float32))
+
+    then_add_node = onnx.helper.make_node('Add',
+                                          inputs=['x', 'xt'],
+                                          outputs=['then_out'])
+
+    else_mul_node = onnx.helper.make_node('Mul',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out'])
+
+    then_body = onnx.helper.make_graph([then_add_node], 'then_body', [],
+                                       [then_out])
+
+    else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
+                                       [else_out])
+
     cond = np.array([0]).astype(np.bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
@@ -2511,6 +2626,149 @@ def if_else_test():
                                  else_branch=else_body)
 
     return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+
+
+@onnx_test()
+def if_then_else_multi_output_shapes_inlined_test():
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT,
+                                           [2, 3, 1])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+
+    then_out = onnx.helper.make_tensor_value_info('then_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3, 1])
+    then_out2 = onnx.helper.make_tensor_value_info('then_out2',
+                                                   onnx.TensorProto.FLOAT,
+                                                   [2, 3, 1])
+    else_out = onnx.helper.make_tensor_value_info('else_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+
+    else_out2 = onnx.helper.make_tensor_value_info('else_out2',
+                                                   onnx.TensorProto.FLOAT,
+                                                   [2, 3])
+
+    xt = np.ones((2, 3, 1)).astype(np.float)
+    xt_tensor = helper.make_tensor(name='xt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=xt.shape,
+                                   vals=xt.flatten().astype(np.float32))
+
+    yt = np.random.randn(2, 3).astype(np.float)
+    yt_tensor = helper.make_tensor(name='yt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=yt.shape,
+                                   vals=yt.flatten().astype(np.float32))
+
+    then_add_node = onnx.helper.make_node('Add',
+                                          inputs=['x', 'xt'],
+                                          outputs=['then_out'])
+
+    then_add_node2 = onnx.helper.make_node('Add',
+                                           inputs=['x', 'x'],
+                                           outputs=['then_out2'])
+
+    else_mul_node = onnx.helper.make_node('Mul',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out'])
+
+    else_sub_node = onnx.helper.make_node('Sub',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out2'])
+
+    then_body = onnx.helper.make_graph([then_add_node, then_add_node2],
+                                       'then_body', [], [then_out, then_out2])
+
+    else_body = onnx.helper.make_graph([else_mul_node, else_sub_node],
+                                       'else_body', [], [else_out, else_out2])
+
+    cond = np.array([1]).astype(np.bool)
+    cond_tensor = helper.make_tensor(name="cond",
+                                     data_type=TensorProto.BOOL,
+                                     dims=cond.shape,
+                                     vals=cond.astype(bool))
+
+    res1 = onnx.helper.make_tensor_value_info('res1', TensorProto.FLOAT, [])
+    res2 = onnx.helper.make_tensor_value_info('res2', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['res1', 'res2'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([node], [x, y], [res1, res2], [cond_tensor, xt_tensor, yt_tensor])
+
+
+@onnx_test()
+def if_then_else_multi_output_shapes_test():
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT,
+                                           [2, 3, 1])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT,
+                                           [2, 3, 1])
+
+    then_out = onnx.helper.make_tensor_value_info('then_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3, 1])
+    then_out2 = onnx.helper.make_tensor_value_info('then_out2',
+                                                   onnx.TensorProto.FLOAT,
+                                                   [2, 3, 1])
+    else_out = onnx.helper.make_tensor_value_info('else_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3, 1])
+
+    else_out2 = onnx.helper.make_tensor_value_info('else_out2',
+                                                   onnx.TensorProto.FLOAT,
+                                                   [2, 3, 1])
+
+    xt = np.ones((2, 3, 1)).astype(np.float)
+    xt_tensor = helper.make_tensor(name='xt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=xt.shape,
+                                   vals=xt.flatten().astype(np.float32))
+
+    yt = np.random.randn(2, 3, 1).astype(np.float)
+    yt_tensor = helper.make_tensor(name='yt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=yt.shape,
+                                   vals=yt.flatten().astype(np.float32))
+
+    then_add_node = onnx.helper.make_node('Add',
+                                          inputs=['x', 'xt'],
+                                          outputs=['then_out'])
+
+    then_add_node2 = onnx.helper.make_node('Add',
+                                           inputs=['x', 'x'],
+                                           outputs=['then_out2'])
+
+    else_mul_node = onnx.helper.make_node('Mul',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out'])
+
+    else_sub_node = onnx.helper.make_node('Sub',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out2'])
+
+    then_body = onnx.helper.make_graph([then_add_node, then_add_node2],
+                                       'then_body', [], [then_out, then_out2])
+
+    else_body = onnx.helper.make_graph([else_mul_node, else_sub_node],
+                                       'else_body', [], [else_out, else_out2])
+
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
+    res1 = onnx.helper.make_tensor_value_info('res1', TensorProto.FLOAT, [])
+    res2 = onnx.helper.make_tensor_value_info('res2', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['res1', 'res2'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([node], [x, y, cond_tensor], [res1, res2], [xt_tensor, yt_tensor])
 
 
 @onnx_test()
@@ -2770,6 +3028,59 @@ def if_pl_test():
 
 @onnx_test()
 def if_then_test():
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+
+    then_out = onnx.helper.make_tensor_value_info('then_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+    else_out = onnx.helper.make_tensor_value_info('else_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+
+    xt = np.ones((2, 3)).astype(np.float)
+    xt_tensor = helper.make_tensor(name='xt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=xt.shape,
+                                   vals=xt.flatten().astype(np.float32))
+
+    yt = np.random.randn(2, 3).astype(np.float)
+    yt_tensor = helper.make_tensor(name='yt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=yt.shape,
+                                   vals=yt.flatten().astype(np.float32))
+
+    then_add_node = onnx.helper.make_node('Add',
+                                          inputs=['x', 'xt'],
+                                          outputs=['then_out'])
+
+    else_mul_node = onnx.helper.make_node('Mul',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out'])
+
+    then_body = onnx.helper.make_graph([then_add_node], 'then_body', [],
+                                       [then_out])
+
+    else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
+                                       [else_out])
+
+    cond_tensor = onnx.helper.make_tensor_value_info("cond",
+                                                     onnx.TensorProto.BOOL,
+                                                     [1])
+
+    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['res'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([node], [x, y, cond_tensor], [res], [xt_tensor, yt_tensor])
+
+
+@onnx_test()
+def if_then_test_inlined():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
 
@@ -5674,6 +5985,24 @@ def scatternd_test():
 
 
 @onnx_test()
+def scatternd_dyn_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT,
+                                         [None, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [None, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [None, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [None, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'])
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
 def selu_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3])
@@ -5853,6 +6182,132 @@ def slice_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def slice_dyn_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0'],
+                                 axes=[0],
+                                 starts=[1],
+                                 ends=[2],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def slice_step_dyn_test():
+    # A slice command with non - default steps will have a "Step"
+    # instruction added in parsing.
+    step = np.array([2, 1])
+    step_tensor = helper.make_tensor(name="step",
+                                     data_type=TensorProto.INT32,
+                                     dims=step.shape,
+                                     vals=step.astype(int))
+    arg_step = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_step'],
+                                value=step_tensor)
+
+    axis = np.array([-1, -2])
+    axis_tensor = helper.make_tensor(name="axis",
+                                     data_type=TensorProto.INT32,
+                                     dims=axis.shape,
+                                     vals=axis.astype(int))
+    arg_axis = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_axis'],
+                                value=axis_tensor)
+
+    end = np.array([-1, -1])
+    end_tensor = helper.make_tensor(name="end",
+                                    data_type=TensorProto.INT32,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node("Constant",
+                               inputs=[],
+                               outputs=['arg_end'],
+                               value=end_tensor)
+
+    start = np.array([-5, -3])
+    start_tensor = helper.make_tensor(name="start",
+                                      data_type=TensorProto.INT32,
+                                      dims=start.shape,
+                                      vals=start.astype(int))
+    arg_start = helper.make_node("Constant",
+                                 inputs=[],
+                                 outputs=['arg_start'],
+                                 value=start_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 2])
+
+    node = onnx.helper.make_node(
+        'Slice',
+        inputs=['0', 'arg_start', 'arg_end', 'arg_axis', 'arg_step'],
+        outputs=['1'])
+
+    return ([arg_step, arg_axis, arg_end, arg_start, node], [x], [y])
+
+
+@onnx_test
+def slice_reverse_dyn_test():
+    # A slice command with negative step on any axis will have
+    # a "Reverse" instruction added in parsing.
+
+    step = np.array([-1, 1])
+    step_tensor = helper.make_tensor(name="step",
+                                     data_type=TensorProto.INT32,
+                                     dims=step.shape,
+                                     vals=step.astype(int))
+    arg_step = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_step'],
+                                value=step_tensor)
+
+    axis = np.array([-1, -2])
+    axis_tensor = helper.make_tensor(name="axis",
+                                     data_type=TensorProto.INT32,
+                                     dims=axis.shape,
+                                     vals=axis.astype(int))
+    arg_axis = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_axis'],
+                                value=axis_tensor)
+
+    end = np.array([-1, -1])
+    end_tensor = helper.make_tensor(name="end",
+                                    data_type=TensorProto.INT32,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node("Constant",
+                               inputs=[],
+                               outputs=['arg_end'],
+                               value=end_tensor)
+
+    start = np.array([-5, -3])
+    start_tensor = helper.make_tensor(name="start",
+                                      data_type=TensorProto.INT32,
+                                      dims=start.shape,
+                                      vals=start.astype(int))
+    arg_start = helper.make_node("Constant",
+                                 inputs=[],
+                                 outputs=['arg_start'],
+                                 value=start_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 2])
+
+    node = onnx.helper.make_node(
+        'Slice',
+        inputs=['0', 'arg_start', 'arg_end', 'arg_axis', 'arg_step'],
+        outputs=['1'])
+
+    return ([arg_step, arg_axis, arg_end, arg_start, node], [x], [y])
 
 
 @onnx_test()
@@ -6970,6 +7425,35 @@ def where_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 1, 2, 2])
 
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 2, 2, 2])
+    node = onnx.helper.make_node('Where',
+                                 inputs=['c', 'x', 'y'],
+                                 outputs=['z'])
+
+    return ([node], [c, x, y], [z])
+
+
+@onnx_test()
+def where_dyn_test():
+    c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 2, 2])
+
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [None, 2, 2])
+    node = onnx.helper.make_node('Where',
+                                 inputs=['c', 'x', 'y'],
+                                 outputs=['z'])
+
+    return ([node], [c, x, y], [z])
+
+
+@onnx_test()
+def where_mixed_test():
+    # mixture of static and dynamic input shapes is not supported
+    c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 2, 2])
+
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [None, 2, 2])
     node = onnx.helper.make_node('Where',
                                  inputs=['c', 'x', 'y'],
                                  outputs=['z'])

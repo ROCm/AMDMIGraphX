@@ -66,6 +66,7 @@ any_ptr get_queue_context(T&)
 {
     return {};
 }
+
 template <class T>
 void wait_for_context(T&, any_ptr)
 {
@@ -412,6 +413,7 @@ inline const ValueType& any_cast(const context& x)
 #endif
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
+
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 
 #endif

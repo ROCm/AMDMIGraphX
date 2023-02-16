@@ -112,13 +112,7 @@ inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 #ifdef MIGRAPHX_USE_CLANG_TIDY
 #define MIGRAPHX_DEVICE_SHARED
 #else
-// Workaround hcc's broken tile_static macro
-#ifdef tile_static
-#undef tile_static
-#define MIGRAPHX_DEVICE_SHARED __attribute__((tile_static))
-#else
 #define MIGRAPHX_DEVICE_SHARED __shared__
-#endif
 #endif
 
 } // namespace device

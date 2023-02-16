@@ -15,11 +15,13 @@ def rocmtestnode(Map conf) {
         def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
         def flags = bconf.get("flags", "")
         def gpu_debug = bconf.get("gpu_debug", "0")
+        def hiprtc_workarounds = bconf.get("hiprtc_workarounds", "0")
         def cmd = """
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
+            export MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=${hiprtc_workarounds}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
             env
@@ -31,11 +33,9 @@ def rocmtestnode(Map conf) {
         """
         echo cmd
         sh cmd
-        if (compiler != "hcc") {
-            // Only archive from master or develop
-            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
-            }
+        // Only archive from master or develop
+        if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
         }
     }
     node(name) {
@@ -109,6 +109,10 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     stage('Hip Clang Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
+    }
+}, hiprtc_gpu_debug: rocmnode('vega') { cmake_build ->
+    stage('HipRTC GPU Debug') {
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true, hiprtc_workarounds:  true)
     }
 }, mlir_debug: rocmnode('vega') { cmake_build ->
     stage('MLIR Debug') {

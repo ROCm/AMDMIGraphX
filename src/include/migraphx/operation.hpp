@@ -141,6 +141,8 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs))
 {
     dependent_type<operation, T> y = x;
+    if(inputs.empty())
+        MIGRAPHX_THROW("At least one input is required for " + x.name());
     normalize_attributes(y, inputs[0].max_lens());
     return any_cast<T>(y).normalize_compute_shape(inputs);
 }

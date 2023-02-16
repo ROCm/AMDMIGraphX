@@ -10,12 +10,14 @@ Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://
 - ONNX Operators parse_split, and Trilu 
 - Build support for ROCm MLIR
 - Added migraphx-driver flag to print optimizations in python (--python)
+- Added JIT implementation of the Gather and Pad operator which results in better handling of larger tensor sizes.
 
 
 ### Optimizations
 - Improved performance of Transformer based models
 - Improved performance of the Pad, Concat, Gather, and Pointwise operators
 - Improved onnx/pb file loading speed
+- Added general optimize pass which runs several passes such as simplify_reshapes/algebra and DCE in loop.
 
 
 ### Fixed
@@ -24,6 +26,8 @@ Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://
 - Resolved a gcc-12 issue with mivisionx
 - Improved support for larger sized models and batches
 - Use --offload-arch instead of --cuda-gpu-arch for the HIP compiler
+- Changes inside JIT to use float accumulator for large reduce ops of half type to avoid overflow.
+- Changes inside JIT to temporarily use cosine to compute sine function.
 
 ### Changed
 - Upgraded CI environment to RCOm 5.4.2

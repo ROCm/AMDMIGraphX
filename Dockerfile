@@ -55,7 +55,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 # add this for roctracer dependancies
-RUN pip3 install CppHeaderParser packaging==22.0
+RUN pip3 install CppHeaderParser packaging==23.0
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm

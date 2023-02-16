@@ -34,12 +34,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Split dynamic batch dimension over submodules if exactly one dimension in the parameter list
- * is dynamic. Applies on program to only work on main module.
+ * is dynamic. Should only run on the main module.
  */
 struct split_dynamic_batch
 {
     std::string name() const { return "split_dynamic_batch"; }
-    void apply(program& p) const;
+    void apply(module_pass_manager& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

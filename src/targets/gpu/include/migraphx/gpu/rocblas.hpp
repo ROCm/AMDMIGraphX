@@ -26,8 +26,8 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/config.hpp>
 // for development:
-#define ROCBLAS_BETA_FEATURES_API 1    
-#define ROCBLAS_NO_DEPRECATED_WARNINGS  
+#define ROCBLAS_BETA_FEATURES_API
+#define ROCBLAS_NO_DEPRECATED_WARNINGS
 #include <rocblas/rocblas.h>
 
 namespace migraphx {

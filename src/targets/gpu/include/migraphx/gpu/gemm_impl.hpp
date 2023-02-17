@@ -101,12 +101,13 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
 {
     // TODO : Validate that return status is rocblas_status_success, if it is not look for
     // perf_degraded status and show warning, else, THROW.
-    return p([=](auto... ws) { 
-        auto status = f(ws..., xs...); 
+    return p([=](auto... ws) {
+        auto status = f(ws..., xs...);
         if(status != rocblas_status_success)
-            MIGRAPHX_THROW("rocblas_invoke: rocBLAS call failed with status " + std::to_string(status));
+            MIGRAPHX_THROW("rocblas_invoke: rocBLAS call failed with status " +
+                           std::to_string(status));
         return status;
-        });
+    });
 }
 
 template <typename T>
@@ -132,10 +133,10 @@ struct gemm_impl
         auto dim_0 = n_dim - 2;
         auto dim_1 = n_dim - 1;
         // Leading dimensions of matrices
-        lda        = input_shapes[0].strides()[transa ? dim_1 : dim_0];
-        ldb        = input_shapes[1].strides()[transb ? dim_1 : dim_0];
-        ldc        = input_shapes[2].strides()[dim_0];
-        ldd        = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
+        lda = input_shapes[0].strides()[transa ? dim_1 : dim_0];
+        ldb = input_shapes[1].strides()[transb ? dim_1 : dim_0];
+        ldc = input_shapes[2].strides()[dim_0];
+        ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
 
         arg_type    = get_type(input_shapes[0].type());
         output_type = arg_type;
@@ -196,9 +197,11 @@ struct gemm_impl
         }
     }
 
-    auto create_gemm_args(context& ctx, const std::vector<argument>& args, int32_t solution_idx = 0) const
+    auto create_gemm_args(context& ctx,
+                          const std::vector<argument>& args,
+                          int32_t solution_idx = 0) const
     {
-       // the rocblas_gemm API handles inputs and output matrices as
+        // the rocblas_gemm API handles inputs and output matrices as
         // column-major format. When doing a C = A * B, we actually do
         // C^T = (B^T) * (A^T). That is the reason we input args[1] as
         // A and args[0] as B in calling the rocblas_gemm.
@@ -286,8 +289,7 @@ struct gemm_impl
         std::cout << "alpha: " << alpha << " beta: " << beta << "\n";
         std::cout << "lda : " << lda << " ldb: " << ldb << " ldc: " << ldc << " ldd: " << ldd
                   << "\n";
-        std::cout << "strided_batched: " << strided_batched 
-                  << "\n";
+        std::cout << "strided_batched: " << strided_batched << "\n";
         std::cout << "astride: " << a_stride << " b_stride: " << b_stride
                   << " c_stride: " << c_stride << " d_stride: " << d_stride << "\n";
         std::cout << "arg type : " << arg_type << " compute_type: " << compute_type
@@ -303,75 +305,76 @@ struct gemm_impl
     //            size of list_array if getting solution indices or output with number of solutions
     //            if list_array is NULL
     auto create_gemm_ex_get_solutions_args(context& ctx,
-                                          const std::vector<argument>& args,
-                                          rocblas_int * list_array,
-                                          rocblas_int *list_size) const {    
-
-                return pack(ctx.get_stream().get_rocblas(),
-                    transa ? rocblas_operation_transpose : rocblas_operation_none,
+                                           const std::vector<argument>& args,
+                                           std::vector<rocblas_int> list,
+                                           rocblas_int list_size) const
+    {
+        return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
-                    m,
+                    transa ? rocblas_operation_transpose : rocblas_operation_none,
                     n,
+                    m,
                     k,
                     alpha_v,
                     args[1].data(),
-                    arg_type,  // todo: gemm_ex_get_solutions allows different data types for each matrix--do we?
+                    arg_type,
                     ldb,
                     args[0].data(),
                     arg_type,
                     lda,
                     beta_v,
                     args[2].data(),
-                    arg_type, //  todo:  is this correct?   output_type,
+                    output_type,
                     ldc,
                     is_3inputs ? args[3].data() : args[2].data(),
-                    arg_type, // output_type,
+                    output_type,
                     ldd,
                     compute_type,
                     rocblas_gemm_algo_solution_index,
-                    flags,
-                    list_array,
-                    list_size
-
-                    );
-
+                    rocblas_gemm_flags_none,
+                    list.data(),
+                    &list_size);
     }
+    /*! \brief  CPU Timer(in microsecond): synchronize with given queue/stream and return wall time.
+    borrowed from clients/common/utility.cpp
+    */
+    double get_time_us_sync(hipStream_t stream) const
+    {
+        hipStreamSynchronize(stream);
 
+        auto now = std::chrono::steady_clock::now();
+        // now.time_since_epoch() is the duration since epoch
+        // which is converted to microseconds
+        auto duration =
+            std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+        return (static_cast<double>(duration));
+    };
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
                        std::back_inserter(input_args),
-                       [](const shape& x) {
-                            //    return argument{x, nullptr};
-                            // Workaround:  rocBLAS currently doesn't support null argument inputs,
-                            // so allocate some fake buffers of the right shapes
-                        //    return allocate_gpu(x);    OR 
-                           return to_gpu(generate_argument(x));
-                       });
+                       [](const shape& x) { return to_gpu(generate_argument(x)); });
         (void)(ctx);
 
-
         // Find out how many solutions there are
-        rocblas_int list_size;
-        auto arg_list = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
-printf("data pointers  uuuuuuuuuuuuuuuuuuu %p %p %p %p\n",ctx.get_stream().get_rocblas(), input_args[0].data(), input_args[1].data(), input_args[2].data());
+        rocblas_int list_size = 0;
+        auto arg_list         = create_gemm_ex_get_solutions_args(ctx, input_args, {}, list_size);
 
+        // If the rocBLAS call fails, this will throw an exception and we won't see the next debug
+        // message
+        rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);
 
-// If the rocBLAS call fails, this will throw an exception and we won't see the next debug message
-        rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);        
-
-printf("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy  tune(), list size %d\n", list_size);
         // Fill array with list of solutions
         std::vector<rocblas_int> solution_indices(list_size);
-        auto arg_list_solutions = create_gemm_ex_get_solutions_args(ctx, input_args, solution_indices.data(), &list_size);
-        rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);        
-
+        auto arg_list_solutions =
+            create_gemm_ex_get_solutions_args(ctx, input_args, solution_indices, list_size);
+        rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);
 
         // Example basic benchmark loop
-        double      bestTime = std::numeric_limits<double>::max();
-        rocblas_int bestSol  = -1;
+        double bestTime     = std::numeric_limits<double>::max();
+        rocblas_int bestSol = -1;
         for(auto sol : solution_indices)
         {
             // warmup
@@ -380,7 +383,7 @@ printf("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy  tune(), list siz
                 run(ctx, input_args, sol);
             }
 
-            double time = get_time_us_sync(ctx.get_stream().get()); // in microseconds 
+            double time = get_time_us_sync(ctx.get_stream().get()); // in microseconds
 
             // timing loop
             for(rocblas_int hc = 0; hc < hot_calls; ++hc)
@@ -399,27 +402,8 @@ printf("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy  tune(), list siz
         }
         std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
 
-
-
         return bestSol;
     }
-
-    
-    /*! \brief  CPU Timer(in microsecond): synchronize with given queue/stream and return wall time.
-    borrowed from clients/common/utility.cpp
-    */
-    double get_time_us_sync(hipStream_t stream) const
-    {
-        hipStreamSynchronize(stream);
-
-        auto now = std::chrono::steady_clock::now();
-        // now.time_since_epoch() is the duration since epoch
-        // which is converted to microseconds
-        auto duration
-            = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
-        return (static_cast<double>(duration));
-    };
-
 
     private:
     size_t num_matrices;
@@ -433,10 +417,10 @@ printf("yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy  tune(), list siz
     rocblas_int a_stride, b_stride, c_stride, d_stride;
     rocblas_datatype compute_type, arg_type, output_type;
     bool strided_batched = true, is_3inputs = true, compute_fp32 = true;
-    uint32_t  flags = 0; //  optional gemm flags.
+    uint32_t flags = 0; //  optional gemm flags.
     // tuning meta parameters
-    rocblas_int       cold_calls = 1;
-    rocblas_int       hot_calls  = 1;
+    rocblas_int cold_calls = 1;
+    rocblas_int hot_calls  = 1;
 };
 
 } // namespace gpu

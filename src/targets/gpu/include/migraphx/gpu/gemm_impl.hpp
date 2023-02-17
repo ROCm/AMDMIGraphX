@@ -306,8 +306,8 @@ struct gemm_impl
     //            if list_array is NULL
     auto create_gemm_ex_get_solutions_args(context& ctx,
                                            const std::vector<argument>& args,
-                                           std::vector<rocblas_int> list,
-                                           rocblas_int list_size) const
+                                           rocblas_int*  list,
+                                           rocblas_int* list_size) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -332,8 +332,8 @@ struct gemm_impl
                     compute_type,
                     rocblas_gemm_algo_solution_index,
                     rocblas_gemm_flags_none,
-                    list.data(),
-                    &list_size);
+                    list,
+                    list_size);
     }
     /*! \brief  CPU Timer(in microsecond): synchronize with given queue/stream and return wall time.
     borrowed from clients/common/utility.cpp
@@ -360,19 +360,18 @@ struct gemm_impl
 
         // Find out how many solutions there are
         rocblas_int list_size = 0;
-        auto arg_list         = create_gemm_ex_get_solutions_args(ctx, input_args, {}, list_size);
-
-        // If the rocBLAS call fails, this will throw an exception and we won't see the next debug
-        // message
+        auto arg_list         = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
         rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);
-
+printf("================ list size %d\n", list_size);
         // Fill array with list of solutions
         std::vector<rocblas_int> solution_indices(list_size);
         auto arg_list_solutions =
-            create_gemm_ex_get_solutions_args(ctx, input_args, solution_indices, list_size);
+            create_gemm_ex_get_solutions_args(ctx, input_args, solution_indices.data(), &list_size);
         rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);
 
+        //
         // Example basic benchmark loop
+        //
         double bestTime     = std::numeric_limits<double>::max();
         rocblas_int bestSol = -1;
         for(auto sol : solution_indices)
@@ -390,7 +389,8 @@ struct gemm_impl
             {
                 run(ctx, input_args, sol);
             }
-            time = get_time_us_sync(ctx.get_stream().get()) - time;
+            // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from 1 to 11--why?
+            time = (get_time_us_sync(ctx.get_stream().get()) - time)/hot_calls;
             std::cout << "Sol " << sol << ": " << time << " us" << std::endl;
 
             // track winner
@@ -420,7 +420,7 @@ struct gemm_impl
     uint32_t flags = 0; //  optional gemm flags.
     // tuning meta parameters
     rocblas_int cold_calls = 1;
-    rocblas_int hot_calls  = 1;
+    rocblas_int hot_calls  = 11;
 };
 
 } // namespace gpu

@@ -95,7 +95,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
+if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip
 elseif(MIGRAPHX_ENABLE_GPU)

@@ -2386,6 +2386,70 @@ TEST_CASE(slice_shape)
     expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
                  migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {10}}}),
                  input);
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
+                 migraphx::make_op("slice", {{"axes", {2}}, {"starts", {-1}}, {"ends", {10}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape0)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 7, 0}, {2, 3, 0}}};
+
+    // Slice axis 1 to size 4-1=3
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {3, 3, 0}, {2, 3, 0}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape1)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 7, 0}, {2, 3, 0}}};
+    // Slice axis 1 with negative index
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {2, 2, 0}, {2, 3, 0}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {-4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape2)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 7, 0}, {2, 3, 0}}};
+    // Sliced range max bigger than dimension; is clipped
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {6, 6, 0}, {2, 3, 0}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {10}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape3)
+{
+    // TODO: When variable dimension slicing is allowed, Slice to a size smaller than min.
+    // Until then, this action is an error.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+                 input);
+    // clang-format off
+    //     expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {1, 1, 0}, {2, 3, 0}}},
+    //                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+    //                  input);
+    // clang-format on
+}
+
+TEST_CASE(slice_dyn_shape4)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 2, 0}, {7, 7, 0}, {2, 3, 0}}};
+    // Slice multiple axes:  axis 0 to size 2-1=1 and axis 1 to size 4-1=3
+    expect_shape(
+        migraphx::shape{migraphx::shape::int32_type, {{1, 1, 0}, {3, 3, 0}, {2, 3, 0}}},
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
+}
+
+TEST_CASE(slice_dyn_shape5)
+{
+    // Axis out of range.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 2, 0}, {7, 7, 0}, {2, 3, 0}}};
+    throws_shape(
+        migraphx::make_op("slice", {{"axes", {0, 20}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
 }
 
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }

@@ -113,24 +113,78 @@ struct BlockToCTileMap_M00_N0_M01Adapt
     CGridDesc_M_N c_grid_desc_m_n_;
 };
 
+// // to track the points which need to be set to -inf on C0
+// // Note: no need to reset M padding value, because they will not be stored out.
+// struct C0MatrixMask
+// {
+//     __device__ C0MatrixMask(ck::index_t NRaw) : NRaw_(NRaw) {}
+
+//     __device__ bool IsUpperTriangle(ck::index_t m, ck::index_t n) const { return n > m; }
+
+//     __device__ bool IsNOutOfBound(/*ck::index_t m, */ ck::index_t n) const { return n >= NRaw_; }
+
+//     __device__ bool IsMaskedElement(ck::index_t m, ck::index_t n) const
+//     {
+//         return IsUpperTriangle(m, n) || IsNOutOfBound(n);
+//     }
+
+//     private:
+//     // ck::index_t MRaw_;
+//     ck::index_t NRaw_;
+// };
+
+struct MaskDisabledPredicate
+{
+    __host__ __device__ constexpr bool operator()(ck::index_t /*m*/, ck::index_t /*n*/) const
+    {
+        return false;
+    };
+
+    __host__ __device__ constexpr bool
+        IsTileSkippable(ck::index_t /*m*/, ck::index_t /*n*/, ck::index_t /*m_tile*/, ck::index_t /*n_tile*/) const
+    {
+        return false;
+    }
+};
+
+struct MaskOutUpperTrianglePredicate
+{
+    __host__ __device__ constexpr bool operator()(ck::index_t m, ck::index_t n) const { return n > m; }
+
+    __host__ __device__ constexpr bool
+    IsTileSkippable(ck::index_t m, ck::index_t n, ck::index_t m_tile, ck::index_t /*n_tile*/) const
+    {
+        return operator()(m + m_tile - 1, n);
+    }
+};
+
 // to track the points which need to be set to -inf on C0
 // Note: no need to reset M padding value, because they will not be stored out.
-struct C0MatrixMask
+template <typename MaskOutPredicate>
+struct C0MatrixMask_impl
 {
-    __device__ C0MatrixMask(ck::index_t NRaw) : NRaw_(NRaw) {}
+    __host__ __device__ C0MatrixMask_impl(ck::index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{}) {}
 
-    __device__ bool IsUpperTriangle(ck::index_t m, ck::index_t n) const { return n > m; }
-
-    __device__ bool IsNOutOfBound(/*ck::index_t m, */ ck::index_t n) const { return n >= NRaw_; }
-
-    __device__ bool IsMaskedElement(ck::index_t m, ck::index_t n) const
+    __host__ __device__ constexpr bool IsNOutOfBound(/*index_t m, */ ck::index_t n) const
     {
-        return IsUpperTriangle(m, n) || IsNOutOfBound(n);
+        return n >= NRaw_;
+    }
+
+    __host__ __device__ constexpr bool IsMaskedElement(ck::index_t m, ck::index_t n) const
+    {
+        return predicate_(m, n) || IsNOutOfBound(n);
+    }
+
+    __host__ __device__ constexpr bool
+    IsTileSkippable(ck::index_t m, ck::index_t n, ck::index_t m_tile, ck::index_t n_tile) const
+    {
+        return predicate_.IsTileSkippable(m, n, m_tile, n_tile);
     }
 
     private:
-    // ck::index_t MRaw_;
+    // index_t MRaw_;
     ck::index_t NRaw_;
+    MaskOutPredicate predicate_;
 };
 
 template <typename ALayout,
@@ -211,6 +265,19 @@ struct CK_DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     B1ElementwiseOperation b1_element_op{};
     CElementwiseOperation c_element_op{};
     AccElementwiseOperation acc_element_op{alpha};
+
+    //static constexpr auto get_MOUT() { return MaskOutUpperTriangle; };
+
+    using C0MatrixMask = ck::conditional_t<MaskOutUpperTriangle,
+                                       C0MatrixMask_impl<MaskOutUpperTrianglePredicate>,
+                                       C0MatrixMask_impl<MaskDisabledPredicate>>;
+
+    struct C0MM_Wrapper
+    {
+        __device__ C0MM_Wrapper(const unsigned int n) : c0_matrix_mask_{static_cast<ck::index_t>(n)} {}
+
+        C0MatrixMask c0_matrix_mask_;
+    };
 
     template <typename AGridDesc_AK0_M_AK1,
               typename BGridDesc_BK0_N_BK1,

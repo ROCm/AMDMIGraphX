@@ -153,7 +153,8 @@ template <typename ALayout,
           ck::index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           ck::index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler()>
+          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler(),
+          ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct CK_DeviceGemmMultipleD
 {
     static constexpr auto I0 = ck::Number<0>{};
@@ -210,7 +211,8 @@ struct CK_DeviceGemmMultipleD
         CShuffleNXdlPerWavePerShuffle,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        PipelineVer>;
 
     // return block_id to E matrix tile idx (m0, n0) mapping
     template <class EGridDesc_M_N>

@@ -124,7 +124,12 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
         BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, Gemm1NPerBlock, decltype(c_grid_desc_m_n)>(
             c_grid_desc_m_n);
 
-    const C0MatrixMask c0_matrix_mask(n);
+    //using C0MatrixMask = ck::conditional_t<gemm.get_MOUT(),
+    //                                    C0MatrixMask_impl<MaskOutUpperTrianglePredicate>,
+    //                                    C0MatrixMask_impl<MaskDisabledPredicate>>;
+    // template<>
+    // C0MatrixMask_impl c0_matrix_mask<MaskDisabledPredicate>{n};
+    typename G::C0MM_Wrapper cw(n);
 
     const auto K = a_grid_desc_ak0_m_ak1.GetLength(ck::Number<0>{}) *
                    a_grid_desc_ak0_m_ak1.GetLength(ck::Number<2>{});
@@ -159,7 +164,7 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
                                                   b1_grid_desc_bk0_n_bk1,
                                                   c_grid_desc_mblock_mperblock_nblock_nperblock,
                                                   block_2_ctile_map,
-                                                  c0_matrix_mask);
+                                                  cw.c0_matrix_mask_);
 }
 
 template <class G, index_int BlocksPerBatch, class... Ts>

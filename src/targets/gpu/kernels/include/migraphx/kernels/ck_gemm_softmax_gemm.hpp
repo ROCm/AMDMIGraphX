@@ -124,7 +124,7 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
         BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, Gemm1NPerBlock, decltype(c_grid_desc_m_n)>(
             c_grid_desc_m_n);
 
-    //using C0MatrixMask = ck::conditional_t<gemm.get_MOUT(),
+    // using C0MatrixMask = ck::conditional_t<gemm.get_MOUT(),
     //                                    C0MatrixMask_impl<MaskOutUpperTrianglePredicate>,
     //                                    C0MatrixMask_impl<MaskDisabledPredicate>>;
     // template<>

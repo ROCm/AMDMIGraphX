@@ -140,8 +140,10 @@ struct MaskDisabledPredicate
         return false;
     };
 
-    __host__ __device__ constexpr bool
-        IsTileSkippable(ck::index_t /*m*/, ck::index_t /*n*/, ck::index_t /*m_tile*/, ck::index_t /*n_tile*/) const
+    __host__ __device__ constexpr bool IsTileSkippable(ck::index_t /*m*/,
+                                                       ck::index_t /*n*/,
+                                                       ck::index_t /*m_tile*/,
+                                                       ck::index_t /*n_tile*/) const
     {
         return false;
     }
@@ -149,7 +151,10 @@ struct MaskDisabledPredicate
 
 struct MaskOutUpperTrianglePredicate
 {
-    __host__ __device__ constexpr bool operator()(ck::index_t m, ck::index_t n) const { return n > m; }
+    __host__ __device__ constexpr bool operator()(ck::index_t m, ck::index_t n) const
+    {
+        return n > m;
+    }
 
     __host__ __device__ constexpr bool
     IsTileSkippable(ck::index_t m, ck::index_t n, ck::index_t m_tile, ck::index_t /*n_tile*/) const
@@ -163,7 +168,10 @@ struct MaskOutUpperTrianglePredicate
 template <typename MaskOutPredicate>
 struct C0MatrixMask_impl
 {
-    __host__ __device__ C0MatrixMask_impl(ck::index_t NRaw) : NRaw_(NRaw), predicate_(MaskOutPredicate{}) {}
+    __host__ __device__ C0MatrixMask_impl(ck::index_t NRaw)
+        : NRaw_(NRaw), predicate_(MaskOutPredicate{})
+    {
+    }
 
     __host__ __device__ constexpr bool IsNOutOfBound(/*index_t m, */ ck::index_t n) const
     {
@@ -266,15 +274,17 @@ struct CK_DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
     CElementwiseOperation c_element_op{};
     AccElementwiseOperation acc_element_op{alpha};
 
-    //static constexpr auto get_MOUT() { return MaskOutUpperTriangle; };
+    // static constexpr auto get_MOUT() { return MaskOutUpperTriangle; };
 
     using C0MatrixMask = ck::conditional_t<MaskOutUpperTriangle,
-                                       C0MatrixMask_impl<MaskOutUpperTrianglePredicate>,
-                                       C0MatrixMask_impl<MaskDisabledPredicate>>;
+                                           C0MatrixMask_impl<MaskOutUpperTrianglePredicate>,
+                                           C0MatrixMask_impl<MaskDisabledPredicate>>;
 
     struct C0MM_Wrapper
     {
-        __device__ C0MM_Wrapper(const unsigned int n) : c0_matrix_mask_{static_cast<ck::index_t>(n)} {}
+        __device__ C0MM_Wrapper(const unsigned int n) : c0_matrix_mask_{static_cast<ck::index_t>(n)}
+        {
+        }
 
         C0MatrixMask c0_matrix_mask_;
     };

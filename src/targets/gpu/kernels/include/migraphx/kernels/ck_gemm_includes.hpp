@@ -153,7 +153,7 @@ template <typename ALayout,
           ck::index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           ck::index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler(),
+          ck::LoopScheduler LoopSched     = ck::make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct CK_DeviceGemmMultipleD
 {

@@ -34,8 +34,8 @@ struct test_select_module_reduce : verify_program<test_select_module_reduce>
         migraphx::program p;
 
         // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size, std::string module_name) {
-            auto submod = p.create_module(module_name);
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
+            auto* submod = p.create_module(module_name);
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 2, 2}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             auto reduce_ins =

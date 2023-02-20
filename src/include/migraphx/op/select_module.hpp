@@ -43,7 +43,7 @@ struct select_module
 
     std::string name() const { return "select_module"; }
 
-    shape compute_shape(const std::vector<shape>&, std::vector<module_ref>) const
+    shape compute_shape(const std::vector<shape>&, const std::vector<module_ref>&) const
     {
         return shape{output_dyn_shapes};
     }
@@ -72,7 +72,7 @@ struct select_module
         {
             MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
         }
-        auto module_to_run = *module_iter;
+        auto* module_to_run = *module_iter;
         std::unordered_map<std::string, argument> params;
 
         // add input parameters

@@ -331,7 +331,7 @@ struct gemm_impl
                     ldd,
                     compute_type,
                     rocblas_gemm_algo_solution_index,
-                    rocblas_gemm_flags_none,
+                    int8_flag,
                     list,
                     list_size);
     }

@@ -440,18 +440,12 @@ struct gemm_impl
             // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,
             // and increasing cold_calls makes little or no difference.  Why?
             time = (get_time_us_sync(ctx.get_stream().get()) - time) / hot_calls;
-            // std::cout << "Sol " << sol << ": " << time << " us" << std::endl;
+            std::cout << "Solution index " << sol << ": " << time << " us" << std::endl;
 
             // track winner
             if(time < bestTime)
             {
-                // Check if solution is valid for problem (success case)
-                // auto arg_list_validate_solutions =
-                //     create_gemm_ex_get_solutions_args(ctx, input_args,
-                //     rocblas_gemm_flags_check_solution_index,
-                //     solution_indices.data(), &list_size);
-                printf("||||||||||||||||||||||||||||||||||| ok got this far\n");
-                // auto check_valid = run(ctx, arg_list_validate_solutions, sol);
+                // Check if solution is valid for problem
                 auto check_valid = validate(ctx, input_args, sol);
 
                 if(check_valid != rocblas_status_invalid_value)
@@ -462,7 +456,7 @@ struct gemm_impl
                 }
             }
         }
-        // std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
+        std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
         if(bestSol == -1)
             MIGRAPHX_THROW("TUNE: No valid solution");
         return bestSol;

@@ -37,7 +37,7 @@ struct test_select_module_add : verify_program<test_select_module_add>
         auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
 
         // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size, std::string module_name) {
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
             auto* submod = p.create_module(module_name);
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);

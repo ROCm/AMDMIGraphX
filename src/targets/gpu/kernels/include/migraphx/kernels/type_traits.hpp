@@ -142,6 +142,25 @@ MIGRAPHX_BUILTIN_TYPE_TRAITN(is_nothrow_constructible);
 MIGRAPHX_BUILTIN_TYPE_TRAITN(is_trivially_constructible);
 
 template <class T>
+struct remove_cv
+{
+    using type = T;
+};
+
+template <class T>
+struct remove_cv<const T> : remove_cv<T>
+{
+};
+
+template <class T>
+struct remove_cv<volatile T> : remove_cv<T>
+{
+};
+
+template <class T>
+using remove_cv_t = typename remove_cv<T>::type;
+
+template <class T>
 struct remove_reference
 {
     using type = T;
@@ -167,6 +186,11 @@ struct add_pointer : type_identity<typename remove_reference<T>::type*>
 
 template <class T>
 using add_pointer_t = typename add_pointer<T>::type;
+
+template <class T>
+struct is_void : is_same<void, remove_cv_t<T>>
+{
+};
 
 template <class... Ts>
 struct common_type;

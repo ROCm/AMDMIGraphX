@@ -369,7 +369,7 @@ struct miopen_apply
         apply_map.emplace("select_module", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
             auto mod_args                       = ins->module_inputs();
-            for(auto smod : mod_args)
+            for(auto* smod : mod_args)
             {
                 smod->use_local_alloc = true;
                 auto last_ins         = std::prev(smod->end());

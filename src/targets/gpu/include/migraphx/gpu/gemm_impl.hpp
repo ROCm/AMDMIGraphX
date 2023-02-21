@@ -96,16 +96,27 @@ static bool is_transposed(const shape& s)
 
 static rocblas_int get_batch_stride(const shape& a) { return a.strides()[a.strides().size() - 3]; }
 
+/**
+ * Returns results of rocblas_status_success, rocblas_status_perf_degraded,
+ * or rocblas_status_invalid_value.  Caller
+ * is expected to check for invalid index.  Any other result causes an exception.
+ *
+ */
 template <class F, class Pack, class... Ts>
 auto rocblas_invoke(F f, Pack p, Ts... xs)
 {
-    // TODO : Validate that return status is rocblas_status_success, if it is not look for
-    // perf_degraded status and show warning, else, THROW.
     return p([=](auto... ws) {
         auto status = f(ws..., xs...);
-        if(status != rocblas_status_success)
-            MIGRAPHX_THROW("rocblas_invoke: rocBLAS call failed with status " +
-                           std::to_string(status));
+        if(status != rocblas_status_success and status != rocblas_status_invalid_value)
+        {
+            if(status == rocblas_status_perf_degraded)
+            {
+                std::cerr << "WARNING: degraded perf. in rocBLAS call" << std::endl;
+            }
+            else
+                MIGRAPHX_THROW("rocblas_invoke: rocBLAS call failed with status " +
+                               std::to_string(status));
+        }
         return status;
     });
 }
@@ -199,6 +210,7 @@ struct gemm_impl
 
     auto create_gemm_args(context& ctx,
                           const std::vector<argument>& args,
+                          rocblas_gemm_flags flag,
                           int32_t solution_idx = 0) const
     {
         // the rocblas_gemm API handles inputs and output matrices as
@@ -229,11 +241,12 @@ struct gemm_impl
                     rocblas_gemm_algo_standard, // TODO: Need to change this flag to
                                                 // rocblas_gemm_algo_solution_index
                     solution_idx,
-                    int8_flag);
+                    flag);
     }
 
     auto create_strided_batched_gemm_args(context& ctx,
                                           const std::vector<argument>& args,
+                                          rocblas_gemm_flags flag,
                                           int32_t solution_idx = 0) const
     {
         return pack(ctx.get_stream().get_rocblas(),
@@ -264,7 +277,7 @@ struct gemm_impl
                     compute_type,
                     rocblas_gemm_algo_standard,
                     solution_idx,
-                    int8_flag);
+                    flag);
     }
 
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
@@ -272,13 +285,45 @@ struct gemm_impl
 
         if(strided_batched)
         {
-            auto gemm_args = create_strided_batched_gemm_args(ctx, input_args, solution_idx);
+            auto gemm_args =
+                create_strided_batched_gemm_args(ctx, input_args, int8_flag, solution_idx);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
         }
         else
         {
-            auto gemm_args = create_gemm_args(ctx, input_args, solution_idx);
+            auto gemm_args = create_gemm_args(ctx, input_args, int8_flag, solution_idx);
             rocblas_invoke(&rocblas_gemm_ex, gemm_args);
+        }
+    }
+
+    auto validate(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx) const
+    {
+        std::vector<argument> input_args;
+        std::transform(input_shapes.begin(),
+                       input_shapes.end(),
+                       std::back_inserter(input_args),
+                       [](const shape& x) { return to_gpu(generate_argument(x)); });
+
+        return validate(ctx, input_args, solution_idx);
+    }
+
+    /**
+     * Checks a particular solution for validity by running it with the flag
+     * rocblas_gemm_flags_check_solution_index, and returns the result
+     */
+    auto validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) const
+    {
+        if(strided_batched)
+        {
+            auto gemm_args = create_strided_batched_gemm_args(
+                ctx, input_args, rocblas_gemm_flags_check_solution_index, solution_idx);
+            return rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
+        }
+        else
+        {
+            auto gemm_args = create_gemm_args(
+                ctx, input_args, rocblas_gemm_flags_check_solution_index, solution_idx);
+            return rocblas_invoke(&rocblas_gemm_ex, gemm_args);
         }
     }
 
@@ -306,7 +351,8 @@ struct gemm_impl
     //            if list_array is NULL
     auto create_gemm_ex_get_solutions_args(context& ctx,
                                            const std::vector<argument>& args,
-                                           rocblas_int*  list,
+                                           rocblas_gemm_flags flag,
+                                           rocblas_int* list,
                                            rocblas_int* list_size) const
     {
         return pack(ctx.get_stream().get_rocblas(),
@@ -331,12 +377,13 @@ struct gemm_impl
                     ldd,
                     compute_type,
                     rocblas_gemm_algo_solution_index,
-                    rocblas_gemm_flags_none,
+                    flag,
                     list,
                     list_size);
     }
     /*! \brief  CPU Timer(in microsecond): synchronize with given queue/stream and return wall time.
     borrowed from clients/common/utility.cpp
+    TODO: replace with the MIGRaphx timer
     */
     double get_time_us_sync(hipStream_t stream) const
     {
@@ -349,6 +396,7 @@ struct gemm_impl
             std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
         return (static_cast<double>(duration));
     };
+
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         std::vector<argument> input_args;
@@ -356,17 +404,16 @@ struct gemm_impl
                        input_shapes.end(),
                        std::back_inserter(input_args),
                        [](const shape& x) { return to_gpu(generate_argument(x)); });
-        (void)(ctx);
 
         // Find out how many solutions there are
         rocblas_int list_size = 0;
-        auto arg_list         = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
+        auto arg_list =
+            create_gemm_ex_get_solutions_args(ctx, input_args, int8_flag, nullptr, &list_size);
         rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);
-printf("================ list size %d\n", list_size);
         // Fill array with list of solutions
         std::vector<rocblas_int> solution_indices(list_size);
-        auto arg_list_solutions =
-            create_gemm_ex_get_solutions_args(ctx, input_args, solution_indices.data(), &list_size);
+        auto arg_list_solutions = create_gemm_ex_get_solutions_args(
+            ctx, input_args, int8_flag, solution_indices.data(), &list_size);
         rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);
 
         //
@@ -389,19 +436,35 @@ printf("================ list size %d\n", list_size);
             {
                 run(ctx, input_args, sol);
             }
-            // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from 1 to 11--why?
-            time = (get_time_us_sync(ctx.get_stream().get()) - time)/hot_calls;
-            std::cout << "Sol " << sol << ": " << time << " us" << std::endl;
+            // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from
+            // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,
+            // and increasing cold_calls makes little or no difference.  Why?
+            time = (get_time_us_sync(ctx.get_stream().get()) - time) / hot_calls;
+            // std::cout << "Sol " << sol << ": " << time << " us" << std::endl;
 
             // track winner
             if(time < bestTime)
             {
-                bestSol  = sol;
-                bestTime = time;
+                // Check if solution is valid for problem (success case)
+                // auto arg_list_validate_solutions =
+                //     create_gemm_ex_get_solutions_args(ctx, input_args,
+                //     rocblas_gemm_flags_check_solution_index,
+                //     solution_indices.data(), &list_size);
+                printf("||||||||||||||||||||||||||||||||||| ok got this far\n");
+                // auto check_valid = run(ctx, arg_list_validate_solutions, sol);
+                auto check_valid = validate(ctx, input_args, sol);
+
+                if(check_valid != rocblas_status_invalid_value)
+                {
+                    printf(" valid index  %d\n", sol);
+                    bestSol  = sol;
+                    bestTime = time;
+                }
             }
         }
-        std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
-
+        // std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
+        if(bestSol == -1)
+            MIGRAPHX_THROW("TUNE: No valid solution");
         return bestSol;
     }
 
@@ -419,6 +482,7 @@ printf("================ list size %d\n", list_size);
     bool strided_batched = true, is_3inputs = true, compute_fp32 = true;
     uint32_t flags = 0; //  optional gemm flags.
     // tuning meta parameters
+    // TODO:
     rocblas_int cold_calls = 1;
     rocblas_int hot_calls  = 11;
 };

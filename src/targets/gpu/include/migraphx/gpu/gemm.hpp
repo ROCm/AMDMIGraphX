@@ -136,7 +136,7 @@ struct rocblas_gemm
 
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
-printf("******************************** finalize ************************************\n");
+        rocblas_initialize();
         if(ctx.get_exhaustive_tune_flag())
         {
             if(this->name() == "gpu::gemm")
@@ -155,10 +155,18 @@ printf("******************************** finalize ******************************
                         .tune(ctx, input_shapes);
             }
         }
-        // else if(solution_idx != 0)
-        // {
-        //     // TODO: validate non-default solution
-        // }
+        else if(solution_idx != 0)
+        {
+            auto valid = gemm_impl<int32_t>(
+                             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
+                             .validate(ctx, input_shapes, solution_idx);
+
+            if(valid == rocblas_status_invalid_value)
+            {
+                MIGRAPHX_THROW("finalize: Not a valid solution:  status code = " +
+                               std::to_string(valid));
+            }
+        }
     }
 };
 

@@ -354,6 +354,9 @@ def compile_options(h):
     h.method('set_fast_math',
              api.params(value='bool'),
              invoke='migraphx::set_fast_math($@)')
+    h.method('set_exhaustive_tune_flag',
+             api.params(value='bool'),
+             invoke='migraphx::set_exhaustive_tune_flag($@)')
 
 
 api.add_function('migraphx_parse_onnx',

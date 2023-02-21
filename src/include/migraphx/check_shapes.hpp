@@ -87,7 +87,7 @@ struct check_shapes
     }
 
     /*!
-     * Check if the number of shape objects is equal to atleast one of the
+     * Require the number of shape objects to equal to one of the
      * given sizes.
      * \param ns template parameter pack of sizes to check against
      */
@@ -100,6 +100,23 @@ struct check_shapes
         return *this;
     }
 
+    /*!
+     * Require the number of shape objects to equal at least a given amount.  Use this
+     * method for ops that can take any number (variadic) of inputs.
+     * \param n min. number of shapes
+     */
+    const check_shapes& has_at_least(std::size_t n) const
+    {
+        if(this->size() < n)
+            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected at least " +
+                           to_string(n) + " but given " + std::to_string(size()));
+        return *this;
+    }
+
+    /*!
+     * Require all shapes to have the same number of elements.
+     * \param n  number of
+     */
     const check_shapes& nelements(std::size_t n) const
     {
         if(not this->all_of([&](const shape& s) { return s.elements() == n; }))

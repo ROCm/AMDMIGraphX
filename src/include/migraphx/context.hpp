@@ -66,6 +66,7 @@ any_ptr get_queue_context(T&)
 {
     return {};
 }
+
 template <class T>
 void wait_for_context(T&, any_ptr)
 {
@@ -302,7 +303,7 @@ struct context
             PrivateDetailTypeErasedT value,
             typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
                                     int>::type* = nullptr) noexcept
-            : private_detail_te_value(value)
+            : private_detail_te_value(std::move(value))
         {
         }
 
@@ -412,6 +413,7 @@ inline const ValueType& any_cast(const context& x)
 #endif
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
+
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 
 #endif

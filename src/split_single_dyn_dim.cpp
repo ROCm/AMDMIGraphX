@@ -94,7 +94,7 @@ bool has_one_dyn_dim(std::unordered_map<std::string, shape> param_shapes,
  * instruction to the top, replace return bypassing other instructions. Unused instructions should
  * be removed by dead_code_elimination
  */
-void split_dynamic_batch::apply(module_pass_manager& mpm) const
+void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
     module_ref mm;
     mm                = &mpm.get_module();
@@ -117,7 +117,8 @@ void split_dynamic_batch::apply(module_pass_manager& mpm) const
             auto static_param =
                 submod->add_parameter(dyn_param_name, migraphx::shape{dps.type(), static_lens});
             map_ins[mm->get_parameter(dyn_param_name)] = static_param;
-            submod->add_instructions(mm, map_ins);
+            auto outputs = submod->add_instructions(mm, map_ins);
+            submod->add_return({outputs});
             submodules.push_back(submod);
         }
         // redirect to select_module operator and return;
@@ -126,10 +127,10 @@ void split_dynamic_batch::apply(module_pass_manager& mpm) const
                        param_names.cend(),
                        std::back_inserter(sm_inputs),
                        [&](auto pn) { return mm->get_parameter(pn); });
-        auto sm_ins = mm->insert_instruction(
-            mm->begin(),
+        migraphx::shape out_attr = migraphx::shape{mm->get_output_shapes()};
+        auto sm_ins = mm->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(mm->get_output_shapes())}}),
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             sm_inputs,
             submodules);
         mm->replace_return({sm_ins});

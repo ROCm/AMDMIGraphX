@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_DYNAMIC_BATCH_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SPLIT_DYNAMIC_BATCH_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 
 #include <string>
 #include <migraphx/program.hpp>
@@ -36,9 +36,9 @@ inline namespace MIGRAPHX_INLINE_NS {
  * Split dynamic batch dimension over submodules if exactly one dimension in the parameter list
  * is dynamic. Should only run on the main module.
  */
-struct split_dynamic_batch
+struct split_single_dyn_dim
 {
-    std::string name() const { return "split_dynamic_batch"; }
+    std::string name() const { return "split_single_dyn_dim"; }
     void apply(module_pass_manager& p) const;
 };
 

@@ -6,6 +6,7 @@ Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://
 
 ### Added
 - Y-Model feature to store tuning information with the optimized model
+- Added Python 3.10 bindings 
 - Accuracy checker tool based on ONNX Runtime
 - ONNX Operators parse_split, and Trilu 
 - Build support for ROCm MLIR

@@ -428,6 +428,10 @@ migraphx_status migraphx_compile_options_set_fast_math(migraphx_compile_options_
                                                        bool value);
 
 migraphx_status
+migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t compile_options,
+                                                  bool value);
+
+migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);
 
 migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,

@@ -28,6 +28,7 @@
 #include <vector>
 #include <cmath>
 #include <utility>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
@@ -60,6 +61,7 @@ struct reverse
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
+        check_shapes{inputs, *this}.has(1);
         return inputs[0].with_lens(inputs[0].lens());
     }
 

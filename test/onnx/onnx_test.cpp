@@ -840,6 +840,25 @@ TEST_CASE(concat_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(concat_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {1, 4, 0}, {3, 3, 0}}});
+    auto l1 = mm->add_parameter(
+        "1", migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {1, 4, 0}, {3, 3, 0}}});
+    auto ret = mm->add_instruction(migraphx::make_op("concat"), l0, l1);
+
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    auto prog                     = parse_onnx("concat_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(constant_test)
 {
     migraphx::program p;
@@ -5989,6 +6008,44 @@ TEST_CASE(slice_test)
     auto prog = optimize_onnx("slice_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(slice_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto l0 = mm->add_parameter(
+        "0", migraphx::shape{migraphx::shape::float_type, {{3, 3, 0}, {1, 3, 0}, {2, 2, 0}}});
+    auto ret = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), l0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    // Parser converts the dynamic input shape to static unless there is at least one non-fixed
+    // dynamic dimension. Slicing is not allowed along the non-fixed axis 1.
+    options.map_dyn_input_dims["0"] = {{3, 3, 0}, {1, 3, 0}, {2, 2, 0}};
+    auto prog                       = migraphx::parse_onnx("slice_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(slice_step_dyn_test)
+{
+    // A slice command with non-default steps will have a "Step" instruction added in parsing.
+    // At the time of writing, Step doesn't support dynamic shape input.
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("slice_step_dyn_test.onnx", options); }));
+}
+
+TEST_CASE(slice_reverse_dyn_test)
+{
+    // A slice command with negative step on any axis will have a "Reverse" instruction added in
+    // parsing. At the time of writing, Reverse doesn't support dynamic shape input.
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4, 0};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("slice_reverse_dyn_test.onnx", options); }));
 }
 
 TEST_CASE(slice_3arg_test)

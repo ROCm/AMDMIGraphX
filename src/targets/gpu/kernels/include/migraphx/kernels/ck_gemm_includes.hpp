@@ -219,7 +219,7 @@ struct CK_DeviceGemmMultipleD
     __device__ static constexpr auto
     MakeDefaultBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n_)
     {
-        return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
+        return ck::BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
             e_grid_desc_m_n_);
     }
 

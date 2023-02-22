@@ -137,7 +137,7 @@ struct rocblas_gemm
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
         rocblas_initialize();
-        if(ctx.get_exhaustive_tune_flag())
+        if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
         {
             if(this->name() == "gpu::gemm")
             {

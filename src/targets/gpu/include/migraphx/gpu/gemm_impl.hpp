@@ -31,6 +31,10 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/time.hpp>
+
+using milliseconds = std::chrono::duration<double, std::milli>;
+using microseconds = std::chrono::duration<double, std::micro>;
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -381,22 +385,7 @@ struct gemm_impl
                     list,
                     list_size);
     }
-    /*! \brief  CPU Timer(in microsecond): synchronize with given queue/stream and return wall time.
-    borrowed from clients/common/utility.cpp
-    TODO: replace with the MIGRaphx timer
-    */
-    double get_time_us_sync(hipStream_t stream) const
-    {
-        hipStreamSynchronize(stream);
-
-        auto now = std::chrono::steady_clock::now();
-        // now.time_since_epoch() is the duration since epoch
-        // which is converted to microseconds
-        auto duration =
-            std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
-        return (static_cast<double>(duration));
-    };
-
+    
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         std::vector<argument> input_args;
@@ -416,34 +405,32 @@ struct gemm_impl
             ctx, input_args, int8_flag, solution_indices.data(), &list_size);
         rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);
 
-        //
-        // Example basic benchmark loop
-        //
         double bestTime     = std::numeric_limits<double>::max();
         rocblas_int bestSol = -1;
         for(auto sol : solution_indices)
         {
-            // warmup
             for(rocblas_int cc = 0; cc < cold_calls; ++cc)
             {
                 run(ctx, input_args, sol);
             }
-
-            double time = get_time_us_sync(ctx.get_stream().get()); // in microseconds
-
-            // timing loop
+            double host_time = 0.0;
+            auto run_func    = [&]() {
+                run(ctx, input_args, sol);
+                ctx.finish();
+            };
             for(rocblas_int hc = 0; hc < hot_calls; ++hc)
             {
-                run(ctx, input_args, sol);
+                ctx.finish();
+                host_time += time<microseconds>(run_func);
             }
             // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from
             // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,
             // and increasing cold_calls makes little or no difference.  Why?
-            time = (get_time_us_sync(ctx.get_stream().get()) - time) / hot_calls;
-            std::cout << "Solution index " << sol << ": " << time << " us" << std::endl;
+            host_time /= hot_calls;
+            std::cout << "Solution index " << sol << ": " << host_time << " us" << std::endl;
 
             // track winner
-            if(time < bestTime)
+            if(host_time < bestTime)
             {
                 // Check if solution is valid for problem
                 auto check_valid = validate(ctx, input_args, sol);
@@ -452,7 +439,7 @@ struct gemm_impl
                 {
                     printf(" valid index  %d\n", sol);
                     bestSol  = sol;
-                    bestTime = time;
+                    bestTime = host_time;
                 }
             }
         }
@@ -476,9 +463,8 @@ struct gemm_impl
     bool strided_batched = true, is_3inputs = true, compute_fp32 = true;
     uint32_t flags = 0; //  optional gemm flags.
     // tuning meta parameters
-    // TODO:
-    rocblas_int cold_calls = 1;
-    rocblas_int hot_calls  = 11;
+    rocblas_int cold_calls = 4;
+    rocblas_int hot_calls  = 100;
 };
 
 } // namespace gpu

@@ -309,7 +309,7 @@ struct gemm_impl
     //            if list_array is NULL
     auto create_gemm_ex_get_solutions_args(context& ctx,
                                            const std::vector<argument>& args,
-                                           rocblas_int*  list,
+                                           rocblas_int* list,
                                            rocblas_int* list_size) const
     {
         return pack(ctx.get_stream().get_rocblas(),
@@ -349,7 +349,7 @@ struct gemm_impl
 
         // Find out how many solutions there are
         rocblas_int list_size = 0;
-        auto arg_list         = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
+        auto arg_list = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
         rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);
         // Fill array with list of solutions
         std::vector<rocblas_int> solution_indices(list_size);
@@ -365,8 +365,8 @@ struct gemm_impl
             {
                 run(ctx, input_args, sol);
             }
-            double host_time = 0.0; 
-            auto run_func  = [&]() {
+            double host_time = 0.0;
+            auto run_func    = [&]() {
                 run(ctx, input_args, sol);
                 ctx.finish();
             };

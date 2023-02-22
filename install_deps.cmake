@@ -1,6 +1,6 @@
 #!/usr/bin/cmake -P
 
-#####################################################################################
+# ####################################################################################
 # The MIT License (MIT)
 #
 # Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
@@ -22,9 +22,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-#####################################################################################
+# ####################################################################################
 
 set(ARGS)
+
 foreach(i RANGE 3 ${CMAKE_ARGC})
     list(APPEND ARGS ${CMAKE_ARGV${i}})
 endforeach()
@@ -38,18 +39,19 @@ set(multiValueArgs)
 cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGS})
 
 if(PARSE_help)
-message("Usage: install_deps.cmake [options] [cmake-args]")
-message("")
-message("Options:")
-message("  --prefix               Set the prefix to install the dependencies.")
-message("")
-message("Commands:")
-message("  help                   Show this message and exit.")
-message("")
-return()
+    message("Usage: install_deps.cmake [options] [cmake-args]")
+    message("")
+    message("Options:")
+    message("  --prefix               Set the prefix to install the dependencies.")
+    message("")
+    message("Commands:")
+    message("  help                   Show this message and exit.")
+    message("")
+    return()
 endif()
 
 set(_PREFIX /usr/local)
+
 if(PARSE_--prefix)
     set(_PREFIX ${PARSE_--prefix})
 endif()
@@ -63,21 +65,23 @@ if(NOT CMakeGet_FOUND)
     file(DOWNLOAD https://raw.githubusercontent.com/pfultz2/cmake-get/master/install.cmake ${FILENAME} STATUS RESULT_LIST)
     list(GET RESULT_LIST 0 RESULT)
     list(GET RESULT_LIST 1 RESULT_MESSAGE)
+
     if(NOT RESULT EQUAL 0)
         message(FATAL_ERROR "Download for install.cmake failed: ${RESULT_MESSAGE}")
     endif()
+
     execute_process(COMMAND ${CMAKE_COMMAND} -P ${FILENAME} ${PREFIX})
     file(REMOVE ${FILENAME})
     find_package(CMakeGet REQUIRED PATHS ${PREFIX})
 endif()
 
-# Set compiler to hcc if not set
+# Set compiler to clang++ if not set
 if(NOT DEFINED ENV{CXX} AND NOT DEFINED CMAKE_CXX_COMPILER AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    find_program(HCC hcc PATHS /opt/rocm PATH_SUFFIXES bin)
-    if(HCC)
-        set(ENV{CXX} ${HCC})
+    find_program(CLANG clang++ PATHS /opt/rocm /opt/rocm/llvm PATH_SUFFIXES bin)
+    if(CLANG)
+        set(ENV{CXX} ${CLANG})
     else()
-        message(FATAL_ERROR "Cannot find hcc")
+        message(FATAL_ERROR "Cannot find clang++")
     endif()
 endif()
 

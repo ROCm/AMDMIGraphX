@@ -229,7 +229,7 @@ struct gemm_impl
                     output_type,
                     ldd,
                     compute_type,
-                    rocblas_gemm_algo_solution_index, 
+                    rocblas_gemm_algo_solution_index,
                     solution_idx,
                     int8_flag);
     }
@@ -300,9 +300,9 @@ struct gemm_impl
     }
 
     auto create_strided_batched_gemm_get_solutions_args(context& ctx,
-                                          const std::vector<argument>& args,
-                                          rocblas_int* list,  
-                                          rocblas_int* list_size) const
+                                                        const std::vector<argument>& args,
+                                                        rocblas_int* list,
+                                                        rocblas_int* list_size) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -331,8 +331,8 @@ struct gemm_impl
                     num_matrices,
                     compute_type,
                     rocblas_gemm_algo_solution_index,
-                    int8_flag, 
-                    list, 
+                    int8_flag,
+                    list,
                     list_size);
     }
 
@@ -379,22 +379,26 @@ struct gemm_impl
         // Find out how many solutions there are
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
-        if(strided_batched) {
-            auto arg_list = create_strided_batched_gemm_get_solutions_args(ctx, input_args, nullptr, &list_size);
+        if(strided_batched)
+        {
+            auto arg_list = create_strided_batched_gemm_get_solutions_args(
+                ctx, input_args, nullptr, &list_size);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions, arg_list);
             solution_indices.resize(list_size);
-            auto arg_list_solutions =
-            create_strided_batched_gemm_get_solutions_args(ctx, input_args, solution_indices.data(), &list_size);
+            auto arg_list_solutions = create_strided_batched_gemm_get_solutions_args(
+                ctx, input_args, solution_indices.data(), &list_size);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions, arg_list_solutions);
-        } else {
+        }
+        else
+        {
             auto arg_list = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);
             solution_indices.resize(list_size);
-            auto arg_list_solutions =
-            create_gemm_ex_get_solutions_args(ctx, input_args, solution_indices.data(), &list_size);
+            auto arg_list_solutions = create_gemm_ex_get_solutions_args(
+                ctx, input_args, solution_indices.data(), &list_size);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);
         }
-        
+
         double bestTime     = std::numeric_limits<double>::max();
         rocblas_int bestSol = 0;
         for(auto sol : solution_indices)

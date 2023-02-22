@@ -229,8 +229,7 @@ struct gemm_impl
                     output_type,
                     ldd,
                     compute_type,
-                    rocblas_gemm_algo_standard, // TODO: Need to change this flag to
-                                                // rocblas_gemm_algo_solution_index
+                    rocblas_gemm_algo_solution_index, 
                     solution_idx,
                     int8_flag);
     }
@@ -341,6 +340,9 @@ struct gemm_impl
 
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
+        if(strided_batched) {
+            return 0;
+        }
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
@@ -383,7 +385,7 @@ struct gemm_impl
                 bestTime = host_time;
             }
         }
-        std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
+        std::cout << "Winner: " << bestSol << " in " << bestTime << " ms" << std::endl;
         return bestSol;
     }
 

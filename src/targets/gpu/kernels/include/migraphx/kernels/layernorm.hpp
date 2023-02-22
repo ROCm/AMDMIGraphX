@@ -52,7 +52,7 @@ __device__ void generic_binary_layernorm(
     block::template run<reduce_output>([&](auto, auto r) {
         auto input       = r.inner([&](auto x1, auto x2) { return op(x1, x2); })(input1, input2);
         using value_type = typename Input1::type;
-        constexpr auto relements = r.template elements<Input1>();
+        constexpr auto relements   = r.template elements<Input1>();
         constexpr auto relements_r = vec_type<value_type>{1.0 / relements};
         auto relements_rsqrt       = sqrt(relements_r);
 

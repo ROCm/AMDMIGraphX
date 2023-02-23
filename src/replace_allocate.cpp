@@ -104,7 +104,7 @@ void replace_allocate::apply(module& m) const
             continue;
 
         auto s = ins->get_shape();
-        if(not main_offload_copy and not(m.use_local_alloc) and model.needs_out_params() and
+        if(not(main_offload_copy or m.use_local_alloc) and model.needs_out_params() and
            contains(mod_output_names, ins))
         {
             auto out_param = m.add_parameter(mod_output_names[ins], s);

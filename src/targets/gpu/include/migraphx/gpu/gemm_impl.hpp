@@ -384,7 +384,6 @@ struct gemm_impl
 
     auto create_gemm_ex_get_solutions_args(context& ctx,
                                            const std::vector<argument>& args,
-                                           rocblas_gemm_flags flag,
                                            rocblas_int* list,
                                            rocblas_int* list_size) const
     {
@@ -410,7 +409,7 @@ struct gemm_impl
                     ldd,
                     compute_type,
                     rocblas_gemm_algo_solution_index,
-                    flag,
+                    int8_flag,
                     list,
                     list_size);
     }
@@ -438,11 +437,11 @@ struct gemm_impl
         }
         else
         {
-            auto arg_list = create_gemm_ex_get_solutions_args(ctx, input_args, int8_flag, nullptr, &list_size);
+            auto arg_list = create_gemm_ex_get_solutions_args(ctx, input_args, nullptr, &list_size);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list);
             solution_indices.resize(list_size);
             auto arg_list_solutions = create_gemm_ex_get_solutions_args(
-                ctx, input_args, int8_flag, solution_indices.data(), &list_size);
+                ctx, input_args, solution_indices.data(), &list_size);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);
         }
 

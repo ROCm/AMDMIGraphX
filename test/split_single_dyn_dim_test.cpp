@@ -95,4 +95,67 @@ TEST_CASE(dynamic_batch)
     EXPECT(p0 == p1);
 }
 
+TEST_CASE(multiple_outputs)
+{
+    migraphx::program p0;
+    {
+        auto* mm0 = p0.get_main_module();
+
+        // create batch submodules
+        auto create_submodule = [&](std::size_t batch_size, std::string module_name) {
+            auto* submod = p0.create_module(module_name);
+            migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
+            auto sm_input = submod->add_parameter("data", sm_shape);
+            migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto broadcast_lit =
+                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
+            auto add0_ins =
+                submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
+            auto add1_ins = submod->add_instruction(migraphx::make_op("add"), sm_input, sm_input);
+            submod->add_return({add0_ins, add1_ins});
+            return submod;
+        };
+        auto* dim1 = create_submodule(1, "dim_1");
+        auto* dim2 = create_submodule(2, "dim_2");
+        auto* dim3 = create_submodule(3, "dim_3");
+        auto* dim4 = create_submodule(4, "dim_4");
+
+        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        auto input0                             = mm0->add_parameter("data", s);
+        std::vector<migraphx::shape> sub_shapes = {};
+        migraphx::shape tmp_s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        sub_shapes.push_back(tmp_s);
+        sub_shapes.push_back(tmp_s);
+        migraphx::shape out_attr = migraphx::shape{sub_shapes};
+        auto sm_ins              = mm0->add_instruction(
+            migraphx::make_op("select_module",
+                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+            {input0},
+            {dim1, dim2, dim3, dim4});
+        auto ret0 =
+            mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+        auto ret1 =
+            mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), sm_ins);
+        mm0->add_return({ret0, ret1});
+    }
+
+    migraphx::program p1;
+    {
+        auto* mm1 = p1.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        auto input1 = mm1->add_parameter("data", s);
+        migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6}});
+        auto broadcast_lit =
+            mm1->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input1);
+        auto add0_ins = mm1->add_instruction(migraphx::make_op("add"), input1, broadcast_lit);
+        auto add1_ins = mm1->add_instruction(migraphx::make_op("add"), input1, input1);
+        mm1->add_return({add0_ins, add1_ins});
+    }
+    run_pass(p1);
+
+    EXPECT(p0 == p1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

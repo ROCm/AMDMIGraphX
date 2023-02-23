@@ -86,7 +86,7 @@ bool has_one_dyn_dim(std::unordered_map<std::string, shape> param_shapes,
 }
 
 /**
- * Make all the batch sizes in the range for now.
+ * Make all the batch sizes in the dynamic_dimension range.
  * Probably won't work for `if` and `loop` instructions, depending on how the submodules for those
  * work. Insert select_module instruction to the top, replace return bypassing other instructions.
  */

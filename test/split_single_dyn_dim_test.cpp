@@ -57,10 +57,10 @@ TEST_CASE(dynamic_batch)
             submod->add_return({add_ins});
             return submod;
         };
-        auto* batch1 = create_submodule(1, "batch_1");
-        auto* batch2 = create_submodule(2, "batch_2");
-        auto* batch3 = create_submodule(3, "batch_3");
-        auto* batch4 = create_submodule(4, "batch_4");
+        auto* dim1 = create_submodule(1, "dim_1");
+        auto* dim2 = create_submodule(2, "dim_2");
+        auto* dim3 = create_submodule(3, "dim_3");
+        auto* dim4 = create_submodule(4, "dim_4");
 
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input0                             = mm0->add_parameter("data", s);
@@ -71,8 +71,10 @@ TEST_CASE(dynamic_batch)
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
-            {batch1, batch2, batch3, batch4});
-        mm0->add_return({sm_ins});
+            {dim1, dim2, dim3, dim4});
+        auto ret =
+            mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+        mm0->add_return({ret});
     }
 
     migraphx::program p1;

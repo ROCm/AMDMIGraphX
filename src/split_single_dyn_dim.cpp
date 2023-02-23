@@ -36,8 +36,8 @@ bool has_one_dyn_dim(std::unordered_map<std::string, shape> param_shapes,
                      int& min_dim,
                      int& max_dim)
 {
-    // true if parameters contain exactly one dynamic shape with exactly one non-fixed
-    // dynamic_dimension
+    // True if parameters contain exactly one dynamic shape with exactly one non-fixed
+    // dynamic_dimension.
     if(std::none_of(
            param_shapes.cbegin(), param_shapes.cend(), [](auto ps) { return ps.second.dynamic(); }))
         return false;
@@ -109,7 +109,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         // create submodules for each dimension size
         for(int dim_size = min_dim; dim_size <= max_dim; ++dim_size)
         {
-            auto submod = mpm.create_module("batch_" + std::to_string(dim_size));
+            auto submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static submodule parameters
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             // create static shape using dim_size
@@ -128,13 +128,20 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                        param_names.cend(),
                        std::back_inserter(sm_inputs),
                        [&](auto pn) { return mm->get_parameter(pn); });
-        migraphx::shape out_attr = migraphx::shape{mm->get_output_shapes()};
+        auto output_shapes       = mm->get_output_shapes();
+        migraphx::shape out_attr = migraphx::shape{output_shapes};
         auto sm_ins              = mm->add_instruction(
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             sm_inputs,
             submodules);
-        mm->replace_return({sm_ins});
+        std::vector<instruction_ref> outputs;
+        for(int i = 0; i < output_shapes.size(); ++i)
+        {
+            outputs.push_back(
+                mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), sm_ins));
+        }
+        mm->replace_return(outputs);
     }
 }
 

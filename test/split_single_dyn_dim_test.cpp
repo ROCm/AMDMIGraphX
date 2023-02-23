@@ -38,8 +38,8 @@ void run_pass(migraphx::program& p)
 
 TEST_CASE(dynamic_batch)
 {
-    // slightly different from ref_ops_test in that the literal is copied over the submodules
-    // different compiler pass will pull the literals from the submodules to the main module
+    // Slightly different from ref_ops_test in that the literal is copied over the submodules.
+    // A different compiler pass will pull the literals from the submodules to the main module.
     migraphx::program p0;
     {
         auto* mm0 = p0.get_main_module();

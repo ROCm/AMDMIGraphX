@@ -88,9 +88,7 @@ bool has_one_dyn_dim(std::unordered_map<std::string, shape> param_shapes,
 /**
  * Make all the batch sizes in the range for now.
  * Probably won't work for `if` and `loop` instructions, depending on how the submodules for those
- * work create additional submodules for optimal values if not already done insert select_module
- * instruction to the top, replace return bypassing other instructions. Unused instructions should
- * be removed by dead_code_elimination
+ * work. Insert select_module instruction to the top, replace return bypassing other instructions.
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {

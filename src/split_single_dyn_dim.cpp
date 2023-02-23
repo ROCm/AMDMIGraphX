@@ -94,6 +94,8 @@ bool has_one_dyn_dim(std::unordered_map<std::string, shape> param_shapes,
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
+    if(not use_pass)
+        return;
     module_ref mm     = &mpm.get_module();
     auto param_names  = mm->get_parameter_names();
     auto param_shapes = mm->get_parameter_shapes();

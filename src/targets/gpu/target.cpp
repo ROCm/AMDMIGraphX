@@ -103,7 +103,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
-        split_single_dyn_dim{},
+        split_single_dyn_dim{options.split_single_dyn_dim},
         dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},

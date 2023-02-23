@@ -32,9 +32,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct compile_options
 {
-    bool offload_copy    = false;
+    /// Have MIGX allocate memory for the parameters and copy to and from the GPU
+    bool offload_copy = false;
+
     bool fast_math       = true;
     bool exhaustive_tune = false;
+
+    /// Use the split_single_dyn_dim pass
+    bool split_single_dyn_dim = false;
     tracer trace{};
 };
 

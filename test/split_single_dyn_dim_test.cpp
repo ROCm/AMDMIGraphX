@@ -32,7 +32,8 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p,
+                         {migraphx::split_single_dyn_dim{true}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(dynamic_batch)

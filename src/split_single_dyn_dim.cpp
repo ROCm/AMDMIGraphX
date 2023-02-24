@@ -30,7 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool has_one_dyn_dim(std::unordered_map<std::string, shape> param_shapes,
+bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
                      std::string& dyn_param_str,
                      int& dyn_index,
                      int& min_dim,
@@ -46,7 +46,7 @@ bool has_one_dyn_dim(std::unordered_map<std::string, shape> param_shapes,
     int tmp_min = -1;
     int tmp_max = -1;
     int tmp_ind = -1;
-    for(auto ps : param_shapes)
+    for(const auto& ps : param_shapes)
     {
         if(ps.second.dynamic())
         {
@@ -109,7 +109,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         // create submodules for each dimension size
         for(int dim_size = min_dim; dim_size <= max_dim; ++dim_size)
         {
-            auto submod = mpm.create_module("dim_" + std::to_string(dim_size));
+            auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static submodule parameters
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             // create static shape using dim_size
@@ -135,11 +135,11 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             sm_inputs,
             submodules);
-        std::vector<instruction_ref> outputs;
+        std::vector<instruction_ref> outputs(output_shapes.size());
         for(int i = 0; i < output_shapes.size(); ++i)
         {
-            outputs.push_back(
-                mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), sm_ins));
+            outputs.at(i) =
+                mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), sm_ins);
         }
         mm->replace_return(outputs);
     }

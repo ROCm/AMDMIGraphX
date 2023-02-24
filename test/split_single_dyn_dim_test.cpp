@@ -45,7 +45,7 @@ TEST_CASE(dynamic_batch)
         auto* mm0 = p0.get_main_module();
 
         // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size, std::string module_name) {
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
             auto* submod = p0.create_module(module_name);
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
@@ -102,7 +102,7 @@ TEST_CASE(multiple_outputs)
         auto* mm0 = p0.get_main_module();
 
         // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size, std::string module_name) {
+        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
             auto* submod = p0.create_module(module_name);
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);

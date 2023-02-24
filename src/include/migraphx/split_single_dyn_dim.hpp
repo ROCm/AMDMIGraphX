@@ -40,7 +40,7 @@ struct split_single_dyn_dim
 {
     bool use_pass = false;
     std::string name() const { return "split_single_dyn_dim"; }
-    void apply(module_pass_manager& p) const;
+    void apply(module_pass_manager&) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

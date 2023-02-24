@@ -24,19 +24,46 @@
 #ifndef MIGRAPHX_GUARD_AUTO_REGISTER_VERIFY_PROGRAM_HPP
 #define MIGRAPHX_GUARD_AUTO_REGISTER_VERIFY_PROGRAM_HPP
 
+#include <functional>
 #include <migraphx/auto_register.hpp>
 #include <migraphx/program.hpp>
-#include <functional>
+#include <migraphx/compile_options.hpp>
 
 struct program_info
 {
     std::string name;
     std::string section;
     std::function<migraphx::program()> get_program;
+    migraphx::compile_options c_options;
 };
 
 void register_program_info(const program_info& pi);
 const std::vector<program_info>& get_programs();
+
+// Don't have access to rank.hpp from CMake configuration
+template <int N>
+struct rank : rank<N - 1>
+{
+};
+
+template <>
+struct rank<0>
+{
+};
+
+namespace detail {
+template <class T>
+auto get_co(rank<1>, const T& t) -> decltype(t.get_compile_options())
+{
+    return t.get_compile_options();
+}
+
+template <class T>
+auto get_co(rank<0>, const T&) -> decltype(migraphx::compile_options{})
+{
+    return migraphx::compile_options{};
+}
+} // namespace detail
 
 struct register_verify_program_action
 {
@@ -48,6 +75,7 @@ struct register_verify_program_action
         pi.name        = migraphx::get_type_name<T>();
         pi.section     = x.section();
         pi.get_program = [x] { return x.create_program(); };
+        pi.c_options   = detail::get_co(rank<1>{}, x);
         register_program_info(pi);
     }
 };

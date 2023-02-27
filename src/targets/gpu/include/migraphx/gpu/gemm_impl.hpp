@@ -252,6 +252,10 @@ struct gemm_impl
                                           rocblas_gemm_flags flag,
                                           int32_t solution_idx = 0) const
     {
+        // the rocblas_gemm API handles inputs and output matrices as
+        // column-major format. When doing a C = A * B, we actually do
+        // C^T = (B^T) * (A^T). That is the reason we input args[1] as
+        // A and args[0] as B in calling the rocblas_gemm.
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
                     transa ? rocblas_operation_transpose : rocblas_operation_none,
@@ -285,7 +289,6 @@ struct gemm_impl
 
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
     {
-
         if(strided_batched)
         {
             auto gemm_args =
@@ -414,6 +417,11 @@ struct gemm_impl
                     list_size);
     }
 
+    /**
+     * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
+     * of the fastest one.
+    */
+
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         std::vector<argument> input_args;
@@ -450,11 +458,14 @@ struct gemm_impl
         rocblas_int bestSol = 0;
         for(auto sol : solution_indices)
         {
+            // Warmup: the first few calls to an op. may not be representative since there is
+            // more time taken initializing caches, etc. so we won't time them.
             for(rocblas_int cc = 0; cc < cold_calls; ++cc)
             {
                 run(ctx, input_args, sol);
             }
             double host_time = 0.0;
+            // Define the function to be timed
             auto run_func    = [&]() {
                 run(ctx, input_args, sol);
                 ctx.finish();

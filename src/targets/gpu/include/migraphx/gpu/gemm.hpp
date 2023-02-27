@@ -137,35 +137,37 @@ struct rocblas_gemm
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
         rocblas_initialize();
+        rocblas_status_ check_valid;
         if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
         {
             if(this->name() == "gpu::gemm")
             {
-                solution_idx =
-                    gemm_impl<float>(
-                        output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
-                        .tune(ctx, input_shapes);
+                auto gemmImpl = gemm_impl<float>(
+                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
+                solution_idx = gemmImpl.tune(ctx, input_shapes);
+                check_valid  = gemmImpl.validate(ctx, input_shapes, solution_idx);
             }
             else
             {
-
-                solution_idx =
-                    gemm_impl<int32_t>(
-                        output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
-                        .tune(ctx, input_shapes);
+                auto gemmImpl = gemm_impl<int32_t>(
+                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
+                solution_idx = gemmImpl.tune(ctx, input_shapes);
+                check_valid  = gemmImpl.validate(ctx, input_shapes, solution_idx);
             }
         }
         else if(solution_idx != 0)
         {
-            auto valid = gemm_impl<int32_t>(
-                             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
-                             .validate(ctx, input_shapes, solution_idx);
+            auto gemmImpl = gemm_impl<int32_t>(
+                output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
+            check_valid = gemmImpl.validate(ctx, input_shapes, solution_idx);
+        }
 
-            if(valid == rocblas_status_invalid_value)
-            {
-                MIGRAPHX_THROW("finalize: Not a valid solution:  status code = " +
-                               std::to_string(valid));
-            }
+        // Check if solution is valid for problem (could be invalid if this model was
+        // tuned with a different rocBLAS version)
+        if(check_valid == rocblas_status_invalid_value)
+        {
+            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+            solution_idx = 0;
         }
     }
 };

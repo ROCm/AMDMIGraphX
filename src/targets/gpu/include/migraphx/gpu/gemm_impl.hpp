@@ -413,7 +413,7 @@ struct gemm_impl
                     list,
                     list_size);
     }
-    
+
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         std::vector<argument> input_args;
@@ -445,8 +445,9 @@ struct gemm_impl
             rocblas_invoke(&rocblas_gemm_ex_get_solutions, arg_list_solutions);
         }
 
-        double bestTime     = std::numeric_limits<double>::max();
-        rocblas_int bestSol = -1;
+        double bestTime = std::numeric_limits<double>::max();
+        // Initialize to default solution index
+        rocblas_int bestSol = 0;
         for(auto sol : solution_indices)
         {
             for(rocblas_int cc = 0; cc < cold_calls; ++cc)
@@ -469,23 +470,15 @@ struct gemm_impl
             host_time /= hot_calls;
             std::cout << "Solution index " << sol << ": " << host_time << " us" << std::endl;
 
-            // track winner
+            // track current best
             if(host_time < bestTime)
             {
-                // Check if solution is valid for problem
-                auto check_valid = validate(ctx, input_args, sol);
-
-                if(check_valid != rocblas_status_invalid_value)
-                {
-                    printf(" valid index  %d\n", sol);
-                    bestSol  = sol;
-                    bestTime = host_time;
-                }
+                printf(" current best index  %d\n", sol);
+                bestSol  = sol;
+                bestTime = host_time;
             }
         }
         std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
-        if(bestSol == -1)
-            MIGRAPHX_THROW("TUNE: No valid solution");
         return bestSol;
     }
 

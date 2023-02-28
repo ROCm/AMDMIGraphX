@@ -30,6 +30,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <unordered_map>
 #include <memory>
 
@@ -215,6 +216,10 @@ struct context
         return *current_device;
     }
 
+    bool get_exhaustive_tune_flag() const { return exhaustive_tune; }
+
+    void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -273,7 +278,8 @@ struct context
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
 
-        this->current_device = std::make_shared<hip_device>(0, n_streams);
+        auto device          = get_device_id();
+        this->current_device = std::make_shared<hip_device>(device, n_streams);
     }
 
     void wait_for(any_ptr queue)
@@ -336,7 +342,8 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool measure_perf = false;
+    bool exhaustive_tune = false;
+    bool measure_perf    = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

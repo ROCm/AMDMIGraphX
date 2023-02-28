@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,9 +42,17 @@ struct where
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3).same_dims();
+        check_shapes{inputs, *this, true}.has(3).same_dims();
         auto s1 = inputs.at(1);
         auto s2 = inputs.at(2);
+        if(s1.dynamic() or s2.dynamic())
+        {
+            if(s1 == s2)
+                return s1;
+            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same");
+        }
+
+        // Compare two static shapes, returning a standard shape
         if(s1 == s2 and s1.packed())
         {
             return s1;
@@ -63,12 +71,12 @@ struct where
         }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         visit_all(result, args[1], args[2])([&](auto output, const auto x, const auto y) {
             args[0].visit([&](const auto condition) {
-                par_for(output_shape.elements(),
+                par_for(dyn_out.computed_shape.elements(),
                         [&](auto i) { output[i] = condition[i] ? x[i] : y[i]; });
             });
         });

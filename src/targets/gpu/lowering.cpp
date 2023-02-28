@@ -83,8 +83,7 @@ struct miopen_apply
         auto& ctx      = get_context();
         int8_x4_format = get_int8_x4_format(ctx);
         compute_fp32   = get_compute_fp32_flag();
-
-        offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
+        offload_copy   = (mod->name() == "main") ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
 
@@ -112,6 +111,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_nms_op();
+        add_select_module_op();
     }
 
     void copy_params() const
@@ -357,6 +357,33 @@ struct miopen_apply
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
             return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    /**
+     * Turns on use_local_alloc in the select_module submodules.
+     * Changes the submodule returns to a hip::sync_stream.
+     */
+    void add_select_module_op()
+    {
+        apply_map.emplace("select_module", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            auto mod_args                       = ins->module_inputs();
+            for(auto* smod : mod_args)
+            {
+                smod->use_local_alloc = true;
+                auto last_ins         = std::prev(smod->end());
+                if(last_ins->name() == "@return")
+                {
+                    for(auto out_ins : last_ins->inputs())
+                    {
+                        auto sync_out = smod->insert_instruction(
+                            last_ins, make_op("hip::sync_stream"), out_ins);
+                        smod->replace_return({sync_out});
+                    }
+                }
+            }
+            return ins;
         });
     }
 };

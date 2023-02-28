@@ -54,8 +54,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+
 # add this for roctracer dependancies
-RUN pip3 install CppHeaderParser packaging==22.0
+RUN pip3 install CppHeaderParser
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm
@@ -86,7 +87,7 @@ ADD doc/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Download real models to run onnx unit tests
-ENV ONNX_HOME=$HOME
+ENV ONNX_HOME=/.onnx
 COPY ./tools/download_models.sh /
 RUN /download_models.sh && rm /download_models.sh
 

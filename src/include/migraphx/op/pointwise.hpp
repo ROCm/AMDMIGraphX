@@ -41,7 +41,7 @@ struct pointwise
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
-        assert(inputs.size() > 0);
+        check_shapes(inputs, *this, true).has_at_least(1);
 
         if(mods.size() != 1)
         {

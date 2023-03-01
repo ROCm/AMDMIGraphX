@@ -136,8 +136,6 @@ struct rocblas_gemm
 
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
-        rocblas_initialize();
-        rocblas_status_ check_valid;
         if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
         {
             if(this->name() == "gpu::gemm")
@@ -145,29 +143,30 @@ struct rocblas_gemm
                 auto gemmImpl = gemm_impl<float>(
                     output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
                 solution_idx = gemmImpl.tune(ctx, input_shapes);
-                check_valid  = gemmImpl.validate(ctx, input_shapes, solution_idx);
             }
             else
             {
                 auto gemmImpl = gemm_impl<int32_t>(
                     output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
                 solution_idx = gemmImpl.tune(ctx, input_shapes);
-                check_valid  = gemmImpl.validate(ctx, input_shapes, solution_idx);
             }
         }
         else if(solution_idx != 0)
         {
-            auto gemmImpl = gemm_impl<int32_t>(
-                output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-            check_valid = gemmImpl.validate(ctx, input_shapes, solution_idx);
-        }
-
-        // Check if solution is valid for problem (could be invalid if this model was
-        // tuned with a different rocBLAS version)
-        if(check_valid == rocblas_status_invalid_value)
-        {
-            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
-            solution_idx = 0;
+            // If a tuned solution index is already given, don't tune again but validate
+            // in case the data was tuned with a different rocBLAS version
+            if(this->name() == "gpu::gemm")
+            {
+                auto gemmImpl = gemm_impl<float>(
+                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
+                solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
+            }
+            else
+            {
+                auto gemmImpl = gemm_impl<int32_t>(
+                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
+                solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
+            }
         }
     }
 };

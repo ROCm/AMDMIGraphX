@@ -315,22 +315,35 @@ struct gemm_impl
 
     /**
      * Checks a particular solution for validity by running it with the flag
-     * rocblas_gemm_flags_check_solution_index, and returns the result
+     * rocblas_gemm_flags_check_solution_index (could be invalid if this model was
+     * tuned with a different rocBLAS version)
+     *
+     * @return Returns either solution_idx if valid, or else the default index 0
      */
-    auto validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) const
+    int32_t
+    validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) const
     {
+        rocblas_status_ check_valid(rocblas_status_success);
+
         if(strided_batched)
         {
             auto gemm_args = create_strided_batched_gemm_args(
                 ctx, input_args, rocblas_gemm_flags_check_solution_index, solution_idx);
-            return rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
+            check_valid = rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
         }
         else
         {
             auto gemm_args = create_gemm_args(
                 ctx, input_args, rocblas_gemm_flags_check_solution_index, solution_idx);
-            return rocblas_invoke(&rocblas_gemm_ex, gemm_args);
+            check_valid = rocblas_invoke(&rocblas_gemm_ex, gemm_args);
         }
+
+        if(check_valid == rocblas_status_invalid_value)
+        {
+            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+            return 0;
+        }
+        return solution_idx;
     }
 
     void print_args() const
@@ -420,7 +433,7 @@ struct gemm_impl
     /**
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
-    */
+     */
 
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
@@ -466,7 +479,7 @@ struct gemm_impl
             }
             double host_time = 0.0;
             // Define the function to be timed
-            auto run_func    = [&]() {
+            auto run_func = [&]() {
                 run(ctx, input_args, sol);
                 ctx.finish();
             };

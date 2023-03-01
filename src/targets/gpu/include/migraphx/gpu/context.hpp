@@ -116,8 +116,11 @@ struct hip_device
         {
             setup();
             if(rbhandle == nullptr)
+            {
                 rbhandle = create_rocblas_handle_ptr(get());
-            assert(rbhandle.get() != nullptr);
+                assert(rbhandle.get() != nullptr);
+                rocblas_initialize();
+            }
             return rbhandle.get();
         }
 

@@ -41,19 +41,22 @@ struct pointwise
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
-        check_shapes(inputs, *this).has_at_least(1);
-
         if(mods.size() != 1)
         {
             MIGRAPHX_THROW("should have one submodule.");
         }
-        auto* pm    = mods.front();
+        auto* pm = mods.front();
+        if(pm->get_output_shapes().size() != 1)
+            MIGRAPHX_THROW("submodule should have only one output.");
+        // if pointwise op doens't have any input args (const-foldable) then just return output
+        // shape
+        if(inputs.empty())
+        {
+            return pm->get_output_shapes().front();
+        }
         auto pnames = pm->get_parameter_names();
         std::sort(pnames.begin(), pnames.end());
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
-
-        if(pm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("submodule should have only one output.");
 
         auto type = pm->get_output_shapes().front().type();
 

@@ -38,8 +38,7 @@ concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
 
 jobs:
   release:
-    #if: ${{ github.event.label.name != 'skip bot checks' }}
-    uses: migraphx-benchmark/actions/.github/workflows/perf-test.yml@main
+    uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/perf-test.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || '5.4.2' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}

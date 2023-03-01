@@ -14,9 +14,17 @@ on:
         required: true
         default: '5.4.2'
       performance_reports_repo:
-        description: Result repository
+        description: Repository where performance reports are stored
         required: true
         default: 'ROCmSoftwarePlatform/migraphx-reports'
+      benchmark_utils_repo:
+        description: Repository where benchmark utils are stored
+        required: true
+        default: "ROCmSoftwarePlatform/migraphx-benchmark-utils"
+      organization:
+        description: Organization based on which location of files will be different
+        required: true
+        default: "AMD"
       result_number:
         description: Last N results
         required: true
@@ -30,12 +38,15 @@ concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
 
 jobs:
   release:
-    uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/perf-test.yml@main
+    #if: ${{ github.event.label.name != 'skip bot checks' }}
+    uses: migraphx-benchmark/actions/.github/workflows/perf-test.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || '5.4.2' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}
       flags: ${{ github.event.inputs.flags || '-r' }}
-      performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }} 
+      performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }}
+      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
+      organization: ${{ github.event.inputs.organization || 'AMD' }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
       mail_user: ${{ secrets.MAIL_USERNAME }}

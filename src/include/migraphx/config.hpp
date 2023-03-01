@@ -24,10 +24,15 @@
 #ifndef MIGRAPHX_GUARD_CONFIG_HPP
 #define MIGRAPHX_GUARD_CONFIG_HPP
 
+#include <migraphx/version.h>
 namespace migraphx {
 
+#define MIGRAPHX_STRINGIZE_1(...) #__VA_ARGS__
+#define MIGRAPHX_STRINGIZE(...) MIGRAPHX_STRINGIZE_1(__VA_ARGS__)
+
 #if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
-#define MIGRAPHX_INLINE_NS version_1
+#define MIGRAPHX_INLINE_NS VERSION_##MIGRAPHX_VERSION_MAJOR
+//#define MIGRAPHX_INLINE_NS VERSION_1
 #endif
 
 #ifdef DOXYGEN

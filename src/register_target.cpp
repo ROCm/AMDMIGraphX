@@ -21,11 +21,19 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <string>
 #include <unordered_map>
 #include <migraphx/register_target.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+std::unordered_map<std::string, dynamic_loader>& target_lib_loader_map()
+{
+    static std::unordered_map<std::string, dynamic_loader> m; // NOLINT
+    return m;
+}
 
 std::unordered_map<std::string, target>& target_map()
 {
@@ -33,10 +41,22 @@ std::unordered_map<std::string, target>& target_map()
     return m;
 }
 
+void unregister_target(const std::string& name)
+{
+    assert(target_map().count(name));
+    target_map().erase(name);
+}
+
 void register_target(const target& t) { target_map()[t.name()] = t; }
 
 target make_target(const std::string& name)
 {
+    if(not contains(target_map(), name))
+    {
+        std::string target_name       = "libmigraphx_" + name + ".so";
+        auto target_lib_loader        = dynamic_loader(target_name);
+        target_lib_loader_map()[name] = target_lib_loader;
+    }
     const auto it = target_map().find(name);
     if(it == target_map().end())
     {

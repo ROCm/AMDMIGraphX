@@ -24,14 +24,29 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHX_DYNAMIC_LOADER_HPP
 #define MIGRAPHX_GUARD_MIGRAPHX_DYNAMIC_LOADER_HPP
 
+#include <dlfcn.h>
+#include <iostream>
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <functional>
 #include <memory>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct dlclose_wrapper
+{
+    void operator()(void* handle)
+    {
+        if(handle)
+        {
+            dlclose(handle);
+        }
+    }
+};
 
 struct dynamic_loader_impl;
 
@@ -44,6 +59,8 @@ struct dynamic_loader
     dynamic_loader(const char* image, std::size_t size);
 
     dynamic_loader(const std::vector<char>& buffer);
+
+    static void check_load_error(bool flush = false);
 
     std::shared_ptr<void> get_symbol(const std::string& name) const;
 

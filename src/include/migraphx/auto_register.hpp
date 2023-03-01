@@ -30,14 +30,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class Action, class T>
-int auto_register_action()
+template <class Action, class T, class... Xs>
+int auto_register_action(Xs... xs)
 {
-    Action::template apply<T>();
+    Action::template apply<T>(xs...);
     return 0;
 }
 
-template <class Action, class T>
+template <class Action, class T, class... Xs>
 struct auto_register
 {
     const static int static_register;
@@ -52,8 +52,9 @@ struct auto_register
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
 
-template <class Action, class T>
-const int auto_register<Action, T>::static_register = auto_register_action<Action, T>(); // NOLINT
+template <class Action, class T, class... Xs>
+const int auto_register<Action, T, Xs...>::static_register =
+    auto_register_action<Action, T, Xs...>(); // NOLINT
 
 #ifdef __clang__
 #pragma clang diagnostic pop

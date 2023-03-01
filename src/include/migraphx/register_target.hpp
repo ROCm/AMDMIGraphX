@@ -24,23 +24,39 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_REGISTER_TARGET_HPP
 #define MIGRAPHX_GUARD_RTGLIB_REGISTER_TARGET_HPP
 
+#include <memory>
 #include <migraphx/config.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/auto_register.hpp>
+#include <migraphx/dynamic_loader.hpp>
 #include <cstring>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+std::unordered_map<std::string, dynamic_loader>& target_lib_loader_map();
+
+std::unordered_map<std::string, target>& target_map();
+
 void register_target(const target& t);
+void unregister_target(const std::string& name);
 target make_target(const std::string& name);
 std::vector<std::string> get_targets();
+
+struct target_handler
+{
+    target _t;
+    target_handler(const target& t) : _t(t) {}
+    ~target_handler() { unregister_target(_t.name()); }
+};
 
 template <class T>
 void register_target()
 {
-    register_target(T{});
+    (void)target_map();
+    static auto t = target_handler(T{});
+    register_target(t._t);
 }
 
 struct register_target_action

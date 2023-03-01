@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <iostream>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
@@ -31,13 +32,14 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
 struct dynamic_loader_impl
 {
     dynamic_loader_impl() = default;
+
     dynamic_loader_impl(const fs::path& p, std::shared_ptr<tmp_dir> t = nullptr)
-        : handle(dlopen(p.string().c_str(), RTLD_LAZY), &dlclose), temp(std::move(t))
+        : handle(dlopen(p.string().c_str(), RTLD_LAZY), dlclose_wrapper{}), temp(std::move(t))
     {
+        dynamic_loader::check_load_error();
     }
 
     static std::shared_ptr<dynamic_loader_impl> from_buffer(const char* image, std::size_t size)
@@ -51,6 +53,13 @@ struct dynamic_loader_impl
     std::shared_ptr<void> handle  = nullptr;
     std::shared_ptr<tmp_dir> temp = nullptr;
 };
+
+void dynamic_loader::check_load_error(bool flush)
+{
+    char* error_msg = dlerror();
+    if(not flush and error_msg)
+        MIGRAPHX_THROW("Dynamic loading or symbol lookup failed with " + std::string(error_msg));
+}
 
 dynamic_loader::dynamic_loader(const fs::path& p) : impl(std::make_shared<dynamic_loader_impl>(p))
 {
@@ -68,10 +77,11 @@ dynamic_loader::dynamic_loader(const std::vector<char>& buffer)
 
 std::shared_ptr<void> dynamic_loader::get_symbol(const std::string& name) const
 {
-    dlerror();
+    // flush any previous error messages
+    dynamic_loader::check_load_error(true);
     void* symbol = dlsym(impl->handle.get(), name.c_str());
     if(symbol == nullptr)
-        MIGRAPHX_THROW("Symbol not found: " + name);
+        dynamic_loader::check_load_error();
     return {impl, symbol};
 }
 

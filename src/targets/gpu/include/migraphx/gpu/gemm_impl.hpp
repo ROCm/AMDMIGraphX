@@ -302,6 +302,7 @@ struct gemm_impl
         }
     }
 
+#ifdef ROCBLAS_BETA_FEATURES_API
     auto validate(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx) const
     {
         std::vector<argument> input_args;
@@ -345,7 +346,7 @@ struct gemm_impl
         }
         return solution_idx;
     }
-
+#endif
     void print_args() const
     {
         std::cout << "trans: " << transa << " transb: " << transb << "\n";
@@ -430,11 +431,11 @@ struct gemm_impl
                     list_size);
     }
 
+#ifdef ROCBLAS_BETA_FEATURES_API
     /**
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
-
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         std::vector<argument> input_args;
@@ -505,7 +506,7 @@ struct gemm_impl
         std::cout << "Winner: " << bestSol << " in " << bestTime << " us" << std::endl;
         return bestSol;
     }
-
+#endif
     private:
     size_t num_matrices;
     rocblas_int m, n, k;
@@ -520,8 +521,10 @@ struct gemm_impl
     bool strided_batched = true, is_3inputs = true, compute_fp32 = true;
     uint32_t flags = 0; //  optional gemm flags.
     // tuning meta parameters
+#ifdef ROCBLAS_BETA_FEATURES_API
     rocblas_int cold_calls = 4;
     rocblas_int hot_calls  = 100;
+#endif
 };
 
 } // namespace gpu

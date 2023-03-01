@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -136,6 +136,7 @@ struct rocblas_gemm
 
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
+#ifdef ROCBLAS_BETA_FEATURES_API
         if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
         {
             if(this->name() == "gpu::gemm")
@@ -168,6 +169,7 @@ struct rocblas_gemm
                 solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
             }
         }
+#endif
     }
 };
 

@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -234,6 +234,16 @@ if(HAS_FIND_MODE_API)
 else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
+
+check_library_exists(MIOpen "rocblas_gemm_strided_batched_ex" "${MIOPEN_LOCATION}" HAS_ROCBLAS_BETA_FEATURES_API)
+
+if(HAS_ROCBLAS_BETA_FEATURES_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DROCBLAS_BETA_FEATURES_API)
+    message(STATUS "MIGraphx is using Beta API of MIOpen")
+else()
+    message(STATUS "MIOpen does not have Beta API")
+endif()
+
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)

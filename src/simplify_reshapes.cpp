@@ -185,6 +185,25 @@ struct find_transpose
     }
 };
 
+struct find_literal_convert
+{
+    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("@literal"))); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins   = mr.result;
+        auto x     = ins->inputs().front();
+        auto input = x->inputs().front();
+
+        auto old_shape = input->get_shape();
+        auto lens      = old_shape.lens();
+        auto stride    = old_shape.strides();
+
+        m.add_literal(migraphx::literal(migraphx::shape(ins->get_shape().type(), lens, stride),
+                                        std::move(input->eval().data())));
+    }
+};
+
 struct find_nested_convert
 {
     auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }

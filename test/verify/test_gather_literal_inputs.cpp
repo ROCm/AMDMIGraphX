@@ -34,7 +34,6 @@ struct test_gather_literal_inputs : verify_program<test_gather_literal_inputs<Ax
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::int64_type, {3}};
         migraphx::shape g_shape{migraphx::shape::int64_type, {1}, {0}};
         migraphx::shape s_indices{migraphx::shape::int32_type, {3}};
         std::vector<int> indices{3, 800, 800};
@@ -42,8 +41,6 @@ struct test_gather_literal_inputs : verify_program<test_gather_literal_inputs<Ax
         auto a1  = mm->add_literal(migraphx::literal{g_shape, {1}});
         int axis = Axis;
         mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
-
-        mm->debug_print();
 
         return p;
     }

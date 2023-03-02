@@ -85,14 +85,14 @@ struct shape
 
     struct dynamic_dimension
     {
-        std::size_t min = 0;
-        std::size_t max = 0;
-        std::size_t opt = 0;
+        std::size_t min               = 0;
+        std::size_t max               = 0;
+        std::vector<std::size_t> opts = {};
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"), f(self.max, "max"), f(self.opt, "opt"));
+            return pack(f(self.min, "min"), f(self.max, "max"), f(self.opts, "opt"));
         }
 
         bool is_fixed() const;
@@ -132,11 +132,11 @@ struct shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
-    // Construct a dynamic shape from three sets of lengths (of the same rank)
+    // Construct a dynamic shape from vectors of mins, maxes, and opts
     shape(type_t t,
           std::vector<std::size_t> mins,
           std::vector<std::size_t> maxes,
-          std::vector<std::size_t> opts);
+          std::vector<std::vector<std::size_t>> opts_list);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
@@ -198,9 +198,9 @@ struct shape
 
     /*!
      * Optimum lengths for dynamic shape.
-     * lens() for fixed shape.
+     * Empty for fixed shape.
      */
-    std::vector<std::size_t> opt_lens() const;
+    std::vector<std::vector<std::size_t>> opt_lens() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;
@@ -253,7 +253,7 @@ struct shape
 
     shape with_type(type_t t) const;
 
-    // convert the shape to an equivalent dynamic shape
+    // convert the shape to an equivalent dynamic shape with empty opts
     shape to_dynamic() const;
 
     friend bool operator==(const shape& x, const shape& y);

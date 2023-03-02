@@ -9,7 +9,7 @@ on:
 
 jobs:
   release:
-    uses: ROCmSoftwarePlatform/actions/.github/workflows/rocm-release.yml@main
+    uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/rocm-release.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release }}
     secrets:

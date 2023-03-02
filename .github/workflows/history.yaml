@@ -16,6 +16,10 @@ on:
         description: Repository for history results between dates
         required: true
         default: 'ROCmSoftwarePlatform/migraphx-reports'
+      benchmark_utils_repo:
+        description: Repository where benchmark utils are stored
+        required: true
+        default: "ROCmSoftwarePlatform/migraphx-benchmark-utils"
 
 jobs:
   release:
@@ -24,6 +28,7 @@ jobs:
       start_date: ${{ github.event.inputs.start_date || 'yyyy-mm-dd' }}
       end_date: ${{ github.event.inputs.end_date || 'yyyy-mm-dd' }}
       history_repo: ${{ github.event.inputs.history_repo || 'ROCmSoftwarePlatform/migraphx-reports' }}
+      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
       mail_user: ${{ secrets.MAIL_USERNAME }}

@@ -1819,6 +1819,33 @@ TEST_CASE(pad_dyn_shape1)
     expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
 }
 
+TEST_CASE(pointwise_no_module)
+{
+    migraphx::shape input{migraphx::shape::float_type, {0}, {0}};
+    throws_shape(migraphx::make_op("pointwise"), input);
+}
+
+TEST_CASE(pointwise_no_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module m;
+    std::vector<migraphx::instruction_ref> args{};
+    migraphx::shape output{migraphx::shape::float_type, {1}, {0}};
+    auto l = m.add_literal(migraphx::literal(output, {1}));
+    m.add_return({l});
+    mm->add_instruction(migraphx::make_op("pointwise"), args, {&m});
+}
+
+TEST_CASE(pointwise_no_output)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module m;
+    std::vector<migraphx::instruction_ref> args{};
+    EXPECT(test::throws([&] {mm->add_instruction(migraphx::make_op("pointwise"), args, {&m});}));
+}
+
 TEST_CASE(pooling_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};

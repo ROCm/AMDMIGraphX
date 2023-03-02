@@ -1843,7 +1843,7 @@ TEST_CASE(pointwise_no_output)
     auto* mm = p.get_main_module();
     migraphx::module m;
     std::vector<migraphx::instruction_ref> args{};
-    EXPECT(test::throws([&] {mm->add_instruction(migraphx::make_op("pointwise"), args, {&m});}));
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
 }
 
 TEST_CASE(pooling_shape0)

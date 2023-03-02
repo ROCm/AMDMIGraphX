@@ -24,7 +24,6 @@
 
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 
 namespace migraphx {

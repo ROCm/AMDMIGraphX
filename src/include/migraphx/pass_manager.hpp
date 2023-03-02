@@ -39,6 +39,7 @@ struct module_pass_manager
     virtual module& get_module()                           = 0;
     virtual module* create_module(const std::string& name) = 0;
     virtual module* get_common_parent()                    = 0;
+    virtual module* get_main_module()                      = 0;
     virtual void run_pass(const pass& p)                   = 0;
 
     protected:

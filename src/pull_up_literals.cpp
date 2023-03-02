@@ -21,28 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 
-#include <string>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/pull_up_literals.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-/**
- * Split dynamic batch dimension over submodules if exactly one dimension in the parameter list
- * is dynamic. Should only run on the main module.
- */
-struct split_single_dyn_dim
+void pull_up_literals::apply(module_pass_manager& mpm) const
 {
-    std::string name() const { return "split_single_dyn_dim"; }
-    void apply(module_pass_manager&) const;
-};
+    module_ref m           = &mpm.get_module();
+    module_ref main_module = mpm.get_main_module();
+    if(m->name() == "main")
+        return;
+
+    for(auto ins : iterator_for(*m))
+    {
+        if(ins->name() == "@literal")
+        {
+            auto new_lit = main_module->add_literal(ins->get_literal());
+            for(auto out_ins : ins->outputs())
+            {
+                out_ins->replace_argument(out_ins, ins, new_lit);
+                new_lit->add_output(out_ins);
+            }
+        }
+    }
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

@@ -26,7 +26,6 @@
 #include <migraphx/check_context.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/eliminate_data_type.hpp>
@@ -40,7 +39,7 @@
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/preallocate_param.hpp>
-#include <migraphx/propagate_constant.hpp>
+#include <migraphx/pull_up_literals.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
@@ -48,7 +47,6 @@
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
-#include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
@@ -103,8 +101,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
-        split_single_dyn_dim{options.split_single_dyn_dim},
-        dead_code_elimination{},
+        enable_pass(options.split_single_dyn_dim, split_single_dyn_dim{}),
+        enable_pass(options.split_single_dyn_dim, dead_code_elimination{}),
+        enable_pass(options.split_single_dyn_dim, pull_up_literals{}),
+        enable_pass(options.split_single_dyn_dim, dead_code_elimination{}),
         normalize_ops{},
         dead_code_elimination{},
         simplify_qdq{},

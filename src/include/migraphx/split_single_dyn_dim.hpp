@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Split dynamic batch dimension over submodules if exactly one dimension in the parameter list
- * is dynamic. Should only run on the main module.
+ * is dynamic.
  */
 struct split_single_dyn_dim
 {

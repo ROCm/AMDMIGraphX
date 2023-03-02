@@ -23,7 +23,7 @@
  */
 
 #include "verify_program.hpp"
-#include <migraphx/program.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 

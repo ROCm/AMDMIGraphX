@@ -214,10 +214,14 @@ else()
 endif()
 
 # Check miopen find mode api
+
 include(CheckLibraryExists)
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
+get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
+# Beta API for automated GEMM tuning
+check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_BETA_FEATURES_API)
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -235,15 +239,12 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
-check_library_exists(MIOpen "rocblas_gemm_strided_batched_ex" "${MIOPEN_LOCATION}" HAS_ROCBLAS_BETA_FEATURES_API)
-
 if(HAS_ROCBLAS_BETA_FEATURES_API)
     target_compile_definitions(migraphx_gpu PUBLIC -DROCBLAS_BETA_FEATURES_API)
     message(STATUS "MIGraphx is using Beta API of MIOpen")
 else()
     message(STATUS "MIOpen does not have Beta API")
 endif()
-
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)

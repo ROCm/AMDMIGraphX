@@ -25,10 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/config.hpp>
-// for development:
-#ifdef ROCBLAS_BETA_FEATURES_API
-#define ROCBLAS_NO_DEPRECATED_WARNINGS
-#endif
+// ROCBLAS_BETA_FEATURES_API is defined by CMake, if available.
 #include <rocblas/rocblas.h>
 
 namespace migraphx {

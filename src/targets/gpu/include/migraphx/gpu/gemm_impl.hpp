@@ -212,79 +212,27 @@ struct gemm_impl
         }
     }
 
+    /** Helper function to create a long argument list for a rocBLAS call */
     auto create_gemm_args(context& ctx,
                           const std::vector<argument>& args,
                           rocblas_gemm_flags flag,
                           int32_t solution_idx = 0) const
     {
-        // the rocblas_gemm API handles inputs and output matrices as
-        // column-major format. When doing a C = A * B, we actually do
-        // C^T = (B^T) * (A^T). That is the reason we input args[1] as
-        // A and args[0] as B in calling the rocblas_gemm.
-        return pack(ctx.get_stream().get_rocblas(),
-                    transb ? rocblas_operation_transpose : rocblas_operation_none,
-                    transa ? rocblas_operation_transpose : rocblas_operation_none,
-                    n,
-                    m,
-                    k,
-                    alpha_v,
-                    args[1].data(),
-                    arg_type,
-                    ldb,
-                    args[0].data(),
-                    arg_type,
-                    lda,
-                    beta_v,
-                    args[2].data(),
-                    output_type,
-                    ldc,
-                    is_3inputs ? args[3].data() : args[2].data(),
-                    output_type,
-                    ldd,
-                    compute_type,
-                    rocblas_gemm_algo_solution_index,
-                    solution_idx,
-                    flag);
+        auto common_args = create_gemm_ex_args_common(ctx, args);
+        auto ded_args    = pack(solution_idx, flag);
+        return pack_join(common_args, ded_args);
     }
 
+    /** Helper function to create a long argument list for a rocBLAS call */
     auto create_strided_batched_gemm_args(context& ctx,
                                           const std::vector<argument>& args,
                                           rocblas_gemm_flags flag,
                                           int32_t solution_idx = 0) const
     {
-        // the rocblas_gemm API handles inputs and output matrices as
-        // column-major format. When doing a C = A * B, we actually do
-        // C^T = (B^T) * (A^T). That is the reason we input args[1] as
-        // A and args[0] as B in calling the rocblas_gemm.
-        return pack(ctx.get_stream().get_rocblas(),
-                    transb ? rocblas_operation_transpose : rocblas_operation_none,
-                    transa ? rocblas_operation_transpose : rocblas_operation_none,
-                    n,
-                    m,
-                    k,
-                    alpha_v,
-                    args[1].data(),
-                    arg_type,
-                    ldb,
-                    b_stride,
-                    args[0].data(),
-                    arg_type,
-                    lda,
-                    a_stride,
-                    beta_v,
-                    args[2].data(),
-                    output_type,
-                    ldc,
-                    c_stride,
-                    is_3inputs ? args[3].data() : args[2].data(),
-                    output_type,
-                    ldd,
-                    d_stride,
-                    num_matrices,
-                    compute_type,
-                    rocblas_gemm_algo_solution_index,
-                    solution_idx,
-                    flag);
+        auto common_args = create_strided_batched_args_common(ctx, args);
+        auto ded_args    = pack(solution_idx, flag);
+
+        return pack_join(common_args, ded_args);
     }
 
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
@@ -362,10 +310,17 @@ struct gemm_impl
         std::cout << "int8_flag: " << int8_flag << "\n";
     }
 
-    auto create_strided_batched_gemm_get_solutions_args(context& ctx,
-                                                        const std::vector<argument>& args,
-                                                        rocblas_int* list,
-                                                        rocblas_int* list_size) const
+    /**
+     * Helper method to create that subset of a long rocBLAS argument list that is common
+     * to multiple "...strided_batched..." calls.
+     *
+     * The rocblas_gemm API handles inputs and output matrices as
+     *  column-major format. When doing a C = A * B, we actually do
+     *  C^T = (B^T) * (A^T). That is the reason we input args[1] as
+     *   A and args[0] as B in calling the rocblas_gemm.
+     *
+     */
+    auto create_strided_batched_args_common(context& ctx, const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -393,16 +348,20 @@ struct gemm_impl
                     d_stride,
                     num_matrices,
                     compute_type,
-                    rocblas_gemm_algo_solution_index,
-                    int8_flag,
-                    list,
-                    list_size);
+                    rocblas_gemm_algo_solution_index);
     }
 
-    auto create_gemm_ex_get_solutions_args(context& ctx,
-                                           const std::vector<argument>& args,
-                                           rocblas_int* list,
-                                           rocblas_int* list_size) const
+    /**
+     * Helper method to create that subset of a long rocBLAS argument list that is common
+     * to multiple "gemm_ex..." calls.
+     *
+     * The rocblas_gemm API handles inputs and output matrices as
+     *  column-major format. When doing a C = A * B, we actually do
+     *   C^T = (B^T) * (A^T). That is the reason we input args[1] as
+     *   A and args[0] as B in calling the rocblas_gemm.
+     *
+     * */
+    auto create_gemm_ex_args_common(context& ctx, const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -425,13 +384,34 @@ struct gemm_impl
                     output_type,
                     ldd,
                     compute_type,
-                    rocblas_gemm_algo_solution_index,
-                    int8_flag,
-                    list,
-                    list_size);
+                    rocblas_gemm_algo_solution_index);
     }
 
 #ifdef ROCBLAS_BETA_FEATURES_API
+
+    /** Helper function to create a long argument list for a rocBLAS call */
+    auto create_strided_batched_gemm_get_solutions_args(context& ctx,
+                                                        const std::vector<argument>& args,
+                                                        rocblas_int* list,
+                                                        rocblas_int* list_size) const
+    {
+        auto common_args = create_strided_batched_args_common(ctx, args);
+        auto ded_args    = pack(int8_flag, list, list_size);
+
+        return pack_join(common_args, ded_args);
+    }
+
+    /** Helper function to create a long argument list for a rocBLAS call */
+    auto create_gemm_ex_get_solutions_args(context& ctx,
+                                           const std::vector<argument>& args,
+                                           rocblas_int* list,
+                                           rocblas_int* list_size) const
+    {
+        auto common_args = create_gemm_ex_args_common(ctx, args);
+        auto ded_args    = pack(int8_flag, list, list_size);
+        return pack_join(common_args, ded_args);
+    }
+
     /**
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.

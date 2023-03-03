@@ -169,6 +169,9 @@ struct rocblas_gemm
                 solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
             }
         }
+#else
+        // suppress compiler warnings
+        (void)ctx, (void)output_shape, (void)input_shapes;
 #endif
     }
 };

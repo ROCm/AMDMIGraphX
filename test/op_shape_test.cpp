@@ -2389,6 +2389,18 @@ TEST_CASE(rnn)
     }
 }
 
+TEST_CASE(select_module_dyn)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {255, 255}, {255, 255}}};
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1000, 1000}}});
+    migraphx::shape out_attr = migraphx::shape{sub_shapes};
+    expect_shape(
+        out_attr,
+        migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+        input);
+}
+
 TEST_CASE(slice_shape)
 {
     migraphx::shape input{migraphx::shape::int32_type, {2, 2, 3}};

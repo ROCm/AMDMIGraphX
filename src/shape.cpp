@@ -483,6 +483,17 @@ std::string shape::type_string() const { return name(this->type()); }
 
 bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
 
+bool shape::any_of_dynamic() const
+{
+    if(this->dynamic())
+    {
+        return true;
+    }
+    return std::any_of(this->sub_shapes().cbegin(), this->sub_shapes().cend(), [](auto s) {
+        return s.any_of_dynamic();
+    });
+}
+
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
 std::vector<std::size_t> shape::min_lens() const

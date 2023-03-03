@@ -1831,10 +1831,11 @@ TEST_CASE(pointwise_no_input)
     auto* mm = p.get_main_module();
     migraphx::module m;
     std::vector<migraphx::instruction_ref> args{};
-    migraphx::shape output{migraphx::shape::float_type, {1}, {0}};
-    auto l = m.add_literal(migraphx::literal(output, {1}));
+    auto output = migraphx::shape(migraphx::shape::float_type, {1}, {0});
+    auto l      = m.add_literal(migraphx::literal(output, {1}));
     m.add_return({l});
     mm->add_instruction(migraphx::make_op("pointwise"), args, {&m});
+    EXPECT(mm->get_output_shapes().front() == output);
 }
 
 TEST_CASE(pointwise_no_output)

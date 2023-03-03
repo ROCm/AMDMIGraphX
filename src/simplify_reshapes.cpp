@@ -829,6 +829,7 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
+                            find_literal_convert{},
                             find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},

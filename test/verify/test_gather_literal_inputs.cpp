@@ -27,8 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <int Axis>
-struct test_gather_literal_inputs : verify_program<test_gather_literal_inputs<Axis>>
+struct test_gather_literal_inputs : verify_program<test_gather_literal_inputs>
 {
     migraphx::program create_program() const
     {
@@ -39,12 +38,9 @@ struct test_gather_literal_inputs : verify_program<test_gather_literal_inputs<Ax
         std::vector<int> indices{3, 800, 800};
         auto a0  = mm->add_literal(migraphx::literal{s_indices, indices});
         auto a1  = mm->add_literal(migraphx::literal{g_shape, {1}});
-        int axis = Axis;
+        int axis = 0;
         mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
 
         return p;
     }
 };
-
-// Standard gather test
-template struct test_gather_literal_inputs<0>;

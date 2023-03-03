@@ -357,6 +357,24 @@ TEST_CASE(nop_convert)
     EXPECT(std::distance(m.begin(), m.end()) == n - 1);
 }
 
+TEST_CASE(literal_convert_scalar)
+{
+    migraphx::module m;
+
+    auto lit = m.add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}, {0}}));
+    auto t = m.add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+        lit);
+    m.add_return({t});
+    auto out_shape = m.get_output_shapes().back();
+    run_pass(m);
+
+    auto target_lit_out_shape = migraphx::shape{migraphx::shape::int32_type, {1}, {0}};
+    EXPECT(target_lit_out_shape == out_shape);
+}
+
 TEST_CASE(concat_multibroadcasts1)
 {
     // Broadcasted batch dim, new axis < old axis

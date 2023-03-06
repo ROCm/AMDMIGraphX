@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -2374,6 +2374,70 @@ TEST_CASE(slice_shape)
     expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
                  migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {10}}}),
                  input);
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
+                 migraphx::make_op("slice", {{"axes", {2}}, {"starts", {-1}}, {"ends", {10}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape0)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 7, 0}, {2, 3, 0}}};
+
+    // Slice axis 1 to size 4-1=3
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {3, 3, 0}, {2, 3, 0}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape1)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 7, 0}, {2, 3, 0}}};
+    // Slice axis 1 with negative index
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {2, 2, 0}, {2, 3, 0}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {-4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape2)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 7, 0}, {2, 3, 0}}};
+    // Sliced range max bigger than dimension; is clipped
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {6, 6, 0}, {2, 3, 0}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {10}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_shape3)
+{
+    // TODO: When variable dimension slicing is allowed, Slice to a size smaller than min.
+    // Until then, this action is an error.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3, 0}, {7, 8, 0}, {2, 3, 0}}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+                 input);
+    // clang-format off
+    //     expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3, 0}, {1, 1, 0}, {2, 3, 0}}},
+    //                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+    //                  input);
+    // clang-format on
+}
+
+TEST_CASE(slice_dyn_shape4)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 2, 0}, {7, 7, 0}, {2, 3, 0}}};
+    // Slice multiple axes:  axis 0 to size 2-1=1 and axis 1 to size 4-1=3
+    expect_shape(
+        migraphx::shape{migraphx::shape::int32_type, {{1, 1, 0}, {3, 3, 0}, {2, 3, 0}}},
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
+}
+
+TEST_CASE(slice_dyn_shape5)
+{
+    // Axis out of range.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 2, 0}, {7, 7, 0}, {2, 3, 0}}};
+    throws_shape(
+        migraphx::make_op("slice", {{"axes", {0, 20}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
 }
 
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
@@ -3157,6 +3221,42 @@ TEST_CASE(where_broadcast_input)
     expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
 }
 
+TEST_CASE(where_dyn_input0)
+{
+    // dynamic shapes not the same
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input1)
+{
+    // mixed static/dynamic inputs (not allowed)
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {2, 1}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}, {2, 1}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input2)
+{
+    // dynamic shapes
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 3, 0}}};
+    expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_dyn_input3)
+{
+    // dynamic shapes, predicate shape is different
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{2, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s3{migraphx::shape::bool_type, {{2, 3, 0}, {3, 4, 0}}};
+    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
 TEST_CASE(roialign_test)
 {
     migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};
@@ -3177,6 +3277,54 @@ TEST_CASE(roialign_test)
 
     migraphx::shape srois2{migraphx::shape::float_type, {2, 3}};
     throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
+}
+
+TEST_CASE(test_concat)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};
+    migraphx::shape sy{migraphx::shape::float_type, {3, 4, 1, 6}};
+    migraphx::shape sout{migraphx::shape::float_type, {3, 4, 6, 6}};
+
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
+
+    // axis out of range
+    throws_shape(migraphx::make_op("concat", {{"axis", 11}}), sx, sy);
+
+    // 1 input; no-op
+    expect_shape(sx, migraphx::make_op("concat", {{"axis", 2}}), sx);
+
+    // rank doesn't match
+    migraphx::shape sbi1{migraphx::shape::int64_type, {2, 3}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, sbi1);
+
+    // non-matching dimension 2
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+
+    // no input shapes (at least one is required)
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}));
+}
+
+TEST_CASE(test_dyn_concat)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 3, 3}, {4, 4}, {1, 5, 5}, {6, 6}}};
+    migraphx::shape sy{migraphx::shape::float_type, {{1, 3, 3}, {4, 4}, {1, 4, 4}, {6, 6}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{1, 3, 3}, {4, 4, 0}, {2, 9, 0}, {6, 6}}};
+
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
+
+    // axis out of range
+    throws_shape(migraphx::make_op("concat", {{"axis", 4}}), sx, sy);
+
+    // rank doesn't match
+    migraphx::shape srank{migraphx::shape::int64_type, {{1, 3, 3}, {4, 4}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), sx, srank);
+
+    // non-matching dimension 2
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+
+    // static and dynamic shapes together
+    migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

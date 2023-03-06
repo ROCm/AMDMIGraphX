@@ -200,6 +200,7 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    select_module
     sigmoid
     sign
     sinh

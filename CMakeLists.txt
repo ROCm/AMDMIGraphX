@@ -52,6 +52,8 @@ find_package(ROCM REQUIRED)
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+else()
+	message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
 endif()
 
 include(CheckTypeSize)
@@ -63,7 +65,7 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.5)
+rocm_setup_version(VERSION 2.6)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )

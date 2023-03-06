@@ -278,6 +278,7 @@ struct nonmaxsuppression
                 selected_indices.push_back(batch_idx);
                 selected_indices.push_back(class_idx);
                 selected_indices.push_back(next_top_score.second);
+                std::priority_queue<std::pair<double, int64_t>> remainder;
                 while(not boxes_heap.empty())
                 {
                     auto current_box = boxes_heap.top();
@@ -286,7 +287,7 @@ struct nonmaxsuppression
                            batch_box(batch_boxes_start, next_top_score.second),
                            iou_threshold))
                     {
-                        remainder.push(tmp_top_box);
+                        remainder.push(current_box);
                     }
                     boxes_heap.pop();
                 }

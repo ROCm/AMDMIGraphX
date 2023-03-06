@@ -48,7 +48,7 @@ struct contiguous
     {
         check_shapes{inputs, *this, true}.has(1);
         auto s0 = inputs.front();
-        if(s0.dynamic() or s0.scalar())
+        if(s0.dynamic())
         {
             return s0;
         }

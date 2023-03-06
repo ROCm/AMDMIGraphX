@@ -278,20 +278,17 @@ struct nonmaxsuppression
                 selected_indices.push_back(batch_idx);
                 selected_indices.push_back(class_idx);
                 selected_indices.push_back(next_top_score.second);
-                auto temp_heap =
-                    boxes_heap; // priority_queue doesn't support iteration, make a copy
-                std::priority_queue<std::pair<double, int64_t>> remainder;
-                while(!temp_heap.empty())
+                while(not boxes_heap.empty())
                 {
-                    auto tmp_top_box = temp_heap.top();
+                    auto current_box = boxes_heap.top();
                     if(not this->suppress_by_iou(
-                           batch_box(batch_boxes_start, tmp_top_box.second),
+                           batch_box(batch_boxes_start, current_box.second),
                            batch_box(batch_boxes_start, next_top_score.second),
                            iou_threshold))
                     {
                         remainder.push(tmp_top_box);
                     }
-                    temp_heap.pop();
+                    boxes_heap.pop();
                 }
                 boxes_heap = remainder;
             }

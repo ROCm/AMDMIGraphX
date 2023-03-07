@@ -36,6 +36,14 @@
 using milliseconds = std::chrono::duration<double, std::milli>;
 using microseconds = std::chrono::duration<double, std::micro>;
 
+#ifdef ROCBLAS_BETA_FEATURES_API
+    typedef rocblas_gemm_flags FLAG_TYPE;
+#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+    typedef rocblas_gemm_flags FLAG_TYPE;
+#else
+    typedef int FLAG_TYPE;
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -213,26 +221,10 @@ struct gemm_impl
     }
 
     /** Helper function to create a long argument list for a rocBLAS call */
-#ifdef ROCBLAS_BETA_FEATURES_API
     auto create_gemm_args(context& ctx,
                           const std::vector<argument>& args,
-                          rocblas_gemm_flags flag,
+                          FLAG_TYPE flag,
                           int32_t solution_idx = 0) const
-#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    auto create_gemm_args(context& ctx,
-                          const std::vector<argument>& args,
-                          rocblas_gemm_flags flag,
-                          int32_t solution_idx = 0) const
-#else
-    auto create_gemm_args(context& ctx,
-                          const std::vector<argument>& args,
-                          int flag,
-                          int32_t solution_idx = 0) const
-#endif
-    // auto create_gemm_args(context& ctx,
-    //                       const std::vector<argument>& args,
-    //                       rocblas_gemm_flags flag,
-    //                       int32_t solution_idx = 0) const
     {
         auto common_args = create_gemm_ex_args_common(ctx, args);
         auto ded_args    = pack(solution_idx, flag);
@@ -241,26 +233,10 @@ struct gemm_impl
 
     /** Helper function to create a long argument list for a rocBLAS call */
 
-#ifdef ROCBLAS_BETA_FEATURES_API
     auto create_strided_batched_gemm_args(context& ctx,
                                           const std::vector<argument>& args,
-                                          rocblas_gemm_flags flag,
+                                          FLAG_TYPE flag,
                                           int32_t solution_idx = 0) const
-#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    auto create_strided_batched_gemm_args(context& ctx,
-                                          const std::vector<argument>& args,
-                                          rocblas_gemm_flags flag,
-                                          int32_t solution_idx = 0) const
-#else
-    auto create_strided_batched_gemm_args(context& ctx,
-                                          const std::vector<argument>& args,
-                                          int flag,
-                                          int32_t solution_idx = 0) const
-#endif
-    // auto create_strided_batched_gemm_args(context& ctx,
-    //                                       const std::vector<argument>& args,
-    //                                       rocblas_gemm_flags flag,
-    //                                       int32_t solution_idx = 0) const
     {
         auto common_args = create_strided_batched_args_common(ctx, args);
         auto ded_args    = pack(solution_idx, flag);
@@ -344,7 +320,6 @@ struct gemm_impl
         std::cout << "int8_flag: " << int8_flag << "\n";
     }
 
-#ifdef ROCBLAS_BETA_FEATURES_API
     /**
      * Helper method to create that subset of a long rocBLAS argument list that is common
      * to multiple "...strided_batched..." calls.
@@ -421,6 +396,7 @@ struct gemm_impl
                     compute_type,
                     rocblas_gemm_algo_solution_index);
     }
+#ifdef ROCBLAS_BETA_FEATURES_API
 
 
     /** Helper function to create a long argument list for a rocBLAS call */
@@ -528,7 +504,7 @@ struct gemm_impl
     T alpha, beta;
     void* alpha_v = nullptr;
     void* beta_v  = nullptr;
-    rocblas_gemm_flags int8_flag;
+    FLAG_TYPE int8_flag;
     rocblas_int lda, ldb, ldc, ldd;
     rocblas_int a_stride, b_stride, c_stride, d_stride;
     rocblas_datatype compute_type, arg_type, output_type;

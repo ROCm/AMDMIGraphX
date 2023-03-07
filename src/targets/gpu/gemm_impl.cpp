@@ -274,6 +274,7 @@ void gemm(context& ctx,
 {
     gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
 }
-}
-}
-}
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

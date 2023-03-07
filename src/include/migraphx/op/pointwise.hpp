@@ -49,7 +49,7 @@ struct pointwise
         if(pm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("pointwise should have only one output.");
         if(inputs.empty())
-            MIGRAPHX_THROW("poinwise should have at least one input");
+            MIGRAPHX_THROW("pointwise should have at least one input");
         auto pnames = pm->get_parameter_names();
         std::sort(pnames.begin(), pnames.end());
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();

@@ -268,7 +268,7 @@ struct context
         value result;
         result["events"]  = events.size();
         result["streams"] = current_device->nstreams();
-
+        // result["rocblas_version"] = rocblas_version;   TODO
         return result;
     }
 

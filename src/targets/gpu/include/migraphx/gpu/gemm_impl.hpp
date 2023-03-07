@@ -295,6 +295,7 @@ struct gemm_impl
         return solution_idx;
     }
 #endif
+    // TODO:  is this still needed?
     void print_args() const
     {
         std::cout << "trans: " << transa << " transb: " << transb << "\n";
@@ -310,6 +311,7 @@ struct gemm_impl
         std::cout << "int8_flag: " << int8_flag << "\n";
     }
 
+#ifdef ROCBLAS_BETA_FEATURES_API
     /**
      * Helper method to create that subset of a long rocBLAS argument list that is common
      * to multiple "...strided_batched..." calls.
@@ -387,7 +389,6 @@ struct gemm_impl
                     rocblas_gemm_algo_solution_index);
     }
 
-#ifdef ROCBLAS_BETA_FEATURES_API
 
     /** Helper function to create a long argument list for a rocBLAS call */
     auto create_strided_batched_gemm_get_solutions_args(context& ctx,

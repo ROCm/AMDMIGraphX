@@ -34,7 +34,6 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/time.hpp>
 
 #include <migraphx/serialize.hpp>
 
@@ -4929,17 +4928,7 @@ TEST_CASE(nms_dyn_out_test)
     mm->add_return({r});
 
     p.compile(migraphx::ref::target{});
-    auto output        = p.eval({}).back();
-    auto run_func      = [&]() { output = p.eval({}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS dyn_out test host_time : " << host_time << "\n";
-
+    auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
@@ -4982,18 +4971,9 @@ TEST_CASE(nms_dyn_batch_test)
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {2, 6, 4}};
     migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {2, 1, 6}};
     migraphx::parameter_map params0;
-    params0["boxes"]   = migraphx::argument(input_fixed_shape0, boxes_vec.data());
-    params0["scores"]  = migraphx::argument(input_fixed_shape1, scores_vec.data());
-    auto output        = p.eval(params0).back();
-    auto run_func      = [&]() { output = p.eval({params0}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS dyn_batch test host_time : " << host_time << "\n";
+    params0["boxes"]  = migraphx::argument(input_fixed_shape0, boxes_vec.data());
+    params0["scores"] = migraphx::argument(input_fixed_shape1, scores_vec.data());
+    auto output       = p.eval(params0).back();
 
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
@@ -5034,18 +5014,9 @@ TEST_CASE(nms_dyn_boxes_test)
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 6, 4}};
     migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, 1, 6}};
     migraphx::parameter_map params0;
-    params0["boxes"]   = migraphx::argument(input_fixed_shape0, boxes_vec.data());
-    params0["scores"]  = migraphx::argument(input_fixed_shape1, scores_vec.data());
-    auto output        = p.eval(params0).back();
-    auto run_func      = [&]() { output = p.eval({params0}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS dyn_boxes test host_time : " << host_time << "\n";
+    params0["boxes"]  = migraphx::argument(input_fixed_shape0, boxes_vec.data());
+    params0["scores"] = migraphx::argument(input_fixed_shape1, scores_vec.data());
+    auto output       = p.eval(params0).back();
 
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
@@ -5087,18 +5058,9 @@ TEST_CASE(nms_dyn_classes_test)
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 6, 4}};
     migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, 2, 6}};
     migraphx::parameter_map params0;
-    params0["boxes"]   = migraphx::argument(input_fixed_shape0, boxes_vec.data());
-    params0["scores"]  = migraphx::argument(input_fixed_shape1, scores_vec.data());
-    auto output        = p.eval(params0).back();
-    auto run_func      = [&]() { output = p.eval({params0}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS dyn_classes test host_time : " << host_time << "\n";
+    params0["boxes"]  = migraphx::argument(input_fixed_shape0, boxes_vec.data());
+    params0["scores"] = migraphx::argument(input_fixed_shape1, scores_vec.data());
+    auto output       = p.eval(params0).back();
 
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
@@ -5135,16 +5097,7 @@ TEST_CASE(nms_not_center_test)
     mm->add_return({r});
 
     p.compile(migraphx::ref::target{});
-    auto output        = p.eval({}).back();
-    auto run_func      = [&]() { output = p.eval({}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS non-center test host_time : " << host_time << "\n";
+    auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -5178,17 +5131,7 @@ TEST_CASE(nms_test)
     mm->add_return({r});
 
     p.compile(migraphx::ref::target{});
-    auto output        = p.eval({}).back();
-    auto run_func      = [&]() { output = p.eval({}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS test host_time : " << host_time << "\n";
-
+    auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -5226,17 +5169,7 @@ TEST_CASE(nms_transpose1_test)
     mm->add_return({r});
 
     p.compile(migraphx::ref::target{});
-    auto output        = p.eval({}).back();
-    auto run_func      = [&]() { output = p.eval({}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS transpose test_1 host_time : " << host_time << "\n";
-
+    auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -5274,17 +5207,7 @@ TEST_CASE(nms_transpose2_test)
     mm->add_return({r});
 
     p.compile(migraphx::ref::target{});
-    auto output        = p.eval({}).back();
-    auto run_func      = [&]() { output = p.eval({}).back(); };
-    double host_time   = 0.0f;
-    using microseconds = std::chrono::duration<double, std::micro>;
-
-    for(size_t i = 0; i < 10000; i++)
-    {
-        host_time += migraphx::time<microseconds>(run_func);
-    }
-    std::cout << "NMS tranpose test 2 host_time : " << host_time << "\n";
-
+    auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};

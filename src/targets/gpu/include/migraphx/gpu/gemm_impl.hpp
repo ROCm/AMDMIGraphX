@@ -213,10 +213,26 @@ struct gemm_impl
     }
 
     /** Helper function to create a long argument list for a rocBLAS call */
+#ifdef ROCBLAS_BETA_FEATURES_API
     auto create_gemm_args(context& ctx,
                           const std::vector<argument>& args,
                           rocblas_gemm_flags flag,
                           int32_t solution_idx = 0) const
+#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+    auto create_gemm_args(context& ctx,
+                          const std::vector<argument>& args,
+                          rocblas_gemm_flags flag,
+                          int32_t solution_idx = 0) const
+#else
+    auto create_gemm_args(context& ctx,
+                          const std::vector<argument>& args,
+                          int flag,
+                          int32_t solution_idx = 0) const
+#endif
+    // auto create_gemm_args(context& ctx,
+    //                       const std::vector<argument>& args,
+    //                       rocblas_gemm_flags flag,
+    //                       int32_t solution_idx = 0) const
     {
         auto common_args = create_gemm_ex_args_common(ctx, args);
         auto ded_args    = pack(solution_idx, flag);
@@ -224,10 +240,27 @@ struct gemm_impl
     }
 
     /** Helper function to create a long argument list for a rocBLAS call */
+
+#ifdef ROCBLAS_BETA_FEATURES_API
     auto create_strided_batched_gemm_args(context& ctx,
                                           const std::vector<argument>& args,
                                           rocblas_gemm_flags flag,
                                           int32_t solution_idx = 0) const
+#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+    auto create_strided_batched_gemm_args(context& ctx,
+                                          const std::vector<argument>& args,
+                                          rocblas_gemm_flags flag,
+                                          int32_t solution_idx = 0) const
+#else
+    auto create_strided_batched_gemm_args(context& ctx,
+                                          const std::vector<argument>& args,
+                                          int flag,
+                                          int32_t solution_idx = 0) const
+#endif
+    // auto create_strided_batched_gemm_args(context& ctx,
+    //                                       const std::vector<argument>& args,
+    //                                       rocblas_gemm_flags flag,
+    //                                       int32_t solution_idx = 0) const
     {
         auto common_args = create_strided_batched_args_common(ctx, args);
         auto ded_args    = pack(solution_idx, flag);

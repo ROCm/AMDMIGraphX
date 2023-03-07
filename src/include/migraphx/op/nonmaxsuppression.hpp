@@ -278,20 +278,20 @@ struct nonmaxsuppression
                 selected_indices.push_back(batch_idx);
                 selected_indices.push_back(class_idx);
                 selected_indices.push_back(next_top_score.second);
-                std::priority_queue<std::pair<double, int64_t>> remainder;
+                std::priority_queue<std::pair<double, int64_t>> remainder_boxes;
                 while(not boxes_heap.empty())
                 {
-                    auto current_box = boxes_heap.top();
+                    auto iou_candidate_box = boxes_heap.top();
                     if(not this->suppress_by_iou(
-                           batch_box(batch_boxes_start, current_box.second),
+                           batch_box(batch_boxes_start, iou_candidate_box.second),
                            batch_box(batch_boxes_start, next_top_score.second),
                            iou_threshold))
                     {
-                        remainder.push(current_box);
+                        remainder_boxes.push(iou_candidate_box);
                     }
                     boxes_heap.pop();
                 }
-                boxes_heap = remainder;
+                boxes_heap = remainder_boxes;
             }
         });
         std::copy(selected_indices.begin(), selected_indices.end(), output.begin());

@@ -36,17 +36,18 @@
 using milliseconds = std::chrono::duration<double, std::milli>;
 using microseconds = std::chrono::duration<double, std::micro>;
 
-#ifdef ROCBLAS_BETA_FEATURES_API
-    typedef rocblas_gemm_flags FLAG_TYPE;
-#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    typedef rocblas_gemm_flags FLAG_TYPE;
-#else
-    typedef int FLAG_TYPE;
-#endif
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+
+#ifdef ROCBLAS_BETA_FEATURES_API
+    using flag_type = rocblas_gemm_flags;
+#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+    using flag_type = rocblas_gemm_flags;
+#else
+    using flag_type = int;
+#endif
 
 inline rocblas_datatype get_type(shape::type_t type)
 {
@@ -142,9 +143,9 @@ struct gemm_impl
               T beta_param,
               bool int8_x4_format,
               bool compute_fp32_flag)
-        : alpha(alpha_param), beta(beta_param), compute_fp32(compute_fp32_flag)
+        : alpha(alpha_param), beta(beta_param),
+        is_3inputs(input_shapes.size() == 4), compute_fp32(compute_fp32_flag)
     {
-        is_3inputs = (input_shapes.size() == 4);
         if(not is_3inputs)
         {
             beta = 0;
@@ -223,7 +224,7 @@ struct gemm_impl
     /** Helper function to create a long argument list for a rocBLAS call */
     auto create_gemm_args(context& ctx,
                           const std::vector<argument>& args,
-                          FLAG_TYPE flag,
+                          flag_type flag,
                           int32_t solution_idx = 0) const
     {
         auto common_args = create_gemm_ex_args_common(ctx, args);
@@ -235,11 +236,12 @@ struct gemm_impl
 
     auto create_strided_batched_gemm_args(context& ctx,
                                           const std::vector<argument>& args,
-                                          FLAG_TYPE flag,
+                                          rocblas_gemm_algo algo,
+                                          flag_type flag,
                                           int32_t solution_idx = 0) const
     {
         auto common_args = create_strided_batched_args_common(ctx, args);
-        auto ded_args    = pack(solution_idx, flag);
+        auto ded_args    = pack(algo, solution_idx, flag);
 
         return pack_join(common_args, ded_args);
     }
@@ -249,7 +251,7 @@ struct gemm_impl
         if(strided_batched)
         {
             auto gemm_args =
-                create_strided_batched_gemm_args(ctx, input_args, int8_flag, solution_idx);
+                create_strided_batched_gemm_args(ctx, input_args, rocblas_gemm_algo_standard, int8_flag, solution_idx);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
         }
         else
@@ -286,7 +288,7 @@ struct gemm_impl
         if(strided_batched)
         {
             auto gemm_args = create_strided_batched_gemm_args(
-                ctx, input_args, rocblas_gemm_flags_check_solution_index, solution_idx);
+                ctx, input_args, rocblas_gemm_algo_solution_index, rocblas_gemm_flags_check_solution_index, solution_idx);
             check_valid = rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
         }
         else
@@ -357,8 +359,7 @@ struct gemm_impl
                     ldd,
                     d_stride,
                     num_matrices,
-                    compute_type,
-                    rocblas_gemm_algo_solution_index);
+                    compute_type);
     }
 
     /**
@@ -406,7 +407,7 @@ struct gemm_impl
                                                         rocblas_int* list_size) const
     {
         auto common_args = create_strided_batched_args_common(ctx, args);
-        auto ded_args    = pack(int8_flag, list, list_size);
+        auto ded_args    = pack(rocblas_gemm_algo_solution_index, int8_flag, list, list_size);
 
         return pack_join(common_args, ded_args);
     }
@@ -504,7 +505,7 @@ struct gemm_impl
     T alpha, beta;
     void* alpha_v = nullptr;
     void* beta_v  = nullptr;
-    FLAG_TYPE int8_flag;
+    flag_type int8_flag;
     rocblas_int lda, ldb, ldc, ldd;
     rocblas_int a_stride, b_stride, c_stride, d_stride;
     rocblas_datatype compute_type, arg_type, output_type;

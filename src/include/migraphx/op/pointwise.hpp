@@ -48,12 +48,8 @@ struct pointwise
         auto* pm = mods.front();
         if(pm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("submodule should have only one output.");
-        // if pointwise op doens't have any input args (const-foldable) then just return output
-        // shape
         if(inputs.empty())
-        {
-            return pm->get_output_shapes().front();
-        }
+            MIGRAPHX_THROW("submodule should have atleast one input");
         auto pnames = pm->get_parameter_names();
         std::sort(pnames.begin(), pnames.end());
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();

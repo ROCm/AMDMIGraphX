@@ -499,9 +499,8 @@ struct gemm_impl
     rocblas_int a_stride, b_stride, c_stride, d_stride;
     rocblas_datatype compute_type, arg_type, output_type;
     bool strided_batched = true, is_3inputs = true, compute_fp32 = true;
-    uint32_t flags = 0; //  optional gemm flags.
-    // tuning meta parameters
 #ifdef ROCBLAS_BETA_FEATURES_API
+    // tuning meta parameters
     rocblas_int cold_calls = 4;
     rocblas_int hot_calls  = 100;
 #endif

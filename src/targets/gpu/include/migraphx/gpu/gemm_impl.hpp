@@ -99,14 +99,15 @@ inline shape transpose_batch(const shape& s, unsigned trans_batch)
     return shape::from_permutation(s.type(), s.lens(), perm);
 }
 
-static bool is_transposed(const shape& s)
+static inline bool is_transposed(const shape& s)
 {
-    if(not s.transposed())
-        return false;
-    return s.strides().back() != 1;
+    return (s.transposed() and s.strides().back() != 1);
 }
 
-static rocblas_int get_batch_stride(const shape& a) { return a.strides()[a.strides().size() - 3]; }
+static inline rocblas_int get_batch_stride(const shape& a)
+{
+    return a.strides()[a.strides().size() - 3];
+}
 
 /**
  * Returns results of rocblas_status_success, rocblas_status_perf_degraded,

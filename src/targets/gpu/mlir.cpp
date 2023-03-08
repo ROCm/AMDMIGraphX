@@ -24,7 +24,7 @@
 #include "migraphx/make_op.hpp"
 #include <migraphx/gpu/mlir.hpp>
 
-#ifdef MIGRAPHX_MLIR
+#ifndef MIGRAPHX_DISABLE_MLIR_BUILD
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
 #include <mlir-c/BuiltinTypes.h>
@@ -35,7 +35,7 @@
 #include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
-#undef MIGRAPHX_MLIR
+#define MIGRAPHX_DISABLE_MLIR_BUILD
 #else
 #include <mlir-c/RegisterRocMLIR.h>
 #endif
@@ -62,7 +62,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 
-#ifdef MIGRAPHX_MLIR
+#ifndef MIGRAPHX_DISABLE_MLIR_BUILD
 template <class T, class F, F f> // NOLINT
 struct mlir_handle
 {

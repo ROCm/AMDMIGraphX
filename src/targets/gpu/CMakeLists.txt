@@ -170,14 +170,15 @@ register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
+set(MIGRAPHX_DISABLE_MLIR_BUILD OFF CACHE BOOL "")
 
-if(MIGRAPHX_ENABLE_MLIR)
+if(NOT MIGRAPHX_DISABLE_MLIR_BUILD)
     # Find package rocMLIR
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
-    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
     target_link_libraries(migraphx_gpu PUBLIC rocMLIR::rockCompiler)
+else()
+    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_DISABLE_MLIR_BUILD")
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)

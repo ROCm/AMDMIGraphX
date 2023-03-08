@@ -36,9 +36,9 @@ struct module;
 
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR);
 
-#ifndef MIGRAPHX_DISABLE_MLIR_BUILD
+#ifdef MIGRAPHX_MLIR
 struct mlir_conv
 {
     operation op = make_op("convolution");
@@ -145,15 +145,15 @@ struct find_conv_pointwise
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
-#ifndef MIGRAPHX_DISABLE_MLIR_BUILD
-    const bool mlir_enabled = enabled(MIGRAPHX_MLIR{});
+#ifdef MIGRAPHX_MLIR
+    const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
     if(mlir_enabled)
     {
         match::find_matches(mpm, find_conv_pointwise{});
-        return;
     }
-#endif
+#else
     (void)mpm;
+#endif
 }
 
 } // namespace gpu

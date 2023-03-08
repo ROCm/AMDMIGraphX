@@ -199,11 +199,11 @@ migraphx::argument run_gpu_e2e(migraphx::program p, const migraphx::parameter_ma
 
 bool verify_mlir_e2e(migraphx::program p)
 {
-    setenv("MIGRAPHX_MLIR", "1", 1);
+    setenv("MIGRAPHX_ENABLE_MLIR", "1", 1);
     auto inputs = generate_params(p);
     auto ref    = run_ref(p, inputs);
     auto test   = run_gpu_e2e(p, inputs);
-    unsetenv("MIGRAPHX_MLIR");
+    unsetenv("MIGRAPHX_ENABLE_MLIR");
     return migraphx::verify_args("mlir", ref, test);
 }
 

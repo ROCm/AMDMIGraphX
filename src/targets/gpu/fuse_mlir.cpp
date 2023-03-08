@@ -27,6 +27,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,7 +36,9 @@ struct module;
 
 namespace gpu {
 
-#ifdef MIGRAPHX_MLIR
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR);
+
+#ifndef MIGRAPHX_DISABLE_MLIR_BUILD
 struct mlir_conv
 {
     operation op = make_op("convolution");
@@ -142,11 +145,15 @@ struct find_conv_pointwise
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
-#ifdef MIGRAPHX_MLIR
-    match::find_matches(mpm, find_conv_pointwise{});
-#else
-    (void)mpm;
+#ifndef MIGRAPHX_DISABLE_MLIR_BUILD
+    const bool mlir_enabled = enabled(MIGRAPHX_MLIR{});
+    if(mlir_enabled)
+    {
+        match::find_matches(mpm, find_conv_pointwise{});
+        return;
+    }
 #endif
+    (void)mpm;
 }
 
 } // namespace gpu

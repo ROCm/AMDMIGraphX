@@ -1,7 +1,7 @@
 name: Onnxruntime main weekly sync
 on:
   schedule:
-    - cron: '50 10 * * 3'
+    - cron: '27 1 * * 4'
 
 jobs:
   createPullRequest:

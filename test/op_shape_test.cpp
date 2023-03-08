@@ -1834,8 +1834,7 @@ TEST_CASE(pointwise_no_input)
     auto output = migraphx::shape(migraphx::shape::float_type, {1}, {0});
     auto l      = m.add_literal(migraphx::literal(output, {1}));
     m.add_return({l});
-    mm->add_instruction(migraphx::make_op("pointwise"), args, {&m});
-    EXPECT(mm->get_output_shapes().front() == output);
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
 }
 
 TEST_CASE(pointwise_no_output)

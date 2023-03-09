@@ -6,7 +6,7 @@ on:
 jobs:
   createPullRequest:
     name: Update and create pull request
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: get_date
         run: echo todays_date="$(date +'%Y-%m-%d')" >> $GITHUB_ENV

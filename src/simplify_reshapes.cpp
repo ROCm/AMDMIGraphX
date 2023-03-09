@@ -185,24 +185,6 @@ struct find_transpose
     }
 };
 
-struct find_literal_convert
-{
-    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("@literal"))); }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins   = mr.result;
-        auto x     = ins->inputs().front();
-        auto input = x->inputs().front();
-
-        auto old_shape = input->get_shape();
-
-        m.add_literal(migraphx::literal(
-            migraphx::shape(ins->get_shape().type(), old_shape.lens(), old_shape.strides()),
-            input->eval().data()));
-    }
-};
-
 struct find_nested_convert
 {
     auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
@@ -828,7 +810,6 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
-                            find_literal_convert{},
                             find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},

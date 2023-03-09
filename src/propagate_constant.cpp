@@ -36,6 +36,8 @@ bool skip_propogate(instruction_ref ins)
 {
     if(ins->name() == "contiguous")
         return skip_propogate(ins->inputs().front());
+    if(ins->name() == "convert" and ins->inputs().front()->can_eval())
+        return false;
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar())
         return true;

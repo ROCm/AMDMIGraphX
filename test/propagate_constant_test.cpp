@@ -26,6 +26,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/generate.hpp>
 
 #include <test.hpp>
 
@@ -161,6 +162,44 @@ TEST_CASE(const_dot)
         m2.add_return({r});
     }
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(literal_convert_scalar)
+{
+    migraphx::module m;
+
+    auto lit = m.add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}, {0}}));
+    auto t = m.add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+        lit);
+    m.add_return({t});
+
+    auto out_shape = m.get_output_shapes().back();
+    run_pass(m);
+
+    auto target_lit_out_shape = migraphx::shape{migraphx::shape::int32_type, {1}, {0}};
+    EXPECT(target_lit_out_shape == out_shape);
+}
+
+TEST_CASE(literal_convert_vec)
+{
+    migraphx::module m;
+
+    auto lit = m.add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3}}));
+    auto t = m.add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+        lit);
+    m.add_return({t});
+
+    auto out_shape = m.get_output_shapes().back();
+    run_pass(m);
+
+    auto target_lit_out_shape = migraphx::shape{migraphx::shape::int32_type, {3, 3, 3}};
+    EXPECT(target_lit_out_shape == out_shape);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

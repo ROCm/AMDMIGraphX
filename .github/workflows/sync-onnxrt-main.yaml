@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/checkout@v3
         with: 
-          ref: master
+          ref: develop
 
       - name: update_file
         run:  echo ${{ env.onnxsha }} > test/onnx/.onnxrt-commit
@@ -49,4 +49,4 @@ jobs:
           assignees: TedThemistokleous
           reviewers: TedThemistokleous causten
           draft: false
-          base: master
+          base: develop

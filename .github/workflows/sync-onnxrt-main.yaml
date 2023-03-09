@@ -8,23 +8,14 @@ jobs:
     name: Update and create pull request
     runs-on: self-hosted
     steps:
-      - name: cleanup-old-runs
-        run: rm -rf onnxruntime
-
       - name: get_date
         run: echo todays_date="$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
-      - name: get-onnxrt-main
-        run: git clone https://github.com/microsoft/onnxruntime.git
-        
       - name: extract_sha1 
-        run: cd onnxruntime && echo onnxsha="$(git rev-parse HEAD)" >> $GITHUB_ENV
+        run: echo onnxsha="$(git ls-remote https://github.com/microsoft/onnxruntime.git HEAD | awk '{print $1}')" >> $GITHUB_ENV
 
       - name: echo_sha1
         run: echo ${{ env.onnxsha }}
-
-      - name: cleanup-run
-        run: rm -rf onnxruntime
 
       - uses: actions/checkout@v3
         with: 

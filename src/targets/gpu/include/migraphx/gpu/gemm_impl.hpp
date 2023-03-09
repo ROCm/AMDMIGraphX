@@ -221,43 +221,19 @@ struct gemm_impl
         }
     }
 
-    /** Helper function to create a long argument list for a rocBLAS call */
-    auto create_gemm_args(context& ctx,
-                          const std::vector<argument>& args,
-                          flag_type flag,
-                          int32_t solution_idx = 0) const
-    {
-        auto common_args = create_gemm_ex_args_common(ctx, args);
-        auto ded_args    = pack(rocblas_gemm_algo_standard, solution_idx, flag);
-        return pack_join(common_args, ded_args);
-    }
-
-    /** Helper function to create a long argument list for a rocBLAS call */
-
-    auto create_strided_batched_gemm_args(context& ctx,
-                                          const std::vector<argument>& args,
-                                          rocblas_gemm_algo algo,
-                                          flag_type flag,
-                                          int32_t solution_idx = 0) const
-    {
-        auto common_args = create_strided_batched_args_common(ctx, args);
-        auto ded_args    = pack(algo, solution_idx, flag);
-
-        return pack_join(common_args, ded_args);
-    }
-
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
     {
         if(strided_batched)
         {
-            auto gemm_args = create_strided_batched_gemm_args(
-                ctx, input_args, rocblas_gemm_algo_standard, int8_flag, solution_idx);
-            rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
+            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto ded_args    = pack(rocblas_gemm_algo_standard, solution_idx, int8_flag);
+            rocblas_invoke(&rocblas_gemm_strided_batched_ex, pack_join(common_args, ded_args));
         }
         else
         {
-            auto gemm_args = create_gemm_args(ctx, input_args, int8_flag, solution_idx);
-            rocblas_invoke(&rocblas_gemm_ex, gemm_args);
+            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto ded_args    = pack(rocblas_gemm_algo_standard, solution_idx, int8_flag);
+            rocblas_invoke(&rocblas_gemm_ex, pack_join(common_args, ded_args));
         }
     }
 
@@ -287,19 +263,19 @@ struct gemm_impl
 
         if(strided_batched)
         {
-            auto gemm_args =
-                create_strided_batched_gemm_args(ctx,
-                                                 input_args,
-                                                 rocblas_gemm_algo_solution_index,
-                                                 rocblas_gemm_flags_check_solution_index,
-                                                 solution_idx);
-            check_valid = rocblas_invoke(&rocblas_gemm_strided_batched_ex, gemm_args);
+            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto ded_args    = pack(rocblas_gemm_algo_solution_index,
+                                 solution_idx,
+                                 rocblas_gemm_flags_check_solution_index);
+            check_valid =
+                rocblas_invoke(&rocblas_gemm_strided_batched_ex, pack_join(common_args, ded_args));
         }
         else
         {
-            auto gemm_args = create_gemm_args(
-                ctx, input_args, rocblas_gemm_flags_check_solution_index, solution_idx);
-            check_valid = rocblas_invoke(&rocblas_gemm_ex, gemm_args);
+            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto ded_args    = pack(
+                rocblas_gemm_algo_standard, solution_idx, rocblas_gemm_flags_check_solution_index);
+            check_valid = rocblas_invoke(&rocblas_gemm_ex, pack_join(common_args, ded_args));
         }
 
         if(check_valid == rocblas_status_invalid_value)
@@ -481,7 +457,8 @@ struct gemm_impl
             {
                 ctx.finish();
                 host_time += time<microseconds>(run_func);
-                // todo:  auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));                
+                // todo:  auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v,
+                // "iterations", 100));
             }
             // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from
             // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,

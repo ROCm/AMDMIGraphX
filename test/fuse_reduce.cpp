@@ -39,18 +39,19 @@ void run_pass(migraphx::program& p)
 
 template <class F>
 migraphx::instruction_ref add_reduce(migraphx::program& p,
-                                        const std::string& name,
-                                        std::vector<migraphx::instruction_ref> inputs,
-                                        const std::vector<int64_t>& axes,
-                                        F f)
+                                     const std::string& name,
+                                     std::vector<migraphx::instruction_ref> inputs,
+                                     const std::vector<int64_t>& axes,
+                                     F f)
 {
     auto* rm = p.create_module(name);
     auto* mm = p.get_main_module();
     rm->set_bypass();
     std::vector<migraphx::instruction_ref> params;
     std::transform(inputs.begin(), inputs.end(), std::back_inserter(params), [&](auto input) {
-        return rm->add_parameter("x" + std::to_string(params.size()),
-                                 migraphx::shape{input->get_shape().type(), input->get_shape().lens()});
+        return rm->add_parameter(
+            "x" + std::to_string(params.size()),
+            migraphx::shape{input->get_shape().type(), input->get_shape().lens()});
     });
     auto r = f(rm, params, axes);
     rm->add_return({r});
@@ -69,9 +70,9 @@ TEST_CASE(single)
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
         auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
         auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
         mm->add_return({rsum1, rsum2});
@@ -79,9 +80,9 @@ TEST_CASE(single)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto y     = mm->add_parameter("y", s);
         auto rsum1 = add_reduce(p2, "main:reduce_sum0", {x}, {1}, single_reduce("reduce_sum"));
         auto rsum2 = add_reduce(p2, "main:reduce_sum1", {y}, {1}, single_reduce("reduce_sum"));
         mm->add_return({rsum1, rsum2});

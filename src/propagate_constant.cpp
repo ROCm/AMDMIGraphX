@@ -34,10 +34,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 bool skip_propogate(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(ins->name() == "contiguous" or ins->name() == "convert")
         return skip_propogate(ins->inputs().front());
-    if(ins->name() == "convert" and ins->inputs().front()->can_eval())
-        return false;
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar())
         return true;

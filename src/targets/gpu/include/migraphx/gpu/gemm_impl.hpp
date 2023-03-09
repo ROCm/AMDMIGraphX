@@ -40,9 +40,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-#ifdef ROCBLAS_BETA_FEATURES_API
-using flag_type = rocblas_gemm_flags;
-#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
 using flag_type = rocblas_gemm_flags;
 #else
 using flag_type = int;
@@ -483,6 +481,7 @@ struct gemm_impl
             {
                 ctx.finish();
                 host_time += time<microseconds>(run_func);
+                // todo:  auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));                
             }
             // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from
             // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,

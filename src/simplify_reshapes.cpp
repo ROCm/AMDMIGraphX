@@ -196,11 +196,10 @@ struct find_literal_convert
         auto input = x->inputs().front();
 
         auto old_shape = input->get_shape();
-        auto lens      = old_shape.lens();
-        auto stride    = old_shape.strides();
 
-        m.add_literal(migraphx::literal(migraphx::shape(ins->get_shape().type(), lens, stride),
-                                        std::move(input->eval().data())));
+        m.add_literal(migraphx::literal(
+            migraphx::shape(ins->get_shape().type(), old_shape.lens(), old_shape.strides()),
+            input->eval().data()));
     }
 };
 

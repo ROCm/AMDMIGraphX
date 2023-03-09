@@ -197,7 +197,7 @@ migraphx::argument run_gpu_e2e(migraphx::program p, const migraphx::parameter_ma
     return p.eval(inputs).front();
 }
 
-bool verify_mlir_e2e(migraphx::program p)
+bool verify_mlir_e2e(const migraphx::program& p)
 {
     setenv("MIGRAPHX_ENABLE_MLIR", "1", 1);
     auto inputs = generate_params(p);

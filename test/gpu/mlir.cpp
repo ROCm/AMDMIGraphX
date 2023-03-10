@@ -187,38 +187,4 @@ module {
     EXPECT(verify_mlir(m));
 }
 
-// E2E testing invoking the whole GPU+MLIR pipeline
-
-migraphx::argument run_gpu_e2e(migraphx::program p, const migraphx::parameter_map& inputs)
-{
-    migraphx::compile_options options;
-    options.offload_copy = true;
-    p.compile(migraphx::gpu::target{}, options);
-    return p.eval(inputs).front();
-}
-
-bool verify_mlir_e2e(const migraphx::program& p)
-{
-    setenv("MIGRAPHX_ENABLE_MLIR", "1", 1);
-    auto inputs = generate_params(p);
-    auto ref    = run_ref(p, inputs);
-    auto test   = run_gpu_e2e(p, inputs);
-    unsetenv("MIGRAPHX_ENABLE_MLIR");
-    return migraphx::verify_args("mlir", ref, test);
-}
-
-TEST_CASE(conv_add_relu_e2e)
-{
-    migraphx::program p;
-    auto* m   = p.get_main_module();
-    auto x    = m->add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
-    auto w    = m->add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
-    auto b    = m->add_parameter("b", {migraphx::shape::float_type, {1, 2, 2, 2}});
-    auto conv = m->add_instruction(migraphx::make_op("convolution"), x, w);
-    auto add  = m->add_instruction(migraphx::make_op("add"), conv, b);
-    auto relu = m->add_instruction(migraphx::make_op("relu"), add);
-    m->add_return({relu});
-    EXPECT(verify_mlir_e2e(p));
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

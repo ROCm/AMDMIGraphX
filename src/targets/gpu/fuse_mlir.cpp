@@ -151,6 +151,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(mpm, find_conv_pointwise{});
     }
+    else
+    {
+        std::cerr << "WARNING: MIGraphX built with MLIR but it is not enabled. Please set the env "
+                     "var MIGRAPHX_ENABLE_MLIR to use MLIR kernel generator."
+                  << std::endl;
+    }
 #else
     (void)mpm;
 #endif

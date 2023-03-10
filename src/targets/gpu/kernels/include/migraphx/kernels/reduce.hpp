@@ -423,25 +423,6 @@ struct block_large
         index idx;
         Slicer slice;
 
-        template <class Size, class F>
-        struct inner_storage : inner_storage_tag
-        {
-            using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
-            F f;
-            constexpr Size rsize() const { return {}; }
-            template <class U, class V>
-            constexpr auto operator()(U j, V d) const
-            {
-                return f(j, d);
-            }
-        };
-
-        template <class Size, class F>
-        constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
-        {
-            return {f};
-        }
-
         template <class Op, class T, class Read, class N, class... Ts>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
@@ -466,7 +447,7 @@ struct block_large
         template <class R, class F, class N, class... Ts>
         __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            return make_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
+            return make_lazy_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
         }
     };
 

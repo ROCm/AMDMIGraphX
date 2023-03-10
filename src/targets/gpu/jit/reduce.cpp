@@ -153,7 +153,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
             auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             auto block_size = compute_block_size(relements, 256);
-            if(relements > block_size * 256)
+            if(relements >= block_size * 256)
                 algo = "block_large";
             options.set_launch_params(
                 v, compute_global_for(ctx, nelements * block_size, 256), block_size);
@@ -249,7 +249,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
             auto relements  = reduction_shape.elements() / vec.size;
             auto block_size = compute_block_size(relements, 256);
-            if(relements > block_size * 256)
+            if(relements >= block_size * 256)
                 algo = "block_large";
             options.set_launch_params(
                 v, compute_global_for(ctx, nelements * block_size, 256), block_size);

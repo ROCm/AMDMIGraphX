@@ -87,7 +87,7 @@ jobs:
     - name: Prepare timestamp
       id: cache_timestamp
       shell: bash 
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S)" >> $GITHUB_OUTPUT
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for cppcheck
       uses: pat-s/always-upload-cache@v2.1.3

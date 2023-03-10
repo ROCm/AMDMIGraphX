@@ -371,22 +371,6 @@ struct miopen_apply
             std::vector<instruction_ref> inputs = ins->inputs();
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
-            // auto mod_args                       = ins->module_inputs();
-            // for(auto* smod : mod_args)
-            //{
-            //    inputs.push_back(insert_allocation(ins, sub_mod->
-            //    auto last_ins         = std::prev(smod->end());
-            //    if(last_ins->name() == "@return")
-            //    {
-            //        for(auto out_ins : last_ins->inputs())
-            //        {
-            //            auto sync_out = smod->insert_instruction(
-            //                last_ins, make_op("hip::sync_stream"), out_ins);
-            //            smod->replace_return({sync_out});
-            //        }
-            //    }
-            //}
-            // return ins;
         });
     }
 };

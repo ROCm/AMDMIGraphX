@@ -206,7 +206,7 @@ struct find_pointwise_reduce
         auto rins   = insert_ins_in_submodule(rm, pw, map_ins).front();
         map_ins[pw] = rins;
         // Insert fused_reduce
-        insert_module_in_submodule(rm, reduce, map_ins);
+        rm->add_return(insert_module_in_submodule(rm, reduce, map_ins));
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});

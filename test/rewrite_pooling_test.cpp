@@ -25,7 +25,7 @@
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/ranges.hpp>
@@ -194,8 +194,8 @@ TEST_CASE(literal_rewrite_pooling_test)
                                     const migraphx::operation& op) {
         migraphx::program p1 = pooling_program(mode);
         migraphx::program p2 = opt_program(op);
-        p1.compile(migraphx::ref::target{});
-        p2.compile(migraphx::ref::target{});
+        p1.compile(migraphx::make_target("ref"));
+        p2.compile(migraphx::make_target("ref"));
         auto result1 = p1.eval({}).back();
         auto result2 = p2.eval({}).back();
         visit_all(result1,

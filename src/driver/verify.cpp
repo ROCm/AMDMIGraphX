@@ -24,9 +24,9 @@
 #include "verify.hpp"
 #include "perf.hpp"
 
-#include <migraphx/ref/target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/verify_args.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/quantization.hpp>
@@ -37,7 +37,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::vector<argument> run_ref(program p, const parameter_map& inputs)
 {
-    p.compile(ref::target{});
+    p.compile(migraphx::make_target("ref"));
     auto out = p.eval(inputs);
     std::cout << p << std::endl;
     return out;

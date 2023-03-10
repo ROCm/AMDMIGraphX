@@ -26,7 +26,7 @@
 #include "verify_program.hpp"
 #include "test.hpp"
 #include <migraphx/env.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/load_save.hpp>
@@ -117,7 +117,7 @@ void run_verify::validate(const migraphx::target& t,
 std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
                                                     migraphx::parameter_map inputs) const
 {
-    migraphx::ref::target t{};
+    migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
     compile_check(p, t);
     return p.eval(std::move(inputs));

@@ -43,9 +43,32 @@ struct select_module
 
     std::string name() const { return "select_module"; }
 
-    shape compute_shape(const std::vector<shape>&, const std::vector<module_ref>&) const
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>&) const
     {
+        check_shapes{inputs, *this, true}.has_at_least(1);
         return shape{output_dyn_shapes};
+    }
+
+    std::vector<std::string> get_input_parameter_names(module_ref mod) const
+    {
+        auto param_names = mod->get_parameter_names();
+        std::vector<std::string> ret;
+        std::copy_if(param_names.cbegin(),
+                     param_names.cend(),
+                     std::back_inserter(ret),
+                     [](auto pn) { return not contains(pn, "#output_"); });
+        return ret;
+    }
+
+    std::vector<std::string> get_output_parameter_names(module_ref mod) const
+    {
+        auto param_names = mod->get_parameter_names();
+        std::vector<std::string> ret;
+        std::copy_if(param_names.cbegin(),
+                     param_names.cend(),
+                     std::back_inserter(ret),
+                     [](auto pn) { return contains(pn, "#output_"); });
+        return ret;
     }
 
     argument compute(const shape&,
@@ -54,14 +77,15 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // find submodule with input parameter shapes exactly the same as the input arguments
-        // assuming arguments are in the same order as the input parameters
+        // Find submodule with input parameter shapes exactly the same as the input instruction
+        // arguments. Assuming instruction arguments are in the same order as the instruction
+        // parameters.
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
-                auto param_names = mr->get_parameter_names();
-                assert(param_names.size() <= args.size());
-                return std::equal(param_names.cbegin(),
-                                  param_names.cend(),
+                auto in_param_names = get_input_parameter_names(mr);
+                assert(in_param_names.size() <= args.size());
+                return std::equal(in_param_names.cbegin(),
+                                  in_param_names.cend(),
                                   args.cbegin(),
                                   [&](auto p_name, auto a) {
                                       return a.get_shape() == mr->get_parameter_shape(p_name);
@@ -72,20 +96,47 @@ struct select_module
         {
             MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
         }
+
         auto* module_to_run = *module_iter;
-        std::unordered_map<std::string, argument> params;
+        std::unordered_map<std::string, argument> p_map;
 
-        // add input parameters
-        auto param_names = module_to_run->get_parameter_names();
-        assert(param_names.size() <= args.size());
-        std::transform(param_names.begin(),
-                       param_names.end(),
+        // add input parameters to parameter_map
+        auto in_param_names = get_input_parameter_names(module_to_run);
+        assert(in_param_names.size() <= args.size());
+        std::transform(in_param_names.begin(),
+                       in_param_names.end(),
                        args.begin(),
-                       std::inserter(params, params.end()),
-                       [](auto&& name, auto&& a) { return std::make_pair(name, a); });
+                       std::inserter(p_map, p_map.end()),
+                       [&](auto&& name, auto&& a) { return std::make_pair(name, a); });
 
-        auto results = run(module_to_run, params);
+        // One tuple output parameter in main module to multiple output parameters in submodule
+        auto out_param_names    = get_output_parameter_names(module_to_run);
+        auto output_sub_objects = args.back().get_sub_objects();
+        std::transform(out_param_names.begin(),
+                       out_param_names.end(),
+                       output_sub_objects.begin(),
+                       std::inserter(p_map, p_map.end()),
+                       [&](auto&& name, auto&& a) {
+                           auto ps = module_to_run->get_parameter_shape(name);
+                           decltype(std::make_pair(name, a)) ret;
+                           if(a.get_shape() != ps)
+                           {
+                               assert(ps.bytes() == a.get_shape().bytes());
+                               ret = std::make_pair(name, a.reshape(ps));
+                           }
+                           else
+                           {
+                               ret = std::make_pair(name, a);
+                           }
+                           return ret;
+                       });
+        auto results = run(module_to_run, p_map);
         return argument{results};
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
     }
 };
 

@@ -361,29 +361,32 @@ struct miopen_apply
     }
 
     /**
-     * Turns on use_local_alloc in the select_module submodules.
-     * Changes the submodule returns to a hip::sync_stream.
+     * Adds dynamic allocation for submodule output parameter.
      */
     void add_select_module_op()
     {
         apply_map.emplace("select_module", [=](instruction_ref ins) {
+            auto s                              = ins->get_shape();
+            auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
-            auto mod_args                       = ins->module_inputs();
-            for(auto* smod : mod_args)
-            {
-                smod->use_local_alloc = true;
-                auto last_ins         = std::prev(smod->end());
-                if(last_ins->name() == "@return")
-                {
-                    for(auto out_ins : last_ins->inputs())
-                    {
-                        auto sync_out = smod->insert_instruction(
-                            last_ins, make_op("hip::sync_stream"), out_ins);
-                        smod->replace_return({sync_out});
-                    }
-                }
-            }
-            return ins;
+            inputs.push_back(output);
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+            // auto mod_args                       = ins->module_inputs();
+            // for(auto* smod : mod_args)
+            //{
+            //    inputs.push_back(insert_allocation(ins, sub_mod->
+            //    auto last_ins         = std::prev(smod->end());
+            //    if(last_ins->name() == "@return")
+            //    {
+            //        for(auto out_ins : last_ins->inputs())
+            //        {
+            //            auto sync_out = smod->insert_instruction(
+            //                last_ins, make_op("hip::sync_stream"), out_ins);
+            //            smod->replace_return({sync_out});
+            //        }
+            //    }
+            //}
+            // return ins;
         });
     }
 };

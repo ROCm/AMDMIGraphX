@@ -209,18 +209,7 @@ function(test_headers PREFIX)
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-
-        if(MIGRAPHX_ENABLE_GPU)
-            target_link_libraries(header_${TEST_NAME} migraphx_gpu)
-        endif()
-
-        if(MIGRAPHX_ENABLE_FPGA)
-            target_link_libraries(header_${TEST_NAME} migraphx_fpga)
-        endif()
-
-        if(MIGRAPHX_ENABLE_CPU)
-            target_link_libraries(header_${TEST_NAME} migraphx_cpu)
-        endif()
+        target_link_libraries(header_${TEST_NAME} migraphx_all_targets)
     endforeach()
 endfunction()
 

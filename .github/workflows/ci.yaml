@@ -39,7 +39,7 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
+      shell: bash 
       run: echo "timestamp"="$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
     - name: Cache files for tidy
@@ -86,7 +86,7 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
+      shell: bash 
       run: echo "timestamp"="$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
     - name: Cache files for cppcheck
@@ -231,7 +231,7 @@ jobs:
         rbuild prepare -d cget -s gh
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
+      shell: bash 
       run: echo "timestamp"="$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
@@ -325,7 +325,7 @@ jobs:
         rbuild prepare -d cget -s gh
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
+      shell: bash
       run: echo "timestamp"="$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache

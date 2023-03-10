@@ -343,7 +343,7 @@ TEST_CASE(no_input)
         auto out = mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
         mm->add_return({out});
     }
-    EXPECT(test::throws([&] {run_pass(p); }));
+    run_pass(p);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -334,7 +334,7 @@ jobs:
       shell: cmake -P {0}
       run: |
         string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-		echo "{timestamp}=${current_date}" >> $GITHUB_OUTPUT
+        echo "{timestamp}=${current_date}" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.

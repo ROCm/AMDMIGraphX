@@ -410,9 +410,9 @@ struct block_large
         };
 
         template <class Size, class F>
-        constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
+        static constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
         {
-            return {f};
+            return {{}, {f}};
         }
 
         template <class Op, class T, class Read, class N, class... Ts>
@@ -483,9 +483,9 @@ struct lane
         };
 
         template <class Size, class F>
-        constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
+        static constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
         {
-            return {f};
+            return {{}, {f}};
         }
 
         template <class Op, class T, class Read, class N, class U, class... Us>

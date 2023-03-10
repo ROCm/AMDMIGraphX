@@ -46,17 +46,17 @@ std::vector<std::string> get_targets();
 
 struct target_handler
 {
-    target _t;
-    target_handler(const target& t) : _t(t) {}
-    ~target_handler() { unregister_target(_t.name()); }
+    target t;
+    target_handler(const target& t_r) : t(t_r) {}
+    ~target_handler() { unregister_target(t.name()); }
 };
 
 template <class T>
 void register_target()
 {
     (void)target_map();
-    static auto t = target_handler(T{});
-    register_target(t._t);
+    static auto t_h = target_handler(T{});
+    register_target(t_h.t);
 }
 
 struct register_target_action

@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_DYNAMIC_LOADER_HPP
 
 #include <dlfcn.h>
-#include <iostream>
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/file_buffer.hpp>

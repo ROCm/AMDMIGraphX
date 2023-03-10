@@ -38,9 +38,9 @@ void unregister_op(const std::string& op_name);
 
 struct op_handler
 {
-    operation _op;
+    operation op;
     std::string name;
-    op_handler(const operation& op) : _op(op), name(op.name()){};
+    op_handler(const operation& op_r) : op(op_r), name(op.name()){};
     ~op_handler() { unregister_op(name); }
 };
 
@@ -58,8 +58,8 @@ template <class T>
 void register_op()
 {
     (void)op_map(); // instantiate op_map();
-    static auto op = op_handler(T{});
-    register_op(op._op);
+    static auto op_h = op_handler(T{});
+    register_op(op_h.op);
 }
 
 struct register_op_action

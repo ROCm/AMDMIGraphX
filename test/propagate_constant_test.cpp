@@ -217,7 +217,11 @@ TEST_CASE(literal_gather_propagate)
     run_pass(m);
 
     auto target_lit_out_shape = migraphx::shape{migraphx::shape::int32_type, {1}, {0}};
-    EXPECT(target_lit_out_shape == out_shape);
+    migraphx::module m2;
+    auto t_lit = m2.add_literal(migraphx::literal(target_lit_out_shape, {800}));
+    m2.add_return({t_lit});
+
+    EXPECT(m == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -111,7 +111,7 @@ function(add_test_executable TEST_NAME)
     add_test_command(${TEST_NAME} ${TEST_COMMAND})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx migraphx_ref migraphx_onnx)
+    target_link_libraries(${TEST_NAME} migraphx -Wl,--no-as-needed migraphx_ref -Wl,--as-needed migraphx_onnx)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 

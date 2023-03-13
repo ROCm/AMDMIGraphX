@@ -327,7 +327,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
           rbuild prepare -d cget -s gh
-          sudo apt-get install lld
+          sudo apt-get install -y lld
       - name: Prepare timestamp
         id: cache_timestamp
         shell: cmake -P {0}

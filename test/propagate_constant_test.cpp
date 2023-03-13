@@ -202,4 +202,22 @@ TEST_CASE(literal_convert_vec)
     EXPECT(target_lit_out_shape == out_shape);
 }
 
+TEST_CASE(literal_gather_propagate)
+{
+    migraphx::module m;
+
+    auto lit = m.add_literal(
+        migraphx::literal{migraphx::shape(migraphx::shape::int32_type, {3}), {3, 800, 800}});
+    auto lit2 = m.add_literal(
+        migraphx::literal{migraphx::shape(migraphx::shape::int32_type, {1}, {0}), {1}});
+    auto t = m.add_instruction(migraphx::make_op("gather"), lit, lit2);
+    m.add_return({t});
+
+    auto out_shape = m.get_output_shapes().back();
+    run_pass(m);
+
+    auto target_lit_out_shape = migraphx::shape{migraphx::shape::int32_type, {1}, {0}};
+    EXPECT(target_lit_out_shape == out_shape);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

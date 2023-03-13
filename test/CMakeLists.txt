@@ -151,7 +151,7 @@ if(MIGRAPHX_ENABLE_FPGA)
             COST 10
             RESOURCE_LOCK fpga
         )
-        target_link_libraries(test_fpga_${BASE_NAME} migraphx_fpga)
+        target_link_libraries(test_fpga_${BASE_NAME} -Wl,--no-as-needed migraphx_fpga)
     endforeach()
 endif()
 

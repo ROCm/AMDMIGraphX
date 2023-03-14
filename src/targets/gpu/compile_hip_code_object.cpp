@@ -112,7 +112,8 @@ const std::vector<std::string>& compiler_warnings()
                                                 "-Wno-sign-compare",
                                                 "-Wno-unused-command-line-argument",
                                                 "-Wno-weak-vtables",
-                                                "-Wno-c99-extensions"};
+                                                "-Wno-c99-extensions",
+                                                "-Wno-global-constructors"};
     return warnings;
 }
 

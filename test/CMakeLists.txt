@@ -135,7 +135,7 @@ if(MIGRAPHX_ENABLE_GPU)
             COST 10
             RESOURCE_LOCK gpu
         )
-        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels)
+        target_link_libraries(test_gpu_${BASE_NAME} -Wl,--no-as-needed migraphx_gpu migraphx_kernels -Wl,--as-needed)
     endforeach()
 endif()
 

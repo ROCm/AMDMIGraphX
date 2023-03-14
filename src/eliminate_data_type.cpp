@@ -40,6 +40,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "roialign",
                                                            "scatternd_add",
                                                            "scatternd_mul",
+                                                           "gather",
                                                            "scatternd_none"};
     for(auto ins : iterator_for(m))
     {

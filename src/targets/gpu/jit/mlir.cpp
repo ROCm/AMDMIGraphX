@@ -32,7 +32,7 @@ namespace gpu {
 
 struct mlir_compiler : compiler<mlir_compiler>
 {
-    std::vector<std::string> names() const { return {"gpu::mlir_conv"}; }
+    std::vector<std::string> names() const { return {"gpu::mlir_conv", "gpu::mlir_dot"}; }
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 

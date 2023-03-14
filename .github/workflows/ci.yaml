@@ -39,10 +39,8 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for tidy
       uses: pat-s/always-upload-cache@v3.0.11
@@ -88,10 +86,8 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for cppcheck
       uses: pat-s/always-upload-cache@v2.1.3
@@ -236,10 +232,8 @@ jobs:
         sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.
@@ -333,10 +327,8 @@ jobs:
         sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.

@@ -36,17 +36,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct dlclose_wrapper
-{
-    void operator()(void* handle)
-    {
-        if(handle)
-        {
-            dlclose(handle);
-        }
-    }
-};
-
 struct dynamic_loader_impl;
 
 struct dynamic_loader
@@ -58,8 +47,6 @@ struct dynamic_loader
     dynamic_loader(const char* image, std::size_t size);
 
     dynamic_loader(const std::vector<char>& buffer);
-
-    static void check_load_error(bool flush = false);
 
     std::shared_ptr<void> get_symbol(const std::string& name) const;
 

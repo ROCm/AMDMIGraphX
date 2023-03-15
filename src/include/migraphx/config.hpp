@@ -27,11 +27,13 @@
 #include <migraphx/version.h>
 namespace migraphx {
 
+#if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
+
 #define MIGRAPHX_CONCAT_1(x, y) x##y
 #define MIGRAPHX_CONCAT(x, y) MIGRAPHX_CONCAT_1(x, y)
 
 #define MIGRAPHX_VERSION MIGRAPHX_CONCAT(MIGRAPHX_VERSION_MAJOR, MIGRAPHX_VERSION_MINOR)
-#if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
+
 #define MIGRAPHX_INLINE_NS MIGRAPHX_CONCAT(VERSION, MIGRAPHX_VERSION)
 #endif
 

@@ -42,7 +42,7 @@ struct dlclose_wrapper
     }
 };
 
-void check_load_error(bool flush=false)
+void check_load_error(bool flush = false)
 {
     char* error_msg = dlerror();
     if(not flush and error_msg)
@@ -70,8 +70,6 @@ struct dynamic_loader_impl
     std::shared_ptr<void> handle  = nullptr;
     std::shared_ptr<tmp_dir> temp = nullptr;
 };
-
-
 
 dynamic_loader::dynamic_loader(const fs::path& p) : impl(std::make_shared<dynamic_loader_impl>(p))
 {

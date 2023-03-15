@@ -7697,8 +7697,8 @@ TEST_CASE(slice_test)
 
 TEST_CASE(slice_dyn_test0)
 {
-    // Slice a single dynamic dimension. ax1 slice limits are smaller than min; ax2 "ends" is too
-    // large
+    // Slice a single dynamic dimension. ax1 slice limits are smaller than min; ax2 "ends" is
+    // too large
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::int32_type, {{2, 3}, {2, 2}, {3, 3}}};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_PULL_UP_LITERALS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_PULL_UP_LITERALS_HPP
 
+#include <string>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/tracer.hpp>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager
+/**
+ * Replace literals in submodules with literals in the main module.
+ * Intended to allow for reuse of the literals between submodules.
+ */
+struct pull_up_literals
 {
-    module_pass_manager()                                  = default;
-    module_pass_manager(const module_pass_manager&)        = delete;
-    virtual module& get_module()                           = 0;
-    virtual module* create_module(const std::string& name) = 0;
-    virtual module* get_common_parent()                    = 0;
-    virtual module* get_main_module()                      = 0;
-    virtual void run_pass(const pass& p)                   = 0;
-
-    protected:
-    virtual ~module_pass_manager() {}
+    std::string name() const { return "pull_up_literals"; }
+    void apply(module_pass_manager&) const;
 };
-
-void run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
-void run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,35 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/tracer.hpp>
-#include <vector>
+#include <migraphx/pull_up_literals.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager
+void pull_up_literals::apply(module_pass_manager& mpm) const
 {
-    module_pass_manager()                                  = default;
-    module_pass_manager(const module_pass_manager&)        = delete;
-    virtual module& get_module()                           = 0;
-    virtual module* create_module(const std::string& name) = 0;
-    virtual module* get_common_parent()                    = 0;
-    virtual module* get_main_module()                      = 0;
-    virtual void run_pass(const pass& p)                   = 0;
+    module_ref m           = &mpm.get_module();
+    module_ref main_module = mpm.get_main_module();
+    if(m->name() == "main")
+        return;
 
-    protected:
-    virtual ~module_pass_manager() {}
-};
-
-void run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
-void run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
+    for(auto ins : iterator_for(*m))
+    {
+        if(ins->name() == "@literal")
+        {
+            auto new_lit = main_module->add_literal(ins->get_literal());
+            for(auto out_ins : ins->outputs())
+            {
+                out_ins->replace_argument(out_ins, ins, new_lit);
+                new_lit->add_output(out_ins);
+            }
+        }
+    }
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

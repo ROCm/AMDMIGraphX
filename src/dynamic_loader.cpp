@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/manage_ptr.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
@@ -31,21 +32,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct dlclose_wrapper
-{
-    void operator()(void* handle)
-    {
-        if(handle)
-        {
-            dlclose(handle);
-        }
-    }
-};
-
 void check_load_error(bool flush = false)
 {
     char* error_msg = dlerror();
-    if(not flush and error_msg)
+    if(not flush and error_msg != nullptr)
         MIGRAPHX_THROW("Dynamic loading or symbol lookup failed with " + std::string(error_msg));
 }
 
@@ -54,7 +44,9 @@ struct dynamic_loader_impl
     dynamic_loader_impl() = default;
 
     dynamic_loader_impl(const fs::path& p, std::shared_ptr<tmp_dir> t = nullptr)
-        : handle(dlopen(p.string().c_str(), RTLD_LAZY), dlclose_wrapper{}), temp(std::move(t))
+        : handle(dlopen(p.string().c_str(), RTLD_LAZY),
+                 manage_deleter<decltype(&dlclose), &dlclose>()),
+          temp(std::move(t))
     {
         check_load_error();
     }

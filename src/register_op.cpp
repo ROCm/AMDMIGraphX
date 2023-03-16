@@ -33,6 +33,9 @@ std::unordered_map<std::string, operation>& op_map()
     static std::unordered_map<std::string, operation> m; // NOLINT
     return m;
 }
+
+void register_op_init() { (void)op_map(); }
+
 void register_op(const operation& op) { op_map()[op.name()] = op; }
 
 void unregister_op(const std::string& op_name)

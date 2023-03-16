@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/dynamic_loader.hpp"
 #include <string>
 #include <unordered_map>
 #include <migraphx/register_target.hpp>
@@ -29,10 +30,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::unordered_map<std::string, dynamic_loader>& target_lib_loader_map()
+void store_target_lib(dynamic_loader lib)
 {
-    static std::unordered_map<std::string, dynamic_loader> m; // NOLINT
-    return m;
+    static std::vector<dynamic_loader> target_loader;
+    target_loader.emplace_back(lib);
 }
 
 std::unordered_map<std::string, target>& target_map()
@@ -40,6 +41,8 @@ std::unordered_map<std::string, target>& target_map()
     static std::unordered_map<std::string, target> m; // NOLINT
     return m;
 }
+
+void target_map_init() { (void)target_map(); }
 
 void unregister_target(const std::string& name)
 {
@@ -53,14 +56,13 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-        std::string target_name       = "libmigraphx_" + name + ".so";
-        auto target_lib_loader        = dynamic_loader(target_name);
-        target_lib_loader_map()[name] = target_lib_loader;
+        std::string target_name = "libmigraphx_" + name + ".so";
+        store_target_lib(dynamic_loader(target_name));
     }
     const auto it = target_map().find(name);
     if(it == target_map().end())
     {
-        MIGRAPHX_THROW("Requested target '" + name + "' is not enabled or not supported");
+        MIGRAPHX_THROW("Requested target '" + name + "' is not loaded or not supported");
     }
     return it->second;
 }

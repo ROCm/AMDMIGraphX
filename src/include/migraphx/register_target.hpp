@@ -35,9 +35,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::unordered_map<std::string, dynamic_loader>& target_lib_loader_map();
+void store_target_lib(dynamic_loader lib);
 
-std::unordered_map<std::string, target>& target_map();
+void target_map_init();
 
 void register_target(const target& t);
 void unregister_target(const std::string& name);
@@ -54,7 +54,7 @@ struct target_handler
 template <class T>
 void register_target()
 {
-    (void)target_map();
+    target_map_init();
     static auto t_h = target_handler(T{});
     register_target(t_h.t);
 }

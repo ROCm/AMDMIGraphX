@@ -44,7 +44,7 @@ struct op_handler
     ~op_handler() { unregister_op(name); }
 };
 
-std::unordered_map<std::string, operation>& op_map();
+void register_op_init();
 
 void register_op(const operation& op);
 
@@ -57,7 +57,7 @@ std::vector<std::string> get_operators();
 template <class T>
 void register_op()
 {
-    (void)op_map(); // instantiate op_map();
+    register_op_init(); // instantiate static op_map;
     static auto op_h = op_handler(T{});
     register_op(op_h.op);
 }

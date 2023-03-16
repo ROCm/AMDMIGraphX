@@ -24,11 +24,8 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHX_DYNAMIC_LOADER_HPP
 #define MIGRAPHX_GUARD_MIGRAPHX_DYNAMIC_LOADER_HPP
 
-#include <dlfcn.h>
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
-#include <migraphx/file_buffer.hpp>
-#include <migraphx/tmp_dir.hpp>
 #include <functional>
 #include <memory>
 #include <vector>

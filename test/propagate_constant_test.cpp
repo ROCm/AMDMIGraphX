@@ -169,8 +169,9 @@ TEST_CASE(last_const)
     migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-        auto l  = m1.add_literal(migraphx::literal(s, vec));
-        m1.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l);
+        auto l = m1.add_literal(migraphx::literal(s, vec));
+        m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l);
     }
 
     run_pass(m1);

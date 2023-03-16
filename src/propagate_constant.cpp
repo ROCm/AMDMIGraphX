@@ -58,19 +58,19 @@ void propagate_constant::apply(module& m) const
         if(is_const and i != last)
             continue;
 
-        if (i == last and is_const)
+        if(i == last and is_const)
         {
             const_instrs.insert(i);
         }
         else
         {
-            std::copy_if(
-                i->inputs().begin(),
-                i->inputs().end(),
-                std::inserter(const_instrs, const_instrs.begin()),
-                [&](const instruction_ref ins) { return is_const_ins(ins) and ins->name() != "@literal"; });
+            std::copy_if(i->inputs().begin(),
+                         i->inputs().end(),
+                         std::inserter(const_instrs, const_instrs.begin()),
+                         [&](const instruction_ref ins) {
+                             return is_const_ins(ins) and ins->name() != "@literal";
+                         });
         }
-
     }
 
     // Compute literals in parallel

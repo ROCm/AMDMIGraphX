@@ -34,7 +34,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void store_target_lib(dynamic_loader lib);
+void store_target_lib(const dynamic_loader& lib);
 
 void target_map_init();
 

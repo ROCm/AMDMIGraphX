@@ -49,8 +49,6 @@ struct target
     argument allocate(const shape& s) const;
 };
 
-MIGRAPHX_REGISTER_TARGET(target);
-
 } // namespace fpga
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

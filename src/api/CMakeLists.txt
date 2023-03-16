@@ -1,4 +1,4 @@
-# ####################################################################################
+#####################################################################################
 # The MIT License (MIT)
 #
 # Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
@@ -20,10 +20,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-# ####################################################################################
+#####################################################################################
 
 add_library(migraphx_c
-  api.cpp
+    api.cpp
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 rocm_set_soversion(migraphx_c 3.0)
@@ -34,5 +34,5 @@ target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx)
 rocm_install_targets(
   TARGETS migraphx_c
   INCLUDE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

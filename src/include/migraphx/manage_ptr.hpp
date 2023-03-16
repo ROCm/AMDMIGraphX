@@ -35,7 +35,7 @@ template <class F, F f> // NOLINT
 struct manage_deleter
 {
     template <class T>
-    void operator()(T* x) const
+    void operator()(T* x) const noexcept
     {
         if(x != nullptr)
         {

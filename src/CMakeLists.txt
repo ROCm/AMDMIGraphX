@@ -261,8 +261,6 @@ target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 
-target_link_libraries(migraphx_all_targets INTERFACE "-Wl,--no-as-needed")
-
 set(PACKAGE_DEPENDS)
 
 add_subdirectory(api)
@@ -289,8 +287,6 @@ add_subdirectory(targets/fpga)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
 endif()
-
-target_link_libraries(migraphx_all_targets INTERFACE "-Wl,--as-needed")
 
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)

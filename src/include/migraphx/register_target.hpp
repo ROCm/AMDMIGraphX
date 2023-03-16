@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_REGISTER_TARGET_HPP
 #define MIGRAPHX_GUARD_RTGLIB_REGISTER_TARGET_HPP
 
-#include <memory>
 #include <migraphx/config.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/auto_register.hpp>

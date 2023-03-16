@@ -21,11 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/dynamic_loader.hpp"
 #include <string>
 #include <unordered_map>
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/dynamic_loader.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

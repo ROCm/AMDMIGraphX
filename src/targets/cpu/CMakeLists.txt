@@ -54,7 +54,7 @@ add_library(migraphx_cpu
     write_literals.cpp
 )
 
-target_link_options(migraphx_cpu INTERFACE "-Wl,--no-as-needed")
+target_link_options(migraphx_cpu PUBLIC "-Wl,--no-as-needed")
 
 set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
 rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})

@@ -29,7 +29,7 @@ add_library(migraphx_fpga
     vitis_ai_adapter.cpp
 )
 
-target_link_options(migraphx_fpga INTERFACE "-Wl,--no-as-needed")
+target_link_options(migraphx_fpga PUBLIC "-Wl,--no-as-needed")
 
 set_target_properties(migraphx_fpga PROPERTIES EXPORT_NAME fpga)
 rocm_set_soversion(migraphx_fpga ${MIGRAPHX_SO_VERSION})

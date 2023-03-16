@@ -124,7 +124,7 @@ add_library(migraphx_gpu
     ${JIT_GPU_SRCS}
 )
 
-target_link_options(migraphx_gpu INTERFACE "-Wl,--no-as-needed")
+target_link_options(migraphx_gpu PUBLIC "-Wl,--no-as-needed")
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 

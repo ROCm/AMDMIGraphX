@@ -27,7 +27,7 @@ add_library(migraphx_ref
     lowering.cpp
     gemm.cpp
 )
-target_link_options(migraphx_ref INTERFACE "-Wl,--no-as-needed")
+target_link_options(migraphx_ref PUBLIC "-Wl,--no-as-needed")
 set_target_properties(migraphx_ref PROPERTIES EXPORT_NAME ref)
 rocm_set_soversion(migraphx_ref ${MIGRAPHX_SO_VERSION})
 

@@ -111,7 +111,7 @@ function(add_test_executable TEST_NAME)
     add_test_command(${TEST_NAME} ${TEST_COMMAND})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx -Wl,--no-as-needed migraphx_ref -Wl,--as-needed migraphx_onnx)
+    target_link_libraries(${TEST_NAME} migraphx "-Wl,--no-as-needed" migraphx_ref "-Wl,--as-needed" migraphx_onnx)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
@@ -135,7 +135,7 @@ if(MIGRAPHX_ENABLE_GPU)
             COST 10
             RESOURCE_LOCK gpu
         )
-        target_link_libraries(test_gpu_${BASE_NAME} -Wl,--no-as-needed migraphx_gpu migraphx_kernels -Wl,--as-needed)
+        target_link_libraries(test_gpu_${BASE_NAME} "-Wl,--no-as-needed" migraphx_gpu migraphx_kernels "-Wl,--as-needed")
     endforeach()
 endif()
 
@@ -151,7 +151,7 @@ if(MIGRAPHX_ENABLE_FPGA)
             COST 10
             RESOURCE_LOCK fpga
         )
-        target_link_libraries(test_fpga_${BASE_NAME} -Wl,--no-as-needed migraphx_fpga -Wl,--as-needed)
+        target_link_libraries(test_fpga_${BASE_NAME} "-Wl,--no-as-needed" migraphx_fpga "-Wl,--as-needed")
     endforeach()
 endif()
 
@@ -164,7 +164,7 @@ foreach(ONNX_TEST ${ONNX_TESTS})
     set(TEST_NAME test_${BASE_NAME})
     add_executable(${TEST_NAME} ${ONNX_TEST})
     rocm_clang_tidy_check(${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx_onnx -Wl,--no-as-needed migraphx_ref -Wl,--as-needed)
+    target_link_libraries(${TEST_NAME} migraphx_onnx "-Wl,--no-as-needed" migraphx_ref "-Wl,--as-needed")
     target_include_directories(${TEST_NAME} PUBLIC include)
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR})
     add_dependencies(tests ${TEST_NAME})

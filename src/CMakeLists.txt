@@ -1,4 +1,4 @@
-#####################################################################################
+# ####################################################################################
 # The MIT License (MIT)
 #
 # Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
@@ -20,14 +20,14 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-#####################################################################################
+# ####################################################################################
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
 
-add_library(migraphx 
+add_library(migraphx
     adjust_allocation.cpp
     analyze_streams.cpp
     apply_alpha_beta.cpp
@@ -97,11 +97,13 @@ add_library(migraphx
 )
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
+
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
         register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
     endforeach()
 endfunction()
+
 register_migraphx_ops(
     abs
     acosh
@@ -225,16 +227,16 @@ register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::
 register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)
 rocm_clang_tidy_check(migraphx)
 rocm_install_targets(
-  TARGETS migraphx
-  INCLUDE
+    TARGETS migraphx
+    INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
 check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
+
 if(HAS_LIB_STD_FILESYSTEM)
-target_link_libraries(migraphx PRIVATE -lstdc++fs)
+    target_link_libraries(migraphx PRIVATE -lstdc++fs)
 endif()
 
 target_link_libraries(migraphx PRIVATE -ldl)
@@ -252,15 +254,18 @@ pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
 
 find_package(msgpackc-cxx QUIET)
+
 if(NOT msgpackc-cxx_FOUND)
     find_package(msgpack REQUIRED)
 endif()
+
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
+
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
-target_link_libraries(migraphx_all_targets INTERFACE -Wl,--no-as-needed)
+target_link_libraries(migraphx_all_targets INTERFACE "-Wl,--no-as-needed")
 
 set(PACKAGE_DEPENDS)
 
@@ -272,34 +277,36 @@ add_subdirectory(tf)
 add_subdirectory(py)
 add_subdirectory(targets/ref)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
+
 if(MIGRAPHX_ENABLE_CPU)
-add_subdirectory(targets/cpu)
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
-target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
+    add_subdirectory(targets/cpu)
+    target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
+    target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
+
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
-add_subdirectory(targets/gpu)
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
-target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
+    list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
+    add_subdirectory(targets/gpu)
+    target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
+    target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
 endif()
+
 if(MIGRAPHX_ENABLE_FPGA)
-add_subdirectory(targets/fpga)
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
-target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
+    add_subdirectory(targets/fpga)
+    target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
+    target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
 endif()
-target_link_libraries(migraphx_all_targets INTERFACE -Wl,--as-needed)
+
+target_link_libraries(migraphx_all_targets INTERFACE "-Wl,--as-needed")
 
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()
 
 rocm_export_targets(
-  TARGETS migraphx::migraphx_c
-  NAMESPACE migraphx::
-  DEPENDS
+    TARGETS migraphx::migraphx_c
+    NAMESPACE migraphx::
+    DEPENDS
     Threads
     ${PACKAGE_DEPENDS}
 )
- 
-

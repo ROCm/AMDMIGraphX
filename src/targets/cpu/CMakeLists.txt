@@ -1,4 +1,4 @@
-#####################################################################################
+# ####################################################################################
 # The MIT License (MIT)
 #
 # Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
@@ -20,7 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-#####################################################################################
+# ####################################################################################
 
 include(CheckCXXCompilerFlag)
 
@@ -67,6 +67,7 @@ else()
 endif()
 
 rocm_clang_tidy_check(migraphx_cpu)
+
 if(MIGRAPHX_ENABLE_ZENDNN)
     target_compile_definitions(migraphx_cpu PRIVATE -DMIGRAPHX_ENABLE_ZENDNN)
     target_include_directories(migraphx_cpu PRIVATE ${ZENDNN_INC_PATH})
@@ -76,10 +77,12 @@ if(MIGRAPHX_ENABLE_ZENDNN)
 else()
     target_link_libraries(migraphx_cpu PRIVATE DNNL::dnnl)
 endif()
+
 target_link_libraries(migraphx_cpu PRIVATE migraphx)
 
 find_package(OpenMP)
 target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)
+
 # Add library path to rpath to workaround issues with our broken packages
 foreach(LIBRARY ${OpenMP_CXX_LIBRARIES})
     if(LIBRARY MATCHES "libomp")
@@ -88,11 +91,8 @@ foreach(LIBRARY ${OpenMP_CXX_LIBRARIES})
     endif()
 endforeach()
 
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
-
 rocm_install_targets(
-  TARGETS migraphx_cpu
-  INCLUDE
+    TARGETS migraphx_cpu
+    INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-

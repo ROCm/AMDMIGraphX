@@ -40,6 +40,7 @@ void unregister_target(const std::string& name);
 target make_target(const std::string& name);
 std::vector<std::string> get_targets();
 
+namespace detail {
 struct target_handler
 {
     target t;
@@ -47,12 +48,13 @@ struct target_handler
     target_handler(const target& t_r) : t(t_r), target_name(t.name()) {}
     ~target_handler() { unregister_target(target_name); }
 };
+} // namespace detail
 
 template <class T>
 void register_target()
 {
     register_target_init();
-    static auto t_h = target_handler(T{});
+    static auto t_h = detail::target_handler(T{});
     register_target(t_h.t);
 }
 

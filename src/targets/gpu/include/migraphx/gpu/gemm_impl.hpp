@@ -40,9 +40,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-#ifdef ROCBLAS_BETA_FEATURES_API
-using flag_type = rocblas_gemm_flags;
-#elif ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
 using flag_type = rocblas_gemm_flags;
 #else
 using flag_type = int;

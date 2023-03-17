@@ -34,10 +34,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void store_target_lib(const dynamic_loader& lib);
-
 void register_target_init();
-
 void register_target(const target& t);
 void unregister_target(const std::string& name);
 target make_target(const std::string& name);

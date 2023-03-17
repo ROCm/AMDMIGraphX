@@ -49,7 +49,7 @@ template <class G, class E, class A, class B, class... Ds>
 __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
 {
     constexpr auto desc = G::make_descriptor(to_ck_tensor<A>(),
-                                             to_ck_tensor<B>(),
+                                             to_ck_tensor<ck_transposeb<B>>(),
                                              ck::make_tuple(to_ck_tensor<Ds>()...),
                                              to_ck_tensor<E>());
     G::Run(desc,

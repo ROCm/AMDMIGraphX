@@ -36,7 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void store_target_lib(const dynamic_loader& lib);
 
-void target_map_init();
+void register_target_init();
 
 void register_target(const target& t);
 void unregister_target(const std::string& name);
@@ -53,7 +53,7 @@ struct target_handler
 template <class T>
 void register_target()
 {
-    target_map_init();
+    register_target_init();
     static auto t_h = target_handler(T{});
     register_target(t_h.t);
 }

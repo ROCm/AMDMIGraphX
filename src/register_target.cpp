@@ -42,7 +42,7 @@ std::unordered_map<std::string, target>& target_map()
     return m;
 }
 
-void target_map_init() { (void)target_map(); }
+void register_target_init() { (void)target_map(); }
 
 void unregister_target(const std::string& name)
 {

@@ -338,9 +338,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                                             ck_passthrough,
                                                             cde_op,
                                                             cde_layout};
-        const auto solutions         = problem.GetSolutions();
-        const auto solution = solutions.at(tuning_value);
-        const auto template_str  = solution.GetStr();
+        const auto solutions        = problem.GetSolutions();
+        const auto solution         = solutions.at(tuning_value);
+        const auto template_str     = solution.GetStr();
         const auto blocks_per_batch = solution.GetGridSize();
         const auto block_size       = solution.GetBlockSize();
 

@@ -43,13 +43,16 @@ struct dynamic_loader_impl
 {
     dynamic_loader_impl() = default;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wignored-attributes"
     dynamic_loader_impl(const fs::path& p, std::shared_ptr<tmp_dir> t = nullptr)
         : handle(dlopen(p.string().c_str(), RTLD_LAZY),
-                 manage_deleter<decltype(&dlclose), &dlclose>()),
+                 manage_deleter<decltype(&dlclose), &dlclose>{}),
           temp(std::move(t))
     {
         check_load_error();
     }
+#pragma GCC diagnostic pop
 
     static std::shared_ptr<dynamic_loader_impl> from_buffer(const char* image, std::size_t size)
     {

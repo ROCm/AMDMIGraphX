@@ -43,8 +43,9 @@ std::vector<std::string> get_targets();
 struct target_handler
 {
     target t;
-    target_handler(const target& t_r) : t(t_r) {}
-    ~target_handler() { unregister_target(t.name()); }
+    std::string target_name;
+    target_handler(const target& t_r) : t(t_r), target_name(t.name()) {}
+    ~target_handler() { unregister_target(target_name); }
 };
 
 template <class T>

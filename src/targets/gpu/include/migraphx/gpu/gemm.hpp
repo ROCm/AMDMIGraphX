@@ -41,6 +41,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+struct context;
+shape transpose_batch(const shape& s, unsigned trans_batch);
+void blas_shape(const shape& s);
+
 template <class Op>
 struct rocblas_gemm
 {
@@ -50,7 +54,7 @@ struct rocblas_gemm
     bool int8_x4_format  = true;
     bool compute_fp32    = false;
     unsigned trans_batch = 0;
-    int32_t solution_idx = 0; // TODO: make this migraphx::optional
+    int32_t solution_idx = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -110,21 +114,21 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        std::vector<shape> input_shapes;
-        std::transform(args.begin(),
-                       args.end(),
-                       std::back_inserter(input_shapes),
-                       [](const argument& x) { return x.get_shape(); });
         if(this->name() == "gpu::gemm")
         {
-            gemm_impl<float>(output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
-                .run(ctx, args, solution_idx);
+            gemm_compute(
+                ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32, solution_idx);
         }
         else
         {
-            gemm_impl<int32_t>(
-                output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32)
-                .run(ctx, args, solution_idx);
+            gemm_compute(ctx,
+                         output_shape,
+                         args,
+                         int32_t(alpha),
+                         int32_t(beta),
+                         int8_x4_format,
+                         compute_fp32,
+                         solution_idx);
         }
         return args.back();
     }
@@ -141,34 +145,44 @@ struct rocblas_gemm
         {
             if(this->name() == "gpu::gemm")
             {
-                auto gemmImpl = gemm_impl<float>(
-                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-                solution_idx = gemmImpl.tune(ctx, input_shapes);
+                solution_idx = gemm_finalize(ctx,
+                                             output_shape,
+                                             input_shapes,
+                                             alpha,
+                                             beta,
+                                             int8_x4_format,
+                                             compute_fp32,
+                                             solution_idx);
             }
             else
             {
-                auto gemmImpl = gemm_impl<int32_t>(
-                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-                solution_idx = gemmImpl.tune(ctx, input_shapes);
+                solution_idx = gemm_finalize(ctx,
+                                             output_shape,
+                                             input_shapes,
+                                             int32_t(alpha),
+                                             int32_t(beta),
+                                             int8_x4_format,
+                                             compute_fp32,
+                                             solution_idx);
             }
         }
-        else if(solution_idx != 0)
-        {
-            // If a tuned solution index is already given, don't tune again but validate
-            // in case the data was tuned with a different rocBLAS version
-            if(this->name() == "gpu::gemm")
-            {
-                auto gemmImpl = gemm_impl<float>(
-                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-                solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
-            }
-            else
-            {
-                auto gemmImpl = gemm_impl<int32_t>(
-                    output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-                solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
-            }
-        }
+        // else if(solution_idx != 0)
+        // {
+        //     // If a tuned solution index is already given, don't tune again but validate
+        //     // in case the data was tuned with a different rocBLAS version
+        //     if(this->name() == "gpu::gemm")
+        //     {
+        //         auto gemmImpl = gemm_impl<float>(
+        //             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
+        //         solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
+        //     }
+        //     else
+        //     {
+        //         auto gemmImpl = gemm_impl<int32_t>(
+        //             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
+        //         solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
+        //     }
+        // }
 #else
         // suppress compiler warnings
         (void)ctx, (void)output_shape, (void)input_shapes;

@@ -94,6 +94,7 @@ add_library(migraphx_gpu
     fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp
+    gemm_impl.cpp
     hip.cpp
     int8_conv_pack.cpp
     int8_gemm_pack.cpp

@@ -27,7 +27,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/auto_register.hpp>
-#include <migraphx/dynamic_loader.hpp>
 #include <cstring>
 #include <vector>
 

@@ -43,8 +43,10 @@ struct dynamic_loader_impl
 {
     dynamic_loader_impl() = default;
 
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
     dynamic_loader_impl(const fs::path& p, std::shared_ptr<tmp_dir> t = nullptr)
         : handle(dlopen(p.string().c_str(), RTLD_LAZY),
                  manage_deleter<decltype(&dlclose), &dlclose>{}),
@@ -52,7 +54,10 @@ struct dynamic_loader_impl
     {
         check_load_error();
     }
+
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
 
     static std::shared_ptr<dynamic_loader_impl> from_buffer(const char* image, std::size_t size)
     {

@@ -36,6 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 // unregister all ops for specified target, useful when unloading dynamically plugged-in target lib
 void unregister_op(const std::string& op_name);
 
+namespace detail {
 struct op_handler
 {
     operation op;
@@ -43,6 +44,8 @@ struct op_handler
     op_handler(const operation& op_r) : op(op_r), name(op.name()){};
     ~op_handler() { unregister_op(name); }
 };
+
+} // namespace detail
 
 void register_op_init();
 
@@ -58,7 +61,7 @@ template <class T>
 void register_op()
 {
     register_op_init(); // instantiate static op_map;
-    static auto op_h = op_handler(T{});
+    static auto op_h = detail::op_handler(T{});
     register_op(op_h.op);
 }
 

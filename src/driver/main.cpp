@@ -587,7 +587,8 @@ struct main_command
     void parse(argument_parser& ap)
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH);
+                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                                  std::to_string(MIGRAPHX_VERSION_PATCH);
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,

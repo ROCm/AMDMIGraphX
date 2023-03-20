@@ -55,9 +55,6 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-#define MIGRAPHX_STRINGIZE_1(...) #__VA_ARGS__
-#define MIGRAPHX_STRINGIZE(...) MIGRAPHX_STRINGIZE_1(__VA_ARGS__)
-
 struct loader
 {
     std::string model;

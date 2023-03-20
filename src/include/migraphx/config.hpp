@@ -23,34 +23,31 @@
  */
 #ifndef MIGRAPHX_GUARD_CONFIG_HPP
 #define MIGRAPHX_GUARD_CONFIG_HPP
-#include <migraphx/version.h>
-namespace migraphx {
 
 #if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
-
-#define MIGRAPHX_CONCAT_1(x, y) x##y
-#define MIGRAPHX_CONCAT(x, y) MIGRAPHX_CONCAT_1(x, y)
-
-#define MIGRAPHX_VERSION_M MIGRAPHX_CONCAT(MIGRAPHX_VERSION_MAJOR, MIGRAPHX_VERSION_MINOR)
-#define MIGRAPHX_VERSION MIGRAPHX_CONCAT(MIGRAPHX_VERSION_M, MIGRAPHX_VERSION_PATCH)
 
 #ifdef BUILD_DEV
 #define MIGRAPHX_INLINE_NS version_1
 #else
-#define MIGRAPHX_INLINE_NS MIGRAPHX_CONCAT(VERSION_, MIGRAPHX_VERSION)
-#endif // BUILD_DEV
-#endif // clang
+#include <migraphx/version.h>
+
+#define MIGRAPHX_VERSION_PRIMITIVE_CONCAT_1(x, y) x##_##y
+#define MIGRAPHX_VERSION_CONCAT(x, y) MIGRAPHX_VERSION_PRIMITIVE_CONCAT(x, y)
+
+#define MIGRAPHX_VERSION_M MIGRAPHX_VERSION_CONCAT(MIGRAPHX_VERSION_MAJOR, MIGRAPHX_VERSION_MINOR)
+#define MIGRAPHX_VERSION MIGRAPHX_VERSION_CONCAT(MIGRAPHX_VERSION_M, MIGRAPHX_VERSION_PATCH)
+
+#define MIGRAPHX_INLINE_NS MIGRAPHX_VERSION_CONCAT(version_, MIGRAPHX_VERSION)
+#endif // build_dev
+#endif // clang_tidy
 
 #ifdef DOXYGEN
 #define MIGRAPHX_INLINE_NS internal
-#endif
+#endif // doxygen
 
 #ifdef MIGRAPHX_USE_CLANG_TIDY
 #define MIGRAPHX_TIDY_CONST const
 #else
 #define MIGRAPHX_TIDY_CONST
-#endif
-
-} // namespace migraphx
-
-#endif
+#endif // tidy_const
+#endif // clang_tidy

@@ -293,7 +293,7 @@ if(HAVE_HALF_EXPR)
 endif()
 
 if(BUILD_DEV)
-target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
+    target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
 rocm_export_targets(

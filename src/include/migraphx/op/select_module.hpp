@@ -83,14 +83,13 @@ struct select_module
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
                 auto in_param_names = get_input_parameter_names(mr);
-                auto param_shapes = mr->get_parameter_shapes();
+                auto param_shapes   = mr->get_parameter_shapes();
                 assert(in_param_names.size() <= args.size());
-                return std::equal(in_param_names.cbegin(),
-                                  in_param_names.cend(),
-                                  args.cbegin(),
-                                  [&](auto p_name, auto a) {
-                                      return a.get_shape() == param_shapes[p_name];
-                                  });
+                return std::equal(
+                    in_param_names.cbegin(),
+                    in_param_names.cend(),
+                    args.cbegin(),
+                    [&](auto p_name, auto a) { return a.get_shape() == param_shapes[p_name]; });
             });
 
         if(module_iter == submodule_list.end())

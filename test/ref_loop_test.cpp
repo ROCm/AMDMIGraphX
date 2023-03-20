@@ -27,7 +27,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -72,7 +72,7 @@ static auto run_prog(int64_t iter_num, bool cond, int64_t ini_val)
     };
 
     auto p = create_program();
-    p.compile(migraphx::ref::target{});
+    p.compile(migraphx::make_target("ref"));
     migraphx::parameter_map pp;
     pp["iter_num"] = migraphx::argument(si, &iter_num);
     pp["ccond"]    = migraphx::argument(sc, &cond);

@@ -31,7 +31,6 @@ set_target_properties(migraphx_ref PROPERTIES EXPORT_NAME ref)
 rocm_set_soversion(migraphx_ref ${MIGRAPHX_SO_VERSION})
 
 find_path(BLAZE_INCLUDE blaze/Blaze.h)
-find_package(Threads)
 
 rocm_clang_tidy_check(migraphx_ref)
 target_link_libraries(migraphx_ref PUBLIC migraphx)

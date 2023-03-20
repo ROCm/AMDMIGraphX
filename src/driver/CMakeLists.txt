@@ -43,6 +43,9 @@ add_custom_command(
 set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
 rocm_clang_tidy_check(driver)
 target_link_libraries(driver migraphx migraphx_onnx migraphx_tf)
+if(MIGRAPHX_ENABLE_GPU)
+target_compile_definitions(driver PUBLIC -DHAVE_GPU)
+endif()
 
 rocm_install_targets(
   TARGETS driver

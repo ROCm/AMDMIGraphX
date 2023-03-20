@@ -46,6 +46,8 @@ else()
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
+set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+
 project(migraphx)
 find_package(ROCM REQUIRED)
 

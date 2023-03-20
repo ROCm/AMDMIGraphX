@@ -27,7 +27,7 @@ add_library(migraphx_c
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 
-# migraphx_c is stable API interface library. SO version of this should only be 
+# migraphx_c is stable API interface library. SO version of this should be 
 # bumped when binary compatibility is broken. 
 rocm_set_soversion(migraphx_c 3.0)   
 

@@ -65,6 +65,8 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
 
+option(BUILD_DEV "Build for development purpose only" OFF)
+
 rocm_setup_version(VERSION 2.6.0)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 

@@ -54,6 +54,9 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#define MIGRAPHX_STRINGIZE_1(...) #__VA_ARGS__
+#define MIGRAPHX_STRINGIZE(...) MIGRAPHX_STRINGIZE_1(__VA_ARGS__)
+
 struct loader
 {
     std::string model;
@@ -450,7 +453,8 @@ struct version : command<version>
     void run() const
     {
         std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << "." << MIGRAPHX_VERSION_PATCH << std::endl;
+                  << "." << MIGRAPHX_VERSION_PATCH << "."
+                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
     }
 };
 
@@ -588,7 +592,8 @@ struct main_command
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
                                   "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                                  std::to_string(MIGRAPHX_VERSION_PATCH);
+                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
+                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,

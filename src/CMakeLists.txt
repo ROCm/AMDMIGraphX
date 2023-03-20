@@ -291,6 +291,7 @@ endif()
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()
+target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

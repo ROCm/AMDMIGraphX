@@ -27,7 +27,9 @@ add_library(migraphx_c
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 
-rocm_set_soversion(migraphx_c 3.0) # why does it this not get same .so number as other libs ? 
+# migraphx_c is stable API interface library. SO version of this should only be 
+# bumped when binary compatibility is broken. 
+rocm_set_soversion(migraphx_c 3.0)   
 
 rocm_clang_tidy_check(migraphx_c)
 target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_all_targets)

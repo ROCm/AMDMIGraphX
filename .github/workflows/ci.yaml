@@ -39,10 +39,8 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for tidy
       uses: pat-s/always-upload-cache@v3.0.11
@@ -88,10 +86,8 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for cppcheck
       uses: pat-s/always-upload-cache@v2.1.3
@@ -233,12 +229,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
+        sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.
@@ -264,8 +259,8 @@ jobs:
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
-          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
-          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
+          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s
 
     - name: Upload code coverage
@@ -329,12 +324,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
+        sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.
@@ -360,8 +354,8 @@ jobs:
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
-          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
-          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold' \
+          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
 

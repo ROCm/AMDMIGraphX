@@ -163,4 +163,26 @@ TEST_CASE(const_dot)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(last_const)
+{
+    const std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+        auto l = m1.add_literal(migraphx::literal(s, vec));
+        m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l);
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::half_type, {2, 2}};
+        auto l = m2.add_literal(migraphx::literal(s, vec));
+        m2.add_instruction(migraphx::make_op("identity"), l);
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

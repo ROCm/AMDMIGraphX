@@ -48,7 +48,7 @@ using flag_type = int;
 
 /**
  * @brief Templated implementations of the compute() and finalize() methods of the Gemm operator.
- *        For each function, there are overloads using either float or int32_t for the arguments
+ *        For each function there are overloads using either float or int32_t for the arguments
  * alpha and beta.
  *
  * @param ctx .

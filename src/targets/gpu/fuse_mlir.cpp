@@ -40,9 +40,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR);
 
 #ifdef MIGRAPHX_MLIR
 
-struct mlir_conv
+struct mlir_op
 {
-    std::string name() const { return "gpu::mlir_conv"; }
+    std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
 
     template <class Self, class F>
@@ -62,37 +62,33 @@ struct mlir_conv
         return op.compute_shape({inputs[n - 2], inputs[n - 1]});
     }
 };
-MIGRAPHX_REGISTER_OP(mlir_conv);
-
-struct mlir_dot
-{
-    std::string name() const { return "gpu::mlir_dot"; }
-    operation op = make_op("dot");
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"));
-    }
-
-    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
-    {
-        check_shapes{inputs, *this}.packed_or_broadcasted();
-        if(mods.size() != 1)
-            MIGRAPHX_THROW("should have one submodule.");
-        if(inputs.size() < 2)
-            MIGRAPHX_THROW("should have at least two inputs.");
-        auto n = inputs.size();
-        return op.compute_shape({inputs[n - 2], inputs[n - 1]});
-    }
-};
-MIGRAPHX_REGISTER_OP(mlir_dot);
+MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
 
-template <typename mlir_anchor_op>
-struct find_gemm_based_op_base
+MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
+    if(ins->name() != "convolution")
+        return false;
+    value v    = ins->get_operator().to_value();
+    auto group = v.at("group").to<int>();
+    if(group != 1)
+        return false;
+    // Avoid MLIR assertion: Index < Length && "Invalid index!"
+    if(ins->get_shape().lens().size() != 4)
+        return false;
+    return true;
+}
+
+struct find_mlir_op
+{
+    auto matcher() const
+    {
+        auto dot_or_conv = match::skip(match::name("contiguous"))(
+            match::any_of(match::name("dot"), is_mlir_conv()).bind("gemm_based_op"));
+        return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins           = r.result;
@@ -141,51 +137,7 @@ struct find_gemm_based_op_base
                      [&](auto input) { return input != gemm_based_op; });
         inputs.insert(inputs.end(), gemm_based_op->inputs().begin(), gemm_based_op->inputs().end());
         mpm.get_module().replace_instruction(
-            ins, mlir_anchor_op{gemm_based_op->get_operator()}, inputs, {mm});
-    }
-};
-
-MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
-{
-    if(ins->name() != "convolution")
-        return false;
-    value v    = ins->get_operator().to_value();
-    auto group = v.at("group").to<int>();
-    if(group != 1)
-        return false;
-    // Avoid MLIR assertion: Index < Length && "Invalid index!"
-    if(ins->get_shape().lens().size() != 4)
-        return false;
-    return true;
-}
-
-struct find_conv_pointwise : public find_gemm_based_op_base<mlir_conv>
-{
-    // Find a convolution followed by a pointwise operation.
-    auto matcher() const
-    {
-        auto convolution =
-            match::skip(match::name("contiguous"))(is_mlir_conv().bind("gemm_based_op"));
-        return match::name("pointwise")(match::any_of[match::inputs()](convolution.bind("x")));
-    }
-};
-
-MIGRAPHX_PRED_MATCHER(is_mlir_dot, instruction_ref ins)
-{
-    if(ins->name() != "dot")
-    {
-        return false;
-    }
-    return true;
-}
-
-struct find_dot_pointwise : public find_gemm_based_op_base<mlir_dot>
-{
-    // Find a dot followed by a pointwise operation.
-    auto matcher() const
-    {
-        auto dot = match::skip(match::name("contiguous"))(is_mlir_dot().bind("gemm_based_op"));
-        return match::name("pointwise")(match::any_of[match::inputs()](dot.bind("x")));
+            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 };
 
@@ -199,8 +151,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
     if(mlir_enabled)
     {
-        match::find_matches(mpm, find_conv_pointwise{});
-        match::find_matches(mpm, find_dot_pointwise{});
+        match::find_matches(mpm, find_mlir_op{});
     }
     else
     {

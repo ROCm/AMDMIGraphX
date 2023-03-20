@@ -503,20 +503,21 @@ struct mlir_program
         return ins->get_shape();
     }
 
-    void set_sym_name(const module& m)
+    static std::string get_symbol_name(const module& m)
     {
         for(auto ins : iterator_for(m))
         {
-            if(ins->name() == "convolution" || ins->name() == "dot")
+            if(ins->name() == "convolution" or ins->name() == "dot")
             {
-                sym_name = "mlir_" + ins->name();
+                return "mlir_" + ins->name();
             }
         }
+        return "main";
     }
 
     void parse(const module& m)
     {
-        set_sym_name(m);
+        sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
         auto fbody = insert(mbody, m, ins_map);
@@ -530,7 +531,7 @@ struct mlir_program
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
-            if(ins->name() == "convolution" || ins->name() == "dot")
+            if(ins->name() == "convolution" or ins->name() == "dot")
             {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
@@ -555,7 +556,7 @@ struct mlir_program
         }
     }
 
-    code_object_op compile() MIGRAPHX_TIDY_CONST
+    code_object_op compile(MlirRockTuningTable& tuning_table) MIGRAPHX_TIDY_CONST
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
@@ -564,7 +565,7 @@ struct mlir_program
         mlirPassManagerRun(pm_front.get(), mmodule.get());
 
         // 2nd pipeline to call
-        get_module_tuned();
+        get_module_tuned(tuning_table);
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
         mlirPassManagerRun(pm_back.get(), mmodule.get());
 
@@ -597,82 +598,38 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    std::string get_tune_params(bool xdlops) { return get_mlir_perf_for_conv(pp, xdlops); }
-
-    void tuning_table_create()
-    {
-        tuning_table               = mlirRockTuningTableCreate();
-        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
-        if(!tuning_db_path.empty())
-        {
-            std::ifstream tuning_db_tsv(tuning_db_path);
-            if(tuning_db_tsv)
-            {
-                std::string arch, prob, perf, key;
-                std::getline(tuning_db_tsv, arch);
-                while(std::getline(tuning_db_tsv, arch, '\t'))
-                {
-                    std::getline(tuning_db_tsv, prob, '\t');
-                    std::getline(tuning_db_tsv, perf);
-                    key             = arch + "\t" + prob;
-                    char* key_cstr  = strdup(key.c_str());
-                    char* perf_cstr = strdup(perf.c_str());
-                    mlirRockTuningUpdateTable(tuning_table, key_cstr, perf_cstr, 1.0);
-                }
-                return;
-            }
-        }
-        std::cerr << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
-                     "optimal performance."
-                  << std::endl;
-    }
+    std::string get_tune_params(bool xdlops) const { return get_mlir_perf_for_conv(pp, xdlops); }
 
     // This function appends to tuning cfg file that could be
     // used with rocMLIR tuning scripts.
-    void dump_tuning_cfg(const char* probConfig)
+    void dump_tuning_cfg(const char* prob_config) const
     {
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(!tuning_cfg_path.empty())
         {
-            std::stringstream key(probConfig);
-            std::string prob;
-            int token_count = 0;
-            for(std::string s; getline(key, s, '\t');)
+            std::vector<std::string> tokens = split_string(prob_config, '\t');
+            std::string prob                = tokens[1];
+            if(starts_with(prob, "conv"))
             {
-                // first token is arch
-                // second one is the problem cfg
-                if(token_count == 1)
-                {
-                    prob = s;
-                }
-                if(token_count > 1)
-                {
-                    break;
-                }
-                token_count++;
-            }
-
-            if(prob.substr(0, 4) == std::string("conv"))
-            {
-                tuning_cfg_path = tuning_cfg_path + ".conv";
+                tuning_cfg_path += ".conv";
             }
             else
             {
-                tuning_cfg_path = tuning_cfg_path + ".gemm";
+                tuning_cfg_path += ".gemm";
             }
             std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
             tuning_cfg << prob << std::endl;
         }
     }
 
-    bool get_module_tuned()
+    bool get_module_tuned(MlirRockTuningTable& tuning_table) const
     {
         if(!mlirRockTuningSetFromTable(tuning_table, mmodule.get()))
         {
-            const char* probConfig = mlirRockTuningGetKey(tuning_table, mmodule.get());
-            std::stringstream key(probConfig);
-            std::cerr << "fails to set param on" << probConfig << std::endl;
-            dump_tuning_cfg(probConfig);
+            const char* prob_config = mlirRockTuningGetKey(tuning_table, mmodule.get());
+            std::stringstream key(prob_config);
+            std::cerr << "fails to set param on" << prob_config << std::endl;
+            dump_tuning_cfg(prob_config);
             return false;
         }
         return true;
@@ -684,7 +641,6 @@ struct mlir_program
     problem_params pp;
     std::deque<std::string> strings{};
     std::string target_arch;
-    MlirRockTuningTable tuning_table;
     std::string sym_name;
 };
 
@@ -741,6 +697,34 @@ void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
     }
 }
 
+static void update_tuning_table(MlirRockTuningTable& tuning_table)
+{
+    std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
+    if(!tuning_db_path.empty())
+    {
+        std::ifstream tuning_db_tsv(tuning_db_path);
+        if(tuning_db_tsv)
+        {
+            std::string line;
+            while(std::getline(tuning_db_tsv, line))
+            {
+                std::vector<std::string> tokens = split_string(line, '\t');
+                std::string arch                = tokens[0];
+                std::string prob                = tokens[1];
+                std::string perf                = tokens[2];
+                std::string key                 = arch.append("\t").append(prob);
+                mlirRockTuningUpdateTable(tuning_table, key.c_str(), perf.c_str(), 1.0);
+            }
+        }
+    }
+    else
+    {
+        std::cerr << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
+                     "optimal performance."
+                  << std::endl;
+    }
+}
+
 code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs)
 {
     adjust_param_shapes(m, inputs);
@@ -754,11 +738,13 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
     mlir_program mp;
     mp.find_target();
     mp.parse(m);
-    mp.tuning_table_create();
+    MlirRockTuningTable tuning_table = mlirRockTuningTableCreate();
+    update_tuning_table(tuning_table);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-    auto co   = mp.compile();
+    auto co = mp.compile(tuning_table);
+    mlirRockTuningTableDestroy(tuning_table);
     co.output = m.get_output_shapes().front();
     return co;
 }

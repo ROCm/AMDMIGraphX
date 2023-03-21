@@ -74,6 +74,12 @@ def parse_args():
                         action='store_true',
                         default=False,
                         help='only perform an onnxruntime run')
+
+    parser.add_argument('--ort_logging',
+                        action='store_true',
+                        default=False,
+                        help='Turn on ort VERBOSE logging via session options')
+
     args = parser.parse_args()
 
     return args
@@ -192,7 +198,15 @@ def main():
         pred_migx = np.array(model.run(params)[-1])
 
     if use_onnx:
-        sess = ort.InferenceSession(model_name, providers=[args.provider])
+        sess_op = ort.SessionOptions()
+
+        if args.ort_logging:
+            sess_op.log_verbosity_level = 0
+            sess_op.log_severity_level = 0
+
+        sess = ort.InferenceSession(model_name,
+                                    sess_options=sess_op,
+                                    providers=[args.provider])
 
         ort_params = {}
         for input in sess.get_inputs():

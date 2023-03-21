@@ -89,18 +89,20 @@ struct find_reshaper
     auto matcher() const
     {
         auto no_output_reshape = match::none_of[match::outputs()](match::name(reshaper_names()));
-        auto input_reshape = match::arg(0)(match::skip(match::name("contiguous"))(match::name(reshaper_names())));
-        auto input = match::skip(match::name(reshaper_names()), match::name("contiguous"))(match::arg(0).bind("x"));
+        auto input_reshape =
+            match::arg(0)(match::skip(match::name("contiguous"))(match::name(reshaper_names())));
+        auto input = match::skip(match::name(reshaper_names()),
+                                 match::name("contiguous"))(match::arg(0).bind("x"));
         return match::name(reshaper_names())(no_output_reshape, input_reshape, input);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins = mr.result;
+        auto ins   = mr.result;
         auto input = mr.instructions["x"];
-        auto dims = ins->get_shape().lens();
+        auto dims  = ins->get_shape().lens();
 
-        if (not input->get_shape().standard())
+        if(not input->get_shape().standard())
             input = m.insert_instruction(input, make_op("contiguous"), input);
         m.replace_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
     }

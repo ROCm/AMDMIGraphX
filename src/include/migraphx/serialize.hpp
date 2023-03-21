@@ -215,8 +215,7 @@ void from_value_impl(rank<6>, const value& v, optional<T>& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 void from_value_impl(rank<7>, const value& v, T& x)
 {
-    if(not v.is_null())
-        x = from_value<T>(v);
+    x = v.to<T>();
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>

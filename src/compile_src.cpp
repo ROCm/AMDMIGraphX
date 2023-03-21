@@ -70,9 +70,6 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
     if(not fs::exists(out_path))
         MIGRAPHX_THROW("Output file missing: " + out);
 
-    if(process)
-        out_path = process(out_path);
-
     return read_buffer(out_path.string());
 }
 

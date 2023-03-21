@@ -210,17 +210,15 @@ void program::compile(const target& t, compile_options options)
     assert(not this->is_compiled());
     this->impl->target_name = t.name();
     this->impl->ctx         = t.get_context();
+
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
 
     options.trace(*this);
     options.trace();
-
     auto&& passes = t.get_passes(this->impl->ctx, options);
     run_passes(*this, passes, options.trace);
-
     auto mods = this->get_modules();
-
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
@@ -336,7 +334,8 @@ std::vector<argument> generic_eval(const module* mod,
                     if(not ins->get_shape().dynamic() and param.get_shape() != ins->get_shape())
                     {
                         MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
-                                       "} for parameter: " + param_name);
+                                       "} for parameter: " + param_name +
+                                       " should be: " + to_string(ins->get_shape()));
                     }
                     return param;
                 }));
@@ -380,7 +379,7 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
-        if(not ins->get_shape().dynamic())
+        if(not ins->get_shape().any_of_dynamic())
         {
             assert(results.at(ins).get_shape() == ins->get_shape());
         }
@@ -852,6 +851,25 @@ void program::print_graph(std::ostream& os, bool brief) const
 {
     const auto* mm = this->get_main_module();
     mm->print_graph(os, brief);
+}
+
+void program::print_py(std::ostream& os) const
+{
+    auto vec_modules = this->get_modules();
+    std::unordered_map<instruction_ref, std::string> names;
+    os << "p = migraphx.program()\n";
+    for(auto& mod : vec_modules)
+    {
+        std::string var_name = "m" + mod->name();
+        os << var_name << " = ";
+        if(mod->name() == "main")
+            os << "p.get_main_module()";
+        else
+            os << "p.create_module(\"" << mod->name() << "\");";
+        os << std::endl;
+        names = mod->print_py(os, var_name, names);
+        os << std::endl;
+    }
 }
 
 void program::print_cpp(std::ostream& os) const

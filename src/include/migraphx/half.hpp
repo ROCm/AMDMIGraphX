@@ -25,7 +25,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 
-#include <half.hpp>
+#include <half/half.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -58,12 +58,12 @@ using deduce = typename detail::deduce<T>::type;
 namespace std {
 
 template <class T>
-struct common_type<migraphx::half, T> : std::common_type<float, T>
+struct common_type<migraphx::half, T> : std::common_type<float, T> // NOLINT
 {
 };
 
 template <class T>
-struct common_type<T, migraphx::half> : std::common_type<float, T>
+struct common_type<T, migraphx::half> : std::common_type<float, T> // NOLINT
 {
 };
 

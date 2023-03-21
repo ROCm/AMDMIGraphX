@@ -553,11 +553,13 @@ struct find_gemm_pointwise
 {
     auto matcher() const
     {
-        return precompile_name("pointwise")(
+        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
+        auto binary_op = match::all_of(
             match::nargs(3),
             match::either_arg(0, 1)(
-                match::any_of(match::standard_shape(), match::is_constant()).bind("c"),
-                match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm")));
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
+        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
+        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
     }
 
     // TODO: Move to matcher.hpp
@@ -589,61 +591,84 @@ struct find_gemm_pointwise
         return match::name("@return")(match::args(match::any_of(add, mul_add, add_mul)));
     }
 
+    static auto match_mul(const std::string& input)
+    {
+        auto mul = match_mul_const(match_param(input), "alpha");
+        return match::name("@return")(match::args(mul));
+    }
+
     static float get_float(instruction_ref ins) { return ins->get_literal().at<float>(); }
 
     template <class Gemm>
     static bool update_gemm(Gemm& gemm, module_ref pm, unsigned input)
     {
         auto names = pm->get_parameter_names();
-        if(names.size() != 2)
-            return false;
         std::sort(names.begin(), names.end());
-        unsigned output = input == 0 ? 1 : 0;
-        auto mr         = match::match_instruction(
-            *pm, std::prev(pm->end()), match_add(names[input], names[output]));
-        if(mr.result == pm->end())
-            return false;
-        if(contains(mr.instructions, "alpha_mul"))
-            gemm.alpha *= get_float(mr.instructions["alpha"]);
-        else if(contains(mr.instructions, "beta_mul"))
-            gemm.beta *= get_float(mr.instructions["beta"]);
-        else if(contains(mr.instructions, "gamma_mul"))
+        if(names.size() == 1)
         {
-            gemm.alpha *= get_float(mr.instructions["gamma"]);
-            gemm.beta *= get_float(mr.instructions["gamma"]);
+            auto mr = match::match_instruction(*pm, std::prev(pm->end()), match_mul(names[input]));
+            if(mr.result == pm->end())
+                return false;
+            gemm.alpha *= get_float(mr.instructions["alpha"]);
+            return true;
         }
-        return true;
+        else if(names.size() == 2)
+        {
+            unsigned output = input == 0 ? 1 : 0;
+            auto mr         = match::match_instruction(
+                *pm, std::prev(pm->end()), match_add(names[input], names[output]));
+            if(mr.result == pm->end())
+                return false;
+            if(contains(mr.instructions, "alpha_mul"))
+                gemm.alpha *= get_float(mr.instructions["alpha"]);
+            else if(contains(mr.instructions, "beta_mul"))
+                gemm.beta *= get_float(mr.instructions["beta"]);
+            else if(contains(mr.instructions, "gamma_mul"))
+            {
+                gemm.alpha *= get_float(mr.instructions["gamma"]);
+                gemm.beta *= get_float(mr.instructions["gamma"]);
+            }
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];
-        auto c_ins    = r.instructions["c"];
 
         auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
 
         // Already fused gemm
         if(not float_equal(gemm.beta, 0))
             return;
-        gemm.beta = 1;
+        if(ins->inputs().size() == 3)
+            gemm.beta = 1;
 
         if(not update_gemm(
                gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
             return;
 
-        // const-fold input if not standard shape since rocblas can't handle it
-        if(not c_ins->get_shape().standard())
-        {
-            auto c = make_op("contiguous");
-            auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-            c_ins  = m.add_literal(l.get_shape(), l.data());
-        }
-
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
 
-        inputs.push_back(c_ins);
+        if(ins->inputs().size() == 3)
+        {
+            auto c_ins = r.instructions["c"];
+            // const-fold input if not standard shape since rocblas can't handle it
+            if(not c_ins->get_shape().standard())
+            {
+                auto c = make_op("contiguous");
+                auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
+                c_ins  = m.add_literal(l.get_shape(), l.data());
+            }
+            inputs.push_back(c_ins);
+        }
+
         inputs.push_back(ins->inputs().back());
 
         m.replace_instruction(ins, gemm, inputs);

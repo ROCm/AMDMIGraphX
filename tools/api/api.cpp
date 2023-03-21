@@ -32,7 +32,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/ref/target.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
@@ -133,6 +132,11 @@ target get_target(const std::string& name) { return make_target(name); }
 void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
 void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
+
+void set_exhaustive_tune_flag(compile_options& options, bool value)
+{
+    options.exhaustive_tune = value;
+}
 
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 

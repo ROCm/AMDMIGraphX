@@ -21,20 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/serialize.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/ref/context.hpp>
-#include <migraphx/functional.hpp>
-#include <test.hpp>
 
-TEST_CASE(context)
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
+struct test_gather_asymmetric : verify_program<test_gather_asymmetric>
 {
-    migraphx::context ctx = migraphx::ref::context{};
-    migraphx::value v     = ctx.to_value();
-    EXPECT(v.empty());
-
-    migraphx::context cpu_ctx = migraphx::ref::context{};
-    cpu_ctx.from_value(v);
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {2, 1}};
+        std::vector<int> indices{1, 2};
+        auto a0  = mm->add_parameter("data", s);
+        auto a1  = mm->add_literal(migraphx::literal{s_indices, indices});
+        int axis = 0;
+        mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
+        return p;
+    }
+};

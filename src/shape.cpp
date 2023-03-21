@@ -483,6 +483,17 @@ std::string shape::type_string() const { return name(this->type()); }
 
 bool shape::dynamic() const { return not impl->m_dyn_dims.empty(); }
 
+bool shape::any_of_dynamic() const
+{
+    if(this->dynamic())
+    {
+        return true;
+    }
+    return std::any_of(this->sub_shapes().cbegin(), this->sub_shapes().cend(), [](auto s) {
+        return s.any_of_dynamic();
+    });
+}
+
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
 std::vector<std::size_t> shape::min_lens() const
@@ -504,6 +515,31 @@ bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max;
 
 bool shape::dynamic_dimension::has_optimal() const { return opt != 0; }
 
+shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t& x)
+{
+    this->min += x;
+    this->max += x;
+    if(this->opt != 0)
+    {
+        this->opt += x;
+    };
+    return *this;
+}
+
+shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t& x)
+{
+    assert(this->min >= x);
+    assert(this->max >= x);
+    this->min -= x;
+    this->max -= x;
+    if(this->opt != 0)
+    {
+        assert(this->opt >= x);
+        this->opt -= x;
+    }
+    return *this;
+}
+
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     // don't check opt if both are fixed
@@ -519,6 +555,31 @@ std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
     os << "[" << x.min << ", " << x.max << ", " << x.opt << "]";
     return os;
+}
+
+bool operator==(const shape::dynamic_dimension& x, const std::size_t& y)
+{
+    return x.min == y and x.max == y;
+}
+bool operator==(const std::size_t& x, const shape::dynamic_dimension& y) { return y == x; }
+bool operator!=(const shape::dynamic_dimension& x, const std::size_t& y) { return not(x == y); }
+bool operator!=(const std::size_t& x, const shape::dynamic_dimension& y) { return not(x == y); }
+
+shape::dynamic_dimension operator+(const shape::dynamic_dimension& x, const std::size_t& y)
+{
+    auto dd = x;
+    return dd += y;
+}
+
+shape::dynamic_dimension operator+(const std::size_t& x, const shape::dynamic_dimension& y)
+{
+    return y + x;
+}
+
+shape::dynamic_dimension operator-(const shape::dynamic_dimension& x, const std::size_t& y)
+{
+    auto dd = x;
+    return dd -= y;
 }
 
 bool operator==(const shape& x, const shape& y)

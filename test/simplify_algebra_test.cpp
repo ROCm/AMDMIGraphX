@@ -559,6 +559,32 @@ TEST_CASE(simplify_inner_broadcast2)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_inner_broadcast_scalar)
+{
+    auto b = migraphx::op::multibroadcast{{32, 384}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 384}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
+        auto xb  = m1.add_instruction(b, x);
+        auto yb  = m1.add_instruction(b, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), xb, yb);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 384}});
+        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
+        auto yb   = m2.add_instruction(migraphx::op::multibroadcast{{1, 384}}, y);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
+        auto sumb = m2.add_instruction(b, sum);
+        m2.add_instruction(pass_op{}, sumb);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_add_conv1)
 {
     migraphx::module m;
@@ -1041,16 +1067,18 @@ TEST_CASE(simplify_neg_unit_mult_const)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto unit = m1.add_literal(-1);
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 6}});
+        auto unit = m1.add_literal(
+            migraphx::literal{{migraphx::shape::int32_type, {1, 6}}, std::vector<int>(6, -1)});
         m1.add_instruction(migraphx::make_op("mul"), x, unit);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 6}});
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
     }
 
     EXPECT((m1 == m2));
@@ -1068,8 +1096,30 @@ TEST_CASE(simplify_neg_unit_mult_const2)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
+    }
+
+    EXPECT((m1 == m2));
+}
+
+TEST_CASE(simplify_neg_unit_mult_const_add)
+{
+    migraphx::module m1;
+    {
+        auto unit = m1.add_literal(-1);
+        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x2   = m1.add_instruction(migraphx::make_op("mul"), unit, x);
+        m1.add_instruction(migraphx::make_op("add"), x2, x2);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("add"), x2, x2);
     }
 
     EXPECT((m1 == m2));
@@ -1091,8 +1141,9 @@ TEST_CASE(simplify_neg_unit_mul_const_vec)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", x_shape);
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
     }
 
     EXPECT(m1 == m2);
@@ -1114,8 +1165,9 @@ TEST_CASE(simplify_neg_unit_mul_const_vec2)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", x_shape);
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
     }
 
     EXPECT(m1 == m2);
@@ -1133,8 +1185,9 @@ TEST_CASE(simplify_neg_unit_div_const)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
     }
 
     EXPECT(m1 == m2);
@@ -1156,8 +1209,9 @@ TEST_CASE(simplify_neg_unit_div_const_vec)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", x_shape);
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
     }
 
     EXPECT(m1 == m2);
@@ -1216,8 +1270,9 @@ TEST_CASE(simplify_sub_neg_zero_const)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
     }
     EXPECT(m1 == m2);
 }
@@ -1238,8 +1293,9 @@ TEST_CASE(simplify_sub_neg_zero_const_vec)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", x_shape);
-        m2.add_instruction(migraphx::make_op("neg"), x);
+        auto x  = m2.add_parameter("x", x_shape);
+        auto x2 = m2.add_instruction(migraphx::make_op("neg"), x);
+        m2.add_instruction(migraphx::make_op("identity"), x2);
     }
 
     EXPECT(m1 == m2);
@@ -2917,6 +2973,55 @@ TEST_CASE(reorder_slice_ins_deps)
     auto m = create_module();
     run_pass(m);
     EXPECT(m == create_module());
+}
+
+TEST_CASE(dot_fusion_reshape)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 4096, 320}};
+        auto input = m1.add_parameter("input", s);
+
+        auto p0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 0));
+        auto p1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 1));
+
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), input, p0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), input, p1);
+
+        auto r0 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 8, 40}}}), d0);
+        m1.add_return({r0, d1});
+    };
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 4096, 320}};
+        auto input = m2.add_parameter("input", s);
+
+        auto p0 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 0));
+        auto p1 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 320, 320}}, 1));
+
+        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), p0, p1);
+        auto d = m2.add_instruction(migraphx::make_op("dot"), input, c);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {320}}}), d);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {320}}, {"ends", {640}}}), d);
+
+        auto cont0 = m2.add_instruction(migraphx::make_op("contiguous"), s0);
+        auto r0 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 8, 40}}}), cont0);
+
+        m2.add_return({r0, s1});
+    };
+
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

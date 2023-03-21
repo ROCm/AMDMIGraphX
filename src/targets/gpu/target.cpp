@@ -38,6 +38,7 @@
 #include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
+#include <migraphx/optimize_module.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
@@ -74,7 +75,6 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
-
 struct id_pass
 {
     std::string name() const { return "id"; }
@@ -91,6 +91,7 @@ pass enable_pass(bool enabled, pass p)
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
+    ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
     unsupported_types.erase(shape::type_t::half_type);
@@ -119,21 +120,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_pooling{},
         dead_code_elimination{},
         rewrite_gelu{},
-        dead_code_elimination{},
-        eliminate_common_subexpression{},
-        dead_code_elimination{},
-        simplify_algebra{},
-        simplify_reshapes{},
+        optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},
-        simplify_reshapes{},
-        simplify_algebra{},
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
-        simplify_reshapes{},
-        propagate_constant{},
-        dead_code_elimination{},
+        optimize_module{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
         dead_code_elimination{},
         fuse_mlir{&ctx},

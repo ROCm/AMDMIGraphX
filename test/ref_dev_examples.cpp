@@ -28,7 +28,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
@@ -54,7 +54,7 @@ TEST_CASE(add_two_literals)
     mm->add_instruction(migraphx::make_op("add"), one, two);
 
     // compile the program on the reference device
-    p.compile(migraphx::ref::target{});
+    p.compile(migraphx::make_target("ref"));
 
     // evaulate the program and retreive the result
     auto result = p.eval({}).back();
@@ -78,7 +78,7 @@ TEST_CASE(add_parameters)
 
     // add the "add" instruction between the "x" parameter and "two" to the module
     mm->add_instruction(migraphx::make_op("add"), x, two);
-    p.compile(migraphx::ref::target{});
+    p.compile(migraphx::make_target("ref"));
 
     // create a parameter_map object for passing a value to the "x" parameter
     std::vector<int> data = {4};
@@ -111,7 +111,7 @@ TEST_CASE(handling_tensors)
                         input,
                         weights);
 
-    p.compile(migraphx::ref::target{});
+    p.compile(migraphx::make_target("ref"));
 
     // Allocated buffers by the user
     std::vector<float> a = {

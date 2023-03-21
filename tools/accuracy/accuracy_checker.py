@@ -69,6 +69,11 @@ def parse_args():
                         type=str,
                         default="gpu",
                         help='target to compile and run MIGraphX on')
+
+    parser.add_argument('--ort_run',
+                        action='store_true',
+                        default=False,
+                        help='only perform an onnxruntime run')
     args = parser.parse_args()
 
     return args
@@ -163,7 +168,8 @@ def main():
     if args.verbose:
         print(model)
 
-    model.compile(migraphx.get_target(args.target))
+    if args.ort_run is False:
+        model.compile(migraphx.get_target(args.target))
 
     params = {}
     test_inputs = {}
@@ -182,7 +188,8 @@ def main():
         test_inputs[name] = test_input
         params[name] = migraphx.argument(test_input)
 
-    pred_migx = np.array(model.run(params)[-1])
+    if args.ort_run is False:
+        pred_migx = np.array(model.run(params)[-1])
 
     if use_onnx:
         sess = ort.InferenceSession(model_name, providers=[args.provider])
@@ -243,14 +250,15 @@ def main():
             y_out = sess.run(y, feed_dict=tf_dict)
             pred_fw = y_out
 
-    is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
-                                   args.tolerance, args.verbose)
-    verbose_string = ' Rerun with --verbose for detailed information.' \
-            if not args.verbose else ''
-    if is_correct:
-        print('PASSED: MIGraphX meets tolerance')
-    else:
-        print('FAILED: MIGraphX is not within tolerance.' + verbose_string)
+    if args.ort_run is False:
+        is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
+                                    args.tolerance, args.verbose)
+        verbose_string = ' Rerun with --verbose for detailed information.' \
+                if not args.verbose else ''
+        if is_correct:
+            print('PASSED: MIGraphX meets tolerance')
+        else:
+            print('FAILED: MIGraphX is not within tolerance.' + verbose_string)
 
 
 if __name__ == '__main__':

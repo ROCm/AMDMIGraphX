@@ -266,7 +266,7 @@ def main():
 
     if args.ort_run is False:
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
-                                    args.tolerance, args.verbose)
+                                       args.tolerance, args.verbose)
         verbose_string = ' Rerun with --verbose for detailed information.' \
                 if not args.verbose else ''
         if is_correct:

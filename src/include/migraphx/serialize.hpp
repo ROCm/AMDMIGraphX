@@ -93,11 +93,7 @@ auto to_value_impl(rank<4>, const optional<T>& x)
 {
     value result{};
     if(x.has_value())
-<<<<<<< HEAD
-        to_value(*x);
-=======
         return to_value(*x);
->>>>>>> develop
     return result;
 }
 
@@ -211,7 +207,6 @@ void from_value_impl(rank<5>, const value& v, T& x)
 
 template <class T>
 void from_value_impl(rank<6>, const value& v, optional<T>& x)
-<<<<<<< HEAD
 {
     if(not v.is_null())
         x = from_value<T>(v);
@@ -219,45 +214,27 @@ void from_value_impl(rank<6>, const value& v, optional<T>& x)
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 void from_value_impl(rank<7>, const value& v, T& x)
-=======
->>>>>>> develop
 {
     if(not v.is_null())
         x = from_value<T>(v);
 }
 
-<<<<<<< HEAD
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
 void from_value_impl(rank<8>, const value& v, T& x)
-=======
-template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{} or std::is_enum<T>{})>
-void from_value_impl(rank<7>, const value& v, T& x)
->>>>>>> develop
 {
     x = v.to<T>();
 }
 
-<<<<<<< HEAD
 inline void from_value_impl(rank<9>, const value& v, std::string& x) { x = v.to<std::string>(); }
 
 template <class T>
 auto from_value_impl(rank<10>, const value& v, T& x) -> decltype(x.from_value(v), void())
-=======
-inline void from_value_impl(rank<8>, const value& v, std::string& x) { x = v.to<std::string>(); }
-
-template <class T>
-auto from_value_impl(rank<9>, const value& v, T& x) -> decltype(x.from_value(v), void())
->>>>>>> develop
 {
     x.from_value(v);
 }
 
 template <class T>
-<<<<<<< HEAD
 auto from_value_impl(rank<11>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
-=======
-auto from_value_impl(rank<10>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
->>>>>>> develop
 {
     migraphx_from_value(v, x);
 }
@@ -273,11 +250,7 @@ value to_value(const T& x)
 template <class T>
 void from_value(const value& v, T& x)
 {
-<<<<<<< HEAD
     detail::from_value_impl(rank<11>{}, v, x);
-=======
-    detail::from_value_impl(rank<10>{}, v, x);
->>>>>>> develop
 }
 
 } // namespace MIGRAPHX_INLINE_NS

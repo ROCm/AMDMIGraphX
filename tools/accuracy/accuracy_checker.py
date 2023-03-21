@@ -65,6 +65,10 @@ def parse_args():
                         help='specify input parameter dimension \
                                 with the following format --input_dim input_name:dim0,dim1,dim2...'
                         )
+    parser.add_argument('--target',
+                        type=str,
+                        default="gpu",
+                        help='target to compile and run MIGraphX on')
     args = parser.parse_args()
 
     return args
@@ -159,7 +163,7 @@ def main():
     if args.verbose:
         print(model)
 
-    model.compile(migraphx.get_target('gpu'))
+    model.compile(migraphx.get_target(args.target))
 
     params = {}
     test_inputs = {}

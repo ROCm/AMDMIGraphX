@@ -39,8 +39,8 @@ struct check_context
     {
         std::string name() const
         {
-            const auto op_type_name = get_type_name<T>();
-            const auto& split_name  = split_string(op_type_name, ':');
+            const auto& op_type_name = get_type_name<T>();
+            const auto& split_name   = split_string(op_type_name, ':');
             // construct name as check_context::gpu::context or check_context::cpu::context or
             // likewise.
             return "check_context::" + split_name[split_name.size() - 3] +

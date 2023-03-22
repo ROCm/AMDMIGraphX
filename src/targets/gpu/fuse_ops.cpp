@@ -680,7 +680,8 @@ struct find_contiguous_tranpose_precompile
     auto matcher() const
     {
         return match::name("gpu::contiguous")(match::arg(0)(
-            match::name("transpose")(match::used_once(),
+            match::name("transpose")(
+                match::used_once(),
                 match::arg(0)(match::name("gpu::precompile_op")(match::used_once()).bind("op")))
                 .bind("transpose")));
     }
@@ -693,8 +694,8 @@ struct find_contiguous_tranpose_precompile
         auto transpose = r.instructions["transpose"];
         auto perm      = transpose->get_operator().to_value()["permutation"].to_vector<int64_t>();
         auto iperm     = invert_permutation(perm);
-        auto s =
-            shape::from_permutation(op_ins->get_shape().type(), op_ins->get_shape().lens(), perm); // perm or iperm?
+        auto s         = shape::from_permutation(
+            op_ins->get_shape().type(), op_ins->get_shape().lens(), perm); // perm or iperm?
         auto v            = op_ins->get_operator().to_value();
         v["output_shape"] = to_value(s);
         auto new_op       = make_op("gpu::precompile_op", v);

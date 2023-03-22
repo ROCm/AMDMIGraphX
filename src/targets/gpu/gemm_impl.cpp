@@ -115,7 +115,7 @@ static bool is_transposed(const shape& s)
 
 static rocblas_int get_batch_stride(const argument& a)
 {
-    // This value should not be needed for non-strided inputs 
+    // This value should not be needed for non-strided inputs
     if(a.get_shape().strides().size() < 3)
         return 0;
     else

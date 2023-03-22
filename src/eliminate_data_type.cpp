@@ -38,6 +38,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "if",
                                                            "loop",
                                                            "roialign",
+                                                           "nonmaxsuppression",
                                                            "scatternd_add",
                                                            "scatternd_mul",
                                                            "scatternd_none"};

@@ -29,10 +29,12 @@
 #include <ostream>
 #include <numeric>
 #include <memory>
+#include <set>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/half.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -85,14 +87,14 @@ struct shape
 
     struct dynamic_dimension
     {
-        std::size_t min               = 0;
-        std::size_t max               = 0;
-        std::vector<std::size_t> opts = {};
+        std::size_t min = 0;
+        std::size_t max = 0;
+        std::set<std::size_t> opts{};
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"), f(self.max, "max"), f(self.opts, "opt"));
+            return pack(f(self.min, "min"), f(self.max, "max"), f(self.opts, "opts"));
         }
 
         bool is_fixed() const;
@@ -136,7 +138,7 @@ struct shape
     shape(type_t t,
           std::vector<std::size_t> mins,
           std::vector<std::size_t> maxes,
-          std::vector<std::vector<std::size_t>> opts_list);
+          std::vector<std::set<std::size_t>> opts_list);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
@@ -200,7 +202,7 @@ struct shape
      * Optimum lengths for dynamic shape.
      * Empty for fixed shape.
      */
-    std::vector<std::vector<std::size_t>> opt_lens() const;
+    std::vector<std::set<std::size_t>> opt_lens() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;
@@ -245,6 +247,9 @@ struct shape
 
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
+
+    /// check that the shape is valid (for dynamic shapes)
+    bool valid() const;
 
     shape normalize_standard() const;
 

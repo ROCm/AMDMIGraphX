@@ -64,7 +64,7 @@ TEST_CASE(abs_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 8, 0}, {2, 2, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 8}, {2, 2}}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("abs"), input);
     p.compile(migraphx::ref::target{});
@@ -102,7 +102,7 @@ TEST_CASE(acos_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("acos"), input);
@@ -143,7 +143,7 @@ TEST_CASE(acosh_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     std::vector<float> input_data{1.1f, 1.2f, 2.0f};
@@ -230,7 +230,7 @@ TEST_CASE(add_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
@@ -330,7 +330,7 @@ TEST_CASE(argmax_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 2, 0}, {3, 6, 0}, {3, 6, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 2}, {3, 6}, {3, 6}}};
     auto dl = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("argmax", {{"axis", 0}}), dl);
     p.compile(migraphx::ref::target{});
@@ -446,7 +446,7 @@ TEST_CASE(asin_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("asin"), input);
@@ -487,7 +487,7 @@ TEST_CASE(asinh_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("asinh"), input);
@@ -528,7 +528,7 @@ TEST_CASE(atan_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("atan"), input);
@@ -569,7 +569,7 @@ TEST_CASE(atanh_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("atanh"), input);
@@ -615,7 +615,7 @@ TEST_CASE(avgpool_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}}};
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
     auto x   = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("pooling",
                                           {{"mode", migraphx::op::pooling_mode::average},
@@ -767,7 +767,7 @@ TEST_CASE(broadcast_2in_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape a_shape{migraphx::shape::int32_type, {{2, 2, 0}, {2, 4, 0}}};
+    migraphx::shape a_shape{migraphx::shape::int32_type, {{2, 2}, {2, 4}}};
     migraphx::shape b_shape{migraphx::shape::int32_type, {2}};
     std::vector<int32_t> b_data{-2, -3};
     uint64_t axis = 0;
@@ -810,7 +810,7 @@ TEST_CASE(ceil_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{4, 12, 0};
+    migraphx::shape::dynamic_dimension dd{4, 12};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("ceil"), input);
@@ -958,9 +958,9 @@ TEST_CASE(concat_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     int axis = 0;
-    migraphx::shape s0{migraphx::shape::int32_type, {{2, 4, 2}, {2, 3, 2}}};
-    migraphx::shape s1{migraphx::shape::int32_type, {{3, 4, 4}, {2, 3, 2}}};
-    migraphx::shape s2{migraphx::shape::int32_type, {{1, 5, 3}, {2, 3, 2}}};
+    migraphx::shape s0{migraphx::shape::int32_type, {{2, 4, {2}}, {2, 3, {2}}}};
+    migraphx::shape s1{migraphx::shape::int32_type, {{3, 4, {4}}, {2, 3, {2}}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {{1, 5, {3}}, {2, 3, {2}}}};
 
     auto input0 = mm->add_parameter("X", s0);
     auto input1 = mm->add_parameter("Y", s1);
@@ -1039,8 +1039,7 @@ TEST_CASE(contiguous_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape dyn_shape{migraphx::shape::float_type,
-                              {{1, 1, 0}, {2, 6, 0}, {2, 2, 0}, {2, 2, 0}}};
+    migraphx::shape dyn_shape{migraphx::shape::float_type, {{1, 1}, {2, 6}, {2, 2}, {2, 2}}};
     auto input = mm->add_parameter("X", dyn_shape);
     mm->add_instruction(migraphx::make_op("contiguous"), input);
     p.compile(migraphx::ref::target{});
@@ -1068,7 +1067,7 @@ TEST_CASE(conv_dyn_batch_test)
     auto* mm = p.get_main_module();
 
     migraphx::shape input_dyn_shape{migraphx::shape::float_type,
-                                    {{1, 100, 0}, {3, 3, 0}, {4, 4, 0}, {4, 4, 0}}};
+                                    {{1, 100}, {3, 3}, {4, 4}, {4, 4}}};
     migraphx::shape weights_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
 
     auto input   = mm->add_parameter("X", input_dyn_shape);
@@ -1184,8 +1183,7 @@ TEST_CASE(conv_dyn_img_shape_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape input_dyn_shape{migraphx::shape::float_type,
-                                    {{1, 1, 0}, {3, 3, 0}, {4, 6, 0}, {4, 6, 0}}};
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {4, 6}, {4, 6}}};
     migraphx::shape weights_shape{migraphx::shape::float_type, {1, 3, 3, 3}};
 
     auto input   = mm->add_parameter("X", input_dyn_shape);
@@ -1274,8 +1272,7 @@ TEST_CASE(conv_dyn_weights_shape_test)
     auto* mm = p.get_main_module();
 
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 3, 4, 4}};
-    migraphx::shape weights_shape{migraphx::shape::float_type,
-                                  {{1, 1, 0}, {3, 3, 0}, {2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 3}, {2, 3}}};
 
     auto input   = mm->add_parameter("X", input_shape);
     auto weights = mm->add_parameter("W", weights_shape);
@@ -1350,8 +1347,7 @@ TEST_CASE(conv_dyn_img_same_upper_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape input_dyn_shape{migraphx::shape::float_type,
-                                    {{1, 1, 0}, {3, 3, 0}, {4, 6, 0}, {4, 6, 0}}};
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {4, 6}, {4, 6}}};
     migraphx::shape weights_shape{migraphx::shape::float_type, {1, 3, 3, 3}};
 
     auto input   = mm->add_parameter("X", input_dyn_shape);
@@ -1422,8 +1418,7 @@ TEST_CASE(conv_dyn_kernel_same_upper_test)
     auto* mm = p.get_main_module();
 
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 3, 4, 4}};
-    migraphx::shape weights_shape{migraphx::shape::float_type,
-                                  {{1, 1, 0}, {3, 3, 0}, {2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 3}, {2, 3}}};
 
     auto input   = mm->add_parameter("X", input_shape);
     auto weights = mm->add_parameter("W", weights_shape);
@@ -1496,8 +1491,7 @@ TEST_CASE(conv_dyn_kernel_same_lower_test)
     auto* mm = p.get_main_module();
 
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 3, 4, 4}};
-    migraphx::shape weights_shape{migraphx::shape::float_type,
-                                  {{1, 1, 0}, {3, 3, 0}, {2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 3}, {2, 3}}};
 
     auto input   = mm->add_parameter("X", input_shape);
     auto weights = mm->add_parameter("W", weights_shape);
@@ -1839,7 +1833,7 @@ TEST_CASE(cos_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("cos"), input);
@@ -1880,7 +1874,7 @@ TEST_CASE(cosh_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("cosh"), input);
@@ -2071,7 +2065,7 @@ TEST_CASE(div_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 3}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, {3}}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
@@ -2113,7 +2107,7 @@ TEST_CASE(elu_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input  = mm->add_parameter("X", s);
     float alpha = 0.5;
@@ -2184,7 +2178,7 @@ TEST_CASE(equal_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{6, 12, 9}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{6, 12, {9}}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto p0 = mm->add_parameter("l", s);
     auto p1 = mm->add_parameter("r", s);
@@ -2231,7 +2225,7 @@ TEST_CASE(erf_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("erf"), input);
@@ -2272,7 +2266,7 @@ TEST_CASE(exp_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("exp"), input);
@@ -2313,7 +2307,7 @@ TEST_CASE(floor_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{5, 12, 0};
+    migraphx::shape::dynamic_dimension dd{5, 12};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("floor"), input);
@@ -2564,7 +2558,7 @@ TEST_CASE(gather_dyn_test0)
     // Dynamic data, static indices
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type, {{2, 5, 0}, {3, 3, 0}}};
+    migraphx::shape s{migraphx::shape::int32_type, {{2, 5}, {3, 3}}};
 
     auto x = mm->add_parameter("x", s);
     std::vector<int> indices{1, 2};
@@ -2573,7 +2567,7 @@ TEST_CASE(gather_dyn_test0)
     auto ind = mm->add_parameter("indices", s_ind);
     mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), x, ind);
 
-    migraphx::shape sresult{migraphx::shape::int32_type, {{2, 5, 0}, {1, 1, 0}, {2, 2, 0}}};
+    migraphx::shape sresult{migraphx::shape::int32_type, {{2, 5}, {1, 1}, {2, 2}}};
     EXPECT(p.get_output_shapes().back() == sresult);
     p.compile(migraphx::ref::target{});
 
@@ -2599,15 +2593,15 @@ TEST_CASE(gather_dyn_test1)
     // Dynamic data, dynamic indices
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type, {{2, 5, 0}, {4, 4, 0}}};
+    migraphx::shape s{migraphx::shape::int32_type, {{2, 5}, {4, 4}}};
 
     auto x = mm->add_parameter("x", s);
 
-    migraphx::shape s_ind{migraphx::shape::int32_type, {{1, 8, 7}, {2, 3, 3}}};
+    migraphx::shape s_ind{migraphx::shape::int32_type, {{1, 8, {7}}, {2, 3, {3}}}};
     auto ind = mm->add_parameter("indices", s_ind);
     mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), x, ind);
 
-    migraphx::shape sresult{migraphx::shape::int32_type, {{1, 8, 7}, {2, 3, 3}, {4, 4, 0}}};
+    migraphx::shape sresult{migraphx::shape::int32_type, {{1, 8, {7}}, {2, 3, {3}}, {4, 4}}};
     EXPECT(p.get_output_shapes().back() == sresult);
     p.compile(migraphx::ref::target{});
 
@@ -2787,7 +2781,7 @@ TEST_CASE(gathernd_dynamic0)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape ds{migraphx::shape::float_type, {{2, 2, 2}, {3, 3, 0}, {1, 1, 0}}};
+    migraphx::shape ds{migraphx::shape::float_type, {{2, 2, {2}}, {3, 3}, {1, 1}}};
     migraphx::shape is{migraphx::shape::int64_type, {2, 2, 1}};
 
     auto xdata  = mm->add_parameter("X", ds);
@@ -2824,7 +2818,7 @@ TEST_CASE(gathernd_dynamic1)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape ds{migraphx::shape::float_type, {{2, 5, 2}, {1, 5, 0}, {1, 5, 0}}};
+    migraphx::shape ds{migraphx::shape::float_type, {{2, 5, {2}}, {1, 5}, {1, 5}}};
     migraphx::shape is{migraphx::shape::int64_type, {2, 2, 1}};
 
     auto xdata  = mm->add_parameter("X", ds);
@@ -2860,8 +2854,8 @@ TEST_CASE(gathernd_dynamic2)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape ds{migraphx::shape::float_type, {{2, 5, 2}, {1, 5, 0}, {1, 5, 0}}};
-    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, 3}, {2, 3, 3}, {1, 1}}};
+    migraphx::shape ds{migraphx::shape::float_type, {{2, 5, {2}}, {1, 5}, {1, 5}}};
+    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, {3}}, {2, 3, {3}}, {1, 1}}};
 
     auto xdata  = mm->add_parameter("X", ds);
     auto xindex = mm->add_parameter("I", is);
@@ -2897,7 +2891,7 @@ TEST_CASE(gathernd_dynamic3)
     auto* mm = p.get_main_module();
 
     migraphx::shape ds{migraphx::shape::float_type, {2, 3, 1}};
-    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, 3}, {2, 3, 3}, {1, 1}}};
+    migraphx::shape is{migraphx::shape::int64_type, {{2, 5, {3}}, {2, 3, {3}}, {1, 1}}};
 
     auto xdata  = mm->add_parameter("X", ds);
     auto xindex = mm->add_parameter("I", is);
@@ -2932,8 +2926,7 @@ TEST_CASE(gathernd_dynamic4)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape ds{migraphx::shape::float_type,
-                       {migraphx::shape::dynamic_dimension({2, 2, 0})}};
+    migraphx::shape ds{migraphx::shape::float_type, {migraphx::shape::dynamic_dimension({2, 2})}};
     migraphx::shape is{migraphx::shape::int64_type, {1}};
 
     auto xdata  = mm->add_parameter("X", ds);
@@ -3034,9 +3027,8 @@ TEST_CASE(globalavgpool_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto s =
-        migraphx::shape{migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 6, 0}, {2, 6, 2}}};
-    auto x = mm->add_parameter("X", s);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 6}, {2, 6, {2}}}};
+    auto x   = mm->add_parameter("X", s);
     mm->add_instruction(
         migraphx::make_op("pooling",
                           {{"mode", migraphx::op::pooling_mode::average}, {"dyn_global", true}}),
@@ -3081,7 +3073,7 @@ TEST_CASE(globallppool_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto s =
-        migraphx::shape{migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 6, 2}, {2, 6, 2}}};
+        migraphx::shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 6, {2}}, {2, 6, {2}}}};
     auto x = mm->add_parameter("X", s);
     mm->add_instruction(
         migraphx::make_op("pooling",
@@ -3126,7 +3118,7 @@ TEST_CASE(globalmaxpool_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto s =
-        migraphx::shape{migraphx::shape::float_type, {{1, 1, 0}, {3, 3, 0}, {2, 6, 2}, {2, 6, 2}}};
+        migraphx::shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 6, {2}}, {2, 6, {2}}}};
     auto x = mm->add_parameter("X", s);
     mm->add_instruction(
         migraphx::make_op("pooling",
@@ -3198,7 +3190,7 @@ TEST_CASE(greater_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{8, 10, 9}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{8, 10, {9}}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto left  = mm->add_parameter("l", s);
     auto right = mm->add_parameter("r", s);
@@ -3242,7 +3234,7 @@ TEST_CASE(identity_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 4, 0}, {2, 4, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {2, 4}}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("identity"), input);
     p.compile(migraphx::ref::target{});
@@ -3488,7 +3480,7 @@ TEST_CASE(isnan_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 2, 0}, {3, 8, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 2}, {3, 8}}};
     auto input   = mm->add_parameter("X", s);
     auto nan_val = std::numeric_limits<float>::quiet_NaN();
     mm->add_instruction(migraphx::make_op("isnan"), input);
@@ -3807,7 +3799,7 @@ TEST_CASE(less_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{8, 10, 9}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{8, 10, {9}}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto left  = mm->add_parameter("l", s);
     auto right = mm->add_parameter("r", s);
@@ -3859,7 +3851,7 @@ TEST_CASE(log_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("log"), input);
@@ -3904,7 +3896,7 @@ TEST_CASE(logical_and_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, {4}}};
     migraphx::shape s{migraphx::shape::bool_type, dd};
     auto left  = mm->add_parameter("l", s);
     auto right = mm->add_parameter("r", s);
@@ -3955,7 +3947,7 @@ TEST_CASE(logical_or_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, {4}}};
     migraphx::shape s{migraphx::shape::bool_type, dd};
     auto left  = mm->add_parameter("l", s);
     auto right = mm->add_parameter("r", s);
@@ -4006,7 +3998,7 @@ TEST_CASE(logical_xor_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, {4}}};
     migraphx::shape s{migraphx::shape::bool_type, dd};
     auto left  = mm->add_parameter("l", s);
     auto right = mm->add_parameter("r", s);
@@ -4227,7 +4219,7 @@ TEST_CASE(lppool_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}}};
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
     auto x   = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("pooling",
                                           {{"mode", migraphx::op::pooling_mode::lpnorm},
@@ -4294,7 +4286,7 @@ TEST_CASE(max_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x        = mm->add_parameter("x", s);
     auto y        = mm->add_parameter("y", s);
@@ -4497,7 +4489,7 @@ TEST_CASE(maxpool_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {4, 4, 0}}};
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
     auto x   = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("pooling",
                                           {{"mode", migraphx::op::pooling_mode::max},
@@ -4540,7 +4532,7 @@ TEST_CASE(min_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x        = mm->add_parameter("x", s);
     auto y        = mm->add_parameter("y", s);
@@ -4586,7 +4578,7 @@ TEST_CASE(fmod_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x        = mm->add_parameter("x", s);
     auto y        = mm->add_parameter("y", s);
@@ -4651,7 +4643,7 @@ TEST_CASE(mod_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x        = mm->add_parameter("x", s);
     auto y        = mm->add_parameter("y", s);
@@ -4720,7 +4712,7 @@ TEST_CASE(mul_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
@@ -4790,7 +4782,7 @@ TEST_CASE(multibroadcast_2in_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape a_shape{migraphx::shape::int32_type, {{2, 4, 0}, {2, 2, 0}}};
+    migraphx::shape a_shape{migraphx::shape::int32_type, {{2, 4}, {2, 2}}};
     migraphx::shape b_shape{migraphx::shape::int32_type, {2}};
     std::vector<int32_t> b_data{-2, -3};
     auto l1 = mm->add_parameter("a", a_shape);
@@ -4882,7 +4874,7 @@ TEST_CASE(neg_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 4, 0}, {3, 3, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
     auto input = mm->add_parameter("X", s);
     auto ret   = mm->add_instruction(migraphx::make_op("neg"), input);
     mm->add_return({ret});
@@ -4939,9 +4931,9 @@ TEST_CASE(nms_dyn_batch_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 3, 0}, {6, 6, 0}, {4, 4, 0}}};
+    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 3}, {6, 6}, {4, 4}}};
 
-    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 3, 0}, {1, 1, 0}, {6, 6, 0}}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 3}, {1, 1}, {6, 6}}};
 
     auto boxes_p         = mm->add_parameter("boxes", boxes_s);
     auto scores_p        = mm->add_parameter("scores", scores_s);
@@ -4985,9 +4977,9 @@ TEST_CASE(nms_dyn_boxes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1, 0}, {4, 20, 0}, {4, 4, 0}}};
+    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1}, {4, 20}, {4, 4}}};
 
-    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1, 0}, {1, 1, 0}, {4, 20, 0}}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1}, {1, 1}, {4, 20}}};
 
     auto boxes_p         = mm->add_parameter("boxes", boxes_s);
     auto scores_p        = mm->add_parameter("scores", scores_s);
@@ -5028,9 +5020,9 @@ TEST_CASE(nms_dyn_classes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1, 0}, {6, 6, 0}, {4, 4, 0}}};
+    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1}, {6, 6}, {4, 4}}};
 
-    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1, 0}, {1, 3, 0}, {6, 6, 0}}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1}, {1, 3}, {6, 6}}};
 
     auto boxes_p         = mm->add_parameter("boxes", boxes_s);
     auto scores_p        = mm->add_parameter("scores", scores_s);
@@ -5274,7 +5266,7 @@ TEST_CASE(not_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("not"), input);
@@ -5363,7 +5355,7 @@ TEST_CASE(pad_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 4, 2}, {2, 4, 2}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4, {2}}, {2, 4, {2}}}};
     auto x = mm->add_parameter("x", s);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {1, 1, 1, 1}}}), x);
     p.compile(migraphx::ref::target{});
@@ -5827,7 +5819,7 @@ TEST_CASE(prelu_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x     = mm->add_parameter("x", s);
     auto slope = mm->add_parameter("slope", s);
@@ -6028,7 +6020,7 @@ TEST_CASE(recip_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("recip"), input);
@@ -6065,7 +6057,7 @@ TEST_CASE(reduce_max_dynamic_axis0)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 4, 2}, {3, 5, 3}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4, {2}}, {3, 5, {3}}}};
     auto input         = mm->add_parameter("X", s);
     auto reduce_max_op = migraphx::make_op("reduce_max", {{"axes", {0}}});
     mm->add_instruction(reduce_max_op, input);
@@ -6357,7 +6349,7 @@ TEST_CASE(relu_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("relu"), input);
@@ -6429,7 +6421,7 @@ TEST_CASE(reshape_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{1, 4, 0}, {24, 24, 0}, {1, 1, 0}, {1, 1, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     std::vector<int64_t> new_shape = {0, 8, 3, 1};
     auto input                     = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
@@ -6691,7 +6683,7 @@ TEST_CASE(round_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{4, 10, 0};
+    migraphx::shape::dynamic_dimension dd{4, 10};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("round"), input);
@@ -6727,7 +6719,7 @@ TEST_CASE(rsqrt_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("rsqrt"), input);
@@ -7466,10 +7458,10 @@ TEST_CASE(scatternd_reduction_dyn_test)
     auto* mm   = p.get_main_module();
     auto dtype = migraphx::shape::float_type;
     auto itype = migraphx::shape::int64_type;
-    migraphx::shape::dynamic_dimension dd{3, 6, 0};
+    migraphx::shape::dynamic_dimension dd{3, 6};
     migraphx::shape ds{migraphx::shape::float_type, {dd, dd, dd}};
     migraphx::shape is{itype, {2, 1}};
-    migraphx::shape us{dtype, {{2, 2, 0}, dd, dd}};
+    migraphx::shape us{dtype, {{2, 2}, dd, dd}};
 
     auto xdata    = mm->add_parameter("X", ds);
     auto xindex   = mm->add_parameter("I", is);
@@ -7523,7 +7515,7 @@ TEST_CASE(sigmoid_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 4, 0}, {2, 2, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {2, 2}}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("sigmoid"), input);
     p.compile(migraphx::ref::target{});
@@ -7559,7 +7551,7 @@ TEST_CASE(sign_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("sign"), input);
@@ -7598,7 +7590,7 @@ TEST_CASE(sin_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("sin"), input);
@@ -7639,7 +7631,7 @@ TEST_CASE(sinh_dynamic_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 4, 0}, {2, 4, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {2, 4}}};
     auto input = mm->add_parameter("X", s);
     std::vector<float> input_data{-1.0, 2.0, -3.0, 4.0};
     mm->add_instruction(migraphx::make_op("sinh"), input);
@@ -7709,11 +7701,11 @@ TEST_CASE(slice_dyn_test0)
     // large
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type, {{2, 3, 0}, {2, 2, 0}, {3, 3, 0}}};
+    migraphx::shape s{migraphx::shape::int32_type, {{2, 3}, {2, 2}, {3, 3}}};
     auto x = mm->add_parameter("x", s);
     mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {1, 2}}, {"starts", {0, 1}}, {"ends", {1, 6}}}), x);
-    migraphx::shape s2{migraphx::shape::int32_type, {{2, 3, 0}, {1, 1, 0}, {2, 2, 0}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {{2, 3}, {1, 1}, {2, 2}}};
     EXPECT(p.get_output_shapes().back() == s2);
     p.compile(migraphx::ref::target{});
 
@@ -7740,14 +7732,14 @@ TEST_CASE(slice_dyn_test1)
     // Slice all three dynamic dimensions
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type, {{2, 2, 0}, {2, 2, 0}, {3, 3, 0}}};
+    migraphx::shape s{migraphx::shape::int32_type, {{2, 2}, {2, 2}, {3, 3}}};
     auto x = mm->add_parameter("x", s);
     mm->add_instruction(
         migraphx::make_op("slice",
                           {{"axes", {0, 1, 2}}, {"starts", {0, 0, 0}}, {"ends", {2, 2, 2}}}),
         x);
 
-    migraphx::shape s2{migraphx::shape::int32_type, {{2, 2, 0}, {2, 2, 0}, {2, 2, 0}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {{2, 2}, {2, 2}, {2, 2}}};
     EXPECT(p.get_output_shapes().back() == s2);
     p.compile(migraphx::ref::target{});
     migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
@@ -7847,7 +7839,7 @@ TEST_CASE(softmax_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape a_shape{migraphx::shape::float_type,
-                            {{1, 10, 0}, {1, 3, 3}, {4, 4, 0}, {2, 2, 2}}};
+                            {{1, 10}, {1, 3, {3}}, {4, 4}, {2, 2, {2}}}};
     auto al = mm->add_parameter("a", a_shape);
     mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), al);
     p.compile(migraphx::ref::target{});
@@ -7925,7 +7917,7 @@ TEST_CASE(sqdiff_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
@@ -7967,7 +7959,7 @@ TEST_CASE(sqrt_dynamic_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     std::vector<float> input_data{1.02481645, 0.85643062, 0.03404123, 0.92791926, 0.10569184};
@@ -8031,8 +8023,7 @@ TEST_CASE(squeeze_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s1{migraphx::shape::float_type,
-                       {{1, 4, 0}, {1, 1, 0}, {3, 3, 0}, {1, 1, 0}, {3, 3, 0}}};
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {1, 1}, {3, 3}, {1, 1}, {3, 3}}};
     auto p0 = mm->add_parameter("x", s1);
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), p0);
     p.compile(migraphx::ref::target{});
@@ -8103,7 +8094,7 @@ TEST_CASE(sub_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, 0}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
@@ -8145,7 +8136,7 @@ TEST_CASE(tan_dynamic_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     std::vector<float> input_data{-1, 0, 1};
@@ -8186,7 +8177,7 @@ TEST_CASE(tanh_dynamic_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8, 0};
+    migraphx::shape::dynamic_dimension dd{3, 8};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
     std::vector<float> input_data{-1.0, 2.0, -3.0, 4.0};
@@ -8294,7 +8285,7 @@ TEST_CASE(transpose_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{1, 4, 0}, {2, 2, 0}, {2, 2, 0}, {3, 3, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {2, 2}, {2, 2}, {3, 3}}};
     auto l                    = mm->add_parameter("X", s);
     std::vector<int64_t> perm = {0, 3, 1, 2};
     mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), l);
@@ -8349,7 +8340,7 @@ TEST_CASE(unsqueeze_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    migraphx::shape s1{migraphx::shape::float_type, {{1, 4, 0}, {3, 3, 0}, {3, 3, 0}}};
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}}};
     auto p0 = mm->add_parameter("x", s1);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), p0);
     p.compile(migraphx::ref::target{});
@@ -8394,8 +8385,8 @@ TEST_CASE(where_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape sb{migraphx::shape::bool_type, {{2, 3, 0}, {2, 3, 0}}};
-    migraphx::shape sx{migraphx::shape::float_type, {{2, 3, 0}, {2, 3, 0}}};
+    migraphx::shape sb{migraphx::shape::bool_type, {{2, 3}, {2, 3}}};
+    migraphx::shape sx{migraphx::shape::float_type, {{2, 3}, {2, 3}}};
 
     auto lb = mm->add_parameter("predicate", sb);
     auto lx = mm->add_parameter("X", sx);

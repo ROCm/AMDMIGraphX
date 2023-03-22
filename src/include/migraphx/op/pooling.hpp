@@ -89,25 +89,17 @@ struct pooling
         std::vector<std::size_t> output_lens{};
         for(size_t i = 0; i < kdims; ++i)
         {
-            if(input_lens[i + 2] == 0)
-            {
-                // handle opt = 0
-                output_lens.push_back(0);
-            }
-            else
-            {
-                std::size_t padding_factor = 2 * padding[i];
-                if(padding.size() == 2 * kdims)
-                    padding_factor = padding[i] + padding[i + kdims];
-                assert(input_lens[i + 2] + padding_factor >= lengths[i]);
-                std::size_t dim_size = input_lens[i + 2] + padding_factor - lengths[i];
-                std::size_t len =
-                    (ceil_mode)
-                        ? dim_size / stride[i] + static_cast<std::size_t>((dim_size % stride[i] !=
-                                                                           0)) // ceil uint divide
-                        : dim_size / stride[i];                                // floor divide
-                output_lens.push_back(len + 1);
-            }
+            std::size_t padding_factor = 2 * padding[i];
+            if(padding.size() == 2 * kdims)
+                padding_factor = padding[i] + padding[i + kdims];
+            assert(input_lens[i + 2] + padding_factor >= lengths[i]);
+            std::size_t dim_size = input_lens[i + 2] + padding_factor - lengths[i];
+            std::size_t len =
+                (ceil_mode)
+                    ? dim_size / stride[i] +
+                          static_cast<std::size_t>((dim_size % stride[i] != 0)) // ceil uint divide
+                    : dim_size / stride[i];                                     // floor divide
+            output_lens.push_back(len + 1);
         }
         return output_lens;
     }
@@ -134,19 +126,19 @@ struct pooling
             {
                 for(size_t i = 0; i < kdims; ++i)
                 {
-                    output_dyn_dims.push_back(shape::dynamic_dimension{1, 1, 1});
+                    output_dyn_dims.push_back(shape::dynamic_dimension{1, 1});
                 }
                 return {input.type(), output_dyn_dims};
             }
             else
             {
+                // does not compute for optimals
                 auto min_spatial_dims = calc_spatial_dim_out(input.min_lens(), kdims);
                 auto max_spatial_dims = calc_spatial_dim_out(input.max_lens(), kdims);
-                auto opt_spatial_dims = calc_spatial_dim_out(input.opt_lens(), kdims);
                 for(size_t i = 0; i < kdims; ++i)
                 {
-                    output_dyn_dims.push_back(shape::dynamic_dimension{
-                        min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
+                    output_dyn_dims.push_back(
+                        shape::dynamic_dimension{min_spatial_dims[i], max_spatial_dims[i], {}});
                 }
                 return {input.type(), output_dyn_dims};
             }

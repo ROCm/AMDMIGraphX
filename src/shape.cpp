@@ -74,13 +74,23 @@ struct shape_impl
     shape_impl(shape::type_t t,
                std::vector<std::size_t> mins,
                std::vector<std::size_t> maxes,
-               std::vector<std::vector<std::size_t>> opts)
+               std::vector<std::set<std::size_t>> opts_list)
         : m_type(t)
     {
-        assert(mins.size() == maxes.size() and maxes.size() == opts.size());
-        for(size_t i = 0; i < mins.size(); ++i)
+        if(opts_list.empty())
         {
-            m_dyn_dims.push_back(shape::dynamic_dimension{mins[i], maxes[i], opts[i]});
+            for(size_t i = 0; i < mins.size(); ++i)
+            {
+                m_dyn_dims.push_back(shape::dynamic_dimension{mins[i], maxes[i]});
+            }
+        }
+        else
+        {
+            assert(mins.size() == maxes.size() and maxes.size() == opts_list.size());
+            for(size_t i = 0; i < mins.size(); ++i)
+            {
+                m_dyn_dims.push_back(shape::dynamic_dimension{mins[i], maxes[i], opts_list[i]});
+            }
         }
     }
 
@@ -161,15 +171,16 @@ struct shape_impl
         return ret;
     }
 
-    std::vector<std::vector<std::size_t>> opt_lens() const
+    std::vector<std::set<std::size_t>> opt_lens() const
     {
-        std::vector<std::vector<std::size_t>> ret(m_dyn_dims.size());
+        std::vector<std::set<std::size_t>> ret(m_dyn_dims.size());
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
                        [](shape::dynamic_dimension x) { return x.opts; });
         return ret;
     }
+
     // Does the shape skip over elements?
     bool skips() const
     {
@@ -240,7 +251,7 @@ shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
 shape::shape(type_t t,
              std::vector<std::size_t> mins,
              std::vector<std::size_t> maxes,
-             std::vector<std::vector<std::size_t>> opts)
+             std::vector<std::set<std::size_t>> opts)
     : impl(std::make_shared<shape_impl>(t, std::move(mins), std::move(maxes), std::move(opts)))
 {
 }
@@ -493,6 +504,33 @@ bool shape::any_of_dynamic() const
     });
 }
 
+bool shape::valid() const
+{
+    if(not this->dynamic())
+    {
+        return true;
+    }
+    // check min < max and opts within [min, max]
+    bool is_valid = std::none_of(this->dyn_dims().cbegin(), this->dyn_dims().cend(), [&](auto dd) {
+        if(dd.min > dd.max)
+        {
+            return true;
+        };
+        if(std::any_of(dd.opts.cbegin(), dd.opts.cend(), [&](auto o) {
+               return (o < dd.min or o > dd.max);
+           }))
+        {
+            return true;
+        };
+        return false;
+    });
+    if(is_valid)
+    {
+        return true;
+    };
+    return false;
+}
+
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
 std::vector<std::size_t> shape::min_lens() const
@@ -505,7 +543,7 @@ std::vector<std::size_t> shape::max_lens() const
     return this->dynamic() ? impl->max_lens() : this->lens();
 }
 
-std::vector<std::vector<std::size_t>> shape::opt_lens() const { return impl->opt_lens(); }
+std::vector<std::set<std::size_t>> shape::opt_lens() const { return impl->opt_lens(); }
 
 bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max; }
 
@@ -515,7 +553,12 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t
 {
     this->min += x;
     this->max += x;
-    std::for_each(this->opts.begin(), this->opts.end(), [&](auto opt) { opt += x; });
+    std::set<std::size_t> new_opts;
+    std::transform(this->opts.begin(),
+                   this->opts.end(),
+                   std::inserter(new_opts, new_opts.begin()),
+                   [&x](const auto& opt) { return (opt + x); });
+    this->opts = new_opts;
     return *this;
 }
 
@@ -525,10 +568,15 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
     assert(this->max >= x);
     this->min -= x;
     this->max -= x;
-    std::for_each(this->opts.begin(), this->opts.end(), [&](auto opt) {
-        assert(this->opt >= x);
-        opt -= x;
-    });
+    std::set<std::size_t> new_opts;
+    std::transform(this->opts.begin(),
+                   this->opts.end(),
+                   std::inserter(new_opts, new_opts.begin()),
+                   [&x](const auto& opt) {
+                       assert(opt >= x);
+                       return (opt - x);
+                   });
+    this->opts = new_opts;
     return *this;
 }
 
@@ -657,8 +705,13 @@ void migraphx_from_value(const value& v, shape& s)
             std::transform(v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](migraphx::value x) {
                 auto x_min  = x.at("min").template to<size_t>();
                 auto x_max  = x.at("max").template to<size_t>();
-                auto x_opts = x.at("opts").template to<std::vector<size_t>>();
-                return shape::dynamic_dimension{x_min, x_max, x_opts};
+                auto v_opts = x.at("opts");
+                std::set<size_t> set_x_opts;
+                std::transform(v_opts.begin(),
+                               v_opts.end(),
+                               std::inserter(set_x_opts, set_x_opts.begin()),
+                               [](auto v_opt) { return v_opt.template to<size_t>(); });
+                return shape::dynamic_dimension{x_min, x_max, set_x_opts};
             });
 
             s = shape{shape::parse_type(t), dyn_dims};

@@ -67,7 +67,7 @@ def parse_args():
                         )
     parser.add_argument('--target',
                         type=str,
-                        default="gpu",
+                        default='gpu',
                         help='target to compile and run MIGraphX on')
 
     parser.add_argument('--ort_run',

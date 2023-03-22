@@ -547,7 +547,7 @@ std::vector<std::set<std::size_t>> shape::opt_lens() const { return impl->opt_le
 
 bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max; }
 
-bool shape::dynamic_dimension::has_optimal() const { return opts.size() != 0; }
+bool shape::dynamic_dimension::has_optimal() const { return not opts.empty(); }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t& x)
 {

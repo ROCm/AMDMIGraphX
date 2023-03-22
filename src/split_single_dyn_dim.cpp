@@ -39,14 +39,7 @@ bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
 {
     // True if parameters contain exactly one dynamic shape with exactly one non-fixed
     // dynamic_dimension.
-    if(std::none_of(
-           param_shapes.cbegin(), param_shapes.cend(), [](auto ps) { return ps.second.dynamic(); }))
-        return false;
     int num_dynamic = 0;
-    std::string out_str;
-    int tmp_min = -1;
-    int tmp_max = -1;
-    int tmp_ind = -1;
     for(const auto& ps : param_shapes)
     {
         if(ps.second.dynamic())
@@ -64,14 +57,14 @@ bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
                 if(not dd.is_fixed())
                 {
                     num_nf += 1;
-                    tmp_min = dd.min;
-                    tmp_max = dd.max;
-                    tmp_ind = i;
+                    min_dim   = dd.min;
+                    max_dim   = dd.max;
+                    dyn_index = i;
                 }
             }
             if(num_nf == 1)
             {
-                out_str = ps.first;
+                dyn_param_str = ps.first;
             }
             else
             {
@@ -79,11 +72,7 @@ bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
             }
         }
     }
-    min_dim       = tmp_min;
-    max_dim       = tmp_max;
-    dyn_index     = tmp_ind;
-    dyn_param_str = out_str;
-    return true;
+    return (num_dynamic == 1);
 }
 
 /**

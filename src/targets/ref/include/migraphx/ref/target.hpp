@@ -46,8 +46,6 @@ struct target
     argument allocate(const shape& s) const;
 };
 
-MIGRAPHX_REGISTER_TARGET(target);
-
 } // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

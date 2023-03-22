@@ -115,8 +115,9 @@ static bool is_transposed(const shape& s)
 
 static rocblas_int get_batch_stride(const argument& a)
 {
-    return a.get_shape().strides()[a.get_shape().strides().size() - 3];
+      return a.get_shape().strides()[a.get_shape().strides().size() - 3];
 }
+
 template <typename T>
 struct gemm_impl
 {
@@ -187,8 +188,9 @@ struct gemm_impl
         k             = input_shapes[0].lens()[dim_1];
         if(input_shapes[0].type() == shape::int8_type and (k % 4) != 0 and int8_x4_format)
         {
-            MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
+            MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be multiple of 4!");
         }
+
         a_stride     = get_batch_stride(input_shapes[0]);
         b_stride     = get_batch_stride(input_shapes[1]);
         c_stride     = get_batch_stride(input_shapes[2]);
@@ -490,9 +492,9 @@ void gemm_compute(context& ctx,
                    args.end(),
                    std::back_inserter(input_shapes),
                    [](const argument& x) { return x.get_shape(); });
-    auto gemmImpl =
+    auto gemm_item =
         gemm_impl<float>(output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-    gemmImpl.run(ctx, args, solution_idx);
+    gemm_item.run(ctx, args, solution_idx);
 }
 
 void gemm_compute(context& ctx,
@@ -509,9 +511,9 @@ void gemm_compute(context& ctx,
                    args.end(),
                    std::back_inserter(input_shapes),
                    [](const argument& x) { return x.get_shape(); });
-    auto gemmImpl =
+    auto gemm_item =
         gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-    gemmImpl.run(ctx, args, solution_idx);
+    gemm_item.run(ctx, args, solution_idx);
 }
 
 int32_t gemm_finalize(context& ctx,
@@ -528,17 +530,17 @@ int32_t gemm_finalize(context& ctx,
     if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
     // if((true))
     {
-        auto gemmImpl =
+        auto gemm_item =
             gemm_impl<float>(output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-        solution_idx = gemmImpl.tune(ctx, input_shapes);
+        solution_idx = gemm_item.tune(ctx, input_shapes);
     }
     else if(solution_idx != 0)
     {
         // If a tuned solution index is already given, don't tune again but validate
         // in case the data was tuned with a different rocBLAS version
-        auto gemmImpl =
+        auto gemm_item =
             gemm_impl<float>(output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-        solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
+        solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
     // suppress compiler warnings
@@ -562,17 +564,17 @@ int32_t gemm_finalize(context& ctx,
     // if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
     if((true))
     {
-        auto gemmImpl = gemm_impl<int32_t>(
+        auto gemm_item = gemm_impl<int32_t>(
             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-        solution_idx = gemmImpl.tune(ctx, input_shapes);
+        solution_idx = gemm_item.tune(ctx, input_shapes);
     }
     else if(solution_idx != 0)
     {
         // If a tuned solution index is already given, don't tune again but validate
         // in case the data was tuned with a different rocBLAS version
-        auto gemmImpl = gemm_impl<int32_t>(
+        auto gemm_item = gemm_impl<int32_t>(
             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-        solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
+        solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
     // suppress compiler warnings

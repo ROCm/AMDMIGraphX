@@ -21,10 +21,14 @@ def pretty_print(obj):
 def run_driver(b):
     print(b)
     with tmp_file(lambda tf: json.dump(b, tf)) as tf:
+        if not os.path.exists('./bin/gpu-driver'):
+            print("./bin/gpu-driver not found")
+            os.abort()
         cp = subprocess.run('./bin/gpu-driver {}'.format(tf),
                             capture_output=True,
-                            check=True,
                             shell=True)
+        print(cp.stderr.decode())
+        cp.check_returncode()
         for line in cp.stdout.decode().split("\n"):
             s = line.strip()
             if not s:
@@ -60,6 +64,8 @@ def benchmark_ck(config, tuning):
             dtime = get_device_time(line)
             print(dtime)
             return float(dtime)
+        print("Failed")
+        sys.exit(1)
     except:
         return sys.float_info.max
 

@@ -330,7 +330,7 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.10.0"):
             disabled_tests_onnx_1_10_0(backend_test)
-            
+
         if version.parse(onnx.__version__) >= version.parse("1.12.0"):
             disabled_tests_onnx_1_12_0(backend_test)
 

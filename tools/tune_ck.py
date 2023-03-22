@@ -46,6 +46,7 @@ def get_device_time(s):
     fields = s.split(',')
     return convert_to_float(fields[-1].strip())
 
+
 def run_driver_ck(config, tuning, iterations):
     b = {
         'settings': {
@@ -60,6 +61,7 @@ def run_driver_ck(config, tuning, iterations):
     }
     return run_driver(b)
 
+
 def benchmark_ck(config, tuning):
     try:
         for line in run_driver_ck(config, tuning, 100):
@@ -70,6 +72,7 @@ def benchmark_ck(config, tuning):
         sys.exit(1)
     except:
         return sys.float_info.max
+
 
 def benchmark(config, size):
     times = [benchmark_ck(config, i) for i in range(size)]
@@ -85,16 +88,19 @@ def parse_log(f):
         config = json.loads(line)
         yield config
 
+
 def precompile(x):
     try:
         list(run_driver_ck(x[0], x[1], 0))
     except:
         pass
 
+
 def precompile_log(f, n):
     solutions = ((config, i) for config in parse_log(f) for i in range(n))
     with multiprocessing.Pool(24) as p:
         list(p.imap(precompile, solutions))
+
 
 def benchmark_log(f, n):
     result = []
@@ -127,7 +133,7 @@ def parse_args():
 
 
 def run(args):
-    if(args.precompile):
+    if (args.precompile):
         precompile_log(args.log, args.n)
     tuned = benchmark_log(args.log, args.n)
     json.dump(tuned, open(args.out, 'w+'))

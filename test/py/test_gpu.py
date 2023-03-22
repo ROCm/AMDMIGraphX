@@ -87,7 +87,7 @@ def test_nonzero():
 
     shapes = p.get_parameter_shapes()
     params["data"] = np.array([1, 1, 0, 1]).reshape(
-        shapes["data"].lens()).astype(np.bool)
+        shapes["data"].lens()).astype(bool)
 
     r = p.run(params)
     print(r)
@@ -127,7 +127,7 @@ def test_if_pl():
     params["x"] = np.ones(6).reshape(shapes["x"].lens()).astype(np.float32)
     params["y"] = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0
                             ]).reshape(shapes["y"].lens()).astype(np.float32)
-    params["cond"] = np.array([1]).reshape(()).astype(np.bool)
+    params["cond"] = np.array([1]).reshape(()).astype(bool)
 
     r = p.run(params)[-1]
     print(r)

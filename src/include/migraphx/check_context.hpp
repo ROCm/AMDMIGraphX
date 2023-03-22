@@ -27,6 +27,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,7 +37,15 @@ struct check_context
 {
     struct op : auto_register_op<op>
     {
-        std::string name() const { return "check_context::" + get_type_name<T>(); }
+        std::string name() const
+        {
+            const auto op_type_name = get_type_name<T>();
+            const auto& split_name  = split_string(op_type_name, ':');
+            // construct name as check_context::gpu::context or check_context::cpu::context or
+            // likewise.
+            return "check_context::" + split_name[split_name.size() - 3] +
+                   "::" + split_name[split_name.size() - 1];
+        }
         shape compute_shape(const std::vector<shape>&) const { return {}; }
         argument compute(context& ctx, const shape&, const std::vector<argument>&) const
         {

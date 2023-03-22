@@ -88,7 +88,7 @@ batch_norm_inference
 broadcast
 capture
 ceil
-check_context::migraphx::version_1::gpu::context
+check_context::gpu::context
 clip
 concat
 contiguous
@@ -304,7 +304,7 @@ $ /opt/rocm/bin/migraphx-driver run --onnx simple_graph.onnx
 ```
 Compiling ... 
 Reading: simple_graph.onnx
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:1] -> float_type, {784, 128}, {128, 1}
 x:0 = @param:x:0 -> float_type, {1, 28, 28}, {784, 28, 1}
@@ -327,7 +327,7 @@ x:0 = @param:x:0 -> float_type, {1, 28, 28}, {784, 28, 1}
 @18 = @return(@17)
 
 Allocating params ... 
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:1] -> float_type, {784, 128}, {128, 1}
 x:0 = @param:x:0 -> float_type, {1, 28, 28}, {784, 28, 1}
@@ -399,7 +399,7 @@ $ /opt/rocm/bin/migraphx-driver compile --gpu --fp16 simple_graph.pb
 ```
 Compiling ... 
 Reading: simple_graph.pb
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {456}, {1},id=scratch] -> float_type, {456}, {1}
 @2 = hip::hip_copy_literal[id=@literal:0] -> half_type, {784, 128}, {128, 1}
 @3 = load[offset=256,end=1824](@1) -> half_type, {1, 28, 28}, {784, 28, 1}
@@ -502,7 +502,7 @@ x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}
 @18 = ref::softmax[axis=1](@17) -> float_type, {1, 10}, {10, 1}
 @19 = ref::identity(@18) -> float_type, {1, 10}, {10, 1}
 
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}
 x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}
@@ -538,7 +538,7 @@ $ /opt/rocm/bin/migraphx-driver perf simple_graph.pb
 ```
 Compiling ... 
 Reading: simple_graph.pb
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}
 @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}
@@ -561,7 +561,7 @@ output = @param:output -> float_type, {1, 10}, {10, 1}
 
 Allocating params ... 
 Running performance report ... 
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}: 0.00057782ms, 1%
+@0 = check_context::gpu::context -> float_type, {}, {}: 0.00057782ms, 1%
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}: 0.000295ms, 1%
 @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}: 0.00027942ms, 1%
 @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}: 0.000232ms, 1%
@@ -591,7 +591,7 @@ hip::hip_copy_literal: 0.00186824ms, 1%
 load: 0.0016288ms, 1%
 @param: 0.0013428ms, 1%
 broadcast: 0.00118042ms, 1%
-check_context::migraphx::version_1::gpu::context: 0.00057782ms, 1%
+check_context::gpu::context: 0.00057782ms, 1%
 reshape: 0.00033842ms, 1%
 hip::hip_allocate_memory: 0.000295ms, 1%
 

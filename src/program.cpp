@@ -491,7 +491,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     return ret;
 }
 
-const int program_file_version = 5;
+const int program_file_version = 6;
 
 value program::to_value() const
 {
@@ -625,7 +625,7 @@ void program::from_value(const value& v)
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
     {
-        MIGRAPHX_THROW("Warning: Program version mismatch");
+        MIGRAPHX_THROW("Warning: Program version mismatch, try using older version of MIGraphX.");
     }
 
     this->impl->target_name = v.at("target").to<std::string>();

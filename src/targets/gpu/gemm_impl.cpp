@@ -115,9 +115,11 @@ static bool is_transposed(const shape& s)
 
 static rocblas_int get_batch_stride(const argument& a)
 {
+    // This value should not be needed for non-strided inputs 
     if(a.get_shape().strides().size() < 3)
-        MIGRAPHX_THROW("get_batch_stride:  Attempt to tune a GEMM with shape of rank less than 3");
-    return a.get_shape().strides()[a.get_shape().strides().size() - 3];
+        return 0;
+    else
+        return a.get_shape().strides()[a.get_shape().strides().size() - 3];
 }
 
 template <typename T>

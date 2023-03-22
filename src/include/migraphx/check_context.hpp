@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,13 +40,21 @@ struct check_context
     {
         std::string name() const
         {
-            const auto& op_type_name = get_type_name<T>();
-            const auto& split_name   = split_string(op_type_name, ':');
-            // construct name as check_context::gpu::context or check_context::cpu::context or
-            // likewise.
-            return "check_context::" + split_name[split_name.size() - 3] +
-                   "::" + split_name[split_name.size() - 1];
+            const auto& op_type_name                      = get_type_name<T>();
+            const auto& split_name                        = split_string(op_type_name, ':');
+            std::vector<std::string> name_without_version = {"check_context"};
+            // op_type_name would contain internal namespace name with version_x_y_z
+            // remove version and construct op_name such as check_context::migraphx::gpu::context
+            std::for_each(split_name.begin(), split_name.end(), [&](const auto& i) {
+                if(not i.empty() and not contains(i, "version"))
+                {
+                    name_without_version.push_back("::");
+                    name_without_version.push_back(i);
+                }
+            });
+            return join_strings(name_without_version, "");
         }
+
         shape compute_shape(const std::vector<shape>&) const { return {}; }
         argument compute(context& ctx, const shape&, const std::vector<argument>&) const
         {

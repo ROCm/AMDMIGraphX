@@ -32,12 +32,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void pull_up_literals::apply(module_pass_manager& mpm) const
 {
-    module_ref m           = &mpm.get_module();
+    module m               = mpm.get_module();
     module_ref main_module = mpm.get_main_module();
-    if(m->name() == "main")
+    if(m.name() == "main")
         return;
 
-    for(auto ins : iterator_for(*m))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {

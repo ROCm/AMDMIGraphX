@@ -174,7 +174,7 @@ def main():
     if args.verbose:
         print(model)
 
-    if args.ort_run is False:
+    if not args.ort_run:
         model.compile(migraphx.get_target(args.target))
 
     params = {}
@@ -194,7 +194,7 @@ def main():
         test_inputs[name] = test_input
         params[name] = migraphx.argument(test_input)
 
-    if args.ort_run is False:
+    if not args.ort_run:
         pred_migx = np.array(model.run(params)[-1])
 
     if use_onnx:
@@ -264,7 +264,7 @@ def main():
             y_out = sess.run(y, feed_dict=tf_dict)
             pred_fw = y_out
 
-    if args.ort_run is False:
+    if not args.ort_run:
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
                                        args.tolerance, args.verbose)
         verbose_string = ' Rerun with --verbose for detailed information.' \

@@ -45,7 +45,6 @@ void pull_up_literals::apply(module_pass_manager& mpm) const
             for(auto out_ins : ins->outputs())
             {
                 out_ins->replace_argument(out_ins, ins, new_lit);
-                new_lit->add_output(out_ins);
             }
         }
     }

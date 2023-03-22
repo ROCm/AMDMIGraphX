@@ -33,13 +33,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
                      std::string& dyn_param_str,
-                     int& dyn_index,
-                     int& min_dim,
-                     int& max_dim)
+                     size_t& dyn_index,
+                     size_t& min_dim,
+                     size_t& max_dim)
 {
     // True if parameters contain exactly one dynamic shape with exactly one non-fixed
     // dynamic_dimension.
-    int num_dynamic = 0;
+    size_t num_dynamic = 0;
     for(const auto& ps : param_shapes)
     {
         if(ps.second.dynamic())
@@ -49,9 +49,9 @@ bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
             {
                 return false;
             }
-            int num_nf = 0;
-            auto dds   = ps.second.dyn_dims();
-            for(int i = 0; i < dds.size(); ++i)
+            size_t num_nf = 0;
+            auto dds      = ps.second.dyn_dims();
+            for(size_t i = 0; i < dds.size(); ++i)
             {
                 const auto& dd = dds.at(i);
                 if(not dd.is_fixed())
@@ -76,9 +76,9 @@ bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
 }
 
 /**
- * Make all the batch sizes in the dynamic_dimension range.
+ * Makes all the shapes in the dynamic_dimension range.
  * Probably won't work for `if` and `loop` instructions, depending on how the submodules for those
- * work. Insert select_module instruction to the top, replace return bypassing other instructions.
+ * work. Inserts select_module instruction to the top, replace return bypassing other instructions.
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
@@ -86,19 +86,19 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     auto param_names  = mm->get_parameter_names();
     auto param_shapes = mm->get_parameter_shapes();
     std::string dyn_param_name;
-    int dyn_index;
-    int min_dim;
-    int max_dim;
+    size_t dyn_index;
+    size_t min_dim;
+    size_t max_dim;
     if(has_one_dyn_dim(param_shapes, dyn_param_name, dyn_index, min_dim, max_dim))
     {
         const auto& dyn_param = mm->get_parameter(dyn_param_name);
         auto dyn_param_shape  = mm->get_parameter_shape(dyn_param_name);
         std::vector<module_ref> submodules;
         // create submodules for each dimension size
-        for(int dim_size = min_dim; dim_size <= max_dim; ++dim_size)
+        for(size_t dim_size = min_dim; dim_size <= max_dim; ++dim_size)
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
-            // instruction map for new static submodule parameters
+            // instruction map for new static shaped submodule parameters
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             // create static shape using dim_size
             auto static_lens          = dyn_param_shape.max_lens();
@@ -124,7 +124,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
             sm_inputs,
             submodules);
         std::vector<instruction_ref> outputs(output_shapes.size());
-        for(int i = 0; i < output_shapes.size(); ++i)
+        for(size_t i = 0; i < output_shapes.size(); ++i)
         {
             outputs.at(i) =
                 mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), sm_ins);

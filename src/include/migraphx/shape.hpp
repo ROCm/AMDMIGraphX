@@ -243,6 +243,9 @@ struct shape
     /// Return true if the shape is dynamic
     bool dynamic() const;
 
+    /// Return true if this shape or any of the sub_shapes are dynamic
+    bool any_of_dynamic() const;
+
     shape normalize_standard() const;
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;

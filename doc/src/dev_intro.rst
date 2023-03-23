@@ -137,7 +137,7 @@ An `argument <migraphx::argument>` can handle memory buffers from either the GPU
 By default when running the `program <migraphx::program>`, buffers are allocated on the corresponding target.
 When compiling for the CPU, the buffers by default will be allocated on the CPU.
 When compiling for the GPU, the buffers by default will be allocated on the GPU.
-With the option ``offloaf_copy=true`` set while compiling for the GPU, the buffers will be located on the CPU.
+With the option ``offload_copy=true`` set while compiling for the GPU, the buffers will be located on the CPU.
 
 
 Importing From ONNX

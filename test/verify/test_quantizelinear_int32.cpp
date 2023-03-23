@@ -40,7 +40,8 @@ struct test_quantizelinear_int32 : verify_program<test_quantizelinear_int32>
         auto input1 = mm->add_parameter("x", sx);
         auto input2 = mm->add_parameter("y_scale", ss);
         auto input3 = mm->add_parameter("y_zero_point", sz);
-        auto r = mm->add_instruction(migraphx::make_op("quantizelinear"), input1, input2, input3);
+        auto input1_float = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), input1);
+        auto r = mm->add_instruction(migraphx::make_op("quantizelinear"), input1_float, input2, input3);
         mm->add_return({r});
         return p;
     };

@@ -41,6 +41,13 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
 
 shape common_shape(const std::vector<shape>& shapes);
 
+std::vector<instruction_ref> insert_common_args(module& m,
+                                 instruction_ref ins,
+                                 std::vector<instruction_ref> inputs);
+
+std::vector<instruction_ref> add_common_args(module& m,
+                                 std::vector<instruction_ref> inputs);
+
 instruction_ref insert_common_op(module& m,
                                  instruction_ref ins,
                                  const operation& op,

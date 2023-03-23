@@ -40,7 +40,11 @@ struct quantizelinear
     std::string name() const { return "quantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.same_dims();
+        check_shapes{inputs, *this}.same_dims().has(2, 3);
+        if (inputs[0].type() != inputs[1].type())
+        {
+            MIGRAPHX_THROW("QUANTIZELINEAR: Scales and input must be the same type");
+        }
         if(inputs.size() == 3)
         {
             return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
@@ -61,17 +65,15 @@ struct quantizelinear
 
         argument result{output_shape};
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
-            x.visit([&](auto input) {
-                y_scale.visit([&](auto scales) {
-                    using quant_type = typename decltype(output)::value_type;
-                    auto min_value   = std::numeric_limits<quant_type>::min();
-                    auto max_value   = std::numeric_limits<quant_type>::max();
-                    par_for(output_shape.elements(), [&](auto i) {
-                        int64_t quantized = static_cast<int64_t>(std::round(input[i] / scales[i])) +
-                                            static_cast<int64_t>(zero_pts[i]);
-                        output[i] = std::max(static_cast<int64_t>(min_value),
-                                             std::min(static_cast<int64_t>(max_value), quantized));
-                    });
+            visit_all(x, y_scale)([&](auto input, auto scales) {
+                using quant_type = typename decltype(output)::value_type;
+                auto min_value   = std::numeric_limits<quant_type>::min();
+                auto max_value   = std::numeric_limits<quant_type>::max();
+                par_for(output_shape.elements(), [&](auto i) {
+                    int64_t quantized = static_cast<int64_t>(std::round(input[i] / scales[i])) +
+                                        static_cast<int64_t>(zero_pts[i]);
+                    output[i] = std::max(static_cast<int64_t>(min_value),
+                                         std::min(static_cast<int64_t>(max_value), quantized));
                 });
             });
         });

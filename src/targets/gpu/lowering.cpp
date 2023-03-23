@@ -83,8 +83,7 @@ struct miopen_apply
         auto& ctx      = get_context();
         int8_x4_format = get_int8_x4_format(ctx);
         compute_fp32   = get_compute_fp32_flag();
-
-        offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
+        offload_copy   = (mod->name() == "main") ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
 
@@ -112,6 +111,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_nms_op();
+        add_select_module_op();
     }
 
     void copy_params() const
@@ -357,6 +357,20 @@ struct miopen_apply
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
             return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    /**
+     * Adds dynamic allocation for submodule output parameter.
+     */
+    void add_select_module_op()
+    {
+        apply_map.emplace("select_module", [=](instruction_ref ins) {
+            auto s                              = ins->get_shape();
+            auto output                         = insert_allocation(ins, s);
+            std::vector<instruction_ref> inputs = ins->inputs();
+            inputs.push_back(output);
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }
 };

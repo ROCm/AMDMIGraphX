@@ -51,7 +51,7 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
             np.testing.assert_equal(ref_outputs[i].dtype,
                                     outputs[i].dtype,
                                     err_msg=prog_string)
-            if ref_outputs[i].dtype == np.object:
+            if ref_outputs[i].dtype == object:
                 np.testing.assert_array_equal(ref_outputs[i],
                                               outputs[i],
                                               err_msg=prog_string)

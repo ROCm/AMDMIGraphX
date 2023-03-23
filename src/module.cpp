@@ -166,6 +166,7 @@ void module::assign(const module& m)
             auto s      = ins->get_shape();
             copy_ins    = impl->insert(impl->instructions.end(),
                                     {builtin::param{name, order}, std::move(s), {}});
+            impl->nparams++;
         }
         else if(ins->name() == "@outline")
         {
@@ -822,7 +823,8 @@ static void print_make_op(std::ostream& os, const operation& op)
 
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 {
-    os << "migraphx.shape(" << s.type_string() << ", lens=" << to_json_string(s.lens());
+    os << "migraphx.shape(type=" << to_json_string(s.type_string())
+       << ", lens=" << to_json_string(s.lens());
     if(not s.standard())
         os << ", strides=" << to_json_string(s.strides());
     os << ")";

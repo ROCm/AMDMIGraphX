@@ -21,20 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/serialize.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/ref/context.hpp>
-#include <migraphx/functional.hpp>
-#include <test.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_MODULE_HPP
 
-TEST_CASE(context)
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
+/**
+ * Runs several passes in a loop
+ */
+struct optimize_module
 {
-    migraphx::context ctx = migraphx::ref::context{};
-    migraphx::value v     = ctx.to_value();
-    EXPECT(v.empty());
+    std::string name() const { return "optimize_module"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
-    migraphx::context cpu_ctx = migraphx::ref::context{};
-    cpu_ctx.from_value(v);
-}
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+#endif

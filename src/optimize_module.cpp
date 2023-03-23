@@ -21,18 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/memory_coloring.hpp>
-#include "memory_coloring_impl.hpp"
+#include <migraphx/optimize_module.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/propagate_constant.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void memory_coloring::apply(module& m) const
+void optimize_module::apply(module_pass_manager& mpm) const
 {
-    if(not enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
+    for(int i = 0; i < 2; i++)
     {
-        memory_coloring_impl opt(&m, allocation_op, verify);
-        opt.run();
+        mpm.run_pass(simplify_reshapes{});
+        mpm.run_pass(simplify_algebra{});
+        mpm.run_pass(eliminate_common_subexpression{});
+        mpm.run_pass(dead_code_elimination{});
+        mpm.run_pass(propagate_constant{});
+        mpm.run_pass(dead_code_elimination{});
     }
 }
 

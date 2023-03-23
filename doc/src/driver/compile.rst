@@ -28,6 +28,10 @@ Enable implicit offload copying
 
 Disable fast math optimization
 
+.. option:: --exhaustive-tune
+
+Perform an exhaustive search to find the fastest version of generated kernels for selected backend
+
 .. option::  --fp16
 
 Quantize for fp16

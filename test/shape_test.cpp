@@ -238,6 +238,30 @@ TEST_CASE(test_shape_dynamic_serialize)
     EXPECT(s3 != s4);
 }
 
+TEST_CASE(any_of_dynamic_true)
+{
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
+    migraphx::shape s0{sub_shapes};
+    EXPECT(s0.any_of_dynamic());
+
+    sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 1}, {4, 4}}});
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
+    migraphx::shape s1{sub_shapes};
+    EXPECT(s1.any_of_dynamic());
+}
+
+TEST_CASE(any_of_dynamic_false)
+{
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {1, 4}});
+    sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
+    migraphx::shape s{sub_shapes};
+    EXPECT(not s.any_of_dynamic());
+}
+
 TEST_CASE(test_shape_packed)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {2, 1}};

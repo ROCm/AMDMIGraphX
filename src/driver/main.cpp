@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "verify.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
@@ -304,8 +305,12 @@ struct compiler_target
 {
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
-#else
+#elif HAVE_CPU
     std::string target_name = "cpu";
+#elif HAVE_FPGA
+    std::string target_name = "fpga"
+#else
+    std::string target_name = "ref"
 #endif
 
     void parse(argument_parser& ap)
@@ -326,8 +331,7 @@ struct compiler
     loader l;
     program_params parameters;
     compiler_target ct;
-    bool offload_copy  = false;
-    bool fast_math     = true;
+    compile_options co;
     precision quantize = precision::fp32;
 
     std::vector<std::string> fill0;
@@ -337,19 +341,26 @@ struct compiler
         l.parse(ap);
         parameters.parse(ap);
         ct.parse(ap);
-        ap(offload_copy,
+        ap(co.offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
            ap.set_value(true));
-        ap(fast_math,
+        ap(co.fast_math,
            {"--disable-fast-math"},
            ap.help("Disable fast math optimization"),
            ap.set_value(false));
+        ap(co.exhaustive_tune,
+           {"--exhaustive-tune"},
+           ap.help("Exhastively search for best tuning parameters for kernels"),
+           ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
     }
 
-    auto params(const program& p) { return parameters.generate(p, ct.get_target(), offload_copy); }
+    auto params(const program& p)
+    {
+        return parameters.generate(p, ct.get_target(), co.offload_copy);
+    }
 
     program compile()
     {
@@ -366,10 +377,7 @@ struct compiler
         {
             quantize_int8(p, t, {params(p)});
         }
-        compile_options options;
-        options.offload_copy = offload_copy;
-        options.fast_math    = fast_math;
-        p.compile(t, options);
+        p.compile(t, co);
         l.save(p);
         return p;
     }
@@ -402,60 +410,41 @@ struct params : command<params>
 
 struct verify : command<verify>
 {
-    loader l;
-    program_params parameters;
-    compiler_target ct;
+    compiler c;
     double tolerance     = 80;
     bool per_instruction = false;
     bool reduce          = false;
-    bool offload_copy    = false;
-    bool fast_math       = true;
-    precision quantize   = precision::fp32;
     void parse(argument_parser& ap)
     {
-        l.parse(ap);
-        parameters.parse(ap);
-        ct.parse(ap);
-        ap(offload_copy,
-           {"--enable-offload-copy"},
-           ap.help("Enable implicit offload copying"),
-           ap.set_value(true));
-        ap(fast_math,
-           {"--disable-fast-math"},
-           ap.help("Disable fast math optimization"),
-           ap.set_value(false));
+        c.parse(ap);
         ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
-        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
     }
 
     void run()
     {
-        auto p = l.load();
-        l.save(p);
+        auto p = c.l.load();
+        c.l.save(p);
         std::cout << p << std::endl;
 
-        compile_options options;
-        options.offload_copy = offload_copy;
-        options.fast_math    = fast_math;
-        auto t               = ct.get_target();
-        auto m               = parameters.generate(p, t, true);
+        auto t = c.ct.get_target();
+        auto m = c.parameters.generate(p, t, true);
 
         if(per_instruction)
         {
-            verify_instructions(p, t, options, quantize, tolerance);
+            verify_instructions(p, t, c.co, c.quantize, tolerance);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, options, quantize, m, tolerance);
+            verify_reduced_program(p, t, c.co, c.quantize, m, tolerance);
         }
         else
         {
-            verify_program(l.file, p, t, options, quantize, m, tolerance);
+            verify_program(c.l.file, p, t, c.co, c.quantize, m, tolerance);
         }
     }
 };
@@ -466,7 +455,8 @@ struct version : command<version>
     void run() const
     {
         std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << std::endl;
+                  << "." << MIGRAPHX_VERSION_PATCH << "."
+                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
     }
 };
 
@@ -603,7 +593,9 @@ struct main_command
     void parse(argument_parser& ap)
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
+                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,

@@ -146,6 +146,33 @@ struct loader
         return map_input_dims;
     }
 
+    static auto parse_dyn_dim_map(const std::vector<std::string>& param_dyn_dims)
+    {
+        std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
+        std::string name = "";
+        for(auto&& x : param_dyn_dims)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                map_dyn_input_dims[name]
+            }
+        }
+    }
+
+    static auto parse_dyn_dim_str(std::string dd_str)
+    {
+        // expecting string formatted as "{min, max, {opts}}" or "{min, max}"
+        if(dd_str.empty())
+        {
+            return migraphx::shape::dynamic_dimension{1, 1};
+        }
+        auto t_str = migraphx::trim(dd_str, [](auto c) { return contains("{}", c); });
+    }
+
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
         std::vector<std::string> output_node_names;
@@ -180,9 +207,11 @@ struct loader
             {
                 onnx_options options;
                 options.default_dim_value      = batch;
+                options.default_dyn_dim_value  = default_dyn_dim;
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
                 options.map_input_dims         = map_input_dims;
+                options.map_dyn_input_dims     = map_dyn_inputs_dims;
                 p                              = parse_onnx(file, options);
             }
             else if(file_type == "tf")

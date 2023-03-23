@@ -36,8 +36,8 @@ struct test_add_conv : verify_program<test_add_conv>
         migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
         migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
         auto x   = mm->add_parameter("x", s);
-        auto c = mm->add_literal(migraphx::generate_literal(s, 1));
-        auto w = mm->add_literal(migraphx::generate_literal(ws, 2));
+        auto c   = mm->add_literal(migraphx::generate_literal(s, 1));
+        auto w   = mm->add_literal(migraphx::generate_literal(ws, 2));
         auto sum = mm->add_instruction(migraphx::make_op("add"), c, x);
         mm->add_instruction(migraphx::make_op("convolution"), sum, w);
         return p;

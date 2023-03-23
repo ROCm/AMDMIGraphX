@@ -41,7 +41,7 @@ struct quantizelinear
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.same_dims().has(2, 3);
-        if (inputs[0].type() != inputs[1].type())
+        if(inputs[0].type() != inputs[1].type())
         {
             MIGRAPHX_THROW("QUANTIZELINEAR: Scales and input must be the same type");
         }

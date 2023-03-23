@@ -166,23 +166,6 @@ struct rocblas_gemm
                                              solution_idx);
             }
         }
-        // else if(solution_idx != 0)
-        // {
-        //     // If a tuned solution index is already given, don't tune again but validate
-        //     // in case the data was tuned with a different rocBLAS version
-        //     if(this->name() == "gpu::gemm")
-        //     {
-        //         auto gemmImpl = gemm_impl<float>(
-        //             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-        //         solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
-        //     }
-        //     else
-        //     {
-        //         auto gemmImpl = gemm_impl<int32_t>(
-        //             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
-        //         solution_idx = gemmImpl.validate(ctx, input_shapes, solution_idx);
-        //     }
-        // }
 #else
         // suppress compiler warnings
         (void)ctx, (void)output_shape, (void)input_shapes;

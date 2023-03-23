@@ -246,8 +246,8 @@ struct gemm_impl
      * tuned with a different rocBLAS version)
      *
      * @return Returns either solution_idx if valid, or else the default value 0
-     * if not.  The default does not mean list index 0, but commands the backup behavior
-     * to automatically choose a solution.
+     * if not.  The default does not mean list index 0, but tells the picker
+     * to choose a solution.
      */
     int32_t
     validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) const

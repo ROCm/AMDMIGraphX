@@ -38,7 +38,7 @@ struct check_context
 {
     struct op : auto_register_op<op>
     {
-        std::string name() const
+        static std::string name()
         {
             const auto& op_type_name                      = get_type_name<T>();
             const auto& split_name                        = split_string(op_type_name, ':');
@@ -52,7 +52,8 @@ struct check_context
                     name_without_version.push_back(i);
                 }
             });
-            return join_strings(name_without_version, "");
+            static std::string op_name = join_strings(name_without_version, "");
+            return op_name;
         }
 
         shape compute_shape(const std::vector<shape>&) const { return {}; }

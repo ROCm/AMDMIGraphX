@@ -63,7 +63,7 @@ def parse_args():
                         type=str,
                         action='append',
                         help='specify input parameter dimension \
-                                with the following format --input_dim input_name:dim0,dim1,dim2...'
+                                with the following format --input-dim input_name:dim0,dim1,dim2...'
                         )
     parser.add_argument('--target',
                         type=str,
@@ -128,7 +128,7 @@ def get_np_datatype(in_type):
         'uint16_type': np.uint16,
         'int8_type': np.int8,
         'uint8_type': np.uint8,
-        'bool_type': np.bool_
+        'bool_type': bool
     }
     return datatypes[in_type]
 

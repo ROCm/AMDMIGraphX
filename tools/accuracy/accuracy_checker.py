@@ -70,12 +70,14 @@ def parse_args():
                         default='gpu',
                         help='target to compile and run MIGraphX on')
 
-    parser.add_argument('--ort_run',
+    parser.add_argument('--ort-run',
+                        dest="ort_run",
                         action='store_true',
                         default=False,
                         help='only perform an onnxruntime run')
 
-    parser.add_argument('--ort_logging',
+    parser.add_argument('--ort-logging',
+                        dest="ort_logging",
                         action='store_true',
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')

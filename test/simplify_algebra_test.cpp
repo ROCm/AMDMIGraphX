@@ -509,6 +509,34 @@ TEST_CASE(simplify_dot_add)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_conv_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s);
+        auto c = m1.add_literal(migraphx::generate_literal(s, 1));
+        auto w = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto sum = m1.add_instruction(migraphx::make_op("add"), c, x);
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), sum, w);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto c = m2.add_literal(migraphx::generate_literal(s, 1));
+        auto w = m2.add_literal(migraphx::generate_literal(ws, 2));
+        auto conv1 = m2.add_instruction(migraphx::make_op("convolution"), c, w);
+        auto conv2 = m2.add_instruction(migraphx::make_op("convolution"), x, w);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), conv1, conv2);
+        m2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_inner_broadcast1)
 {
     auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};

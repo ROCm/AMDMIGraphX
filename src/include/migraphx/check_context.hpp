@@ -45,14 +45,12 @@ struct check_context
             std::vector<std::string> name_without_version = {"check_context"};
             // op_type_name would contain internal namespace name with version_x_y_z
             // remove version and construct op_name such as check_context::migraphx::gpu::context
-            std::for_each(split_name.begin(), split_name.end(), [&](const auto& i) {
-                if(not i.empty() and not contains(i, "version"))
-                {
-                    name_without_version.push_back("::");
-                    name_without_version.push_back(i);
-                }
-            });
-            static std::string op_name = join_strings(name_without_version, "");
+            std::copy_if(
+                split_name.begin(),
+                split_name.end(),
+                std::back_inserter(name_without_version),
+                [&](const auto& i) { return not i.empty() and not contains(i, "version"); });
+            static std::string op_name = join_strings(name_without_version, "::");
             return op_name;
         }
 

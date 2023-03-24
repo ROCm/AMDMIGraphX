@@ -33,11 +33,22 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/serialize.hpp>
-
-#include <migraphx/verify.hpp>
+#include <migraphx/pass_manager.hpp>
 
 bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
 bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
+
+void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::rewrite_quantization{}});
+}
+
+migraphx::argument eval(const migraphx::program& p)
+{
+    auto r = p.eval({});
+    EXPECT(r.size() == 1);
+    return r.front();
+}
 
 TEST_CASE(quantizelinear)
 {
@@ -58,8 +69,8 @@ TEST_CASE(quantizelinear)
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
 
-    migraphx::rewrite_quantization opt;
-    opt.apply(*p2.get_main_module());
+    run_pass(*p2.get_main_module());
+    EXPECT(eval(p1) == eval(p2));
     EXPECT(any_of(*p1.get_main_module(), &is_quantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_quantizelinear));
 }
@@ -86,8 +97,8 @@ TEST_CASE(dequantizelinear)
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
 
-    migraphx::rewrite_quantization opt;
-    opt.apply(*p2.get_main_module());
+    run_pass(*p2.get_main_module());
+    EXPECT(eval(p1) == eval(p2));
     EXPECT(any_of(*p1.get_main_module(), &is_dequantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_dequantizelinear));
 }

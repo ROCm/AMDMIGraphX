@@ -98,6 +98,13 @@ struct hip_sync_stream
             return {};
         return args.front();
     }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    {
+        if(args.empty())
+            return -1;
+        return 0;
+    }
 };
 
 struct hip_copy_to_gpu

@@ -402,7 +402,7 @@ TEST_CASE(conv_bias_add)
         auto bias    = m1.add_parameter("bias", s6);
         auto scale   = m1.add_literal(0.5f);
         auto zero    = m1.add_literal(std::int8_t{0});
-        auto zero32    = m1.add_literal(std::int32_t{0});
+        auto zero32  = m1.add_literal(std::int32_t{0});
 
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
         auto d2 = add_quantize_op(m1, "dequantizelinear", bias, scale, zero32);
@@ -429,7 +429,7 @@ TEST_CASE(conv_bias_add)
         auto bias    = m2.add_parameter("bias", s6);
         auto scale   = m2.add_literal(0.5f);
         auto zero    = m2.add_literal(std::int8_t{0});
-        auto zero32    = m2.add_literal(std::int32_t{0});
+        auto zero32  = m2.add_literal(std::int32_t{0});
         auto scale1  = m2.add_literal(0.25f);
 
         auto d2 = add_quantize_op(m2, "dequantizelinear", bias, scale, zero32);
@@ -470,7 +470,7 @@ TEST_CASE(conv_pooling_dot)
         auto input   = m1.add_parameter("input", s7);
         auto scale   = m1.add_literal(0.5f);
         auto zero    = m1.add_literal(std::int8_t{0});
-        auto zero32    = m1.add_literal(std::int32_t{0});
+        auto zero32  = m1.add_literal(std::int32_t{0});
 
         auto d1  = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
         auto d2  = add_quantize_op(m1, "dequantizelinear", bias, scale, zero32);
@@ -518,7 +518,7 @@ TEST_CASE(conv_pooling_dot)
         auto input   = m2.add_parameter("input", s7);
         auto scale   = m2.add_literal(0.5f);
         auto zero    = m2.add_literal(std::int8_t{0});
-        auto zero32    = m2.add_literal(std::int32_t{0});
+        auto zero32  = m2.add_literal(std::int32_t{0});
         auto scale1  = m2.add_literal(0.25f);
         auto scale2  = m2.add_literal(0.25f);
 
@@ -576,7 +576,7 @@ TEST_CASE(mobilenet_snippet)
         auto input   = mm.add_parameter("input", s7);
         auto scale   = mm.add_literal(0.5f);
         auto zero    = mm.add_literal(std::int8_t{0});
-        auto zero32    = mm.add_literal(std::int32_t{0});
+        auto zero32  = mm.add_literal(std::int32_t{0});
 
         auto d1  = add_quantize_op(mm, "dequantizelinear", weights, scale, zero);
         auto d2  = add_quantize_op(mm, "dequantizelinear", bias, scale, zero32);

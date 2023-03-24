@@ -42,7 +42,7 @@ TEST_CASE(make_invalid_target)
 TEST_CASE(targets)
 {
     auto ts = migraphx::get_targets();
-    EXPECT(ts.size() == 1); // Ref target is always available
+    EXPECT(ts.size() == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -436,6 +436,13 @@ TEST_CASE(contiguous_shape_scalar)
     expect_shape(output, migraphx::make_op("contiguous"), input);
 }
 
+TEST_CASE(contiguous_shape_singleton_dim)
+{
+    migraphx::shape output{migraphx::shape::float_type, {5, 1, 8}, {8, 4, 1}};
+    migraphx::shape input{migraphx::shape::float_type, {5, 1, 8}, {8, 8, 1}};
+    expect_shape(output, migraphx::make_op("contiguous"), input);
+}
+
 TEST_CASE(deconvolution_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};

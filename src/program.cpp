@@ -42,6 +42,7 @@
 #include <sstream>
 #include <algorithm>
 #include <set>
+#include <unordered_map>
 #include <utility>
 
 #include <unordered_set>
@@ -59,6 +60,7 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     context ctx;
     std::string target_name;
+    std::unordered_map<std::string, context> context_map;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -204,6 +206,47 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 }
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
+
+void program::multitarget_compile(std::unordered_map<std::string, compile_options> compile_opt_map)
+{
+    assert(not this->is_compiled());
+    std::unordered_map<std::string, migraphx::target> target_map;
+    std::unordered_map<std::string, migraphx::context> context_map;
+    std::unordered_map<std::string, std::vector<pass>> passes_map;
+    for(const auto& [name, _] : compile_opt_map)
+    {
+        target_map[name]  = migraphx::make_target(name);
+        context_map[name] = target_map[name].get_context();
+        passes_map[name]  = target_map[name].get_passes(context_map[name], compile_opt_map[name]);
+    }
+    std::unordered_set<module_ref> visited;
+    auto mods = this->get_modules(); // main
+    for(const auto& mod : reverse(mods))
+    {
+        if(not visited.insert(mod).second)
+            continue;
+        run_passes(*this, *mod, passes_map[mod->get_target()]);
+    }
+    std::cout << "Finished running all passes\n";
+    // Validate and finalize
+    for(const auto& mod : reverse(mods))
+    {
+        auto invalid = mod->validate();
+        if(invalid != mod->end())
+        {
+            MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
+                           std::to_string(std::distance(mod->begin(), invalid)));
+        }
+        auto dangling = mod->find_dangling_reference();
+        if(dangling != mod->end())
+        {
+            auto index = std::distance(mod->begin(), dangling);
+            MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
+                           std::to_string(index));
+        }
+        mod->finalize(context_map[mod->get_target()]);
+    }
+}
 
 void program::compile(const target& t, compile_options options)
 {

@@ -92,6 +92,8 @@ struct program
 
     void compile(const target& t, compile_options options = compile_options{});
 
+    void multitarget_compile(std::unordered_map<std::string, compile_options> compile_opt_map = {});
+
     bool is_compiled() const;
 
     void finalize();

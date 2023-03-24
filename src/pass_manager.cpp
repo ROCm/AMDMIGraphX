@@ -106,6 +106,10 @@ struct module_pm : module_pass_manager
         trace("Pass: ", p.name());
         assert(mod);
         assert(mod->validate() == mod->end());
+        if(mod->bypass())
+        {
+            return;
+        }
         if(enabled(MIGRAPHX_TIME_PASSES{}))
         {
             using milliseconds = std::chrono::duration<double, std::milli>;
@@ -116,12 +120,25 @@ struct module_pm : module_pass_manager
         {
             p.apply(*this);
         }
+        trace("Pass: ", p.name());
         trace(*mod);
         validate_pass(*mod, p, *t);
     }
 };
 
 module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
+
+void run_passes(program& prog, module& mod, const std::vector<pass>& passes, tracer trace)
+{
+    if(enabled(MIGRAPHX_TRACE_PASSES{}))
+        trace = tracer{std::cout};
+    for(const auto& p : passes)
+    {
+        auto mpm = module_pm{&mod, &trace};
+        mpm.prog = &prog;
+        mpm.run_pass(p);
+    }
+}
 
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {

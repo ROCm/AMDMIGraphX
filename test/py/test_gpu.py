@@ -86,8 +86,8 @@ def test_nonzero():
     params = {}
 
     shapes = p.get_parameter_shapes()
-    params["data"] = np.array([1, 1, 0, 1]).reshape(
-        shapes["data"].lens()).astype(bool)
+    params["data"] = np.array([1, 1, 0,
+                               1]).reshape(shapes["data"].lens()).astype(bool)
 
     r = p.run(params)
     print(r)

@@ -402,9 +402,10 @@ TEST_CASE(conv_bias_add)
         auto bias    = m1.add_parameter("bias", s6);
         auto scale   = m1.add_literal(0.5f);
         auto zero    = m1.add_literal(std::int8_t{0});
+        auto zero32    = m1.add_literal(std::int32_t{0});
 
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
-        auto d2 = add_quantize_op(m1, "dequantizelinear", bias, scale, zero);
+        auto d2 = add_quantize_op(m1, "dequantizelinear", bias, scale, zero32);
         auto q1 = add_quantize_op(m1, "quantizelinear", input, scale, zero);
         auto d5 = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
         auto c1 = m1.add_instruction(migraphx::make_op("convolution",
@@ -428,9 +429,10 @@ TEST_CASE(conv_bias_add)
         auto bias    = m2.add_parameter("bias", s6);
         auto scale   = m2.add_literal(0.5f);
         auto zero    = m2.add_literal(std::int8_t{0});
+        auto zero32    = m2.add_literal(std::int32_t{0});
         auto scale1  = m2.add_literal(0.25f);
 
-        auto d2 = add_quantize_op(m2, "dequantizelinear", bias, scale, zero);
+        auto d2 = add_quantize_op(m2, "dequantizelinear", bias, scale, zero32);
         auto q1 = add_quantize_op(m2, "quantizelinear", input, scale, zero);
         auto c1 = m2.add_instruction(migraphx::make_op("quant_convolution",
                                                        {{"padding", {0, 0, 0, 0}},
@@ -468,9 +470,10 @@ TEST_CASE(conv_pooling_dot)
         auto input   = m1.add_parameter("input", s7);
         auto scale   = m1.add_literal(0.5f);
         auto zero    = m1.add_literal(std::int8_t{0});
+        auto zero32    = m1.add_literal(std::int32_t{0});
 
         auto d1  = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
-        auto d2  = add_quantize_op(m1, "dequantizelinear", bias, scale, zero);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", bias, scale, zero32);
         auto d3  = add_quantize_op(m1, "dequantizelinear", ab, scale, zero);
         auto d4  = add_quantize_op(m1, "dequantizelinear", db, scale, zero);
         auto q1  = add_quantize_op(m1, "quantizelinear", input, scale, zero);
@@ -515,10 +518,11 @@ TEST_CASE(conv_pooling_dot)
         auto input   = m2.add_parameter("input", s7);
         auto scale   = m2.add_literal(0.5f);
         auto zero    = m2.add_literal(std::int8_t{0});
+        auto zero32    = m2.add_literal(std::int32_t{0});
         auto scale1  = m2.add_literal(0.25f);
         auto scale2  = m2.add_literal(0.25f);
 
-        auto d2  = add_quantize_op(m2, "dequantizelinear", bias, scale, zero);
+        auto d2  = add_quantize_op(m2, "dequantizelinear", bias, scale, zero32);
         auto d3  = add_quantize_op(m2, "dequantizelinear", ab, scale, zero);
         auto q1  = add_quantize_op(m2, "quantizelinear", input, scale, zero);
         auto c1  = m2.add_instruction(migraphx::make_op("quant_convolution",
@@ -572,9 +576,10 @@ TEST_CASE(mobilenet_snippet)
         auto input   = mm.add_parameter("input", s7);
         auto scale   = mm.add_literal(0.5f);
         auto zero    = mm.add_literal(std::int8_t{0});
+        auto zero32    = mm.add_literal(std::int32_t{0});
 
         auto d1  = add_quantize_op(mm, "dequantizelinear", weights, scale, zero);
-        auto d2  = add_quantize_op(mm, "dequantizelinear", bias, scale, zero);
+        auto d2  = add_quantize_op(mm, "dequantizelinear", bias, scale, zero32);
         auto d3  = add_quantize_op(mm, "dequantizelinear", ab, scale, zero);
         auto d4  = add_quantize_op(mm, "dequantizelinear", db, scale, zero);
         auto q1  = add_quantize_op(mm, "quantizelinear", input, scale, zero);

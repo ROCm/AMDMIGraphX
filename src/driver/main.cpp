@@ -305,9 +305,9 @@ struct compiler_target
 {
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
-#elif HAVE_CPU
+#elif defined(HAVE_CPU)
     std::string target_name = "cpu";
-#elif HAVE_FPGA
+#elif defined(HAVE_FPGA)
     std::string target_name = "fpga";
 #else
     std::string target_name = "ref";

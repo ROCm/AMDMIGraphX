@@ -38,10 +38,7 @@
 bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
 bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
 
-void run_pass(migraphx::module& m)
-{
-    migraphx::run_passes(m, {migraphx::rewrite_quantization{}});
-}
+void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::rewrite_quantization{}}); }
 
 migraphx::argument eval(const migraphx::program& p)
 {

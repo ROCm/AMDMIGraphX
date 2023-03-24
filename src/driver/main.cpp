@@ -308,9 +308,9 @@ struct compiler_target
 #elif HAVE_CPU
     std::string target_name = "cpu";
 #elif HAVE_FPGA
-    std::string target_name = "fpga"
+    std::string target_name = "fpga";
 #else
-    std::string target_name = "ref"
+    std::string target_name = "ref";
 #endif
 
     void parse(argument_parser& ap)

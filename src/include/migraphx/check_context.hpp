@@ -38,7 +38,7 @@ struct check_context
 {
     struct op : auto_register_op<op>
     {
-        static std::string name()
+        static std::string compute_op_name()
         {
             const auto& op_type_name                      = get_type_name<T>();
             const auto& split_name                        = split_string(op_type_name, ':');
@@ -50,7 +50,12 @@ struct check_context
                 split_name.end(),
                 std::back_inserter(name_without_version),
                 [&](const auto& i) { return not i.empty() and not contains(i, "version"); });
-            static std::string op_name = join_strings(name_without_version, "::");
+            return join_strings(name_without_version, "::");
+        }
+
+        std::string name() const
+        {
+            static auto op_name = compute_op_name();
             return op_name;
         }
 

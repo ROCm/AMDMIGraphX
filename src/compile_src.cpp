@@ -75,30 +75,5 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
     return read_buffer(out_path.string());
 }
 
-template <class T>
-std::pair<std::intptr_t, std::intptr_t> to_intptr(const std::pair<T*, T*>& p)
-{
-    return std::make_pair(reinterpret_cast<std::intptr_t>(p.first),
-                          reinterpret_cast<std::intptr_t>(p.second));
-}
-
-template <class T>
-std::pair<T*, T*> to_pointer(const std::pair<std::intptr_t, std::intptr_t>& p)
-{
-    return std::make_pair(reinterpret_cast<T*>(p.first), reinterpret_cast<T*>(p.second));
-}
-
-void migraphx_to_value(value& v, const src_file& s)
-{
-    v["path"]    = s.path.string();
-    v["content"] = to_value(to_intptr(s.content));
-}
-void migraphx_from_value(const value& v, src_file& s)
-{
-    s.path    = v.at("path").to<std::string>();
-    s.content = to_pointer<const char>(
-        from_value<std::pair<std::intptr_t, std::intptr_t>>(v.at("content")));
-}
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

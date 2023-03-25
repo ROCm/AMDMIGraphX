@@ -14,8 +14,8 @@ std::vector<char> read_stdin()
     std::size_t len = 0;
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
     {
-        if(std::ferror(stdin) && !std::feof(stdin))
-            throw std::runtime_error(std::strerror(errno));
+        if(std::ferror(stdin) != 0 and std::feof(stdin) == 0)
+            MIGRAPHX_THROW(std::strerror(errno));
 
         result.insert(result.end(), buffer.data(), buffer.data() + len);
     }

@@ -184,7 +184,7 @@ struct writer_stream
 
 void to_msgpack(const value& v, std::function<void(const char*, std::size_t)> writer)
 {
-    writer_stream ws{writer};
+    writer_stream ws{std::move(writer)};
     msgpack::pack(ws, v);
 }
 

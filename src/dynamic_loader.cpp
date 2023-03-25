@@ -76,7 +76,7 @@ fs::path dynamic_loader::path(void* address)
     fs::path p;
     Dl_info info;
     // Find the location of .so
-    if(dladdr(address, &info))
+    if(dladdr(address, &info) != 0)
         p = info.dli_fname;
     return p;
 }

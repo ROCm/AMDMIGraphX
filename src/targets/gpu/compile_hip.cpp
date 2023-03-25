@@ -70,6 +70,7 @@ void hiprtc_check_error(hiprtcResult err, const std::string& msg, const std::str
         throw make_exception(ctx, hiprtc_error(err, msg));
 }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_HIPRTC(...) \
     hiprtc_check_error(__VA_ARGS__, #__VA_ARGS__, MIGRAPHX_MAKE_SOURCE_CTX())
 
@@ -139,7 +140,7 @@ struct hiprtc_program
                                      include_names.data());
     }
 
-    void compile(const std::vector<std::string>& options)
+    void compile(const std::vector<std::string>& options) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
             std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;

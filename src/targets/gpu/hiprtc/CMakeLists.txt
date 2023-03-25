@@ -25,4 +25,5 @@
 add_executable(migraphx-hiprtc-driver
     main.cpp
 )
+rocm_clang_tidy_check(migraphx-hiprtc-driver)
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)

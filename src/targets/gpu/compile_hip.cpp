@@ -218,7 +218,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     auto p      = dynamic_loader::path((void*)&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path().parent_path() / "bin" / "migraphx-hiprtc-driver";
 
-    if (fs::exists(driver))
+    if(fs::exists(driver))
     {
         value v;
         v["srcs"]   = to_value(hsrcs);
@@ -227,7 +227,6 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
         tmp_dir td{};
         auto out = td.path / "output";
-
 
         process(driver.string() + " " + out.string()).write([&](auto writer) {
             to_msgpack(v, writer);

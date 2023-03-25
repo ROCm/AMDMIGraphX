@@ -180,11 +180,11 @@ struct hiprtc_program
     }
 };
 
-std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<hiprtc_src_file>& srcs,
+std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
                                                            std::string params,
                                                            const std::string& arch)
 {
-    hiprtc_program prog(srcs);
+    hiprtc_program prog(std::move(srcs));
     auto options = split_string(params, ' ');
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
@@ -215,23 +215,28 @@ std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
-    value v;
-    v["srcs"]   = to_value(hsrcs);
-    v["params"] = to_value(params);
-    v["arch"]   = to_value(arch);
-
-    tmp_dir td{};
-    auto out = td.path / "output";
-
     auto p      = dynamic_loader::path((void*)&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path().parent_path() / "bin" / "migraphx-hiprtc-driver";
 
-    process(driver.string() + " " + out.string()).write([&](auto writer) {
-        to_msgpack(v, writer);
-    });
-    if(not fs::exists(out))
-        return {};
-    return {read_buffer(out.string())};
+    if (fs::exists(driver))
+    {
+        value v;
+        v["srcs"]   = to_value(hsrcs);
+        v["params"] = to_value(params);
+        v["arch"]   = to_value(arch);
+
+        tmp_dir td{};
+        auto out = td.path / "output";
+
+
+        process(driver.string() + " " + out.string()).write([&](auto writer) {
+            to_msgpack(v, writer);
+        });
+        if(not fs::exists(out))
+            return {};
+        return {read_buffer(out.string())};
+    }
+    return compile_hip_src_with_hiprtc(std::move(hsrcs), std::move(params), arch);
 }
 
 #else // MIGRAPHX_USE_HIPRTC

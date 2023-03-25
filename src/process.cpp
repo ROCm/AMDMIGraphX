@@ -38,7 +38,7 @@ std::function<void(const char*)> redirect_to(std::ostream& os)
     return [&](const char* x) { os << x; };
 }
 
-template<class F>
+template <class F>
 int exec(const std::string& cmd, const char* type, F f)
 {
     int ec = 0;
@@ -70,12 +70,9 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
 int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
 {
     return exec(cmd, "w", [&](FILE* f) {
-        std_in([&](const char* buffer, std::size_t n) {
-            std::fwrite(buffer, 1, n, f);
-        });
+        std_in([&](const char* buffer, std::size_t n) { std::fwrite(buffer, 1, n, f); });
     });
 }
-
 
 struct process_impl
 {
@@ -90,8 +87,8 @@ struct process_impl
         result += command;
         return result;
     }
-    
-    template<class... Ts>
+
+    template <class... Ts>
     void check_exec(Ts&&... xs) const
     {
         int ec = migraphx::exec(std::forward<Ts>(xs)...);
@@ -122,10 +119,7 @@ process& process::cwd(const fs::path& p)
     return *this;
 }
 
-void process::exec()
-{
-    impl->check_exec(impl->get_command(), redirect_to(std::cout));
-}
+void process::exec() { impl->check_exec(impl->get_command(), redirect_to(std::cout)); }
 
 void process::write(std::function<void(process::writer)> pipe_in)
 {

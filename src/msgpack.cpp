@@ -172,6 +172,22 @@ struct vector_stream
     }
 };
 
+struct writer_stream
+{
+    std::function<void(const char*, std::size_t)> writer;
+    writer_stream& write(const char* b, std::size_t n)
+    {
+        writer(b, n);
+        return *this;
+    }
+};
+
+void to_msgpack(const value& v, std::function<void(const char*, std::size_t)> writer)
+{
+    writer_stream ws{writer};
+    msgpack::pack(ws, v);
+}
+
 std::vector<char> to_msgpack(const value& v)
 {
     vector_stream vs;

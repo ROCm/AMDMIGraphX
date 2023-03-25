@@ -36,6 +36,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 std::vector<std::vector<char>>
+compile_hip_src_with_hiprtc(const std::vector<src_file>& srcs, std::string params, const std::string& arch);
+
+std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch);
 
 std::string enum_params(std::size_t count, std::string param);

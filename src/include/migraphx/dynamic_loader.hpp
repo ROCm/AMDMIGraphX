@@ -37,6 +37,7 @@ struct dynamic_loader_impl;
 
 struct dynamic_loader
 {
+    static fs::path path(void* address);
     dynamic_loader() = default;
 
     dynamic_loader(const fs::path& p);

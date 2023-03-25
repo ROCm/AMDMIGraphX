@@ -32,6 +32,13 @@
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/tmp_dir.hpp>
+#include <migraphx/dynamic_loader.hpp>
+#include <migraphx/process.hpp>
+#include <migraphx/msgpack.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/file_buffer.hpp>
 #else
 #include <migraphx/compile_src.hpp>
 #include <migraphx/process.hpp>
@@ -176,7 +183,7 @@ struct hiprtc_program
 };
 
 std::vector<std::vector<char>>
-compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+compile_hip_src_with_hiprtc(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');
@@ -205,7 +212,35 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     return {prog.get_code_obj()};
 }
 
+std::vector<std::vector<char>>
+compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+{
+    value v;
+    v["srcs"] = to_value(srcs);
+    v["params"] = to_value(params);
+    v["arch"] = to_value(arch);
+
+    tmp_dir td{};
+    auto out = td.path / "output";
+    
+    auto p = dynamic_loader::path((void*)&compile_hip_src_with_hiprtc);
+    auto driver = p.parent_path().parent_path() / "bin" / "migraphx-hiprtc-driver";
+
+    process(driver.string() + " " + out.string()).write([&](auto writer) {
+        to_msgpack(v, writer);
+    });
+    if (not fs::exists(out))
+        return {};
+    return {read_buffer(out.string())};
+}
+
 #else // MIGRAPHX_USE_HIPRTC
+
+std::vector<std::vector<char>>
+compile_hip_src_with_hiprtc(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+{
+    MIGRAPHX_THROW("Not using hiprtc");
+}
 
 bool is_hip_clang_compiler()
 {

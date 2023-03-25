@@ -34,12 +34,17 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
+
 struct src_file
 {
     fs::path path;
     std::pair<const char*, const char*> content;
     std::size_t len() const { return content.second - content.first; }
 };
+
+void migraphx_to_value(value& v, const src_file& s);
+void migraphx_from_value(const value& v, src_file& s);
 
 struct src_compiler
 {

@@ -29,7 +29,7 @@ int main(int argc, char const* argv[])
     std::string output_name = argv[1];
 
     auto v = migraphx::from_msgpack(read_stdin());
-    std::vector<migraphx::src_file> srcs;
+    std::vector<migraphx::gpu::hiprtc_src_file> srcs;
     migraphx::from_value(v.at("srcs"), srcs);
     auto out = migraphx::gpu::compile_hip_src_with_hiprtc(
         srcs, v.at("params").to<std::string>(), v.at("arch").to<std::string>());

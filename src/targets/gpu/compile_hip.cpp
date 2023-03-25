@@ -117,21 +117,19 @@ struct hiprtc_program
     std::string cpp_src  = "";
     std::string cpp_name = "";
 
-    hiprtc_program(const std::vector<src_file>& srcs)
+    hiprtc_program(std::vector<hiprtc_src_file> srcs)
     {
         for(auto&& src : srcs)
         {
-            std::string content{src.content.first, src.content.second};
-            std::string path = src.path.string();
-            if(src.path.extension().string() == ".cpp")
+            if(ends_with(src.path, ".cpp"))
             {
-                cpp_src  = std::move(content);
-                cpp_name = std::move(path);
+                cpp_src  = std::move(src.content);
+                cpp_name = std::move(src.path);
             }
             else
             {
-                headers.push_back(std::move(content));
-                include_names.push_back(std::move(path));
+                headers.push_back(std::move(src.content));
+                include_names.push_back(std::move(src.path));
             }
         }
         prog = hiprtc_program_create(cpp_src.c_str(),
@@ -182,7 +180,7 @@ struct hiprtc_program
     }
 };
 
-std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<src_file>& srcs,
+std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<hiprtc_src_file>& srcs,
                                                            std::string params,
                                                            const std::string& arch)
 {
@@ -216,8 +214,9 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<src
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
+    std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
     value v;
-    v["srcs"]   = to_value(srcs);
+    v["srcs"]   = to_value(hsrcs);
     v["params"] = to_value(params);
     v["arch"]   = to_value(arch);
 
@@ -237,7 +236,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
 #else // MIGRAPHX_USE_HIPRTC
 
-std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<src_file>& srcs,
+std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<hiprtc_src_file>& srcs,
                                                            std::string params,
                                                            const std::string& arch)
 {

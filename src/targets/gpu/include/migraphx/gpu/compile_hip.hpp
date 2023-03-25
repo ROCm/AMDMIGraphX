@@ -40,13 +40,14 @@ struct hiprtc_src_file
 {
     hiprtc_src_file() = default;
     hiprtc_src_file(const src_file& s)
-    : path(s.path.string()), content(s.content.first, s.content.second)
-    {}
+        : path(s.path.string()), content(s.content.first, s.content.second)
+    {
+    }
     std::string path;
     std::string content;
     operator src_file() const
     {
-        return src_file{path, {content.data(), content.data()+content.size()}};
+        return src_file{path, {content.data(), content.data() + content.size()}};
     }
     template <class Self, class F>
     static auto reflect(Self& self, F f)

@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package(miopen)
 
 # rocblas

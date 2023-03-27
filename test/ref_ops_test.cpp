@@ -5138,6 +5138,107 @@ TEST_CASE(nms_test)
     EXPECT(migraphx::verify_range(result, gold));
 }
 
+TEST_CASE(nms_huge_test_cpu)
+{
+    migraphx::program p;
+    auto* mm        = p.get_main_module();
+    unsigned long n = 31702968;
+    migraphx::shape boxes_s{migraphx::shape::float_type, {n, 4}};
+
+    std::vector<float> boxes_vec(4 * n);
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {n}};
+    std::vector<float> scores_vec(n);
+
+    size_t sample_size = 100000;
+    float seed         = 0.0f;
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::vector<float> rand_samples(sample_size);
+    std::generate(boxes_vec.begin(), boxes_vec.end(), [&]() { return dis(gen); });
+    std::generate(scores_vec.begin(), score_vec.end(), [&]() { return dis(gen); });
+
+    auto boxes_l       = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l      = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l     = mm->add_literal(migraphx::literal(
+        migraphx::shape{migraphx::shape::int64_type, {1}}, {9223372036854775807}));
+    auto iou_threshold = mm->add_literal(
+        migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}}, {0.5f}));
+    // auto score_threshold =
+    // mm->add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}},
+    // {0.0f}));
+
+    auto squeeze_box =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), boxes_l);
+    auto squeeze_score1 =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), scores_l);
+    auto squeeze_score2 =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), squeeze_score1);
+
+    auto r =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", false}}),
+                            squeeze_box,
+                            squeeze_score2,
+                            max_out_l,
+                            iou_threshold
+                            // score_threshold
+        );
+    mm->add_return({r});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({}).back();
+    // std::vector<int64_t> result;
+    // output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    // std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    EXPECT(true);
+}
+
+TEST_CASE(nms_huge_test_gpu)
+{
+    migraphx::program p;
+    auto* mm        = p.get_main_module();
+    unsigned long n = 31702968;
+    migraphx::shape boxes_s{migraphx::shape::float_type, {n, 4}};
+    std::vector<float> boxes_vec(4 * n, 1.0);
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {n}};
+    std::vector<float> scores_vec(n, 0.0);
+
+    auto boxes_l       = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l      = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l     = mm->add_literal(migraphx::literal(
+        migraphx::shape{migraphx::shape::int64_type, {1}}, {9223372036854775807}));
+    auto iou_threshold = mm->add_literal(
+        migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}}, {0.5f}));
+    // auto score_threshold =
+    // mm->add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}},
+    // {0.0f}));
+
+    auto squeeze_box =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), boxes_l);
+    auto squeeze_score1 =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), scores_l);
+    auto squeeze_score2 =
+        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), squeeze_score1);
+
+    auto r =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", false}}),
+                            squeeze_box,
+                            squeeze_score2,
+                            max_out_l,
+                            iou_threshold
+                            // score_threshold
+        );
+    mm->add_return({r});
+
+    p.compile(migraphx::make_target("gpu"));
+    auto output = p.eval({}).back();
+    // std::vector<int64_t> result;
+    // output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    // std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    EXPECT(true);
+}
+
 TEST_CASE(nms_transpose1_test)
 {
     migraphx::program p;

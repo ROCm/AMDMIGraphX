@@ -27,6 +27,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
+#include <thread>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,6 +53,40 @@ void shape_for_each(const migraphx::shape& s, F f)
                            return (i / stride) % len;
                        });
         call(indices);
+    }
+}
+
+/**
+ * Iterates the given function over the indices from the shape in order.
+ * Threads things so that we call and doesn't finish until last thread is completed
+ */
+template <class F>
+void shape_for_each_threaded(const migraphx::shape& s, F f)
+{
+    // Ensure calls to f use const ref to vector
+    auto call = [&f](const std::vector<std::size_t>& i) { f(i); };
+    std::vector<std::size_t> indices(s.lens().size());
+    shape ss{s.type(), s.lens()};
+    std::vector<std::thread> threads;
+
+    for(std::size_t i = 0; i < ss.elements(); i++)
+    {
+        std::transform(ss.strides().begin(),
+                       ss.strides().end(),
+                       ss.lens().begin(),
+                       indices.begin(),
+                       [&](std::size_t stride, std::size_t len) {
+                           assert(len > 0 and stride > 0);
+                           return (i / stride) % len;
+                       });
+        // keep track and spawn child thread for each call
+        threads.push_back(std::thread(call(), indices));
+    }
+
+    // wait till all children finished running
+    for(auto& th : threads)
+    {
+        th.join();
     }
 }
 } // namespace MIGRAPHX_INLINE_NS

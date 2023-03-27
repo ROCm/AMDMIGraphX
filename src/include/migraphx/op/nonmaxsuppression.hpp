@@ -232,15 +232,27 @@ struct nonmaxsuppression
         auto insert_to_boxes_heap =
             make_function_output_iterator([&](const auto& x) { boxes_heap.push(x); });
         int64_t box_idx = 0;
-        transform_if(
-            scores_start,
-            scores_start + num_boxes,
-            insert_to_boxes_heap,
-            [&](auto sc) {
-                box_idx++;
-                return sc >= score_threshold;
-            },
-            [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
+
+        if(score_threshold > 0.0)
+        {
+            transform_if(
+                scores_start,
+                scores_start + num_boxes,
+                insert_to_boxes_heap,
+                [&](auto sc) {
+                    box_idx++;
+                    return sc >= score_threshold;
+                },
+                [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
+        }
+        else
+        { // score is irrelevant, just push into boxes_heap and make a score-index pair
+            std::transform(
+                scores_start, scores_start + num_boxes, insert_to_boxes_heap, [&](auto sc) {
+                    box_idx++;
+                    return std::make_pair(sc, box_idx - 1);
+                });
+        }
         return boxes_heap;
     }
 

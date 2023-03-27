@@ -5130,7 +5130,7 @@ TEST_CASE(nms_test)
     EXPECT(migraphx::verify_range(result, gold));
 }
 
-TEST_CASE(nms_huge_test_cpu)
+TEST_CASE(nms_huge_test_random_data)
 {
     migraphx::program p;
     auto* mm        = p.get_main_module();
@@ -5148,7 +5148,7 @@ TEST_CASE(nms_huge_test_cpu)
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);
     std::generate(boxes_vec.begin(), boxes_vec.end(), [&]() { return dis(gen); });
-    std::generate(scores_vec.begin(), score_vec.end(), [&]() { return dis(gen); });
+    std::generate(scores_vec.begin(), scores_vec.end(), [&]() { return dis(gen); });
 
     auto boxes_l       = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
     auto scores_l      = mm->add_literal(migraphx::literal(scores_s, scores_vec));
@@ -5185,7 +5185,7 @@ TEST_CASE(nms_huge_test_cpu)
     EXPECT(true);
 }
 
-TEST_CASE(nms_huge_test_gpu)
+TEST_CASE(nms_huge_test_static_data)
 {
     migraphx::program p;
     auto* mm        = p.get_main_module();
@@ -5223,7 +5223,7 @@ TEST_CASE(nms_huge_test_gpu)
         );
     mm->add_return({r});
 
-    p.compile(migraphx::make_target("gpu"));
+    p.compile(migraphx::make_target("ref"));
     auto output = p.eval({}).back();
     // std::vector<int64_t> result;
     // output.visit([&](auto out) { result.assign(out.begin(), out.end()); });

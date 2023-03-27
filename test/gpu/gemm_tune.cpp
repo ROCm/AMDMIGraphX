@@ -29,8 +29,6 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
-// #include <basic_ops.hpp>
-// #include <migraphx/gpu/hip.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 
@@ -43,8 +41,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 
-#define MIGRAPHX_HIP_ASSERT(x) (EXPECT(x == hipSuccess))
-
 // Abbreviated lowering; we don't need the usual cleanup passes for this test
 void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
@@ -54,6 +50,11 @@ void run_lowering(migraphx::program& p, bool offload_copy = false)
         {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
 }
 
+/**
+ * Tests the automatic GEMM tuning feature.  In the finalize() method of the gemm op,
+ * rocBLAS API functions are called to quickly benchmark all the GEMM solutions
+ * available in the currently installed rocBLAS library and choose the index of the fastest.
+ */
 TEST_CASE(gemm_tune_with_rocblas)
 {
     migraphx::program p;
@@ -83,13 +84,17 @@ TEST_CASE(gemm_tune_with_rocblas)
             auto gemm_op = migraphx::get_operation(ins);
 
             // tuned solution index is not deterministic, but anything other than 0
-            // (default or invalid) is good.
+            // (default, invalid, or not available) is good.
             // gemm_op.to_value().debug_print();
             solution_idx = gemm_op.to_value()["solution_idx"];
             break;
         }
     }
-    EXPECT(0 != solution_idx);
+#ifdef ROCBLAS_BETA_FEATURES_API
+    EXPECT(0 != solution_idx.to<std::size_t>());
+#else
+    EXPECT(0 == solution_idx.to<std::size_t>());
+#endif
 }
 
 // TODO:  make tests that run both strided and not-strided GEMMs.  Also, try tuning with an invalid

@@ -28,6 +28,7 @@
 #include <queue>
 #include <cstdint>
 #include <iterator>
+#include <thread>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/float_equal.hpp>
@@ -58,8 +59,11 @@ struct nonmaxsuppression
 
     shape compute_shape(std::vector<shape> inputs) const
     {
+        std::cout << "COMP_SHAPE: " << inputs.size() << std::endl;
         // requires at least 2 inputs
         check_shapes{{inputs.at(0), inputs.at(1)}, *this, true}.only_dims(3).same_ndims();
+
+
         auto boxes_max_lens = inputs.at(0).max_lens();
         // num batches * num boxes
         const auto max_num_boxes = boxes_max_lens.at(0) * boxes_max_lens.at(1);
@@ -164,7 +168,7 @@ struct nonmaxsuppression
     };
 
     template <class T>
-    box batch_box(T boxes, std::size_t box_idx) const
+    void batch_box(T boxes, std::size_t box_idx, T & box_result) const
     {
         box result{};
         auto start = boxes + 4 * box_idx;
@@ -183,10 +187,10 @@ struct nonmaxsuppression
             result.y = {static_cast<double>(start[0]), static_cast<double>(start[2])};
         }
 
-        return result;
+        box_result = std::move(result);
     }
 
-    inline bool suppress_by_iou(box b1, box b2, double iou_threshold) const
+    void suppress_by_iou(box b1, box b2, double iou_threshold, bool & result) const
     {
         b1.sort();
         b2.sort();
@@ -198,7 +202,8 @@ struct nonmaxsuppression
             intersection[i][1] = std::min(b1[i][1], b2[i][1]);
             if(intersection[i][0] > intersection[i][1])
             {
-                return false;
+                result = false;
+                return;
             }
         }
 
@@ -209,12 +214,14 @@ struct nonmaxsuppression
 
         if(area1 <= .0f or area2 <= .0f or union_area <= .0f)
         {
-            return false;
+            result = false;
+            return;
         }
 
         const double intersection_over_union = intersection_area / union_area;
 
-        return intersection_over_union > iou_threshold;
+        result = intersection_over_union > iou_threshold;
+        return; 
     }
 
     // filter boxes below score_threshold
@@ -258,7 +265,8 @@ struct nonmaxsuppression
         selected_boxes_inside_class.reserve(max_output_shape.elements());
         // iterate over batches and classes
         shape comp_s{shape::double_type, {num_batches, num_classes}};
-        shape_for_each(comp_s, [&](auto idx) {
+        shape_for_each(comp_s, [&](auto idx) 
+        {
             auto batch_idx = idx[0];
             auto class_idx = idx[1];
             // index offset for this class
@@ -267,6 +275,7 @@ struct nonmaxsuppression
             auto batch_boxes_start = boxes.begin() + batch_idx * num_boxes * 4;
             auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
             selected_boxes_inside_class.clear();
+
             while(not boxes_heap.empty() &&
                   selected_boxes_inside_class.size() < max_output_boxes_per_class)
             {
@@ -279,16 +288,30 @@ struct nonmaxsuppression
                 selected_indices.push_back(class_idx);
                 selected_indices.push_back(next_top_score.second);
                 std::priority_queue<std::pair<double, int64_t>> remainder_boxes;
+
+
                 while(not boxes_heap.empty())
                 {
                     auto iou_candidate_box = boxes_heap.top();
-                    if(not this->suppress_by_iou(
-                           batch_box(batch_boxes_start, iou_candidate_box.second),
-                           batch_box(batch_boxes_start, next_top_score.second),
-                           iou_threshold))
+
+                    box b1{};
+                    box b2{};
+                    bool suppress_box = false;
+
+                    std::thread box1_th(batch_box<Boxes>, batch_boxes_start, iou_candidate_box.second, std::ref(b1));
+                    std::thread box2_th(batch_box<Boxes>, batch_boxes_start, next_top_score.second, std::ref(b2));
+
+                    box1_th.join();
+                    box2_th.join();
+
+                    std::thread suppress_th(suppress_by_iou, std::ref(b1), std::ref(b2), iou_threshold, std::ref(suppress_box));
+
+                    suppress_th.join();
+                    if(not suppress_box)
                     {
                         remainder_boxes.push(iou_candidate_box);
                     }
+
                     boxes_heap.pop();
                 }
                 boxes_heap = remainder_boxes;
@@ -300,16 +323,26 @@ struct nonmaxsuppression
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
+        std::cout << "COMPUTE: " << args.size() << std::endl;
         // make buffer of maximum size
         shape max_output_shape = {output_shape.type(), output_shape.max_lens()};
         argument result{max_output_shape};
 
         std::size_t max_output_boxes_per_class =
             (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
+
         if(max_output_boxes_per_class == 0)
         {
             return result;
         }
+
+        if (max_output_boxes_per_class > args.at(1).get_shape().lens().at(2))
+        {
+            max_output_boxes_per_class = args.at(1).get_shape().lens().at(2);
+
+            std::cout << "Max output box: " << max_output_boxes_per_class << std::endl;
+        }
+
         double iou_threshold     = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
         double score_threshold   = (args.size() > 4) ? (args.at(4).at<double>()) : 0.0f;
         std::size_t num_selected = 0;

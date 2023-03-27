@@ -27,7 +27,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/quantization.hpp>
@@ -487,7 +487,7 @@ TEST_CASE(op_capture)
     {
         auto p                  = create_program_float();
         auto op_capture_p       = create_program_op();
-        migraphx::target t      = migraphx::ref::target{};
+        migraphx::target t      = migraphx::make_target("ref");
         std::size_t param_index = 0;
         migraphx::run_passes(
             p, {migraphx::capture_arguments_pass{{"dot", "convolution"}, {}, &param_index}});
@@ -562,7 +562,7 @@ TEST_CASE(op_capture_subgraph)
     {
         auto p                  = create_program();
         auto op_capture_p       = create_program_op();
-        migraphx::target t      = migraphx::ref::target{};
+        migraphx::target t      = migraphx::make_target("ref");
         std::size_t param_index = 0;
         migraphx::run_passes(
             p, {migraphx::capture_arguments_pass{{"dot", "convolution"}, {}, &param_index}});
@@ -1010,7 +1010,7 @@ TEST_CASE(target_copy)
         migraphx::shape s{migraphx::shape::float_type, {3, 3}};
         m["x"] = migraphx::generate_argument(s);
         std::vector<float> ref_result;
-        migraphx::target ref_t = migraphx::ref::target{};
+        migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, m, ref_result);
 
         std::vector<float> orig_result;
@@ -1074,7 +1074,7 @@ TEST_CASE(int8_quantization_dot)
         m["a"] = migraphx::generate_argument(sa, get_hash(std::string("a")));
         m["b"] = migraphx::generate_argument(sb, get_hash(std::string("b")));
         std::vector<float> quant_result;
-        migraphx::target ref_t = migraphx::ref::target{};
+        migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, m, quant_result, true);
 
         std::vector<float> no_quant_result;
@@ -1119,7 +1119,7 @@ TEST_CASE(int8_quantization_conv)
     {
         auto p = create_program();
         std::vector<float> quant_result;
-        migraphx::target ref_t = migraphx::ref::target{};
+        migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, quant_result, true);
 
         std::vector<float> no_quant_result;
@@ -1261,13 +1261,13 @@ TEST_CASE(test_op_capture)
     auto calc = [](std::size_t, const std::vector<migraphx::argument>&) {};
 
     migraphx::program capture_p = p;
-    migraphx::target t          = migraphx::ref::target{};
+    migraphx::target t          = migraphx::make_target("ref");
     std::size_t param_index     = 0;
     migraphx::run_passes(capture_p,
                          {migraphx::capture_arguments_pass{{"dot"}, calc, &param_index}});
 
-    p.compile(migraphx::ref::target{});
-    capture_p.compile(migraphx::ref::target{});
+    p.compile(migraphx::make_target("ref"));
+    capture_p.compile(migraphx::make_target("ref"));
 
     auto cap_res = capture_p.eval({}).back();
     auto res     = p.eval({}).back();

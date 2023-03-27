@@ -241,8 +241,9 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
 #else // MIGRAPHX_USE_HIPRTC
 
-std::vector<std::vector<char>>
-compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs, std::string, const std::string&) // NOLINT
+std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
+                                                           std::string,
+                                                           const std::string&) // NOLINT
 {
     MIGRAPHX_THROW("Not using hiprtc");
 }

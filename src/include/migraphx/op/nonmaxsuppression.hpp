@@ -191,6 +191,14 @@ struct nonmaxsuppression
         b1.sort();
         b2.sort();
 
+        const double area1 = b1.area();
+        const double area2 = b2.area();
+
+        if(area1 <= .0f or area2 <= .0f)
+        {
+            return false;
+        }
+
         box intersection{};
         for(auto i : range(2))
         {
@@ -202,12 +210,10 @@ struct nonmaxsuppression
             }
         }
 
-        const double area1             = b1.area();
-        const double area2             = b2.area();
         const double intersection_area = intersection.area();
         const double union_area        = area1 + area2 - intersection_area;
 
-        if(area1 <= .0f or area2 <= .0f or union_area <= .0f)
+        if(union_area <= .0f)
         {
             return false;
         }

@@ -186,7 +186,7 @@ struct nonmaxsuppression
         return result;
     }
 
-    inline bool suppress_by_iou(box b1, box b2, double iou_threshold) const
+    inline bool suppress_by_iou(box& b1, box& b2, double iou_threshold) const
     {
         b1.sort();
         b2.sort();
@@ -290,10 +290,10 @@ struct nonmaxsuppression
                 while(not boxes_heap.empty())
                 {
                     auto iou_candidate_box = boxes_heap.top();
-                    if(not this->suppress_by_iou(
-                           batch_box(batch_boxes_start, iou_candidate_box.second),
-                           next_box,
-                           iou_threshold))
+                    auto iou_candidate     = batch_box(batch_boxes_start, iou_candidate_box.second);
+                    auto suppress_box =
+                        this->suppress_by_iou(iou_candidate, next_box, iou_threshold);
+                    if(not suppress_box)
                     {
                         remainder_boxes.push(iou_candidate_box);
                     }

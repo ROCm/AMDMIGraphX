@@ -28,6 +28,7 @@
 #include <queue>
 #include <cstdint>
 #include <iterator>
+#include <execution>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/float_equal.hpp>
@@ -225,12 +226,12 @@ struct nonmaxsuppression
 
     // filter boxes below score_threshold
     template <class T>
-    std::priority_queue<std::pair<double, int64_t>>
+    std::vector<std::pair<double, int64_t>>
     filter_boxes_by_score(T scores_start, std::size_t num_boxes, double score_threshold) const
     {
-        std::priority_queue<std::pair<double, int64_t>> boxes_heap;
+        std::vector<std::pair<double, int64_t>> boxes_heap;
         auto insert_to_boxes_heap =
-            make_function_output_iterator([&](const auto& x) { boxes_heap.push(x); });
+            make_function_output_iterator([&](const auto& x) { boxes_heap.push_back(x); });
         int64_t box_idx = 0;
 
         if(score_threshold > 0.0)
@@ -253,6 +254,7 @@ struct nonmaxsuppression
                     return std::make_pair(sc, box_idx - 1);
                 });
         }
+        std::sort(std::execution::par, boxes_heap.begin(), boxes_heap.end());
         return boxes_heap;
     }
 
@@ -287,28 +289,32 @@ struct nonmaxsuppression
             {
                 // select next top scorer box and remove any boxes from boxes_heap that exceeds IOU
                 // threshold with the selected box
-                const auto next_top_score = boxes_heap.top();
+                const auto next_top_score = boxes_heap.front();
                 auto next_box             = batch_box(batch_boxes_start, next_top_score.second);
                 auto next_box_idx         = next_top_score.second;
-                boxes_heap.pop();
+                // Poor man's "pop" for vector
+                boxes_heap.erase(boxes_heap.begin());
 
                 selected_boxes_inside_class++;
                 selected_indices.push_back(batch_idx);
                 selected_indices.push_back(class_idx);
                 selected_indices.push_back(next_box_idx);
-                std::priority_queue<std::pair<double, int64_t>> remainder_boxes;
-                while(not boxes_heap.empty())
-                {
-                    auto iou_candidate_box = boxes_heap.top();
-                    auto iou_candidate     = batch_box(batch_boxes_start, iou_candidate_box.second);
-                    auto suppress_box =
-                        this->suppress_by_iou(iou_candidate, next_box, iou_threshold);
-                    if(not suppress_box)
-                    {
-                        remainder_boxes.push(iou_candidate_box);
-                    }
-                    boxes_heap.pop();
-                }
+
+                std::vector<std::pair<double, int64_t>> remainder_boxes(boxes_heap.size());
+
+                auto it =
+                    std::copy_if(std::execution::par,
+                                 boxes_heap.begin(),
+                                 boxes_heap.end(),
+                                 remainder_boxes.begin(),
+                                 [&](auto iou_candidate_box) {
+                                     auto iou_box =
+                                         batch_box(batch_boxes_start, iou_candidate_box.second);
+                                     return not this->suppress_by_iou(
+                                         std::ref(iou_box), std::ref(next_box), iou_threshold);
+                                 });
+
+                remainder_boxes.resize(it - remainder_boxes.begin());
                 boxes_heap = remainder_boxes;
             }
         });
@@ -337,7 +343,6 @@ struct nonmaxsuppression
                 num_selected = compute_nms(output,
                                            boxes,
                                            scores,
-                                           max_output_shape,
                                            max_output_boxes_per_class,
                                            iou_threshold,
                                            score_threshold);

@@ -247,6 +247,9 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
+find_package(TBB REQUIRED)
+target_link_libraries(migraphx PUBLIC TBB::tbb)
+
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 

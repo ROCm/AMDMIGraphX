@@ -279,7 +279,9 @@ struct nonmaxsuppression
                 // select next top scorer box and remove any boxes from boxes_heap that exceeds IOU
                 // threshold with the selected box
                 const auto next_top_score = boxes_heap.top();
+                auto next_box             = batch_box(batch_boxes_start, next_top_score.second);
                 boxes_heap.pop();
+
                 selected_boxes_inside_class.push_back(next_top_score);
                 selected_indices.push_back(batch_idx);
                 selected_indices.push_back(class_idx);
@@ -290,7 +292,7 @@ struct nonmaxsuppression
                     auto iou_candidate_box = boxes_heap.top();
                     if(not this->suppress_by_iou(
                            batch_box(batch_boxes_start, iou_candidate_box.second),
-                           batch_box(batch_boxes_start, next_top_score.second),
+                           next_box,
                            iou_threshold))
                     {
                         remainder_boxes.push(iou_candidate_box);

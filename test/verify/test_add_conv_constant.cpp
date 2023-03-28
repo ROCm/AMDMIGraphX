@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_add_conv : verify_program<test_add_conv>
+struct test_add_conv_constant : verify_program<test_add_conv_constant>
 {
     migraphx::program create_program() const
     {

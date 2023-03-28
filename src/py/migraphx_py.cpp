@@ -35,7 +35,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
-#include <migraphx/type_name.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>

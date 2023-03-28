@@ -52,7 +52,8 @@ int main(int argc, char const* argv[])
     {
         std::cout << "USAGE:" << std::endl;
         std::cout << "    ";
-        std::cout << "Used internally by migraphx to compile hip programs out-of-process." << std::endl;
+        std::cout << "Used internally by migraphx to compile hip programs out-of-process."
+                  << std::endl;
         std::exit(0);
     }
     std::string output_name = argv[1];

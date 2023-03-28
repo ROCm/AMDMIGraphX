@@ -46,7 +46,7 @@ int exec(const std::string& cmd, const char* type, F f)
         std::cout << cmd << std::endl;
     auto closer = [&](FILE* stream) {
         auto status = pclose(stream);
-        ec          = WIFEXITED(status) ? 0 : WEXITSTATUS(status); // NOLINT
+        ec          = WIFEXITED(status) ? WEXITSTATUS(status) : 0; // NOLINT
     };
     {
         // TODO: Use execve instead of popen

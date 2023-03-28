@@ -26,6 +26,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/ranges.hpp>
 #include <iostream>
 #include <cstring>
 
@@ -47,8 +48,13 @@ std::vector<char> read_stdin()
 
 int main(int argc, char const* argv[])
 {
-    if(argc < 2)
-        std::abort();
+    if(argc < 2 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
+    {
+        std::cout << "USAGE:" << std::endl;
+        std::cout << "    ";
+        std::cout << "Used internally by migraphx to compile hip programs out-of-process." << std::endl;
+        std::exit(0);
+    }
     std::string output_name = argv[1];
 
     auto v = migraphx::from_msgpack(read_stdin());

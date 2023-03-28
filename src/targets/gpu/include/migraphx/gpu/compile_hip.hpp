@@ -45,10 +45,6 @@ struct hiprtc_src_file
     }
     std::string path;
     std::string content;
-    operator src_file() const
-    {
-        return src_file{path, {content.data(), content.data() + content.size()}};
-    }
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

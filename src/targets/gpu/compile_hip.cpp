@@ -232,9 +232,8 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         process(driver.string() + " " + out.string()).write([&](auto writer) {
             to_msgpack(v, writer);
         });
-        if(not fs::exists(out))
-            return {};
-        return {read_buffer(out.string())};
+        if(fs::exists(out))
+            return {read_buffer(out.string())};
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), std::move(params), arch);
 }

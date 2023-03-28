@@ -305,8 +305,12 @@ struct compiler_target
 {
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
-#else
+#elif HAVE_CPU
     std::string target_name = "cpu";
+#elif HAVE_FPGA
+    std::string target_name = "fpga"
+#else
+    std::string target_name = "ref"
 #endif
 
     void parse(argument_parser& ap)
@@ -451,7 +455,8 @@ struct version : command<version>
     void run() const
     {
         std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << std::endl;
+                  << "." << MIGRAPHX_VERSION_PATCH << "."
+                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
     }
 };
 
@@ -588,7 +593,9 @@ struct main_command
     void parse(argument_parser& ap)
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
+                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,

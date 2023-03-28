@@ -25,8 +25,7 @@
 #include <vector>
 #include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/program.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/make_op.hpp>
@@ -42,7 +41,7 @@ TEST_CASE(argmax_test_nonstd_shape)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
     mm->add_instruction(migraphx::make_op("argmax", {{"axis", -3}}), dl_trans);
     auto p_uncompiled = p;
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result   = p.eval({}).back();
     auto res_gold = p_uncompiled.eval({}).back();
     std::vector<int64_t> result_vec;
@@ -61,7 +60,7 @@ TEST_CASE(argmin_test_nonstd_shape)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
     mm->add_instruction(migraphx::make_op("argmin", {{"axis", -1}}), dl_trans);
     auto p_uncompiled = p;
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result   = p.eval({}).back();
     auto res_gold = p_uncompiled.eval({}).back();
     std::vector<int64_t> result_vec;
@@ -83,7 +82,7 @@ TEST_CASE(isnan_broadcast_test)
     auto l1                  = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", s1.lens()}}), l0);
     mm->add_instruction(migraphx::make_op("isnan"), l1);
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -105,7 +104,7 @@ TEST_CASE(squeeze_transpose_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     mm_uncompiled->add_instruction(migraphx::make_op("contiguous"),
                                    std::prev(mm_uncompiled->end()));
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 4, 3}});
@@ -125,7 +124,7 @@ TEST_CASE(squeeze_multibroadcast_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     mm_uncompiled->add_instruction(migraphx::make_op("contiguous"),
                                    std::prev(mm_uncompiled->end()));
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {4, 3, 4, 3}});
@@ -145,7 +144,7 @@ TEST_CASE(squeeze_slice_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     mm_uncompiled->add_instruction(migraphx::make_op("contiguous"),
                                    std::prev(mm_uncompiled->end()));
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 3}});
@@ -165,7 +164,7 @@ TEST_CASE(unsqueeze_transpose_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     mm_uncompiled->add_instruction(migraphx::make_op("contiguous"),
                                    std::prev(mm_uncompiled->end()));
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 4, 1, 3}});
@@ -185,7 +184,7 @@ TEST_CASE(unsqueeze_multibroadcast_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     mm_uncompiled->add_instruction(migraphx::make_op("contiguous"),
                                    std::prev(mm_uncompiled->end()));
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {4, 4, 1, 3, 3}});
@@ -205,7 +204,7 @@ TEST_CASE(unsqueeze_slice_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     mm_uncompiled->add_instruction(migraphx::make_op("contiguous"),
                                    std::prev(mm_uncompiled->end()));
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {2, 1, 3, 4, 1}});

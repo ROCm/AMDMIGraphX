@@ -33,13 +33,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 namespace gpu {
-
-/**
- * Compiler pass that makes GPU-specific instruction changes.
- * * Copies to and from the device if `offload_copy` is true.
- * * Maps instructions to their GPU-specific counterparts.
- * * Inserts `allocate` instructions before GPU operators.
- */
 struct lowering
 {
     context* ctx;

@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/fpga/target.hpp>
 #include <migraphx/target_assignments.hpp>
 #include <migraphx/iterator_for.hpp>
 

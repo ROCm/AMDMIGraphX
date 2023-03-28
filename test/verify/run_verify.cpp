@@ -26,7 +26,7 @@
 #include "verify_program.hpp"
 #include "test.hpp"
 #include <migraphx/env.hpp>
-#include <migraphx/register_target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/load_save.hpp>
@@ -117,7 +117,7 @@ void run_verify::validate(const migraphx::target& t,
 std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
                                                     migraphx::parameter_map inputs) const
 {
-    migraphx::target t = migraphx::make_target("ref");
+    migraphx::ref::target t{};
     auto_print pp{p, t.name()};
     compile_check(p, t);
     return p.eval(std::move(inputs));
@@ -185,16 +185,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {
-            if(x.second.dynamic())
-            {
-                // create static shape using maximum dimensions
-                migraphx::shape static_shape{x.second.type(), x.second.max_lens()};
-                m[x.first] = migraphx::generate_argument(static_shape, get_hash(x.first));
-            }
-            else
-            {
-                m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
-            }
+            m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
         }
 
         auto gold_f = detach_async([=] { return run_ref(p, m); });

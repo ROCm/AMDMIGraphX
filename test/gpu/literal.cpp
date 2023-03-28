@@ -26,7 +26,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/register_target.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 
@@ -36,7 +35,7 @@ void gpu_literal_test()
     auto* mm = p.get_main_module();
     auto lit = generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
     mm->add_literal(lit);
-    p.compile(migraphx::make_target("gpu"));
+    p.compile(migraphx::gpu::target{});
     auto scratch = p.get_parameter("scratch");
     if(scratch == mm->end())
     {

@@ -22,11 +22,12 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/register_target.hpp>
+
 #include "test.hpp"
 
 struct mock_marker
@@ -63,7 +64,7 @@ TEST_CASE(marker)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
 
     mock_marker temp_marker;
     p.mark({}, temp_marker);

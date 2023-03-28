@@ -25,7 +25,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/write_literals.hpp>
-#include <migraphx/register_target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -121,7 +121,7 @@ migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& i
 
 migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& inputs)
 {
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::ref::target{});
     return p.eval(inputs).front();
 }
 

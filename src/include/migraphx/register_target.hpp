@@ -33,28 +33,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void register_target_init();
 void register_target(const target& t);
-void unregister_target(const std::string& name);
 target make_target(const std::string& name);
 std::vector<std::string> get_targets();
-
-namespace detail {
-struct target_handler
-{
-    target t;
-    std::string target_name;
-    target_handler(const target& t_r) : t(t_r), target_name(t.name()) {}
-    ~target_handler() { unregister_target(target_name); }
-};
-} // namespace detail
 
 template <class T>
 void register_target()
 {
-    register_target_init();
-    static auto t_h = detail::target_handler(T{});
-    register_target(t_h.t);
+    register_target(T{});
 }
 
 struct register_target_action

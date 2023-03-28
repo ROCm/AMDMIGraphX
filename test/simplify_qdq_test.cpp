@@ -23,7 +23,7 @@
  */
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/instruction.hpp>
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
@@ -686,8 +686,8 @@ TEST_CASE(conv_correctness)
     auto input = migraphx::argument(si, iv.data());
     std::vector<float> wv(sw.elements(), 10);
     auto weights = migraphx::argument(sw, wv.data());
-    p1.compile(migraphx::target(migraphx::make_target("ref")));
-    p2.compile(migraphx::target(migraphx::make_target("ref")));
+    p1.compile(migraphx::target(migraphx::ref::target{}));
+    p2.compile(migraphx::target(migraphx::ref::target{}));
 
     auto result1 = p1.eval({{"input", input}, {"weights", weights}}).back();
     std::vector<float> rv1(16);
@@ -736,8 +736,8 @@ TEST_CASE(dot_correctness)
     auto a = migraphx::argument(sh1, av.data());
     std::vector<float> bv(sh2.elements(), 10);
     auto b = migraphx::argument(sh2, bv.data());
-    p1.compile(migraphx::target(migraphx::make_target("ref")));
-    p2.compile(migraphx::target(migraphx::make_target("ref")));
+    p1.compile(migraphx::target(migraphx::ref::target{}));
+    p2.compile(migraphx::target(migraphx::ref::target{}));
 
     auto result1 = p1.eval({{"a", a}, {"b", b}}).back();
     std::vector<float> rv1(sh3.elements());

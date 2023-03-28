@@ -25,7 +25,7 @@
 #include <iostream>
 #include <vector>
 #include <hip/hip_runtime_api.h>
-#include <migraphx/register_target.hpp>
+#include <migraphx/gpu/target.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 #include <basic_ops.hpp>
@@ -57,7 +57,7 @@ TEST_CASE(host_same_buffer_copy)
     pp["a"] = migraphx::argument(ss, a_vec.data());
     pp["b"] = migraphx::argument(ss, b_vec.data());
     std::vector<float> gpu_result;
-    migraphx::target gpu_t = migraphx::make_target("gpu");
+    migraphx::target gpu_t = migraphx::gpu::target{};
     migraphx::compile_options options;
     options.offload_copy = true;
     p.compile(gpu_t, options);

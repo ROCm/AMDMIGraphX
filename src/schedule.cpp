@@ -327,10 +327,10 @@ struct stream_info
         return [=](auto f) {
             return fix<bool>([&](auto self, auto ins) {
                 return all_of(select(ins), [&](auto i) {
-                    if(has_stream(i))
-                        return f(this->get_stream(i));
-                    else
+                    if(iweights.at(i) == 0)
                         return self(i);
+                    else
+                        return f(this->get_stream(i));
                 });
             })(start);
         };

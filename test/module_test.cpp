@@ -25,7 +25,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/register_target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
 #include <sstream>
 #include "test.hpp"

@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/auto_contiguous.hpp>
+#include <migraphx/check_context.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>

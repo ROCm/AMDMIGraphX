@@ -25,7 +25,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 
-#include <half/half.hpp>
+#include <half.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

@@ -32,9 +32,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 
-/**
- *  Replace `allocate` instructions with target allocations or output parameters.
- */
 struct replace_allocate
 {
     allocation_model model;

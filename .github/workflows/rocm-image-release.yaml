@@ -6,16 +6,11 @@ on:
       rocm_release:
         description: ROCm release version
         required: true
-      benchmark-utils_repo:
-        description: Repository for benchmark utils
-        required: true
-        default: 'ROCmSoftwarePlatform/migraphx-benchmark-utils'
 
 jobs:
   release:
-    uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/rocm-release.yml@main
+    uses: ROCmSoftwarePlatform/actions/.github/workflows/rocm-release.yml@main
     with:
       rocm_release: ${{ github.event.inputs.rocm_release }}
-      benchmark-utils_repo: ${{ github.event.inputs.benchmark-utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

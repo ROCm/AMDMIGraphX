@@ -44,7 +44,7 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propogate(ins); }
+bool is_const(instruction_ref ins) { return ins->can_eval() and not skip_propogate(ins); }
 
 void propagate_constant::apply(module& m) const
 {
@@ -54,23 +54,14 @@ void propagate_constant::apply(module& m) const
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {
-        const bool is_const = is_const_ins(i);
-        if(is_const and i != last)
+        if(is_const(i) and i != last)
             continue;
 
-        if(i == last and is_const)
-        {
-            const_instrs.insert(i);
-        }
-        else
-        {
-            std::copy_if(i->inputs().begin(),
-                         i->inputs().end(),
-                         std::inserter(const_instrs, const_instrs.begin()),
-                         [&](const instruction_ref ins) {
-                             return is_const_ins(ins) and ins->name() != "@literal";
-                         });
-        }
+        std::copy_if(
+            i->inputs().begin(),
+            i->inputs().end(),
+            std::inserter(const_instrs, const_instrs.begin()),
+            [&](const instruction_ref ins) { return is_const(ins) and ins->name() != "@literal"; });
     }
 
     // Compute literals in parallel

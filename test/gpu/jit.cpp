@@ -27,8 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/register_target.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -235,7 +235,7 @@ TEST_CASE(code_object_hip)
     auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
     migraphx::compile_options options;
-    p.compile(migraphx::make_target("gpu"), options);
+    p.compile(migraphx::gpu::target{}, options);
 
     auto result =
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
@@ -261,7 +261,7 @@ TEST_CASE(compile_code_object_hip)
     auto x              = mm->add_literal(input_literal);
     auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
-    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
+    p.compile(migraphx::gpu::target{}, migraphx::compile_options{});
 
     auto result =
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
@@ -284,7 +284,7 @@ TEST_CASE(compile_pointwise)
     auto x              = mm->add_literal(input_literal);
     auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
-    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
+    p.compile(migraphx::gpu::target{}, migraphx::compile_options{});
 
     auto result =
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());

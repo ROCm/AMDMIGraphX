@@ -21,35 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
-
-#include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/compile_options.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/context.hpp>
 #include <migraphx/ref/context.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
+#include <test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-struct pass;
-namespace ref {
-
-struct target
+TEST_CASE(context)
 {
-    std::string name() const;
-    std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
-    migraphx::context get_context() const { return context{}; }
+    migraphx::context ctx = migraphx::ref::context{};
+    migraphx::value v     = ctx.to_value();
+    EXPECT(v.empty());
 
-    argument copy_to(const argument& arg) const { return arg; }
-    argument copy_from(const argument& arg) const { return arg; }
-    argument allocate(const shape& s) const;
-};
+    migraphx::context cpu_ctx = migraphx::ref::context{};
+    cpu_ctx.from_value(v);
+}
 
-MIGRAPHX_REGISTER_TARGET(target);
-
-} // namespace ref
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

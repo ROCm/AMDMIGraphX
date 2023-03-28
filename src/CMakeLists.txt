@@ -199,7 +199,6 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
-    select_module
     sigmoid
     sign
     sinh
@@ -251,10 +250,7 @@ find_package(PkgConfig)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
 
-find_package(msgpackc-cxx QUIET)
-if(NOT msgpackc-cxx_FOUND)
-    find_package(msgpack REQUIRED)
-endif()
+find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
@@ -290,10 +286,6 @@ endif()
 
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
-endif()
-
-if(BUILD_DEV)
-    target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
 rocm_export_targets(

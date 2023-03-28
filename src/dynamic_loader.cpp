@@ -21,43 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/manage_ptr.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <utility>
+
 #include <dlfcn.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void check_load_error(bool flush = false)
-{
-    char* error_msg = dlerror();
-    if(not flush and error_msg != nullptr)
-        MIGRAPHX_THROW("Dynamic loading or symbol lookup failed with " + std::string(error_msg));
-}
-
 struct dynamic_loader_impl
 {
     dynamic_loader_impl() = default;
-
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wignored-attributes"
-#endif
     dynamic_loader_impl(const fs::path& p, std::shared_ptr<tmp_dir> t = nullptr)
-        : handle(dlopen(p.string().c_str(), RTLD_LAZY),
-                 manage_deleter<decltype(&dlclose), &dlclose>{}),
-          temp(std::move(t))
+        : handle(dlopen(p.string().c_str(), RTLD_LAZY), &dlclose), temp(std::move(t))
     {
-        check_load_error();
     }
-
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
     static std::shared_ptr<dynamic_loader_impl> from_buffer(const char* image, std::size_t size)
     {
@@ -87,11 +68,10 @@ dynamic_loader::dynamic_loader(const std::vector<char>& buffer)
 
 std::shared_ptr<void> dynamic_loader::get_symbol(const std::string& name) const
 {
-    // flush any previous error messages
-    check_load_error(true);
+    dlerror();
     void* symbol = dlsym(impl->handle.get(), name.c_str());
     if(symbol == nullptr)
-        check_load_error();
+        MIGRAPHX_THROW("Symbol not found: " + name);
     return {impl, symbol};
 }
 

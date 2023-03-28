@@ -67,7 +67,9 @@ struct loader
     bool brief                  = false;
     std::string output_type;
     std::string output;
+    std::string default_dyn_dim;
     std::vector<std::string> param_dims;
+    std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
 
     void parse(argument_parser& ap)
@@ -82,7 +84,7 @@ struct loader
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
-        ap(batch, {"--batch"}, ap.help("Set batch size for model"));
+        ap(batch, {"--batch"}, ap.help("For a static model, set batch size. For a dynamic batch model, sets the batch size at runtime."));
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap(skip_unknown_operators,
            {"--skip-unknown-operators"},
@@ -95,7 +97,14 @@ struct loader
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
            ap.append(),
            ap.nargs(2));
-
+        ap(dyn_param_dims,
+           {"--dyn-input-dim"},
+           ap.help("Dynamic dimensions of a parameter (format: \"@name {min1, max1, [opt1_1, opt1_2, ...]} {min2, max2}, etc.\")"),
+           ap.append(),
+           ap.nargs(2));
+        ap(default_dyn_dim,
+            {"--default-dyn-dim"},
+            ap.help("Default dynamic dimension (format: \"{min, max, [opts]}\")."));
         ap(output_names,
            {"--output-names"},
            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
@@ -146,8 +155,52 @@ struct loader
         return map_input_dims;
     }
 
+    static std::set<std::size_t> parse_opts_str(std::string opts_str)
+    {
+        // expecting string formatted as "{opt_0, opt_1, ...}" or with "[]"
+        auto trimmed_str = migraphx::trim(opts_str,
+            [](auto c){ return contains(std::string("{["), c); },
+            [](auto c){ return contains(std::string("}]"), c); }
+        );
+        auto splits = migraphx::split_string(trimmed_str, ',');
+        std::set<std::size_t> ret;
+        std::transform(splits.begin(),
+                       splits.end(),
+                       std::inserter(ret, ret.begin()),
+                       [](const auto& opt_str) { return value_parser<std::size_t>::apply(opt_str); });
+        return ret;
+    }
+
+    static migraphx::shape::dynamic_dimension parse_dyn_dim_str(std::string dd_str)
+    {
+        // expecting string formatted as "{min, max, {opts}}" or "[min, max]"
+        if(dd_str.empty())
+        {
+            return migraphx::shape::dynamic_dimension{1, 1};
+        }
+        auto trimmed_str = migraphx::trim(dd_str,
+            [](auto c){ return contains(std::string("{["), c); },
+            [](auto c){ return contains(std::string("}]"), c); }
+        );
+        auto splits = migraphx::split_string(trimmed_str, ',');
+        switch(splits.size())
+        {
+            case 2:
+                return {value_parser<std::size_t>::apply(splits[0]), value_parser<std::size_t>::apply(splits[1])};
+            case 3:
+                return {value_parser<std::size_t>::apply(splits[0]),
+                    value_parser<std::size_t>::apply(splits[1]),
+                    parse_opts_str(splits[2])
+                };
+            default:
+                MIGRAPHX_THROW("Failed to parse dynamic dimension: " + dd_str);
+        }
+    }
+
     static auto parse_dyn_dim_map(const std::vector<std::string>& param_dyn_dims)
     {
+        // expecting vector of strings formatted like
+        // {"@param_name_0", "[dd_str_0, dd_str_1, ...]", ...}
         std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
         std::string name = "";
         for(auto&& x : param_dyn_dims)
@@ -158,20 +211,12 @@ struct loader
             }
             else
             {
-                map_dyn_input_dims[name]
+                map_dyn_input_dims[name].push_back(parse_dyn_dim_str(x));
             }
         }
+        return map_dyn_input_dims;
     }
 
-    static auto parse_dyn_dim_str(std::string dd_str)
-    {
-        // expecting string formatted as "{min, max, {opts}}" or "{min, max}"
-        if(dd_str.empty())
-        {
-            return migraphx::shape::dynamic_dimension{1, 1};
-        }
-        auto t_str = migraphx::trim(dd_str, [](auto c) { return contains("{}", c); });
-    }
 
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
@@ -190,6 +235,7 @@ struct loader
         if(model.empty())
         {
             auto map_input_dims    = parse_param_dims(param_dims);
+            auto map_dyn_input_dims = parse_dyn_dim_map(dyn_param_dims);
             auto output_node_names = parse_output_names(output_names);
             if(file_type.empty())
             {
@@ -206,13 +252,25 @@ struct loader
             if(file_type == "onnx")
             {
                 onnx_options options;
-                options.default_dim_value      = batch;
-                options.default_dyn_dim_value  = default_dyn_dim;
+                if(default_dyn_dim.empty())
+                {
+                    options.default_dim_value = batch;
+                }
+                else
+                {
+                    options.default_dyn_dim_value = parse_dyn_dim_str(default_dyn_dim);
+                }
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
-                options.map_input_dims         = map_input_dims;
-                options.map_dyn_input_dims     = map_dyn_inputs_dims;
-                p                              = parse_onnx(file, options);
+                if(map_dyn_input_dims.empty())
+                {
+                    options.map_input_dims = map_input_dims;
+                }
+                else
+                {
+                    options.map_dyn_input_dims = map_dyn_input_dims;
+                }
+                p = parse_onnx(file, options);
             }
             else if(file_type == "tf")
             {
@@ -317,14 +375,14 @@ struct program_params
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
     }
 
-    auto generate(const program& p, const target& t, bool offload)
+    auto generate(const program& p, const target& t, bool offload, unsigned batch)
     {
         parameter_map m;
         for(auto&& s : fill0)
             m[s] = fill_argument(p.get_parameter_shape(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(p.get_parameter_shape(s), 1);
-        fill_param_map(m, p, t, offload);
+        fill_param_map(m, p, t, offload, batch);
         return m;
     }
 };
@@ -377,13 +435,17 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.split_single_dyn_dim,
+           {"--split-single-dyn-dim"},
+           ap.help("If there is a single non-fixed dynamic dimension in the model, then split to static submodules"),
+           ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
     }
 
     auto params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), co.offload_copy);
+        return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
     }
 
     program compile()
@@ -456,7 +518,7 @@ struct verify : command<verify>
         std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
-        auto m = c.parameters.generate(p, t, true);
+        auto m = c.parameters.generate(p, t, true, c.l.batch);
 
         if(per_instruction)
         {

@@ -4058,12 +4058,7 @@ def int8_gemm_verify():
         outputs=['x'],
     )
 
-    convert = onnx.helper.make_node(
-        'Cast',
-        inputs=['x'],
-        outputs=['y'],
-        to=6
-    )
+    convert = onnx.helper.make_node('Cast', inputs=['x'], outputs=['y'], to=6)
 
     return ([node, convert], [m1, m2], [y])
 

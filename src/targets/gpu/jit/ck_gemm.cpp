@@ -349,9 +349,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         std::array<std::size_t, 3> config{m, n, k};
         auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape}));
         auto ip         = instance{get_instance(tuning_val, [&](const auto& x) -> bool {
-            return true;/* get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
-                   get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
-                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9]; */
+            return true; /* get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
+                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
+                    get_type(b_shape) == x[5] and get_type(c_shape) == x[9]; */
         })};
         assert(inputs.size() < 4 or v.contains("post"));
         if(v.contains("post"))
@@ -374,13 +374,14 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             gemm_type += "Padding";
         ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
-        auto blocks_per_batch = int_div_ceil(m, 128) * int_div_ceil(n, 128);;//ip.get_grid_size(config);
+        auto blocks_per_batch = int_div_ceil(m, 128) * int_div_ceil(n, 128);
+        ; // ip.get_grid_size(config);
 
         hip_compile_options options;
-        auto block_size = 256;//ip.get_block_size();
+        auto block_size = 256; // ip.get_block_size();
         auto grid_size  = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
-        //auto new_inputs = inputs;
+        // auto new_inputs = inputs;
         auto new_inputs = inputs;
         // auto out_s = inputs.back();
         // new_inputs.back() = shape{shape::int8_type, out_s.lens(), out_s.strides()};

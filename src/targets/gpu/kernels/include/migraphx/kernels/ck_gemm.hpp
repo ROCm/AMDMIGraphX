@@ -46,7 +46,9 @@ using ck_transposeb = decltype(make_shape(ck_transposeb_dims(get_shape_c<Tensor>
                                           ck_transposeb_dims(get_shape_c<Tensor>{}.strides)));
 
 template <class... Xs>
-constexpr void noop(Xs...) {}
+constexpr void noop(Xs...)
+{
+}
 
 template <class G, class E, class A, class B, class... Ds>
 __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
@@ -78,17 +80,17 @@ __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
     //                 GridwiseGemm::MakeAGridDescriptor_K0_M0_M1_K1(a_grid_desc_k0_m_k1);
     // noop(a, b, e, M, N, K, a_grid_desc_k0_m_k1, a_grid_desc_k0_m0_m1_k1, ds...);
 
-
-
     //////////////////////////
     // constexpr const G gemm{};
 
-    // constexpr const auto a_grid_desc_m_k = gemm.matrix_padder.PadADescriptor_M_K(to_ck_tensor<A>());
-    // constexpr const auto b_grid_desc_n_k =
+    // constexpr const auto a_grid_desc_m_k =
+    // gemm.matrix_padder.PadADescriptor_M_K(to_ck_tensor<A>()); constexpr const auto
+    // b_grid_desc_n_k =
     //     gemm.matrix_padder.PadBDescriptor_N_K(to_ck_tensor<ck_transposeb<B>>());
 
-    // constexpr const auto e_grid_desc_m_n = gemm.matrix_padder.PadCDescriptor_M_N(to_ck_tensor<E>());
-    // constexpr const auto ds_grid_desc_m_n =
+    // constexpr const auto e_grid_desc_m_n =
+    // gemm.matrix_padder.PadCDescriptor_M_N(to_ck_tensor<E>()); constexpr const auto
+    // ds_grid_desc_m_n =
     //     ck::make_tuple(gemm.matrix_padder.PadCDescriptor_M_N(to_ck_tensor<Ds>())...);
     // constexpr const auto block_2_etile_map = gemm.MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
 
@@ -112,7 +114,8 @@ __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
     // __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     // constexpr const bool HasMainKBlockLoop =
-    //     GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_ak0_m_ak1.GetLength(ck::Number<0>{}) *
+    //     GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_ak0_m_ak1.GetLength(ck::Number<0>{})
+    //     *
     //                                              a_grid_desc_ak0_m_ak1.GetLength(ck::Number<2>{}));
     // GridwiseGemm::template Run<HasMainKBlockLoop>(to_ck_const_pointer(a.data()),
     //                                               to_ck_const_pointer(b.data()),

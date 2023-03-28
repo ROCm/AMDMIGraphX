@@ -187,7 +187,7 @@ struct nonmaxsuppression
         return result;
     }
 
-    inline bool suppress_by_iou(box& b1, box& b2, double iou_threshold) const
+    inline bool suppress_by_iou(box b1, box b2, double iou_threshold) const
     {
         b1.sort();
         b2.sort();
@@ -302,17 +302,15 @@ struct nonmaxsuppression
 
                 std::vector<std::pair<double, int64_t>> remainder_boxes(boxes_heap.size());
 
-                auto it =
-                    std::copy_if(std::execution::par,
-                                 boxes_heap.begin(),
-                                 boxes_heap.end(),
-                                 remainder_boxes.begin(),
-                                 [&](auto iou_candidate_box) {
-                                     auto iou_box =
-                                         batch_box(batch_boxes_start, iou_candidate_box.second);
-                                     return not this->suppress_by_iou(
-                                         std::ref(iou_box), std::ref(next_box), iou_threshold);
-                                 });
+                auto it = std::copy_if(
+                    std::execution::par,
+                    boxes_heap.begin(),
+                    boxes_heap.end(),
+                    remainder_boxes.begin(),
+                    [&](auto iou_candidate_box) {
+                        auto iou_box = batch_box(batch_boxes_start, iou_candidate_box.second);
+                        return not this->suppress_by_iou(iou_box, next_box, iou_threshold);
+                    });
 
                 remainder_boxes.resize(it - remainder_boxes.begin());
                 boxes_heap = remainder_boxes;

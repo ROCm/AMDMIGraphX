@@ -240,9 +240,8 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
 #else // MIGRAPHX_USE_HIPRTC
 
-
 std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>, // NOLINT
-                                                           std::string, // NOLINT
+                                                           std::string,                  // NOLINT
                                                            const std::string&)
 {
     MIGRAPHX_THROW("Not using hiprtc");

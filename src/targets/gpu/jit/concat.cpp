@@ -80,7 +80,7 @@ struct concat_compiler : compiler<concat_compiler>
         auto axis           = find_fast_axis(options.inputs);
         vectorize vec{};
         if(axis != v.at("axis").to<std::size_t>())
-            vec            = vectorize::elements(ctx, axis, options.inputs);
+            vec = vectorize::elements(ctx, axis, options.inputs);
         options.set_launch_params(
             v, compute_global_for(ctx, get_concat_elements(options.inputs) / vec.size, 256));
         auto src = interpolate_string(

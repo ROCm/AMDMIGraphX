@@ -17,7 +17,7 @@ namespace gpu {
 
 struct ck_gemm
 {
-    operation op = make_op("dot");
+    operation op = make_op("quant_dot");
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -46,7 +46,7 @@ struct ck_gemm
             check_gemm_shape(input);
         auto r = op.compute_shape({a, b});
         if(mods.empty())
-            return r;
+            return r.with_type(shape::int8_type);
         return r.with_type(mods.front()->get_output_shapes().front().type());
     }
 };
@@ -56,7 +56,7 @@ namespace {
 
 MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
 {
-    if(ins->name() != "dot")
+    if(ins->name() != "quant_dot")
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
@@ -87,7 +87,7 @@ struct find_ck_gemm_pointwise
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         assert(gemm_it != inputs.end());
-        if(ins->get_shape().type() != shape::half_type)
+        if(ins->get_shape().type() != shape::int8_type and ins->get_shape().type())
             return;
         if(gemm_idx != 0)
         {
@@ -110,7 +110,7 @@ struct find_ck_gemm_pointwise
 
 struct find_ck_gemm
 {
-    auto matcher() const { return match::name("dot")(is_ck_gemm().bind("gemm")); }
+    auto matcher() const { return match::name("quant_dot")(is_ck_gemm().bind("gemm")); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {

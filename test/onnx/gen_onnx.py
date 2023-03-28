@@ -4032,6 +4032,43 @@ def matmulinteger_test():
 
 
 @onnx_test()
+def int8_gemm():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [256, 256])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [256, 256])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [256, 256])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def int8_gemm_verify():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [256, 256])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [256, 256])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [256, 256])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['x'],
+    )
+
+    convert = onnx.helper.make_node(
+        'Cast',
+        inputs=['x'],
+        outputs=['y'],
+        to=6
+    )
+
+    return ([node, convert], [m1, m2], [y])
+
+
+@onnx_test()
 def matmulinteger_dyn_error():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [None, 6, 16])
     m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [None, 16, 8])

@@ -58,6 +58,60 @@ static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <args.hpp>
 #include <migraphx/kernels/ck_gemm.hpp>
 #include <migraphx/kernels/pointwise.hpp>
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_dl.hpp"
+
+using Row = ck::tensor_layout::gemm::RowMajor;
+using Col = ck::tensor_layout::gemm::ColumnMajor;
+
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+using Empty_Tuple   = ck::Tuple<>;
+
+using GEMM = ck::tensor_operation::device::DeviceGemmMultipleD_Dl<    
+	Row,
+	Row,
+	Empty_Tuple,
+	Row,
+	int8_t,
+	int8_t,
+	int32_t,
+	Empty_Tuple,
+	int8_t, //EDataType
+	PassThrough,
+	PassThrough,
+	PassThrough,
+	ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+	256,
+	128,
+	128,
+	16,
+	4,
+	4,
+	4,
+	1,
+	S<8,2>,
+	S<8,2>,
+	S<8,1,1,4>,
+	S<2,1,128,1>,
+	S<1,2,0,3>,
+	S<1,2,0,3>,
+	S<4,1,1,4>,
+	S<1,2,0,3>,
+	S<1,1,1,4>,
+	S<2,1,4,4>,
+	S<8,1,32,1>,
+	S<0,3,1,2>,
+	S<0,3,1,2>,
+	S<1,1,4,1>,
+	S<0,3,1,2>,
+	S<1,1,4,4>,
+	S<0,1,2,3,4,5>,
+	5,
+	4>;
 
 namespace migraphx {
 
@@ -68,7 +122,7 @@ extern "C" {
 __global__ void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        ck_gemm<CK_DeviceGemmMultipleD<${instance}>, ${blocks_per_batch}>(xs...);
+        ck_gemm<GEMM, ${blocks_per_batch}>(xs...);
     });
 }
 
@@ -295,9 +349,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         std::array<std::size_t, 3> config{m, n, k};
         auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape}));
         auto ip         = instance{get_instance(tuning_val, [&](const auto& x) -> bool {
-            return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
+            return true;/* get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
-                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9];
+                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9]; */
         })};
         assert(inputs.size() < 4 or v.contains("post"));
         if(v.contains("post"))
@@ -320,19 +374,23 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             gemm_type += "Padding";
         ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
 
-        auto blocks_per_batch = ip.get_grid_size(config);
+        auto blocks_per_batch = int_div_ceil(m, 128) * int_div_ceil(n, 128);;//ip.get_grid_size(config);
 
         hip_compile_options options;
-        auto block_size = ip.get_block_size();
+        auto block_size = 256;//ip.get_block_size();
         auto grid_size  = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
-        options.inputs         = inputs;
+        //auto new_inputs = inputs;
+        auto new_inputs = inputs;
+        // auto out_s = inputs.back();
+        // new_inputs.back() = shape{shape::int8_type, out_s.lens(), out_s.strides()};
+        options.inputs         = new_inputs;
         options.output         = c_shape;
         options.kernel_name    = v.get("kernel", "ck_gemm_kernel");
-        options.virtual_inputs = inputs;
+        options.virtual_inputs = new_inputs;
         if(can_fold_batch)
         {
-            auto vinputs = inputs;
+            auto vinputs = new_inputs;
             fold_batch_dims(vinputs[0]);
             remove_batch_dims(vinputs[1]);
             std::for_each(vinputs.begin() + 2, vinputs.end(), fold_batch_dims);

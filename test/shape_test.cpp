@@ -335,7 +335,7 @@ TEST_CASE(test_shape_subshapes_to_dynamic)
     sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
     sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
     migraphx::shape s0{sub_shapes0};
-    migraphx::shape s1 = s0.to_dynamic();
+    migraphx::shape s1                       = s0.to_dynamic();
     std::vector<migraphx::shape> sub_shapes1 = {};
     sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
     sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}}});
@@ -364,7 +364,7 @@ TEST_CASE(test_shape_subshapes_to_static)
     sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
     sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
     migraphx::shape s0{sub_shapes0};
-    migraphx::shape s1 = s0.to_static(3);
+    migraphx::shape s1                       = s0.to_static(3);
     std::vector<migraphx::shape> sub_shapes1 = {};
     sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4}});
     sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});

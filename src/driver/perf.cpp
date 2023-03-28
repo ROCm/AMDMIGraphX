@@ -39,7 +39,8 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-parameter_map fill_param_map(parameter_map& m, const program& p, const target& t, bool offload, unsigned batch)
+parameter_map
+fill_param_map(parameter_map& m, const program& p, const target& t, bool offload, unsigned batch)
 {
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -47,7 +48,7 @@ parameter_map fill_param_map(parameter_map& m, const program& p, const target& t
         if(arg.empty())
         {
             auto s = x.second.to_static(batch);
-            arg = generate_argument(s, get_hash(x.first));
+            arg    = generate_argument(s, get_hash(x.first));
         }
         if(not offload)
             arg = t.copy_to(arg);

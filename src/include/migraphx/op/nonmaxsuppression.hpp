@@ -293,8 +293,6 @@ struct nonmaxsuppression
                 const auto next_top_score = boxes_heap.front();
                 auto next_box             = batch_box(batch_boxes_start, next_top_score.second);
                 auto next_box_idx         = next_top_score.second;
-                // Poor man's "pop" for vector
-                boxes_heap.erase(boxes_heap.begin());
 
                 selected_boxes_inside_class++;
                 selected_indices.push_back(batch_idx);
@@ -305,7 +303,7 @@ struct nonmaxsuppression
 
                 auto it = std::copy_if(
                     std::execution::par,
-                    boxes_heap.begin(),
+                    boxes_heap.begin() + 1,
                     boxes_heap.end(),
                     remainder_boxes.begin(),
                     [&](auto iou_candidate_box) {

@@ -230,8 +230,6 @@ struct nonmaxsuppression
     filter_boxes_by_score(T scores_start, std::size_t num_boxes, double score_threshold) const
     {
         std::vector<std::pair<double, int64_t>> boxes_heap;
-        auto insert_to_boxes_heap =
-            make_function_output_iterator([&](const auto& x) { boxes_heap.push_back(x); });
         int64_t box_idx = 0;
 
         if(score_threshold > 0.0)
@@ -239,7 +237,7 @@ struct nonmaxsuppression
             transform_if(
                 scores_start,
                 scores_start + num_boxes,
-                insert_to_boxes_heap,
+                std::back_inserter(boxes_heap),
                 [&](auto sc) {
                     box_idx++;
                     return sc >= score_threshold;
@@ -248,11 +246,13 @@ struct nonmaxsuppression
         }
         else
         { // score is irrelevant, just push into boxes_heap and make a score-index pair
-            std::transform(
-                scores_start, scores_start + num_boxes, insert_to_boxes_heap, [&](auto sc) {
-                    box_idx++;
-                    return std::make_pair(sc, box_idx - 1);
-                });
+            std::transform(scores_start,
+                           scores_start + num_boxes,
+                           std::back_inserter(boxes_heap),
+                           [&](auto sc) {
+                               box_idx++;
+                               return std::make_pair(sc, box_idx - 1);
+                           });
         }
         std::sort(std::execution::par, boxes_heap.begin(), boxes_heap.end());
         return boxes_heap;

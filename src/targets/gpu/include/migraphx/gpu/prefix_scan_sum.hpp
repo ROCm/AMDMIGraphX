@@ -33,7 +33,6 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/type_name.hpp>
 #include <utility>
 #include <iostream>
 

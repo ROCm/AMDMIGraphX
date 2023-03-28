@@ -27,6 +27,7 @@
 #include <random>
 #include <limits>
 #include <migraphx/literal.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
@@ -5137,21 +5138,10 @@ TEST_CASE(nms_huge_test_random_data)
     unsigned long n = 31702968;
     migraphx::shape boxes_s{migraphx::shape::float_type, {n, 4}};
 
-    std::vector<float> boxes_vec(4 * n);
-
     migraphx::shape scores_s{migraphx::shape::float_type, {n}};
-    std::vector<float> scores_vec(n);
 
-    size_t sample_size = 100000;
-    float seed         = 0.0f;
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<float> rand_samples(sample_size);
-    std::generate(boxes_vec.begin(), boxes_vec.end(), [&]() { return dis(gen); });
-    std::generate(scores_vec.begin(), scores_vec.end(), [&]() { return dis(gen); });
-
-    auto boxes_l       = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
-    auto scores_l      = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto boxes_l       = mm->add_literal(migraphx::generate_literal(boxes_s, 1337));
+    auto scores_l      = mm->add_literal(migraphx::generate_literal(scores_s, 1337));
     auto max_out_l     = mm->add_literal(migraphx::literal(
         migraphx::shape{migraphx::shape::int64_type, {1}}, {9223372036854775807}));
     auto iou_threshold = mm->add_literal(

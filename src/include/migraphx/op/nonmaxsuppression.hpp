@@ -141,6 +141,7 @@ struct nonmaxsuppression
     {
         std::array<double, 2> x;
         std::array<double, 2> y;
+        double stored_area;
 
         void sort()
         {
@@ -184,16 +185,16 @@ struct nonmaxsuppression
             result.y = {static_cast<double>(start[0]), static_cast<double>(start[2])};
         }
 
+        result.sort();
+        result.stored_area = result.area();
+
         return result;
     }
 
     inline bool suppress_by_iou(box b1, box b2, double iou_threshold) const
     {
-        b1.sort();
-        b2.sort();
-
-        const double area1 = b1.area();
-        const double area2 = b2.area();
+        const double area1 = b1.stored_area;
+        const double area2 = b2.stored_area;
 
         if(area1 <= .0f or area2 <= .0f)
         {

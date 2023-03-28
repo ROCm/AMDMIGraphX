@@ -253,7 +253,9 @@ struct nonmaxsuppression
                                return std::make_pair(sc, box_idx - 1);
                            });
         }
-        std::sort(std::execution::par, boxes_heap.begin(), boxes_heap.end());
+        std::sort(std::execution::par, boxes_heap.begin(), boxes_heap.end(), [&](auto a, auto b) {
+            return a.first > b.first;
+        });
         return boxes_heap;
     }
 

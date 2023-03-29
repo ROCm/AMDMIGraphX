@@ -504,33 +504,6 @@ bool shape::any_of_dynamic() const
     });
 }
 
-bool shape::valid() const
-{
-    if(not this->dynamic())
-    {
-        return true;
-    }
-    // check min < max and opts within [min, max]
-    bool is_valid = std::none_of(this->dyn_dims().cbegin(), this->dyn_dims().cend(), [&](auto dd) {
-        if(dd.min > dd.max)
-        {
-            return true;
-        };
-        if(std::any_of(dd.opts.cbegin(), dd.opts.cend(), [&](auto o) {
-               return (o < dd.min or o > dd.max);
-           }))
-        {
-            return true;
-        };
-        return false;
-    });
-    if(is_valid)
-    {
-        return true;
-    };
-    return false;
-}
-
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
 
 std::vector<std::size_t> shape::min_lens() const

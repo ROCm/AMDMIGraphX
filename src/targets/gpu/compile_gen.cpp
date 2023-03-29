@@ -256,11 +256,10 @@ static bool use_lazy_inner(instruction_ref ins)
     return contains(output->name(), "reduce") or output->name() == "@return";
 }
 
-std::string generate_reduce(const module& rm, const std::string& name)
+std::string generate_reduce(const module& m, const std::string& name)
 {
-    module m = rm;
     cpp_generator g;
-    auto ilens    = rm.get_parameter_shapes().begin()->second.lens();
+    auto ilens    = m.get_parameter_shapes().begin()->second.lens();
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))

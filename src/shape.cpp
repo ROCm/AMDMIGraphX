@@ -483,9 +483,10 @@ shape shape::to_dynamic() const
     if(not sub_shapes().empty())
     {
         std::vector<shape> subs;
-        std::transform(sub_shapes().cbegin(), sub_shapes().cend(), subs.begin(), [](auto s) {
-            return s.to_dynamic();
-        });
+        std::transform(sub_shapes().cbegin(),
+                       sub_shapes().cend(),
+                       std::back_inserter(subs),
+                       [](auto s) { return s.to_dynamic(); });
         return {subs};
     }
     if(this->dynamic())
@@ -500,9 +501,10 @@ shape shape::to_static(std::size_t x) const
     if(not sub_shapes().empty())
     {
         std::vector<shape> subs;
-        std::transform(sub_shapes().cbegin(), sub_shapes().cend(), subs.begin(), [&](auto s) {
-            return s.to_static(x);
-        });
+        std::transform(sub_shapes().cbegin(),
+                       sub_shapes().cend(),
+                       std::back_inserter(subs),
+                       [&](auto s) { return s.to_static(x); });
         return {subs};
     }
     if(not this->dynamic())

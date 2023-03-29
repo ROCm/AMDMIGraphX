@@ -566,7 +566,7 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 }
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
-    os << "[ " << x.min << ", " << x.max << ", [" << migraphx::to_string_range(x.opts) << "] ]";
+    os << "[ " << x.min << ", " << x.max << ", {" << migraphx::to_string_range(x.opts) << "} ]";
     return os;
 }
 

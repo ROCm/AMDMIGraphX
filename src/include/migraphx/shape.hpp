@@ -134,7 +134,8 @@ struct shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
-    // Construct a dynamic shape from vectors of mins, maxes, and opts
+    // Construct a dynamic shape from vectors of mins, maxes, and opts.
+    // opts_list is a vector of opt sets that corresponds to each min and max.
     shape(type_t t,
           std::vector<std::size_t> mins,
           std::vector<std::size_t> maxes,

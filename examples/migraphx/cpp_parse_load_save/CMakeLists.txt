@@ -27,7 +27,7 @@ project (PLS)
 set (CMAKE_CXX_STANDARD 14)
 set (EXAMPLE parse_load_save)
 
-list (APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+list (APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package (migraphx)
 
 message("source file: " ${EXAMPLE}.cpp " ---> bin: " ${EXAMPLE})

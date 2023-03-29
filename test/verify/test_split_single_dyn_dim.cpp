@@ -46,9 +46,4 @@ struct test_split_single_dyn_dim : verify_program<test_split_single_dyn_dim>
         mm->add_return({add_ins});
         return p;
     }
-
-    migraphx::compile_options get_compile_options() const
-    {
-        return migraphx::compile_options{false, true, false, true};
-    }
 };

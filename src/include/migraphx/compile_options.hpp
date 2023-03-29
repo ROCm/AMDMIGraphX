@@ -34,7 +34,7 @@ struct compile_options
 {
     /**
      * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from the GPU and host
+     * to copy parameters and output to/from an offload device like a GPU.
      */
     bool offload_copy = false;
 
@@ -42,7 +42,7 @@ struct compile_options
     bool exhaustive_tune = false;
 
     /// Use the split_single_dyn_dim pass
-    bool split_single_dyn_dim = false;
+    bool split_single_dyn_dim = true;
     tracer trace{};
 };
 

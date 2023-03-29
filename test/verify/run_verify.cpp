@@ -252,7 +252,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.c_options); });
+        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.compile_options); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

@@ -27,86 +27,75 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes,
-                     std::string& dyn_param_str,
-                     int& dyn_index,
-                     int& min_dim,
-                     int& max_dim)
+struct dynamic_dimensions_check
+{
+    std::string dyn_param_str;
+    size_t dyn_index;
+    size_t min_dim;
+    size_t max_dim;
+};
+
+optional<dynamic_dimensions_check>
+has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
 {
     // True if parameters contain exactly one dynamic shape with exactly one non-fixed
     // dynamic_dimension.
-    int num_dynamic = 0;
-    for(const auto& ps : param_shapes)
-    {
-        if(ps.second.dynamic())
-        {
-            num_dynamic += 1;
-            if(num_dynamic > 1)
-            {
-                return false;
-            }
-            int num_nf = 0;
-            auto dds   = ps.second.dyn_dims();
-            for(int i = 0; i < dds.size(); ++i)
-            {
-                const auto& dd = dds.at(i);
-                if(not dd.is_fixed())
-                {
-                    num_nf += 1;
-                    min_dim   = dd.min;
-                    max_dim   = dd.max;
-                    dyn_index = i;
-                }
-            }
-            if(num_nf == 1)
-            {
-                dyn_param_str = ps.first;
-            }
-            else
-            {
-                return false;
-            }
-        }
-    }
-    return (num_dynamic == 1);
+    auto is_dynamic = [](const auto& p) { return p.second.dynamic(); };
+    auto ps_it      = std::find_if(param_shapes.begin(), param_shapes.end(), is_dynamic);
+    if(ps_it == param_shapes.end())
+        return std::nullopt;
+    // Check if there is a second dynamic parameter
+    if(std::any_of(std::next(ps_it), param_shapes.end(), is_dynamic))
+        return std::nullopt;
+    const auto& dds = ps_it->second.dyn_dims();
+
+    auto is_non_fixed = [](const auto& dd) { return not dd.is_fixed(); };
+    auto dds_it       = std::find_if(dds.begin(), dds.end(), is_non_fixed);
+    if(dds_it == dds.end())
+        return std::nullopt;
+    // Check if there is a second non-fixed dynamic_dimension
+    if(std::any_of(std::next(dds_it), dds.end(), is_non_fixed))
+        return std::nullopt;
+    return dynamic_dimensions_check{ps_it->first,
+                                    static_cast<std::size_t>(std::distance(dds.begin(), dds_it)),
+                                    dds_it->min,
+                                    dds_it->max};
 }
 
 /**
- * Make all the batch sizes in the dynamic_dimension range.
+ * Makes all the shapes in the dynamic_dimension range.
  * Probably won't work for `if` and `loop` instructions, depending on how the submodules for those
- * work. Insert select_module instruction to the top, replace return bypassing other instructions.
+ * work. Inserts select_module instruction to the top. Replaces return, bypassing other
+ * instructions.
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
-    module_ref mm     = &mpm.get_module();
-    auto param_names  = mm->get_parameter_names();
-    auto param_shapes = mm->get_parameter_shapes();
-    std::string dyn_param_name;
-    int dyn_index;
-    int min_dim;
-    int max_dim;
-    if(has_one_dyn_dim(param_shapes, dyn_param_name, dyn_index, min_dim, max_dim))
+    module_ref mm                               = &mpm.get_module();
+    auto param_names                            = mm->get_parameter_names();
+    auto param_shapes                           = mm->get_parameter_shapes();
+    optional<dynamic_dimensions_check> dd_check = has_one_dyn_dim(param_shapes);
+    if(dd_check.has_value())
     {
-        const auto& dyn_param = mm->get_parameter(dyn_param_name);
-        auto dyn_param_shape  = mm->get_parameter_shape(dyn_param_name);
+        const auto& dyn_param = mm->get_parameter(dd_check->dyn_param_str);
+        auto dyn_param_shape  = mm->get_parameter_shape(dd_check->dyn_param_str);
         std::vector<module_ref> submodules;
         // create submodules for each dimension size
-        for(int dim_size = min_dim; dim_size <= max_dim; ++dim_size)
+        for(size_t dim_size : migraphx::range(dd_check->min_dim, dd_check->max_dim + 1))
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
-            // instruction map for new static submodule parameters
+            // instruction map for new static shaped submodule parameters
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             // create static shape using dim_size
-            auto static_lens          = dyn_param_shape.max_lens();
-            static_lens.at(dyn_index) = dim_size;
-            auto static_param         = submod->add_parameter(
-                dyn_param_name, migraphx::shape{dyn_param_shape.type(), static_lens});
-            map_ins[dyn_param] = static_param;
-            auto outputs       = submod->add_instructions(mm, map_ins);
+            auto static_lens                    = dyn_param_shape.max_lens();
+            static_lens.at(dd_check->dyn_index) = dim_size;
+            map_ins[dyn_param]                  = submod->add_parameter(
+                dd_check->dyn_param_str, migraphx::shape{dyn_param_shape.type(), static_lens});
+            auto outputs = submod->add_instructions(mm, map_ins);
             submod->add_return({outputs});
             submodules.push_back(submod);
         }
@@ -124,7 +113,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
             sm_inputs,
             submodules);
         std::vector<instruction_ref> outputs(output_shapes.size());
-        for(int i = 0; i < output_shapes.size(); ++i)
+        for(size_t i = 0; i < output_shapes.size(); ++i)
         {
             outputs.at(i) =
                 mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", i}}), sm_ins);

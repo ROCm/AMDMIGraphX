@@ -74,4 +74,11 @@ struct test_select_module_add : verify_program<test_select_module_add>
 
         return p;
     }
+
+    migraphx::compile_options get_compile_options() const
+    {
+        migraphx::compile_options co;
+        co.split_single_dyn_dim = false;
+        return co;
+    };
 };

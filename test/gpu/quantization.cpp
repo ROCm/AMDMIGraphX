@@ -27,8 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/ref/target.hpp>
-#include <migraphx/gpu/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/propagate_constant.hpp>
@@ -39,8 +38,8 @@
 
 TEST_CASE(gpu_target_copy)
 {
-    migraphx::target gpu_t = migraphx::gpu::target{};
-    migraphx::target ref_t = migraphx::ref::target{};
+    migraphx::target gpu_t = migraphx::make_target("gpu");
+    migraphx::target ref_t = migraphx::make_target("ref");
     migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
 
     auto ref_arg_orig  = migraphx::generate_argument(s, 0x123456L);
@@ -104,11 +103,11 @@ TEST_CASE(int8_quantization)
         m["a"] = migraphx::generate_argument(sa);
         m["b"] = migraphx::generate_argument(sb);
         std::vector<float> ref_result;
-        migraphx::target ref_t = migraphx::ref::target{};
+        migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, m, ref_result);
 
         std::vector<float> gpu_result;
-        migraphx::target gpu_t = migraphx::gpu::target{};
+        migraphx::target gpu_t = migraphx::make_target("gpu");
         run_prog(p, gpu_t, m, gpu_result);
 
         EXPECT(migraphx::verify_range(ref_result, gpu_result));

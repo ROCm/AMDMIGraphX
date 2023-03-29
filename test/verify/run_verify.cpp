@@ -26,7 +26,7 @@
 #include "verify_program.hpp"
 #include "test.hpp"
 #include <migraphx/env.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/load_save.hpp>
@@ -120,7 +120,7 @@ std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
                                                     migraphx::parameter_map inputs,
                                                     const migraphx::compile_options& c_opts) const
 {
-    migraphx::ref::target t{};
+    migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
     compile_check(p, t, c_opts);
     return p.eval(std::move(inputs));
@@ -252,7 +252,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.c_options); });
+        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.compile_options); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

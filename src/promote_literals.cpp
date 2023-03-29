@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/pull_up_literals.hpp>
+#include <migraphx/promote_literals.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/module.hpp>
@@ -30,7 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void pull_up_literals::apply(module_pass_manager& mpm) const
+void promote_literals::apply(module_pass_manager& mpm) const
 {
     module m               = mpm.get_module();
     module_ref main_module = mpm.get_main_module();

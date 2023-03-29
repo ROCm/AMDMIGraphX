@@ -35,9 +35,9 @@ inline namespace MIGRAPHX_INLINE_NS {
  * Replace literals in submodules with literals in the main module.
  * Intended to allow for reuse of the literals between submodules.
  */
-struct pull_up_literals
+struct promote_literals
 {
-    std::string name() const { return "pull_up_literals"; }
+    std::string name() const { return "promote_literals"; }
     void apply(module_pass_manager&) const;
 };
 

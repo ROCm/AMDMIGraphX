@@ -73,7 +73,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
-    pull_up_literals.cpp
+    promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
     quantize_int8.cpp

@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "verify.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
@@ -393,8 +394,12 @@ struct compiler_target
 {
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
-#else
+#elif HAVE_CPU
     std::string target_name = "cpu";
+#elif HAVE_FPGA
+    std::string target_name = "fpga"
+#else
+    std::string target_name = "ref"
 #endif
 
     void parse(argument_parser& ap)

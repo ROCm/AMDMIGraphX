@@ -83,13 +83,13 @@ struct select_module
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
                 auto in_param_names = get_input_parameter_names(mr);
+                auto param_shapes   = mr->get_parameter_shapes();
                 assert(in_param_names.size() <= args.size());
-                return std::equal(in_param_names.cbegin(),
-                                  in_param_names.cend(),
-                                  args.cbegin(),
-                                  [&](auto p_name, auto a) {
-                                      return a.get_shape() == mr->get_parameter_shape(p_name);
-                                  });
+                return std::equal(
+                    in_param_names.cbegin(),
+                    in_param_names.cend(),
+                    args.cbegin(),
+                    [&](auto p_name, auto a) { return a.get_shape() == param_shapes[p_name]; });
             });
 
         if(module_iter == submodule_list.end())
@@ -112,23 +112,22 @@ struct select_module
         // One tuple output parameter in main module to multiple output parameters in submodule
         auto out_param_names    = get_output_parameter_names(module_to_run);
         auto output_sub_objects = args.back().get_sub_objects();
+        assert(out_param_names.size() == output_sub_objects.size());
         std::transform(out_param_names.begin(),
                        out_param_names.end(),
                        output_sub_objects.begin(),
                        std::inserter(p_map, p_map.end()),
                        [&](auto&& name, auto&& a) {
                            auto ps = module_to_run->get_parameter_shape(name);
-                           decltype(std::make_pair(name, a)) ret;
                            if(a.get_shape() != ps)
                            {
                                assert(ps.bytes() == a.get_shape().bytes());
-                               ret = std::make_pair(name, a.reshape(ps));
+                               return std::make_pair(name, a.reshape(ps));
                            }
                            else
                            {
-                               ret = std::make_pair(name, a);
+                               return std::make_pair(name, a);
                            }
-                           return ret;
                        });
         auto results = run(module_to_run, p_map);
         return argument{results};

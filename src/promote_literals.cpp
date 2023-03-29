@@ -21,27 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PULL_UP_LITERALS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PULL_UP_LITERALS_HPP
 
-#include <string>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/promote_literals.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-/**
- * Replace literals in submodules with literals in the main module.
- * Intended to allow for reuse of the literals between submodules.
- */
-struct pull_up_literals
+void promote_literals::apply(module_pass_manager& mpm) const
 {
-    std::string name() const { return "pull_up_literals"; }
-    void apply(module_pass_manager&) const;
-};
+    module m               = mpm.get_module();
+    module_ref main_module = mpm.get_main_module();
+    if(m.name() == "main")
+        return;
+
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "@literal")
+        {
+            auto new_lit = main_module->add_literal(ins->get_literal());
+            for(auto out_ins : ins->outputs())
+            {
+                out_ins->replace_argument(out_ins, ins, new_lit);
+            }
+        }
+    }
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

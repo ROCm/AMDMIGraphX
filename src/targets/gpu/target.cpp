@@ -39,7 +39,7 @@
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/preallocate_param.hpp>
-#include <migraphx/pull_up_literals.hpp>
+#include <migraphx/promote_literals.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
@@ -73,7 +73,6 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
-
 struct id_pass
 {
     std::string name() const { return "id"; }

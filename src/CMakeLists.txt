@@ -73,7 +73,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
-    pull_up_literals.cpp
+    promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
     quantize_int8.cpp
@@ -292,6 +292,10 @@ endif()
 
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
+endif()
+
+if(BUILD_DEV)
+    target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
 rocm_export_targets(

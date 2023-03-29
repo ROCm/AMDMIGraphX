@@ -124,7 +124,8 @@ void transform_convolutions(module& m, bool skip_elim_contiguous)
 
 void layout_nhwc::apply(module_pass_manager& mpm) const
 {
-    // std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
+    // std::unordered_set<instruction_ref> output_layouts =
+    // preserve_output_layout(mpm.get_module());
     transform_convolutions(mpm.get_module(), this->skip_elim_contiguous);
     mpm.run_pass(dead_code_elimination{});
     if(not this->skip_elim_contiguous)

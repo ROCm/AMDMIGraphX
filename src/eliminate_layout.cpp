@@ -61,9 +61,11 @@ std::unordered_set<instruction_ref> preserve_output_layout(module& m)
     {
         auto permutation = find_permutation(output->get_shape());
 
-        auto layout_ins = m.insert_instruction(std::next(output), make_op("layout", {{"permutation", permutation}}), output);
+        auto layout_ins = m.insert_instruction(
+            std::next(output), make_op("layout", {{"permutation", permutation}}), output);
 
-        auto output1  = m.insert_instruction(layout_ins, make_op("allocate", {{"shape", to_value(layout_ins->get_shape())}}));
+        auto output1 = m.insert_instruction(
+            layout_ins, make_op("allocate", {{"shape", to_value(layout_ins->get_shape())}}));
         std::vector<instruction_ref> refs = layout_ins->inputs();
         refs.push_back(output1);
 
@@ -74,14 +76,14 @@ std::unordered_set<instruction_ref> preserve_output_layout(module& m)
             layout_ins->module_inputs());
 
         // auto layout      = m.insert_instruction(
-        //     std::next(output), 
-        //     make_op("gpu::precompile_op", {{"op", to_value(layout_ins->get_operator())}}), output);
+        //     std::next(output),
+        //     make_op("gpu::precompile_op", {{"op", to_value(layout_ins->get_operator())}}),
+        //     output);
         // m.debug_print();
         result.insert(layout);
     }
     return result;
 }
-
 
 void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
 {
@@ -91,8 +93,8 @@ void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_
             continue;
 
         auto precompile_op = ins->get_operator();
-        auto val = precompile_op.to_value();
-        
+        auto val           = precompile_op.to_value();
+
         if(val["op"].at("name") != "layout")
             continue;
         if(ins->get_shape() != ins->inputs().front()->get_shape())

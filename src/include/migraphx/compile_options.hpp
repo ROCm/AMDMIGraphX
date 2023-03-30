@@ -42,7 +42,7 @@ struct compile_options
     bool exhaustive_tune = false;
 
     /// Use the split_single_dyn_dim pass
-    bool split_single_dyn_dim = true;
+    bool split_single_dyn_dim = false;
     tracer trace{};
 };
 

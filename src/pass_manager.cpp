@@ -95,7 +95,7 @@ struct module_pm : module_pass_manager
 
     virtual module* get_common_parent() override { return common_parent; }
 
-    virtual module* get_main_module() override
+    virtual module* get_root_module() override
     {
         assert(prog);
         return prog->get_main_module();

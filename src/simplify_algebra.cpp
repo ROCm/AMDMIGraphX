@@ -204,7 +204,12 @@ struct find_mul_slice_conv
     }
 };
 
-// a * (x + b) => a * x + a * b
+// ******************************
+//  a * (x + b) => a * x + a * b
+// ******************************
+// When a * (x + b) is followed by another add of constant, then the
+// additional add can be const folded. Also, better fusions can be applied
+// when the add comes after.
 struct find_mul_add
 {
     auto matcher() const

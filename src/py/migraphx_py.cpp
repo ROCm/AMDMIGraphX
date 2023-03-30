@@ -62,6 +62,7 @@ namespace py = pybind11;
     PYBIND11_MODULE(__VA_ARGS__)      \
     MIGRAPHX_POP_WARNING
 
+#define MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM(x, t) .value(#x, migraphx::shape::type_t::x)
 namespace migraphx {
 
 migraphx::value to_value(py::kwargs kwargs);
@@ -263,18 +264,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("__repr__", [](const migraphx::shape& s) { return migraphx::to_string(s); });
 
     py::enum_<migraphx::shape::type_t>(shape_cls, "type_t")
-        .value("bool_type", migraphx::shape::type_t::bool_type)
-        .value("half_type", migraphx::shape::type_t::half_type)
-        .value("float_type", migraphx::shape::type_t::float_type)
-        .value("double_type", migraphx::shape::type_t::double_type)
-        .value("uint8_type", migraphx::shape::type_t::uint8_type)
-        .value("int8_type", migraphx::shape::type_t::int8_type)
-        .value("uint16_type", migraphx::shape::type_t::uint16_type)
-        .value("int16_type", migraphx::shape::type_t::int16_type)
-        .value("int32_type", migraphx::shape::type_t::int32_type)
-        .value("int64_type", migraphx::shape::type_t::int64_type)
-        .value("uint32_type", migraphx::shape::type_t::uint32_type)
-        .value("uint64_type", migraphx::shape::type_t::uint64_type);
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM);
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })

@@ -30,6 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+void to_msgpack(const value& v, std::function<void(const char*, std::size_t)> writer);
 std::vector<char> to_msgpack(const value& v);
 value from_msgpack(const std::vector<char>& buffer);
 value from_msgpack(const char* buffer, std::size_t size);

@@ -103,8 +103,8 @@ struct loader
            ap.nargs(2));
         ap(dyn_param_dims,
            {"--dyn-input-dim"},
-           ap.help("Dynamic dimensions of a parameter (format: \"@name {min1, max1, [opt1_1, "
-                   "opt1_2, ...]} {min2, max2}, etc.\")"),
+           ap.help("Dynamic dimensions of a parameter (format: \"@name\" \"{min1, max1, [opt1_1, "
+                   "opt1_2, ...]}\" \"{min2, max2}\", etc.)"),
            ap.append(),
            ap.nargs(2));
         ap(default_dyn_dim,

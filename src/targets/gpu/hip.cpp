@@ -187,10 +187,28 @@ argument register_on_gpu(const argument& arg)
     return {s, [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
 }
 
+// argument to_gpu(const argument& arg, bool host)
+//{
+//    auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
+//    return {arg.get_shape(), p};
+//}
+
 argument to_gpu(const argument& arg, bool host)
 {
-    auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
-    return {arg.get_shape(), p};
+    argument result;
+    arg.visit(
+        [&](auto x) {
+            auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
+            result = {x.get_shape(), p};
+        },
+        [&](const auto& xs) {
+            std::vector<argument> args;
+            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](auto x) {
+                return to_gpu(x, host);
+            });
+            result = argument{args};
+        });
+    return result;
 }
 
 argument from_gpu(const argument& arg)

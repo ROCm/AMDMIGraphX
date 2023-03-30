@@ -221,11 +221,6 @@ struct find_mul_dot
         auto b_ins   = dot_ins->inputs()[1];
         auto c_ins   = r.instructions["c"];
 
-        std::cout << "find_mul_dot" << std::endl;
-        m.debug_print(ins->inputs());
-        m.debug_print(ins);
-
-        const auto& c_lens    = c_ins->get_shape().lens();
         const auto& c_strides = c_ins->get_shape().strides();
 
         // There should only be one stride that is not zero

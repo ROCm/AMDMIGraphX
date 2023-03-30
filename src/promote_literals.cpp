@@ -32,7 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void promote_literals::apply(module_pass_manager& mpm) const
 {
-    module m               = mpm.get_module();
+    module& m              = mpm.get_module();
     module_ref main_module = mpm.get_main_module();
     if(m.name() == "main")
         return;

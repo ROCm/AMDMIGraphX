@@ -381,11 +381,18 @@ struct program_params
     auto generate(const program& p, const target& t, bool offload, unsigned batch)
     {
         parameter_map m;
+        auto param_shapes = p.get_parameter_shapes();
+        std::unordered_map<std::string, shape> static_param_shapes;
+        std::transform(
+            param_shapes.cbegin(),
+            param_shapes.cend(),
+            std::inserter(static_param_shapes, static_param_shapes.end()),
+            [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
         for(auto&& s : fill0)
-            m[s] = fill_argument(p.get_parameter_shape(s), 0);
+            m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
-            m[s] = fill_argument(p.get_parameter_shape(s), 1);
-        fill_param_map(m, p, t, offload, batch);
+            m[s] = fill_argument(static_param_shapes.at(s), 1);
+        fill_param_map(m, static_param_shapes, t, offload, batch);
         return m;
     }
 };

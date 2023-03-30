@@ -39,10 +39,13 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-parameter_map
-fill_param_map(parameter_map& m, const program& p, const target& t, bool offload, unsigned batch)
+parameter_map fill_param_map(parameter_map& m,
+                             const std::unordered_map<std::string, shape>& param_shapes,
+                             const target& t,
+                             bool offload,
+                             unsigned batch)
 {
-    for(auto&& x : p.get_parameter_shapes())
+    for(auto&& x : param_shapes)
     {
         argument& arg = m[x.first];
         if(arg.empty())
@@ -56,6 +59,7 @@ fill_param_map(parameter_map& m, const program& p, const target& t, bool offload
     return m;
 }
 
+// this function is never used?
 parameter_map fill_param_map(parameter_map& m, const program& p, bool gpu)
 {
     for(auto&& x : p.get_parameter_shapes())

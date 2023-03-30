@@ -30,8 +30,11 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-parameter_map fill_param_map(
-    parameter_map& m, const program& p, const target& t, bool offload = false, unsigned batch = 1);
+parameter_map fill_param_map(parameter_map& m,
+                             const std::unordered_map<std::string, shape>& param_shapes,
+                             const target& t,
+                             bool offload   = false,
+                             unsigned batch = 1);
 parameter_map create_param_map(const program& p, const target& t, bool offload = false);
 
 parameter_map fill_param_map(parameter_map& m, const program& p, bool gpu);

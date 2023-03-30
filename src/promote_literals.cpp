@@ -33,7 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 void promote_literals::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
-    module_ref main_module = mpm.get_main_module();
+    module_ref root_module = mpm.get_root_module();
     if(m.name() == "main")
         return;
 
@@ -41,7 +41,7 @@ void promote_literals::apply(module_pass_manager& mpm) const
     {
         if(ins->name() == "@literal")
         {
-            auto new_lit = main_module->add_literal(ins->get_literal());
+            auto new_lit = root_module->add_literal(ins->get_literal());
             for(auto out_ins : ins->outputs())
             {
                 out_ins->replace_argument(out_ins, ins, new_lit);

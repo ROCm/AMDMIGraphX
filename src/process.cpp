@@ -38,25 +38,40 @@ std::function<void(const char*)> redirect_to(std::ostream& os)
     return [&](const char* x) { os << x; };
 }
 
-int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
+template <class F>
+int exec(const std::string& cmd, const char* type, F f)
 {
     int ec = 0;
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
         std::cout << cmd << std::endl;
     auto closer = [&](FILE* stream) {
         auto status = pclose(stream);
-        ec          = WIFEXITED(status) ? 0 : WEXITSTATUS(status); // NOLINT
+        ec          = WIFEXITED(status) ? WEXITSTATUS(status) : 0; // NOLINT
     };
     {
         // TODO: Use execve instead of popen
-        std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), "r"), closer); // NOLINT
+        std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), type), closer); // NOLINT
         if(not pipe)
             MIGRAPHX_THROW("popen() failed: " + cmd);
-        std::array<char, 128> buffer;
-        while(fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
-            std_out(buffer.data());
+        f(pipe.get());
     }
     return ec;
+}
+
+int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
+{
+    return exec(cmd, "r", [&](FILE* f) {
+        std::array<char, 128> buffer;
+        while(fgets(buffer.data(), buffer.size(), f) != nullptr)
+            std_out(buffer.data());
+    });
+}
+
+int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
+{
+    return exec(cmd, "w", [&](FILE* f) {
+        std_in([&](const char* buffer, std::size_t n) { std::fwrite(buffer, 1, n, f); });
+    });
 }
 
 struct process_impl
@@ -71,6 +86,15 @@ struct process_impl
             result += "cd " + cwd.string() + "; ";
         result += command;
         return result;
+    }
+
+    template <class... Ts>
+    void check_exec(Ts&&... xs) const
+    {
+        int ec = migraphx::exec(std::forward<Ts>(xs)...);
+        if(ec != 0)
+            MIGRAPHX_THROW("Command " + get_command() + " exited with status " +
+                           std::to_string(ec));
     }
 };
 
@@ -95,12 +119,11 @@ process& process::cwd(const fs::path& p)
     return *this;
 }
 
-void process::exec()
+void process::exec() { impl->check_exec(impl->get_command(), redirect_to(std::cout)); }
+
+void process::write(std::function<void(process::writer)> pipe_in)
 {
-    auto ec = migraphx::exec(impl->get_command(), redirect_to(std::cout));
-    if(ec != 0)
-        MIGRAPHX_THROW("Command " + impl->get_command() + " exited with status " +
-                       std::to_string(ec));
+    impl->check_exec(impl->get_command(), std::move(pipe_in));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -34,36 +34,11 @@ struct program_info
     std::string name;
     std::string section;
     std::function<migraphx::program()> get_program;
-    migraphx::compile_options c_options;
+    migraphx::compile_options compile_options;
 };
 
 void register_program_info(const program_info& pi);
 const std::vector<program_info>& get_programs();
-
-// Don't have access to rank.hpp from CMake configuration
-template <int N>
-struct rank : rank<N - 1>
-{
-};
-
-template <>
-struct rank<0>
-{
-};
-
-namespace detail {
-template <class T>
-auto get_co(rank<1>, const T& t) -> decltype(t.get_compile_options())
-{
-    return t.get_compile_options();
-}
-
-template <class T>
-auto get_co(rank<0>, const T&) -> decltype(migraphx::compile_options{})
-{
-    return migraphx::compile_options{};
-}
-} // namespace detail
 
 struct register_verify_program_action
 {
@@ -72,10 +47,10 @@ struct register_verify_program_action
     {
         T x;
         program_info pi;
-        pi.name        = migraphx::get_type_name<T>();
-        pi.section     = x.section();
-        pi.get_program = [x] { return x.create_program(); };
-        pi.c_options   = detail::get_co(rank<1>{}, x);
+        pi.name            = migraphx::get_type_name<T>();
+        pi.section         = x.section();
+        pi.get_program     = [x] { return x.create_program(); };
+        pi.compile_options = x.get_compile_options();
         register_program_info(pi);
     }
 };
@@ -87,6 +62,7 @@ template <class T>
 struct verify_program : auto_register_verify_program<T>
 {
     std::string section() const { return "general"; };
+    migraphx::compile_options get_compile_options() const { return migraphx::compile_options{}; };
 };
 
 #endif

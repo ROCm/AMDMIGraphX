@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/pull_up_literals.hpp>
+#include <migraphx/promote_literals.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -31,21 +31,21 @@
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 
-void run_pull_up(migraphx::program& p)
+void run_promote(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::pull_up_literals{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::promote_literals{}, migraphx::dead_code_elimination{}});
 }
 
-void run_pull_up_and_ecs(migraphx::program& p)
+void run_promote_and_ecs(migraphx::program& p)
 {
     migraphx::run_passes(p,
-                         {migraphx::pull_up_literals{},
+                         {migraphx::promote_literals{},
                           migraphx::dead_code_elimination{},
                           migraphx::eliminate_common_subexpression{},
                           migraphx::dead_code_elimination{}});
 }
 
-TEST_CASE(pull_up_only)
+TEST_CASE(promote_only)
 {
     migraphx::program p0;
     {
@@ -84,7 +84,7 @@ TEST_CASE(pull_up_only)
             mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
         mm0->add_return({ret});
     }
-    run_pull_up(p0);
+    run_promote(p0);
 
     migraphx::program p1;
     {
@@ -132,7 +132,7 @@ TEST_CASE(pull_up_only)
     EXPECT(p0 == p1);
 }
 
-TEST_CASE(pull_up_and_ecs0)
+TEST_CASE(promote_and_ecs0)
 {
     migraphx::program p0;
     {
@@ -171,7 +171,7 @@ TEST_CASE(pull_up_and_ecs0)
             mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
         mm0->add_return({ret});
     }
-    run_pull_up_and_ecs(p0);
+    run_promote_and_ecs(p0);
 
     migraphx::program p1;
     {
@@ -214,7 +214,7 @@ TEST_CASE(pull_up_and_ecs0)
     EXPECT(p0 == p1);
 }
 
-TEST_CASE(pull_up_and_ecs1)
+TEST_CASE(promote_and_ecs1)
 {
     migraphx::program p0;
     {
@@ -256,7 +256,7 @@ TEST_CASE(pull_up_and_ecs1)
             mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
         mm0->add_return({ret});
     }
-    run_pull_up_and_ecs(p0);
+    run_promote_and_ecs(p0);
 
     migraphx::program p1;
     {

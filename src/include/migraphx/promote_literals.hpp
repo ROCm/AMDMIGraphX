@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PULL_UP_LITERALS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PULL_UP_LITERALS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_PROMOTE_LITERALS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_PROMOTE_LITERALS_HPP
 
 #include <string>
 #include <migraphx/pass_manager.hpp>
@@ -35,9 +35,9 @@ inline namespace MIGRAPHX_INLINE_NS {
  * Replace literals in submodules with literals in the main module.
  * Intended to allow for reuse of the literals between submodules.
  */
-struct pull_up_literals
+struct promote_literals
 {
-    std::string name() const { return "pull_up_literals"; }
+    std::string name() const { return "promote_literals"; }
     void apply(module_pass_manager&) const;
 };
 

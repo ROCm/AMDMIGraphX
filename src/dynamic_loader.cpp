@@ -71,6 +71,16 @@ struct dynamic_loader_impl
     std::shared_ptr<tmp_dir> temp = nullptr;
 };
 
+fs::path dynamic_loader::path(void* address)
+{
+    fs::path p;
+    Dl_info info;
+    // Find the location of .so
+    if(dladdr(address, &info) != 0)
+        p = info.dli_fname;
+    return p;
+}
+
 dynamic_loader::dynamic_loader(const fs::path& p) : impl(std::make_shared<dynamic_loader_impl>(p))
 {
 }

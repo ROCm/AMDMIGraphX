@@ -167,22 +167,6 @@ struct gemm_impl
 
         int8_flag = int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
 
-        // use void pointer to select different data type if using fp32 mode
-        output_shape.visit_type([&](auto as) {
-            auto alpha_r = as(alpha);
-            auto beta_r  = as(beta);
-            if(compute_fp32)
-            {
-                alpha_v = &alpha;
-                beta_v  = &beta;
-            }
-            else
-            {
-                alpha_v = &alpha_r;
-                beta_v  = &beta_r;
-            }
-        });
-
         auto a_lens = input_shapes[0].lens();
         auto b_lens = input_shapes[1].lens();
 
@@ -313,7 +297,7 @@ struct gemm_impl
                     n,
                     m,
                     k,
-                    alpha_v,
+                    &alpha,
                     args[1].data(),
                     arg_type,
                     ldb,
@@ -322,7 +306,7 @@ struct gemm_impl
                     arg_type,
                     lda,
                     a_stride,
-                    beta_v,
+                    &beta,
                     args[2].data(),
                     output_type,
                     ldc,
@@ -353,14 +337,14 @@ struct gemm_impl
                     n,
                     m,
                     k,
-                    alpha_v,
+                    &alpha,
                     args[1].data(),
                     arg_type,
                     ldb,
                     args[0].data(),
                     arg_type,
                     lda,
-                    beta_v,
+                    &beta,
                     args[2].data(),
                     output_type,
                     ldc,
@@ -468,8 +452,6 @@ struct gemm_impl
     rocblas_int m, n, k;
     bool transa, transb;
     T alpha, beta;
-    void* alpha_v = nullptr;
-    void* beta_v  = nullptr;
     flag_type int8_flag;
     rocblas_int lda, ldb, ldc, ldd;
     rocblas_int a_stride, b_stride, c_stride, d_stride;

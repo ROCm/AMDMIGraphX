@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/compile_options.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -207,43 +208,57 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
-void program::multitarget_compile(std::unordered_map<std::string, compile_options> compile_opt_map)
+void program::compile(std::vector<std::string> targets,
+                      std::unordered_map<std::string, compile_options> compile_opt_map)
 {
-    assert(not this->is_compiled());
-    std::unordered_map<std::string, migraphx::target> target_map;
-    std::unordered_map<std::string, std::vector<pass>> passes_map;
-    for(const auto& [name, _] : compile_opt_map)
+    // Gather all the target roots
+    std::unordered_multimap<std::string, module_ref> roots;
+    module_ref mm = this->get_main_module();
+    for(const auto& ins : *mm)
     {
-        target_map[name]              = migraphx::make_target(name);
-        this->impl->context_map[name] = target_map[name].get_context();
-        passes_map[name] =
-            target_map[name].get_passes(this->impl->context_map[name], compile_opt_map[name]);
-    }
-    std::unordered_set<module_ref> visited;
-    auto mods = this->get_modules(); // main
-    for(const auto& mod : reverse(mods))
-    {
-        if(not visited.insert(mod).second)
+        if(ins.name() != "run_on_target")
             continue;
-        run_passes(*this, *mod, passes_map[mod->get_target()]);
+        auto v                       = ins.get_operator().to_value();
+        module_ref root              = ins.module_inputs().front();
+        std::string root_target_name = v.at("target").to<std::string>();
+        assert(contains(targets, root_target_name));
+        roots.insert({root_target_name, root});
     }
-    // Validate and finalize
-    for(const auto& mod : reverse(mods))
+    auto trace = tracer{};
+    // TODO: Add tracer based on compile options
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+        trace = tracer{std::cout};
+
+    // Run passes on each root target
+    for(const auto& t : targets)
     {
-        auto invalid = mod->validate();
-        if(invalid != mod->end())
+        auto root_target           = migraphx::make_target(t);
+        auto root_modules_range    = roots.equal_range(t);
+        this->impl->context_map[t] = root_target.get_context();
+        for(auto i = root_modules_range.first; i != root_modules_range.second; i++)
         {
-            MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
-                           std::to_string(std::distance(mod->begin(), invalid)));
+            auto current_mod = i->second;
+            i->second->set_target(t);
+            run_passes(*this,
+                       *current_mod,
+                       root_target.get_passes(this->impl->context_map[t], compile_opt_map[t]),
+                       trace);
+            auto invalid = current_mod->validate();
+            if(invalid != current_mod->end())
+            {
+                MIGRAPHX_THROW("Invalid module " + current_mod->name() +
+                               " from compilation at instruction " +
+                               std::to_string(std::distance(current_mod->begin(), invalid)));
+            }
+            auto dangling = current_mod->find_dangling_reference();
+            if(dangling != current_mod->end())
+            {
+                auto index = std::distance(current_mod->begin(), dangling);
+                MIGRAPHX_THROW("Dangling reference in module " + current_mod->name() +
+                               " from instruction " + std::to_string(index));
+            }
+            current_mod->finalize(this->impl->context_map[t]);
         }
-        auto dangling = mod->find_dangling_reference();
-        if(dangling != mod->end())
-        {
-            auto index = std::distance(mod->begin(), dangling);
-            MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
-                           std::to_string(index));
-        }
-        mod->finalize(this->impl->context_map[mod->get_target()]);
     }
 }
 

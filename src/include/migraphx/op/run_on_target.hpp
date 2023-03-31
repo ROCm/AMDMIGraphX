@@ -42,13 +42,13 @@ namespace op {
 struct run_on_target
 {
 
-    std::string target_name = "ref";
+    std::string target = "ref";
     std::string name() const { return "run_on_target"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.target_name, "target_name"));
+        return pack(f(self.target, "target"));
     }
 
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs,

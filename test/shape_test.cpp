@@ -127,10 +127,8 @@ TEST_CASE(test_shape_dynamic_compares)
 {
     using migraphx::shape;
     auto a = shape::dynamic_dimension{2, 5, {2}};
-    auto b = a;
     auto c = shape::dynamic_dimension{2, 5, {2}};
     auto d = shape::dynamic_dimension{3, 8};
-    EXPECT(a == b);
     EXPECT(a == c);
     EXPECT(a != d);
 

@@ -157,7 +157,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](shape::dynamic_dimension x) { return x.min; });
+                       [](const shape::dynamic_dimension& x) { return x.min; });
         return ret;
     }
 
@@ -167,7 +167,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](shape::dynamic_dimension x) { return x.max; });
+                       [](const shape::dynamic_dimension& x) { return x.max; });
         return ret;
     }
 
@@ -177,7 +177,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](shape::dynamic_dimension x) { return x.opts; });
+                       [](const shape::dynamic_dimension& x) { return x.opts; });
         return ret;
     }
 
@@ -251,8 +251,8 @@ shape::shape(type_t t, std::vector<shape::dynamic_dimension> dims)
 shape::shape(type_t t,
              std::vector<std::size_t> mins,
              std::vector<std::size_t> maxes,
-             std::vector<std::set<std::size_t>> opts)
-    : impl(std::make_shared<shape_impl>(t, std::move(mins), std::move(maxes), std::move(opts)))
+             std::vector<std::set<std::size_t>> opts_list)
+    : impl(std::make_shared<shape_impl>(t, std::move(mins), std::move(maxes), std::move(opts_list)))
 {
 }
 

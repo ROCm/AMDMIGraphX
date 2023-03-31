@@ -21,16 +21,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-cmake_minimum_required(VERSION 3.5)
-project (CAI)
 
-set (CMAKE_CXX_STANDARD 14)
-set (EXAMPLE mnist_inference)
-
-list (APPEND CMAKE_PREFIX_PATH /opt/rocm)
-find_package (migraphx)
-
-message("source file: " ${EXAMPLE}.cpp " ---> bin: " ${EXAMPLE})
-add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
-
-target_link_libraries(${EXAMPLE} migraphx::c)
+add_executable(migraphx-hiprtc-driver
+    main.cpp
+)
+rocm_clang_tidy_check(migraphx-hiprtc-driver)
+target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
+add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
+rocm_install_targets(
+    TARGETS migraphx-hiprtc-driver
+)

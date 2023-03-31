@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <functional>
 #include <string>
 #include <memory>
 
@@ -36,6 +37,7 @@ struct process_impl;
 
 struct process
 {
+    using writer = std::function<void(const char*, std::size_t)>;
     process(const std::string& cmd);
 
     // move constructor
@@ -49,6 +51,7 @@ struct process
     process& cwd(const fs::path& p);
 
     void exec();
+    void write(std::function<void(process::writer)> pipe_in);
 
     private:
     std::unique_ptr<process_impl> impl;

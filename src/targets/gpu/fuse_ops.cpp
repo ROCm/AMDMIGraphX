@@ -770,7 +770,8 @@ struct find_contiguous_pointwise
 {
     auto matcher() const
     {
-        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise")(match::used_once())));
+        return match::name("gpu::contiguous")(
+            match::arg(0)(precompile_name("pointwise")(match::used_once())));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -790,7 +791,8 @@ struct find_layernorm_pointwise
     auto matcher() const
     {
         return precompile_name("pointwise")(match::arg(0)(
-            precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm")(match::used_once()).bind("layernorm")));
+            precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm")(match::used_once())
+                .bind("layernorm")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

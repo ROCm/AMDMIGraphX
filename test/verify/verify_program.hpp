@@ -24,15 +24,17 @@
 #ifndef MIGRAPHX_GUARD_AUTO_REGISTER_VERIFY_PROGRAM_HPP
 #define MIGRAPHX_GUARD_AUTO_REGISTER_VERIFY_PROGRAM_HPP
 
+#include <functional>
 #include <migraphx/auto_register.hpp>
 #include <migraphx/program.hpp>
-#include <functional>
+#include <migraphx/compile_options.hpp>
 
 struct program_info
 {
     std::string name;
     std::string section;
     std::function<migraphx::program()> get_program;
+    migraphx::compile_options compile_options;
 };
 
 void register_program_info(const program_info& pi);
@@ -45,9 +47,10 @@ struct register_verify_program_action
     {
         T x;
         program_info pi;
-        pi.name        = migraphx::get_type_name<T>();
-        pi.section     = x.section();
-        pi.get_program = [x] { return x.create_program(); };
+        pi.name            = migraphx::get_type_name<T>();
+        pi.section         = x.section();
+        pi.get_program     = [x] { return x.create_program(); };
+        pi.compile_options = x.get_compile_options();
         register_program_info(pi);
     }
 };
@@ -59,6 +62,7 @@ template <class T>
 struct verify_program : auto_register_verify_program<T>
 {
     std::string section() const { return "general"; };
+    migraphx::compile_options get_compile_options() const { return migraphx::compile_options{}; };
 };
 
 #endif

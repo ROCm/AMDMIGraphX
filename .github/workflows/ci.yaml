@@ -39,7 +39,8 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
       run: |
         string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
         message("::set-output name=timestamp::${current_date}")

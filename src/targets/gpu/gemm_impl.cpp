@@ -21,10 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/**
+ * Contains a templated struct implementation that wraps several rocBLAS API calls
+ * used by the GEMM operator.  These are accessed by methods declared in gemm_impl.hpp
+ * 
+*/
+
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
-#include <migraphx/reduce_dims.hpp>
-#include <migraphx/permutation.hpp>
+#include <migraphx/time.hpp>
+
+using microseconds = std::chrono::duration<double, std::micro>;
+
+#if ROCBLAS_VERSION_MAJOR > 2 ||  (ROCBLAS_VERSION_MAJOR == 2 && ROCBLAS_VERSION_MINOR >= 38)
+using flag_type = rocblas_gemm_flags;
+#else
+using flag_type = int;
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -122,6 +136,14 @@ static rocblas_int get_batch_stride(const argument& a)
         return a.get_shape().strides()[a.get_shape().strides().size() - 3];
 }
 
+/**
+ * Wrapper for multiple rocBLAS calls.  The constructor creates parameters for
+ * these calls based on values provided by the associated instruction and operation.
+ * Most significant input are the data shapes.
+ * 
+ * The template parameter T is not the type of the input data but of the parameters 
+ * alpha and beta (these are float within rocBLAS)
+*/
 template <typename T>
 struct gemm_impl
 {
@@ -201,14 +223,17 @@ struct gemm_impl
         if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, input_args);
-            auto ded_args    = pack(rocblas_gemm_algo_standard, solution_idx, int8_flag);
-            rocblas_invoke(&rocblas_gemm_strided_batched_ex, pack_join(common_args, ded_args));
+            rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                           common_args,
+                           rocblas_gemm_algo_standard,
+                           solution_idx,
+                           int8_flag);
         }
         else
         {
             auto common_args = create_gemm_ex_args_common(ctx, input_args);
-            auto ded_args    = pack(rocblas_gemm_algo_standard, solution_idx, int8_flag);
-            rocblas_invoke(&rocblas_gemm_ex, pack_join(common_args, ded_args));
+            rocblas_invoke(
+                &rocblas_gemm_ex, common_args, rocblas_gemm_algo_standard, solution_idx, int8_flag);
         }
     }
 
@@ -241,18 +266,20 @@ struct gemm_impl
         if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, input_args);
-            auto ded_args    = pack(rocblas_gemm_algo_solution_index,
-                                 solution_idx,
-                                 rocblas_gemm_flags_check_solution_index);
-            check_valid =
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex, pack_join(common_args, ded_args));
+            check_valid      = rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                                         common_args,
+                                         rocblas_gemm_algo_solution_index,
+                                         solution_idx,
+                                         rocblas_gemm_flags_check_solution_index);
         }
         else
         {
             auto common_args = create_gemm_ex_args_common(ctx, input_args);
-            auto ded_args    = pack(
-                rocblas_gemm_algo_standard, solution_idx, rocblas_gemm_flags_check_solution_index);
-            check_valid = rocblas_invoke(&rocblas_gemm_ex, pack_join(common_args, ded_args));
+            check_valid      = rocblas_invoke(&rocblas_gemm_ex,
+                                         common_args,
+                                         rocblas_gemm_algo_standard,
+                                         solution_idx,
+                                         rocblas_gemm_flags_check_solution_index);
         }
 
         if(check_valid == rocblas_status_invalid_value)
@@ -263,21 +290,6 @@ struct gemm_impl
         return solution_idx;
     }
 #endif
-    // TODO:  is this still needed?
-    void print_args() const
-    {
-        std::cout << "trans: " << transa << " transb: " << transb << "\n";
-        std::cout << "m: " << m << " n: " << n << " k: " << k << "\n";
-        std::cout << "alpha: " << alpha << " beta: " << beta << "\n";
-        std::cout << "lda : " << lda << " ldb: " << ldb << " ldc: " << ldc << " ldd: " << ldd
-                  << "\n";
-        std::cout << "strided_batched: " << strided_batched << "\n";
-        std::cout << "astride: " << a_stride << " b_stride: " << b_stride
-                  << " c_stride: " << c_stride << " d_stride: " << d_stride << "\n";
-        std::cout << "arg type : " << arg_type << " compute_type: " << compute_type
-                  << " output_type: " << output_type << "\n";
-        std::cout << "int8_flag: " << int8_flag << "\n";
-    }
 
     /**
      * Helper method to create that subset of a long rocBLAS argument list that is common
@@ -360,6 +372,10 @@ struct gemm_impl
      */
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
+        // tuning meta parameters
+        const int hot_calls= 40;
+        const int cold_calls = 1;
+
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
@@ -375,31 +391,40 @@ struct gemm_impl
         if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, input_args);
-            auto ded_args = pack(rocblas_gemm_algo_solution_index, int8_flag, nullptr, &list_size);
-
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
-                           pack_join(common_args, ded_args));
+                           common_args,
+                           rocblas_gemm_algo_solution_index,
+                           int8_flag,
+                           nullptr,
+                           &list_size);
             solution_indices.resize(list_size);
 
             auto common_sol_args = create_strided_batched_args_common(ctx, input_args);
-            auto ded_sol_args    = pack(
-                rocblas_gemm_algo_solution_index, int8_flag, solution_indices.data(), &list_size);
-
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
-                           pack_join(common_sol_args, ded_sol_args));
+                           common_sol_args,
+                           rocblas_gemm_algo_solution_index,
+                           int8_flag,
+                           solution_indices.data(),
+                           &list_size);
         }
         else
         {
             auto common_args = create_gemm_ex_args_common(ctx, input_args);
-            auto ded_args = pack(rocblas_gemm_algo_solution_index, int8_flag, nullptr, &list_size);
-            rocblas_invoke(&rocblas_gemm_ex_get_solutions, pack_join(common_args, ded_args));
+            rocblas_invoke(&rocblas_gemm_ex_get_solutions,
+                           common_args,
+                           rocblas_gemm_algo_solution_index,
+                           int8_flag,
+                           nullptr,
+                           &list_size);
             solution_indices.resize(list_size);
 
             auto common_sol_args = create_gemm_ex_args_common(ctx, input_args);
-            auto ded_sol_args    = pack(
-                rocblas_gemm_algo_solution_index, int8_flag, solution_indices.data(), &list_size);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
-                           pack_join(common_sol_args, ded_sol_args));
+                           common_sol_args,
+                           rocblas_gemm_algo_solution_index,
+                           int8_flag,
+                           solution_indices.data(),
+                           &list_size);
         }
 
         double bestTime   = std::numeric_limits<double>::max();
@@ -410,7 +435,7 @@ struct gemm_impl
         {
             // Warmup: the first few calls to an op. may not be representative since there is
             // more time taken initializing caches, etc. so we won't time them.
-            for(rocblas_int cc = 0; cc < cold_calls; ++cc)
+            for(int cc = 0; cc < cold_calls; ++cc)
             {
                 run(ctx, input_args, sol);
             }
@@ -420,7 +445,7 @@ struct gemm_impl
                 run(ctx, input_args, sol);
                 ctx.finish();
             };
-            for(rocblas_int hc = 0; hc < hot_calls; ++hc)
+            for(int hc = 0; hc < hot_calls; ++hc)
             {
                 ctx.finish();
                 host_time += time<microseconds>(run_func);
@@ -437,7 +462,7 @@ struct gemm_impl
             // track current best
             if(host_time < bestTime)
             {
-                printf(" current best index  %d, time %g\n", sol, host_time);
+                std::cout << " current best index " << sol << ", time " << host_time << std::endl;
                 bestSol  = sol;
                 bestTime = host_time;
             }
@@ -457,11 +482,6 @@ struct gemm_impl
     rocblas_int a_stride, b_stride, c_stride, d_stride;
     rocblas_datatype compute_type, arg_type, output_type;
     bool strided_batched = true, is_3inputs = true, compute_fp32 = true;
-#ifdef ROCBLAS_BETA_FEATURES_API
-    // tuning meta parameters
-    rocblas_int cold_calls = 18;
-    rocblas_int hot_calls  = 40;
-#endif
 }; // gemm_impl
 
 void gemm_compute(context& ctx,

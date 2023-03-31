@@ -242,9 +242,9 @@ endif()
 
 if(HAS_ROCBLAS_BETA_FEATURES_API)
     target_compile_definitions(migraphx_gpu PUBLIC -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
-    message(STATUS "MIGraphx is using Beta API of MIOpen")
+    message(STATUS "MIGraphx is using Beta API of rocBLAS")
 else()
-    message(STATUS "MIOpen does not have Beta API")
+    message(STATUS "rocBLAS does not have Beta API")
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)

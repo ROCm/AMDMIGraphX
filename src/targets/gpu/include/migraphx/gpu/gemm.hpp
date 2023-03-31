@@ -24,8 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 
-#include <algorithm>
-#include <iterator>
 #include <migraphx/errors.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/value.hpp>

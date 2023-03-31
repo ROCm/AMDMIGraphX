@@ -211,13 +211,13 @@ void program::multitarget_compile(std::unordered_map<std::string, compile_option
 {
     assert(not this->is_compiled());
     std::unordered_map<std::string, migraphx::target> target_map;
-    std::unordered_map<std::string, migraphx::context> context_map;
     std::unordered_map<std::string, std::vector<pass>> passes_map;
     for(const auto& [name, _] : compile_opt_map)
     {
-        target_map[name]  = migraphx::make_target(name);
-        context_map[name] = target_map[name].get_context();
-        passes_map[name]  = target_map[name].get_passes(context_map[name], compile_opt_map[name]);
+        target_map[name]              = migraphx::make_target(name);
+        this->impl->context_map[name] = target_map[name].get_context();
+        passes_map[name] =
+            target_map[name].get_passes(this->impl->context_map[name], compile_opt_map[name]);
     }
     std::unordered_set<module_ref> visited;
     auto mods = this->get_modules(); // main
@@ -227,7 +227,6 @@ void program::multitarget_compile(std::unordered_map<std::string, compile_option
             continue;
         run_passes(*this, *mod, passes_map[mod->get_target()]);
     }
-    std::cout << "Finished running all passes\n";
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
@@ -244,7 +243,7 @@ void program::multitarget_compile(std::unordered_map<std::string, compile_option
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(context_map[mod->get_target()]);
+        mod->finalize(this->impl->context_map[mod->get_target()]);
     }
 }
 
@@ -347,7 +346,7 @@ void preview_argument(std::ostream& os, const argument& a)
 
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
-                                   context& ctx,
+                                   std::unordered_map<std::string, context> ctx_map,
                                    std::unordered_map<std::string, argument> params,
                                    std::unordered_map<instruction_ref, argument> results,
                                    F make_trace)
@@ -409,20 +408,19 @@ std::vector<argument> generic_eval(const module* mod,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
-
+            context& lctx        = ctx_map[mod->get_target()];
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                auto ssctx = ctx;
-                return generic_eval(smod, ssctx, inputs, results, make_trace);
+                return generic_eval(smod, ctx_map, inputs, results, make_trace);
             };
-
             results.emplace(ins, trace(ins, [&] {
                                 return ins->normalized_operator().compute(
-                                    ctx, ins->get_shape(), values, mod_args, module_eval);
+                                    lctx, ins->get_shape(), values, mod_args, module_eval);
                             }));
         }
         assert(results.find(ins) != results.end());
+
         if(not ins->get_shape().any_of_dynamic())
         {
             assert(results.at(ins).get_shape() == ins->get_shape());
@@ -433,13 +431,23 @@ std::vector<argument> generic_eval(const module* mod,
 
 template <class F>
 std::vector<argument> generic_eval(const program& p,
-                                   context& ctx,
+                                   std::unordered_map<std::string, context> ctx_map,
                                    std::unordered_map<std::string, argument> params,
                                    F make_trace)
 {
     const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, params, {}, make_trace);
+    return generic_eval(mm, ctx_map, params, {}, make_trace);
 }
+
+// template <class F>
+// std::vector<argument> generic_eval(const program& p,
+//                                    context& ctx,
+//                                    std::unordered_map<std::string, argument> params,
+//                                    F make_trace)
+// {
+//     const module* mm = p.get_main_module();
+//     return generic_eval(mm, ctx, params, {}, make_trace);
+// }
 
 std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
@@ -484,15 +492,15 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
         });
 
         ret = generic_eval(*this,
-                           ctx,
+                           this->impl->context_map,
                            std::move(params),
                            with_check_context([&](auto& ins, auto f, auto&& check_context) {
-                               ctx.finish();
+                               // ctx.finish();
                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
                                timer t{};
                                auto result = check_context(f);
                                double t1   = t.record<milliseconds>();
-                               ctx.finish();
+                               // ctx.finish();
                                double t2 = t.record<milliseconds>();
                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
                                if(trace_level > 1 and ins->name().front() != '@' and
@@ -520,7 +528,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     else
     {
         ret = generic_eval(*this,
-                           ctx,
+                           this->impl->context_map,
                            std::move(params),
                            with_check_context([&](auto&, auto f, auto&& check_context) {
                                return check_context(f);
@@ -724,7 +732,7 @@ void program::mark(const parameter_map& params, marker&& m)
     ctx.finish();
     // Start marking
     m.mark_start(*this);
-    generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
+    generic_eval(*this, this->impl->context_map, params, always([&](auto ins, auto f) {
         argument result;
         m.mark_start(ins);
         result = f();
@@ -756,7 +764,7 @@ void program::perf_report(std::ostream& os,
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(*this, ctx, params, always([&](auto ins, auto) {
+    generic_eval(*this, this->impl->context_map, params, always([&](auto ins, auto) {
         ins_vec[ins].reserve(n);
         return argument{ins->get_shape(), nullptr};
     }));
@@ -764,7 +772,7 @@ void program::perf_report(std::ostream& os,
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
+        generic_eval(*this, this->impl->context_map, params, always([&](auto ins, auto f) {
             argument result;
             ins_vec[ins].push_back(time<milliseconds>([&] {
                 result = f();
@@ -937,8 +945,7 @@ void program::print_cpp(std::ostream& os) const
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
-    auto& ctx = this->impl->ctx;
-    generic_eval(*this, ctx, std::move(params), always([](auto ins, auto&&...) {
+    generic_eval(*this, this->impl->context_map, std::move(params), always([](auto ins, auto&&...) {
         return argument{ins->get_shape(), nullptr};
     }));
 }

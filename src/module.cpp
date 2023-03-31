@@ -666,10 +666,10 @@ void module::finalize(context& ctx)
             this->debug_print(ins);
         }
         ins->finalize(ctx);
-        for(const auto& smod : ins->module_inputs())
-        {
-            smod->finalize(ctx);
-        }
+        // for(const auto& smod : ins->module_inputs())
+        // {
+        //     smod->finalize(ctx);
+        // }
     }
 
     // Warn when an instruction is not normalized

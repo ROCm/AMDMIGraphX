@@ -72,19 +72,20 @@ struct mod_run_op
         std::set<std::string> pnames;
         for(const auto& smod : mods)
         {
+            smod->debug_print();
             auto names = smod->get_parameter_names();
             pnames.insert(names.begin(), names.end());
         }
 
-        assert(pnames.size() < args.size());
+        assert(pnames.size() <= args.size());
         std::transform(pnames.begin(),
                        pnames.end(),
-                       args.begin() + 1,
+                       args.begin(),
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
         auto mod     = mods[0];
         auto results = run(mod, params);
-        return migraphx::argument{results};
+        return results.front();
     }
 };
 
@@ -104,7 +105,7 @@ TEST_CASE(multitarget_program)
     auto* gpu_mod = p.create_module("gpu_mod");
     gpu_mod->set_target("gpu");
     migraphx::compile_options gpu_opt;
-    gpu_opt.offload_copy = false;
+    gpu_opt.offload_copy = true;
     auto x_gpu           = gpu_mod->add_parameter("gpu_x", s);
     auto y_gpu           = gpu_mod->add_parameter("gpu_y", s);
     auto gpu_add         = gpu_mod->add_instruction(migraphx::make_op("add"), x_gpu, y_gpu);
@@ -113,15 +114,16 @@ TEST_CASE(multitarget_program)
     auto x_param = mm->add_parameter("x", s);
     auto y_param = mm->add_parameter("y", s);
     auto z_param = mm->add_parameter("z", s);
-    auto cpu_ins = mm->add_instruction(mod_run_op{}, x_param, y_param);
-    auto gpu_ins = mm->add_instruction(mod_run_op{}, cpu_ins, z_param);
+    auto cpu_ins = mm->add_instruction(mod_run_op{}, {x_param, y_param}, {cpu_mod});
+    auto gpu_ins = mm->add_instruction(mod_run_op{}, {cpu_ins, z_param}, {gpu_mod});
     mm->add_return({gpu_ins});
+    (void)migraphx::make_target("gpu");
+    (void)migraphx::make_target("cpu");
     std::unordered_map<std::string, migraphx::compile_options> compile_opts;
     compile_opts["gpu"] = gpu_opt;
     std::cout << "program before compile\n";
     p.debug_print();
     std::cout << "===============================\n";
-    migraphx::make_target("gpu");
     p.multitarget_compile(compile_opts);
     std::cout << "Compiled program \n";
     p.debug_print();
@@ -131,7 +133,6 @@ TEST_CASE(multitarget_program)
     params_map["y"]           = migraphx::argument(s, x_data.data());
     params_map["z"]           = migraphx::argument(s, x_data.data());
 
-    std::cout << "Do eval\n";
     auto result = p.eval(params_map).back();
     std::vector<float> results_vector(8, -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

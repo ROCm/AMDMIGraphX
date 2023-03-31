@@ -270,7 +270,7 @@ struct find_dot_mul
     auto matcher() const
     {
         auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
-        auto mul             = match::name("mul")(match::either_arg(0, 1)(
+        auto mul             = match::name("mul")(match::used_once(), match::either_arg(0, 1)(
             const_broadcast.bind("d"), match::none_of(match::is_constant()).bind("z")));
         return match::name("dot")(match::either_arg(0, 1)(mul, match::is_constant().bind("c")));
     }

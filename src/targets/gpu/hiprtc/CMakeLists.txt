@@ -22,20 +22,12 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_library(migraphx_c
-    api.cpp
+add_executable(migraphx-hiprtc-driver
+    main.cpp
 )
-set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
-
-# migraphx_c is stable API interface library. SO version of this should be 
-# bumped when binary compatibility is broken. 
-rocm_set_soversion(migraphx_c 3.0)   
-
-rocm_clang_tidy_check(migraphx_c)
-target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx)
-
+rocm_clang_tidy_check(migraphx-hiprtc-driver)
+target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
+add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
 rocm_install_targets(
-  TARGETS migraphx_c
-  INCLUDE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    TARGETS migraphx-hiprtc-driver
 )

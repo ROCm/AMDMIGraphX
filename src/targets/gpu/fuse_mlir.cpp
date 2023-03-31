@@ -89,6 +89,35 @@ struct find_mlir_op
         return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
+    void expand_literal_shapes(module_ref mm,
+                               const module* pm,
+                               const shape& shape,
+                               std::unordered_map<instruction_ref, instruction_ref>& ins_map) const
+    {
+        for(instruction_ref ins = pm->begin(); ins != pm->end(); ins++)
+        {
+            if(ins->name() == "@literal")
+            {
+                auto e = ins->eval();
+                literal r{};
+                // needed for bool as visit_at invokes as() which promotes bool to int8
+                // Without this we'll break type checks for logical ops that are fused.
+                if(e.get_shape().type() == shape::bool_type)
+                {
+                    r = literal{e.at<bool>()};
+                }
+                else
+                {
+                    e.visit_at([&](auto x) { r = literal{x}; });
+                }
+                instruction_ref literal = mm->add_literal(r);
+                instruction_ref mbcast  = mm->add_instruction(
+                    make_op("multibroadcast", {{"out_lens", shape.lens()}}), literal);
+                ins_map[ins] = mbcast;
+            }
+        }
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins           = r.result;
@@ -99,7 +128,7 @@ struct find_mlir_op
         // Whitelist pointwise operators
         if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
                return not contains(
-                   {"@literal", "@param", "@return", "convolution", "dot", "add", "relu"},
+                   {"@literal", "@param", "@return", "convolution", "dot", "add", "relu", "mul"},
                    i.name());
            }))
             return;
@@ -113,21 +142,22 @@ struct find_mlir_op
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> param_map;
-        auto x    = mm->add_parameter("x" + std::to_string(names.size()),
+        auto x         = mm->add_parameter("x" + std::to_string(names.size()),
                                    gemm_based_op->inputs().at(0)->get_shape());
-        auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
+        auto w         = mm->add_parameter("x" + std::to_string(names.size() + 1),
                                    gemm_based_op->inputs().at(1)->get_shape());
-        auto conv = mm->add_instruction(gemm_based_op->get_operator(), {x, w});
+        auto anchor_op = mm->add_instruction(gemm_based_op->get_operator(), {x, w});
         std::transform(names.begin(),
                        names.end(),
                        ins->inputs().begin(),
                        std::inserter(param_map, param_map.end()),
                        [&](auto name, auto input) {
                            if(input == x_ins)
-                               return std::make_pair(pm->get_parameter(name), conv);
+                               return std::make_pair(pm->get_parameter(name), anchor_op);
                            return std::make_pair(pm->get_parameter(name),
                                                  mm->add_parameter(name, input->get_shape()));
                        });
+        expand_literal_shapes(mm, pm, anchor_op->get_shape(), param_map);
         mm->add_return(mm->insert_instructions(mm->end(), pm, param_map));
 
         std::vector<instruction_ref> inputs;

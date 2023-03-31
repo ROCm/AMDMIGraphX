@@ -324,7 +324,8 @@ struct mlir_program
                                      std::string,
                                      value,
                                      std::vector<value>,
-                                     MlirType>;
+                                     MlirType,
+                                     MlirAttribute>;
     using named_attribute_t = std::pair<std::string_view, attribute_t>;
 
     MlirNamedAttribute name_attribute(const named_attribute_t& na) const
@@ -481,6 +482,10 @@ struct mlir_program
     {
         if(ins->name() == "@return")
             return "func.return";
+        if(ins->name() == "@literal")
+        {
+            return "tosa.const";
+        }
         return "migraphx." + ins->name();
     }
 
@@ -537,6 +542,16 @@ struct mlir_program
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
+            if(ins->name() == "@literal")
+            {
+                auto e = ins->eval();
+                literal r{};
+                e.visit_at([&](auto x) { r = literal{x}; });
+                MlirType tensor_type = make_tensor(ins->get_shape());
+                MlirAttribute mlir_value_attr =
+                    mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
+                ops.add_attributes({{"value", mlir_value_attr}});
+            }
             if(ins->name() == "convolution" or ins->name() == "dot")
             {
                 pp =

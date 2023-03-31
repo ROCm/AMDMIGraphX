@@ -49,13 +49,13 @@ def get_device_time(s):
     return convert_to_float(fields[-1].strip())
 
 
-def run_driver_ck(config, tuning, iterations):
+def run_driver_ck(config, name, tuning, iterations):
     b = {
         'settings': {
             'iterations': iterations
         },
         'compile_op': {
-            'name': 'ck_gemm',
+            'name': name,
             'check': True,
             'tuning_val': tuning,
             'inputs': config
@@ -64,9 +64,9 @@ def run_driver_ck(config, tuning, iterations):
     return run_driver(b)
 
 
-def benchmark_ck(config, tuning):
+def benchmark_ck(config, name, tuning):
     try:
-        for line in run_driver_ck(config, tuning, 100):
+        for line in run_driver_ck(config, name, tuning, 100):
             dtime = get_device_time(line)
             print(dtime)
             return float(dtime)

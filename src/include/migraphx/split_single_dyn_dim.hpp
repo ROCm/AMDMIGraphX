@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,29 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 
+#include <string>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/tracer.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct compile_options
+/**
+ * Split dynamic dimension over submodules if exactly one dimension in the parameter list is
+ * dynamic.
+ */
+struct split_single_dyn_dim
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
-
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-
-    /// Use the split_single_dyn_dim pass
-    bool split_single_dyn_dim = false;
-    tracer trace{};
+    std::string name() const { return "split_single_dyn_dim"; }
+    void apply(module_pass_manager&) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -140,7 +140,7 @@ TEST_CASE(conv)
 {
     const std::string mlir_output = R"__migraphx__(
 module {
-  func.func @main(%arg0: tensor<2x8x3x3xf32>, %arg1: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {arch = "", kernel = "mixr"} {
+  func.func @mlir_convolution(%arg0: tensor<2x8x3x3xf32>, %arg1: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {arch = "", kernel = "mixr"} {
     %0 = migraphx.convolution(%arg1, %arg0) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
     return %0 : tensor<1x2x2x2xf32>
   }
@@ -163,7 +163,7 @@ TEST_CASE(conv_add_relu)
 {
     const std::string mlir_output = R"__migraphx__(
 module {
-  func.func @main(%arg0: tensor<1x2x2x2xf32>, %arg1: tensor<2x8x3x3xf32>, %arg2: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {arch = "", kernel = "mixr"} {
+  func.func @mlir_convolution(%arg0: tensor<1x2x2x2xf32>, %arg1: tensor<2x8x3x3xf32>, %arg2: tensor<1x8x4x4xf32>) -> tensor<1x2x2x2xf32> attributes {arch = "", kernel = "mixr"} {
     %0 = migraphx.convolution(%arg2, %arg1) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
     %1 = migraphx.add(%0, %arg0) : (tensor<1x2x2x2xf32>, tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
     %2 = migraphx.relu(%1) : (tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
@@ -179,6 +179,32 @@ module {
     auto add  = m.add_instruction(migraphx::make_op("add"), conv, b);
     auto relu = m.add_instruction(migraphx::make_op("relu"), add);
     m.add_return({relu});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    CHECK(encode(s) == encode(mlir_output));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(dot_add)
+{
+    const std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot(%arg0: tensor<1x5x4xf32>, %arg1: tensor<1x4x3xf32>, %arg2: tensor<1x5x3xf32>) -> tensor<1x5x3xf32> attributes {arch = "", kernel = "mixr"} {
+    %0 = migraphx.dot(%arg0, %arg1) : tensor<1x5x4xf32>, tensor<1x4x3xf32> -> tensor<1x5x3xf32>
+    %1 = migraphx.add(%0, %arg2) : (tensor<1x5x3xf32>, tensor<1x5x3xf32>) -> tensor<1x5x3xf32>
+    return %1 : tensor<1x5x3xf32>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0 = m.add_parameter("arg0", {migraphx::shape::float_type, {1, 5, 4}});
+    auto arg1 = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 4, 3}});
+    auto arg2 = m.add_parameter("arg2", {migraphx::shape::float_type, {1, 5, 3}});
+    auto conv = m.add_instruction(migraphx::make_op("dot"), arg0, arg1);
+    auto add  = m.add_instruction(migraphx::make_op("add"), conv, arg2);
+    m.add_return({add});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
     if(s.empty())

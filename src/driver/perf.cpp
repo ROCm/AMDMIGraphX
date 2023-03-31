@@ -59,24 +59,6 @@ parameter_map fill_param_map(parameter_map& m,
     return m;
 }
 
-// this function is never used?
-parameter_map fill_param_map(parameter_map& m, const program& p, bool gpu)
-{
-    for(auto&& x : p.get_parameter_shapes())
-    {
-        argument& arg = m[x.first];
-        if(arg.empty())
-            arg = generate_argument(x.second, get_hash(x.first));
-#ifdef HAVE_GPU
-        if(gpu)
-            arg = gpu::to_gpu(arg);
-#else
-        (void)gpu;
-#endif
-    }
-    return m;
-}
-
 parameter_map create_param_map(const program& p, const target& t, bool offload)
 {
     parameter_map m;

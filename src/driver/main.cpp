@@ -109,7 +109,7 @@ struct loader
            ap.nargs(2));
         ap(default_dyn_dim,
            {"--default-dyn-dim"},
-           ap.help("Default dynamic dimension (format: \"{min, max, [opts]}\")."));
+           ap.help("Default dynamic dimension (format: \"{min, max, [opt1, opt2, ...]}\")."));
         ap(output_names,
            {"--output-names"},
            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
@@ -179,10 +179,6 @@ struct loader
     static migraphx::shape::dynamic_dimension parse_dyn_dim_str(std::string dd_str)
     {
         // expecting string formatted as "{min, max, {opts}}" or "[min, max]"
-        if(dd_str.empty())
-        {
-            return migraphx::shape::dynamic_dimension{1, 1};
-        }
         auto trimmed_str = migraphx::trim(
             dd_str,
             [](auto c) { return contains(std::string("{["), c); },
@@ -265,15 +261,9 @@ struct loader
                 }
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
-                if(map_dyn_input_dims.empty())
-                {
-                    options.map_input_dims = map_input_dims;
-                }
-                else
-                {
-                    options.map_dyn_input_dims = map_dyn_input_dims;
-                }
-                p = parse_onnx(file, options);
+                options.map_input_dims         = map_input_dims;
+                options.map_dyn_input_dims     = map_dyn_input_dims;
+                p                              = parse_onnx(file, options);
             }
             else if(file_type == "tf")
             {

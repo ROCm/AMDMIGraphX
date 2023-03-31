@@ -67,15 +67,17 @@ inline void verify_load_save(const migraphx::program& p)
     EXPECT(p == loaded);
 }
 
-inline void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
+inline void compile_check(migraphx::program& p,
+                          const migraphx::target& t,
+                          migraphx::compile_options c_opts,
+                          bool show_trace = false)
 {
     auto name   = t.name();
     auto shapes = p.get_output_shapes();
     std::stringstream ss;
-    migraphx::compile_options options;
     if(show_trace)
-        options.trace = migraphx::tracer{std::cout};
-    p.compile(t, options);
+        c_opts.trace = migraphx::tracer{std::cout};
+    p.compile(t, c_opts);
     if(shapes.size() != p.get_output_shapes().size())
     {
         std::cout << ss.str() << std::endl;
@@ -115,19 +117,23 @@ void run_verify::validate(const migraphx::target& t,
 }
 
 std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
-                                                    migraphx::parameter_map inputs) const
+                                                    migraphx::parameter_map inputs,
+                                                    const migraphx::compile_options& c_opts) const
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
-    compile_check(p, t);
+    compile_check(p, t, c_opts);
     return p.eval(std::move(inputs));
 }
-std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(
-    const migraphx::target& t, migraphx::program p, const migraphx::parameter_map& inputs) const
+std::pair<migraphx::program, std::vector<migraphx::argument>>
+run_verify::run_target(const migraphx::target& t,
+                       migraphx::program p,
+                       const migraphx::parameter_map& inputs,
+                       const migraphx::compile_options& c_opts) const
 {
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
-    compile_check(p, t, (trace_target == t.name()));
+    compile_check(p, t, c_opts, (trace_target == t.name()));
     migraphx::parameter_map m;
     for(auto&& input : inputs)
     {
@@ -157,7 +163,9 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const std::string& name, const migraphx::program& p) const
+void run_verify::verify(const std::string& name,
+                        const migraphx::program& p,
+                        const migraphx::compile_options& c_opts) const
 {
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
@@ -197,13 +205,13 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
             }
         }
 
-        auto gold_f = detach_async([=] { return run_ref(p, m); });
+        auto gold_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
-            results.emplace_back(tname,
-                                 detach_async([=] { return run_target(t, p, m); }, ti.parallel));
+            results.emplace_back(
+                tname, detach_async([=] { return run_target(t, p, m, c_opts); }, ti.parallel));
         }
 
         assert(gold_f.valid());
@@ -244,7 +252,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p.name, p.get_program()); });
+        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.compile_options); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

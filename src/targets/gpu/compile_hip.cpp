@@ -32,6 +32,13 @@
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/tmp_dir.hpp>
+#include <migraphx/dynamic_loader.hpp>
+#include <migraphx/process.hpp>
+#include <migraphx/msgpack.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/file_buffer.hpp>
 #else
 #include <migraphx/compile_src.hpp>
 #include <migraphx/process.hpp>
@@ -63,6 +70,7 @@ void hiprtc_check_error(hiprtcResult err, const std::string& msg, const std::str
         throw make_exception(ctx, hiprtc_error(err, msg));
 }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_HIPRTC(...) \
     hiprtc_check_error(__VA_ARGS__, #__VA_ARGS__, MIGRAPHX_MAKE_SOURCE_CTX())
 
@@ -110,21 +118,19 @@ struct hiprtc_program
     std::string cpp_src  = "";
     std::string cpp_name = "";
 
-    hiprtc_program(const std::vector<src_file>& srcs)
+    hiprtc_program(std::vector<hiprtc_src_file> srcs)
     {
         for(auto&& src : srcs)
         {
-            std::string content{src.content.first, src.content.second};
-            std::string path = src.path.string();
-            if(src.path.extension().string() == ".cpp")
+            if(ends_with(src.path, ".cpp"))
             {
-                cpp_src  = std::move(content);
-                cpp_name = std::move(path);
+                cpp_src  = std::move(src.content);
+                cpp_name = std::move(src.path);
             }
             else
             {
-                headers.push_back(std::move(content));
-                include_names.push_back(std::move(path));
+                headers.push_back(std::move(src.content));
+                include_names.push_back(std::move(src.path));
             }
         }
         prog = hiprtc_program_create(cpp_src.c_str(),
@@ -134,7 +140,7 @@ struct hiprtc_program
                                      include_names.data());
     }
 
-    void compile(const std::vector<std::string>& options)
+    void compile(const std::vector<std::string>& options) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
             std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
@@ -175,10 +181,11 @@ struct hiprtc_program
     }
 };
 
-std::vector<std::vector<char>>
-compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
+                                                           std::string params,
+                                                           const std::string& arch)
 {
-    hiprtc_program prog(srcs);
+    hiprtc_program prog(std::move(srcs));
     auto options = split_string(params, ' ');
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
@@ -205,7 +212,40 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     return {prog.get_code_obj()};
 }
 
+std::vector<std::vector<char>>
+compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+{
+    std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
+    auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
+    auto driver = p.parent_path().parent_path() / "bin" / "migraphx-hiprtc-driver";
+
+    if(fs::exists(driver))
+    {
+        value v;
+        v["srcs"]   = to_value(hsrcs);
+        v["params"] = to_value(params);
+        v["arch"]   = to_value(arch);
+
+        tmp_dir td{};
+        auto out = td.path / "output";
+
+        process(driver.string() + " " + out.string()).write([&](auto writer) {
+            to_msgpack(v, writer);
+        });
+        if(fs::exists(out))
+            return {read_buffer(out.string())};
+    }
+    return compile_hip_src_with_hiprtc(std::move(hsrcs), std::move(params), arch);
+}
+
 #else // MIGRAPHX_USE_HIPRTC
+
+std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>, // NOLINT
+                                                           std::string,                  // NOLINT
+                                                           const std::string&)
+{
+    MIGRAPHX_THROW("Not using hiprtc");
+}
 
 bool is_hip_clang_compiler()
 {

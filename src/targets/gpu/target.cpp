@@ -51,6 +51,7 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -74,7 +75,6 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
-
 struct id_pass
 {
     std::string name() const { return "id"; }
@@ -102,6 +102,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
+        enable_pass(options.split_single_dyn_dim, split_single_dyn_dim{}),
+        enable_pass(options.split_single_dyn_dim, dead_code_elimination{}),
         normalize_ops{},
         dead_code_elimination{},
         simplify_qdq{},

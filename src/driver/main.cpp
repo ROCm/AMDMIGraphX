@@ -373,7 +373,7 @@ struct program_params
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
-        fill_param_map(m, static_param_shapes, t, offload, batch);
+        fill_param_map(m, static_param_shapes, t, offload);
         return m;
     }
 };

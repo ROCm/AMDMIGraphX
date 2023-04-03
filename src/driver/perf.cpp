@@ -42,16 +42,15 @@ auto get_hash(const T& x)
 parameter_map fill_param_map(parameter_map& m,
                              const std::unordered_map<std::string, shape>& param_shapes,
                              const target& t,
-                             bool offload,
-                             unsigned batch)
+                             bool offload)
 {
     for(auto&& x : param_shapes)
     {
         argument& arg = m[x.first];
         if(arg.empty())
         {
-            auto s = x.second.to_static(batch);
-            arg    = generate_argument(s, get_hash(x.first));
+            assert(not x.second.is_dynamic());
+            arg = generate_argument(x.second, get_hash(x.first));
         }
         if(not offload)
             arg = t.copy_to(arg);

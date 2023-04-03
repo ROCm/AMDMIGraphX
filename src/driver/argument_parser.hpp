@@ -149,19 +149,19 @@ struct value_parser
     static T apply(const std::string& x)
     {
         T result;
-        std::stringstream ss;
-        ss.str(x);
         // handle whitespace in string
-        if constexpr(std::is_same<T, std::string>::value)
+        if constexpr(std::is_same<T, std::string>{})
         {
-            result = ss.str();
+            result = x;
         }
         else
         {
+            std::stringstream ss;
+            ss.str(x);
             ss >> result;
+            if(ss.fail())
+                throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
         }
-        if(ss.fail())
-            throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
         return result;
     }
 

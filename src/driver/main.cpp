@@ -33,6 +33,7 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
@@ -103,13 +104,14 @@ struct loader
            ap.nargs(2));
         ap(dyn_param_dims,
            {"--dyn-input-dim"},
-           ap.help("Dynamic dimensions of a parameter (format: \"@name\" \"{min1, max1, [opt1_1, "
-                   "opt1_2, ...]}\" \"{min2, max2}\", etc.)"),
+           ap.help("Dynamic dimensions of a parameter (format: \"@name_1\" \"[{min:x, max:y, "
+                   "optimals:[o1,o2,...]}, dim2,dim3, ...]\", \"@name_2\", ... You can supply a "
+                   "single integer value for a dimension to specify it as fixed."),
            ap.append(),
            ap.nargs(2));
         ap(default_dyn_dim,
            {"--default-dyn-dim"},
-           ap.help("Default dynamic dimension (format: \"{min, max, [opt1, opt2, ...]}\")."));
+           ap.help("Default dynamic dimension (format: \"{min:x, max:y, optimals:[o1,o2]}\")."));
         ap(output_names,
            {"--output-names"},
            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
@@ -160,47 +162,24 @@ struct loader
         return map_input_dims;
     }
 
-    static std::set<std::size_t> parse_opts_str(std::string opts_str)
+    static auto parse_dyn_dims_json(std::string dd_json)
     {
-        // expecting string formatted as "{opt_0, opt_1, ...}" or with "[]"
-        auto trimmed_str = migraphx::trim(
-            opts_str,
-            [](auto c) { return contains(std::string("{["), c); },
-            [](auto c) { return contains(std::string("}]"), c); });
-        auto splits = migraphx::split_string(trimmed_str, ',');
-        std::set<std::size_t> ret;
-        std::transform(
-            splits.begin(), splits.end(), std::inserter(ret, ret.begin()), [](const auto& opt_str) {
-                return value_parser<std::size_t>::apply(opt_str);
-            });
-        return ret;
+        // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
+        auto v = from_json_string(convert_to_json(dd_json));
+        std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
+        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](auto x) {
+            if(x.is_object())
+                return from_value<migraphx::shape::dynamic_dimension>(x);
+            auto d = x.template to<std::size_t>();
+            return migraphx::shape::dynamic_dimension{d, d};
+        });
+        return dyn_dims;
     }
 
-    static migraphx::shape::dynamic_dimension parse_dyn_dim_str(std::string dd_str)
-    {
-        // expecting string formatted as "{min, max, {opts}}" or "[min, max]"
-        auto trimmed_str = migraphx::trim(
-            dd_str,
-            [](auto c) { return contains(std::string("{["), c); },
-            [](auto c) { return contains(std::string("}]"), c); });
-        auto splits = migraphx::split_string(trimmed_str, ',');
-        switch(splits.size())
-        {
-        case 2:
-            return {value_parser<std::size_t>::apply(splits[0]),
-                    value_parser<std::size_t>::apply(splits[1])};
-        case 3:
-            return {value_parser<std::size_t>::apply(splits[0]),
-                    value_parser<std::size_t>::apply(splits[1]),
-                    parse_opts_str(splits[2])};
-        default: MIGRAPHX_THROW("Failed to parse dynamic dimension: " + dd_str);
-        }
-    }
-
-    static auto parse_dyn_dim_map(const std::vector<std::string>& param_dyn_dims)
+    static auto parse_dyn_dims_map(const std::vector<std::string>& param_dyn_dims)
     {
         // expecting vector of strings formatted like
-        // {"@param_name_0", "[dd_str_0, dd_str_1, ...]", ...}
+        // {"@param_name_0", "dd_json_0", "@param_name_1", "dd_json_1", ...}
         std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
         std::string name = "";
         for(auto&& x : param_dyn_dims)
@@ -211,7 +190,7 @@ struct loader
             }
             else
             {
-                map_dyn_input_dims[name].push_back(parse_dyn_dim_str(x));
+                map_dyn_input_dims[name] = parse_dyn_dims_json(x);
             }
         }
         return map_dyn_input_dims;
@@ -228,14 +207,39 @@ struct loader
         return output_node_names;
     }
 
+    tf_options set_tf_options()
+    {
+        auto map_input_dims    = parse_param_dims(param_dims);
+        auto output_node_names = parse_output_names(output_names);
+        return tf_options{is_nhwc, batch, map_input_dims, output_node_names};
+    }
+
+    onnx_options set_onnx_options()
+    {
+        auto map_input_dims     = parse_param_dims(param_dims);
+        auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
+        onnx_options options;
+        if(default_dyn_dim.empty())
+        {
+            options.default_dim_value = batch;
+        }
+        else
+        {
+            auto v                        = from_json_string(convert_to_json(default_dyn_dim));
+            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+        }
+        options.skip_unknown_operators = skip_unknown_operators;
+        options.print_program_on_error = true;
+        options.map_input_dims         = map_input_dims;
+        options.map_dyn_input_dims     = map_dyn_input_dims;
+        return options;
+    }
+
     program load()
     {
         program p;
         if(model.empty())
         {
-            auto map_input_dims     = parse_param_dims(param_dims);
-            auto map_dyn_input_dims = parse_dyn_dim_map(dyn_param_dims);
-            auto output_node_names  = parse_output_names(output_names);
             if(file_type.empty())
             {
                 if(ends_with(file, ".onnx"))
@@ -250,24 +254,11 @@ struct loader
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
             {
-                onnx_options options;
-                if(default_dyn_dim.empty())
-                {
-                    options.default_dim_value = batch;
-                }
-                else
-                {
-                    options.default_dyn_dim_value = parse_dyn_dim_str(default_dyn_dim);
-                }
-                options.skip_unknown_operators = skip_unknown_operators;
-                options.print_program_on_error = true;
-                options.map_input_dims         = map_input_dims;
-                options.map_dyn_input_dims     = map_dyn_input_dims;
-                p                              = parse_onnx(file, options);
+                p = parse_onnx(file, set_onnx_options());
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims, output_node_names});
+                p = parse_tf(file, set_tf_options());
             }
             else if(file_type == "json")
             {

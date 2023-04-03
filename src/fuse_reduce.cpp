@@ -64,8 +64,8 @@ struct fused_reduce
                return shapes.at(name).lens() == input.lens();
            }))
             MIGRAPHX_THROW("Dimenstion does not match the submodule.");
-        const auto& s    = inputs.at(0);
-        auto lens = s.lens();
+        const auto& s = inputs.at(0);
+        auto lens     = s.lens();
         if(lens != sm->get_output_shapes().front().lens())
         {
             for(const auto& axis : axes)

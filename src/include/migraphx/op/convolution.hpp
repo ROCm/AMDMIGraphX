@@ -37,7 +37,7 @@ namespace op {
 
 /**
  * Convolution operator. Does not support optimal dimensions for spatial dimensions. Returns empty
- * opts.
+ * optimals.
  */
 struct convolution
 {
@@ -166,13 +166,13 @@ struct convolution
                 if(x_shape.dynamic())
                 {
                     auto x = x_shape.dyn_dims()[i + 2];
-                    std::set<std::size_t> opts{};
-                    std::transform(x.opts.begin(),
-                                   x.opts.end(),
-                                   std::inserter(opts, opts.begin()),
+                    std::set<std::size_t> optimals{};
+                    std::transform(x.optimals.begin(),
+                                   x.optimals.end(),
+                                   std::inserter(optimals, optimals.begin()),
                                    [&](auto o) { return ceil_div(o, s); });
                     output_dyn_dims.push_back(
-                        shape::dynamic_dimension{ceil_div(x.min, s), ceil_div(x.max, s), opts});
+                        shape::dynamic_dimension{ceil_div(x.min, s), ceil_div(x.max, s), optimals});
                 }
                 else
                 {

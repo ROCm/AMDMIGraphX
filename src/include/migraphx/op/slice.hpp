@@ -111,7 +111,7 @@ struct slice
         // For a static shape, old_lens will be adjusted to a new size
         // for those axes that are sliced.
         // For dynamic shape, the adjusted old_lens become the new max values,
-        // while updating the old mins and opts if possible.
+        // while updating the old mins and optimals if possible.
         std::vector<std::size_t> new_mins;
         std::vector<std::size_t> old_lens;
         std::vector<std::size_t> old_strides;

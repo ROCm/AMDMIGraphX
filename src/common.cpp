@@ -89,7 +89,7 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
             }
             else if(a == 1 or b == 1)
             {
-                // setting opts to empty, may need to be changed
+                // setting optimals to empty, may need to be changed
                 return shape::dynamic_dimension{std::max(a.min, b.min), std::max(a.max, b.max)};
             }
             else

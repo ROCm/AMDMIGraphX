@@ -89,12 +89,12 @@ struct shape
     {
         std::size_t min = 0;
         std::size_t max = 0;
-        std::set<std::size_t> opts{};
+        std::set<std::size_t> optimals{};
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"), f(self.max, "max"), f(self.opts, "opts"));
+            return pack(f(self.min, "min"), f(self.max, "max"), f(self.optimals, "optimals"));
         }
 
         bool is_fixed() const;
@@ -134,12 +134,12 @@ struct shape
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
 
-    // Construct a dynamic shape from vectors of mins, maxes, and opts.
-    // opts_list is a vector of opt sets that corresponds to each min and max.
+    // Construct a dynamic shape from vectors of mins, maxes, and optimals.
+    // optimals_list is a vector of optimals that corresponds to each min and max.
     shape(type_t t,
           std::vector<std::size_t> mins,
           std::vector<std::size_t> maxes,
-          std::vector<std::set<std::size_t>> opts_list);
+          std::vector<std::set<std::size_t>> optimals_list);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
@@ -256,7 +256,7 @@ struct shape
 
     shape with_type(type_t t) const;
 
-    // convert the shape to an equivalent dynamic shape with empty opts
+    // convert the shape to an equivalent dynamic shape with empty optimals
     shape to_dynamic() const;
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x

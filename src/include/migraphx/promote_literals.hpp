@@ -32,7 +32,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * Replace literals in submodules with literals in the main module.
+ * Replace literals in submodules with literals in the root module.
  * Intended to allow for reuse of the literals between submodules.
  */
 struct promote_literals

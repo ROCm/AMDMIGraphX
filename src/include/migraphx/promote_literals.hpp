@@ -21,24 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_PROMOTE_LITERALS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_PROMOTE_LITERALS_HPP
 
 #include <string>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * Split dynamic dimension over submodules if exactly one dimension in the parameter list is
- * dynamic.
+ * Replace literals in submodules with literals in the root module.
+ * Intended to allow for reuse of the literals between submodules.
  */
-struct split_single_dyn_dim
+struct promote_literals
 {
-    std::string name() const { return "split_single_dyn_dim"; }
+    std::string name() const { return "promote_literals"; }
     void apply(module_pass_manager&) const;
 };
 

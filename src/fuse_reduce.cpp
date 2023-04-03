@@ -60,9 +60,9 @@ struct fused_reduce
         std::sort(names.begin(), names.end());
         auto shapes = sm->get_parameter_shapes();
         // Check dimension matches for each input
-        if (not equal(names, inputs, [&](const auto& name, const auto& input) {
-            return shapes.at(name).lens() == input.lens();
-        }))
+        if(not equal(names, inputs, [&](const auto& name, const auto& input) {
+               return shapes.at(name).lens() == input.lens();
+           }))
             MIGRAPHX_THROW("Dimenstion does not match the submodule.");
         auto s    = inputs.at(0);
         auto lens = s.lens();
@@ -222,7 +222,7 @@ struct find_pointwise_reduce
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce = r.result;
-        auto input     = r.instructions["pointwise"];
+        auto input  = r.instructions["pointwise"];
 
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
@@ -231,13 +231,13 @@ struct find_pointwise_reduce
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // Insert pointwise
-        auto rins   = insert_ins_in_submodule(rm, input, map_ins).front();
+        auto rins      = insert_ins_in_submodule(rm, input, map_ins).front();
         map_ins[input] = rins;
 
         if(contains(r.instructions, "broadcast"))
         {
-            auto broadcast                       = r.instructions["broadcast"];
-            map_ins[broadcast]                            = insert_ins_in_submodule(rm, broadcast, map_ins).front();
+            auto broadcast     = r.instructions["broadcast"];
+            map_ins[broadcast] = insert_ins_in_submodule(rm, broadcast, map_ins).front();
         }
 
         // Insert fused_reduce
@@ -251,7 +251,10 @@ struct find_pointwise_reduce
 struct find_reduce_pointwise
 {
 
-    auto matcher() const { return match::name("pointwise")(match_broadcastable_input("fused_reduce", "reduce")); }
+    auto matcher() const
+    {
+        return match::name("pointwise")(match_broadcastable_input("fused_reduce", "reduce"));
+    }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -288,7 +291,10 @@ struct find_reduce_pointwise
 
 struct find_reduce_reduce
 {
-    auto matcher() const { return match::name("fused_reduce")(match_broadcastable_input("fused_reduce", "reduce")); }
+    auto matcher() const
+    {
+        return match::name("fused_reduce")(match_broadcastable_input("fused_reduce", "reduce"));
+    }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {

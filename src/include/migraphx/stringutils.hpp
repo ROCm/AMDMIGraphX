@@ -95,14 +95,6 @@ inline std::vector<std::string> split_string(const std::string& s, char delim)
     return elems;
 }
 
-template <class LeftF, class RightF>
-std::string trim(const std::string& s, LeftF lf, RightF rf)
-{
-    auto start = std::find_if_not(s.begin(), s.end(), lf);
-    auto last = std::find_if_not(s.rbegin(), std::string::const_reverse_iterator(start), rf).base();
-    return {start, last};
-}
-
 template <class F>
 std::string trim(const std::string& s, F f)
 {

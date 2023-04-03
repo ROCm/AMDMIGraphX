@@ -25,8 +25,8 @@
 /**
  * Contains a templated struct implementation that wraps several rocBLAS API calls
  * used by the GEMM operator.  These are accessed by methods declared in gemm_impl.hpp
- * 
-*/
+ *
+ */
 
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
@@ -34,7 +34,7 @@
 
 using microseconds = std::chrono::duration<double, std::micro>;
 
-#if ROCBLAS_VERSION_MAJOR > 2 ||  (ROCBLAS_VERSION_MAJOR == 2 && ROCBLAS_VERSION_MINOR >= 38)
+#if ROCBLAS_VERSION_MAJOR > 2 || (ROCBLAS_VERSION_MAJOR == 2 && ROCBLAS_VERSION_MINOR >= 38)
 using flag_type = rocblas_gemm_flags;
 #else
 using flag_type = int;
@@ -140,10 +140,10 @@ static rocblas_int get_batch_stride(const argument& a)
  * Wrapper for multiple rocBLAS calls.  The constructor creates parameters for
  * these calls based on values provided by the associated instruction and operation.
  * Most significant input are the data shapes.
- * 
- * The template parameter T is not the type of the input data but of the parameters 
+ *
+ * The template parameter T is not the type of the input data but of the parameters
  * alpha and beta (these are float within rocBLAS)
-*/
+ */
 template <typename T>
 struct gemm_impl
 {
@@ -373,7 +373,7 @@ struct gemm_impl
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         // tuning meta parameters
-        const int hot_calls= 40;
+        const int hot_calls  = 40;
         const int cold_calls = 1;
 
         std::vector<argument> input_args;
@@ -433,18 +433,20 @@ struct gemm_impl
         rocblas_int bestSol = 0;
         for(auto sol : solution_indices)
         {
-            // Warmup: the first few calls to an op. may not be representative since there is
-            // more time taken initializing caches, etc. so we won't time them.
-            for(int cc = 0; cc < cold_calls; ++cc)
-            {
-                run(ctx, input_args, sol);
-            }
-            double host_time = 0.0;
             // Define the function to be timed
             auto run_func = [&]() {
                 run(ctx, input_args, sol);
                 ctx.finish();
             };
+
+            // Warmup: the first few calls to an op. may not be representative since there is
+            // more time taken initializing caches, etc. so we won't time them.
+            for(int cc = 0; cc < cold_calls; ++cc)
+            {
+                run_func();
+            }
+            double host_time = 0.0;
+
             for(int hc = 0; hc < hot_calls; ++hc)
             {
                 ctx.finish();

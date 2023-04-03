@@ -55,7 +55,15 @@ struct fused_reduce
         auto* sm = mods.front();
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one output supported");
-        check_shapes{inputs, *this}.has(sm->get_parameter_shapes().size()).same_dims();
+        auto names = sm->get_parameter_names();
+        check_shapes{inputs, *this}.has(names.size()).same_ndims();
+        std::sort(names.begin(), names.end());
+        auto shapes = sm->get_parameter_shapes();
+        // Check dimension matches for each input
+        if (not equal(names, inputs, [&](const auto& name, const auto& input) {
+            return shapes.at(name).lens() == input.lens();
+        }))
+            MIGRAPHX_THROW("Dimenstion does not match the submodule.");
         auto s    = inputs.at(0);
         auto lens = s.lens();
         if(lens != sm->get_output_shapes().front().lens())
@@ -182,37 +190,6 @@ static void create_reduce_modules(module_pass_manager& mpm)
     }
 }
 
-namespace {
-struct find_pointwise_reduce
-{
-    auto matcher() const
-    {
-        return match::name("fused_reduce")(match::any_of[match::inputs()](
-            match::name("pointwise")(match::used_once()).bind("pointwise")));
-    }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        auto reduce = r.result;
-        auto pw     = r.instructions["pointwise"];
-
-        const auto* pm     = pw->module_inputs().front();
-        const auto* old_rm = reduce->module_inputs().front();
-        auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
-        rm->set_bypass();
-
-        std::unordered_map<instruction_ref, instruction_ref> map_ins;
-        // Insert pointwise
-        auto rins   = insert_ins_in_submodule(rm, pw, map_ins).front();
-        map_ins[pw] = rins;
-        // Insert fused_reduce
-        rm->add_return(insert_module_in_submodule(rm, reduce, map_ins));
-
-        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
-        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
-    }
-};
-
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
@@ -226,18 +203,55 @@ static auto any_input(Ms... ms)
     return match::any_of[match::inputs()](match::any(ms...).bind("input"));
 }
 
-static auto match_reduce_input()
+static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
-    auto reduce                 = match::name("fused_reduce")(match::used_once()).bind("reduce");
-    auto reduce_input           = any_input(reduce, match::used_once());
-    auto broadcast_reduce_input = any_input(match_broadcast(reduce), match::used_once());
-    return match::any_of(reduce_input, broadcast_reduce_input);
+    auto match_op                 = match::name(op)(match::used_once()).bind(name);
+    auto match_op_input           = any_input(match_op, match::used_once());
+    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
+    return match::any_of(match_op_input, broadcast_match_op_input);
 }
+
+namespace {
+struct find_pointwise_reduce
+{
+    auto matcher() const
+    {
+        return match::name("fused_reduce")(match_broadcastable_input("pointwise", "pointwise"));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto reduce = r.result;
+        auto input     = r.instructions["pointwise"];
+
+        const auto* pm     = input->module_inputs().front();
+        const auto* old_rm = reduce->module_inputs().front();
+        auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
+        rm->set_bypass();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        // Insert pointwise
+        auto rins   = insert_ins_in_submodule(rm, input, map_ins).front();
+        map_ins[input] = rins;
+
+        if(contains(r.instructions, "broadcast"))
+        {
+            auto broadcast                       = r.instructions["broadcast"];
+            map_ins[broadcast]                            = insert_ins_in_submodule(rm, broadcast, map_ins).front();
+        }
+
+        // Insert fused_reduce
+        rm->add_return(insert_module_in_submodule(rm, reduce, map_ins));
+
+        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
+        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
+    }
+};
 
 struct find_reduce_pointwise
 {
 
-    auto matcher() const { return match::name("pointwise")(match_reduce_input()); }
+    auto matcher() const { return match::name("pointwise")(match_broadcastable_input("fused_reduce", "reduce")); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -274,7 +288,7 @@ struct find_reduce_pointwise
 
 struct find_reduce_reduce
 {
-    auto matcher() const { return match::name("fused_reduce")(match_reduce_input()); }
+    auto matcher() const { return match::name("fused_reduce")(match_broadcastable_input("fused_reduce", "reduce")); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {

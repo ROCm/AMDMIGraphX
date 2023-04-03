@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_CPU_PARALLEL_HPP
 
 // #define MIGRAPHX_DISABLE_OMP
-
+#include <cmath>
 #include <migraphx/config.hpp>
 #ifdef MIGRAPHX_DISABLE_OMP
 #include <migraphx/par_for.hpp>

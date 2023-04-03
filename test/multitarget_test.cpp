@@ -39,7 +39,9 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/register_target.hpp>
 #include "test.hpp"
-
+// x+y == CPU
+// out_cpu + Z = GPU
+// result = GPU_out + Z -> CPU
 TEST_CASE(multitarget_program)
 {
     migraphx::program p;
@@ -64,9 +66,11 @@ TEST_CASE(multitarget_program)
         migraphx::make_op("run_on_target", {{"target", "cpu"}}), {x_param, y_param}, {cpu_mod});
     auto gpu_ins = mm->add_instruction(
         migraphx::make_op("run_on_target", {{"target", "gpu"}}), {cpu_ins, z_param}, {gpu_mod});
-    // auto cpu2_ins = mm->add_instruction(
-    //     migraphx::make_op("run_on_target", {{"target", "cpu"}}), {gpu_ins, z_param}, {cpu_mod});
-    mm->add_return({gpu_ins});
+    // need to create copy, not sure why
+    auto cpu_mod2 = *cpu_mod;
+    auto cpu2_ins = mm->add_instruction(
+        migraphx::make_op("run_on_target", {{"target", "cpu"}}), {gpu_ins, z_param}, {&cpu_mod2});
+    mm->add_return({cpu2_ins});
     std::unordered_map<std::string, migraphx::compile_options> compile_opts;
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
@@ -86,7 +90,7 @@ TEST_CASE(multitarget_program)
     auto result = p.eval(params_map).back();
     std::vector<float> results_vector(8, -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold(8, 3);
+    std::vector<float> gold(8, 4);
     EXPECT(migraphx::verify_range(results_vector, gold));
     std::cout << "Success\n";
 }

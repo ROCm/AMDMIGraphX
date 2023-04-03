@@ -163,6 +163,23 @@ struct gemm_impl
             beta = 0;
         }
 
+        // Create lambdas that will cast alpha, beta to the output shape type
+        // and retain the values being pointed to
+        output_shape.visit_type([&](auto as) {
+            auto alpha_r = as(alpha);
+            auto beta_r  = as(beta);
+            if(compute_fp32)
+            {
+                get_alpha = [=] { return &alpha; };
+                get_beta  = [=] { return &beta; };
+            }
+            else
+            {
+                get_alpha = [=] { return &alpha_r; };
+                get_beta  = [=] { return &beta_r; };
+            }
+        });
+
         transa     = is_transposed(input_shapes[0]);
         transb     = is_transposed(input_shapes[1]);
         auto n_dim = output_shape.lens().size();
@@ -309,7 +326,7 @@ struct gemm_impl
                     n,
                     m,
                     k,
-                    &alpha,
+                    get_alpha(),
                     args[1].data(),
                     arg_type,
                     ldb,
@@ -318,7 +335,7 @@ struct gemm_impl
                     arg_type,
                     lda,
                     a_stride,
-                    &beta,
+                    get_beta(),
                     args[2].data(),
                     output_type,
                     ldc,
@@ -349,14 +366,14 @@ struct gemm_impl
                     n,
                     m,
                     k,
-                    &alpha,
+                    get_alpha(),
                     args[1].data(),
                     arg_type,
                     ldb,
                     args[0].data(),
                     arg_type,
                     lda,
-                    &beta,
+                    get_beta(),
                     args[2].data(),
                     output_type,
                     ldc,
@@ -479,6 +496,9 @@ struct gemm_impl
     rocblas_int m, n, k;
     bool transa, transb;
     T alpha, beta;
+
+    std::function<const void*()> get_alpha;
+    std::function<const void*()> get_beta;
     flag_type int8_flag;
     rocblas_int lda, ldb, ldc, ldd;
     rocblas_int a_stride, b_stride, c_stride, d_stride;

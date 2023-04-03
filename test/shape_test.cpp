@@ -76,7 +76,16 @@ TEST_CASE(test_shape_standard)
     EXPECT(not s.broadcasted());
 }
 
-TEST_CASE(test_shape_static_min_max_opt)
+TEST_CASE(test_shape_standard_singleton_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5, 1, 8}, {8, 4, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+TEST_CASE(test_shape_min_max_opt)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
     EXPECT(s.min_lens() == s.lens());

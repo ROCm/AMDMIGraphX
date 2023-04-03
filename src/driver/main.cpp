@@ -88,7 +88,8 @@ struct loader
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
         ap(batch,
            {"--batch"},
-           ap.help("For a static model, set batch size. For a dynamic batch model, sets the batch "
+           ap.help("For a static model, sets default_dim_value size (commonly batch size). For a "
+                   "dynamic batch model, sets the batch "
                    "size at runtime."));
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap(skip_unknown_operators,
@@ -162,7 +163,7 @@ struct loader
         return map_input_dims;
     }
 
-    static auto parse_dyn_dims_json(std::string dd_json)
+    static auto parse_dyn_dims_json(const std::string& dd_json)
     {
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
         auto v = from_json_string(convert_to_json(dd_json));
@@ -207,14 +208,19 @@ struct loader
         return output_node_names;
     }
 
-    tf_options set_tf_options()
+    tf_options get_tf_options()
     {
         auto map_input_dims    = parse_param_dims(param_dims);
         auto output_node_names = parse_output_names(output_names);
-        return tf_options{is_nhwc, batch, map_input_dims, output_node_names};
+        tf_options options;
+        options.is_nhwc           = is_nhwc;
+        options.batch_size        = batch;
+        options.map_input_dims    = map_input_dims;
+        options.output_node_names = output_node_names;
+        return options;
     }
 
-    onnx_options set_onnx_options()
+    onnx_options get_onnx_options()
     {
         auto map_input_dims     = parse_param_dims(param_dims);
         auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
@@ -254,11 +260,11 @@ struct loader
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
             {
-                p = parse_onnx(file, set_onnx_options());
+                p = parse_onnx(file, get_onnx_options());
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, set_tf_options());
+                p = parse_tf(file, get_tf_options());
             }
             else if(file_type == "json")
             {

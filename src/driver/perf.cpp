@@ -49,7 +49,7 @@ parameter_map fill_param_map(parameter_map& m,
         argument& arg = m[x.first];
         if(arg.empty())
         {
-            assert(not x.second.is_dynamic());
+            assert(not x.second.dynamic());
             arg = generate_argument(x.second, get_hash(x.first));
         }
         if(not offload)

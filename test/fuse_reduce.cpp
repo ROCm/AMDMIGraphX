@@ -236,7 +236,7 @@ TEST_CASE(reduce_reduce_mismatch_axis)
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(reduce_reduce_broadcast)
+TEST_CASE(pointwise_reduce_broadcast)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
@@ -277,6 +277,37 @@ TEST_CASE(reduce_reduce_broadcast)
                     p2, rm, "main:pointwise2", {rsum2, rsum1}, single_pointwise("add"));
             });
         mm->add_return({add2});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(reduce_reduce_broadcast)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4, 2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum1 = add_reduce(p1, "test:reduce_sum0", {x}, {1}, single_reduce("reduce_sum"));
+        auto rsumb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum1);
+        auto add = add_reduce(p1, "test:reduce_sum1", {rsumb, x}, {1}, [&](auto* rm, const auto& inputs, const auto& axes) {
+            auto add2 = add_pointwise(p1, rm, "test:pointwise0", inputs, single_pointwise("add"));
+            return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), add2);
+        });
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum = add_reduce(p2, "test:reduce_sum1:test:reduce_sum0", {x}, {1}, [&](auto* rm, const auto& inputs, const auto& axes) {
+            auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+            auto rsumb = rm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum1);
+            auto add = add_pointwise(p2, rm, "test:pointwise0", {rsumb, inputs[0]}, single_pointwise("add"));
+            return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), add);
+        });
+        mm->add_return({rsum});
     }
     EXPECT(p1 == p2);
 }

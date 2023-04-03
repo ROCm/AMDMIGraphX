@@ -183,7 +183,6 @@ static void create_reduce_modules(module_pass_manager& mpm)
         rm->set_bypass();
 
         rm->add_return(insert_ins_in_submodule(rm, ins));
-
         auto v = ins->get_operator().to_value();
         mpm.get_module().replace_instruction(
             ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,22 +23,34 @@
  */
 
 #include "verify_program.hpp"
-#include <migraphx/program.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_concat_axis_2 : verify_program<test_concat_axis_2>
+/**
+ * Test that the split_single_dyn_dim GPU compiler pass produces the same results as ref.
+ */
+struct test_split_single_dyn_dim : verify_program<test_split_single_dyn_dim>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::int32_type, {3, 2, 1}};
-        auto x0 = mm->add_parameter("x0", s);
-        auto x1 = mm->add_parameter("x1", s);
-        auto x2 = mm->add_parameter("x2", s);
-        auto x3 = mm->add_parameter("x3", s);
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), x0, x1, x2, x3);
+        migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+        auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
+        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        auto input = mm->add_parameter("data", s);
+        auto broadcast_lit =
+            mm->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input);
+        auto add_ins = mm->add_instruction(migraphx::make_op("add"), input, broadcast_lit);
+        mm->add_return({add_ins});
         return p;
     }
+
+    migraphx::compile_options get_compile_options() const
+    {
+        migraphx::compile_options co;
+        co.split_single_dyn_dim = true;
+        return co;
+    };
 };

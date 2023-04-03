@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package(miopen)
 
 # rocblas
@@ -240,6 +240,7 @@ target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 
 add_subdirectory(driver)
+add_subdirectory(hiprtc)
 
 rocm_install_targets(
     TARGETS migraphx_gpu migraphx_device compile_for_gpu

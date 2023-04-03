@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,20 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/serialize.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/ref/context.hpp>
-#include <migraphx/functional.hpp>
-#include <test.hpp>
 
-TEST_CASE(context)
+#include <migraphx/promote_literals.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+void promote_literals::apply(module_pass_manager& mpm) const
 {
-    migraphx::context ctx = migraphx::ref::context{};
-    migraphx::value v     = ctx.to_value();
-    EXPECT(v.empty());
+    module& m              = mpm.get_module();
+    module_ref root_module = mpm.get_root_module();
+    if(m.name() == "main")
+        return;
 
-    migraphx::context cpu_ctx = migraphx::ref::context{};
-    cpu_ctx.from_value(v);
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "@literal")
+        {
+            auto new_lit = root_module->add_literal(ins->get_literal());
+            for(auto out_ins : ins->outputs())
+            {
+                out_ins->replace_argument(out_ins, ins, new_lit);
+            }
+        }
+    }
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

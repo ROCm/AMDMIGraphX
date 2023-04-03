@@ -166,6 +166,7 @@ void module::assign(const module& m)
             auto s      = ins->get_shape();
             copy_ins    = impl->insert(impl->instructions.end(),
                                     {builtin::param{name, order}, std::move(s), {}});
+            impl->nparams++;
         }
         else if(ins->name() == "@outline")
         {

@@ -74,6 +74,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
+    promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
     quantize_int8.cpp
@@ -92,6 +93,7 @@ add_library(migraphx
     shape.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    split_single_dyn_dim.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp
@@ -252,7 +254,7 @@ find_package(PkgConfig)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
 
-find_package(msgpackc-cxx)
+find_package(msgpackc-cxx QUIET)
 if(NOT msgpackc-cxx_FOUND)
     find_package(msgpack REQUIRED)
 endif()
@@ -291,6 +293,10 @@ endif()
 
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
+endif()
+
+if(BUILD_DEV)
+    target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
 rocm_export_targets(

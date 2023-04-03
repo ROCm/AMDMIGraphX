@@ -37,6 +37,12 @@ struct dynamic_loader_impl;
 
 struct dynamic_loader
 {
+    template <class T>
+    static fs::path path(T* address)
+    {
+        return path(reinterpret_cast<void*>(address));
+    }
+    static fs::path path(void* address);
     dynamic_loader() = default;
 
     dynamic_loader(const fs::path& p);

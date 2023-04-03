@@ -431,8 +431,15 @@ TEST_CASE(contiguous_dyn_shape)
 
 TEST_CASE(contiguous_shape_scalar)
 {
-    migraphx::shape output{migraphx::shape::float_type};
+    migraphx::shape output{migraphx::shape::float_type, {1}};
     migraphx::shape input{migraphx::shape::float_type};
+    expect_shape(output, migraphx::make_op("contiguous"), input);
+}
+
+TEST_CASE(contiguous_shape_singleton_dim)
+{
+    migraphx::shape output{migraphx::shape::float_type, {5, 1, 8}, {8, 8, 1}};
+    migraphx::shape input{migraphx::shape::float_type, {5, 1, 8}, {8, 4, 1}};
     expect_shape(output, migraphx::make_op("contiguous"), input);
 }
 

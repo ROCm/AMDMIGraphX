@@ -104,6 +104,10 @@ def disabled_tests_onnx_1_10_0(backend_test):
     backend_test.exclude(r'test_shape_start_negative_1_cpu')
 
 
+def disabled_tests_onnx_1_12_0(backend_test):
+    backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
+
+
 def create_backend_test(testname=None, target_device=None):
     if target_device is not None:
         c2.set_device(target_device)
@@ -326,6 +330,9 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.10.0"):
             disabled_tests_onnx_1_10_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.12.0"):
+            disabled_tests_onnx_1_12_0(backend_test)
 
 
 # import all test cases at global scope to make

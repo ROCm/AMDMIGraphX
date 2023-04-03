@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,47 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_HIP_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_HIP_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_PROMOTE_LITERALS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_PROMOTE_LITERALS_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/filesystem.hpp>
-#include <migraphx/compile_src.hpp>
-#include <migraphx/functional.hpp>
 #include <string>
-#include <utility>
-#include <vector>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct hiprtc_src_file
+/**
+ * Replace literals in submodules with literals in the root module.
+ * Intended to allow for reuse of the literals between submodules.
+ */
+struct promote_literals
 {
-    hiprtc_src_file() = default;
-    hiprtc_src_file(const src_file& s)
-        : path(s.path.string()), content(s.content.first, s.content.second)
-    {
-    }
-    std::string path;
-    std::string content;
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.path, "path"), f(self.content, "content"));
-    }
+    std::string name() const { return "promote_literals"; }
+    void apply(module_pass_manager&) const;
 };
 
-std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
-                                                           std::string params,
-                                                           const std::string& arch);
-
-std::vector<std::vector<char>>
-compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch);
-
-std::string enum_params(std::size_t count, std::string param);
-
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

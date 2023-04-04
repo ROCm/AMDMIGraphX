@@ -74,7 +74,7 @@ std::string make_transformer_args(Ts... xs)
 
 std::string generate_pointwise(const module& pm, const std::string& name);
 
-std::string generate_reduce(const module& rm, const std::string& name);
+std::string generate_reduce(const module& m, const std::string& name);
 
 std::string generate_name_from_ops(const module& m);
 

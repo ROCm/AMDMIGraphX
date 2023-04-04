@@ -896,21 +896,26 @@ struct find_conv_dot_horiz_fusion
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
-                auto outputs = arg->outputs();
-                for(auto output : outputs)
-                {
-                    if(output->name() != "reshape")
-                        continue;
-                    auto x = m.insert_instruction(output, make_op("contiguous"), arg);
-                    m.replace_instruction(output, output->get_operator(), x);
-                }
+                auto outputs             = arg->outputs();
+                auto requires_contiguous = std::any_of(outputs.begin(), outputs.end(), [](auto o) {
+                    return o->get_shape().standard();
+                });
 
                 int64_t len = arg->get_shape().lens()[axis];
-                m.replace_instruction(
-                    arg,
+
+                auto slice = m.insert_instruction(
+                    std::prev(arg),
                     make_op("slice",
                             {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
                     fused);
+                if(requires_contiguous)
+                {
+                    m.replace_instruction(arg, make_op("contiguous"), slice);
+                }
+                else
+                {
+                    m.replace_instruction(arg, slice);
+                }
                 offset += len;
             }
         };

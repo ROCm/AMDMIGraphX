@@ -229,3 +229,10 @@ test_headers(migraphx/ref ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/r
 if(MIGRAPHX_ENABLE_GPU)
     test_headers(migraphx/gpu ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp)
 endif()
+if(MIGRAPHX_ENABLE_CPU)
+    test_headers(migraphx/cpu ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp)
+endif()
+if(MIGRAPHX_ENABLE_FPGA)
+    test_headers(migraphx/fpga ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp)
+endif()
+

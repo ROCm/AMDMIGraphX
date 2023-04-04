@@ -119,8 +119,8 @@ struct nonmaxsuppression
                 fixed_shape_error_check();
             }
             std::vector<shape::dynamic_dimension> out_lens = {};
-            out_lens.push_back({0, max_num_boxes, 0});
-            out_lens.push_back({3, 3, 0});
+            out_lens.push_back({0, max_num_boxes});
+            out_lens.push_back({3, 3});
             return {shape::int64_type, out_lens};
         }
         else

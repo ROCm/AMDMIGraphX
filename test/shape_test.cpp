@@ -41,22 +41,13 @@ TEST_CASE(test_shape_default)
 
 TEST_CASE(test_dyn_4arg_constructor)
 {
-    migraphx::shape s{migraphx::shape::float_type,
-                      {
-                          1,
-                          4,
-                          4,
-                      },
-                      {
-                          4,
-                          4,
-                          4,
-                      },
-                      {0, 0, 0}};
-    std::vector<migraphx::shape::dynamic_dimension> expected_dyn_dims = {
-        {1, 4, 0}, {4, 4, 0}, {4, 4, 0}};
-    EXPECT(s.dynamic());
-    EXPECT(s.dyn_dims() == expected_dyn_dims);
+    migraphx::shape s0{migraphx::shape::float_type, {1, 4, 4}, {4, 4, 4}, {{}, {}, {}}};
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 4}, {4, 4, 4}, {}};
+    std::vector<migraphx::shape::dynamic_dimension> expected_dyn_dims = {{1, 4}, {4, 4}, {4, 4}};
+    EXPECT(s0.dynamic());
+    EXPECT(s0.dyn_dims() == expected_dyn_dims);
+    EXPECT(s1.dynamic());
+    EXPECT(s1.dyn_dims() == expected_dyn_dims);
 }
 
 TEST_CASE(test_shape_assign)
@@ -85,17 +76,26 @@ TEST_CASE(test_shape_standard)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_standard_singleton_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5, 1, 8}, {8, 4, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_min_max_opt)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
     EXPECT(s.min_lens() == s.lens());
     EXPECT(s.max_lens() == s.lens());
-    EXPECT(s.opt_lens() == s.lens());
+    EXPECT(s.opt_lens().empty());
 }
 
 TEST_CASE(test_shape_dynamic_fixed)
 {
-    migraphx::shape s{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}, {3, 3, 0}}};
+    migraphx::shape s{migraphx::shape::float_type, {{2, 2}, {2, 2}, {3, 3}}};
     EXPECT(not s.standard());
     EXPECT(not s.packed());
     EXPECT(not s.transposed());
@@ -106,7 +106,8 @@ TEST_CASE(test_shape_dynamic_fixed)
     EXPECT(not s.dyn_dims().at(0).has_optimal());
     EXPECT(s.min_lens() == std::vector<std::size_t>{2, 2, 3});
     EXPECT(s.max_lens() == std::vector<std::size_t>{2, 2, 3});
-    EXPECT(s.opt_lens() == std::vector<std::size_t>{0, 0, 0});
+    std::vector<std::set<std::size_t>> e_opt_lens = {{}, {}, {}};
+    EXPECT(s.opt_lens() == e_opt_lens);
     EXPECT(s.bytes() == 2 * 2 * 3 * sizeof(float));
 }
 
@@ -114,8 +115,8 @@ TEST_CASE(test_shape_dynamic_not_fixed)
 {
     using migraphx::shape;
     std::vector<shape::dynamic_dimension> dims = {};
-    dims.push_back(shape::dynamic_dimension{2, 5, 2});
-    dims.push_back(shape::dynamic_dimension{2, 8, 0});
+    dims.push_back(shape::dynamic_dimension{2, 5, {2}});
+    dims.push_back(shape::dynamic_dimension{2, 8});
     migraphx::shape s{migraphx::shape::float_type, dims};
     EXPECT(not s.standard());
     EXPECT(not s.packed());
@@ -127,18 +128,16 @@ TEST_CASE(test_shape_dynamic_not_fixed)
     EXPECT(s.dyn_dims().at(0).has_optimal());
     EXPECT(s.min_lens() == std::vector<std::size_t>{2, 2});
     EXPECT(s.max_lens() == std::vector<std::size_t>{5, 8});
-    EXPECT(s.opt_lens() == std::vector<std::size_t>{2, 0});
+    EXPECT(s.opt_lens() == std::vector<std::set<std::size_t>>{{2}, {}});
     EXPECT(s.bytes() == 5 * 8 * sizeof(float));
 }
 
 TEST_CASE(test_shape_dynamic_compares)
 {
     using migraphx::shape;
-    auto a = shape::dynamic_dimension{2, 5, 2};
-    auto b = a;
-    auto c = shape::dynamic_dimension{2, 5, 2};
-    auto d = shape::dynamic_dimension{3, 8, 4};
-    EXPECT(a == b);
+    auto a = shape::dynamic_dimension{2, 5, {2}};
+    auto c = shape::dynamic_dimension{2, 5, {2}};
+    auto d = shape::dynamic_dimension{3, 8};
     EXPECT(a == c);
     EXPECT(a != d);
 
@@ -163,13 +162,13 @@ TEST_CASE(test_shape_dynamic_compares)
 TEST_CASE(dynamic_dimension_size_t_compares)
 {
     using migraphx::shape;
-    auto a = shape::dynamic_dimension{2, 2, 2};
+    auto a = shape::dynamic_dimension{2, 2, {2}};
     EXPECT(a == 2);
     EXPECT(a != 3);
     EXPECT(static_cast<std::size_t>(2) == a);
     EXPECT(static_cast<std::size_t>(3) != a);
 
-    auto b = shape::dynamic_dimension{2, 4, 0};
+    auto b = shape::dynamic_dimension{2, 4};
     EXPECT(b != 2);
     EXPECT(static_cast<std::size_t>(2) != b);
 }
@@ -177,25 +176,25 @@ TEST_CASE(dynamic_dimension_size_t_compares)
 TEST_CASE(dynamic_dimension_add_sub_fixed)
 {
     using migraphx::shape;
-    auto a = shape::dynamic_dimension{2, 5, 2};
+    auto a = shape::dynamic_dimension{2, 5, {2}};
 
     a += 3;
-    EXPECT(a == shape::dynamic_dimension{5, 8, 5});
+    EXPECT(a == shape::dynamic_dimension{5, 8, {5}});
     a -= 3;
-    EXPECT(a == shape::dynamic_dimension{2, 5, 2});
+    EXPECT(a == shape::dynamic_dimension{2, 5, {2}});
 
-    auto b = shape::dynamic_dimension{3, 6, 3};
+    auto b = shape::dynamic_dimension{3, 6, {3}};
     EXPECT((a + 1) == b);
     EXPECT((1 + a) == b);
     EXPECT((b - 1) == a);
 
-    auto c = shape::dynamic_dimension{4, 7, 4};
+    auto c = shape::dynamic_dimension{4, 7, {4}};
     EXPECT((a + 2) == c);
     EXPECT((2 + a) == c);
     EXPECT((c - 2) == a);
 
-    auto d = shape::dynamic_dimension{4, 8, 0};
-    auto e = shape::dynamic_dimension{2, 6, 0};
+    auto d = shape::dynamic_dimension{4, 8};
+    auto e = shape::dynamic_dimension{2, 6};
     EXPECT((d - 2) == e);
     EXPECT((e + 2) == d);
     EXPECT((2 + e) == d);
@@ -205,8 +204,8 @@ TEST_CASE(test_shape_dynamic_errors)
 {
     using migraphx::shape;
     std::vector<shape::dynamic_dimension> dims = {};
-    dims.push_back(shape::dynamic_dimension{2, 5, 2});
-    dims.push_back(shape::dynamic_dimension{2, 8, 0});
+    dims.push_back(shape::dynamic_dimension{2, 5, {2}});
+    dims.push_back(shape::dynamic_dimension{2, 8});
     migraphx::shape s{shape::float_type, dims};
     EXPECT(test::throws([&] { s.elements(); }));
     EXPECT(test::throws([&] { s.index({0, 1}); }));
@@ -220,13 +219,13 @@ TEST_CASE(test_shape_dynamic_serialize)
 {
     using migraphx::shape;
     std::vector<shape::dynamic_dimension> dims1 = {};
-    dims1.push_back(shape::dynamic_dimension{2, 5, 2});
-    dims1.push_back(shape::dynamic_dimension{2, 8, 0});
+    dims1.push_back(shape::dynamic_dimension{2, 5, {2}});
+    dims1.push_back(shape::dynamic_dimension{2, 8});
     migraphx::shape s1{shape::float_type, dims1};
     auto v1 = migraphx::to_value(s1);
 
     std::vector<shape::dynamic_dimension> dims2 = {};
-    dims2.push_back(shape::dynamic_dimension{2, 5, 2});
+    dims2.push_back(shape::dynamic_dimension{2, 5, {2}});
     migraphx::shape s2{shape::uint64_type, dims2};
     auto v2 = migraphx::to_value(s2);
     EXPECT(v1 != v2);
@@ -261,14 +260,13 @@ TEST_CASE(test_shape_ndim_static)
 
 TEST_CASE(test_shape_ndim_dyn)
 {
-    migraphx::shape s0{migraphx::shape::float_type, {{2, 2, 0}, {2, 2, 0}}};
+    migraphx::shape s0{migraphx::shape::float_type, {{2, 2}, {2, 2}}};
     EXPECT(s0.ndim() == 2);
 
-    migraphx::shape s1{migraphx::shape::float_type, {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {2, 4, 0}}};
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
     EXPECT(s1.ndim() == 4);
 
-    migraphx::shape s2{migraphx::shape::float_type,
-                       {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {1, 1, 1}, {3, 3, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {1, 1}, {3, 3}}};
     EXPECT(s2.ndim() == 5);
 }
 
@@ -303,13 +301,13 @@ TEST_CASE(test_shape_static_to_dynamic)
 {
     migraphx::shape s0{migraphx::shape::float_type, {1, 2, 4, 4}};
     migraphx::shape s1 = s0.to_dynamic();
-    migraphx::shape s2{migraphx::shape::float_type, {{1, 1, 0}, {2, 2, 0}, {4, 4, 0}, {4, 4, 0}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 1}, {2, 2}, {4, 4}, {4, 4}}};
     EXPECT(s1 == s2);
 }
 
 TEST_CASE(test_shape_dyn_to_dynamic)
 {
-    migraphx::shape s0{migraphx::shape::float_type, {{1, 1, 0}, {2, 4, 0}, {2, 4, 0}, {2, 4, 0}}};
+    migraphx::shape s0{migraphx::shape::float_type, {{1, 1}, {2, 4}, {2, 4}, {2, 4}}};
     migraphx::shape s1 = s0.to_dynamic();
     EXPECT(s0 == s1);
 }

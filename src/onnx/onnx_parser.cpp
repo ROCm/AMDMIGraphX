@@ -491,7 +491,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                                return default_dyn_dim_value;
                            }
                            std::size_t tmp = d.dim_value();
-                           return {tmp, tmp, 0};
+                           return {tmp, tmp};
                        }
                        else
                        {

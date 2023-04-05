@@ -21,22 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_MSGPACK_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MSGPACK_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <functional>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-void to_msgpack(const value& v, std::function<void(const char*, std::size_t)> writer);
-std::vector<char> to_msgpack(const value& v);
-value from_msgpack(const std::vector<char>& buffer);
-value from_msgpack(const char* buffer, std::size_t size);
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+struct test_add_conv_constant : verify_program<test_add_conv_constant>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
+        migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+        auto x   = mm->add_parameter("x", s);
+        auto c   = mm->add_literal(migraphx::generate_literal(s, 1));
+        auto w   = mm->add_literal(migraphx::generate_literal(ws, 2));
+        auto sum = mm->add_instruction(migraphx::make_op("add"), c, x);
+        mm->add_instruction(migraphx::make_op("convolution"), sum, w);
+        return p;
+    }
+};

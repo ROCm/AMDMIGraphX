@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,6 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/operation.hpp>
-#include <migraphx/register_op.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -36,9 +35,6 @@
 #include <unordered_map>
 #include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CONV_TUNING);
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -167,20 +163,6 @@ struct miopen_convolution
         auto w_desc                = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
         auto y_desc                = make_tensor(reshape_if_1d(output_shape));
         std::size_t workspace_size = 0;
-
-        // TODO:  Using an environment variable to disable convolution tuning while still allowing
-        // other (i.e. GEMM) tuning with --exhaustive-tune, is a workaround for a problem in which
-        // convolution tuning takes multiple hours.
-        const bool convo_tune_enabled = enabled(MIGRAPHX_ENABLE_CONV_TUNING{});
-        if(ctx.get_exhaustive_tune_flag() and not convo_tune_enabled)
-        {
-            std::cerr
-                << "WARNING: MIGraphX convolution tuning not enabled. To run tuning, set both the "
-                   "env "
-                   "var MIGRAPHX_ENABLE_CONV_TUNING and the command argument --exhaustive-tune."
-                << std::endl;
-        }
-
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {
             auto conv_problem = make_obj<miopen_problem>(
@@ -192,10 +174,9 @@ struct miopen_convolution
 
             auto* miopen_stream_handle = ctx.get_stream().get_miopen();
 
-            solution_ptr = find_solution(miopen_stream_handle,
-                                         conv_problem.get(),
-                                         ctx.get_exhaustive_tune_flag() and convo_tune_enabled);
-            auto status  = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+            solution_ptr = find_solution(
+                miopen_stream_handle, conv_problem.get(), ctx.get_exhaustive_tune_flag());
+            auto status = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
 
@@ -252,8 +233,7 @@ struct miopen_convolution
                                                        &perf,
                                                        workspace.implicit(),
                                                        workspace_size,
-                                                       ctx.get_exhaustive_tune_flag() and
-                                                           convo_tune_enabled);
+                                                       ctx.get_exhaustive_tune_flag());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen " + op.name() + " : find convolution failed");
         algo = perf.fwd_algo;

@@ -32,9 +32,13 @@
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/time.hpp>
 
+// Set this environment variable to "true" to perform GEMM tuning even when the
+// --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_GEMM_TUNING);
+
 using microseconds = std::chrono::duration<double, std::micro>;
 
-#if ROCBLAS_VERSION_MAJOR > 2 || (ROCBLAS_VERSION_MAJOR == 2 && ROCBLAS_VERSION_MINOR >= 38)
+#if ROCBLAS_VERSION_MAJOR > 2 or (ROCBLAS_VERSION_MAJOR == 2 and ROCBLAS_VERSION_MINOR >= 38)
 using flag_type = rocblas_gemm_flags;
 #else
 using flag_type = int;
@@ -44,6 +48,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+// Convert rocBLAS datatypes to equivalent Migraphx data types
 rocblas_datatype get_type(shape::type_t type)
 {
     switch(type)
@@ -252,6 +257,7 @@ struct gemm_impl
 #ifdef ROCBLAS_BETA_FEATURES_API
     auto validate(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx) const
     {
+        // Create dummy arguments for the shapes, and call the overloaded method
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
@@ -385,8 +391,7 @@ struct gemm_impl
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         // tuning meta parameters
-        const int hot_calls  = 40;
-        const int cold_calls = 1;
+        const int hot_calls = 40;
 
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
@@ -439,10 +444,10 @@ struct gemm_impl
                            &list_size);
         }
 
-        double bestTime   = std::numeric_limits<double>::max();
+        double best_time  = std::numeric_limits<double>::max();
         double first_time = -1;
         // Initialize to default solution index
-        rocblas_int bestSol = 0;
+        rocblas_int best_sol = 0;
         for(auto sol : solution_indices)
         {
             // Define the function to be timed
@@ -451,12 +456,9 @@ struct gemm_impl
                 ctx.finish();
             };
 
-            // Warmup: the first few calls to an op. may not be representative since there is
-            // more time taken initializing caches, etc. so we won't time them.
-            for(int cc = 0; cc < cold_calls; ++cc)
-            {
-                run_func();
-            }
+            // Warmup: the first call to an op. may not be representative since there is
+            // more time taken initializing caches, etc. so we won't time it.
+            run_func();
             double host_time = 0.0;
 
             for(int hc = 0; hc < hot_calls; ++hc)
@@ -474,16 +476,16 @@ struct gemm_impl
                 first_time = host_time;
 
             // track current best
-            if(host_time < bestTime)
+            if(host_time < best_time)
             {
                 std::cout << " current best index " << sol << ", time " << host_time << std::endl;
-                bestSol  = sol;
-                bestTime = host_time;
+                best_sol  = sol;
+                best_time = host_time;
             }
         }
-        std::cout << "Winner: " << bestSol << " in " << bestTime << " us, beats " << first_time
+        std::cout << "Winner: " << best_sol << " in " << best_time << " us, beats " << first_time
                   << std::endl;
-        return bestSol;
+        return best_sol;
     }
 #endif
     private:
@@ -549,9 +551,8 @@ int32_t gemm_finalize(context& ctx,
                       int32_t solution_idx)
 {
 #ifdef ROCBLAS_BETA_FEATURES_API
-
-    if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
-    // if((true))
+    if((enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag()) and
+       solution_idx == 0)
     {
         auto gemm_item =
             gemm_impl<float>(output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);
@@ -573,6 +574,10 @@ int32_t gemm_finalize(context& ctx,
     return solution_idx;
 }
 
+/**
+ * Decides if the tune() or validate() method is appropriate and calls it.
+ * Return value is the chosen solution index.
+ */
 int32_t gemm_finalize(context& ctx,
                       const shape& output_shape,
                       const std::vector<shape>& input_shapes,
@@ -584,7 +589,8 @@ int32_t gemm_finalize(context& ctx,
 {
 #ifdef ROCBLAS_BETA_FEATURES_API
 
-    if(ctx.get_exhaustive_tune_flag() && solution_idx == 0)
+    if((enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag()) and
+       solution_idx == 0)
     {
         auto gemm_item = gemm_impl<int32_t>(
             output_shape, input_shapes, alpha, beta, int8_x4_format, compute_fp32);

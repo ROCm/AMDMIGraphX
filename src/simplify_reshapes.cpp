@@ -635,7 +635,7 @@ struct find_mul_add_transpose_contiguous_reshaper_gemm
             match::used_once(),
             match::either_arg(0, 1)(match::is_constant().bind("c"), match::any().bind("x")));
         return match::name("dot")(match::either_arg(0, 1)(
-            match_transpose_contiguous_reshaper(pw.bind("pointwise")), match::is_constant()));
+            match_transpose_contiguous_reshaper(match::args(pw.bind("pointwise"))), match::is_constant()));
     }
 
     void apply(module& m, const match::matcher_result& r) const

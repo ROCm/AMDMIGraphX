@@ -208,7 +208,7 @@ struct loader
         return output_node_names;
     }
 
-    tf_options get_tf_options()
+    tf_options get_tf_options() const
     {
         auto map_input_dims    = parse_param_dims(param_dims);
         auto output_node_names = parse_output_names(output_names);
@@ -220,7 +220,7 @@ struct loader
         return options;
     }
 
-    onnx_options get_onnx_options()
+    onnx_options get_onnx_options() const
     {
         auto map_input_dims     = parse_param_dims(param_dims);
         auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);

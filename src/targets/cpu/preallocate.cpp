@@ -36,7 +36,7 @@ struct cpu_preallocate : auto_register_op<cpu_preallocate>
 {
     shape s;
     std::string id = "";
-    argument data  = migraphx::argument{s};
+    argument data;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

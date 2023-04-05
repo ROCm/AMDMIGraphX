@@ -83,8 +83,9 @@ struct miopen_apply
         auto& ctx      = get_context();
         int8_x4_format = get_int8_x4_format(ctx);
         compute_fp32   = get_compute_fp32_flag();
-        // offload_copy   = (mod->name() == "main") ? pass->offload_copy : false;
-        offload_copy = pass->offload_copy;
+        // TODO: Set Offload copy based on root modules' compile options
+        offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
+        // offload_copy = pass->offload_copy;
 
         add_generic_op("contiguous");
 

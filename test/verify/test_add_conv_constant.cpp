@@ -21,34 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
-#include <migraphx/check_shapes.hpp>
+
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-/*!
- * Tests for check_shapes object handling dynamic shapes
- */
-
-using migraphx::shape;
-
-bool create_shapes(bool dynamic_allowed)
+struct test_add_conv_constant : verify_program<test_add_conv_constant>
 {
-    try
+    migraphx::program create_program() const
     {
-        shape a{shape::int64_type, {3}};
-        shape b{shape::float_type, {{3, 6}, {4, 4}}};
-        auto op = migraphx::make_op("add");
-        migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
-        return true;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
+        migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+        auto x   = mm->add_parameter("x", s);
+        auto c   = mm->add_literal(migraphx::generate_literal(s, 1));
+        auto w   = mm->add_literal(migraphx::generate_literal(ws, 2));
+        auto sum = mm->add_instruction(migraphx::make_op("add"), c, x);
+        mm->add_instruction(migraphx::make_op("convolution"), sum, w);
+        return p;
     }
-    catch(...)
-    {
-        return false;
-    }
-}
-
-TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
-
-TEST_CASE(fail_dynamic_shape) { EXPECT(not create_shapes(false)); }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+};

@@ -33,10 +33,7 @@
 #include <migraphx/iterator_for.hpp>
 
 // includes needed for run_lowering
-#include <migraphx/gpu/allocation_model.hpp>
-#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/target.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>

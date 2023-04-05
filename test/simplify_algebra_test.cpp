@@ -2159,11 +2159,11 @@ TEST_CASE(simplify_dot_horiz)
         auto dot    = m2.add_instruction(migraphx::make_op("dot"), input, concat);
         auto x      = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
-        auto cont_x        = m2.add_instruction(migraphx::make_op("contiguous"), x);
-        auto y = m2.add_instruction(
+        auto cont_x = m2.add_instruction(migraphx::make_op("contiguous"), x);
+        auto y      = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), dot);
-        auto cont_y        = m2.add_instruction(migraphx::make_op("contiguous"), y);
-        auto sum = m2.add_instruction(migraphx::make_op("add"), cont_x, cont_y);
+        auto cont_y = m2.add_instruction(migraphx::make_op("contiguous"), y);
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), cont_x, cont_y);
         m2.add_instruction(pass_op{}, sum);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -2232,9 +2232,9 @@ TEST_CASE(simplify_dot_horiz_same_constant)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), dot);
-        auto cont_x        = m2.add_instruction(migraphx::make_op("contiguous"), x);
-        auto cont_y        = m2.add_instruction(migraphx::make_op("contiguous"), y);
-        auto sum = m2.add_instruction(migraphx::make_op("add"), cont_x, cont_y);
+        auto cont_x = m2.add_instruction(migraphx::make_op("contiguous"), x);
+        auto cont_y = m2.add_instruction(migraphx::make_op("contiguous"), y);
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), cont_x, cont_y);
         m2.add_instruction(pass_op{}, sum);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -2329,9 +2329,9 @@ TEST_CASE(simplify_conv_horiz)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {12}}}), conv);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {12}}, {"ends", {24}}}), conv);
-        auto cont_x        = m2.add_instruction(migraphx::make_op("contiguous"), x);
-        auto cont_y        = m2.add_instruction(migraphx::make_op("contiguous"), y);
-        auto sum = m2.add_instruction(migraphx::make_op("add"), cont_x, cont_y);
+        auto cont_x = m2.add_instruction(migraphx::make_op("contiguous"), x);
+        auto cont_y = m2.add_instruction(migraphx::make_op("contiguous"), y);
+        auto sum    = m2.add_instruction(migraphx::make_op("add"), cont_x, cont_y);
         m2.add_instruction(pass_op{}, sum);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -2407,18 +2407,18 @@ TEST_CASE(simplify_conv_horiz_grouped)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {6}}}), conv);
         auto convy = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {12}}}), conv);
-        auto cont_convx     = m2.add_instruction(migraphx::make_op("contiguous"), convx);
-        auto cont_convy     = m2.add_instruction(migraphx::make_op("contiguous"), convy);
-        auto sum1 = m2.add_instruction(migraphx::make_op("add"), cont_convx, cont_convy);
-        auto dot  = m2.add_instruction(migraphx::make_op("dot"), input, concat2);
-        auto dotx = m2.add_instruction(
+        auto cont_convx = m2.add_instruction(migraphx::make_op("contiguous"), convx);
+        auto cont_convy = m2.add_instruction(migraphx::make_op("contiguous"), convy);
+        auto sum1       = m2.add_instruction(migraphx::make_op("add"), cont_convx, cont_convy);
+        auto dot        = m2.add_instruction(migraphx::make_op("dot"), input, concat2);
+        auto dotx       = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {64}}}), dot);
         auto doty = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {128}}}), dot);
-        auto cont_dotx      = m2.add_instruction(migraphx::make_op("contiguous"), dotx);
-        auto cont_doty      = m2.add_instruction(migraphx::make_op("contiguous"), doty);
-        auto sum2 = m2.add_instruction(migraphx::make_op("add"), cont_dotx, cont_doty);
-        auto sum3 = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
+        auto cont_dotx = m2.add_instruction(migraphx::make_op("contiguous"), dotx);
+        auto cont_doty = m2.add_instruction(migraphx::make_op("contiguous"), doty);
+        auto sum2      = m2.add_instruction(migraphx::make_op("add"), cont_dotx, cont_doty);
+        auto sum3      = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
         m2.add_instruction(pass_op{}, sum3);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -2469,21 +2469,21 @@ TEST_CASE(simplify_conv_horiz_grouped_extra1)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {6}}}), conv);
         auto convy = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {12}}}), conv);
-        auto cont_convx     = m2.add_instruction(migraphx::make_op("contiguous"), convx);
-        auto cont_convy     = m2.add_instruction(migraphx::make_op("contiguous"), convy);
-        auto sum1 = m2.add_instruction(migraphx::make_op("add"), cont_convx, cont_convy);
-        auto dot  = m2.add_instruction(migraphx::make_op("dot"), input, concat2);
-        auto dotx = m2.add_instruction(
+        auto cont_convx = m2.add_instruction(migraphx::make_op("contiguous"), convx);
+        auto cont_convy = m2.add_instruction(migraphx::make_op("contiguous"), convy);
+        auto sum1       = m2.add_instruction(migraphx::make_op("add"), cont_convx, cont_convy);
+        auto dot        = m2.add_instruction(migraphx::make_op("dot"), input, concat2);
+        auto dotx       = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {64}}}), dot);
         auto doty = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {128}}}), dot);
-        auto cont_dotx         = m2.add_instruction(migraphx::make_op("contiguous"), dotx);
-        auto cont_doty         = m2.add_instruction(migraphx::make_op("contiguous"), doty);
-        auto sum2    = m2.add_instruction(migraphx::make_op("add"), cont_dotx, cont_doty);
-        auto sqdiffx = m2.add_instruction(migraphx::make_op("sqdiff"), input, e);
-        auto sum3    = sqdiffx;
-        auto sum4    = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
-        auto sum5    = m2.add_instruction(migraphx::make_op("add"), sum4, sum3);
+        auto cont_dotx = m2.add_instruction(migraphx::make_op("contiguous"), dotx);
+        auto cont_doty = m2.add_instruction(migraphx::make_op("contiguous"), doty);
+        auto sum2      = m2.add_instruction(migraphx::make_op("add"), cont_dotx, cont_doty);
+        auto sqdiffx   = m2.add_instruction(migraphx::make_op("sqdiff"), input, e);
+        auto sum3      = sqdiffx;
+        auto sum4      = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
+        auto sum5      = m2.add_instruction(migraphx::make_op("add"), sum4, sum3);
         m2.add_instruction(pass_op{}, sum5);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -2537,22 +2537,22 @@ TEST_CASE(simplify_conv_horiz_grouped_extra2)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {6}}}), conv);
         auto convy = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {6}}, {"ends", {12}}}), conv);
-        auto cont_convx     = m2.add_instruction(migraphx::make_op("contiguous"), convx);
-        auto cont_convy     = m2.add_instruction(migraphx::make_op("contiguous"), convy);
-        auto sum1 = m2.add_instruction(migraphx::make_op("add"), cont_convx, cont_convy);
-        auto dot  = m2.add_instruction(migraphx::make_op("dot"), input, concat2);
-        auto dotx = m2.add_instruction(
+        auto cont_convx = m2.add_instruction(migraphx::make_op("contiguous"), convx);
+        auto cont_convy = m2.add_instruction(migraphx::make_op("contiguous"), convy);
+        auto sum1       = m2.add_instruction(migraphx::make_op("add"), cont_convx, cont_convy);
+        auto dot        = m2.add_instruction(migraphx::make_op("dot"), input, concat2);
+        auto dotx       = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {64}}}), dot);
         auto doty = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {128}}}), dot);
-        auto cont_dotx         = m2.add_instruction(migraphx::make_op("contiguous"), dotx);
-        auto cont_doty         = m2.add_instruction(migraphx::make_op("contiguous"), doty);
-        auto sum2    = m2.add_instruction(migraphx::make_op("add"), cont_dotx, cont_doty);
-        auto sqdiffx = m2.add_instruction(migraphx::make_op("sqdiff"), input, e);
-        auto sqdiffy = m2.add_instruction(migraphx::make_op("sqdiff"), input, f);
-        auto sum3    = m2.add_instruction(migraphx::make_op("add"), sqdiffx, sqdiffy);
-        auto sum4    = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
-        auto sum5    = m2.add_instruction(migraphx::make_op("add"), sum4, sum3);
+        auto cont_dotx = m2.add_instruction(migraphx::make_op("contiguous"), dotx);
+        auto cont_doty = m2.add_instruction(migraphx::make_op("contiguous"), doty);
+        auto sum2      = m2.add_instruction(migraphx::make_op("add"), cont_dotx, cont_doty);
+        auto sqdiffx   = m2.add_instruction(migraphx::make_op("sqdiff"), input, e);
+        auto sqdiffy   = m2.add_instruction(migraphx::make_op("sqdiff"), input, f);
+        auto sum3      = m2.add_instruction(migraphx::make_op("add"), sqdiffx, sqdiffy);
+        auto sum4      = m2.add_instruction(migraphx::make_op("add"), sum1, sum2);
+        auto sum5      = m2.add_instruction(migraphx::make_op("add"), sum4, sum3);
         m2.add_instruction(pass_op{}, sum5);
     }
     EXPECT(m1.sort() == m2.sort());

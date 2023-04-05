@@ -38,6 +38,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Convolution operator. Does not support optimal dimensions for spatial dimensions. Returns empty
+ * optimals.
+ */
 struct convolution
 {
     std::vector<std::size_t> padding  = {0, 0};
@@ -148,7 +152,7 @@ struct convolution
             else
             {
                 auto l = input_shape.lens().at(0);
-                output_dyn_dims.push_back({l, l, 0});
+                output_dyn_dims.push_back({l, l});
             }
         };
 
@@ -165,25 +169,30 @@ struct convolution
                 if(x_shape.dynamic())
                 {
                     auto x = x_shape.dyn_dims()[i + 2];
-                    output_dyn_dims.push_back(shape::dynamic_dimension{
-                        ceil_div(x.min, s), ceil_div(x.max, s), ceil_div(x.opt, s)});
+                    std::set<std::size_t> optimals{};
+                    std::transform(x.optimals.begin(),
+                                   x.optimals.end(),
+                                   std::inserter(optimals, optimals.begin()),
+                                   [&](auto o) { return ceil_div(o, s); });
+                    output_dyn_dims.push_back(
+                        shape::dynamic_dimension{ceil_div(x.min, s), ceil_div(x.max, s), optimals});
                 }
                 else
                 {
                     auto od = ceil_div(x_shape.lens()[i + 2], s);
-                    output_dyn_dims.push_back(shape::dynamic_dimension{od, od, 0});
+                    output_dyn_dims.push_back(shape::dynamic_dimension{od, od});
                 }
             }
         }
         else
         {
+            // Does not compute for optimals
             auto min_spatial_dims = calc_conv_lens(x_shape.min_lens(), w_shape.max_lens());
             auto max_spatial_dims = calc_conv_lens(x_shape.max_lens(), w_shape.min_lens());
-            auto opt_spatial_dims = calc_conv_lens(x_shape.opt_lens(), w_shape.opt_lens());
             for(size_t i = 0; i < num_spatial_dims; ++i)
             {
-                output_dyn_dims.push_back(shape::dynamic_dimension{
-                    min_spatial_dims[i], max_spatial_dims[i], opt_spatial_dims[i]});
+                output_dyn_dims.push_back(
+                    shape::dynamic_dimension{min_spatial_dims[i], max_spatial_dims[i], {}});
             }
         }
         return shape{x_shape.type(), output_dyn_dims};

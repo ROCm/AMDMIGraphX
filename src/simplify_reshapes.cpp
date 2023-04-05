@@ -103,7 +103,7 @@ struct find_reshaper
         auto dims  = ins->get_shape().lens();
 
         if(not input->get_shape().standard())
-            input = m.insert_instruction(input, make_op("contiguous"), input);
+            input = m.insert_instruction(ins, make_op("contiguous"), input);
         m.replace_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
     }
 };

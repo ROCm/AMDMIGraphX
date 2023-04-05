@@ -120,19 +120,45 @@ def batchnorm_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,
                                             shape=(1, 16, 16, 32),
-                                            name='0')
-        g1_scale = tf.constant(1.0, dtype=tf.float32, shape=[32], name='1')
-        g1_offset = tf.compat.v1.placeholder(tf.float32, shape=(32), name='2')
-        g1_mean = tf.compat.v1.placeholder(tf.float32, shape=(32), name='3')
+                                            name='x')
+        g1_scale = tf.constant(1.0, dtype=tf.float32, shape=[32], name='scale')
+        g1_offset = tf.compat.v1.placeholder(tf.float32,
+                                             shape=(32),
+                                             name='bias')
+        g1_mean = tf.compat.v1.placeholder(tf.float32, shape=(32), name='mean')
         g1_variance = tf.compat.v1.placeholder(tf.float32,
                                                shape=(32),
-                                               name='4')
+                                               name='variance')
         tf.compat.v1.nn.fused_batch_norm(x=g1_input,
                                          scale=g1_scale,
                                          offset=g1_offset,
                                          mean=g1_mean,
                                          variance=g1_variance,
-                                         epsilon=0.00001,
+                                         epsilon=1e-4,
+                                         is_training=False,
+                                         name='batchnorm1')
+
+
+@tf_test
+def batchnorm_half_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float16,
+                                            shape=(1, 16, 16, 32),
+                                            name='x')
+        g1_scale = tf.constant(1.0, dtype=tf.float32, shape=[32], name='scale')
+        g1_offset = tf.compat.v1.placeholder(tf.float32,
+                                             shape=(32),
+                                             name='bias')
+        g1_mean = tf.compat.v1.placeholder(tf.float32, shape=(32), name='mean')
+        g1_variance = tf.compat.v1.placeholder(tf.float32,
+                                               shape=(32),
+                                               name='variance')
+        tf.compat.v1.nn.fused_batch_norm(x=g1_input,
+                                         scale=g1_scale,
+                                         offset=g1_offset,
+                                         mean=g1_mean,
+                                         variance=g1_variance,
+                                         epsilon=1e-4,
                                          is_training=False,
                                          name='batchnorm1')
 
@@ -142,19 +168,21 @@ def batchnormv3_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,
                                             shape=(1, 16, 16, 32),
-                                            name='0')
-        g1_scale = tf.constant(1.0, dtype=tf.float32, shape=[32], name='1')
-        g1_offset = tf.compat.v1.placeholder(tf.float32, shape=(32), name='2')
-        g1_mean = tf.compat.v1.placeholder(tf.float32, shape=(32), name='3')
+                                            name='x')
+        g1_scale = tf.constant(1.0, dtype=tf.float32, shape=[32], name='scale')
+        g1_offset = tf.compat.v1.placeholder(tf.float32,
+                                             shape=(32),
+                                             name='bias')
+        g1_mean = tf.compat.v1.placeholder(tf.float32, shape=(32), name='mean')
         g1_variance = tf.compat.v1.placeholder(tf.float32,
                                                shape=(32),
-                                               name='4')
+                                               name='variance')
         tf.raw_ops.FusedBatchNormV3(x=g1_input,
                                     scale=g1_scale,
                                     offset=g1_offset,
                                     mean=g1_mean,
                                     variance=g1_variance,
-                                    epsilon=0.00001,
+                                    epsilon=1e-6,
                                     is_training=False,
                                     name='batchnorm1')
 
@@ -495,10 +523,10 @@ def relu6_test(g1):
 
 
 @tf_test
-def relu6_mismatch_test(g1):
+def relu6_half_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float16,
-                                            shape=(1, 3, 13, 37),
+                                            shape=(1, 3, 16, 16),
                                             name='0')
         tf.nn.relu6(g1_input, 'relu6')
 
@@ -708,7 +736,7 @@ if __name__ == '__main__':
     pow_test()
     relu_test()
     relu6_test()
-    relu6_mismatch_test()
+    relu6_half_test()
     reshape_test()
     rsqrt_test()
     shape_test()

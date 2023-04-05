@@ -27,8 +27,6 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 
-#include <migraphx/cpp_generator.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
 
@@ -52,9 +50,8 @@ ${preamble}
 extern "C" {
 __global__ void ${kernel}(${params}) 
 {
-    auto idx = make_index();
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto... xs) {
-        ${layernorm}<${axis}>(${post}, xs...);
+        ${layernorm}<${axis}>(${post}, ${eps}, xs...);
     });
 }
     
@@ -80,9 +77,8 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         // Vectorize if the axis is a reduction axis
         if(axis == faxis)
         {
-            vec = vectorize::elements(faxis, inputs);
+            vec = vectorize::elements(ctx, faxis, inputs);
         }
-        auto preloads   = preload::broadcasts(axis, inputs);
         auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);
         auto block_size = compute_block_size(relements, 256);
@@ -92,16 +88,18 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = v.get("kernel", "layernorm_kernel");
+        auto eps            = v.get("epsilon", 1e-12f);
 
         auto src = interpolate_string(layernorm_kernel,
                                       {{"kernel", options.kernel_name},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
-                                       {"transformers", make_transformer_args(preloads, vec)},
+                                       {"transformers", make_transformer_args(vec)},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"layernorm", v.get("layernorm", std::string{"layernorm"})},
-                                       {"axis", to_string(axis)}});
+                                       {"axis", to_string(axis)},
+                                       {"eps", to_string(eps)}});
 
         return compile_hip_code_object(src, options);
     }

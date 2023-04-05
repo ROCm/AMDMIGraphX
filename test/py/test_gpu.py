@@ -33,7 +33,8 @@ def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)
     print("Compiling ...")
-    p.compile(migraphx.get_target("gpu"))
+    # set offload_copy, fast_match and exhaustive_tune to true
+    p.compile(migraphx.get_target("gpu"), True, True, True)
     print(p)
     params = {}
 

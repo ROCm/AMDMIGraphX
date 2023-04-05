@@ -98,6 +98,13 @@ struct hip_sync_stream
             return {};
         return args.front();
     }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    {
+        if(args.empty())
+            return -1;
+        return 0;
+    }
 };
 
 struct hip_copy_to_gpu
@@ -105,7 +112,7 @@ struct hip_copy_to_gpu
     std::string name() const { return "hip::copy_to_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2);
+        check_shapes{inputs, *this}.has(1, 2).same_type();
         return inputs.at(0);
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
@@ -131,7 +138,7 @@ struct hip_copy_from_gpu
     std::string name() const { return "hip::copy_from_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2);
+        check_shapes{inputs, *this}.has(1, 2).same_type();
         return inputs.at(0);
     }
     argument
@@ -159,7 +166,7 @@ struct hip_copy
     std::string name() const { return "hip::copy"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(2).same_type();
         return inputs.at(1);
     }
     argument compute(context& ctx, const shape&, std::vector<argument> args) const

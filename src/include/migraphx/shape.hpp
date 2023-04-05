@@ -29,9 +29,12 @@
 #include <ostream>
 #include <numeric>
 #include <memory>
+#include <set>
 
+#include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/half.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -86,10 +89,13 @@ struct shape
     {
         std::size_t min = 0;
         std::size_t max = 0;
-        std::size_t opt = 0;
+        std::set<std::size_t> optimals{};
 
         template <class Self, class F>
-        static auto reflect(Self& self, F f);
+        static auto reflect(Self& self, F f)
+        {
+            return pack(f(self.min, "min"), f(self.max, "max"), f(self.optimals, "optimals"));
+        }
 
         bool is_fixed() const;
         bool has_optimal() const;
@@ -97,6 +103,19 @@ struct shape
         friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y);
         friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y);
         friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x);
+
+        // compare to fixed std::size_t dimension
+        friend bool operator==(const dynamic_dimension& x, const std::size_t& y);
+        friend bool operator==(const std::size_t& x, const dynamic_dimension& y);
+        friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
+        friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
+
+        // add and subtract fixed std::size_t dimension
+        dynamic_dimension& operator+=(const std::size_t& x);
+        dynamic_dimension& operator-=(const std::size_t& x);
+        friend dynamic_dimension operator+(const dynamic_dimension& x, const std::size_t& y);
+        friend dynamic_dimension operator+(const std::size_t& x, const dynamic_dimension& y);
+        friend dynamic_dimension operator-(const dynamic_dimension& x, const std::size_t& y);
     };
 
     static const std::vector<type_t>& types();
@@ -114,6 +133,13 @@ struct shape
     shape(type_t t, std::initializer_list<std::size_t> d);
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
+
+    // Construct a dynamic shape from vectors of mins, maxes, and optimals.
+    // optimals_list is a vector of optimals that corresponds to each min and max.
+    shape(type_t t,
+          std::vector<std::size_t> mins,
+          std::vector<std::size_t> maxes,
+          std::vector<std::set<std::size_t>> optimals_list);
 
     template <class Range>
     shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
@@ -135,6 +161,12 @@ struct shape
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
+
+    /*!
+     * The number of dimensions in the shape.
+     * Same as the number of indices required to get a data value.
+     */
+    std::size_t ndim() const;
 
     /*!
      * Return the number of elements in the tensor.
@@ -169,9 +201,9 @@ struct shape
 
     /*!
      * Optimum lengths for dynamic shape.
-     * lens() for fixed shape.
+     * Empty for fixed shape.
      */
-    std::vector<std::size_t> opt_lens() const;
+    std::vector<std::set<std::size_t>> opt_lens() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;
@@ -214,12 +246,18 @@ struct shape
     /// Return true if the shape is dynamic
     bool dynamic() const;
 
+    /// Return true if this shape or any of the sub_shapes are dynamic
+    bool any_of_dynamic() const;
+
     shape normalize_standard() const;
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
 
     shape with_type(type_t t) const;
+
+    // convert the shape to an equivalent dynamic shape with empty optimals
+    shape to_dynamic() const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);

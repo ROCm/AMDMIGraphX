@@ -55,16 +55,17 @@ add_library(migraphx
     insert_pad.cpp
     instruction.cpp
     json.cpp
+    layout_nhwc.cpp
     load_save.cpp
     make_op.cpp
+    memory_coloring.cpp
     module.cpp
     msgpack.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
     operation.cpp
-    opt/memory_coloring.cpp
-    opt/memory_coloring_impl.cpp
+    optimize_module.cpp
     pad_calc.cpp
     pass_manager.cpp
     permutation.cpp
@@ -72,6 +73,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
+    promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
     quantize_int8.cpp
@@ -81,7 +83,6 @@ add_library(migraphx
     replace_allocate.cpp
     simplify_qdq.cpp
     sqlite.cpp
-    rewrite_batchnorm.cpp
     rewrite_gelu.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
@@ -91,6 +92,7 @@ add_library(migraphx
     shape.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    split_single_dyn_dim.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp
@@ -115,7 +117,6 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
-    batch_norm_inference
     broadcast
     capture
     ceil
@@ -146,6 +147,7 @@ register_migraphx_ops(
     if_op
     im2col
     isnan
+    layout
     leaky_relu
     less
     load
@@ -199,6 +201,7 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    select_module
     sigmoid
     sign
     sinh
@@ -250,7 +253,10 @@ find_package(PkgConfig)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
 
-find_package(msgpack REQUIRED)
+find_package(msgpackc-cxx QUIET)
+if(NOT msgpackc-cxx_FOUND)
+    find_package(msgpack REQUIRED)
+endif()
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
@@ -286,6 +292,10 @@ endif()
 
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
+endif()
+
+if(BUILD_DEV)
+    target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
 rocm_export_targets(

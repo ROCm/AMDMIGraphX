@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
@@ -48,12 +49,13 @@ static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
     return {4, 2};
 }
 
-vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs)
+vectorize vectorize::elements(std::size_t axis,
+                              const std::vector<shape>& inputs,
+                              const std::vector<std::size_t>& sizes)
 {
     if(std::all_of(
            inputs.begin(), inputs.end(), [&](const auto& s) { return s.lens()[axis] == 1; }))
         return {1, axis};
-    auto sizes = vector_sizes(inputs);
     std::vector<std::size_t> max_vec_size;
     std::transform(inputs.begin(),
                    inputs.end(),
@@ -61,17 +63,51 @@ vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs
                    [&](const auto& input) -> std::size_t {
                        auto stride = input.strides()[axis];
                        auto len    = input.lens()[axis];
-                       if(stride != 0 and stride != 1)
+                       if(not contains({0, 1}, stride))
                            return 1;
                        if(len == 1 and input.elements() > sizes.front())
                            return sizes.front();
-                       auto it = std::find_if(
-                           sizes.begin(), sizes.end(), [&](auto i) { return (len % i) == 0; });
+                       auto it = std::find_if(sizes.begin(), sizes.end(), [&](auto vsize) {
+                           // The len is divisible by the size and all the strides are divisible by
+                           // the size
+                           return (len % vsize) == 0 and
+                                  std::all_of(
+                                      input.strides().begin(), input.strides().end(), [&](auto i) {
+                                          return contains({0, 1}, i) or i % vsize == 0;
+                                      });
+                       });
                        if(it != sizes.end())
                            return *it;
                        return 1;
                    });
     return {*std::min_element(max_vec_size.begin(), max_vec_size.end()), axis};
+}
+
+vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs)
+{
+    if(inputs.empty())
+        return {1, axis};
+    std::size_t n = std::max_element(inputs.begin(),
+                                     inputs.end(),
+                                     by(std::less<>{}, [](const auto& s) { return s.elements(); }))
+                        ->elements();
+    std::size_t max_global = ctx.get_current_device().get_cu_count() *
+                             ctx.get_current_device().get_max_workitems_per_cu();
+    std::size_t over = n / max_global;
+    bool broadcasted =
+        std::any_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.broadcasted(); });
+    std::vector<std::size_t> sizes;
+    if(broadcasted and over > 8)
+        sizes.push_back(8);
+    if(over > 4)
+        sizes.push_back(4);
+    sizes.push_back(2);
+    return elements(axis, inputs, sizes);
+}
+
+vectorize vectorize::elements(std::size_t axis, const std::vector<shape>& inputs)
+{
+    return elements(axis, inputs, vector_sizes(inputs));
 }
 
 std::string vectorize::str() const
@@ -95,7 +131,7 @@ preload preload::broadcasts(std::size_t axis, const std::vector<shape>& inputs)
     std::size_t bytes = 0;
     for(auto i : preloaded)
     {
-        auto input = inputs[i];
+        const auto& input = inputs[i];
         bytes += input.bytes();
         if(bytes > max_lds_bytes)
             break;

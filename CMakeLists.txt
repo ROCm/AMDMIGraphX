@@ -46,12 +46,16 @@ else()
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
+set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+
 project(migraphx)
 find_package(ROCM REQUIRED)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+else()
+	message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
 endif()
 
 include(CheckTypeSize)
@@ -63,8 +67,10 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.3)
-set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+option(BUILD_DEV "Build for development purpose only" OFF)
+
+rocm_setup_version(VERSION 2.6.0)
+set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -95,7 +101,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
+if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip
 elseif(MIGRAPHX_ENABLE_GPU)
@@ -114,6 +120,7 @@ rocm_enable_clang_tidy(
         hicpp-signed-bitwise
         llvm-namespace-comment
         misc-*
+	-misc-confusable-identifiers
         modernize-*
         performance-*
         readability-*
@@ -212,6 +219,7 @@ rocm_enable_cppcheck(
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction
+        ctuPointerArith
         noExplicitConstructor
         passedByValue
         unusedStructMember

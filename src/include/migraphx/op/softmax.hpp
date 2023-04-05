@@ -53,15 +53,15 @@ struct softmax
     std::string name() const { return "softmax"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        if(inputs.at(0).packed())
+        check_shapes{inputs, *this, true}.has(1);
+        auto s0 = inputs[0];
+        if(s0.dynamic() or s0.packed())
         {
-            return inputs.at(0);
+            return s0;
         }
         else
         {
-            auto lens = inputs.at(0).lens();
-            return {inputs.at(0).type(), lens};
+            return {s0.type(), s0.lens()};
         }
     }
 

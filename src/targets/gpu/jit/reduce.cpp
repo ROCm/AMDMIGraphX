@@ -26,15 +26,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-
-#include <migraphx/cpp_generator.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -126,17 +118,17 @@ struct reduce_compiler : compiler<reduce_compiler>
         options.virtual_inputs = reduce_dims(inputs);
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
-        // Vectorize if the axis is a reduction axis
-        if(options.virtual_inputs.back().lens()[faxis] == 1)
-        {
-            vec = vectorize::elements(faxis, options.virtual_inputs);
-        }
-        auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
         auto nelements = options.virtual_inputs.back().elements();
         auto algo      = v.get("algo", get_reduce_algo(options.virtual_inputs));
         if(algo == "block")
         {
+            // Vectorize if the axis is a reduction axis
+            if(options.virtual_inputs.back().lens()[faxis] == 1)
+                vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
+            auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             auto block_size = compute_block_size(relements, 256);
+            if(relements >= block_size * 256)
+                algo = "block_large";
             options.set_launch_params(
                 v, compute_global_for(ctx, nelements * block_size, 256), block_size);
         }
@@ -164,16 +156,25 @@ struct reduce_compiler : compiler<reduce_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        value v              = value::object{};
-        auto reduce_elements = get_reduce_elements(ins->inputs());
+        value v = value::object{};
         if(op.name() == "reduce_sum")
         {
             v["reduction"] = "op::sum{}";
         }
         else if(op.name() == "reduce_mean")
         {
-            v["reduction"] = "op::sum{}";
-            v["write"]     = "op::mean{" + std::to_string(reduce_elements) + "}";
+            auto reduce_elements = get_reduce_elements(ins->inputs());
+            auto reduce_type     = ins->inputs().front()->get_shape().type();
+            v["reduction"]       = "op::sum{}";
+            std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
+            // Use float accumulator when reduction size is too large for half
+            if(reduce_type == shape::half_type and reduce_elements > 16384)
+                v["read"] = "compose(" + mean + ", op::convert_to<float>{})";
+            else if(contains({shape::float_type, shape::half_type, shape::double_type},
+                             reduce_type))
+                v["read"] = mean;
+            else
+                v["write"] = mean;
         }
         else if(op.name() == "reduce_max")
         {

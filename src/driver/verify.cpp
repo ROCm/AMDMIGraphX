@@ -24,7 +24,7 @@
 #include "verify.hpp"
 #include "perf.hpp"
 
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
@@ -37,7 +37,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::vector<argument> run_ref(program p, const parameter_map& inputs)
 {
-    p.compile(ref::target{});
+    p.compile(migraphx::make_target("ref"));
     auto out = p.eval(inputs);
     std::cout << p << std::endl;
     return out;
@@ -145,7 +145,7 @@ void verify_reduced(program p,
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n + 1);
     mm->remove_instructions(last, mm->end());
-    std::cout << "Verify: " << std::endl;
+    std::cout << "Verify: " << n << std::endl;
     std::cout << p << std::endl;
     verify_program(std::to_string(n), p, t, options, quantize, inputs, tolerance);
 }
@@ -159,6 +159,7 @@ void verify_reduced_program(const program& p,
 {
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());
+    std::cout << "Verify steps: " << n << std::endl;
     for(std::size_t i = 0; i < n; i++)
     {
         verify_reduced(p, i, t, options, quantize, inputs, tolerance);

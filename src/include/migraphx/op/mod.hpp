@@ -24,17 +24,8 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 #define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
-#include <array>
 #include <migraphx/op/binary.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/config.hpp>
 #include <cmath>
-#include <utility>
-#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,9 +38,9 @@ struct mod : binary<mod>
     {
         auto a           = base_attributes();
         a["commutative"] = false;
+        a["point_op"]    = "${function:fmod}((${function:remainder}(${0}, ${1})) + ${1}, ${1})";
         return a;
     }
-    std::string point_function() const { return "mod"; }
     auto apply() const
     {
         return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };

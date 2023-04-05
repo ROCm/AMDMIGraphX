@@ -24,16 +24,8 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
-
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/reduce_dims.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -87,9 +79,10 @@ struct scatternd_compiler : compiler<scatternd_compiler>
     {
         assert(starts_with(op.name(), "scatternd_"));
         auto reduction = op.name().substr(10);
-        return insert(compile_op(ctx,
-                                 to_shapes({ins->inputs().begin() + 1, ins->inputs().end()}),
-                                 {{"reduction", reduction}}));
+        return insert(compile_op(
+            ctx,
+            to_shapes(std::vector<instruction_ref>{ins->inputs().begin() + 1, ins->inputs().end()}),
+            {{"reduction", reduction}}));
     }
 
     compiler_replace insert(const operation& op) const

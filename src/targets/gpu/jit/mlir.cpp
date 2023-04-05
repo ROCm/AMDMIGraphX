@@ -24,7 +24,6 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
-
 #include <migraphx/gpu/mlir.hpp>
 
 namespace migraphx {
@@ -33,7 +32,7 @@ namespace gpu {
 
 struct mlir_compiler : compiler<mlir_compiler>
 {
-    std::vector<std::string> names() const { return {"gpu::mlir_conv"}; }
+    std::vector<std::string> names() const { return {"gpu::mlir_op"}; }
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
@@ -41,7 +40,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
-        return insert(compile_mlir(ctx, *smod));
+        return insert(compile_mlir(ctx, *smod, ins->inputs()));
     }
 
     compiler_replace insert(code_object_op co) const

@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CHECK_SHAPES_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CHECK_SHAPES_HPP
 
+#include <migraphx/permutation.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
@@ -86,7 +87,7 @@ struct check_shapes
     }
 
     /*!
-     * Check if the number of shape objects is equal to atleast one of the
+     * Require the number of shape objects to equal to one of the
      * given sizes.
      * \param ns template parameter pack of sizes to check against
      */
@@ -99,6 +100,23 @@ struct check_shapes
         return *this;
     }
 
+    /*!
+     * Require the number of shape objects to equal at least a given amount.  Use this
+     * method for ops that can take any number (variadic) of inputs.
+     * \param n min. number of shapes
+     */
+    const check_shapes& has_at_least(std::size_t n) const
+    {
+        if(this->size() < n)
+            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected at least " +
+                           to_string(n) + " but given " + std::to_string(size()));
+        return *this;
+    }
+
+    /*!
+     * Require all shapes to have the same number of elements.
+     * \param n  number of
+     */
     const check_shapes& nelements(std::size_t n) const
     {
         if(not this->all_of([&](const shape& s) { return s.elements() == n; }))
@@ -197,7 +215,7 @@ struct check_shapes
      */
     const check_shapes& same_ndims() const
     {
-        if(not this->same([](const shape& s) { return s.max_lens().size(); }))
+        if(not this->same([](const shape& s) { return s.ndim(); }))
             MIGRAPHX_THROW(prefix() + "Number of dimensions do not match");
         return *this;
     }
@@ -229,6 +247,19 @@ struct check_shapes
     {
         if(not this->all_of([](const shape& s) { return s.packed(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are not packed");
+        return *this;
+    }
+
+    /*!
+     * Check all shapes are packed with certain layouts
+     */
+    const check_shapes&
+    packed_layouts(const std::initializer_list<std::vector<int64_t>>& layouts) const
+    {
+        if(not this->all_of([&](const shape& s) {
+               return s.packed() and contains(layouts, find_permutation(s));
+           }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not packed with correct layout");
         return *this;
     }
 

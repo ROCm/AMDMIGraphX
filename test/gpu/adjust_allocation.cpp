@@ -40,6 +40,10 @@
 #include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+#include "make_precompile_op.hpp"
+
+// Treat some operators as compilable to enable lowering
+MIGRAPHX_GPU_TEST_PRECOMPILE("add", "mul", "convert")
 
 void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
@@ -118,7 +122,7 @@ TEST_CASE(no_copy_dead_param)
         auto xb = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
         auto gx = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), x, xb);
         auto ab = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
-        auto sum = mm->add_instruction(migraphx::make_op("gpu::add"), gx, gx, ab);
+        auto sum = mm->add_instruction(make_precompile_op("add"), gx, gx, ab);
         auto r   = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), sum);
         mm->add_return({r});
 

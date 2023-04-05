@@ -27,6 +27,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,9 +36,13 @@ struct module;
 
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR);
+
 #ifdef MIGRAPHX_MLIR
-struct mlir_conv
+
+struct mlir_op
 {
+    std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
 
     template <class Self, class F>
@@ -46,10 +51,9 @@ struct mlir_conv
         return pack(f(self.op, "op"));
     }
 
-    std::string name() const { return "gpu::mlir_conv"; }
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        check_shapes{inputs, *this}.standard();
+        check_shapes{inputs, *this}.packed_or_broadcasted();
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
@@ -58,35 +62,51 @@ struct mlir_conv
         return op.compute_shape({inputs[n - 2], inputs[n - 1]});
     }
 };
-MIGRAPHX_REGISTER_OP(mlir_conv);
+MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
-struct find_conv_pointwise
+
+MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
-    // Find a convolution followed by a pointwise operation.
+    if(ins->name() != "convolution")
+        return false;
+    value v    = ins->get_operator().to_value();
+    auto group = v.at("group").to<int>();
+    if(group != 1)
+        return false;
+    // Avoid MLIR assertion: Index < Length && "Invalid index!"
+    if(ins->get_shape().lens().size() != 4)
+        return false;
+    return true;
+}
+
+struct find_mlir_op
+{
     auto matcher() const
     {
-        auto convolution =
-            match::skip(match::name("contiguous"))(match::name("convolution").bind("convolution"));
-        return match::name("pointwise")(match::any_of[match::inputs()](convolution.bind("x")));
+        auto dot_or_conv = match::skip(match::name("contiguous"))(
+            match::any_of(match::name("dot"), is_mlir_conv()).bind("gemm_based_op"));
+        return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins      = r.result;
-        auto conv_ins = r.instructions["convolution"];
-        auto x_ins    = r.instructions["x"]; // input after contiguous
-        auto* pm      = ins->module_inputs().front();
-        auto names    = pm->get_parameter_names();
+        auto ins           = r.result;
+        auto gemm_based_op = r.instructions["gemm_based_op"];
+        auto x_ins         = r.instructions["x"]; // input after contiguous
+        auto* pm           = ins->module_inputs().front();
+        auto names         = pm->get_parameter_names();
         // Whitelist pointwise operators
         if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
-               return not contains({"@literal", "@param", "@return", "convolution", "add", "relu"},
-                                   i.name());
+               return not contains(
+                   {"@literal", "@param", "@return", "convolution", "dot", "add", "relu"},
+                   i.name());
            }))
             return;
-        // Only fuse with fp32 for now
+        // Only fuse with fp32/fp16
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-               return i->get_shape().type() != shape::type_t::float_type;
+               return not contains({shape::type_t::float_type, shape::type_t::half_type},
+                                   i->get_shape().type());
            }))
             return;
         std::sort(names.begin(), names.end());
@@ -94,10 +114,10 @@ struct find_conv_pointwise
         mm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         auto x    = mm->add_parameter("x" + std::to_string(names.size()),
-                                   conv_ins->inputs().at(0)->get_shape());
+                                   gemm_based_op->inputs().at(0)->get_shape());
         auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
-                                   conv_ins->inputs().at(1)->get_shape());
-        auto conv = mm->add_instruction(conv_ins->get_operator(), {x, w});
+                                   gemm_based_op->inputs().at(1)->get_shape());
+        auto conv = mm->add_instruction(gemm_based_op->get_operator(), {x, w});
         std::transform(names.begin(),
                        names.end(),
                        ins->inputs().begin(),
@@ -114,12 +134,13 @@ struct find_conv_pointwise
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != conv_ins; });
-        inputs.insert(inputs.end(), conv_ins->inputs().begin(), conv_ins->inputs().end());
+                     [&](auto input) { return input != gemm_based_op; });
+        inputs.insert(inputs.end(), gemm_based_op->inputs().begin(), gemm_based_op->inputs().end());
         mpm.get_module().replace_instruction(
-            ins, mlir_conv{conv_ins->get_operator()}, inputs, {mm});
+            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 };
+
 } // namespace
 
 #endif
@@ -127,7 +148,17 @@ struct find_conv_pointwise
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    match::find_matches(mpm, find_conv_pointwise{});
+    const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
+    if(mlir_enabled)
+    {
+        match::find_matches(mpm, find_mlir_op{});
+    }
+    else
+    {
+        std::cerr << "WARNING: MIGraphX built with MLIR but it is not enabled. Please set the env "
+                     "var MIGRAPHX_ENABLE_MLIR to use MLIR kernel generator."
+                  << std::endl;
+    }
 #else
     (void)mpm;
 #endif

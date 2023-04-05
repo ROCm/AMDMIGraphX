@@ -29,7 +29,6 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
-#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -80,6 +79,7 @@ std::string generate_args_hpp(const std::vector<shape>& inputs)
 
 #include <migraphx/kernels/args.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
 
@@ -138,16 +138,15 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
         std::size_t groups     = (n + local - 1) / local;
         std::size_t max_blocks = max_global / local;
         std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
-        return nglobal;
+        return std::min(nglobal, n);
     };
 }
 
 std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
 {
-    size_t block_size = 128;
-    while(block_size <= max_block_size and block_size <= n)
-        block_size *= 2;
-    return block_size / 2;
+    const std::size_t min_block_size = 64;
+    auto block_size                  = (((n - 1) / min_block_size + 1)) * min_block_size;
+    return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
 operation compile_hip_code_object(const std::string& content, hip_compile_options options)

@@ -25,9 +25,16 @@
 #define MIGRAPHX_GUARD_KERNELS_LAYERNORM_HPP
 #include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/print.hpp>
 
 namespace migraphx {
+
+template <class T, index_int N, class Op>
+constexpr auto vec_reduce(const array<T, N>& a, Op op)
+{
+    return a.apply([&](auto x) { return vec_reduce(x, op); });
+}
 
 template <index_int Axis,
           class F,
@@ -37,46 +44,53 @@ template <index_int Axis,
           class Input2,
           class... Inputs>
 __device__ void generic_binary_layernorm(
-    F compute, BinOp op, Output output, Input1 input1, Input2 input2, Inputs... inputs)
+    F compute, BinOp op, float eps, Output output, Input1 input1, Input2 input2, Inputs... inputs)
 {
+    using block         = reduce::auto_block<reduce::reduce_elements_with_axis<Input1, Axis>()>;
     using reduce_output = reduce::with_axis<Input1, Axis>;
-    reduce::block::run<reduce_output>([&](auto, auto r) {
-        using value_type         = typename Input1::type;
-        constexpr auto relements = r.template elements<Input1>();
-        auto mean                = [&](auto f) {
-            return r.reduce(op::sum{}, 0, [&](auto x1, auto x2) {
-                return f(x1, x2) / value_type{relements};
-            })(input1, input2);
-        };
-        // mean(x)
-        auto mean_x = mean(op);
-        // mean(m ^ 2)
-        auto mean_m2 = mean([&](auto x1, auto x2) {
-            auto m = op(x1, x2) - mean_x;
-            return m * m;
-        });
 
-        r.inner([&](auto& y, auto x1, auto x2, auto... xs) {
-            auto m = op(x1, x2) - mean_x;
-            // m * rsqrt(mean(m ^ 2) + 1e-12)
-            y = compute(m * rsqrt(mean_m2 + value_type{1e-12}), xs...);
-        })(output, input1, input2, inputs...);
+    block::template run<reduce_output>([&](auto, auto r) {
+        auto input       = r.inner([&](auto x1, auto x2) { return op(x1, x2); })(input1, input2);
+        using value_type = typename Input1::type;
+        constexpr auto relements   = r.template elements<Input1>();
+        constexpr auto relements_r = vec_type<value_type>{1.0 / relements};
+        auto relements_rsqrt       = sqrt(relements_r);
+
+        auto means = r.reduce(op::sum{}, make_array<vec_type<value_type>>(0, 0), [&](auto x) {
+            auto x_out = x * relements_r;
+            // dividing x by sqrt(relements) before squaring allows computing higher values
+            // before overflow in low precision
+            auto x2_sqrt = x * relements_rsqrt;
+            return make_array(x_out, x2_sqrt * x2_sqrt);
+        })(input);
+
+        auto mean_x        = means[0];
+        auto mean_x2       = means[1];
+        auto variance      = mean_x2 - (mean_x * mean_x);
+        value_type eps_val = eps; // implicit conversion for eps
+
+        r.inner([&](auto& y, auto x, auto... xs) {
+            auto m = x - mean_x;
+
+            // m * rsqrt(mean(m ^ 2) + epsilon)
+            y = compute(m * rsqrt(variance + eps_val), xs...);
+        })(output, input, inputs...);
     });
 }
 
 template <index_int Axis, class F, class Output, class Input, class... Inputs>
-__device__ void layernorm(F compute, Output output, Input input, Inputs... inputs)
+__device__ void layernorm(F compute, float eps, Output output, Input input, Inputs... inputs)
 {
     generic_binary_layernorm<Axis>(
-        compute, [](auto x, auto) { return x; }, output, input, input, inputs...);
+        compute, [](auto x, auto) { return x; }, eps, output, input, input, inputs...);
 }
 
 template <index_int Axis, class F, class Output, class Input1, class Input2, class... Inputs>
 __device__ void
-add_layernorm(F compute, Output output, Input1 input1, Input2 input2, Inputs... inputs)
+add_layernorm(F compute, float eps, Output output, Input1 input1, Input2 input2, Inputs... inputs)
 {
     generic_binary_layernorm<Axis>(
-        compute, [](auto x1, auto x2) { return x1 + x2; }, output, input1, input2, inputs...);
+        compute, [](auto x1, auto x2) { return x1 + x2; }, eps, output, input1, input2, inputs...);
 }
 
 } // namespace migraphx

@@ -44,7 +44,7 @@ struct allocate
     std::string name() const { return "allocate"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        migraphx::check_shapes{inputs, *this}.has(0);
+        migraphx::check_shapes{inputs, *this, true}.has(0);
         return s;
     }
     argument compute(const shape& output_shape, const std::vector<argument>&) const

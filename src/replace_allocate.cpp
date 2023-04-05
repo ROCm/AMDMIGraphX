@@ -73,7 +73,7 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
         name_shapes.insert(ps.begin(), ps.end());
     }
 
-    for(auto& pn : name_shapes)
+    for(const auto& pn : name_shapes)
     {
         const auto& s = pn.second;
         instruction_ref output{};
@@ -104,19 +104,16 @@ void replace_allocate::apply(module& m) const
             continue;
 
         auto s = ins->get_shape();
-
         if(not main_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
-
             auto out_param = m.add_parameter(mod_output_names[ins], s);
             m.replace_instruction(ins, out_param);
-            continue;
         }
-
-        m.replace_instruction(
-            ins,
-            m.insert_instruction(ins,
-                                 make_op(model.name(), migraphx::value{{"shape", to_value(s)}})));
+        else
+        {
+            m.replace_instruction(ins,
+                                  make_op(model.name(), migraphx::value{{"shape", to_value(s)}}));
+        }
     }
 }
 

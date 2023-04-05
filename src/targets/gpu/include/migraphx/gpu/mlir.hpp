@@ -36,7 +36,8 @@ struct module;
 namespace gpu {
 
 std::string dump_mlir(const module& m);
-code_object_op compile_mlir(const context& ctx, const module& m);
+code_object_op
+compile_mlir(const context& ctx, module m, const std::vector<instruction_ref>& inputs);
 
 instruction_ref insert_mlir(module& m,
                             instruction_ref ins,

@@ -56,13 +56,32 @@ struct id
     }
 };
 
+template <class T>
+struct convert_to
+{
+    template <class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(U x) const
+    {
+        return convert<T>(x);
+    }
+};
+
+template <index_int N>
 struct mean
 {
-    index_int item_num = 1;
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
+    MIGRAPHX_DEVICE_CONSTEXPR T operator()(T x) const
     {
-        return x / static_cast<T>(item_num);
+        using type = vec_type<T>;
+        if constexpr(is_floating_point<type>{})
+        {
+            constexpr type d = 1.0 / N;
+            return x * d;
+        }
+        else
+        {
+            return x / static_cast<type>(N);
+        }
     }
 };
 

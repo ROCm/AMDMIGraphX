@@ -31,6 +31,7 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
@@ -51,18 +52,21 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
 
 auto conv_const_weights()
 {
-    return match::name("convolution")(match::used_once(),
-                                      match::args(match::any(), match::is_constant().bind("w")));
+    return match::name("convolution")(
+        match::used_once(),
+        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
 auto reduction() { return match::name_contains("reduce"); }
 
+// conv(x, w) * a => conv(x, a * w)
 struct find_mul_conv
 {
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(conv_const_weights().bind("conv"),
-                                                          match::name("broadcast").bind("a")));
+        return match::name("mul")(
+            match::either_arg(0, 1)(conv_const_weights().bind("conv"),
+                                    match::name("broadcast", "multibroadcast").bind("a")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -72,14 +76,35 @@ struct find_mul_conv
         auto a_ins    = r.instructions["a"];
         auto w_ins    = r.instructions["w"];
 
-        auto broadcast_op = any_cast<op::broadcast>(a_ins->get_operator());
-        if(broadcast_op.axis != 1)
+        const auto& a_input_lens = a_ins->inputs().front()->get_shape().lens();
+
+        std::size_t num_not_one_dims = std::count_if(
+            a_input_lens.cbegin(), a_input_lens.cend(), [](auto dim) { return dim != 1; });
+        if(num_not_one_dims > 1)
             return;
 
+        // check broadcasted along channels
+        const auto& a_lens    = a_ins->get_shape().lens();
+        const auto& a_strides = a_ins->get_shape().strides();
+
+        auto is_broadcasted_axis = [](auto len, auto stride) { return len == 1 or stride == 0; };
+
+        if(a_strides.at(1) != 1)
+            return;
+
+        if(not is_broadcasted_axis(a_lens.front(), a_strides.front()))
+            return;
+
+        if(not std::equal(a_lens.begin() + 2,
+                          a_lens.end(),
+                          a_strides.begin() + 2,
+                          a_strides.end(),
+                          is_broadcasted_axis))
+            return;
+
+        auto sq    = m.insert_instruction(ins, make_op("squeeze"), a_ins->inputs().front());
         auto new_a = m.insert_instruction(
-            ins,
-            make_op("broadcast", {{"axis", 0}, {"out_lens", w_ins->get_shape().lens()}}),
-            a_ins->inputs().front());
+            ins, make_op("broadcast", {{"axis", 0}, {"out_lens", w_ins->get_shape().lens()}}), sq);
         auto new_mul  = m.insert_instruction(ins, make_op("mul"), new_a, w_ins);
         auto new_conv = m.insert_instruction(
             ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_mul);
@@ -179,7 +204,12 @@ struct find_mul_slice_conv
     }
 };
 
-// a * (x + b) => a * x + a * b
+// ******************************
+//  a * (x + b) => a * x + a * b
+// ******************************
+// When a * (x + b) is followed by another add of constant, then the
+// additional add can be const folded. Also, better fusions can be applied
+// when the add comes after.
 struct find_mul_add
 {
     auto matcher() const
@@ -241,6 +271,32 @@ struct find_dot_add
         auto ax_ins = insert_dot(a_ins, x_ins);
         auto ab_ins = insert_dot(a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+    }
+};
+
+struct find_conv_add
+{
+    auto matcher() const
+    {
+        auto add = match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"),
+                                    match::any_of(match::is_constant()).bind("a")),
+            match::used_once());
+        return match::name("convolution")(match::used_once(),
+                                          match::args(add, match::is_constant().bind("w")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto x_ins = r.instructions["x"];
+        auto w_ins = r.instructions["w"];
+
+        auto conv1 = m.insert_instruction(ins, ins->get_operator(), a_ins, w_ins);
+        auto conv2 = m.insert_instruction(ins, ins->get_operator(), x_ins, w_ins);
+
+        m.replace_instruction(ins, make_op("add"), conv1, conv2);
     }
 };
 
@@ -317,12 +373,18 @@ struct find_inner_broadcast
                        std::back_inserter(inputs),
                        [](auto i) { return i->inputs().front(); });
         if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
-               return i->get_shape() != inputs.front()->get_shape();
+               return i->get_shape() != inputs.front()->get_shape() and
+                      i->get_shape().elements() != 1;
            }))
             return;
 
-        auto op = m.insert_instruction(ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        auto b_it = std::find_if(broadcasts.begin(), broadcasts.end(), [&](auto i) {
+            return not i->get_shape().scalar();
+        });
+        if(b_it == broadcasts.end())
+            b_it = broadcasts.begin();
+        auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, (*b_it)->get_operator(), op);
     }
 };
 
@@ -411,6 +473,24 @@ struct find_concat_op
             m.replace_instruction(ins, make_op("concat", {{"axis", axis}}), args);
     }
 };
+
+void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
+{
+    auto start = range(m.begin(), pos);
+    for(auto ins : iterator_for(start))
+    {
+        auto it = std::find(inss.begin(), inss.end(), ins);
+        if(it != inss.end())
+            inss.erase(it);
+    }
+    for(auto ins : inss)
+    {
+        if(not m.has_instruction(ins))
+            continue;
+        move_instructions_back(m, pos, ins->inputs());
+        m.move_instruction(ins, pos);
+    }
+}
 
 std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
@@ -587,8 +667,7 @@ struct find_splits
                    }))
                     return;
 
-                for(auto data : data_args)
-                    m.move_instructions(data, ins);
+                move_instructions_back(m, ins, data_args);
 
                 auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
                 assert(not slice_op.axes.empty());
@@ -787,7 +866,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return not(dots < 2 and convs < 2);
+    return (dots >= 2 or convs >= 2);
 }
 
 struct find_conv_dot_horiz_fusion
@@ -841,8 +920,7 @@ struct find_conv_dot_horiz_fusion
                 concat_axis = axis;
             }
 
-            for(auto arg : args)
-                m.move_instructions(arg, input);
+            move_instructions_back(m, input, args);
             // TODO: Check if axes match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
@@ -891,6 +969,73 @@ struct find_div_const
         auto args = ins->inputs();
 
         m.replace_instruction(ins, make_op("mul"), args.front(), recip);
+    }
+};
+
+struct find_unit_ops
+{
+    auto matcher() const
+    {
+        auto mul_1 = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(1.0f), match::any().bind("x")));
+        auto div_1 =
+            match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
+        auto add_0 = match::name("add")(
+            match::either_arg(0, 1)(match::has_value(0.0f, 1e-12), match::any().bind("x")));
+        auto sub_0 =
+            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f)));
+        return match::any_of(mul_1, div_1, add_0, sub_0);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto c_in = r.instructions["x"];
+
+        m.replace_instruction(ins, c_in);
+    }
+};
+
+struct find_neg_unit_ops
+{
+    auto matcher() const
+    {
+        auto mul_neg_1 = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
+        auto div_neg_1 =
+            match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f)));
+        auto sub_0 =
+            match::name("sub")(match::args(match::has_value(0.0f), match::any().bind("x")));
+        return match::any_of(mul_neg_1, div_neg_1, sub_0);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto c_in = r.instructions["x"];
+
+        auto neg = m.insert_instruction(ins, make_op("neg"), c_in);
+        m.replace_instruction(ins, neg);
+    }
+};
+
+struct find_zero_ops
+{
+    auto matcher() const
+    {
+        auto mul_zero = match::name("mul")(
+            match::either_arg(0, 1)(match::has_value(0.0f).bind("x"), match::any()));
+        auto div_zero =
+            match::name("div")(match::args(match::has_value(0.0f).bind("x"), match::any()));
+        return match::any_of(mul_zero, div_zero);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto zero_ins = r.instructions["x"];
+
+        m.replace_instruction(ins, zero_ins);
     }
 };
 
@@ -959,11 +1104,23 @@ struct find_split_reshape
             return;
         }
 
+        // Only want to apply this optimization if each split output is followed by
+        // a contiguous op and a reshape
+        if(std::any_of(split_outputs.begin(), split_outputs.end(), [](auto i) {
+               if(i->outputs().size() == 1)
+               {
+                   auto cont = i->outputs().front();
+                   return cont->outputs().size() != 1;
+               }
+               return false;
+           }))
+        {
+            return;
+        }
+
         std::vector<instruction_ref> vec_rsp(split_outputs.size());
         std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [](auto i) {
-            assert(i->outputs().size() == 1);
             auto cont = i->outputs().front();
-            assert(cont->outputs().size() == 1);
             return cont->outputs().front();
         });
 
@@ -985,20 +1142,35 @@ struct find_split_reshape
         auto rsp_lens    = rsp->get_shape().lens();
         auto rsp_strides = rsp->get_shape().strides();
         rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
-        auto ait = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+
+        auto ait     = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+        int rsp_axis = -1;
         if(ait == rsp_strides.end())
         {
             return;
         }
-        int rsp_axis = std::distance(rsp_strides.begin(), ait);
-
+        else if(ait == rsp_strides.end() - 1)
+        {
+            // edge case
+            // slice_dim == 1, in that case it could match with last stride of 1.
+            // it should accumulate lengths from last dim in that case. discount 1 to avoid going
+            // out of bounds.
+            assert(slc_dim_size == 1);
+            rsp_axis = std::distance(rsp_strides.begin(), ait) - 1;
+        }
+        else
+        {
+            rsp_axis = std::distance(rsp_strides.begin(), ait);
+        }
         // calculate reshape output shape
         std::vector<int64_t> vec_dims(vec_rsp.size());
+
         std::transform(vec_rsp.begin(), vec_rsp.end(), vec_dims.begin(), [&](auto is) {
             return is->get_shape().lens()[rsp_axis];
         });
 
         std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
+
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
         // insert the reshape instruction and add contiguous if needed
@@ -1095,7 +1267,11 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_add{},
+                            find_unit_ops{},
+                            find_neg_unit_ops{},
+                            find_zero_ops{},
                             find_dot_add{},
+                            find_conv_add{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

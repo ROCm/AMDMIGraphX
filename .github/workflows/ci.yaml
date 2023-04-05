@@ -7,34 +7,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.6.0
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
   tidy:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
+        du . --max-depth=1 -h
+        ls -la
+        cd /usr/local
+        du . --max-depth=1 -h
+        ls -la
+        cd /usr/local/lib
+        echo $(pwd)
+        du . --max-depth=1 -h
+        ls -la
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: satackey/action-docker-layer-caching@v0.0.11
+    # name: Docker Layer Caching2
+    - uses: jpribyl/action-docker-layer-caching@v0.1.1
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for tidy
-      uses: pat-s/always-upload-cache@v2.1.3
+      uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: tidy-cache
         key: tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
@@ -54,6 +63,7 @@ jobs:
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
           -DMIGRAPHX_ENABLE_FPGA=On \
+          -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
@@ -61,26 +71,24 @@ jobs:
         make -j2 -k onnx-proto tf-proto tidy
 
   cppcheck:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
-    - uses: actions/checkout@v2
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+    - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: satackey/action-docker-layer-caching@v0.0.11
+    - uses: jpribyl/action-docker-layer-caching@v0.1.1
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for cppcheck
       uses: pat-s/always-upload-cache@v2.1.3
@@ -101,22 +109,23 @@ jobs:
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
           -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
+          -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
         make -j2 cppcheck
 
   format:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
-    - uses: actions/checkout@v2
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
+    - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: satackey/action-docker-layer-caching@v0.0.11
+    - uses: jpribyl/action-docker-layer-caching@v0.1.1
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -142,14 +151,14 @@ jobs:
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
 
   pyflakes:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
-    - uses: actions/checkout@v2
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.8
     - name: Install pyflakes
@@ -163,14 +172,14 @@ jobs:
         mypy tools/api.py
 
   licensing:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
-    - uses: actions/checkout@v2
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.8
     - name: run License Check
@@ -190,7 +199,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-18.04
           - ubuntu-20.04
         configuration:
           - debug
@@ -199,16 +207,16 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
-    - uses: actions/checkout@v2
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.6
+        python-version: 3.7
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
@@ -223,12 +231,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
+        sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash 
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.
@@ -252,10 +259,11 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
-          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
-          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
+          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s
 
     - name: Upload code coverage
@@ -268,7 +276,9 @@ jobs:
         lcov --directory . --capture --output-file $(pwd)/coverage.info
         lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
         lcov --list $(pwd)/coverage.info
-        curl -s https://codecov.io/bash | bash
+        curl -Os https://uploader.codecov.io/latest/linux/codecov
+        chmod +x codecov
+        ./codecov -t ${CODECOV_TOKEN}
         echo "Uploaded"
 
   linux-fpga:
@@ -285,7 +295,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-18.04
           - ubuntu-20.04
         configuration:
           - debug
@@ -294,16 +303,16 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
-    - uses: actions/checkout@v2
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.6
+        python-version: 3.7
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
@@ -318,12 +327,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
+        sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
-      run: |
-        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+      shell: bash
+      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.
@@ -347,10 +355,11 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
-          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
-          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold' \
+          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
 
@@ -364,5 +373,7 @@ jobs:
     #    lcov --directory . --capture --output-file $(pwd)/coverage.info
     #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
     #    lcov --list $(pwd)/coverage.info
-    #    curl -s https://codecov.io/bash | bash
+    #    curl -Os https://uploader.codecov.io/latest/linux/codecov
+    #    chmod +x codecov
+    #    ./codecov -t ${CODECOV_TOKEN}
     #    echo "Uploaded"

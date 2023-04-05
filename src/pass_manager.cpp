@@ -39,6 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
 
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
@@ -85,18 +86,35 @@ struct module_pm : module_pass_manager
         assert(mod);
         return *mod;
     }
+
     virtual module* create_module(const std::string& name) override
     {
         assert(prog);
         return prog->create_module(name);
     }
+
     virtual module* get_common_parent() override { return common_parent; }
+
+    virtual module* get_root_module() override
+    {
+        assert(prog);
+        return prog->get_main_module();
+    }
+
     virtual void run_pass(const pass& p) override
     {
         assert(mod);
-        trace("Module: ", mod->name(), ", Pass: ", p.name());
         assert(mod->validate() == mod->end());
-        p.apply(*this);
+        if(enabled(MIGRAPHX_TIME_PASSES{}))
+        {
+            using milliseconds = std::chrono::duration<double, std::milli>;
+            auto ms            = time<milliseconds>([&] { p.apply(*this); });
+            std::cout << p.name() << ": " << ms << "ms\n";
+        }
+        else
+        {
+            p.apply(*this);
+        }
         trace(*mod);
         validate_pass(*mod, p, *t);
     }

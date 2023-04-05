@@ -28,8 +28,7 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
-#include <hip/hip_fp16.h>
-#include <hip/math_functions.h>
+#include <migraphx/kernels/hip.hpp>
 
 namespace migraphx {
 
@@ -104,6 +103,7 @@ MIGRAPHX_DEVICE_MATH(floor, ::floor)
 MIGRAPHX_DEVICE_MATH(isnan, ::isnan)
 MIGRAPHX_DEVICE_MATH(log, ::log)
 MIGRAPHX_DEVICE_MATH(pow, ::pow)
+MIGRAPHX_DEVICE_MATH(remainder, ::remainder)
 MIGRAPHX_DEVICE_MATH(round, ::round)
 MIGRAPHX_DEVICE_MATH(rsqrt, ::rsqrt)
 MIGRAPHX_DEVICE_MATH(sin, ::sin)
@@ -111,6 +111,7 @@ MIGRAPHX_DEVICE_MATH(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH(sqrt, ::sqrt)
 MIGRAPHX_DEVICE_MATH(tan, ::tan)
 MIGRAPHX_DEVICE_MATH(tanh, ::tanh)
+MIGRAPHX_DEVICE_MATH(fmod, ::fmod)
 
 // Float overloads
 MIGRAPHX_DEVICE_MATH_FOR(float, acos, ::acosf)
@@ -126,12 +127,18 @@ MIGRAPHX_DEVICE_MATH_FOR(float, sin, ::sinf)
 MIGRAPHX_DEVICE_MATH_FOR(float, sinh, ::sinhf)
 MIGRAPHX_DEVICE_MATH_FOR(float, tan, ::tanf)
 MIGRAPHX_DEVICE_MATH_FOR(float, tanh, ::tanhf)
+MIGRAPHX_DEVICE_MATH_FOR(float, fmod, ::fmodf)
 
 // Builtin half functions
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, abs, ::__habs)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, ceil, ::hceil)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, cos, ::hcos)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, exp, ::hexp)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, floor, ::hfloor)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, isnan, ::__hisnan)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, log, ::hlog)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, rsqrt, ::hrsqrt)
+// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sqrt, ::hsqrt)
 
 // Use float to compute half overload
@@ -141,18 +148,15 @@ MIGRAPHX_DEVICE_MATH_HALF(asin, ::asin)
 MIGRAPHX_DEVICE_MATH_HALF(asinh, ::asinh)
 MIGRAPHX_DEVICE_MATH_HALF(atan, ::atan)
 MIGRAPHX_DEVICE_MATH_HALF(atanh, ::atanh)
-MIGRAPHX_DEVICE_MATH_HALF(ceil, ::ceil)
-MIGRAPHX_DEVICE_MATH_HALF(cos, ::cos)
 MIGRAPHX_DEVICE_MATH_HALF(cosh, ::cosh)
 MIGRAPHX_DEVICE_MATH_HALF(erf, ::erf)
-MIGRAPHX_DEVICE_MATH_HALF(floor, ::floor)
-MIGRAPHX_DEVICE_MATH_HALF(isnan, ::isnan)
 MIGRAPHX_DEVICE_MATH_HALF(pow, ::pow)
+MIGRAPHX_DEVICE_MATH_HALF(remainder, ::remainder)
 MIGRAPHX_DEVICE_MATH_HALF(round, ::round)
-MIGRAPHX_DEVICE_MATH_HALF(sin, ::sin)
 MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
+MIGRAPHX_DEVICE_MATH_HALF(fmod, ::fmod)
 
 // Map math functions to hip half2 functions
 // The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
@@ -161,19 +165,19 @@ MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 // at this time are: exp2, exp10, log2, log10, isinf
 MIGRAPHX_DEVICE_MATH_HALF2(abs, ::__habs2)
 MIGRAPHX_DEVICE_MATH_HALF2(ceil, ::h2ceil)
-MIGRAPHX_DEVICE_MATH_HALF2(floor, ::h2floor)
-MIGRAPHX_DEVICE_MATH_HALF2(sin, ::h2sin)
 MIGRAPHX_DEVICE_MATH_HALF2(cos, ::h2cos)
 MIGRAPHX_DEVICE_MATH_HALF2(exp, ::h2exp)
-MIGRAPHX_DEVICE_MATH_HALF2(exp2, ::h2exp2)
 MIGRAPHX_DEVICE_MATH_HALF2(exp10, ::h2exp10)
-MIGRAPHX_DEVICE_MATH_HALF2(log2, ::h2log2)
-MIGRAPHX_DEVICE_MATH_HALF2(log, ::h2log)
-MIGRAPHX_DEVICE_MATH_HALF2(log10, ::h2log10)
-MIGRAPHX_DEVICE_MATH_HALF2(rsqrt, ::h2rsqrt)
-MIGRAPHX_DEVICE_MATH_HALF2(sqrt, ::h2sqrt)
+MIGRAPHX_DEVICE_MATH_HALF2(exp2, ::h2exp2)
+MIGRAPHX_DEVICE_MATH_HALF2(floor, ::h2floor)
 MIGRAPHX_DEVICE_MATH_HALF2(isinf, ::__hisinf2)
 MIGRAPHX_DEVICE_MATH_HALF2(isnan, ::__hisnan2)
+MIGRAPHX_DEVICE_MATH_HALF2(log, ::h2log)
+MIGRAPHX_DEVICE_MATH_HALF2(log10, ::h2log10)
+MIGRAPHX_DEVICE_MATH_HALF2(log2, ::h2log2)
+MIGRAPHX_DEVICE_MATH_HALF2(rsqrt, ::h2rsqrt)
+// MIGRAPHX_DEVICE_MATH_HALF2(sin, ::h2sin)
+MIGRAPHX_DEVICE_MATH_HALF2(sqrt, ::h2sqrt)
 
 template <class T, class U>
 constexpr auto where(bool cond, const T& a, const U& b)
@@ -213,6 +217,14 @@ constexpr auto min(const T& a, const U& b)
     return min<common_type_t<T, U>>(a, b);
 }
 
+// Sin for half is broken on hip, so use cos instead
+template <class T, MIGRAPHX_REQUIRES(is_same<vec_type<T>, half>{})>
+constexpr T sin(T x)
+{
+    constexpr const T shift = HIP_PIO2_F;
+    return migraphx::cos(shift - x);
+}
+
 MIGRAPHX_DEVICE_MATH_VEC(abs)
 MIGRAPHX_DEVICE_MATH_VEC(acos)
 MIGRAPHX_DEVICE_MATH_VEC(acosh)
@@ -226,11 +238,13 @@ MIGRAPHX_DEVICE_MATH_VEC(cosh)
 MIGRAPHX_DEVICE_MATH_VEC(erf)
 MIGRAPHX_DEVICE_MATH_VEC(exp)
 MIGRAPHX_DEVICE_MATH_VEC(floor)
+MIGRAPHX_DEVICE_MATH_VEC(fmod)
 MIGRAPHX_DEVICE_MATH_VEC(isnan)
 MIGRAPHX_DEVICE_MATH_VEC(log)
 MIGRAPHX_DEVICE_MATH_VEC(max)
 MIGRAPHX_DEVICE_MATH_VEC(min)
 MIGRAPHX_DEVICE_MATH_VEC(pow)
+MIGRAPHX_DEVICE_MATH_VEC(remainder)
 MIGRAPHX_DEVICE_MATH_VEC(round)
 MIGRAPHX_DEVICE_MATH_VEC(rsqrt)
 MIGRAPHX_DEVICE_MATH_VEC(sin)

@@ -35,7 +35,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
-#include <migraphx/type_name.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
@@ -264,12 +263,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
-        .def("__init__",
-             [](migraphx::argument& x, py::buffer b) {
-                 py::buffer_info info = b.request();
-                 new(&x) migraphx::argument(to_shape(info), info.ptr);
-             })
+        .def(py::init([](py::buffer b) {
+            py::buffer_info info = b.request();
+            return migraphx::argument(to_shape(info), info.ptr);
+        }))
         .def("get_shape", &migraphx::argument::get_shape)
+        .def("data_ptr",
+             [](migraphx::argument& x) { return reinterpret_cast<std::uintptr_t>(x.data()); })
         .def("tolist",
              [](migraphx::argument& x) {
                  py::list l{x.get_shape().elements()};
@@ -328,15 +328,21 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("is_compiled", &migraphx::program::is_compiled)
         .def(
             "compile",
-            [](migraphx::program& p, const migraphx::target& t, bool offload_copy, bool fast_math) {
+            [](migraphx::program& p,
+               const migraphx::target& t,
+               bool offload_copy,
+               bool fast_math,
+               bool exhaustive_tune) {
                 migraphx::compile_options options;
-                options.offload_copy = offload_copy;
-                options.fast_math    = fast_math;
+                options.offload_copy    = offload_copy;
+                options.fast_math       = fast_math;
+                options.exhaustive_tune = exhaustive_tune;
                 p.compile(t, options);
             },
             py::arg("t"),
-            py::arg("offload_copy") = true,
-            py::arg("fast_math")    = true)
+            py::arg("offload_copy")    = true,
+            py::arg("fast_math")       = true,
+            py::arg("exhaustive_tune") = false)
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",
@@ -353,6 +359,23 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                      pm[key]              = migraphx::argument(to_shape(info), info.ptr);
                  }
                  return p.eval(pm);
+             })
+        .def("run_async",
+             [](migraphx::program& p,
+                py::dict params,
+                std::uintptr_t stream,
+                std::string stream_name) {
+                 migraphx::parameter_map pm;
+                 for(auto x : params)
+                 {
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
+                     py::buffer_info info = b.request();
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                 }
+                 migraphx::execution_environment exec_env{
+                     migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};
+                 return p.eval(pm, exec_env);
              })
         .def("sort", &migraphx::program::sort)
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })

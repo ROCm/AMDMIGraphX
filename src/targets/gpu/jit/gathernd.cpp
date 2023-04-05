@@ -27,13 +27,6 @@
 
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/reduce_dims.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -72,7 +65,7 @@ struct gathernd_compiler : compiler<gathernd_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto out_s = inputs.back();
+        const auto& out_s = inputs.back();
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;

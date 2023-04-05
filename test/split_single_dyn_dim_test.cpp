@@ -49,9 +49,9 @@ TEST_CASE(dynamic_batch)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
-            auto broadcast_lit =
-                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
+            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto broadcast_lit = submod->add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", sm_shape.lens()}}), literal_ins);
             auto add_ins =
                 submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
             submod->add_return({add_ins});
@@ -106,9 +106,9 @@ TEST_CASE(multiple_outputs)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
-            auto broadcast_lit =
-                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
+            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto broadcast_lit = submod->add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", sm_shape.lens()}}), literal_ins);
             auto add0_ins =
                 submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
             auto add1_ins = submod->add_instruction(migraphx::make_op("add"), sm_input, sm_input);

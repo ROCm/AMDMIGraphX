@@ -23,11 +23,13 @@
  */
 
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/matcher.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,6 +69,33 @@ has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
                                     dds_it->max};
 }
 
+struct find_static_2in_broadcasts
+{
+    // convert 2 input static shape broadcast/multibroadcast into 1 input version
+    auto matcher() const
+    {
+        return match::broadcast(match::nargs(2),
+                                match::arg(0)(match::static_shape()),
+                                match::arg(1)(match::static_shape()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins          = mr.result;
+        auto out_lens     = ins->get_shape().lens();
+        auto broadcast_op = ins->get_operator();
+        if(broadcast_op.name() == "broadcast")
+        {
+            broadcast_op.from_value({{"out_lens", out_lens}});
+        }
+        else
+        {
+            broadcast_op.from_value({{"out_lens", out_lens}, {"out_dyn_dims", {}}});
+        }
+        m.replace_instruction(ins, broadcast_op, ins->inputs().at(0));
+    }
+};
+
 /**
  * Makes all the shapes in the dynamic_dimension range.
  * Probably won't work for `if` and `loop` instructions, depending on how the submodules for those
@@ -97,6 +126,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 dd_check->dyn_param_str, migraphx::shape{dyn_param_shape.type(), static_lens});
             auto outputs = submod->add_instructions(mm, map_ins);
             submod->add_return({outputs});
+            match::find_matches(*submod, find_static_2in_broadcasts{});
             submodules.push_back(submod);
         }
         // redirect to select_module operator and return
@@ -120,6 +150,8 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         }
         mm->replace_return(outputs);
     }
+
+    migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

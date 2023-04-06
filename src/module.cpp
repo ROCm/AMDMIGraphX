@@ -595,6 +595,14 @@ std::vector<shape> module::get_output_shapes() const
     }
 }
 
+std::vector<instruction_ref> module::get_returns() const
+{
+    auto last = std::prev(this->end());
+    if(last->name() == "@return")
+        return last->inputs();
+    return {last};
+}
+
 instruction_ref module::validate() const
 {
     return std::find_if(

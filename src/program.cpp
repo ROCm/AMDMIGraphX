@@ -450,16 +450,6 @@ std::vector<argument> generic_eval(const module* mod,
     return {results.at(std::prev(mod->end()))};
 }
 
-// template <class F>
-// std::vector<argument> generic_eval(const program& p,
-//                                    std::unordered_map<std::string, context> ctx_map,
-//                                    std::unordered_map<std::string, argument> params,
-//                                    F make_trace)
-// {
-//     const module* mm = p.get_main_module();
-//     return generic_eval(mm, ctx_map, params, {}, make_trace);
-// }
-
 template <class F>
 std::vector<argument> generic_eval(const program& p,
                                    context& ctx,
@@ -513,15 +503,15 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
         });
 
         ret = generic_eval(*this,
-                           this->impl->ctx,
+                           ctx,
                            std::move(params),
                            with_check_context([&](auto& ins, auto f, auto&& check_context) {
-                               // ctx.finish();
+                               ctx.finish();
                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
                                timer t{};
                                auto result = check_context(f);
                                double t1   = t.record<milliseconds>();
-                               // ctx.finish();
+                               ctx.finish();
                                double t2 = t.record<milliseconds>();
                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
                                if(trace_level > 1 and ins->name().front() != '@' and
@@ -549,7 +539,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     else
     {
         ret = generic_eval(*this,
-                           this->impl->ctx,
+                           ctx,
                            std::move(params),
                            with_check_context([&](auto&, auto f, auto&& check_context) {
                                return check_context(f);
@@ -753,7 +743,7 @@ void program::mark(const parameter_map& params, marker&& m)
     ctx.finish();
     // Start marking
     m.mark_start(*this);
-    generic_eval(*this, this->impl->ctx, params, always([&](auto ins, auto f) {
+    generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
         argument result;
         m.mark_start(ins);
         result = f();
@@ -785,7 +775,7 @@ void program::perf_report(std::ostream& os,
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(*this, this->impl->ctx, params, always([&](auto ins, auto) {
+    generic_eval(*this, ctx, params, always([&](auto ins, auto) {
         ins_vec[ins].reserve(n);
         return argument{ins->get_shape(), nullptr};
     }));
@@ -793,7 +783,7 @@ void program::perf_report(std::ostream& os,
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, this->impl->ctx, params, always([&](auto ins, auto f) {
+        generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
             argument result;
             ins_vec[ins].push_back(time<milliseconds>([&] {
                 result = f();
@@ -966,7 +956,8 @@ void program::print_cpp(std::ostream& os) const
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
-    generic_eval(*this, this->impl->ctx, std::move(params), always([](auto ins, auto&&...) {
+    auto& ctx = this->impl->ctx;
+    generic_eval(*this, ctx, std::move(params), always([](auto ins, auto&&...) {
         return argument{ins->get_shape(), nullptr};
     }));
 }

@@ -44,6 +44,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
 template <class T>
 std::vector<T*> generic_get_modules(T* mm);
 
+template <>
+std::vector<module*> generic_get_modules(module* mm);
+
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;

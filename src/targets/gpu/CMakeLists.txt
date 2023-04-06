@@ -34,8 +34,10 @@ if(NOT TARGET MIOpen)
 endif()
 
 if(BUILD_DEV)
+	message(STATUS "Build Dev flag is on")
     set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
-else()
+else()	
+	message(STATUS "Build Dev flag is off")
     set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
 endif()
 

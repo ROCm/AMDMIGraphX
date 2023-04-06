@@ -45,7 +45,14 @@ void migraphx_to_value(value& v, const literal& l) { raw_data_to_value(v, l); }
 void migraphx_from_value(const value& v, literal& l)
 {
     auto s = migraphx::from_value<shape>(v.at("shape"));
-    l      = literal(s, v.at("data").get_binary().data());
+    if(v.contains("data"))
+    {
+        l = literal(s, v.at("data").get_binary().data());
+    }
+    else
+    {
+        l = literal(s);
+    }
 }
 
 void migraphx_to_value(value& v, const argument& a) { raw_data_to_value(v, a); }
@@ -59,6 +66,10 @@ void migraphx_from_value(const value& v, argument& a)
     else if(v.contains("sub"))
     {
         a = migraphx::from_value<std::vector<argument>>(v.at("sub"));
+    }
+    else
+    {
+        a = migraphx::argument(migraphx::from_value<shape>(v.at("shape")));
     }
 }
 

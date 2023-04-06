@@ -95,4 +95,18 @@ TEST_CASE(multitarget_program)
     std::cout << "Success\n";
 }
 
+TEST_CASE(single_target_compile) {}
+
+TEST_CASE(multitarget_compile) {}
+
+TEST_CASE(multitarget_compile_if_then_else) {}
+
+TEST_CASE(multitarget_compile_loop) {}
+
+TEST_CASE(multitarget_compile_nested_modules) {}
+
+TEST_CASE(multitarget_compile_offload_copy) {}
+
+TEST_CASE(mulitarget_compile_dead_code_elimination) {}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

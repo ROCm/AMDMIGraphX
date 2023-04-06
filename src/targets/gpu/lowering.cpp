@@ -85,7 +85,6 @@ struct miopen_apply
         compute_fp32   = get_compute_fp32_flag();
         // TODO: Set Offload copy based on root modules' compile options
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
-        // offload_copy = pass->offload_copy;
 
         add_generic_op("contiguous");
 

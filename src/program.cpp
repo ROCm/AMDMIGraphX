@@ -269,9 +269,8 @@ void program::compile(const target& t, compile_options options)
 {
     // todo: combine with multi-target compile method
     assert(not this->is_compiled());
-    this->impl->target_name                          = t.name();
-    this->impl->ctx                                  = t.get_context();
-    this->impl->context_map[this->impl->target_name] = this->impl->ctx;
+    this->impl->target_name = t.name();
+    this->impl->ctx         = t.get_context();
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
@@ -428,20 +427,19 @@ std::vector<argument> generic_eval(const module* mod,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
-            // context& lctx        = ctx_map[mod->get_target()];
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
                 auto ssctx = ctx;
                 return generic_eval(smod, ssctx, inputs, results, make_trace);
             };
+
             results.emplace(ins, trace(ins, [&] {
                                 return ins->normalized_operator().compute(
                                     ctx, ins->get_shape(), values, mod_args, module_eval);
                             }));
         }
         assert(results.find(ins) != results.end());
-
         if(not ins->get_shape().any_of_dynamic())
         {
             assert(results.at(ins).get_shape() == ins->get_shape());

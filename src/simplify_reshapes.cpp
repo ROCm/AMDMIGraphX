@@ -874,7 +874,7 @@ void simplify_reshapes::apply(module& m) const
                             find_resize{},
                             find_nop_reshapes{},
                             find_reshaper{},
-                            find_reshape_cont{},
+                            // find_reshape_cont{},
                             find_transpose{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},

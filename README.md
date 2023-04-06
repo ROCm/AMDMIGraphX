@@ -191,7 +191,11 @@ rbuild develop
 This will install the dependencies for development into the `deps` directory and
 configure `cmake` to use those dependencies in the `build` directory. These
 directories can be changed be changed by passing the `--deps-dir` and
-`--build-dir` flags to `rbuild` command.
+`--build-dir` flags to `rbuild` command:
+
+```
+rbuild develop --build-dir build_rocm_55 --deps-dir /home/user/deps_dir
+```
 
 ## Building the documentation
 

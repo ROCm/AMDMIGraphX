@@ -189,19 +189,19 @@ struct shape
 
     /*!
      * Minimum lengths for dynamic shape.
-     * lens() for fixed shape.
+     * lens() for static shape.
      */
     std::vector<std::size_t> min_lens() const;
 
     /*!
      * Maximum lengths for dynamic shape.
-     * lens() for fixed shape.
+     * lens() for static shape.
      */
     std::vector<std::size_t> max_lens() const;
 
     /*!
      * Optimum lengths for dynamic shape.
-     * Empty for fixed shape.
+     * Empty for static shape.
      */
     std::vector<std::set<std::size_t>> opt_lens() const;
 
@@ -258,6 +258,9 @@ struct shape
 
     // convert the shape to an equivalent dynamic shape with empty optimals
     shape to_dynamic() const;
+
+    // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
+    shape to_static(std::size_t x) const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);

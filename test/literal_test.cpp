@@ -175,6 +175,12 @@ TEST_CASE(value_literal)
     EXPECT(l3 == l1);
     auto l4 = migraphx::from_value<migraphx::literal>(v2);
     EXPECT(l4 == l2);
+
+    // empty literal test
+    migraphx::literal l5;
+    auto v3 = migraphx::to_value(l5);
+    auto l6 = migraphx::from_value<migraphx::literal>(v3);
+    EXPECT(l6 == l5);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

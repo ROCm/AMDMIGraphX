@@ -191,6 +191,12 @@ TEST_CASE(value_argument)
     EXPECT(a3 == a1);
     auto a4 = migraphx::from_value<migraphx::argument>(v2);
     EXPECT(a4 == a2);
+
+    // empty argument test
+    migraphx::argument a5;
+    auto v3 = migraphx::to_value(a5);
+    auto a6 = migraphx::from_value<migraphx::argument>(v3);
+    EXPECT(a6 == a5);
 }
 
 TEST_CASE(value_tuple)

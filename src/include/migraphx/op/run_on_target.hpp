@@ -54,8 +54,7 @@ struct run_on_target
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs,
                                   std::vector<migraphx::module_ref> mods) const
     {
-        check_shapes{inputs, *this}.has_at_least(1);
-        if(mods.empty() or mods.size() > 1)
+        if(mods.size() != 1)
         {
             MIGRAPHX_THROW("RUN_ON_TARGET: must have exactly 1 module argument");
         }
@@ -64,9 +63,8 @@ struct run_on_target
         {
             MIGRAPHX_THROW("RUN_ON_TARGET: Number of input paramters mismatches");
         }
-        // TODO: assume for not return type is not tuple
-        assert(mod_input->get_output_shapes().size() == 1);
-        return mod_input->get_output_shapes().front();
+        auto mod_out_shapes = mod_input->get_output_shapes().front();
+        return migraphx::shape{mod_out_shapes};
     }
 
     migraphx::argument
@@ -93,9 +91,7 @@ struct run_on_target
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
         auto mod     = mods.front();
         auto results = run(mod, params);
-        // assume for now that result from module run is not a tuple, it is asserted in
-        // compute_shape()
-        return results.front();
+        return migraphx::argument{results};
     }
 };
 

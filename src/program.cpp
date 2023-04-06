@@ -213,17 +213,21 @@ void program::compile(std::vector<std::string> targets,
 {
     // Gather all the target roots
     std::unordered_multimap<std::string, module_ref> roots;
-    module_ref mm = this->get_main_module();
-    for(const auto& ins : *mm)
+    auto mods = this->get_modules();
+    for(auto mod : mods)
     {
-        if(ins.name() != "run_on_target")
-            continue;
-        auto v                       = ins.get_operator().to_value();
-        module_ref root              = ins.module_inputs().front();
-        std::string root_target_name = v.at("target").to<std::string>();
-        assert(contains(targets, root_target_name));
-        roots.insert({root_target_name, root});
+        for(const auto& ins : *mod)
+        {
+            if(ins.name() != "run_on_target")
+                continue;
+            auto v                       = ins.get_operator().to_value();
+            module_ref root              = ins.module_inputs().front();
+            std::string root_target_name = v.at("target").to<std::string>();
+            assert(contains(targets, root_target_name));
+            roots.insert({root_target_name, root});
+        }
     }
+
     auto trace = tracer{};
     // TODO: Add tracer based on compile options
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))

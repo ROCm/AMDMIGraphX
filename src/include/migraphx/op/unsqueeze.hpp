@@ -81,7 +81,7 @@ struct unsqueeze
             {
                 if(std::find(axes.begin(), axes.end(), i) != axes.end())
                 {
-                    dyn_dims.push_back({1, 1, 0});
+                    dyn_dims.push_back({1, 1});
                 }
                 else
                 {

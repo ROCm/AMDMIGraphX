@@ -26,6 +26,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,18 +48,15 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         auto input_lens = args[0]->get_shape().lens();
         auto n_dim      = input_lens.size();
 
-        instruction_ref y_scale;
+        instruction_ref y_scale = args[1];
         if(args[1]->get_shape().elements() != 1)
         {
             auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
             y_scale         = info.add_instruction(
                 make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}), args[1]);
         }
-        else
-        {
-            y_scale = info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}),
-                                           args[1]);
-        }
+
+        auto common_args = add_common_args(*info.mod, {args[0], y_scale});
 
         if(args.size() == 3)
         {
@@ -76,10 +74,10 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
                     make_op("multibroadcast", {{"out_lens", input_lens}}), y_zero_point);
             }
 
-            return info.add_instruction(make_op("quantizelinear"), args[0], y_scale, y_zero_point);
+            common_args.push_back(y_zero_point);
         }
 
-        return info.add_instruction(make_op("quantizelinear"), args[0], y_scale);
+        return info.add_instruction(make_op("quantizelinear"), common_args);
     }
 };
 

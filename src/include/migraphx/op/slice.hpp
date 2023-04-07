@@ -111,16 +111,15 @@ struct slice
         // For a static shape, old_lens will be adjusted to a new size
         // for those axes that are sliced.
         // For dynamic shape, the adjusted old_lens become the new max values,
-        // while updating the old mins and opts if possible.
+        // while updating the old mins and optimals if possible.
         std::vector<std::size_t> new_mins;
-        std::vector<std::size_t> new_opts;
         std::vector<std::size_t> old_lens;
         std::vector<std::size_t> old_strides;
+        // Doesn't handle optimals
         if(input_shape.dynamic())
         {
             old_lens = input_shape.max_lens();
             new_mins = input_shape.min_lens();
-            new_opts = input_shape.opt_lens();
         }
         else
         {
@@ -146,17 +145,11 @@ struct slice
                 std::size_t sliced_min_length = ends[i] - starts[i];
                 // if the slice size is smaller than maxes but larger than mins
                 new_mins[axis] = std::min(sliced_min_length, new_mins[axis]);
-
-                auto sliced_opt_length = ends[i] - starts[i];
-                if(new_opts[axis] != 0)
-                    new_opts[axis] = sliced_opt_length;
-                if(new_opts[axis] < new_mins[axis] or new_opts[axis] > new_lens[axis])
-                    new_opts[axis] = 0;
             }
         }
         if(input_shape.dynamic())
         {
-            return shape{t, new_mins, new_lens, new_opts};
+            return shape{t, new_mins, new_lens, {}};
         }
         else
         {

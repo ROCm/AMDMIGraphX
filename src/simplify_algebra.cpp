@@ -52,8 +52,9 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
 
 auto conv_const_weights()
 {
-    return match::name("convolution")(match::used_once(),
-                                      match::args(match::any(), match::is_constant().bind("w")));
+    return match::name("convolution")(
+        match::used_once(),
+        match::args(match::none_of(match::is_constant()), match::is_constant().bind("w")));
 }
 
 auto reduction() { return match::name_contains("reduce"); }
@@ -203,7 +204,12 @@ struct find_mul_slice_conv
     }
 };
 
-// a * (x + b) => a * x + a * b
+// ******************************
+//  a * (x + b) => a * x + a * b
+// ******************************
+// When a * (x + b) is followed by another add of constant, then the
+// additional add can be const folded. Also, better fusions can be applied
+// when the add comes after.
 struct find_mul_add
 {
     auto matcher() const
@@ -265,6 +271,32 @@ struct find_dot_add
         auto ax_ins = insert_dot(a_ins, x_ins);
         auto ab_ins = insert_dot(a_ins, b_ins);
         m.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+    }
+};
+
+struct find_conv_add
+{
+    auto matcher() const
+    {
+        auto add = match::name("add")(
+            match::either_arg(0, 1)(match::any().bind("x"),
+                                    match::any_of(match::is_constant()).bind("a")),
+            match::used_once());
+        return match::name("convolution")(match::used_once(),
+                                          match::args(add, match::is_constant().bind("w")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = r.instructions["a"];
+        auto x_ins = r.instructions["x"];
+        auto w_ins = r.instructions["w"];
+
+        auto conv1 = m.insert_instruction(ins, ins->get_operator(), a_ins, w_ins);
+        auto conv2 = m.insert_instruction(ins, ins->get_operator(), x_ins, w_ins);
+
+        m.replace_instruction(ins, make_op("add"), conv1, conv2);
     }
 };
 
@@ -1239,6 +1271,7 @@ void simplify_algebra::apply(module& m) const
                             find_neg_unit_ops{},
                             find_zero_ops{},
                             find_dot_add{},
+                            find_conv_add{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

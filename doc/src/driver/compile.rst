@@ -32,6 +32,10 @@ Disable fast math optimization
 
 Perform an exhaustive search to find the fastest version of generated kernels for selected backend
 
+.. options:: --split-single-dyn-dim
+
+Enable the split single dynamic dimension pass
+
 .. option::  --fp16
 
 Quantize for fp16

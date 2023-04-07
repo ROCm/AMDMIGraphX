@@ -69,6 +69,7 @@ has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
                                     dds_it->max};
 }
 
+namespace {
 struct find_static_2in_broadcasts
 {
     // convert 2 input static shape broadcast/multibroadcast into 1 input version
@@ -95,6 +96,7 @@ struct find_static_2in_broadcasts
         m.replace_instruction(ins, broadcast_op, ins->inputs().at(0));
     }
 };
+} // namespace
 
 /**
  * Makes all the shapes in the dynamic_dimension range.
@@ -150,8 +152,6 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         }
         mm->replace_return(outputs);
     }
-
-    migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

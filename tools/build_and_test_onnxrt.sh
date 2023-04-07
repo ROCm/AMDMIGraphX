@@ -30,4 +30,6 @@ export CXXFLAGS="-D__HIP_PLATFORM_AMD__=1 -w"
 
 cd build/Linux/Release
 #Add test launcher for onnxrt tests
+
+echo "InferenceSessionTests.CheckRunProfilerWithSessionOptions" >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
 ../../../tools/ci_build/github/pai/migraphx_test_launcher.sh

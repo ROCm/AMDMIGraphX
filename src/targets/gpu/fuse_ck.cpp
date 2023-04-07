@@ -60,8 +60,8 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
-    if(a.lens().back() > 2048)
-        return false;
+    // if(a.lens().back() > 2048)
+    //     return false;
     return true;
 }
 
@@ -87,7 +87,7 @@ struct find_ck_gemm_pointwise
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         assert(gemm_it != inputs.end());
-        if(ins->get_shape().type() != shape::int8_type and ins->get_shape().type())
+        if(ins->get_shape().type() != shape::int8_type)
             return;
         if(gemm_idx != 0)
         {

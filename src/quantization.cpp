@@ -117,23 +117,23 @@ void quantize_int8(program& prog,
 
     // use all calibration data to run the program to calculate the
     // quantization scale and shift
-    for(auto&& arg : calibration)
-    {
-        parameter_map m;
-        for(auto&& x : capture_prog.get_parameter_shapes())
-        {
-            if(arg.count(x.first) > 0)
-            {
-                assert(x.second == arg.at(x.first).get_shape());
-                m[x.first] = t.copy_to(arg.at(x.first));
-            }
-            else
-            {
-                m[x.first] = t.allocate(x.second);
-            }
-        }
-        capture_prog.eval(m);
-    }
+    // for(auto&& arg : calibration)
+    // {
+    //     parameter_map m;
+    //     for(auto&& x : capture_prog.get_parameter_shapes())
+    //     {
+    //         if(arg.count(x.first) > 0)
+    //         {
+    //             assert(x.second == arg.at(x.first).get_shape());
+    //             m[x.first] = t.copy_to(arg.at(x.first));
+    //         }
+    //         else
+    //         {
+    //             m[x.first] = t.allocate(x.second);
+    //         }
+    //     }
+    //     capture_prog.eval(m);
+    // }
 
     // print the quantization parameters in only the main module
     if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))

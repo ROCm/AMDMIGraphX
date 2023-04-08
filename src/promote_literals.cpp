@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,34 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/make_op.hpp>
 
-/*!
- * Tests for check_shapes object handling dynamic shapes
- */
+#include <migraphx/promote_literals.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 
-using migraphx::shape;
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-bool create_shapes(bool dynamic_allowed)
+void promote_literals::apply(module_pass_manager& mpm) const
 {
-    try
+    module& m              = mpm.get_module();
+    module_ref root_module = mpm.get_root_module();
+    if(m.name() == "main")
+        return;
+
+    for(auto ins : iterator_for(m))
     {
-        shape a{shape::int64_type, {3}};
-        shape b{shape::float_type, {{3, 6}, {4, 4}}};
-        auto op = migraphx::make_op("add");
-        migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
-        return true;
-    }
-    catch(...)
-    {
-        return false;
+        if(ins->name() == "@literal")
+        {
+            auto new_lit = root_module->add_literal(ins->get_literal());
+            for(auto out_ins : ins->outputs())
+            {
+                out_ins->replace_argument(out_ins, ins, new_lit);
+            }
+        }
     }
 }
 
-TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
-
-TEST_CASE(fail_dynamic_shape) { EXPECT(not create_shapes(false)); }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

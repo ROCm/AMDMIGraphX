@@ -27,7 +27,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/target.hpp>
 
-TEST_CASE(tuple_to_from_gpu)
+TEST_CASE(tuple_from_gpu)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
     migraphx::shape s2{migraphx::shape::int32_type, {2, 4}};
@@ -39,6 +39,25 @@ TEST_CASE(tuple_to_from_gpu)
     auto p2_gpu                = migraphx::gpu::to_gpu(p2);
     auto p_tuple               = migraphx::gpu::from_gpu(migraphx::argument({p1_gpu, p2_gpu}));
     std::vector<migraphx::argument> results = p_tuple.get_sub_objects();
+    std::vector<float> result1;
+    results[0].visit([&](auto output) { result1.assign(output.begin(), output.end()); });
+    std::vector<int> result2;
+    results[1].visit([&](auto output) { result2.assign(output.begin(), output.end()); });
+    EXPECT(result1 == p1_data);
+    EXPECT(result2 == p2_data);
+}
+
+TEST_CASE(tuple_to_gpu)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::int32_type, {2, 4}};
+    std::vector<float> p1_data              = {1.1, 2.2, 3.3, 4.4, 5.5, 6.6};
+    std::vector<int> p2_data                = {1, 2, 3, 4, 5, 6, 7, 8};
+    auto p1                                 = migraphx::argument{s1, p1_data.data()};
+    auto p2                                 = migraphx::argument{s2, p2_data.data()};
+    auto p_gpu                              = migraphx::gpu::to_gpu(migraphx::argument({p1, p2}));
+    auto p_host                             = migraphx::gpu::from_gpu(p_gpu);
+    std::vector<migraphx::argument> results = p_host.get_sub_objects();
     std::vector<float> result1;
     results[0].visit([&](auto output) { result1.assign(output.begin(), output.end()); });
     std::vector<int> result2;

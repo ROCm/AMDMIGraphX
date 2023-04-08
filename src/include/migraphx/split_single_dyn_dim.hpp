@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,34 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/make_op.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 
-/*!
- * Tests for check_shapes object handling dynamic shapes
+#include <string>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+/**
+ * Split dynamic dimension over submodules if exactly one dimension in the parameter list is
+ * dynamic.
  */
-
-using migraphx::shape;
-
-bool create_shapes(bool dynamic_allowed)
+struct split_single_dyn_dim
 {
-    try
-    {
-        shape a{shape::int64_type, {3}};
-        shape b{shape::float_type, {{3, 6}, {4, 4}}};
-        auto op = migraphx::make_op("add");
-        migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
-        return true;
-    }
-    catch(...)
-    {
-        return false;
-    }
-}
+    std::string name() const { return "split_single_dyn_dim"; }
+    void apply(module_pass_manager&) const;
+};
 
-TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-TEST_CASE(fail_dynamic_shape) { EXPECT(not create_shapes(false)); }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+#endif

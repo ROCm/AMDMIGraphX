@@ -21,34 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/driver/perf.hpp>
-#include <migraphx/gpu/context.hpp>
+
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
-
-struct run_op : action<run_op>
+#include <migraphx/apply_alpha_beta.hpp>
+struct gemm_add_relu : verify_program<gemm_add_relu>
 {
-    static void apply(const parser& p, const value& v)
+    migraphx::program create_program() const
     {
-        context ctx;
-        auto inputs = p.get_inputs(v);
-        auto name   = v.at("name").to<std::string>();
-        if(not contains(name, "::"))
-            name = "gpu::" + name;
-        auto op = make_op(name);
-        if(v.contains("fields"))
-            op.from_value(v.at("fields"));
-        auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << host_time << "ms" << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a   = mm->add_parameter("1", {migraphx::shape::half_type, {2, 3}});
+        auto b   = mm->add_parameter("2", {migraphx::shape::half_type, {3, 4}});
+        auto c   = mm->add_parameter("3", {migraphx::shape::half_type, {2, 4}});
+
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add = mm->add_instruction(migraphx::make_op("add"), dot, c);
+        mm->add_instruction(migraphx::make_op("relu"), add);
+        return p;
     }
 };
-
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

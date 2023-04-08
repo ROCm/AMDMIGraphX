@@ -55,6 +55,11 @@ std::vector<shape> parser::parse_shapes(const value& v) const
     return result;
 }
 
+std::vector<shape> parser::get_inputs(const value& v) const
+{
+    return parse_shapes(get(v, "inputs", value{}));
+}
+
 void parser::load_settings(const value& v)
 {
     if(v.contains("settings"))

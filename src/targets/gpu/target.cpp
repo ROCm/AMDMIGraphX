@@ -57,6 +57,7 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -134,6 +135,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
         dead_code_elimination{},
         fuse_mlir{&ctx},
+        dead_code_elimination{},
+        fuse_ck{&ctx},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

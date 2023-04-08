@@ -870,9 +870,8 @@ struct find_broadcast_reshaper
     auto matcher() const
     {
         auto broadcast =
-            match::broadcast_shape(match::skip(match::broadcast_shape())(match::any().bind("x")))
-                .bind("broadcast");
-        return match::name(reshaper_names())(match::args(broadcast));
+            match::broadcast_shape(match::skip(match::broadcast_shape())(match::any().bind("x")));
+        return match::name(reshaper_names())(match::args(broadcast.bind("broadcast")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

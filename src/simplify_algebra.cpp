@@ -204,7 +204,6 @@ struct find_mul_slice_conv
     }
 };
 
-<<<<<<< HEAD
 struct find_mul_dot
 {
     auto matcher() const
@@ -333,15 +332,12 @@ struct find_dot_mul
     }
 };
 
-// a * (x + b) => a * x + a * b
-=======
 // ******************************
 //  a * (x + b) => a * x + a * b
 // ******************************
 // When a * (x + b) is followed by another add of constant, then the
 // additional add can be const folded. Also, better fusions can be applied
 // when the add comes after.
->>>>>>> develop
 struct find_mul_add
 {
     auto matcher() const

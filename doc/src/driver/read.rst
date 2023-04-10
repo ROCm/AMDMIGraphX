@@ -24,7 +24,7 @@ Load as MIGraphX JSON
 
 .. option::  --batch [unsigned int] (Default: 1)
 
-Set batch size for model
+For a static model, set batch size. For a dynamic batch model, sets the batch size at runtime.
 
 .. option::  --nhwc
 
@@ -45,6 +45,14 @@ Trim instructions from the end (Default: 0)
 .. option::  --input-dim [std::vector<std::string>]
 
 Dim of a parameter (format: "@name d1 d2 dn")
+
+.. options:: --dyn-input-dim [std::vector<std::string>]
+
+Set dynamic dimensions of a parameter using JSON formatting (format "@name" "dynamic_dimension_json")
+
+.. options:: --default-dyn-dim
+
+Set the default dynamic dimension (format {min:x, max:y, optimals:[o1,o2,...]})
 
 .. option::  --optimize, -O
 

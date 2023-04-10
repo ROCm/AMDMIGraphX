@@ -188,7 +188,8 @@ auto from_value_impl(rank<3>, const value& v, T& x)
 }
 
 template <class T>
-auto from_value_impl(rank<4>, const value& v, T& x) -> decltype(x.insert(*x.begin()), void())
+auto from_value_impl(rank<4>, const value& v, T& x)
+    -> decltype(x.insert(*x.begin()), std::declval<typename T::mapped_type>(), void())
 {
     x.clear();
     for(auto&& e : v)

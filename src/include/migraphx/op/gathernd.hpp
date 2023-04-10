@@ -121,7 +121,7 @@ struct gathernd
 
             // A rank 0 output is a scalar
             if(output_ndim == 0)
-                return shape(data_shape.type(), {shape::dynamic_dimension({1, 1, 0})});
+                return shape(data_shape.type(), {shape::dynamic_dimension({1, 1})});
 
             // Part of the output shape comes from indices tensor, part from data tensor
             std::vector<shape::dynamic_dimension> output_dims(output_ndim);

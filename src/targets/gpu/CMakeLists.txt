@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package(miopen)
 
 # rocblas
@@ -33,7 +33,11 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
+if(BUILD_DEV)
+    set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
+else()
+    set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
+endif()
 
 include(Embed)
 file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
@@ -240,6 +244,7 @@ target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 
 add_subdirectory(driver)
+add_subdirectory(hiprtc)
 
 rocm_install_targets(
     TARGETS migraphx_gpu migraphx_device compile_for_gpu

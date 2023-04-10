@@ -21,13 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_CONVOLUTION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_CONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/operation.hpp>
-#include <migraphx/register_op.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>

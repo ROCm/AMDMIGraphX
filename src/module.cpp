@@ -166,6 +166,7 @@ void module::assign(const module& m)
             auto s      = ins->get_shape();
             copy_ins    = impl->insert(impl->instructions.end(),
                                     {builtin::param{name, order}, std::move(s), {}});
+            impl->nparams++;
         }
         else if(ins->name() == "@outline")
         {
@@ -592,6 +593,14 @@ std::vector<shape> module::get_output_shapes() const
     {
         return {last_ins.get_shape()};
     }
+}
+
+std::vector<instruction_ref> module::get_returns() const
+{
+    auto last = std::prev(this->end());
+    if(last->name() == "@return")
+        return last->inputs();
+    return {last};
 }
 
 instruction_ref module::validate() const

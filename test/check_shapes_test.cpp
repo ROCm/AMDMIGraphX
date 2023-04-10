@@ -36,7 +36,7 @@ bool create_shapes(bool dynamic_allowed)
     try
     {
         shape a{shape::int64_type, {3}};
-        shape b{shape::float_type, {{3, 6, 0}, {4, 4, 0}}};
+        shape b{shape::float_type, {{3, 6}, {4, 4}}};
         auto op = migraphx::make_op("add");
         migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
         return true;

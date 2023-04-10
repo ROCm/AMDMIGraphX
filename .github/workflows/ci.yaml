@@ -63,6 +63,7 @@ jobs:
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
           -DMIGRAPHX_ENABLE_FPGA=On \
+          -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
@@ -108,6 +109,7 @@ jobs:
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
           -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
+          -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
         make -j2 cppcheck
@@ -229,6 +231,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
+        sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
       shell: bash 
@@ -256,10 +259,11 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
-          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
-          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
+          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s
 
     - name: Upload code coverage
@@ -323,6 +327,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
+        sudo apt-get install -y lld
     - name: Prepare timestamp
       id: cache_timestamp
       shell: bash
@@ -350,10 +355,11 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
-          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
-          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold' \
+          -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
+          -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
 

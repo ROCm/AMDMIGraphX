@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "verify.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
@@ -32,6 +33,7 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
@@ -67,7 +69,9 @@ struct loader
     bool brief                  = false;
     std::string output_type;
     std::string output;
+    std::string default_dyn_dim;
     std::vector<std::string> param_dims;
+    std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
 
     void parse(argument_parser& ap)
@@ -82,7 +86,11 @@ struct loader
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
-        ap(batch, {"--batch"}, ap.help("Set batch size for model"));
+        ap(batch,
+           {"--batch"},
+           ap.help("For a static model, sets default_dim_value size (commonly batch size). For a "
+                   "dynamic batch model, sets the batch "
+                   "size at runtime."));
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap(skip_unknown_operators,
            {"--skip-unknown-operators"},
@@ -95,7 +103,16 @@ struct loader
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
            ap.append(),
            ap.nargs(2));
-
+        ap(dyn_param_dims,
+           {"--dyn-input-dim"},
+           ap.help("Dynamic dimensions of a parameter (format: \"@name_1\" \"[{min:x, max:y, "
+                   "optimals:[o1,o2,...]}, dim2,dim3, ...]\", \"@name_2\", ... You can supply a "
+                   "single integer value for a dimension to specify it as fixed."),
+           ap.append(),
+           ap.nargs(2));
+        ap(default_dyn_dim,
+           {"--default-dyn-dim"},
+           ap.help("Default dynamic dimension (format: \"{min:x, max:y, optimals:[o1,o2]}\")."));
         ap(output_names,
            {"--output-names"},
            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
@@ -146,6 +163,40 @@ struct loader
         return map_input_dims;
     }
 
+    static auto parse_dyn_dims_json(const std::string& dd_json)
+    {
+        // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
+        auto v = from_json_string(convert_to_json(dd_json));
+        std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
+        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](auto x) {
+            if(x.is_object())
+                return from_value<migraphx::shape::dynamic_dimension>(x);
+            auto d = x.template to<std::size_t>();
+            return migraphx::shape::dynamic_dimension{d, d};
+        });
+        return dyn_dims;
+    }
+
+    static auto parse_dyn_dims_map(const std::vector<std::string>& param_dyn_dims)
+    {
+        // expecting vector of strings formatted like
+        // {"@param_name_0", "dd_json_0", "@param_name_1", "dd_json_1", ...}
+        std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
+        std::string name = "";
+        for(auto&& x : param_dyn_dims)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                map_dyn_input_dims[name] = parse_dyn_dims_json(x);
+            }
+        }
+        return map_dyn_input_dims;
+    }
+
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
         std::vector<std::string> output_node_names;
@@ -157,13 +208,44 @@ struct loader
         return output_node_names;
     }
 
+    tf_options get_tf_options() const
+    {
+        auto map_input_dims    = parse_param_dims(param_dims);
+        auto output_node_names = parse_output_names(output_names);
+        tf_options options;
+        options.is_nhwc           = is_nhwc;
+        options.batch_size        = batch;
+        options.map_input_dims    = map_input_dims;
+        options.output_node_names = output_node_names;
+        return options;
+    }
+
+    onnx_options get_onnx_options() const
+    {
+        auto map_input_dims     = parse_param_dims(param_dims);
+        auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
+        onnx_options options;
+        if(default_dyn_dim.empty())
+        {
+            options.default_dim_value = batch;
+        }
+        else
+        {
+            auto v                        = from_json_string(convert_to_json(default_dyn_dim));
+            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+        }
+        options.skip_unknown_operators = skip_unknown_operators;
+        options.print_program_on_error = true;
+        options.map_input_dims         = map_input_dims;
+        options.map_dyn_input_dims     = map_dyn_input_dims;
+        return options;
+    }
+
     program load()
     {
         program p;
         if(model.empty())
         {
-            auto map_input_dims    = parse_param_dims(param_dims);
-            auto output_node_names = parse_output_names(output_names);
             if(file_type.empty())
             {
                 if(ends_with(file, ".onnx"))
@@ -178,16 +260,11 @@ struct loader
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
             {
-                onnx_options options;
-                options.default_dim_value      = batch;
-                options.skip_unknown_operators = skip_unknown_operators;
-                options.print_program_on_error = true;
-                options.map_input_dims         = map_input_dims;
-                p                              = parse_onnx(file, options);
+                p = parse_onnx(file, get_onnx_options());
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims, output_node_names});
+                p = parse_tf(file, get_tf_options());
             }
             else if(file_type == "json")
             {
@@ -288,14 +365,21 @@ struct program_params
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
     }
 
-    auto generate(const program& p, const target& t, bool offload)
+    auto generate(const program& p, const target& t, bool offload, unsigned batch)
     {
         parameter_map m;
+        auto param_shapes = p.get_parameter_shapes();
+        std::unordered_map<std::string, shape> static_param_shapes;
+        std::transform(
+            param_shapes.cbegin(),
+            param_shapes.cend(),
+            std::inserter(static_param_shapes, static_param_shapes.end()),
+            [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
         for(auto&& s : fill0)
-            m[s] = fill_argument(p.get_parameter_shape(s), 0);
+            m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
-            m[s] = fill_argument(p.get_parameter_shape(s), 1);
-        fill_param_map(m, p, t, offload);
+            m[s] = fill_argument(static_param_shapes.at(s), 1);
+        fill_param_map(m, static_param_shapes, t, offload);
         return m;
     }
 };
@@ -304,8 +388,12 @@ struct compiler_target
 {
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
-#else
+#elif HAVE_CPU
     std::string target_name = "cpu";
+#elif HAVE_FPGA
+    std::string target_name = "fpga"
+#else
+    std::string target_name = "ref"
 #endif
 
     void parse(argument_parser& ap)
@@ -348,13 +436,18 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.split_single_dyn_dim,
+           {"--split-single-dyn-dim"},
+           ap.help("If there is a single non-fixed dynamic dimension in the model, then split to "
+                   "static submodules"),
+           ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
     }
 
     auto params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), co.offload_copy);
+        return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
     }
 
     program compile()
@@ -427,7 +520,7 @@ struct verify : command<verify>
         std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
-        auto m = c.parameters.generate(p, t, true);
+        auto m = c.parameters.generate(p, t, true, c.l.batch);
 
         if(per_instruction)
         {
@@ -450,7 +543,8 @@ struct version : command<version>
     void run() const
     {
         std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << std::endl;
+                  << "." << MIGRAPHX_VERSION_PATCH << "."
+                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
     }
 };
 
@@ -587,7 +681,9 @@ struct main_command
     void parse(argument_parser& ap)
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
+                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,

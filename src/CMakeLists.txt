@@ -50,6 +50,7 @@ add_library(migraphx
     env.cpp
     file_buffer.cpp
     fuse_pointwise.cpp
+    fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
     insert_pad.cpp

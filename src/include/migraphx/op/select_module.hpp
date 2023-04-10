@@ -57,6 +57,7 @@ struct select_module
                      param_names.cend(),
                      std::back_inserter(ret),
                      [](auto pn) { return not contains(pn, "#output_"); });
+        std::sort(ret.begin(), ret.end());
         return ret;
     }
 
@@ -68,6 +69,8 @@ struct select_module
                      param_names.cend(),
                      std::back_inserter(ret),
                      [](auto pn) { return contains(pn, "#output_"); });
+        // needs to be sorted to ensure output parameter ordering
+        std::sort(ret.begin(), ret.end());
         return ret;
     }
 
@@ -111,6 +114,7 @@ struct select_module
 
         // One tuple output parameter in main module to multiple output parameters in submodule
         auto out_param_names    = get_output_parameter_names(module_to_run);
+        auto param_shapes       = module_to_run->get_parameter_shapes();
         auto output_sub_objects = args.back().get_sub_objects();
         assert(out_param_names.size() == output_sub_objects.size());
         std::transform(out_param_names.begin(),
@@ -118,7 +122,7 @@ struct select_module
                        output_sub_objects.begin(),
                        std::inserter(p_map, p_map.end()),
                        [&](auto&& name, auto&& a) {
-                           auto ps = module_to_run->get_parameter_shape(name);
+                           auto ps = param_shapes.at(name);
                            if(a.get_shape() != ps)
                            {
                                assert(ps.bytes() == a.get_shape().bytes());

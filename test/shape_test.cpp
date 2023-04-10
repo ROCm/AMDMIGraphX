@@ -336,6 +336,49 @@ TEST_CASE(test_shape_dyn_to_dynamic)
     EXPECT(s0 == s1);
 }
 
+TEST_CASE(test_shape_subshapes_to_dynamic)
+{
+    std::vector<migraphx::shape> sub_shapes0 = {};
+    sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
+    sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
+    migraphx::shape s0{sub_shapes0};
+    migraphx::shape s1                       = s0.to_dynamic();
+    std::vector<migraphx::shape> sub_shapes1 = {};
+    sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
+    sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}}});
+    migraphx::shape s2{sub_shapes1};
+    EXPECT(s1 == s2);
+}
+
+TEST_CASE(test_shape_dyn_to_static)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {{1, 1}, {2, 2}, {2, 10}, {2, 10}}};
+    migraphx::shape s1 = s0.to_static(4);
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 4, 4}};
+    EXPECT(s1 == s2);
+}
+
+TEST_CASE(test_shape_static_to_static)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {1, 2, 4, 4}};
+    migraphx::shape s1 = s0.to_static(8);
+    EXPECT(s0 == s1);
+}
+
+TEST_CASE(test_shape_subshapes_to_static)
+{
+    std::vector<migraphx::shape> sub_shapes0 = {};
+    sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
+    sub_shapes0.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
+    migraphx::shape s0{sub_shapes0};
+    migraphx::shape s1                       = s0.to_static(3);
+    std::vector<migraphx::shape> sub_shapes1 = {};
+    sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {3, 4, 5}});
+    migraphx::shape s2{sub_shapes1};
+    EXPECT(s1 == s2);
+}
+
 TEST_CASE(test_shape_overlap)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 2}};

@@ -68,9 +68,11 @@ void run_pass(program& prog, const pass& p, tracer trace)
 std::size_t get_size(const program& p)
 {
     std::size_t n = 0;
-    for(auto* mod:p.get_modules()) {
-        for(const auto& ins:*mod) {
-            if (ins.name() != "@literal")
+    for(auto* mod : p.get_modules())
+    {
+        for(const auto& ins : *mod)
+        {
+            if(ins.name() != "@literal")
                 continue;
             n += ins.get_literal().get_shape().bytes();
         }
@@ -81,8 +83,8 @@ std::size_t get_size(const program& p)
 std::string pretty_size(std::size_t n)
 {
     const std::vector<std::string> keys = {"", "K", "M", "G", "T"};
-    double d = n;
-    std::size_t i = 0;
+    double d                            = n;
+    std::size_t i                       = 0;
     while(d > 1024 and i < keys.size())
     {
         d /= 1024;

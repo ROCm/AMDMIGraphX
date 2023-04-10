@@ -65,6 +65,32 @@ void run_pass(program& prog, const pass& p, tracer trace)
     trace(prog);
 }
 
+std::size_t get_size(const program& p)
+{
+    std::size_t n = 0;
+    for(auto* mod:p.get_modules()) {
+        for(const auto& ins:*mod) {
+            if (ins.name() != "@literal")
+                continue;
+            n += ins.get_literal().get_shape().bytes();
+        }
+    }
+    return n;
+}
+
+std::string pretty_size(std::size_t n)
+{
+    const std::vector<std::string> keys = {"", "K", "M", "G", "T"};
+    double d = n;
+    std::size_t i = 0;
+    while(d > 1024 and i < keys.size())
+    {
+        d /= 1024;
+        i++;
+    }
+    return std::to_string(d) + keys[std::max<std::ptrdiff_t>(0, i - 1)];
+}
+
 struct module_pm : module_pass_manager
 {
     module* mod           = nullptr;
@@ -139,6 +165,7 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
     std::unordered_set<module_ref> visited;
     for(const auto& p : passes)
     {
+        std::cout << p.name() << ": " << pretty_size(get_size(prog)) << std::endl;
         auto mods = prog.get_modules();
         auto tree = prog.get_module_tree();
         visited.clear();
@@ -163,6 +190,7 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
             mpm.run_pass(p);
         }
         run_pass(prog, p, trace);
+        std::cout << p.name() << ": " << pretty_size(get_size(prog)) << std::endl;
     }
 }
 

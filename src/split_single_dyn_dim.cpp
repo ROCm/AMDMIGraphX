@@ -23,7 +23,6 @@
  */
 
 #include <migraphx/split_single_dyn_dim.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/functional.hpp>
@@ -72,7 +71,9 @@ has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
 namespace {
 struct find_static_2in_broadcasts
 {
-    // convert 2 input static shape broadcast/multibroadcast into 1 input version
+    // Convert 2 input static shape broadcast/multibroadcast into 1 input version.
+    // Some compiler passes (ex. simplify_algebra) only support the 1 input versions
+    // of the broadcasting operators.
     auto matcher() const
     {
         return match::broadcast(match::nargs(2),

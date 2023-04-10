@@ -409,6 +409,39 @@ struct manage_generic_ptr
     D deleter                = nullptr;
 };
 
+extern "C" struct migraphx_optimals;
+struct migraphx_optimals
+{
+    template <class... Ts>
+    migraphx_optimals(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::set<size_t> object;
+};
+
+extern "C" struct migraphx_dynamic_dimension;
+struct migraphx_dynamic_dimension
+{
+    template <class... Ts>
+    migraphx_dynamic_dimension(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::shape::dynamic_dimension object;
+};
+
+extern "C" struct migraphx_dynamic_dimensions;
+struct migraphx_dynamic_dimensions
+{
+    template <class... Ts>
+    migraphx_dynamic_dimensions(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::vector<migraphx::shape::dynamic_dimension> object;
+};
+
 extern "C" struct migraphx_shape;
 struct migraphx_shape
 {
@@ -736,6 +769,115 @@ struct migraphx_experimental_custom_op
     }
 };
 
+extern "C" migraphx_status migraphx_optimals_destroy(migraphx_optimals_t optimals)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((optimals)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_optimals_assign_to(migraphx_optimals_t output,
+                                                       const_migraphx_optimals_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_optimals_create(migraphx_optimals_t* optimals)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *optimals = object_cast<migraphx_optimals_t>(allocate<std::set<size_t>>()); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_optimals_insert(migraphx_optimals_t optimals, size_t argument)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(optimals == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter optimals: Null pointer");
+        (optimals->object).insert((argument));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((dynamic_dimension)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimension_assign_to(migraphx_dynamic_dimension_t output,
+                                     const_migraphx_dynamic_dimension_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimension_create(migraphx_dynamic_dimension_t* dynamic_dimension)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *dynamic_dimension = object_cast<migraphx_dynamic_dimension_t>(
+            allocate<migraphx::shape::dynamic_dimension>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_t dynamic_dimension)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dynamic_dimension == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter dynamic_dimension: Null pointer");
+        *out = (dynamic_dimension->object).is_fixed();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimensions_destroy(migraphx_dynamic_dimensions_t dynamic_dimensions)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((dynamic_dimensions)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimensions_assign_to(migraphx_dynamic_dimensions_t output,
+                                      const_migraphx_dynamic_dimensions_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimensions_size(size_t* out, migraphx_dynamic_dimensions_t dynamic_dimensions)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dynamic_dimensions == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter dynamic_dimensions: Null pointer");
+        *out = (dynamic_dimensions->object).size();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimensions_get(const_migraphx_dynamic_dimension_t* out,
+                                migraphx_dynamic_dimensions_t dynamic_dimensions,
+                                size_t idx)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dynamic_dimensions == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter dynamic_dimensions: Null pointer");
+        *out = object_cast<const_migraphx_dynamic_dimension_t>(
+            &((dynamic_dimensions->object).at((idx))));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
 {
     auto api_error_result = migraphx::try_([&] { destroy((shape)); });
@@ -794,6 +936,19 @@ extern "C" migraphx_status migraphx_shape_create_scalar(migraphx_shape_t* shape,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t* shape,
+                                                         migraphx_shape_datatype_t type,
+                                                         migraphx_dynamic_dimensions_t dims)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dims == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
+        *shape = object_cast<migraphx_shape_t>(
+            allocate<migraphx::shape>((migraphx::to_shape_type(type)), (dims->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_shape_lengths(const size_t** out, size_t* out_size, const_migraphx_shape_t shape)
 {
@@ -820,6 +975,17 @@ migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shap
         auto&& api_result = (shape->object).strides();
         *out              = api_result.data();
         *out_size         = api_result.size();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_dyn_dims(const_migraphx_dynamic_dimensions_t* out,
+                                                   const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = object_cast<const_migraphx_dynamic_dimensions_t>(&((shape->object).dyn_dims()));
     });
     return api_error_result;
 }
@@ -857,6 +1023,16 @@ extern "C" migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shap
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_shape_ndim(size_t* out, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).ndim();
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_shape_t x)
 {
@@ -876,6 +1052,16 @@ extern "C" migraphx_status migraphx_shape_standard(bool* out, const_migraphx_sha
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *out = (shape->object).standard();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_dynamic(bool* out, const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).dynamic();
     });
     return api_error_result;
 }

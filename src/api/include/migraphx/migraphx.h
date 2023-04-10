@@ -66,6 +66,15 @@ typedef enum
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
+typedef struct migraphx_optimals* migraphx_optimals_t;
+typedef const struct migraphx_optimals* const_migraphx_optimals_t;
+
+typedef struct migraphx_dynamic_dimension* migraphx_dynamic_dimension_t;
+typedef const struct migraphx_dynamic_dimension* const_migraphx_dynamic_dimension_t;
+
+typedef struct migraphx_dynamic_dimensions* migraphx_dynamic_dimensions_t;
+typedef const struct migraphx_dynamic_dimensions* const_migraphx_dynamic_dimensions_t;
+
 typedef struct migraphx_shape* migraphx_shape_t;
 typedef const struct migraphx_shape* const_migraphx_shape_t;
 
@@ -157,6 +166,39 @@ typedef migraphx_status (*migraphx_experimental_custom_op_copy)(void** out, void
 
 typedef migraphx_status (*migraphx_experimental_custom_op_delete)(void* input);
 
+migraphx_status migraphx_optimals_destroy(migraphx_optimals_t optimals);
+
+migraphx_status migraphx_optimals_assign_to(migraphx_optimals_t output,
+                                            const_migraphx_optimals_t input);
+
+migraphx_status migraphx_optimals_create(migraphx_optimals_t* optimals);
+
+migraphx_status migraphx_optimals_insert(migraphx_optimals_t optimals, size_t argument);
+
+migraphx_status migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension);
+
+migraphx_status migraphx_dynamic_dimension_assign_to(migraphx_dynamic_dimension_t output,
+                                                     const_migraphx_dynamic_dimension_t input);
+
+migraphx_status migraphx_dynamic_dimension_create(migraphx_dynamic_dimension_t* dynamic_dimension);
+
+migraphx_status
+migraphx_dynamic_dimension_is_fixed(bool* out,
+                                    const_migraphx_dynamic_dimension_t dynamic_dimension);
+
+migraphx_status
+migraphx_dynamic_dimensions_destroy(migraphx_dynamic_dimensions_t dynamic_dimensions);
+
+migraphx_status migraphx_dynamic_dimensions_assign_to(migraphx_dynamic_dimensions_t output,
+                                                      const_migraphx_dynamic_dimensions_t input);
+
+migraphx_status migraphx_dynamic_dimensions_size(size_t* out,
+                                                 migraphx_dynamic_dimensions_t dynamic_dimensions);
+
+migraphx_status migraphx_dynamic_dimensions_get(const_migraphx_dynamic_dimension_t* out,
+                                                migraphx_dynamic_dimensions_t dynamic_dimensions,
+                                                size_t idx);
+
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
 migraphx_status migraphx_shape_assign_to(migraphx_shape_t output, const_migraphx_shape_t input);
@@ -176,11 +218,18 @@ migraphx_status migraphx_shape_create_with_strides(migraphx_shape_t* shape,
 migraphx_status migraphx_shape_create_scalar(migraphx_shape_t* shape,
                                              migraphx_shape_datatype_t type);
 
+migraphx_status migraphx_shape_create_dynamic(migraphx_shape_t* shape,
+                                              migraphx_shape_datatype_t type,
+                                              migraphx_dynamic_dimensions_t dims);
+
 migraphx_status
 migraphx_shape_lengths(const size_t** out, size_t* out_size, const_migraphx_shape_t shape);
 
 migraphx_status
 migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shape_t shape);
+
+migraphx_status migraphx_shape_dyn_dims(const_migraphx_dynamic_dimensions_t* out,
+                                        const_migraphx_shape_t shape);
 
 migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, const_migraphx_shape_t shape);
 
@@ -188,10 +237,14 @@ migraphx_status migraphx_shape_elements(size_t* out, const_migraphx_shape_t shap
 
 migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape);
 
+migraphx_status migraphx_shape_ndim(size_t* out, const_migraphx_shape_t shape);
+
 migraphx_status
 migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_shape_t x);
 
 migraphx_status migraphx_shape_standard(bool* out, const_migraphx_shape_t shape);
+
+migraphx_status migraphx_shape_dynamic(bool* out, const_migraphx_shape_t shape);
 
 migraphx_status migraphx_shape_index(size_t* out, const_migraphx_shape_t shape, size_t i);
 

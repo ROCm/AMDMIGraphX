@@ -45,56 +45,37 @@ def shape_type_wrap(p):
         p.read = 'migraphx::to_shape_type(${name})'
 
 
-@api.cwrap('migraphx::compile_options')
-def compile_options_type_wrap(p):
-    if p.returns:
-        p.add_param('migraphx_compile_options *')
-        p.bad_param('${name} == nullptr', 'Null pointer')
-        p.write = ['*${name} = migraphx::to_compile_options(${result})']
-    else:
-        p.add_param('migraphx_compile_options *')
-        p.read = '${name} == nullptr ? migraphx::compile_options{} : migraphx::to_compile_options(*${name})'
-
-
-@api.cwrap('migraphx::file_options')
-def file_options_type_wrap(p):
-    if p.returns:
-        p.add_param('migraphx_file_options *')
-        p.bad_param('${name} == nullptr', 'Null pointer')
-        p.write = ['*${name} = migraphx::to_file_options(${result})']
-    else:
-        p.add_param('migraphx_file_options *')
-        p.read = '${name} == nullptr ? migraphx::file_options{} : migraphx::to_file_options(*${name})'
-
-
-@api.cwrap('migraphx::onnx_options')
-def onnx_options_type_wrap(p):
-    if p.returns:
-        p.add_param('migraphx_onnx_options *')
-        p.bad_param('${name} == nullptr', 'Null pointer')
-        p.write = ['*${name} = migraphx::to_onnx_options(${result})']
-    else:
-        p.add_param('migraphx_onnx_options *')
-        p.read = '${name} == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*${name})'
-
-
-@api.cwrap('migraphx::tf_options')
-def tf_options_type_wrap(p):
-    if p.returns:
-        p.add_param('migraphx_tf_options *')
-        p.bad_param('${name} == nullptr', 'Null pointer')
-        p.write = ['*${name} = migraphx::to_tf_options(${result})']
-    else:
-        p.add_param('migraphx_tf_options *')
-        p.read = '${name} == nullptr ? migraphx::tf_options{} : migraphx::to_tf_options(*${name})'
-
-
 def auto_handle(*args, **kwargs):
     def with_handle(f):
         return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__,
                           *args, **kwargs)(f)
 
     return with_handle
+
+
+@api.handle('migraphx_optimals', 'std::set<size_t>')
+def optimals(h):
+    h.constructor('create')
+    h.method('insert',
+             api.params(argument='size_t'),
+             invoke='${optimals}.insert(${argument})')
+
+
+@api.handle('migraphx_dynamic_dimension', 'migraphx::shape::dynamic_dimension')
+def dynamic_dimension(h):
+    h.constructor('create')
+    h.method('is_fixed', returns='bool', const=True)
+
+
+@api.handle('migraphx_dynamic_dimensions',
+            'std::vector<migraphx::shape::dynamic_dimension>')
+def dynamic_dimensions(h):
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='const migraphx::shape::dynamic_dimension&')
 
 
 @auto_handle()
@@ -109,20 +90,29 @@ def shape(h):
                    lengths='std::vector<size_t>',
                    strides='std::vector<size_t>'))
     h.constructor('create_scalar', api.params(type='migraphx::shape::type_t'))
+    h.constructor(
+        'create_dynamic',
+        api.params(type='migraphx::shape::type_t',
+                   dims='std::vector<migraphx::shape::dynamic_dimension>'))
     h.method('lengths',
              fname='lens',
              returns='const std::vector<size_t>&',
              const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
+    h.method('dyn_dims',
+             returns='const std::vector<migraphx::shape::dynamic_dimension>&',
+             const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
     h.method('elements', returns='size_t', const=True)
     h.method('bytes', returns='size_t', const=True)
+    h.method('ndim', returns='size_t', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape&'),
              invoke='migraphx::equal($@)',
              returns='bool',
              const=True)
     h.method('standard', returns='bool', const=True)
+    h.method('dynamic', returns='bool', const=True)
     h.method('index', api.params(i='size_t'), returns='size_t', const=True)
 
 

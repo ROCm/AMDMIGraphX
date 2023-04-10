@@ -35,8 +35,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 void apply_quantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "quantizelinear");
-    auto x       = ins->inputs()[0];
-    auto y_scale = ins->inputs()[1];
+    auto x           = ins->inputs()[0];
+    auto y_scale     = ins->inputs()[1];
     auto target_type = y_scale->get_shape().type();
 
     if(x->get_shape().type() != y_scale->get_shape().type())
@@ -73,11 +73,10 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "dequantizelinear");
-    auto x_scale = ins->inputs()[1];
+    auto x_scale     = ins->inputs()[1];
     auto target_type = x_scale->get_shape().type();
-    auto x = m.insert_instruction(
+    auto x           = m.insert_instruction(
         ins, make_op("convert", {{"target_type", target_type}}), ins->inputs()[0]);
-    
 
     if(ins->inputs().size() == 3)
     {

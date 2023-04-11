@@ -25,11 +25,31 @@
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
 
+TEST_CASE(create_dynamic_dimensions)
+{
+    migraphx::dynamic_dimension dd0{1, 4};
+    EXPECT(not dd0.is_fixed());
+    migraphx::dynamic_dimension dd1{4, 4};
+    EXPECT(dd1.is_fixed());
+    migraphx::optimals opts;
+    opts.insert(1);
+    opts.insert(4);
+    migraphx::dynamic_dimension dd2{1, 4, opts};
+    migraphx::dynamic_dimensions dyn_dims{dd0, dd1, dd2};
+}
+
 TEST_CASE(create_dynamic_shape)
 {
     migraphx::dynamic_dimensions dyn_dims;
-    dyn_dims.push_back(migraphx_dynamic_dimension{1, 4});
+    dyn_dims.add(migraphx::dynamic_dimension{1, 4});
+    dyn_dims.add(migraphx::dynamic_dimension{78, 92});
+    migraphx::optimals opts;
+    opts.insert(1);
+    opts.insert(4);
+    dyn_dims.add(migraphx::dynamic_dimension{1, 4, opts});
     migraphx::shape dyn_shape{migraphx_shape_float_type, dyn_dims};
+    EXPECT(dyn_shape.dynamic());
+    CHECK(bool{dyn_shape.dyn_dims() == dyn_dims});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

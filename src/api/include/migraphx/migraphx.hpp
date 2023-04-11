@@ -571,10 +571,76 @@ using require_interface =
 // NOLINTNEXTLINE
 #define MIGRAPHX_CONST_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, const)
 
+struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
+{
+    optimals() { this->make_handle(&migraphx_optimals_create); }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(optimals)
+
+    void insert(size_t dim) { call(&migraphx_optimals_insert, this->get_handle_ptr(), dim); }
+};
+
+/**
+ * @brief Dynamic dimension object
+ * @details minimum, maximum, and optimal dimensions
+ */
+struct dynamic_dimension : MIGRAPHX_HANDLE_BASE(dynamic_dimension)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimension)
+
+    dynamic_dimension(size_t min, size_t max)
+    {
+        this->make_handle(&migraphx_dynamic_dimension_create_min_max, min, max);
+    }
+
+    dynamic_dimension(size_t min, size_t max, optimals opts)
+    {
+        this->make_handle(
+            &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());
+    }
+
+    bool is_fixed() const
+    {
+        bool result = false;
+        call(&migraphx_dynamic_dimension_is_fixed, &result, this->get_handle_ptr());
+        return result;
+    }
+};
+
+struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
+{
+    template <class... Ts>
+    dynamic_dimensions(Ts... xs)
+    {
+        std::array<const_migraphx_dynamic_dimension_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_dynamic_dimensions_create, a.data(), a.size());
+    }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)
+
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_dynamic_dimensions_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    dynamic_dimension operator[](size_t pidx) const
+    {
+        migraphx_dynamic_dimension_t pout;
+        call(&migraphx_dynamic_dimensions_get, &pout, this->get_handle_ptr(), pidx);
+        return {pout, this->share_handle()};
+    }
+
+    void add(const dynamic_dimension& dyn_dim) const
+    {
+        call(&migraphx_dynamic_dimensions_add, this->get_handle_ptr(), dyn_dim.get_handle_ptr());
+    }
+};
+
 /**
  * @brief Describe shape of tensor
  * @details A shape consists of a data type, lengths of multi-dimension tensor, and strides
- *
  */
 struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {
@@ -598,6 +664,10 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
     }
 
+    // Force all calls of the format `shape( type_t, { size_t compatibles } )` to map to
+    // shape(type_t, std::vector<std::size_t> l)
+    shape(migraphx_shape_datatype_t t, std::initializer_list<std::size_t> d);
+
     shape(migraphx_shape_datatype_t type,
           std::vector<size_t> plengths,
           std::vector<size_t> pstrides)
@@ -608,6 +678,11 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
                           plengths.size(),
                           pstrides.data(),
                           pstrides.size());
+    }
+
+    shape(migraphx_shape_datatype_t type, const dynamic_dimensions& dyn_dims)
+    {
+        this->make_handle(&migraphx_shape_create_dynamic, type, dyn_dims.get_handle_ptr());
     }
 
     std::vector<size_t> lengths() const
@@ -624,6 +699,13 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         size_t pout_size;
         call(&migraphx_shape_strides, &pout, &pout_size, this->get_handle_ptr());
         return {pout, pout + pout_size};
+    }
+
+    dynamic_dimensions dyn_dims() const
+    {
+        migraphx_dynamic_dimensions_t pout;
+        call(&migraphx_shape_dyn_dims, &pout, this->get_handle_ptr());
+        return {pout, own{}};
     }
 
     migraphx_shape_datatype_t type() const
@@ -651,6 +733,13 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     {
         bool result = false;
         call(&migraphx_shape_standard, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    bool dynamic() const
+    {
+        bool result = false;
+        call(&migraphx_shape_dynamic, &result, this->get_handle_ptr());
         return result;
     }
 

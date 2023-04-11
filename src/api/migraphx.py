@@ -57,25 +57,35 @@ def auto_handle(*args, **kwargs):
 def optimals(h):
     h.constructor('create')
     h.method('insert',
-             api.params(argument='size_t'),
-             invoke='${optimals}.insert(${argument})')
+             api.params(dim='size_t'),
+             invoke='${optimals}.insert(${dim})')
 
 
 @api.handle('migraphx_dynamic_dimension', 'migraphx::shape::dynamic_dimension')
 def dynamic_dimension(h):
-    h.constructor('create')
+    h.constructor('create_min_max', api.params(min='size_t', max='size_t'))
+    h.constructor(
+        'create_min_max_optimals',
+        api.params(min='size_t', max='size_t', optimals='std::set<size_t>'))
     h.method('is_fixed', returns='bool', const=True)
 
 
 @api.handle('migraphx_dynamic_dimensions',
             'std::vector<migraphx::shape::dynamic_dimension>')
 def dynamic_dimensions(h):
+    h.constructor(
+        'create',
+        api.params(ptr='const_migraphx_dynamic_dimension_t*', size='size_t'),
+        fname='migraphx::to_obj_vector<const_migraphx_dynamic_dimension_t>')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),
              fname='at',
              cpp_name='operator[]',
-             returns='const migraphx::shape::dynamic_dimension&')
+             returns='migraphx::shape::dynamic_dimension')
+    h.method('add',
+             api.params(dyn_dim='migraphx::shape::dynamic_dimension'),
+             fname='push_back')
 
 
 @auto_handle()
@@ -100,7 +110,7 @@ def shape(h):
              const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
     h.method('dyn_dims',
-             returns='const std::vector<migraphx::shape::dynamic_dimension>&',
+             returns='std::vector<migraphx::shape::dynamic_dimension>',
              const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
     h.method('elements', returns='size_t', const=True)

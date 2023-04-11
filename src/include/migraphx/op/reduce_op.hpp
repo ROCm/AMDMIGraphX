@@ -91,7 +91,7 @@ struct reduce_op : op_name<Derived>
     {
         value normalize;
         normalize["axes"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
+        return {{"normalize_axes", normalize}, {"reduce", true}};
     }
 
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
@@ -123,9 +123,7 @@ struct reduce_op : op_name<Derived>
             auto tuned_axes      = tune_axes(output_dyn_dims.size());
             for(const auto& axis : tuned_axes)
             {
-                // At the time of writing, there's no functional difference between
-                // optimum of 0 (no opt) or 1.
-                output_dyn_dims[axis] = {1, 1, 0};
+                output_dyn_dims[axis] = {1, 1};
             }
 
             return shape{s.type(), output_dyn_dims};

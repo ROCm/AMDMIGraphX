@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 
 #include <string>
-#include <migraphx/program.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
 

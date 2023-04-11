@@ -21,34 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/make_op.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
 
-/*!
- * Tests for check_shapes object handling dynamic shapes
- */
+#include <migraphx/config.hpp>
+#include <string>
 
-using migraphx::shape;
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-bool create_shapes(bool dynamic_allowed)
+struct module_pass_manager;
+
+struct fuse_reduce
 {
-    try
-    {
-        shape a{shape::int64_type, {3}};
-        shape b{shape::float_type, {{3, 6}, {4, 4}}};
-        auto op = migraphx::make_op("add");
-        migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
-        return true;
-    }
-    catch(...)
-    {
-        return false;
-    }
-}
+    std::string name() const { return "fuse_reduce"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
-TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
-
-TEST_CASE(fail_dynamic_shape) { EXPECT(not create_shapes(false)); }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

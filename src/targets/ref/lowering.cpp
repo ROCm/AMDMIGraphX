@@ -132,109 +132,6 @@ auto visit_quantize(T&& x, Ts&&... xs)
     };
 }
 
-template <class Op>
-struct ref_convolution : auto_register_op<ref_convolution<Op>>
-{
-    ref_convolution() = default;
-
-    ref_convolution(Op pop) : op(std::move(pop)) {}
-
-    Op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        return op.normalize_compute_shape(inputs);
-    }
-
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        std::vector<std::size_t> padding;
-        if(op.padding_mode != op::padding_mode_t::default_)
-        {
-            auto input_lens   = args[0].get_shape().lens();
-            auto weights_lens = args[1].get_shape().lens();
-            padding =
-                op.padding_mode == op::same_upper
-                    ? calc_dyn_auto_pad(input_lens, weights_lens, op.stride, op.dilation, true)
-                    : calc_dyn_auto_pad(input_lens, weights_lens, op.stride, op.dilation, false);
-            output_shape = compute_padded_shape(
-                args[0].get_shape(), args[1].get_shape(), padding, op.stride, op.dilation);
-        }
-        else
-        {
-            padding = op.padding;
-            if(output_shape.dynamic())
-            {
-                output_shape =
-                    op.normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
-            }
-        }
-
-        argument result{output_shape};
-        visit_quantize(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            auto in_lens = input.get_shape().lens();
-
-            auto wei_lens = weights.get_shape().lens();
-            auto wei_n    = wei_lens[0];
-            auto wei_c    = wei_lens[1];
-            std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
-
-            par_for(output_shape.elements(), [&](auto i) {
-                auto idx_o = output_shape.multi(i);
-                auto w     = idx_o[1];
-                auto n_dim = idx_o.size();
-
-                std::vector<std::ptrdiff_t> win_start;
-                for(std::size_t dim = 2; dim < n_dim; ++dim)
-                {
-                    auto d_2 = dim - 2;
-                    win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
-                                        std::ptrdiff_t(padding[d_2]));
-                }
-                const auto group_id = w / (wei_n / op.group);
-
-                shape win_shape{output_shape.type(), win_size};
-
-                double acc = 0.0;
-                shape_for_each(win_shape, [&](auto idx_win) {
-                    auto k           = idx_win[0];
-                    const auto in_ch = group_id * wei_c + k;
-                    std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
-                    idx[1] = in_ch;
-                    std::transform(idx_win.begin() + 1,
-                                   idx_win.end(),
-                                   win_start.begin(),
-                                   idx.begin() + 2,
-                                   [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
-                    std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
-                    idx_wei[0] = w;
-                    std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
-                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                       std::equal(idx.begin(),
-                                  idx.end(),
-                                  in_lens.begin(),
-                                  in_lens.end(),
-                                  std::less<std::ptrdiff_t>{}))
-                    {
-                        acc +=
-                            input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
-                    }
-                });
-
-                output[i] = acc;
-            });
-        });
-        return result;
-    }
-};
-
 struct ref_im2col
 {
     op::im2col op;
@@ -564,11 +461,8 @@ struct ref_apply
 
     void init()
     {
-        apply_map["convolution"] = extend_op<ref_convolution<op::convolution>, op::convolution>();
-        apply_map["dot"]         = extend_op<ref_gemm, op::dot>();
-        apply_map["quant_dot"]   = extend_op<ref_quant_gemm, op::quant_dot>();
-        apply_map["quant_convolution"] =
-            extend_op<ref_convolution<op::quant_convolution>, op::quant_convolution>();
+        apply_map["dot"]        = extend_op<ref_gemm, op::dot>();
+        apply_map["quant_dot"]  = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();
         apply_map["lrn"]        = extend_op<ref_lrn, op::lrn>();

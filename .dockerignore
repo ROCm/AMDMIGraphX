@@ -1,0 +1,9 @@
+# Ignore everything
+**
+
+# Allow files and directories
+!*.txt
+!*.ini
+!/tools/*.sh
+!/doc/*.txt
+!/test/onnx/.onnxrt-commit

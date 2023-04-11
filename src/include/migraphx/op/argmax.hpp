@@ -62,7 +62,7 @@ struct argmax
         if(s0.dynamic())
         {
             auto dyn_dims  = s0.dyn_dims();
-            dyn_dims[axis] = {1, 1, 0};
+            dyn_dims[axis] = {1, 1};
             return {shape::int64_type, dyn_dims};
         }
         else

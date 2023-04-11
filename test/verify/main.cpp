@@ -73,7 +73,8 @@ int main(int argc, const char* argv[])
                          "test_if_literal",
                          "test_select_module_add",
                          "test_select_module_reduce",
-                         "test_select_module_conv"});
+                         "test_select_module_conv",
+                         "test_split_single_dyn_dim"});
     rv.disable_test_for("gpu", {"test_conv_bn_add"});
     rv.run(argc, argv);
 }

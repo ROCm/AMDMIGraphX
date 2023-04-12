@@ -174,6 +174,25 @@ struct inner_storage_tag
 template <class T>
 using is_inner_storage = is_base_of<inner_storage_tag, remove_cv_t<remove_reference_t<T>>>;
 
+template <class Size, class F>
+struct lazy_inner_storage : inner_storage_tag
+{
+    using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
+    F f;
+    constexpr Size rsize() const { return {}; }
+    template <class U, class V>
+    constexpr auto operator()(U j, V d) const
+    {
+        return f(j, d);
+    }
+};
+
+template <class Size, class F>
+constexpr lazy_inner_storage<Size, F> make_lazy_inner_storage(Size, F f)
+{
+    return {{}, f};
+}
+
 template <class R, class F>
 struct storage_access : F
 {
@@ -275,6 +294,14 @@ struct reducer_base
             {
                 return derived.template inner_impl<result_type>(f, n, xs...);
             }
+        });
+    }
+
+    template <class F>
+    __device__ auto lazy_inner(F f) const
+    {
+        return this->inner_sliced([=](auto n, auto&&... xs) {
+            return make_lazy_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
         });
     }
 
@@ -396,25 +423,6 @@ struct block_large
         index idx;
         Slicer slice;
 
-        template <class Size, class F>
-        struct inner_storage : inner_storage_tag
-        {
-            using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
-            F f;
-            constexpr Size rsize() const { return {}; }
-            template <class U, class V>
-            constexpr auto operator()(U j, V d) const
-            {
-                return f(j, d);
-            }
-        };
-
-        template <class Size, class F>
-        static constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
-        {
-            return {{}, {f}};
-        }
-
         template <class Op, class T, class Read, class N, class... Ts>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
@@ -439,7 +447,7 @@ struct block_large
         template <class R, class F, class N, class... Ts>
         __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            return make_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
+            return make_lazy_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
         }
     };
 
@@ -468,25 +476,6 @@ struct lane
     {
         index idx;
         Slicer slice;
-
-        template <class Size, class F>
-        struct inner_storage : inner_storage_tag
-        {
-            using type = remove_reference_t<decltype(declval<F>()(0, _c<0>))>;
-            F f;
-            constexpr Size rsize() const { return {}; }
-            template <class U, class V>
-            constexpr auto operator()(U j, V d) const
-            {
-                return f(j, d);
-            }
-        };
-
-        template <class Size, class F>
-        static constexpr inner_storage<Size, F> make_inner_storage(Size, F f)
-        {
-            return {{}, {f}};
-        }
 
         template <class Op, class T, class Read, class N, class U, class... Us>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
@@ -518,7 +507,7 @@ struct lane
         template <class R, class F, class N, class... Ts>
         __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            return make_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
+            return make_lazy_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
         }
     };
     template <class Slicer>
@@ -574,6 +563,22 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
     Algo::template run<Output>([&](auto out_idx, auto r) {
         auto x = r.reduce(op, init, read)(input);
         r.outer([&] { output[out_idx] = write(x); });
+    });
+}
+
+template <class Algo, class Reduced, class Output, class F>
+__device__ void fused_reduce(Output output, F f)
+{
+    Algo::template run<Reduced>([&](auto out_idx, auto r) {
+        auto result = f(r);
+        if constexpr(reduce::is_inner_storage<decltype(result)>{})
+        {
+            r.inner([&](auto& y, auto x) { y = x; })(output, result);
+        }
+        else
+        {
+            r.outer([&] { output[out_idx] = implicit_conversion(result); });
+        }
     });
 }
 

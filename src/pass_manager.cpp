@@ -103,6 +103,7 @@ struct module_pm : module_pass_manager
 
     virtual void run_pass(const pass& p) override
     {
+        trace("Pass: ", p.name());
         assert(mod);
         assert(mod->validate() == mod->end());
         if(enabled(MIGRAPHX_TIME_PASSES{}))

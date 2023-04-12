@@ -184,10 +184,12 @@ jobs:
           - codecov
 
     steps:
-    - name: Free space
+    - name: Free space and install rbuild, lld
       run: |
         sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
         sudo apt-get install -y lld
+        python -m pip install --upgrade pip
+        pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -211,10 +213,7 @@ jobs:
 
     - name: Install dependencies
       if: steps.deps_cache.outputs.cache-hit != 'true'
-      run: |
-        python -m pip install --upgrade pip
-        pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
-        rbuild prepare -d cget -s gh
+      run: rbuild prepare -d cget -s gh
 
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.

@@ -24,9 +24,12 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_CONVOLUTION_HPP
 
+#include <migraphx/argument.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/convolution.hpp>
+#include <migraphx/pad_calc.hpp>
 #include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
@@ -209,6 +212,37 @@ struct convolution
     {
         check_attribute_size();
         return stride.size();
+    }
+
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        std::vector<std::size_t> new_padding;
+        if(padding_mode != op::padding_mode_t::default_)
+        {
+            auto input_lens   = args[0].get_shape().lens();
+            auto weights_lens = args[1].get_shape().lens();
+            new_padding =
+                padding_mode == op::same_upper
+                    ? calc_dyn_auto_pad(input_lens, weights_lens, stride, dilation, true)
+                    : calc_dyn_auto_pad(input_lens, weights_lens, stride, dilation, false);
+            output_shape = compute_padded_shape(
+                args[0].get_shape(), args[1].get_shape(), new_padding, stride, dilation);
+        }
+        else
+        {
+            new_padding = padding;
+            if(output_shape.dynamic())
+            {
+                output_shape =
+                    normalize_compute_shape({args.at(0).get_shape(), args.at(1).get_shape()});
+            }
+        }
+
+        argument result{output_shape};
+        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
+            migraphx::convolution(output, input, weights, new_padding, stride, group);
+        });
+        return result;
     }
 };
 

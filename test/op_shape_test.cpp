@@ -2014,6 +2014,62 @@ TEST_CASE(quant_dot_2args)
     }
 }
 
+TEST_CASE(qlinear)
+{
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::uint8_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(qlinear_zeros)
+{
+    migraphx::shape zeros{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("quantizelinear"), input, scales, zeros);
+}
+
+TEST_CASE(qlinear_fp16)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::uint8_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(qlinear_mismatch_type)
+{
+    migraphx::shape scales{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::float_type, {2, 4}};
+    throws_shape(migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(dqlinear)
+{
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::float_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("dequantizelinear"), input, scales);
+}
+
+TEST_CASE(dqlinear_fp16)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::half_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("dequantizelinear"), input, scales);
+}
+
+TEST_CASE(dqlinear_mismatch_type)
+{
+    migraphx::shape zeros{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::int8_type, {2, 4}};
+    throws_shape(migraphx::make_op("dequantizelinear"), input, scales, zeros);
+}
+
 template <class T>
 void test_reduce_ops()
 {

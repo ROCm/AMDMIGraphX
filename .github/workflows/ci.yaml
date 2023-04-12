@@ -1,6 +1,6 @@
 name: migraphx
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   cancel:
@@ -27,16 +27,11 @@ jobs:
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash 
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
-
     - name: Cache files for tidy
-      uses: pat-s/always-upload-cache@v3.0.11
+      uses: actions/cache@v3 
       with:
         path: tidy-cache
-        key: tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: tidy-cache-${{ github.ref_name }}
         restore-keys: |
             tidy-cache-
 
@@ -74,16 +69,11 @@ jobs:
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash 
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
-
     - name: Cache files for cppcheck
-      uses: pat-s/always-upload-cache@v2.1.3
+      uses: actions/cache@v3 
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref_name }}
         restore-keys: |
             cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
@@ -222,18 +212,13 @@ jobs:
         rbuild prepare -d cget -s gh
         sudo apt-get install -y lld
 
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash 
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
-
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
       uses: actions/cache@v3 
       with:
-        path: ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref_name }}
         restore-keys: |
             ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 
@@ -298,6 +283,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: 3.7
+
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
@@ -319,18 +305,13 @@ jobs:
         rbuild prepare -d cget -s gh
         sudo apt-get install -y lld
 
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
-
     - name: Cache files for ccache
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
       uses: actions/cache@v3 
       with:
-        path: ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref_name }}
         restore-keys: |
             ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 

@@ -1,4 +1,4 @@
-name: migraphx
+name: MIGraphX CI 
 
 on: [push, pull_request]
 
@@ -17,15 +17,6 @@ jobs:
     - name: Free space
       run: |
         sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
-        du . --max-depth=1 -h
-        ls -la
-        cd /usr/local
-        du . --max-depth=1 -h
-        ls -la
-        cd /usr/local/lib
-        echo $(pwd)
-        du . --max-depth=1 -h
-        ls -la
 
     - uses: actions/checkout@v3
 
@@ -48,7 +39,6 @@ jobs:
         path: tidy-cache
         key: tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
             tidy-cache-
 
     - name: Build the Docker image
@@ -94,10 +84,9 @@ jobs:
       uses: pat-s/always-upload-cache@v2.1.3
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', '**/CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
-            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
+            cppcheck-cache-${{ hashFiles('cppcheck.rules', '**/CMakeLists.txt') }}-
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -223,6 +212,7 @@ jobs:
         # Look to see if there is a cache hit for the corresponding requirements file
         key: 
           ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+        restore-keys: |
           ${{ matrix.os }}-cget-4-
 
 
@@ -232,6 +222,7 @@ jobs:
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
         sudo apt-get install -y lld
+
     - name: Prepare timestamp
       id: cache_timestamp
       shell: bash 
@@ -245,7 +236,6 @@ jobs:
         path: ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
             ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 
     - name: Build and test
@@ -319,6 +309,7 @@ jobs:
         # Look to see if there is a cache hit for the corresponding requirements file
         key: 
           ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+        restore-keys: |
           ${{ matrix.os }}-cget-4-
 
 
@@ -328,6 +319,7 @@ jobs:
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
         sudo apt-get install -y lld
+
     - name: Prepare timestamp
       id: cache_timestamp
       shell: bash
@@ -341,7 +333,6 @@ jobs:
         path: ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
             ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 
     - name: Build and test
@@ -362,18 +353,3 @@ jobs:
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
-
-    #- name: Upload code coverage
-    #  if: "matrix.configuration == 'codecov'"
-    #  env:
-    #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
-    #  run: |
-    #    sudo apt-get install -y lcov
-    #    cd build
-    #    lcov --directory . --capture --output-file $(pwd)/coverage.info
-    #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
-    #    lcov --list $(pwd)/coverage.info
-    #    curl -Os https://uploader.codecov.io/latest/linux/codecov
-    #    chmod +x codecov
-    #    ./codecov -t ${CODECOV_TOKEN}
-    #    echo "Uploaded"

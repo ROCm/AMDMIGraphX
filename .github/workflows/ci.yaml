@@ -1,6 +1,13 @@
 name: migraphx
 
-on: [pull_request]
+on: 
+  pull_request:
+  push:
+    branches: 
+      - develop
+      - master
+      - 'release/**'
+
 
 jobs:
   cancel:

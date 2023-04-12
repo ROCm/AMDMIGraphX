@@ -354,19 +354,18 @@ jobs:
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
 
-         #- name: Upload code coverage
+      #- name: Upload code coverage
+      #  if: "matrix.configuration == 'codecov'"
+      #  env:
+      #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
+      #  run: |
+      #    sudo apt-get install -y lcov
+      #    cd build
+      #    lcov --directory . --capture --output-file $(pwd)/coverage.info
+      #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
+      #    lcov --list $(pwd)/coverage.info
+      #    curl -Os https://uploader.codecov.io/latest/linux/codecov
+      #    chmod +x codecov
+      #    ./codecov -t ${CODECOV_TOKEN}
+      #    echo "Uploaded"
 
-  #  if: "matrix.configuration == 'codecov'"
-  #  env:
-  #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
-  #  run: |
-  #    sudo apt-get install -y lcov
-  #    cd build
-  #    lcov --directory . --capture --output-file $(pwd)/coverage.info
-  #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
-  #    lcov --list $(pwd)/coverage.info
-  #    curl -Os https://uploader.codecov.io/latest/linux/codecov
-  #    chmod +x codecov
-  #    ./codecov -t ${CODECOV_TOKEN}
-  #    echo "Uploaded"
-  

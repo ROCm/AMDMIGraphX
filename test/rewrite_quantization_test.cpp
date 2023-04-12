@@ -33,11 +33,19 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/serialize.hpp>
-
-#include <migraphx/verify.hpp>
+#include <migraphx/pass_manager.hpp>
 
 bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
 bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
+
+void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::rewrite_quantization{}}); }
+
+migraphx::argument eval(const migraphx::program& p)
+{
+    auto r = p.eval({});
+    EXPECT(r.size() == 1);
+    return r.front();
+}
 
 TEST_CASE(quantizelinear)
 {
@@ -58,8 +66,8 @@ TEST_CASE(quantizelinear)
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
 
-    migraphx::rewrite_quantization opt;
-    opt.apply(*p2.get_main_module());
+    run_pass(*p2.get_main_module());
+    EXPECT(eval(p1) == eval(p2));
     EXPECT(any_of(*p1.get_main_module(), &is_quantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_quantizelinear));
 }
@@ -71,9 +79,9 @@ TEST_CASE(dequantizelinear)
     std::vector<float> xv = {0, 1, 2, 5, 10, 50, 100, 150, 250};
     migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
     std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
-    migraphx::shape zs{migraphx::shape::uint8_type, {1, 3, 3}};
-    std::vector<uint8_t> zv = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-    auto create_program     = [&]() {
+    migraphx::shape zs{migraphx::shape::float_type, {1, 3, 3}};
+    std::vector<float> zv = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    auto create_program   = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_literal(xs, xv);
@@ -86,8 +94,8 @@ TEST_CASE(dequantizelinear)
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
 
-    migraphx::rewrite_quantization opt;
-    opt.apply(*p2.get_main_module());
+    run_pass(*p2.get_main_module());
+    EXPECT(eval(p1) == eval(p2));
     EXPECT(any_of(*p1.get_main_module(), &is_dequantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_dequantizelinear));
 }

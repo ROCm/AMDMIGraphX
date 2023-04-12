@@ -178,6 +178,8 @@ struct module
 
     bool has_instruction(instruction_ref ins) const;
 
+    std::vector<instruction_ref> get_returns() const;
+
     std::size_t size() const;
     instruction_ref begin() const;
     instruction_ref end() const;

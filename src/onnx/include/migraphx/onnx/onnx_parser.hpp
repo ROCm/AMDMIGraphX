@@ -94,7 +94,7 @@ struct onnx_parser
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                                   = program();
-    shape::dynamic_dimension default_dyn_dim_value = {1, 1, 0};
+    shape::dynamic_dimension default_dyn_dim_value = {1, 1};
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
     bool use_dyn_output         = false;

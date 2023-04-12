@@ -29,7 +29,7 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | --tf                                     | Load file as a tensorflow graph                           |
 | --migraphx                               | Load file as a migraphx graph                             |
 | --migraphx-json                          | Load file as a migraphx JSON graph                        |
-| --batch                                  | Set batch size for the model                              |
+| --batch                                  | For a static model, set batch size. For a dynamic batch model, sets the batch size at runtime.|
 | --nhwc                                   | Treat tensorflow format as nhwc                           |
 | --nchw                                   | Treat tensorflow format as nchw                           |
 | --skip-unknown-operators                 | Skip unknown operators when parsing and continue to parse |
@@ -44,12 +44,16 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | --output \| -o                           | Output to file                                            |
 | --fill0                                  | Fill parameter with 0s                                    |
 | --fill1                                  | Fill parameter with 1s                                    |
+| --input-dim                              | Set static dimensions of a parameter                      |
+| --dyn-input-dim                          | Set dynamic dimensions of a parameter                     |
+| --default-dyn-dim                        | Set default dynamic dimension                             |
 | --gpu                                    | Compile on the gpu                                        |
 | --cpu                                    | Compile on the cpu                                        |
 | --ref                                    | Compile on the reference implementation                   |
 | --enable-offload-copy                    | Enable implicit offload copying                           |
 | --disable-fast-math                      | Disable fast math optimization                            |
 | --exhaustive-tune                        | Enable exhaustive search to find fastest kernel           |
+| --split-single-dyn-dim                   | Enable split_single_dyn_dim compiler pass                 |
 | --fp16                                   | Quantize for fp16                                         |
 | --int8                                   | Quantize for int8                                         |
 | --tolerance                              | Tolerance for errors                                      |

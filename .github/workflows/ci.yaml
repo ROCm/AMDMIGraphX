@@ -31,7 +31,7 @@ jobs:
       uses: actions/cache@v3 
       with:
         path: tidy-cache
-        key: tidy-cache-${{ github.ref_name }}
+        key: tidy-cache-${{ github.ref }}
         restore-keys: |
             tidy-cache-
 
@@ -73,7 +73,7 @@ jobs:
       uses: actions/cache@v3 
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref_name }}
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
         restore-keys: |
             cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
@@ -218,7 +218,7 @@ jobs:
       uses: actions/cache@v3 
       with:
         path: ${{ github.workspace }}/ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref_name }}
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
         restore-keys: |
             ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 
@@ -311,7 +311,7 @@ jobs:
       uses: actions/cache@v3 
       with:
         path: ${{ github.workspace }}/ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref_name }}
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
         restore-keys: |
             ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 

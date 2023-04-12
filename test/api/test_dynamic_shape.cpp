@@ -31,11 +31,18 @@ TEST_CASE(create_dynamic_dimensions)
     EXPECT(not dd0.is_fixed());
     migraphx::dynamic_dimension dd1{4, 4};
     EXPECT(dd1.is_fixed());
-    migraphx::optimals opts;
-    opts.insert(1);
-    opts.insert(4);
+    migraphx::optimals opts{1, 4};
+    opts.insert(2);
     migraphx::dynamic_dimension dd2{1, 4, opts};
-    migraphx::dynamic_dimensions dyn_dims{dd0, dd1, dd2};
+    migraphx::dynamic_dimensions dyn_dims0{dd0, dd1, dd2};
+    CHECK(bool{dyn_dims0[0] == dd0});
+    CHECK(bool{dyn_dims0[1] == dd1});
+    CHECK(bool{dyn_dims0[2] == dd2});
+    CHECK(bool{dyn_dims0[2] != dd0});
+    EXPECT(dyn_dims0.size() == 3);
+
+    migraphx::dynamic_dimensions dyn_dims1{{1, 4}, {1, 8, opts}};
+    EXPECT(dyn_dims1.size() == 2);
 }
 
 TEST_CASE(create_dynamic_shape)
@@ -43,13 +50,14 @@ TEST_CASE(create_dynamic_shape)
     migraphx::dynamic_dimensions dyn_dims;
     dyn_dims.add(migraphx::dynamic_dimension{1, 4});
     dyn_dims.add(migraphx::dynamic_dimension{78, 92});
-    migraphx::optimals opts;
-    opts.insert(1);
-    opts.insert(4);
+    migraphx::optimals opts{1, 4};
     dyn_dims.add(migraphx::dynamic_dimension{1, 4, opts});
     migraphx::shape dyn_shape{migraphx_shape_float_type, dyn_dims};
-    EXPECT(dyn_shape.dynamic());
-    CHECK(bool{dyn_shape.dyn_dims() == dyn_dims});
+    CHECK(bool{dyn_shape.dynamic()});
+    CHECK(bool{dyn_shape.dyn_dims()[0] == migraphx::dynamic_dimension{1, 4}});
+
+    migraphx::shape static_shape{migraphx_shape_float_type, {3, 8}};
+    EXPECT(not static_shape.dynamic());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

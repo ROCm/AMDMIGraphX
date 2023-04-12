@@ -138,11 +138,21 @@ void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+void set_split_single_dyn_dim(compile_options& options, bool value)
+{
+    options.split_single_dyn_dim = value;
+}
+
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+}
+
+void set_default_dyn_dim_value(onnx_options& options, shape::dynamic_dimension dd)
+{
+    options.default_dyn_dim_value = dd;
 }
 
 void set_default_loop_iterations(onnx_options& options, int64_t value)
@@ -159,6 +169,13 @@ void set_input_parameter_shape(onnx_options& options,
                                std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
+}
+
+void set_dyn_input_parameter_shape(onnx_options& options,
+                                   const char* name,
+                                   std::vector<shape::dynamic_dimension> dyn_dims)
+{
+    options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
 void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
@@ -855,6 +872,22 @@ migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_
 }
 
 extern "C" migraphx_status
+migraphx_dynamic_dimension_equal(bool* out,
+                                 const_migraphx_dynamic_dimension_t dynamic_dimension,
+                                 const_migraphx_dynamic_dimension_t x)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dynamic_dimension == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter dynamic_dimension: Null pointer");
+        if(x == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
+        *out = migraphx::equal((dynamic_dimension->object), (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_dynamic_dimensions_destroy(migraphx_dynamic_dimensions_t dynamic_dimensions)
 {
     auto api_error_result = migraphx::try_([&] { destroy((dynamic_dimensions)); });
@@ -870,14 +903,11 @@ migraphx_dynamic_dimensions_assign_to(migraphx_dynamic_dimensions_t output,
 }
 
 extern "C" migraphx_status
-migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions,
-                                   const_migraphx_dynamic_dimension_t* ptr,
-                                   size_t size)
+migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions)
 {
     auto api_error_result = migraphx::try_([&] {
         *dynamic_dimensions = object_cast<migraphx_dynamic_dimensions_t>(
-            allocate<std::vector<migraphx::shape::dynamic_dimension>>(
-                migraphx::to_obj_vector<const_migraphx_dynamic_dimension_t>((ptr), (size))));
+            allocate<std::vector<migraphx::shape::dynamic_dimension>>());
     });
     return api_error_result;
 }
@@ -1819,6 +1849,19 @@ extern "C" migraphx_status migraphx_onnx_options_set_input_parameter_shape(
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_onnx_options_set_dyn_input_parameter_shape(
+    migraphx_onnx_options_t onnx_options, const char* name, migraphx_dynamic_dimensions_t dims)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        if(dims == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
+        migraphx::set_dyn_input_parameter_shape((onnx_options->object), (name), (dims->object));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options, size_t value)
 {
@@ -1826,6 +1869,20 @@ migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_default_dim_value((onnx_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_onnx_options_set_default_dyn_dim_value(migraphx_onnx_options_t onnx_options,
+                                                migraphx_dynamic_dimension_t dd)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        if(dd == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dd: Null pointer");
+        migraphx::set_default_dyn_dim_value((onnx_options->object), (dd->object));
     });
     return api_error_result;
 }
@@ -1932,6 +1989,19 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter compile_options: Null pointer");
         migraphx::set_exhaustive_tune_flag((compile_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_set_split_single_dyn_dim(migraphx_compile_options_t compile_options,
+                                                  bool value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_split_single_dyn_dim((compile_options->object), (value));
     });
     return api_error_result;
 }

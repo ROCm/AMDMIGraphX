@@ -573,9 +573,18 @@ using require_interface =
 
 struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
 {
+    MIGRAPHX_HANDLE_CONSTRUCTOR(optimals)
+
     optimals() { this->make_handle(&migraphx_optimals_create); }
 
-    MIGRAPHX_HANDLE_CONSTRUCTOR(optimals)
+    optimals(std::initializer_list<size_t> init_list)
+    {
+        this->make_handle(&migraphx_optimals_create);
+        for(auto&& dim : init_list)
+        {
+            this->insert(dim);
+        }
+    }
 
     void insert(size_t dim) { call(&migraphx_optimals_insert, this->get_handle_ptr(), dim); }
 };
@@ -605,18 +614,34 @@ struct dynamic_dimension : MIGRAPHX_HANDLE_BASE(dynamic_dimension)
         call(&migraphx_dynamic_dimension_is_fixed, &result, this->get_handle_ptr());
         return result;
     }
+
+    friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y)
+    {
+        bool pout;
+        call(&migraphx_dynamic_dimension_equal, &pout, x.get_handle_ptr(), y.get_handle_ptr());
+        return pout;
+    }
+
+    friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y)
+    {
+        return not(x == y);
+    }
 };
 
 struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
 {
-    template <class... Ts>
-    dynamic_dimensions(Ts... xs)
-    {
-        std::array<const_migraphx_dynamic_dimension_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
-        this->make_handle(&migraphx_dynamic_dimensions_create, a.data(), a.size());
-    }
-
     MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)
+
+    dynamic_dimensions() { this->make_handle(&migraphx_dynamic_dimensions_create); }
+
+    dynamic_dimensions(std::initializer_list<dynamic_dimension> init_list)
+    {
+        this->make_handle(&migraphx_dynamic_dimensions_create);
+        for(auto&& dd : init_list)
+        {
+            this->add(dd);
+        }
+    }
 
     size_t size() const
     {
@@ -625,16 +650,16 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
         return pout;
     }
 
+    void add(const dynamic_dimension& dyn_dim) const
+    {
+        call(&migraphx_dynamic_dimensions_add, this->get_handle_ptr(), dyn_dim.get_handle_ptr());
+    }
+
     dynamic_dimension operator[](size_t pidx) const
     {
         migraphx_dynamic_dimension_t pout;
         call(&migraphx_dynamic_dimensions_get, &pout, this->get_handle_ptr(), pidx);
         return {pout, this->share_handle()};
-    }
-
-    void add(const dynamic_dimension& dyn_dim) const
-    {
-        call(&migraphx_dynamic_dimensions_add, this->get_handle_ptr(), dyn_dim.get_handle_ptr());
     }
 };
 
@@ -666,7 +691,10 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 
     // Force all calls of the format `shape( type_t, { size_t compatibles } )` to map to
     // shape(type_t, std::vector<std::size_t> l)
-    shape(migraphx_shape_datatype_t t, std::initializer_list<std::size_t> d);
+    shape(migraphx_shape_datatype_t t, std::initializer_list<std::size_t> d)
+        : shape::shape(t, std::vector<std::size_t>{d.begin(), d.end()})
+    {
+    }
 
     shape(migraphx_shape_datatype_t type,
           std::vector<size_t> plengths,
@@ -1110,6 +1138,13 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     {
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
     }
+
+    /// Enable or disable the split_single_dyn_dim GPU compiler pass that splits a dynamic shape
+    /// input parameter into static submodules (handles cases like dynamic batch)
+    void set_split_single_dyn_dim(bool value = true)
+    {
+        call(&migraphx_compile_options_set_split_single_dyn_dim, this->get_handle_ptr(), value);
+    }
 };
 
 /// A program represents the all computation graphs to be compiled and executed
@@ -1271,10 +1306,25 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              dim.size());
     }
 
+    void set_dyn_input_parameter_shape(const std::string& name, dynamic_dimensions dyn_dims)
+    {
+        call(&migraphx_onnx_options_set_dyn_input_parameter_shape,
+             this->get_handle_ptr(),
+             name.c_str(),
+             dyn_dims.get_handle_ptr());
+    }
+
     /// When there is a dimension parameter, then use this default value
     void set_default_dim_value(unsigned int value)
     {
         call(&migraphx_onnx_options_set_default_dim_value, this->get_handle_ptr(), value);
+    }
+
+    void set_default_dyn_dim_value(dynamic_dimension dd)
+    {
+        call(&migraphx_onnx_options_set_default_dyn_dim_value,
+             this->get_handle_ptr(),
+             dd.get_handle_ptr());
     }
 
     /// Set default max iteration number for the loop operator

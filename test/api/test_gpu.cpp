@@ -53,6 +53,30 @@ TEST_CASE(load_and_run)
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
+TEST_CASE(dynamic_batch_load_and_run)
+{
+    migraphx::onnx_options o_options;
+    migraphx::dynamic_dimensions dyn_dims = {{1, 4, {2, 4}}, {3, 3}, {32, 32}, {32, 32}};
+    o_options.set_dyn_input_parameter_shape("0", dyn_dims);
+    auto p = migraphx::parse_onnx("conv_relu_maxpool_test.onnx", o_options);
+    migraphx::compile_options c_options;
+    c_options.set_split_single_dyn_dim();
+    p.compile(migraphx::target("gpu"), c_options);
+    auto out_shapes = p.get_output_shapes();
+    CHECK(out_shapes.size() == 1);
+    EXPECT(out_shapes[0].dynamic());
+
+    migraphx::program_parameters pp;
+    auto param_shapes = p.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+    auto outputs = p.eval(pp);
+    CHECK(shapes_before.size() == outputs.size());
+    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+}
+
 using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
 

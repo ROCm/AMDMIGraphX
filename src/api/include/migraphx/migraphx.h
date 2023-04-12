@@ -194,15 +194,18 @@ migraphx_dynamic_dimension_is_fixed(bool* out,
                                     const_migraphx_dynamic_dimension_t dynamic_dimension);
 
 migraphx_status
+migraphx_dynamic_dimension_equal(bool* out,
+                                 const_migraphx_dynamic_dimension_t dynamic_dimension,
+                                 const_migraphx_dynamic_dimension_t x);
+
+migraphx_status
 migraphx_dynamic_dimensions_destroy(migraphx_dynamic_dimensions_t dynamic_dimensions);
 
 migraphx_status migraphx_dynamic_dimensions_assign_to(migraphx_dynamic_dimensions_t output,
                                                       const_migraphx_dynamic_dimensions_t input);
 
 migraphx_status
-migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions,
-                                   const_migraphx_dynamic_dimension_t* ptr,
-                                   size_t size);
+migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions);
 
 migraphx_status migraphx_dynamic_dimensions_size(size_t* out,
                                                  migraphx_dynamic_dimensions_t dynamic_dimensions);
@@ -465,8 +468,15 @@ migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_optio
 migraphx_status migraphx_onnx_options_set_input_parameter_shape(
     migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size);
 
+migraphx_status migraphx_onnx_options_set_dyn_input_parameter_shape(
+    migraphx_onnx_options_t onnx_options, const char* name, migraphx_dynamic_dimensions_t dims);
+
 migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
                                                             size_t value);
+
+migraphx_status
+migraphx_onnx_options_set_default_dyn_dim_value(migraphx_onnx_options_t onnx_options,
+                                                migraphx_dynamic_dimension_t dd);
 
 migraphx_status
 migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,
@@ -497,6 +507,10 @@ migraphx_status migraphx_compile_options_set_fast_math(migraphx_compile_options_
 
 migraphx_status
 migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t compile_options,
+                                                  bool value);
+
+migraphx_status
+migraphx_compile_options_set_split_single_dyn_dim(migraphx_compile_options_t compile_options,
                                                   bool value);
 
 migraphx_status

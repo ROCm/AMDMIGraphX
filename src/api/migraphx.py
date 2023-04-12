@@ -68,15 +68,17 @@ def dynamic_dimension(h):
         'create_min_max_optimals',
         api.params(min='size_t', max='size_t', optimals='std::set<size_t>'))
     h.method('is_fixed', returns='bool', const=True)
+    h.method('equal',
+             api.params(x='const migraphx::shape::dynamic_dimension&'),
+             invoke='migraphx::equal($@)',
+             returns='bool',
+             const=True)
 
 
 @api.handle('migraphx_dynamic_dimensions',
             'std::vector<migraphx::shape::dynamic_dimension>')
 def dynamic_dimensions(h):
-    h.constructor(
-        'create',
-        api.params(ptr='const_migraphx_dynamic_dimension_t*', size='size_t'),
-        fname='migraphx::to_obj_vector<const_migraphx_dynamic_dimension_t>')
+    h.constructor('create')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),
@@ -326,9 +328,20 @@ def onnx_options(h):
         invoke='migraphx::set_input_parameter_shape($@)',
     )
     h.method(
+        'set_dyn_input_parameter_shape',
+        api.params(name='const char*',
+                   dims='std::vector<migraphx::shape::dynamic_dimension>'),
+        invoke='migraphx::set_dyn_input_parameter_shape($@)',
+    )
+    h.method(
         'set_default_dim_value',
         api.params(value='size_t'),
         invoke='migraphx::set_default_dim_value($@)',
+    )
+    h.method(
+        'set_default_dyn_dim_value',
+        api.params(dd='migraphx::shape::dynamic_dimension'),
+        invoke='migraphx::set_default_dyn_dim_value($@)',
     )
     h.method(
         'set_default_loop_iterations',
@@ -357,6 +370,9 @@ def compile_options(h):
     h.method('set_exhaustive_tune_flag',
              api.params(value='bool'),
              invoke='migraphx::set_exhaustive_tune_flag($@)')
+    h.method('set_split_single_dyn_dim',
+             api.params(value='bool'),
+             invoke='migraphx::set_split_single_dyn_dim($@)')
 
 
 api.add_function('migraphx_parse_onnx',

@@ -138,11 +138,21 @@ void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+void set_split_single_dyn_dim(compile_options& options, bool value)
+{
+    options.split_single_dyn_dim = value;
+}
+
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+}
+
+void set_default_dyn_dim_value(onnx_options& options, shape::dynamic_dimension dd)
+{
+    options.default_dyn_dim_value = dd;
 }
 
 void set_default_loop_iterations(onnx_options& options, int64_t value)
@@ -159,6 +169,13 @@ void set_input_parameter_shape(onnx_options& options,
                                std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
+}
+
+void set_dyn_input_parameter_shape(onnx_options& options,
+                                   const char* name,
+                                   std::vector<shape::dynamic_dimension> dyn_dims)
+{
+    options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
 void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)

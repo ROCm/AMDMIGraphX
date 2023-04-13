@@ -37,6 +37,12 @@ namespace op {
 
 struct dequantizelinear
 {
+
+    value attributes() const {
+        return {{"pointwise", true}, {"point_op", 
+        "${1} * (${function:convert}<float>(${0}) - ${function:convert}<float>(${2}))"}};
+    }
+
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

@@ -38,6 +38,27 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR);
 
+bool mlir_enabled()
+{
+#ifdef MIGRAPHX_MLIR
+    const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
+    if(mlir_enabled)
+    {
+        return true;
+    }
+    else
+    {
+
+        std::cerr << "WARNING: MIGraphX built with MLIR but it is not enabled. Please set the env "
+                     "var MIGRAPHX_ENABLE_MLIR to use MLIR kernel generator."
+                  << std::endl;
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
 #ifdef MIGRAPHX_MLIR
 
 struct mlir_op
@@ -58,8 +79,11 @@ struct mlir_op
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
-        auto n = inputs.size();
-        return op.compute_shape({inputs[n - 2], inputs[n - 1]});
+        auto n     = inputs.size();
+        auto* pm   = mods.front();
+        auto type  = pm->get_output_shapes().front().type();
+        auto shape = op.compute_shape({inputs[n - 2], inputs[n - 1]});
+        return shape.with_type(type);
     }
 };
 MIGRAPHX_REGISTER_OP(mlir_op);
@@ -68,7 +92,7 @@ namespace {
 
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
-    if(ins->name() != "convolution")
+    if(ins->name() != "convolution" && ins->name() != "quant_convolution")
         return false;
     value v    = ins->get_operator().to_value();
     auto group = v.at("group").to<int>();
@@ -98,14 +122,25 @@ struct find_mlir_op
         auto names         = pm->get_parameter_names();
         // Whitelist pointwise operators
         if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
-               return not contains(
-                   {"@literal", "@param", "@return", "convolution", "dot", "add", "relu"},
-                   i.name());
+               return not contains({"@literal",
+                                    "@param",
+                                    "@return",
+                                    "convolution",
+                                    "quant_convolution",
+                                    "dot",
+                                    "add",
+                                    "relu",
+                                    "dequantizelinear",
+                                    "quantizelinear"},
+                                   i.name());
            }))
             return;
-        // Only fuse with fp32/fp16
+        // Only fuse with fp32/fp16/int8/int32
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-               return not contains({shape::type_t::float_type, shape::type_t::half_type},
+               return not contains({shape::type_t::float_type,
+                                    shape::type_t::half_type,
+                                    shape::type_t::int8_type,
+                                    shape::type_t::int32_type},
                                    i->get_shape().type());
            }))
             return;
@@ -148,17 +183,7 @@ struct find_mlir_op
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
-    if(mlir_enabled)
-    {
-        match::find_matches(mpm, find_mlir_op{});
-    }
-    else
-    {
-        std::cerr << "WARNING: MIGraphX built with MLIR but it is not enabled. Please set the env "
-                     "var MIGRAPHX_ENABLE_MLIR to use MLIR kernel generator."
-                  << std::endl;
-    }
+    match::find_matches(mpm, find_mlir_op{});
 #else
     (void)mpm;
 #endif

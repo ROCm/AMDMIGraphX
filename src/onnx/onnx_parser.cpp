@@ -300,7 +300,22 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
             else if(map_dyn_input_dims.count(name) > 0)
             {
                 shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
-                s                        = {shape_type, map_dyn_input_dims.at(name)};
+                auto dynamic_dims        = map_dyn_input_dims.at(name);
+                if(std::all_of(dynamic_dims.begin(), dynamic_dims.end(), [](auto dd) {
+                       return dd.is_fixed();
+                   }))
+                {
+                    std::vector<std::size_t> static_dims;
+                    std::transform(dynamic_dims.begin(),
+                                   dynamic_dims.end(),
+                                   std::back_inserter(static_dims),
+                                   [](auto d) { return d.max; });
+                    s = {shape_type, static_dims};
+                }
+                else
+                {
+                    s = {shape_type, dynamic_dims};
+                }
             }
             else
             {

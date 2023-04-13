@@ -24,6 +24,7 @@
 #include <migraphx/execution_environment.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
@@ -1063,6 +1064,17 @@ extern "C" migraphx_status migraphx_shape_dyn_dims(migraphx_dynamic_dimensions_t
     return api_error_result;
 }
 
+extern "C" migraphx_status
+migraphx_shape_to_static(migraphx_shape_t* out, const_migraphx_shape_t shape, size_t dim)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = allocate<migraphx_shape_t>((shape->object).to_static((dim)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,
                                                const_migraphx_shape_t shape)
 {
@@ -1162,8 +1174,20 @@ extern "C" migraphx_status migraphx_argument_assign_to(migraphx_argument_t outpu
     return api_error_result;
 }
 
-extern "C" migraphx_status
-migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer)
+extern "C" migraphx_status migraphx_argument_create(migraphx_argument_t* argument,
+                                                    const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *argument = object_cast<migraphx_argument_t>(allocate<migraphx::argument>((shape->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_argument_create_with_buffer(migraphx_argument_t* argument,
+                                                                const_migraphx_shape_t shape,
+                                                                void* buffer)
 {
     auto api_error_result = migraphx::try_([&] {
         if(shape == nullptr)
@@ -1336,6 +1360,18 @@ migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters
         if(argument == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter argument: Null pointer");
         (program_parameters->object)[(name)] = (argument->object);
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_parameters_contains(
+    bool* out, const_migraphx_program_parameters_t program_parameters, const char* name)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program_parameters == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter program_parameters: Null pointer");
+        *out = migraphx::contains((program_parameters->object), (name));
     });
     return api_error_result;
 }

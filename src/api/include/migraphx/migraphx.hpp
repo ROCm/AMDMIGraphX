@@ -729,10 +729,19 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return {pout, pout + pout_size};
     }
 
+    /// Get the dynamic dimensions of the shape
     dynamic_dimensions dyn_dims() const
     {
         migraphx_dynamic_dimensions_t pout;
         call(&migraphx_shape_dyn_dims, &pout, this->get_handle_ptr());
+        return {pout, own{}};
+    }
+
+    // Create a static version of this shape using dim for any non-fixed dynamic dimensions
+    shape to_static(size_t dim) const
+    {
+        migraphx_shape_t pout;
+        call(&migraphx_shape_to_static, &pout, this->get_handle_ptr(), dim);
         return {pout, own{}};
     }
 
@@ -764,6 +773,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return result;
     }
 
+    /// Is the shape dynamic
     bool dynamic() const
     {
         bool result = false;
@@ -804,9 +814,14 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     argument(const migraphx_argument* p) { this->set_handle(p, borrow{}); }
 
+    argument(shape pshape)
+    {
+        this->make_handle(&migraphx_argument_create, pshape.get_handle_ptr());
+    }
+
     argument(shape pshape, void* pbuffer)
     {
-        this->make_handle(&migraphx_argument_create, pshape.get_handle_ptr(), pbuffer);
+        this->make_handle(&migraphx_argument_create_with_buffer, pshape.get_handle_ptr(), pbuffer);
     }
 
     shape get_shape() const
@@ -921,6 +936,14 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
              this->get_handle_ptr(),
              pname,
              pargument.get_handle_ptr());
+    }
+
+    /// Check if contains a parameter
+    bool contains(const char* pname) const
+    {
+        bool pout;
+        call(&migraphx_program_parameters_contains, &pout, this->get_handle_ptr(), pname);
+        return pout;
     }
 };
 

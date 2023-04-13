@@ -2161,6 +2161,8 @@ TEST_CASE(reshape_shape)
     for(auto&& new_shape :
         std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}, {3, 0}, {3, 2}})
     {
+        std::cout << "input: " << input << std::endl;
+        std::cout << "dims: " << migraphx::to_string_range(new_shape) << std::endl;
         throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
 
@@ -2179,6 +2181,34 @@ TEST_CASE(reshape_shape)
     {
         expect_shape(it.second, migraphx::make_op("reshape", {{"dims", it.first}}), input);
     }
+}
+
+TEST_CASE(reshape_nonstandard_unsqueeze)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 24, 1, 1, 1}, {1, 4, 1, 1, 1}};
+    std::vector<std::size_t> lens = {4, 1, 3, 4, 2};
+    std::vector<int64_t> perm     = {4, 0, 1, 2, 3};
+    migraphx::shape output        = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, lens, migraphx::invert_permutation(perm));
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
+}
+
+TEST_CASE(reshape_nonstandard_squeeze)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {327680, 16, 1, 256}};
+    std::vector<std::size_t> lens = {2, 256, 1280};
+    std::vector<int64_t> perm     = {0, 2, 1};
+    migraphx::shape output        = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, lens, migraphx::invert_permutation(perm));
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
+}
+
+
+TEST_CASE(reshape_broadcast_squeeze)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_dyn_shape)

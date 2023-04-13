@@ -36,6 +36,7 @@ jobs:
 
     - name: Restore cache files for tidy
       uses: actions/cache/restore@v3 
+      id: tidy_restore
       with:
         path: /data/tidy-cache
         key: tidy-cache-${{ github.ref }}
@@ -59,6 +60,13 @@ jobs:
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
           ..
         make -j2 -k onnx-proto tf-proto tidy
+
+    # GH actions can not update existing cache, as a workaround clear cache and then save it
+    - name: Clear tidy cache before saving
+      if: ${{ steps.tidy_restore.outputs.cache-hit }}
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for tidy
       uses: actions/cache/save@v3 
@@ -84,12 +92,12 @@ jobs:
       continue-on-error: true
 
     - name: Restore cache files for cppcheck
+      id: cppcheck_restore
       uses: actions/cache/restore@v3
       with:
         path: /data/cppcheck-cache
         key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
         restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
-
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -105,7 +113,14 @@ jobs:
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
         make -j2 cppcheck
-    
+
+    # GH actions can not update existing cache, as a workaround clear cache and then save it
+    - name: Clear cppcheck cache before saving
+      if: ${{ steps.cppcheck_restore.outputs.cache-hit }}
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
+
     - name: Save cache files for cppcheck
       uses: actions/cache/save@v3
       if: always()
@@ -230,13 +245,13 @@ jobs:
         key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
         restore-keys: ${{ matrix.os }}-cget-4-
 
-
     - name: Install dependencies
       if: steps.deps_cache.outputs.cache-hit != 'true'
       run: rbuild prepare -d cget -s gh
 
     - name: Restore cache files for ccache
       uses: actions/cache/restore@v3 
+      id: cache_restore
       with:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
@@ -259,7 +274,14 @@ jobs:
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s
-        
+
+    # GH actions can not update existing cache, as a workaround clear cache and then save it
+    - name: Clear ccache cache before saving
+      if: ${{ steps.ccache_restore.outputs.cache-hit }}
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
+
     - name: Save cache files for ccache
       uses: actions/cache/save@v3 
       if: always()
@@ -331,6 +353,7 @@ jobs:
         sudo apt-get install -y lld
 
     - name: Restore cache files for ccache
+      id: ccache_restore_fpga
       uses: actions/cache/restore@v3 
       with:
         path: ${{ github.workspace }}/ccache
@@ -355,6 +378,13 @@ jobs:
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
+
+    # this is a workaround, with GH actions can not update existing cache
+    - name: Clear ccache cache before saving
+      if: ${{ steps.ccache_restore_fpga.outputs.cache-hit }}
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
       uses: actions/cache/save@v3 

@@ -64,9 +64,13 @@ jobs:
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
       if: ${{ steps.tidy_restore.outputs.cache-hit }}
+      shell: bash
+      env:
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
+      continue-on-error: true
 
     - name: Save cache files for tidy
       uses: actions/cache/save@v3 
@@ -117,9 +121,13 @@ jobs:
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear cppcheck cache before saving
       if: ${{ steps.cppcheck_restore.outputs.cache-hit }}
+      shell: bash
+      env:
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
+      continue-on-error: true
 
     - name: Save cache files for cppcheck
       uses: actions/cache/save@v3
@@ -251,7 +259,7 @@ jobs:
 
     - name: Restore cache files for ccache
       uses: actions/cache/restore@v3 
-      id: cache_restore
+      id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
@@ -278,6 +286,9 @@ jobs:
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear ccache cache before saving
       if: ${{ steps.ccache_restore.outputs.cache-hit }}
+      shell: bash
+      env:
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
@@ -382,9 +393,13 @@ jobs:
     # this is a workaround, with GH actions can not update existing cache
     - name: Clear ccache cache before saving
       if: ${{ steps.ccache_restore_fpga.outputs.cache-hit }}
+      shell: bash
+      env:
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
+      continue-on-error: true
 
     - name: Save cache files for ccache
       uses: actions/cache/save@v3 

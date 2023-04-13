@@ -34,14 +34,13 @@ jobs:
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
-    - name: Cache files for tidy
-      uses: actions/cache@v3 
+    - name: Restore cache files for tidy
+      uses: actions/cache/restore@v3 
       with:
-        path: tidy-cache
+        path: /data/tidy-cache
         key: tidy-cache-${{ github.ref }}
-        restore-keys: |
-            tidy-cache-
-
+        restore-keys: tidy-cache-
+        
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
 
@@ -61,6 +60,14 @@ jobs:
           ..
         make -j2 -k onnx-proto tf-proto tidy
 
+    - name: Save cache files for tidy
+      uses: actions/cache/save@v3 
+      if: always()
+      with:
+        path: /data/tidy-cache
+        key: tidy-cache-${{ github.ref }}
+
+
   cppcheck:
     runs-on: ubuntu-20.04
 
@@ -76,13 +83,13 @@ jobs:
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
-    - name: Cache files for cppcheck
-      uses: actions/cache@v3 
+    - name: Restore cache files for cppcheck
+      uses: actions/cache/restore@v3
       with:
-        path: cppcheck-cache
+        path: /data/cppcheck-cache
         key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
-        restore-keys: |
-            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
+        restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
+
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -98,6 +105,14 @@ jobs:
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
         make -j2 cppcheck
+    
+    - name: Save cache files for cppcheck
+      uses: actions/cache/save@v3
+      if: always()
+      with:
+        path: /data/cppcheck-cache
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
+
 
   format:
     runs-on: ubuntu-20.04
@@ -212,25 +227,20 @@ jobs:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
-        key: 
-          ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
-        restore-keys: |
-          ${{ matrix.os }}-cget-4-
+        key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+        restore-keys: ${{ matrix.os }}-cget-4-
 
 
     - name: Install dependencies
       if: steps.deps_cache.outputs.cache-hit != 'true'
       run: rbuild prepare -d cget -s gh
 
-    - name: Cache files for ccache
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-      uses: actions/cache@v3 
+    - name: Restore cache files for ccache
+      uses: actions/cache/restore@v3 
       with:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
-        restore-keys: |
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
+        restore-keys: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 
     - name: Build and test
       env:
@@ -249,6 +259,13 @@ jobs:
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s
+        
+    - name: Save cache files for ccache
+      uses: actions/cache/save@v3 
+      if: always()
+      with:
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
 
     - name: Upload code coverage
       if: "matrix.configuration == 'codecov'"
@@ -302,10 +319,8 @@ jobs:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
-        key: 
-          ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
-        restore-keys: |
-          ${{ matrix.os }}-cget-4-
+        key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+        restore-keys: ${{ matrix.os }}-cget-4-
 
 
     - name: Install dependencies
@@ -315,16 +330,13 @@ jobs:
         rbuild prepare -d cget -s gh
         sudo apt-get install -y lld
 
-    - name: Cache files for ccache
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-      uses: actions/cache@v3 
+    - name: Restore cache files for ccache
+      uses: actions/cache/restore@v3 
       with:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
-        restore-keys: |
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
-
+        restore-keys: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
+    
     - name: Build and test
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
@@ -343,6 +355,13 @@ jobs:
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld' \
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
+
+    - name: Save cache files for ccache
+      uses: actions/cache/save@v3 
+      if: always()
+      with:
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
 
       #- name: Upload code coverage
       #  if: "matrix.configuration == 'codecov'"

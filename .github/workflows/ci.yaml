@@ -68,7 +68,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh extension install actions/gh-actions-cache
+        gh extension install actions/gh-actions-cache --pin "1.0.1"
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
       continue-on-error: true
 
@@ -125,7 +125,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh extension install actions/gh-actions-cache
+        gh extension install actions/gh-actions-cache --pin "1.0.1"
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
       continue-on-error: true
 
@@ -290,7 +290,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh extension install actions/gh-actions-cache
+        gh extension install actions/gh-actions-cache --pin "1.0.1"
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache

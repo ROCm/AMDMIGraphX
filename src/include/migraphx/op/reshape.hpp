@@ -205,7 +205,7 @@ struct reshape
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto&& idims    = inputs.front().lens();
+        auto&& idims = inputs.front().lens();
         // auto&& istrides = inputs.front().strides();
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
 
@@ -233,7 +233,7 @@ struct reshape
         }
 
         auto s = reshape_dims(inputs.front(), rdims);
-        if (not s.has_value())
+        if(not s.has_value())
             MIGRAPHX_THROW("Reshape on axis that is not packed.");
 
         if(s->elements() != inputs.front().elements())

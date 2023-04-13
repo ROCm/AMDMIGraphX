@@ -66,7 +66,7 @@ jobs:
       if: ${{ steps.tidy_restore.outputs.cache-hit }}
       shell: bash
       env:
-        GITHUB_TOKEN: $${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
@@ -123,7 +123,7 @@ jobs:
       if: ${{ steps.cppcheck_restore.outputs.cache-hit }}
       shell: bash
       env:
-        GITHUB_TOKEN: $${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
@@ -288,7 +288,7 @@ jobs:
       if: ${{ steps.ccache_restore.outputs.cache-hit }}
       shell: bash
       env:
-        GITHUB_TOKEN: $${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
@@ -395,7 +395,7 @@ jobs:
       if: ${{ steps.ccache_restore_fpga.outputs.cache-hit }}
       shell: bash
       env:
-        GITHUB_TOKEN: $${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: $${{ github.token }}
       run: |
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm

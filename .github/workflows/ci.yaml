@@ -38,7 +38,7 @@ jobs:
       uses: actions/cache/restore@v3 
       id: tidy_restore
       with:
-        path: /data/tidy-cache
+        path: tidy-cache
         key: tidy-cache-${{ github.ref }}
         restore-keys: tidy-cache-
         
@@ -76,7 +76,7 @@ jobs:
       uses: actions/cache/save@v3 
       if: always()
       with:
-        path: /data/tidy-cache
+        path: tidy-cache
         key: tidy-cache-${{ github.ref }}
 
 
@@ -99,7 +99,7 @@ jobs:
       id: cppcheck_restore
       uses: actions/cache/restore@v3
       with:
-        path: /data/cppcheck-cache
+        path: cppcheck-cache
         key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
         restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
@@ -133,7 +133,7 @@ jobs:
       uses: actions/cache/save@v3
       if: always()
       with:
-        path: /data/cppcheck-cache
+        path: cppcheck-cache
         key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
 
 

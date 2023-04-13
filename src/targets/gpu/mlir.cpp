@@ -544,9 +544,7 @@ struct mlir_program
                 ops.add_results({get_shape(ins)});
             if(ins->name() == "@literal")
             {
-                auto e = ins->eval();
-                literal r{};
-                e.visit_at([&](auto x) { r = literal{x}; });
+                literal r            = ins->get_literal();
                 MlirType tensor_type = make_tensor(ins->get_shape());
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());

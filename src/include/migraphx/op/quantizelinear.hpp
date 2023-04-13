@@ -38,6 +38,10 @@ namespace op {
 struct quantizelinear
 {
     std::string name() const { return "quantizelinear"; }
+
+    value attributes() const { return {{"pointwise", true}, {"point_op", 
+        "${function:max}(${function:min}(${function:round}(${function:convert}<float>(${0}) / ${1}) + ${function:convert}<float>(${2}), 127.0), -128.0)"}}; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.same_dims().has(2, 3);

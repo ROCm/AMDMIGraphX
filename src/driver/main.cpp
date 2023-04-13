@@ -388,12 +388,12 @@ struct compiler_target
 {
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
-#elif HAVE_CPU
+#elif defined(HAVE_CPU)
     std::string target_name = "cpu";
-#elif HAVE_FPGA
-    std::string target_name = "fpga"
+#elif defined(HAVE_FPGA)
+    std::string target_name = "fpga";
 #else
-    std::string target_name = "ref"
+    std::string target_name = "ref";
 #endif
 
     void parse(argument_parser& ap)

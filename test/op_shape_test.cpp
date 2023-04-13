@@ -2203,7 +2203,6 @@ TEST_CASE(reshape_nonstandard_squeeze)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
 }
 
-
 TEST_CASE(reshape_broadcast_squeeze)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};

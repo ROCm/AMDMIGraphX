@@ -234,7 +234,7 @@ struct reshape
             MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
                            std::to_string(s.elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
-        
+
         assert(s.bytes() == inputs.front().bytes());
         return s;
     }

@@ -13,7 +13,7 @@ jobs:
         
       - name: Cleanup
         run: |
-          gh extension install actions/gh-actions-cache --pin "1.0.1"
+          gh extension install actions/gh-actions-cache --pin v1.0.1
           
           REPO=${{ github.repository }}
           BRANCH="refs/pull/${{ github.event.pull_request.number }}/merge"

@@ -305,11 +305,8 @@ struct find_dot_mul
         auto c_lens      = c_ins->get_shape().lens();
         std::vector<int64_t> permutation(c_lens.size());
         std::iota(permutation.begin(), permutation.end(), 0);
-        if(c_ins == b_ins)
-        {
-            std::swap(permutation.back(), permutation[permutation.size() - 2]);
-            c_lens = reorder_dims(c_lens, permutation);
-        }
+        std::swap(permutation.back(), permutation[permutation.size() - 2]);
+        c_lens = reorder_dims(c_lens, permutation);
         broadcast_v["out_lens"] = c_lens;
         auto db_ins =
             m.insert_instruction(ins, make_op(d_ins->name(), broadcast_v), d_ins->inputs());
@@ -1394,6 +1391,8 @@ void simplify_algebra::apply(module& m) const
                             find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
                             find_mul_slice_conv{},
+                            find_mul_dot{},
+                            find_dot_mul{},
                             find_mul_add{},
                             find_unit_ops{},
                             find_neg_unit_ops{},

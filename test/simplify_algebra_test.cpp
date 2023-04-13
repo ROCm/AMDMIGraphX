@@ -3052,4 +3052,242 @@ TEST_CASE(dot_fusion_reshape)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(mul_dot_a)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("input", as);
+
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 32}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), a, litb);
+
+        auto b = m1.add_literal(migraphx::generate_literal(bs));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), mul, b);
+
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("input", as);
+
+        auto lit = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 32}}));
+        auto litb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", migraphx::reorder_dims(bs.lens(), {0, 2, 1})}}), lit);
+        auto litt = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), litb);
+
+        auto b = m2.add_literal(migraphx::generate_literal(bs));
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), b, litt);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a, mul);
+
+        m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(mul_dot_b)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto b = m1.add_parameter("input", bs);
+
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 32, 1}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), b, litb);
+
+        auto a = m1.add_literal(migraphx::generate_literal(as));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, mul);
+
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+
+        auto b = m2.add_parameter("input", bs);
+
+        auto lit = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 32, 1}}));
+        auto litb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", migraphx::reorder_dims(as.lens(), {0, 2, 1})}}), lit);
+        auto litt = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), litb);
+
+        auto a = m2.add_literal(migraphx::generate_literal(as));
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a, litt);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), mul, b);
+
+        m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(mul_dot_a_not_k_broadcast)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("input", as);
+
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 256, 1}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), a, litb);
+
+        auto b = m1.add_literal(migraphx::generate_literal(bs));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), mul, b);
+
+        m1.add_return({dot});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(mul_dot_b_not_k_broadcast)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto b = m1.add_parameter("input", bs);
+
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), b, litb);
+
+        auto a = m1.add_literal(migraphx::generate_literal(as));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, mul);
+
+        m1.add_return({dot});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+
+TEST_CASE(dot_mul_a)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("input", as);
+        auto b = m1.add_literal(migraphx::generate_literal(bs));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        m1.add_return({mul});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("input", as);
+        auto b = m2.add_literal(migraphx::generate_literal(bs));
+        auto lit = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));
+        auto litb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
+
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), b, litb);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a, mul);
+        m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_mul_a_non_const)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("input", as);
+        auto b = m1.add_literal(migraphx::generate_literal(bs));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 256, 1}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        m1.add_return({mul});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_mul_b)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::generate_literal(as));
+        auto b = m1.add_parameter("input", bs);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 256, 1}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        m1.add_return({mul});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_literal(migraphx::generate_literal(as));
+        auto b = m2.add_parameter("input", bs);
+        auto lit = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 256, 1}}));
+        auto litb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), lit);
+
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a, litb);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), mul, b);
+        m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_mul_b_non_const)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a = m1.add_literal(migraphx::generate_literal(as));
+        auto b = m1.add_parameter("input", bs);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto lit = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 128}}));
+        auto litb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
+        m1.add_return({mul});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

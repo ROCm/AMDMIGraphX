@@ -204,6 +204,134 @@ struct find_mul_slice_conv
     }
 };
 
+struct find_mul_dot
+{
+    auto matcher() const
+    {
+        auto is_dot_const_inputs =
+            match::name("dot")(match::any_of[match::inputs()](match::is_constant()));
+        return match::name("mul")(match::either_arg(0, 1)(
+            is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto dot_ins = r.instructions["dot"];
+        auto a_ins   = dot_ins->inputs()[0];
+        auto b_ins   = dot_ins->inputs()[1];
+        auto c_ins   = r.instructions["c"];
+
+        const auto& c_strides = c_ins->get_shape().strides();
+
+        // There should only be one stride that is not zero
+        if(std::count_if(c_strides.begin(), c_strides.end(), [](auto s) { return s != 0; }) > 1)
+            return;
+
+        auto add_mul_const = [&](instruction_ref x_ins) {
+            if(not x_ins->can_eval())
+                return m.end();
+            auto broadcast_v        = c_ins->get_operator().to_value();
+            broadcast_v["out_lens"] = x_ins->get_shape().lens();
+
+            auto cb_ins =
+                m.insert_instruction(ins, make_op(c_ins->name(), broadcast_v), c_ins->inputs());
+            return m.insert_instruction(ins, make_op("mul"), x_ins, cb_ins);
+        };
+
+        if(c_strides.back() == 1)
+        {
+            b_ins = add_mul_const(b_ins);
+        }
+        else if(c_strides[c_strides.size() - 2] == 1)
+        {
+            a_ins = add_mul_const(a_ins);
+        }
+        else if(c_ins->get_shape().scalar())
+        {
+            if(a_ins->can_eval())
+                a_ins = add_mul_const(a_ins);
+            else
+                b_ins = add_mul_const(b_ins);
+        }
+        else
+        {
+            return;
+        }
+
+        if(contains({a_ins, b_ins}, m.end()))
+            return;
+
+        m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
+    }
+};
+
+struct find_dot_mul
+{
+    auto matcher() const
+    {
+        auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
+        auto mul             = match::name("mul")(
+            match::used_once(),
+            match::either_arg(0, 1)(const_broadcast.bind("d"),
+                                    match::none_of(match::is_constant()).bind("z")));
+        return match::name("dot")(match::either_arg(0, 1)(mul, match::is_constant().bind("c")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = ins->inputs()[0];
+        auto b_ins = ins->inputs()[1];
+        auto d_ins = r.instructions["d"];
+        auto c_ins = r.instructions["c"];
+        auto z_ins = r.instructions["z"];
+
+        const auto& d_strides = d_ins->get_shape().strides();
+
+        // There should only be one stride that is not zero
+        if(std::count_if(d_strides.begin(), d_strides.end(), [](auto s) { return s != 0; }) > 1)
+            return;
+
+        if(not d_ins->get_shape().scalar())
+        {
+            if(d_strides.back() == 1 and not b_ins->can_eval())
+                return;
+            if(d_strides[d_strides.size() - 2] == 1 and not a_ins->can_eval())
+                return;
+        }
+
+        auto broadcast_v = d_ins->get_operator().to_value();
+        auto c_lens      = c_ins->get_shape().lens();
+        std::vector<int64_t> permutation(c_lens.size());
+        std::iota(permutation.begin(), permutation.end(), 0);
+        if(c_ins == b_ins)
+        {
+            std::swap(permutation.back(), permutation[permutation.size() - 2]);
+            c_lens = reorder_dims(c_lens, permutation);
+        }
+        broadcast_v["out_lens"] = c_lens;
+        auto db_ins =
+            m.insert_instruction(ins, make_op(d_ins->name(), broadcast_v), d_ins->inputs());
+        auto db_transpose_ins =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), db_ins);
+        auto cd_ins = m.insert_instruction(ins, make_op("mul"), c_ins, db_transpose_ins);
+
+        if(c_ins == b_ins)
+        {
+            a_ins = z_ins;
+            b_ins = cd_ins;
+        }
+        else
+        {
+            a_ins = cd_ins;
+            b_ins = z_ins;
+        }
+
+        m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
+    }
+};
+
 // ******************************
 //  a * (x + b) => a * x + a * b
 // ******************************

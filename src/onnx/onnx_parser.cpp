@@ -39,9 +39,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-namespace {
-shape shape_from_dyn_dims(shape::type_t shape_type,
-                          const std::vector<shape::dynamic_dimension>& dyn_dims)
+static shape shape_from_dyn_dims(shape::type_t shape_type,
+                                 const std::vector<shape::dynamic_dimension>& dyn_dims)
 {
     if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](auto dd) { return dd.is_fixed(); }))
     {
@@ -53,7 +52,6 @@ shape shape_from_dyn_dims(shape::type_t shape_type,
     }
     return {shape_type, dyn_dims};
 }
-} // namespace
 
 namespace onnx {
 

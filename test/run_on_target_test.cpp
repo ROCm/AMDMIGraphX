@@ -44,6 +44,9 @@ TEST_CASE(run_on_target_shape_tests)
         run_mod->add_return({x, x});
         test::throws(
             [&]() { mm->add_instruction(migraphx::make_op("run_on_target"), {x}, {run_mod}); });
+        test::throws([&]() {
+            mm->add_instruction(migraphx::make_op("run_on_target"), {x}, {run_mod, run_mod});
+        });
     }
 }
 

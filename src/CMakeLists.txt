@@ -247,7 +247,13 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
-find_package(TBB REQUIRED)
+find_package(TBB QUIET)
+if(NOT TBB_FOUND)
+#Check if TBB is installed in the proper RHEL DIR which is different from
+#debian installs /lib64 vs /usr/lib64
+    include(/usr/lib64/cmake/tbb)
+    find_package(TBB REQUIRED)
+endif()
 target_link_libraries(migraphx PRIVATE TBB::tbb)
 
 find_package(nlohmann_json 3.8.0 REQUIRED)

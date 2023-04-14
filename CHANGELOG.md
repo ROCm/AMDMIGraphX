@@ -1,6 +1,6 @@
 # Change Log for MIGraphX
 
-Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://rocmsoftwareplatform.github.io/AMDMIGraphX/doc/html/).
+Full documentation for MIGraphX is available at [MIGraphX Github Pages](https://rocmsoftwareplatform.github.io/AMDMIGraphX/docs/html/).
 
 ## MIGraphX 2.5 for ROCm 5.5.0
 

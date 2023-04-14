@@ -46,11 +46,7 @@
 // check if it is custom_op or run_on_module operator
 bool has_target_attr(const migraphx::instruction& ins)
 {
-    if(ins.get_operator().attributes().contains("target"))
-    {
-        return true;
-    }
-    return false;
+    return ins.get_operator().attributes().contains("target");
 }
 
 auto nonprefixed_ops()
@@ -63,53 +59,42 @@ auto nonprefixed_ops()
 
 bool is_compiled_gpu_module(const migraphx::module& m)
 {
-    for(auto ins : m)
-    {
+    return std::all_of(m.begin(), m.end(), [](auto ins) {
         auto ins_name = ins.name();
-        if(!migraphx::starts_with(ins_name, "@"))
+        if(not migraphx::starts_with(ins_name, "@"))
         {
             if(not migraphx::starts_with(ins_name, "gpu::") and
                not migraphx::starts_with(ins_name, "hip::") and
                not migraphx::starts_with(ins_name, "check_context") and
-               not migraphx::contains(nonprefixed_ops(), ins_name) and !has_target_attr(ins))
+               not migraphx::contains(nonprefixed_ops(), ins_name) and not has_target_attr(ins))
             {
                 return false;
             }
         }
-        else
-        {
-            continue;
-        }
-    }
-    return true;
+        return true;
+    });
 }
 
 bool is_compiled_fpga_module(const migraphx::module& m)
 {
-    for(auto ins : m)
-    {
+    return std::all_of(m.begin(), m.end(), [](auto ins) {
         auto ins_name = ins.name();
-        if(!migraphx::starts_with(ins_name, "@"))
+        if(not migraphx::starts_with(ins_name, "@"))
         {
             if(not migraphx::starts_with(ins_name, "fpga::") and
                not migraphx::starts_with(ins_name, "check_context") and
-               not migraphx::contains(nonprefixed_ops(), ins_name) and !has_target_attr(ins))
+               not migraphx::contains(nonprefixed_ops(), ins_name) and not has_target_attr(ins))
             {
                 return false;
             }
         }
-        else
-        {
-            continue;
-        }
-    }
-    return true;
+        return true;
+    });
 }
 
 bool is_compiled_cpu_module(const migraphx::module& m)
 {
-    for(auto ins : m)
-    {
+    return std::all_of(m.begin(), m.end(), [](auto ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))
         {
@@ -121,39 +106,24 @@ bool is_compiled_cpu_module(const migraphx::module& m)
                 return false;
             }
         }
-        else
-        {
-            continue;
-        }
-    }
-    return true;
+        return true;
+    });
 }
 
 bool has_gpu_copies(const migraphx::module& m)
 {
-    bool hip_copy_from_gpu = false;
-    bool hip_copy_to_gpu   = false;
-    for(const auto& ins : m)
-    {
-        auto ins_name = ins.name();
-        if(ins_name == "hip::copy_from_gpu")
-        {
-            hip_copy_from_gpu = true;
-        }
-        else if(ins_name == "hip::copy_to_gpu")
-        {
-            hip_copy_to_gpu = true;
-        }
-    }
+    bool hip_copy_from_gpu = std::any_of(
+        m.begin(), m.end(), [](auto ins) { return ins.name() == "hip::copy_from_gpu"; });
+    bool hip_copy_to_gpu =
+        std::any_of(m.begin(), m.end(), [](auto ins) { return ins.name() == "hip::copy_to_gpu"; });
     return hip_copy_to_gpu and hip_copy_from_gpu;
 }
 
 bool is_compiled_ref_module(const migraphx::module& m)
 {
-    for(auto ins : m)
-    {
+    return std::all_of(m.begin(), m.end(), [](auto ins) {
         auto ins_name = ins.name();
-        if(!migraphx::starts_with(ins_name, "@"))
+        if(not migraphx::starts_with(ins_name, "@"))
         {
             if((not migraphx::starts_with(ins_name, "ref::") and
                 not migraphx::starts_with(ins_name, "check_context") and
@@ -163,14 +133,11 @@ bool is_compiled_ref_module(const migraphx::module& m)
                 return false;
             }
         }
-        else
-        {
-            continue;
-        }
-    }
-    return true;
+        return true;
+    });
 }
 
+// NOLINT
 bool check_compiled_program(const migraphx::program& p,
                             std::unordered_map<std::string, migraphx::compile_options> copts)
 {
@@ -182,35 +149,23 @@ bool check_compiled_program(const migraphx::program& p,
         {
             if(ins.name() == "run_on_target")
             {
-                auto mod_input   = ins.module_inputs().front();
+                auto* mod_input  = ins.module_inputs().front();
                 auto target_name = ins.get_operator().attributes()["target"];
                 if(target_name == "gpu")
                 {
                     check_compiled &= is_compiled_gpu_module(*mod_input);
-                    if(contains(copts, "gpu"))
-                    {
-                        if(copts["gpu"].offload_copy)
-                        {
-                            check_compiled &= has_gpu_copies(*mod_input);
-                        }
-                    }
+                    if(contains(copts, "gpu") and copts["gpu"].offload_copy)
+                        check_compiled &= has_gpu_copies(*mod_input);
                 }
                 else if(target_name == "cpu")
-                {
                     check_compiled &= is_compiled_cpu_module(*mod_input);
-                }
                 else if(target_name == "fpga")
-                {
                     check_compiled &= is_compiled_fpga_module(*mod_input);
-                }
                 else if(target_name == "ref")
-                {
                     check_compiled &= is_compiled_ref_module(*mod_input);
-                }
             }
         }
     }
-
     return check_compiled;
 }
 
@@ -424,24 +379,24 @@ TEST_CASE(multitarget_select_module)
     auto* batch4 = create_submodule(4, "batch_4");
 
     migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
-    auto input       = mm->add_parameter("data", s);
-    auto run_cpu_mod = p.create_module("cpu_mod");
-    auto run_cpu_ins = run_cpu_mod->add_instruction(
+    auto input        = mm->add_parameter("data", s);
+    auto* run_cpu_mod = p.create_module("cpu_mod");
+    auto run_cpu_ins  = run_cpu_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target", "cpu"}}), {input}, {batch1});
     run_cpu_mod->add_return({run_cpu_ins});
 
-    auto run_gpu_mod = p.create_module("gpu_mod");
-    auto run_gpu_ins = run_gpu_mod->add_instruction(
+    auto* run_gpu_mod = p.create_module("gpu_mod");
+    auto run_gpu_ins  = run_gpu_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target", "gpu"}}), {input}, {batch2});
     run_gpu_mod->add_return({run_gpu_ins});
 
-    auto run_fpga_mod = p.create_module("fpga_mod");
-    auto run_fpga_ins = run_fpga_mod->add_instruction(
+    auto* run_fpga_mod = p.create_module("fpga_mod");
+    auto run_fpga_ins  = run_fpga_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target", "fpga"}}), {input}, {batch3});
     run_fpga_mod->add_return({run_fpga_ins});
 
-    auto run_ref_mod = p.create_module("ref_mod");
-    auto run_ref_ins = run_ref_mod->add_instruction(
+    auto* run_ref_mod = p.create_module("ref_mod");
+    auto run_ref_ins  = run_ref_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target", "ref"}}), {input}, {batch4});
     run_ref_mod->add_return({run_ref_ins});
 

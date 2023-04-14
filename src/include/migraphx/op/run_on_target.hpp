@@ -29,11 +29,9 @@
 #include <algorithm>
 #include <migraphx/config.hpp>
 #include <migraphx/errors.hpp>
-#include <migraphx/check_shapes.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/check_shapes.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,14 +49,14 @@ struct run_on_target
         return pack(f(self.target, "target"));
     }
 
-    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs,
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs,
                                   std::vector<migraphx::module_ref> mods) const
     {
         if(mods.size() != 1)
         {
             MIGRAPHX_THROW("RUN_ON_TARGET: must have exactly 1 module argument");
         }
-        auto mod_input = mods.front();
+        auto* mod_input = mods.front();
         if(inputs.size() != mod_input->get_parameter_shapes().size())
         {
             MIGRAPHX_THROW("RUN_ON_TARGET: Number of input paramters mismatches");
@@ -89,7 +87,7 @@ struct run_on_target
                        args.begin(),
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
-        auto mod     = mods.front();
+        auto* mod    = mods.front();
         auto results = run(mod, params);
         return migraphx::argument{results};
     }

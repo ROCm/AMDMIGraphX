@@ -135,7 +135,7 @@ module& module::operator=(module m)
 
 std::string module::name() const { return impl->name; }
 
-void module::set_target(std::string target) { impl->target = target; }
+void module::set_target(const std::string& target) { impl->target = target; }
 
 std::string module::get_target() const { return impl->target; }
 

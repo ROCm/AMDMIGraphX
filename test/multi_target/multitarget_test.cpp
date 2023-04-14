@@ -25,6 +25,7 @@
 #include <set>
 #include <unordered_set>
 #include <vector>
+#include <random>
 #include <cmath>
 #include <migraphx/program.hpp>
 #include <migraphx/target.hpp>
@@ -67,10 +68,10 @@ bool is_compiled_gpu_module(const migraphx::module& m)
         auto ins_name = ins.name();
         if(!migraphx::starts_with(ins_name, "@"))
         {
-            if(!migraphx::starts_with(ins_name, "gpu::") and
-               !migraphx::starts_with(ins_name, "hip::") and
-               !migraphx::starts_with(ins_name, "check_context") and
-               !migraphx::contains(nonprefixed_ops(), ins_name) and !has_target_attr(ins))
+            if(not migraphx::starts_with(ins_name, "gpu::") and
+               not migraphx::starts_with(ins_name, "hip::") and
+               not migraphx::starts_with(ins_name, "check_context") and
+               not migraphx::contains(nonprefixed_ops(), ins_name) and !has_target_attr(ins))
             {
                 return false;
             }
@@ -90,9 +91,9 @@ bool is_compiled_fpga_module(const migraphx::module& m)
         auto ins_name = ins.name();
         if(!migraphx::starts_with(ins_name, "@"))
         {
-            if(!migraphx::starts_with(ins_name, "fpga::") and
-               !migraphx::starts_with(ins_name, "check_context") and
-               !migraphx::contains(nonprefixed_ops(), ins_name) and !has_target_attr(ins))
+            if(not migraphx::starts_with(ins_name, "fpga::") and
+               not migraphx::starts_with(ins_name, "check_context") and
+               not migraphx::contains(nonprefixed_ops(), ins_name) and !has_target_attr(ins))
             {
                 return false;
             }
@@ -110,12 +111,12 @@ bool is_compiled_cpu_module(const migraphx::module& m)
     for(auto ins : m)
     {
         auto ins_name = ins.name();
-        if(!migraphx::starts_with(ins_name, "@"))
+        if(not migraphx::starts_with(ins_name, "@"))
         {
-            if(!migraphx::starts_with(ins_name, "cpu::") and
-               !migraphx::starts_with(ins_name, "dnnl::") and
-               !migraphx::starts_with(ins_name, "check_context") and !has_target_attr(ins) and
-               !migraphx::contains(nonprefixed_ops(), ins_name))
+            if(not migraphx::starts_with(ins_name, "cpu::") and
+               not migraphx::starts_with(ins_name, "dnnl::") and
+               not migraphx::starts_with(ins_name, "check_context") and not has_target_attr(ins) and
+               not migraphx::contains(nonprefixed_ops(), ins_name))
             {
                 return false;
             }
@@ -154,9 +155,10 @@ bool is_compiled_ref_module(const migraphx::module& m)
         auto ins_name = ins.name();
         if(!migraphx::starts_with(ins_name, "@"))
         {
-            if((!migraphx::starts_with(ins_name, "ref::") and
-                !migraphx::starts_with(ins_name, "check_context") and !has_target_attr(ins)) and
-               !migraphx::contains(nonprefixed_ops(), ins_name))
+            if((not migraphx::starts_with(ins_name, "ref::") and
+                not migraphx::starts_with(ins_name, "check_context") and
+                not has_target_attr(ins)) and
+               not migraphx::contains(nonprefixed_ops(), ins_name))
             {
                 return false;
             }
@@ -323,6 +325,80 @@ TEST_CASE(multitarget_compile_if_then_else)
     CHECK(check_compiled_program(p, compile_opts));
 }
 
+TEST_CASE(multitarget_compile_nested_if_then_else)
+{
+    float seed = 0.0f;
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    auto get_random_values = [&](size_t elements) {
+        std::vector<float> rand_samples(elements);
+        std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+        return rand_samples;
+    };
+
+    std::unordered_map<std::string, size_t> counter_map = {{"gpu", 0}, {"cpu", 0}};
+    migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    auto cond               = mm->add_parameter("cond", cond_s);
+    auto x                  = mm->add_parameter("x", ds);
+    auto y                  = mm->add_parameter("y", ds);
+    auto z                  = mm->add_parameter("z", ds);
+    auto create_test_module = [&](migraphx::program& prog,
+                                  const std::vector<migraphx::instruction_ref>& inputs,
+                                  std::string target_name) {
+        std::string mod_name    = target_name + "_" + std::to_string(counter_map[target_name]++);
+        auto* test_mod          = prog.create_module(mod_name);
+        std::vector<float> data = get_random_values(ds.elements());
+        auto l1                 = test_mod->add_literal(migraphx::literal(ds, data));
+        auto test_mod_param     = test_mod->add_parameter(mod_name, ds);
+        // instruction with local literal and main_mod param
+        auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), x, l1);
+        // instructinon with local param and local ins
+        auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, test_mod_param);
+        // instruction with local ins and parent ins
+        auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, inputs.front());
+        test_mod->add_return({ins3});
+        auto* run_on_target_mod = prog.create_module("run_on_" + mod_name);
+        run_on_target_mod->add_instruction(
+            migraphx::make_op("run_on_target", {{"target", target_name}}),
+            {inputs.front()},
+            {test_mod});
+        return run_on_target_mod;
+    };
+
+    auto* then_mod      = p.create_module("then_mod");
+    auto then_mod_param = then_mod->add_parameter("then_mod_param", ds);
+    then_mod->add_instruction(
+        migraphx::make_op("if"),
+        {cond},
+        {create_test_module(p, {z}, "cpu"), create_test_module(p, {then_mod_param}, "gpu")});
+    auto* else_mod      = p.create_module("else_mod");
+    auto else_mod_param = else_mod->add_parameter("else_mod_param", ds);
+    else_mod->add_instruction(
+        migraphx::make_op("if"),
+        {cond},
+        {create_test_module(p, {y}, "gpu"), create_test_module(p, {else_mod_param}, "cpu")});
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond, z, y}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+
+    // compile
+    std::unordered_map<std::string, migraphx::compile_options> compile_opts;
+    migraphx::compile_options gpu_opt;
+    gpu_opt.offload_copy = true;
+    compile_opts["gpu"]  = gpu_opt;
+    p.compile(
+        {
+            "gpu",
+            "cpu",
+        },
+        compile_opts);
+    p.debug_print();
+    CHECK(check_compiled_program(p, compile_opts));
+}
+
 TEST_CASE(multitarget_select_module)
 {
     migraphx::program p;
@@ -388,9 +464,5 @@ TEST_CASE(multitarget_select_module)
     p.compile({"gpu", "cpu", "fpga", "ref"}, compile_opts);
     CHECK(check_compiled_program(p, compile_opts));
 }
-
-TEST_CASE(multitarget_compile_nested_modules) {}
-
-TEST_CASE(mulitarget_compile_dead_code_elimination) {}
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

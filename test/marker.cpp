@@ -64,7 +64,6 @@ TEST_CASE(marker)
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
     p.compile(migraphx::make_target("ref"));
-
     mock_marker temp_marker;
     p.mark({}, temp_marker);
 

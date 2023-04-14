@@ -67,10 +67,6 @@ void migraphx_from_value(const value& v, argument& a)
     {
         a = migraphx::from_value<std::vector<argument>>(v.at("sub"));
     }
-    else
-    {
-        a = migraphx::argument(migraphx::from_value<shape>(v.at("shape")));
-    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

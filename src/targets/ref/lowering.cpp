@@ -206,7 +206,7 @@ struct ref_op
     {
         return migraphx::reflect(self.op, f);
     }
-    std::string name() const { return "ref::" + op.name(); }
+    std::string name() const { return "ref::op"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
     {

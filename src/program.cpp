@@ -208,13 +208,13 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
-void program::compile(std::vector<std::string> targets,
+void program::compile(const std::vector<std::string>& targets,
                       std::unordered_map<std::string, compile_options> compile_opt_map)
 {
     // Gather all the target roots
     std::unordered_multimap<std::string, module_ref> roots;
     auto mods = this->get_modules();
-    for(auto mod : mods)
+    for(auto* mod : mods)
     {
         for(const auto& ins : *mod)
         {
@@ -244,7 +244,7 @@ void program::compile(std::vector<std::string> targets,
         this->impl->context_map[t] = root_target.get_context();
         for(auto i = root_modules_range.first; i != root_modules_range.second; i++)
         {
-            auto current_mod = i->second;
+            auto* current_mod = i->second;
             i->second->set_target(t);
             run_passes(*this,
                        current_mod,

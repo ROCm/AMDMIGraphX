@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -115,6 +116,7 @@ struct reshape
                                   StrideIterator stride_start,
                                   StrideIterator stride_last)
     {
+        assert(std::distance(dim_start, dim_last) == std::distance(stride_start, stride_last));
         auto cstride = *std::prev(stride_last);
         return std::equal(std::make_reverse_iterator(dim_last),
                           std::make_reverse_iterator(dim_start + 1),
@@ -126,11 +128,85 @@ struct reshape
                           });
     }
 
+    static optional<shape> reshape_dims(const shape& input, const std::vector<std::size_t>& rdims)
+    {
+        if(input.standard())
+            return shape{input.type(), rdims};
+
+        const auto& idims    = input.lens();
+        const auto& istrides = input.strides();
+
+        std::vector<std::size_t> rstrides;
+        std::size_t i = 0;
+        std::size_t r = 0;
+        while(i < idims.size() and r < rdims.size())
+        {
+            auto idim = idims[i];
+            auto rdim = rdims[r];
+            if(rdim == idim)
+            {
+                rstrides.push_back(istrides[i]);
+            }
+            // squeeze
+            else if(rdim > idim)
+            {
+                auto start = idims.begin() + i;
+                auto it    = compute_end_dim(start, idims.end(), rdim);
+                if(it == start)
+                    return nullopt;
+                auto n = it - start;
+                if((i + n) > istrides.size())
+                    return nullopt;
+                if(not can_strides_merge(
+                       start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
+                    return nullopt;
+                i += n;
+                rstrides.push_back(istrides[i]);
+            }
+            // unsqueeze
+            else // if(rdim < idim)
+            {
+                auto start = rdims.begin() + i;
+                auto it    = compute_end_dim(start, rdims.end(), idim);
+                if(it == start)
+                    return nullopt;
+                auto n = it - start;
+                if((r + n) > rdims.size())
+                    return nullopt;
+                auto stride = istrides[i] * idim;
+                std::for_each(start, it + 1, [&](auto dim) {
+                    stride /= dim;
+                    rstrides.push_back(stride);
+                });
+                r += n;
+            }
+            i++;
+            r++;
+        }
+
+        // Handle trailing 1s
+        if(rstrides.size() < rdims.size() and not rstrides.empty())
+        {
+            auto stride = rstrides.back();
+            for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
+            {
+                if(d != 1)
+                    return nullopt;
+                rstrides.push_back(stride);
+            }
+        }
+
+        if(rdims.size() != rstrides.size())
+            return nullopt;
+
+        return shape{input.type(), rdims, rstrides};
+    }
+
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto&& idims    = inputs.front().lens();
-        auto&& istrides = inputs.front().strides();
+        auto&& idims = inputs.front().lens();
+        // auto&& istrides = inputs.front().strides();
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
 
         for(std::size_t i = 0; i < dims.size(); i++)
@@ -156,86 +232,17 @@ struct reshape
             }
         }
 
-        shape s;
-        if(inputs.front().standard())
-        {
-            s = shape{inputs.front().type(), rdims};
-        }
-        else
-        {
-            std::vector<std::size_t> rstrides;
-            std::size_t i = 0;
-            std::size_t r = 0;
-            while(i < idims.size() and r < rdims.size())
-            {
-                auto idim = idims[i];
-                auto rdim = rdims[r];
-                if(rdim == idim)
-                {
-                    rstrides.push_back(istrides[i]);
-                }
-                // squeeze
-                else if(rdim > idim)
-                {
-                    auto start = idims.begin() + i;
-                    auto it    = compute_end_dim(start, idims.end(), rdim);
-                    if(it == start)
-                        break;
-                    auto n = it - start;
-                    if((i + n) > istrides.size())
-                        break;
-                    if(not can_strides_merge(
-                           start, it + 1, istrides.begin() + i, istrides.begin() + i + n))
-                        break;
-                    i += n;
-                    rstrides.push_back(istrides[i]);
-                }
-                // unsqueeze
-                else if(rdim < idim)
-                {
-                    auto start = rdims.begin() + i;
-                    auto it    = compute_end_dim(start, rdims.end(), idim);
-                    if(it == start)
-                        break;
-                    auto n = it - start;
-                    if((r + n) > rdims.size())
-                        break;
-                    auto stride = istrides[i] * idim;
-                    std::for_each(start, it + 1, [&](auto dim) {
-                        stride /= dim;
-                        rstrides.push_back(stride);
-                    });
-                    r += n;
-                }
-                i++;
-                r++;
-            }
+        auto s = reshape_dims(inputs.front(), rdims);
+        if(not s.has_value())
+            MIGRAPHX_THROW("Reshape on axis that is not packed.");
 
-            // Handle trailing 1s
-            if(rstrides.size() < rdims.size() and not rstrides.empty())
-            {
-                auto stride = rstrides.back();
-                for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
-                {
-                    if(d != 1)
-                        break;
-                    rstrides.push_back(stride);
-                }
-            }
-
-            if(rdims.size() != rstrides.size())
-                MIGRAPHX_THROW("Reshape on axis that is not standard");
-
-            s = shape{inputs.front().type(), rdims, rstrides};
-        }
-
-        assert(s.bytes() == inputs.front().bytes());
-
-        if(s.elements() != inputs.front().elements())
+        if(s->elements() != inputs.front().elements())
             MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s.elements()) + " elements whereas the input has " +
+                           std::to_string(s->elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
-        return s;
+
+        assert(s->bytes() == inputs.front().bytes());
+        return *s;
     }
 
     shape compute_shape(std::vector<shape> inputs) const

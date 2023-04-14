@@ -38,8 +38,8 @@ struct test_mul_dot_b : verify_program<test_mul_dot_b>
         auto b = mm->add_parameter("input", bs);
         auto lit =
             mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 32, 1}}));
-        auto litb =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
+        auto litb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), b, litb);
         auto a   = mm->add_literal(migraphx::generate_literal(as));
         auto dot = mm->add_instruction(migraphx::make_op("dot"), a, mul);

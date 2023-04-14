@@ -276,7 +276,6 @@ TEST_CASE(multitarget_compile_if_then_else)
             "cpu",
         },
         compile_opts);
-    p.debug_print();
     CHECK(check_compiled_program(p, compile_opts));
 }
 
@@ -308,11 +307,11 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
         std::vector<float> data = get_random_values(ds.elements());
         auto l1                 = test_mod->add_literal(migraphx::literal(ds, data));
         auto test_mod_param     = test_mod->add_parameter(mod_name, ds);
-        // instruction with local literal and main_mod param
+        // instruction with local literal and main_mod param as inputs
         auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), x, l1);
-        // instructinon with local param and local ins
+        // instructinon with local param and local ins as inputs
         auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, test_mod_param);
-        // instruction with local ins and parent ins
+        // instruction with local ins and parent ins as inputs
         auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, inputs.front());
         test_mod->add_return({ins3});
         auto* run_on_target_mod = prog.create_module("run_on_" + mod_name);
@@ -323,20 +322,51 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
         return run_on_target_mod;
     };
 
-    auto* then_mod      = p.create_module("then_mod");
-    auto then_mod_param = then_mod->add_parameter("then_mod_param", ds);
+    // create nested module with multiple targets.
+    // then_mod has one instruction that runs a module on "ref" and another instruction that creates
+    // nested modules using "If" that runs on "cpu" and "gpu"
+    auto* ref_mod = p.create_module("ref_mod");
+    auto ref_x    = ref_mod->add_parameter("ref_x", ds);
+    auto ref_y    = ref_mod->add_parameter("ref_y", ds);
+    auto ref_add  = ref_mod->add_instruction(migraphx::make_op("add"), ref_x, ref_y);
+    ref_mod->add_return({ref_add});
+
+    auto* then_mod        = p.create_module("then_mod");
+    auto then_mod_param   = then_mod->add_parameter("then_mod_param", ds);
+    auto then_mod_ref_ins = then_mod->add_instruction(
+        migraphx::make_op("run_on_target", {{"target", "ref"}}), {then_mod_param, y}, {ref_mod});
+    auto then_mod_ref_ins_0 = then_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), then_mod_ref_ins);
     then_mod->add_instruction(
         migraphx::make_op("if"),
         {cond},
-        {create_test_module(p, {z}, "cpu"), create_test_module(p, {then_mod_param}, "gpu")});
-    auto* else_mod      = p.create_module("else_mod");
-    auto else_mod_param = else_mod->add_parameter("else_mod_param", ds);
-    else_mod->add_instruction(
-        migraphx::make_op("if"),
-        {cond},
-        {create_test_module(p, {y}, "gpu"), create_test_module(p, {else_mod_param}, "cpu")});
-    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond, z, y}, {then_mod, else_mod});
-    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        {create_test_module(p, {z}, "cpu"), create_test_module(p, {then_mod_ref_ins_0}, "gpu")});
+
+    // create nested else_mod with multiple targets.
+    // else_mod has one instruction that runs a module on "fpga" and another instruction that
+    // creates nested modules using "If" that runs on "cpu" and "gpu"
+    auto* fpga_mod = p.create_module("fpga_mod");
+    auto fpga_x    = fpga_mod->add_parameter("fpga_x", ds);
+    auto fpga_y    = fpga_mod->add_parameter("fpga_y", ds);
+    auto fpga_add  = fpga_mod->add_instruction(migraphx::make_op("add"), fpga_x, fpga_y);
+    fpga_mod->add_return({fpga_add});
+
+    auto* else_mod         = p.create_module("else_mod");
+    auto else_mod_param    = else_mod->add_parameter("else_mod_param", ds);
+    auto else_mod_fpga_ins = else_mod->add_instruction(
+        migraphx::make_op("run_on_target", {{"target", "fpga"}}), {else_mod_param, y}, {fpga_mod});
+    auto else_mod_fpga_ins_0 = else_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), else_mod_fpga_ins);
+
+    else_mod->add_instruction(migraphx::make_op("if"),
+                              {cond},
+                              {create_test_module(p, {else_mod_fpga_ins_0}, "gpu"),
+                               create_test_module(p, {else_mod_param}, "cpu")});
+
+    // Create nested and multi-target main module using "If"
+    auto main_if_ins =
+        mm->add_instruction(migraphx::make_op("if"), {cond, x}, {then_mod, else_mod});
+    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), main_if_ins);
     mm->add_return({r});
 
     // compile
@@ -344,13 +374,7 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
     compile_opts["gpu"]  = gpu_opt;
-    p.compile(
-        {
-            "gpu",
-            "cpu",
-        },
-        compile_opts);
-    p.debug_print();
+    p.compile({"gpu", "cpu", "ref", "fpga"}, compile_opts);
     CHECK(check_compiled_program(p, compile_opts));
 }
 

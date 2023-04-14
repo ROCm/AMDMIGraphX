@@ -61,8 +61,8 @@ struct run_on_target
         {
             MIGRAPHX_THROW("RUN_ON_TARGET: Number of input paramters mismatches");
         }
-        auto mod_out_shapes = mod_input->get_output_shapes().front();
-        return migraphx::shape{mod_out_shapes};
+        auto mod_out_shapes = mod_input->get_output_shapes();
+        return mod_out_shapes;
     }
 
     migraphx::argument

@@ -2183,11 +2183,7 @@ TEST_CASE(reshape_shape)
     }
 }
 
-<<<<<<< HEAD
-TEST_CASE(reshape_nonstandard_unsqeeze)
-=======
 TEST_CASE(reshape_nonstandard_unsqueeze)
->>>>>>> origin/reshape-nonstandard
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 24, 1, 1, 1}, {1, 4, 1, 1, 1}};
     std::vector<std::size_t> lens = {4, 1, 3, 4, 2};
@@ -2197,8 +2193,6 @@ TEST_CASE(reshape_nonstandard_unsqueeze)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
 }
 
-<<<<<<< HEAD
-=======
 TEST_CASE(reshape_nonstandard_squeeze)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {327680, 16, 1, 256}};
@@ -2216,7 +2210,6 @@ TEST_CASE(reshape_broadcast_squeeze)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
->>>>>>> origin/reshape-nonstandard
 TEST_CASE(reshape_dyn_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};

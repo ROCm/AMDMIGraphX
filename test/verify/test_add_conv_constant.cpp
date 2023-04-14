@@ -21,20 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/memory_coloring.hpp>
-#include "memory_coloring_impl.hpp"
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-void memory_coloring::apply(module& m) const
+struct test_add_conv_constant : verify_program<test_add_conv_constant>
 {
-    if(not enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
+    migraphx::program create_program() const
     {
-        memory_coloring_impl opt(&m, allocation_op, verify);
-        opt.run();
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
+        migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+        auto x   = mm->add_parameter("x", s);
+        auto c   = mm->add_literal(migraphx::generate_literal(s, 1));
+        auto w   = mm->add_literal(migraphx::generate_literal(ws, 2));
+        auto sum = mm->add_instruction(migraphx::make_op("add"), c, x);
+        mm->add_instruction(migraphx::make_op("convolution"), sum, w);
+        return p;
     }
-}
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+};

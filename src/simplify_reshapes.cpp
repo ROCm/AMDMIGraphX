@@ -786,7 +786,7 @@ struct find_transpose_slice
             return;
         // Compute axis before transpose to use for unsqueeze
         auto perm    = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
-        auto preaxis = std::find(perm.begin(), perm.end(), axis) - perm.begin();
+        auto preaxis = perm[axis];
         // Make unsqueeze
         std::vector<int64_t> steps(sdistance.size());
         std::transform(

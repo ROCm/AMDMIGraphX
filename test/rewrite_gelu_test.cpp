@@ -24,7 +24,7 @@
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/instruction.hpp>

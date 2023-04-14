@@ -43,9 +43,11 @@ struct test_select_module_add : verify_program<test_select_module_add>
             auto sm_input = submod->add_parameter("data", sm_shape);
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
-            auto add_ins =
+            auto add_ins0 =
                 submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
-            submod->add_return({add_ins});
+            auto add_ins1 =
+                submod->add_instruction(migraphx::make_op("add"), add_ins0, broadcast_lit);
+            submod->add_return({add_ins0, add_ins1});
             return submod;
         };
         auto* batch1 = create_submodule(1, "batch_1");
@@ -57,14 +59,18 @@ struct test_select_module_add : verify_program<test_select_module_add>
         auto input                              = mm->add_parameter("data", s);
         std::vector<migraphx::shape> sub_shapes = {};
         sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
+        sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm->add_instruction(
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input},
             {batch1, batch2, batch3, batch4});
-        auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
-        mm->add_return({ret});
+        auto ret0 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+        auto ret1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), sm_ins);
+        mm->add_return({ret0, ret1});
 
         return p;
     }

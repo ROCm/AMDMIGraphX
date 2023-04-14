@@ -32,7 +32,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/ref/target.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>

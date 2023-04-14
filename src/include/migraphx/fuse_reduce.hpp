@@ -21,18 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_REDUCE_HPP
 
-#ifndef MIGRAPHX_GUARD_PASS_CONFIG_HPP
-#define MIGRAPHX_GUARD_PASS_CONFIG_HPP
-
-#include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MEMORY_COLORING)
+struct module_pass_manager;
+
+struct fuse_reduce
+{
+    std::string name() const { return "fuse_reduce"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_PASS_CONFIG_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

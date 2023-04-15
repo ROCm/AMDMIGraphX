@@ -40,7 +40,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  *
  * See normalize_attribute.hpp for explaining the options.
  */
-template<class Message>
+template <class Message>
 auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<int64_t>& axes,
                     const value& val,
@@ -195,10 +195,8 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
         const auto& key = rv.get_key();
         if(val.contains(key))
         {
-            auto message = [&] {
-                return op.name() + ": " + key + ": ";
-            };
-            auto vv = val.at(key).without_key();
+            auto message = [&] { return op.name() + ": " + key + ": "; };
+            auto vv      = val.at(key).without_key();
             if(vv.is_array())
             {
                 std::vector<int64_t> axes;

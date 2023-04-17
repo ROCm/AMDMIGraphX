@@ -182,10 +182,9 @@ std::string cpp_generator::generate_point_op(const operation& op,
             // For an optional argument where i >= args.size(), treat
             // the optional argument as a straight zero. This will
             // cacel out the optional bias, if it exists.
-            if(i < args.size())
-                return args.at(i);
-            else
-                return "0";
+            if(i >= args.size())
+                MIGRAPHX_THROW("Invalid argument index: " + key);
+            return args.at(i);
         }
         else if(v.contains(key))
         {

@@ -404,7 +404,7 @@ struct find_dot_broadcast
             return;
         if(ins->get_shape().lens().size() < 3)
             return;
-        auto nbatch_axes = ins->get_shape().lens().size() - 2;
+        auto nbatch_axes      = ins->get_shape().lens().size() - 2;
         const auto& a_strides = a->get_shape().strides();
         const auto& b_strides = b->get_shape().strides();
         // Find leading batch axes that are broadcasted
@@ -420,18 +420,20 @@ struct find_dot_broadcast
         std::iota(axes.begin(), axes.end(), 0);
 
         auto insert_squeeze = [&](instruction_ref b_ins) -> instruction_ref {
-            auto input        = b_ins->inputs()[0];
-            std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes, b_ins->get_shape().lens().end());
-            if (b_ins->name() == "multibroadcast")
+            auto input = b_ins->inputs()[0];
+            std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
+                                          b_ins->get_shape().lens().end());
+            if(b_ins->name() == "multibroadcast")
             {
-                return m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), input);
+                return m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", lens}}), input);
             }
-            else if (b_ins->name() == "broadcast")
+            else if(b_ins->name() == "broadcast")
             {
-                auto v = b_ins->get_operator().to_value();
+                auto v    = b_ins->get_operator().to_value();
                 auto axis = v.at("axis").to<std::size_t>() - naxes;
-                return m.insert_instruction(ins, make_op("broadcast", {{"axis", axis}, {"out_lens", lens}}), input);
-
+                return m.insert_instruction(
+                    ins, make_op("broadcast", {{"axis", axis}, {"out_lens", lens}}), input);
             }
             assert(false);
             return m.end();

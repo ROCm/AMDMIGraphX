@@ -223,7 +223,7 @@ struct shape
     std::size_t index(std::size_t i) const;
 
     /// Map element index to multi-dimensional index
-    std::vector<std::size_t> multi(std::size_t i) const;
+    std::vector<std::size_t> multi(std::size_t idx) const;
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with no
     /// padding

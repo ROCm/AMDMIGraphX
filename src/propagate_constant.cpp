@@ -85,6 +85,21 @@ void propagate_constant::apply(module& m) const
     {
         if(not literals[i].empty())
         {
+            std::cout << "Const replace: " << std::endl;
+            std::vector<instruction_ref> inss;
+            fix([&](auto self, auto ins) {
+                if (contains(inss, ins))
+                    return;
+                for(auto input:ins->inputs())
+                    self(input);
+                inss.push_back(ins);
+            })(const_instrs_vec[i]);
+            // for(auto input:const_instrs_vec[i]->inputs()) {
+            //     inss.insert(inss.end(), input->inputs().begin(), input->inputs().end());
+            //     inss.push_back(input);
+            // }
+            // inss.push_back(const_instrs_vec[i]);
+            m.debug_print(inss);
             assert(literals[i].get_shape() == const_instrs_vec[i]->get_shape());
             auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
             m.replace_instruction(const_instrs_vec[i], l);

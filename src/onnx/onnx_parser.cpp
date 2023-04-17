@@ -270,8 +270,10 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
+        // std::cout << "initializer: " << f.name() << std::endl;
         // backup instructions in parent mod
         mod_insts[f.name()] = mod->add_literal(parse_tensor(f));
+        // mod->debug_print(mod_insts[f.name()]);
     }
 
     for(auto&& input : graph.input())
@@ -329,6 +331,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
             args.push_back(instructions.at(input));
         }
 
+        std::cout << "operator: " << node.op_type() << std::endl;
+
         std::vector<instruction_ref> result;
         std::size_t output_num = static_cast<std::size_t>(node.output().size());
         if(ops.count(node.op_type()) == 0)
@@ -351,6 +355,18 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
+        std::vector<instruction_ref> added_instructions;
+        fix([&](auto self, auto r) {
+            for(auto ins:r)
+            {
+                if(contains(args, ins))
+                    continue;
+                self(ins->inputs());
+                added_instructions.push_back(ins);
+            }
+        })(result);
+        mod->debug_print(added_instructions);
+
     }
 
     // Find instructions corresponding to the output

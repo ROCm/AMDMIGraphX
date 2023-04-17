@@ -29,6 +29,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
@@ -171,7 +172,8 @@ std::string make_transformer_args(std::vector<std::string> transformers)
 void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
 {
     module m = pm;
-    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    run_passes(m,
+               {rewrite_quantization{}, eliminate_common_subexpression{}, dead_code_elimination{}});
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");

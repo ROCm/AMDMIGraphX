@@ -39,8 +39,12 @@ struct quantizelinear
 {
     std::string name() const { return "quantizelinear"; }
 
-    value attributes() const { return {{"pointwise", true}, {"point_op", 
-        "${function:max}(${function:min}(${function:round}(${function:convert}<float>(${0}) / ${1}) + ${function:convert}<float>(${2}), 127.0), -128.0)"}}; }
+    value attributes() const {
+        // Note: point_op attribute is not used in this op. Instead, in
+        // gpu compilation pipeline, rewrite_quantization will be invoked
+        // from generate_pointwise() to rewrite this op.
+        return {{"pointwise", true}, {"point_op", ""}};
+    }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

@@ -38,6 +38,9 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -52,10 +55,6 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
     }
     return {shape_type, dyn_dims};
 }
-
-namespace onnx {
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
 {
@@ -382,6 +381,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                 for(auto ins : r)
                 {
                     if(contains(args, ins))
+                        continue;
+                    if(contains(added_instructions, ins))
                         continue;
                     self(ins->inputs());
                     added_instructions.push_back(ins);

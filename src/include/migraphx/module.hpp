@@ -54,10 +54,6 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
  */
 struct module
 {
-    // used by replace_allocate pass
-    // allocate memory in this module rather than using output parmaeters
-    bool use_local_alloc = false;
-
     module(const std::string& name = "");
 
     // move constructor
@@ -181,6 +177,8 @@ struct module
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     bool has_instruction(instruction_ref ins) const;
+
+    std::vector<instruction_ref> get_returns() const;
 
     std::size_t size() const;
     instruction_ref begin() const;

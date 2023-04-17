@@ -21,20 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/serialize.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/ref/context.hpp>
-#include <migraphx/functional.hpp>
-#include <test.hpp>
 
-TEST_CASE(context)
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
+struct test_add_conv_constant : verify_program<test_add_conv_constant>
 {
-    migraphx::context ctx = migraphx::ref::context{};
-    migraphx::value v     = ctx.to_value();
-    EXPECT(v.empty());
-
-    migraphx::context cpu_ctx = migraphx::ref::context{};
-    cpu_ctx.from_value(v);
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
+        migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+        auto x   = mm->add_parameter("x", s);
+        auto c   = mm->add_literal(migraphx::generate_literal(s, 1));
+        auto w   = mm->add_literal(migraphx::generate_literal(ws, 2));
+        auto sum = mm->add_instruction(migraphx::make_op("add"), c, x);
+        mm->add_instruction(migraphx::make_op("convolution"), sum, w);
+        return p;
+    }
+};

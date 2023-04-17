@@ -106,6 +106,13 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
     return *this;
 }
 
+cpp_generator::function& cpp_generator::function::add_generic_param(const std::string& pname)
+{
+    params.push_back({pname, "T" + pname});
+    tparams.push_back("class T" + pname);
+    return *this;
+}
+
 struct cpp_generator_impl
 {
     std::stringstream fs{};
@@ -182,7 +189,8 @@ std::string cpp_generator::generate_point_op(const operation& op,
 
 std::string cpp_generator::str() const { return impl->fs.str(); }
 
-cpp_generator::function cpp_generator::generate_module(const module& m)
+cpp_generator::function cpp_generator::generate_module(const module& m,
+                                                       const generate_module_callback& g)
 {
     function f;
     auto name = transform_string(m.name(), [](char c) {
@@ -195,19 +203,31 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
             if(ins->name() == "@literal")
                 return shape::cpp_type(ins->get_shape().type()) + "(" +
                        ins->get_literal().to_string() + ")";
-            std::vector<std::string> args;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(args),
-                           [&](auto i) { return names.at(i); });
-
-            auto s = this->generate_point_op(ins->get_operator(), args);
+            auto s = g(ins, names);
             if(impl->fresult)
                 return impl->fresult(ins->get_shape()) + '(' + s + ')';
             else
                 return s;
         });
     return f;
+}
+
+std::vector<std::string>
+cpp_generator::to_args(const std::vector<instruction_ref>& inputs,
+                       const std::unordered_map<instruction_ref, std::string>& names)
+{
+    std::vector<std::string> args;
+    std::transform(inputs.begin(), inputs.end(), std::back_inserter(args), [&](auto i) {
+        return names.at(i);
+    });
+    return args;
+}
+
+cpp_generator::function cpp_generator::generate_module(const module& m)
+{
+    return this->generate_module(m, [&](auto ins, const auto& names) {
+        return this->generate_point_op(ins->get_operator(), to_args(ins->inputs(), names));
+    });
 }
 
 std::string cpp_generator::create_function(const cpp_generator::function& f)

@@ -110,7 +110,7 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
-RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@78b706fe9879587ab98b6614ae539265374a3fae -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
+RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@55c6ee66cc7502db7950693b3e845676cbf400b1 -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

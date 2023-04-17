@@ -271,11 +271,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
-        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             std::cout << "initializer: " << f.name() << std::endl;
         // backup instructions in parent mod
         mod_insts[f.name()] = mod->add_literal(parse_tensor(f));
-        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             mod->debug_print(mod_insts[f.name()]);
     }
 
@@ -319,7 +319,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
     for(auto&& node : graph.node())
     {
-        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             std::cout << "operator: " << node.op_type() << std::endl;
 
         std::vector<instruction_ref> args;
@@ -359,8 +359,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-        
-        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
         {
             std::vector<instruction_ref> added_instructions;
             fix([&](auto self, auto r) {

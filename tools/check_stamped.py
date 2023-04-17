@@ -37,7 +37,7 @@ unsupported_file_types = [
     ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
 ]
 
-specificIgnores = ("conf.py", "../docs/.sphinx/requirements.txt", "digits.txt", "Dockerfile", "Jenkinsfile", "")
+specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
 
 
 def hasKeySequence(inputfile, key_message):

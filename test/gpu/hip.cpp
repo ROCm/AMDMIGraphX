@@ -66,6 +66,4 @@ TEST_CASE(tuple_to_gpu)
     EXPECT(result2 == p2_data);
 }
 
-TEST_CASE(hip_copy_from_gpu) {}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

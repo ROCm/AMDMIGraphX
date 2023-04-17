@@ -79,6 +79,8 @@ struct rocblas_gemm
     {
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
+        // When input shapes are A, B, C the GEMM equation is  C  =  α AB+ β C   where α, β are
+        // scalars
         check_shapes{in_shapes, *this}.has(2, 3);
         blas_shape(inputs[0]);
         blas_shape(inputs[1]);

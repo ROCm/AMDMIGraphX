@@ -220,7 +220,6 @@ struct gemm_impl
         d_stride     = is_3inputs ? get_batch_stride(input_shapes[3]) : c_stride;
         num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-
         if(num_matrices == 1 or (num_matrices > 1 and b_stride == 0))
         {
             // If the batch dimension of B is broadcasted, then we can
@@ -291,7 +290,7 @@ struct gemm_impl
             auto common_args = create_gemm_ex_args_common(ctx, input_args);
             check_valid      = rocblas_invoke(&rocblas_gemm_ex,
                                          common_args,
-                                         rocblas_gemm_algo_standard,
+                                         rocblas_gemm_algo_solution_index,
                                          solution_idx,
                                          rocblas_gemm_flags_check_solution_index);
         }

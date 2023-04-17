@@ -372,11 +372,6 @@ struct find_inner_broadcast
                        broadcasts.end(),
                        std::back_inserter(inputs),
                        [](auto i) { return i->inputs().front(); });
-        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
-               return i->get_shape() != inputs.front()->get_shape() and
-                      i->get_shape().elements() != 1;
-           }))
-            return;
 
         auto b_it = std::find_if(broadcasts.begin(), broadcasts.end(), [&](auto i) {
             return not i->get_shape().scalar();

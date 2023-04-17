@@ -38,8 +38,9 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
 namespace onnx {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
 {
@@ -270,8 +271,12 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
+        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+            std::cout << "initializer: " << f.name() << std::endl;
         // backup instructions in parent mod
         mod_insts[f.name()] = mod->add_literal(parse_tensor(f));
+        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+            mod->debug_print(mod_insts[f.name()]);
     }
 
     for(auto&& input : graph.input())
@@ -314,6 +319,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
     for(auto&& node : graph.node())
     {
+        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+            std::cout << "operator: " << node.op_type() << std::endl;
+
         std::vector<instruction_ref> args;
         for(auto&& input : node.input())
         {
@@ -351,6 +359,21 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
+        
+        if (enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        {
+            std::vector<instruction_ref> added_instructions;
+            fix([&](auto self, auto r) {
+                for(auto ins : r)
+                {
+                    if(contains(args, ins))
+                        continue;
+                    self(ins->inputs());
+                    added_instructions.push_back(ins);
+                }
+            })(result);
+            mod->debug_print(added_instructions);
+        }
     }
 
     // Find instructions corresponding to the output

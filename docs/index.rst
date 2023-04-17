@@ -6,16 +6,6 @@
 Welcome to AMD MIGraphX's documentation!
 ========================================
 
-.. toctree::
-   :maxdepth: 3
-   :caption: Contents:
-
-   py_user_guide
-   cpp_user_guide
-   driver
-   contributor_guide
-
-
 Indices and tables
 ==================
 

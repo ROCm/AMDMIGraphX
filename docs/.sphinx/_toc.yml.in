@@ -6,5 +6,5 @@ subtrees:
     entries:
     - file: python_user_guide
     - file: cpp_user_guide
-    - file: migraphx_driver
+    - file: driver
     - file: contributor_guide

@@ -43,7 +43,8 @@ struct multi_index
     {
         assert(n < max_size);
         std::copy(s.lens().begin(), s.lens().end(), dims);
-        s.multi_copy(i, index, index + max_size);
+        const std::vector<size_t> m_idx = s.multi(i);
+        std::copy(m_idx.begin(), m_idx.end(), index);
     }
 
     constexpr std::size_t size() const { return n; }

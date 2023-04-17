@@ -516,12 +516,72 @@ struct find_inner_broadcast
     }
 };
 
+struct find_dot_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("dot")(match::all_of[match::inputs()](match::broadcast()));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto a   = ins->inputs()[0];
+        auto b   = ins->inputs()[1];
+        if(a->get_operator().name() != b->get_operator().name())
+            return;
+        if(ins->get_shape().lens().size() < 3)
+            return;
+        auto nbatch_axes      = ins->get_shape().lens().size() - 2;
+        const auto& a_strides = a->get_shape().strides();
+        const auto& b_strides = b->get_shape().strides();
+        // Find leading batch axes that are broadcasted
+        auto p =
+            std::mismatch(a_strides.begin(),
+                          a_strides.begin() + nbatch_axes,
+                          b_strides.begin(),
+                          b_strides.begin() + nbatch_axes,
+                          [](auto astride, auto bstride) { return astride == 0 and bstride == 0; });
+        auto naxes = p.first - a_strides.begin();
+        assert(naxes <= nbatch_axes);
+        std::vector<std::size_t> axes(naxes);
+        std::iota(axes.begin(), axes.end(), 0);
+
+        auto insert_squeeze = [&](instruction_ref b_ins) -> instruction_ref {
+            auto input = b_ins->inputs()[0];
+            std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
+                                          b_ins->get_shape().lens().end());
+            if(b_ins->name() == "multibroadcast")
+            {
+                return m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", lens}}), input);
+            }
+            else if(b_ins->name() == "broadcast")
+            {
+                auto v    = b_ins->get_operator().to_value();
+                auto axis = v.at("axis").to<std::size_t>() - naxes;
+                return m.insert_instruction(
+                    ins, make_op("broadcast", {{"axis", axis}, {"out_lens", lens}}), input);
+            }
+            assert(false);
+            return m.end();
+        };
+        auto a1        = insert_squeeze(a);
+        auto b1        = insert_squeeze(b);
+        auto dot       = m.insert_instruction(ins, make_op("dot"), a1, b1);
+        auto broadcast = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), dot);
+        m.replace_instruction(ins, broadcast);
+    }
+};
+
 struct find_concat_op
 {
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(), match::name("broadcast")), match::used_once()));
+            match::any_of(match::pointwise(), match::name("broadcast", "multibroadcast")),
+            match::used_once()));
     }
 
     template <class Iterator>
@@ -540,7 +600,8 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return op.name() == "broadcast" or op.attributes().contains("pointwise");
+        return contains({"broadcast", "multibroadcast"}, op.name()) or
+               op.attributes().contains("pointwise");
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -567,6 +628,16 @@ struct find_concat_op
                 b.broadcast_lens = get_output_lens(start, last, iaxis);
                 op               = b;
                 iaxis            = 0;
+            }
+            else if(op.name() == "multibroadcast")
+            {
+                shape bshape = (*start)->get_shape();
+                auto input   = (*start)->inputs()[0];
+                if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
+                    return {start, last};
+                op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
+                auto delta = bshape.lens().size() - input->get_shape().lens().size();
+                iaxis -= delta;
             }
 
             std::vector<instruction_ref> concats;
@@ -1388,6 +1459,7 @@ void simplify_algebra::apply(module& m) const
     {
         match::find_matches(m,
                             find_inner_broadcast{},
+                            find_dot_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_add_convs{},

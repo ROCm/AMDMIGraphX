@@ -414,7 +414,7 @@ struct find_dot_broadcast
         std::vector<std::size_t> axes(naxes);
         std::iota(axes.begin(), axes.end(), 0);
 
-        auto insert_squeeze = [&](instruction_ref b_ins) -> instruction_ref {
+        auto insert_broadcast = [&](instruction_ref b_ins) -> instruction_ref {
             auto input = b_ins->inputs()[0];
             std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
                                           b_ins->get_shape().lens().end());
@@ -433,8 +433,8 @@ struct find_dot_broadcast
             assert(false);
             return m.end();
         };
-        auto a1        = insert_squeeze(a);
-        auto b1        = insert_squeeze(b);
+        auto a1        = insert_broadcast(a);
+        auto b1        = insert_broadcast(b);
         auto dot       = m.insert_instruction(ins, make_op("dot"), a1, b1);
         auto broadcast = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), dot);

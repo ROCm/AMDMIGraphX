@@ -56,7 +56,7 @@ build MIGraphX. The specific steps are as follows:
 1) Install rocm-cmake, pip3, rocblas, and miopen-hip with the command
 
 ```
-sudo apt update && sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
+sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
 ```
 
 2) Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) (sudo may be required here.)
@@ -68,13 +68,10 @@ pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 3) Build MIGraphX source code
 
 ```
-rbuild build -d depend -B build --cxx=/opt/rocm/llvm/bin/clang++
+rbuild build -d depend -B build
 ```
 
 then all the prerequisites are in the folder `depend`, and MIGraphX is built in the `build` directory.
-
-Note that for ROCm3.7 and later releases, Ubuntu 18.04 or later releases are needed. 
-Upgrade to Ubuntu 18.04 is available at [Upgrade Ubuntu to 18.04](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/wiki/Upgrade-to-Ubuntu-18.04-for-ROCM3.7-or-later-releases)
 
 Also note that you may meet the error of `rbuild: command not found`. It is because rbuild is installed 
 at `$HOME/.local/bin`, which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` 
@@ -89,7 +86,7 @@ If using this approach, we need to install the prerequisites, configure the cmak
 For convenience, the prerequisites can be built automatically with rbuild as:
 
 ```
-rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++
+rbuild prepare -d depend
 ```
 
 then all the prerequisites are in the folder `depend`, and they can be used in the `cmake` configuration
@@ -174,7 +171,6 @@ To install:
 dpkg -i <path_to_deb_file>
 ```
 
-
 ### Calling MIGraphX APIs
 To use MIGraphX's C/C++ API in your cmake project, we need to set `CMAKE_PREFIX_PATH` to the MIGraphX
 installation location and then do 
@@ -184,8 +180,24 @@ target_link_libraries(myApp migraphx::c)
 ```
 Where `myApp` is the cmake target in your project.
 
+## Building for development
 
-### Building the documentation
+Using rbuild, the dependencies for development can be installed with:
+
+```
+rbuild develop
+```
+
+This will install the dependencies for development into the `deps` directory and
+configure `cmake` to use those dependencies in the `build` directory. These
+directories can be changed by passing the `--deps-dir` and `--build-dir` flags
+to `rbuild` command:
+
+```
+rbuild develop --build-dir build_rocm_55 --deps-dir /home/user/deps_dir
+```
+
+## Building the documentation
 
 HTML and PDF documentation can be built using:
 

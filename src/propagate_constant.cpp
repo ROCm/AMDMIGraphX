@@ -88,9 +88,9 @@ void propagate_constant::apply(module& m) const
             std::cout << "Const replace: " << std::endl;
             std::vector<instruction_ref> inss;
             fix([&](auto self, auto ins) {
-                if (contains(inss, ins))
+                if(contains(inss, ins))
                     return;
-                for(auto input:ins->inputs())
+                for(auto input : ins->inputs())
                     self(input);
                 inss.push_back(ins);
             })(const_instrs_vec[i]);

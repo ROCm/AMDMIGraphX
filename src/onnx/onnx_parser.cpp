@@ -357,7 +357,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
         std::vector<instruction_ref> added_instructions;
         fix([&](auto self, auto r) {
-            for(auto ins:r)
+            for(auto ins : r)
             {
                 if(contains(args, ins))
                     continue;
@@ -366,7 +366,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
             }
         })(result);
         mod->debug_print(added_instructions);
-
     }
 
     // Find instructions corresponding to the output

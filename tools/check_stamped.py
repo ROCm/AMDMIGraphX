@@ -37,7 +37,7 @@ unsupported_file_types = [
     ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
 ]
 
-specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
+specificIgnores = ("conf.py", "requirements.txt", "digits.txt", "Dockerfile", "Jenkinsfile", "")
 
 
 def hasKeySequence(inputfile, key_message):

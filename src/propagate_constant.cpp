@@ -88,7 +88,7 @@ void propagate_constant::apply(module& m) const
     {
         if(not literals[i].empty())
         {
-            if (enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
+            if(enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
             {
                 std::cout << "Constant replace: " << std::endl;
                 std::vector<instruction_ref> inss;

@@ -29,6 +29,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -112,7 +113,7 @@ struct hip_copy_to_gpu
     std::string name() const { return "hip::copy_to_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2).same_type();
+        check_shapes{inputs, *this, true}.has(1, 2).same_type();
         return inputs.at(0);
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
@@ -138,15 +139,15 @@ struct hip_copy_from_gpu
     std::string name() const { return "hip::copy_from_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2).same_type();
+        check_shapes{inputs, *this, true}.has(1, 2).same_type();
         return inputs.at(0);
     }
     argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    compute(context& ctx, const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
         if(args.size() == 1)
         {
-            argument result = allocate_gpu(output_shape, true);
+            argument result = allocate_gpu(dyn_out.computed_shape, true);
             gpu_copy(ctx, args[0], result);
             return result;
         }
@@ -166,7 +167,7 @@ struct hip_copy
     std::string name() const { return "hip::copy"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type();
+        check_shapes{inputs, *this, true}.has(2).same_type();
         return inputs.at(1);
     }
     argument compute(context& ctx, const shape&, std::vector<argument> args) const

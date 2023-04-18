@@ -33,7 +33,7 @@ jobs:
     - name: Docker layer cache
       uses: jpribyl/action-docker-layer-caching@v0.1.1
       with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker')}}
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
         restore-keys:
           docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
@@ -99,7 +99,7 @@ jobs:
     - name: Docker layer cache
       uses: jpribyl/action-docker-layer-caching@v0.1.1
       with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker')}}
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
         restore-keys:
           docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
@@ -161,7 +161,7 @@ jobs:
     - name: Docker layer cache
       uses: jpribyl/action-docker-layer-caching@v0.1.1
       with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker')}}
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
         restore-keys:
           docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.

@@ -1822,6 +1822,33 @@ TEST_CASE(pad_dyn_shape1)
     expect_shape(output, migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), input);
 }
 
+TEST_CASE(pointwise_no_module)
+{
+    migraphx::shape input{migraphx::shape::float_type, {0}, {0}};
+    throws_shape(migraphx::make_op("pointwise"), input);
+}
+
+TEST_CASE(pointwise_no_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module m;
+    std::vector<migraphx::instruction_ref> args{};
+    auto output = migraphx::shape(migraphx::shape::float_type, {1}, {0});
+    auto l      = m.add_literal(migraphx::literal(output, {1}));
+    m.add_return({l});
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
+}
+
+TEST_CASE(pointwise_no_output)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module m;
+    std::vector<migraphx::instruction_ref> args{};
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
+}
+
 TEST_CASE(pooling_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
@@ -2012,6 +2039,62 @@ TEST_CASE(quant_dot_2args)
         migraphx::shape s_m2{migraphx::shape::int8_type, {8, 8}};
         throws_shape(migraphx::make_op("quant_dot"), s_m1, s_m2);
     }
+}
+
+TEST_CASE(qlinear)
+{
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::uint8_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(qlinear_zeros)
+{
+    migraphx::shape zeros{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("quantizelinear"), input, scales, zeros);
+}
+
+TEST_CASE(qlinear_fp16)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::uint8_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(qlinear_mismatch_type)
+{
+    migraphx::shape scales{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::float_type, {2, 4}};
+    throws_shape(migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(dqlinear)
+{
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::float_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("dequantizelinear"), input, scales);
+}
+
+TEST_CASE(dqlinear_fp16)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::int8_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::half_type, {2, 4}};
+    expect_shape(result, migraphx::make_op("dequantizelinear"), input, scales);
+}
+
+TEST_CASE(dqlinear_mismatch_type)
+{
+    migraphx::shape zeros{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape scales{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::int8_type, {2, 4}};
+    throws_shape(migraphx::make_op("dequantizelinear"), input, scales, zeros);
 }
 
 template <class T>

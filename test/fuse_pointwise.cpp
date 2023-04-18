@@ -329,4 +329,36 @@ TEST_CASE(all_scalar_input)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(no_input)
+{
+    migraphx::program p;
+    {
+        auto* mm = p.get_main_module();
+        migraphx::shape g_shape{migraphx::shape::int64_type, {1}, {0}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {3}};
+        std::vector<int> indices{3, 800, 800};
+        auto a0  = mm->add_literal(migraphx::literal{s_indices, indices});
+        auto a1  = mm->add_literal(migraphx::literal{g_shape, {1}});
+        int axis = 0;
+        auto out = mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
+        mm->add_return({out});
+    }
+    run_pass(p);
+
+    // This should NOT create a pointwise module if there are no inputs here.
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        migraphx::shape g_shape{migraphx::shape::int64_type, {1}, {0}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {3}};
+        std::vector<int> indices{3, 800, 800};
+        auto a0  = mm->add_literal(migraphx::literal{s_indices, indices});
+        auto a1  = mm->add_literal(migraphx::literal{g_shape, {1}});
+        int axis = 0;
+        auto out = mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
+        mm->add_return({out});
+    }
+    EXPECT(p == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

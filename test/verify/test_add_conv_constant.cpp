@@ -27,24 +27,19 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_quantizelinear_int32 : verify_program<test_quantizelinear_int32>
+struct test_add_conv_constant : verify_program<test_add_conv_constant>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-
-        migraphx::shape sx{migraphx::shape::int32_type, {2, 2, 2}};
-        migraphx::shape ss{migraphx::shape::float_type, {2, 2, 2}};
-        migraphx::shape sz{migraphx::shape::int8_type, {2, 2, 2}};
-        auto input1       = mm->add_parameter("x", sx);
-        auto input2       = mm->add_parameter("y_scale", ss);
-        auto input3       = mm->add_parameter("y_zero_point", sz);
-        auto input1_float = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), input1);
-        auto r =
-            mm->add_instruction(migraphx::make_op("quantizelinear"), input1_float, input2, input3);
-        mm->add_return({r});
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 32, 32}};
+        migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+        auto x   = mm->add_parameter("x", s);
+        auto c   = mm->add_literal(migraphx::generate_literal(s, 1));
+        auto w   = mm->add_literal(migraphx::generate_literal(ws, 2));
+        auto sum = mm->add_instruction(migraphx::make_op("add"), c, x);
+        mm->add_instruction(migraphx::make_op("convolution"), sum, w);
         return p;
-    };
+    }
 };

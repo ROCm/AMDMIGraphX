@@ -941,6 +941,9 @@ TEST_CASE(test_multi_index)
     EXPECT(migraphx::verify_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
     EXPECT(migraphx::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
     EXPECT(test::throws([&] { s.multi(48); }));
+    // dyn shape test
+    migraphx::shape dyn_s{migraphx::shape::float_type, {{2, 3}, {4, 5}, {6, 7}}};
+    EXPECT(test::throws([&] { dyn_s.multi(48); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

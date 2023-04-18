@@ -373,6 +373,7 @@ void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* e
 {
     size_t tidx = idx;
     (void)end;
+    assert(idx < elements());
     assert(lens().size() <= (end - start));
     for(size_t ii = lens().size() - 1; ii > 0; ii--)
     {

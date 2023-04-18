@@ -238,6 +238,8 @@ std::string cpp_generator::create_function(const cpp_generator::function& f)
     std::string name = f.name.empty() ? "f" + std::to_string(impl->function_count) : f.name;
     impl->fs << join_strings(f.attributes, " ") << " " << f.return_type << " " << name;
     char delim = '(';
+    if(f.params.empty())
+        impl->fs << delim;
     for(auto&& p : f.params)
     {
         impl->fs << delim << p.type << " " << p.name;

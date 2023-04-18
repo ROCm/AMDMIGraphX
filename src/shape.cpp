@@ -363,21 +363,23 @@ std::size_t shape::index(std::size_t i) const
 
 std::vector<std::size_t> shape::multi(std::size_t idx) const
 {
-    if(idx >= elements())
-    {
-        MIGRAPHX_THROW("Can not convert element-index: " + std::to_string(idx) +
-                       " to multi-dimensional index for shape with num elements: " +
-                       std::to_string(elements()));
-    }
+    assert(idx < elements());
     std::vector<std::size_t> indices(lens().size());
-    size_t tidx = idx;
-    for(size_t ii = indices.size() - 1; ii > 0; ii--)
-    {
-        indices[ii] = tidx % lens()[ii];
-        tidx        = tidx / lens()[ii];
-    }
-    indices[0] = tidx;
+    multi_copy(idx, indices.data(), indices.data() + lens().size());
     return indices;
+}
+
+void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const
+{
+    size_t tidx = idx;
+    (void)end;
+    assert(lens().size() <= (end - start));
+    for(size_t ii = lens().size() - 1; ii > 0; ii--)
+    {
+        *(start + ii) = tidx % lens()[ii];
+        tidx          = tidx / lens()[ii];
+    }
+    *start = tidx;
 }
 
 bool shape::packed() const

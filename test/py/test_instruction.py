@@ -27,7 +27,7 @@ import migraphx
 def test_instruction_shape():
     p = migraphx.program()
     mm = p.get_main_module()
-    input_shape = migraphx.shape(lens=[4,4,64], type="half_type")
+    input_shape = migraphx.shape(lens=[4, 4, 64], type="half_type")
     i = mm.add_parameter("x", input_shape)
     i2 = mm.add_instruction(migraphx.op("reshape", dims=[16, 64]), [i])
     out_shape = i2.shape()
@@ -48,5 +48,6 @@ def test_instruction_op():
     assert out_op.name() == "relu"
 
 
-test_instruction_shape()
-test_instruction_op()
+if __name__ == "__main__":
+    test_instruction_shape()
+    test_instruction_op()

@@ -571,6 +571,9 @@ using require_interface =
 // NOLINTNEXTLINE
 #define MIGRAPHX_CONST_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, const)
 
+/**
+ * Container to hold optimal dynamic dimension values.
+ */
 struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(optimals)
@@ -590,7 +593,7 @@ struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
 };
 
 /**
- * @brief Dynamic dimension object
+ * @brief Dynamic dimension object.
  * @details minimum, maximum, and optimal dimensions
  */
 struct dynamic_dimension : MIGRAPHX_HANDLE_BASE(dynamic_dimension)
@@ -628,6 +631,9 @@ struct dynamic_dimension : MIGRAPHX_HANDLE_BASE(dynamic_dimension)
     }
 };
 
+/**
+ * Container to hold dynamic_dimension objects.
+ */
 struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)

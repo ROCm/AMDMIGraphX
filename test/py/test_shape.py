@@ -49,6 +49,16 @@ def test_create_shape_type():
     assert s.type_size() == 4
 
 
+def test_type_enum():
+    mgx_types = [
+        'bool_type', 'double_type', 'float_type', 'half_type', 'int16_type',
+        'int32_type', 'int64_type', 'int8_type', 'uint16_type', 'uint32_type',
+        'uint64_type', 'uint8_type'
+    ]
+    for t in mgx_types:
+        assert hasattr(migraphx.shape.type_t, t)
+
+
 if __name__ == "__main__":
     test_create_shape()
     test_create_shape_broadcast()

@@ -74,6 +74,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         std::vector<instruction_ref> pointwise_inputs;
         std::size_t i = 0;
+
         for(auto input : ins->inputs())
         {
             if(contains(param_map, input))
@@ -91,6 +92,10 @@ static void create_pointwise_modules(module_pass_manager& mpm)
                 param_map[input] = pm->add_literal(scalar);
             }
         }
+
+        // Don't create pointwise module if no inputs are detected
+        if(pointwise_inputs.empty())
+            continue;
 
         std::vector<instruction_ref> inputs;
         std::transform(ins->inputs().begin(),

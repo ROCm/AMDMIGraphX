@@ -92,7 +92,7 @@ namespace {
 
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
-    if(ins->name() != "convolution" && ins->name() != "quant_convolution")
+    if(ins->name() != "convolution" and ins->name() != "quant_convolution")
         return false;
     value v    = ins->get_operator().to_value();
     auto group = v.at("group").to<int>();

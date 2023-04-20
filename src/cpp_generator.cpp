@@ -179,9 +179,6 @@ std::string cpp_generator::generate_point_op(const operation& op,
         else if(with_char(::isdigit)(key[0]))
         {
             auto i = std::stoul(key);
-            // For an optional argument where i >= args.size(), treat
-            // the optional argument as a straight zero. This will
-            // cacel out the optional bias, if it exists.
             if(i >= args.size())
                 MIGRAPHX_THROW("Invalid argument index: " + key);
             return args.at(i);

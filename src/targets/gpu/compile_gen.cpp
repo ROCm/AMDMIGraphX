@@ -280,6 +280,14 @@ std::string generate_reduce(const module& m, const std::string& name)
                                     not input->get_shape().broadcasted();
                          });
             auto inner_names = names;
+            for(auto input:ins->inputs())
+            {
+                if (input->name() != "@param")
+                    continue;
+                if (contains(tensors, input))
+                    continue;
+                inner_names[input] += "[out_idx]";
+            }
             for(auto input : tensors)
                 inner_names[input] += "_lambda_param";
             auto call_function =
@@ -308,6 +316,7 @@ std::string generate_reduce(const module& m, const std::string& name)
     });
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
+    f.add_generic_param("out_idx");
     g.create_function(f);
     return g.str();
 }

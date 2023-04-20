@@ -570,7 +570,7 @@ template <class Algo, class Reduced, class Output, class F>
 __device__ void fused_reduce(Output output, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
-        auto result = f(r);
+        auto result = f(r, out_idx);
         if constexpr(reduce::is_inner_storage<decltype(result)>{})
         {
             r.inner([&](auto& y, auto x) { y = x; })(output, result);

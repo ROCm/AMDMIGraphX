@@ -280,11 +280,11 @@ std::string generate_reduce(const module& m, const std::string& name)
                                     not input->get_shape().broadcasted();
                          });
             auto inner_names = names;
-            for(auto input:ins->inputs())
+            for(auto input : ins->inputs())
             {
-                if (input->name() != "@param")
+                if(input->name() != "@param")
                     continue;
-                if (contains(tensors, input))
+                if(contains(tensors, input))
                     continue;
                 inner_names[input] += "[out_idx]";
             }

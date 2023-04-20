@@ -36,12 +36,12 @@ struct test_reduce_mean_bias_half : verify_program<test_reduce_mean_bias_half>
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::half_type, {1, 32, 128}};
         migraphx::shape bs{migraphx::shape::half_type, {1, 32, 128}};
-        auto x = mm->add_parameter("x", s);
+        auto x      = mm->add_parameter("x", s);
         auto reduce = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
-        auto bias = mm->add_parameter("bias", reduce->get_shape());
-        auto add = mm->add_instruction(migraphx::make_op("add"), reduce, bias);
-        auto abs = mm->add_instruction(migraphx::make_op("abs"), add);
-        auto sqrt = mm->add_instruction(migraphx::make_op("sqrt"), abs);
+        auto bias   = mm->add_parameter("bias", reduce->get_shape());
+        auto add    = mm->add_instruction(migraphx::make_op("add"), reduce, bias);
+        auto abs    = mm->add_instruction(migraphx::make_op("abs"), add);
+        auto sqrt   = mm->add_instruction(migraphx::make_op("sqrt"), abs);
         mm->add_return({sqrt});
         return p;
     };

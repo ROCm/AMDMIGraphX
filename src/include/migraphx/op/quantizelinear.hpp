@@ -43,7 +43,7 @@ struct quantizelinear
         // Note: point_op attribute is not used in this op. Instead, in
         // gpu compilation pipeline, rewrite_quantization will be invoked
         // from generate_pointwise() to rewrite this op.
-        return {{"pointwise", true}, {"point_op", ""}};
+        return {{"pointwise", true}};
     }
 
     shape compute_shape(std::vector<shape> inputs) const

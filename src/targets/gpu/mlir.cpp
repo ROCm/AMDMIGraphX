@@ -537,6 +537,11 @@ struct mlir_program
         {
             if(ins->name() == "@param")
                 continue;
+            if(ins->name() == "contiguous")
+            {
+                ins_map[ins] = ins_map[ins->inputs().at(0)];
+                continue;
+            }
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
@@ -752,12 +757,13 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
 {
     adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
-    if(trace)
-        std::cout << m << std::endl;
-
     // set mutex while llvm thread support is disabled.
     static std::mutex g_mlirc_mutex; // NOLINT
     const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
+
+    if(trace)
+        std::cout << m << std::endl;
+
     mlir_program mp;
     mp.find_target();
     mp.parse(m);

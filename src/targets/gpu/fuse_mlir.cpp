@@ -65,25 +65,22 @@ struct mlir_op
 {
     std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
+    shape output_shape;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"));
+        return pack(f(self.op, "op"), f(self.output_shape, "output_shape"));
     }
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        check_shapes{inputs, *this}.packed_or_broadcasted();
-        if(mods.size() != 1)
-            MIGRAPHX_THROW("should have one submodule.");
-        if(inputs.size() < 2)
-            MIGRAPHX_THROW("should have at least two inputs.");
-        auto n     = inputs.size();
+        // Currently fused mlir fusion uses static shapes.
+        (void)inputs;
+        (void)mods;
         auto* pm   = mods.front();
         auto type  = pm->get_output_shapes().front().type();
-        auto shape = op.compute_shape({inputs[n - 2], inputs[n - 1]});
-        return shape.with_type(type);
+        return output_shape.with_type(type);
     }
 };
 MIGRAPHX_REGISTER_OP(mlir_op);
@@ -132,6 +129,37 @@ struct find_mlir_op
         return ins_map;
     }
 
+    std::tuple<instruction_ref, std::vector<instruction_ref>>
+    fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op) const
+    {
+        std::vector<instruction_ref> top_inputs;
+        std::vector<instruction_ref> imm_inputs;
+        size_t input_cnt = 0;
+        for(instruction_ref input : gemm_based_op->inputs())
+        {
+            std::vector<operation> op_stream;
+            while(contains({"slice", "transpose", "contiguous", "reshape"}, input->name()))
+            {
+                op_stream.push_back(input->get_operator());
+                input = input->inputs().at(0);
+            }
+            top_inputs.push_back(input);
+            instruction_ref prev_input =
+                mm->add_parameter("y" + std::to_string(input_cnt++), input->get_shape());
+            if(!op_stream.empty())
+            {
+                for(auto op : reverse_iterator_for(op_stream))
+                {
+                    prev_input = mm->add_instruction((*op), {prev_input});
+                }
+            }
+            imm_inputs.push_back(prev_input);
+        }
+        instruction_ref new_gemm_based_op =
+            mm->add_instruction(gemm_based_op->get_operator(), imm_inputs);
+        return {new_gemm_based_op, top_inputs};
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins           = r.result;
@@ -167,18 +195,14 @@ struct find_mlir_op
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        auto x         = mm->add_parameter("x" + std::to_string(names.size()),
-                                   gemm_based_op->inputs().at(0)->get_shape());
-        auto w         = mm->add_parameter("x" + std::to_string(names.size() + 1),
-                                   gemm_based_op->inputs().at(1)->get_shape());
-        auto anchor_op = mm->add_instruction(gemm_based_op->get_operator(), {x, w});
         std::unordered_map<instruction_ref, instruction_ref> param_map =
-            create_param_map_with_literals(mm, pm, anchor_op->get_shape());
+            create_param_map_with_literals(mm, pm, gemm_based_op->get_shape());
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm_based_op);
         std::transform(names.begin(),
                        names.end(),
                        ins->inputs().begin(),
                        std::inserter(param_map, param_map.end()),
-                       [&](auto name, auto input) {
+                       [&, &anchor_op = anchor_op](auto name, auto input) {
                            if(input == x_ins)
                                return std::make_pair(pm->get_parameter(name), anchor_op);
                            return std::make_pair(pm->get_parameter(name),
@@ -191,9 +215,9 @@ struct find_mlir_op
                      ins->inputs().end(),
                      std::back_inserter(inputs),
                      [&](auto input) { return input != gemm_based_op; });
-        inputs.insert(inputs.end(), gemm_based_op->inputs().begin(), gemm_based_op->inputs().end());
+        inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
+            ins, mlir_op{gemm_based_op->get_operator(), anchor_op->get_shape()}, inputs, {mm});
     }
 };
 

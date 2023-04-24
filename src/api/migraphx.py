@@ -380,9 +380,6 @@ def compile_options(h):
     h.method('set_exhaustive_tune_flag',
              api.params(value='bool'),
              invoke='migraphx::set_exhaustive_tune_flag($@)')
-    h.method('set_split_single_dyn_dim',
-             api.params(value='bool'),
-             invoke='migraphx::set_split_single_dyn_dim($@)')
 
 
 api.add_function('migraphx_parse_onnx',

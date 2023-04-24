@@ -1167,13 +1167,6 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     {
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
     }
-
-    /// Enable or disable the split_single_dyn_dim GPU compiler pass that splits a dynamic shape
-    /// input parameter into static submodules (handles cases like dynamic batch)
-    void set_split_single_dyn_dim(bool value = true)
-    {
-        call(&migraphx_compile_options_set_split_single_dyn_dim, this->get_handle_ptr(), value);
-    }
 };
 
 /// A program represents the all computation graphs to be compiled and executed

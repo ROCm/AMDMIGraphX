@@ -162,7 +162,6 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options c_options;
     c_options.set_offload_copy();
-    c_options.set_split_single_dyn_dim();
     p.compile(migraphx::target("gpu"), c_options);
     auto out_shapes = p.get_output_shapes();
     CHECK(out_shapes.size() == 1);

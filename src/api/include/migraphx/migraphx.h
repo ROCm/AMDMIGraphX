@@ -520,10 +520,6 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
                                                   bool value);
 
 migraphx_status
-migraphx_compile_options_set_split_single_dyn_dim(migraphx_compile_options_t compile_options,
-                                                  bool value);
-
-migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);
 
 migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,

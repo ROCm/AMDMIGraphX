@@ -31,6 +31,8 @@
 #include <migraphx/ranges.hpp>
 #include <iterator>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -193,6 +195,10 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
     create_pointwise_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
+    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
+    {
+        return;
+    }
     for(int i = 0; i < 8; i++)
     {
         if(not find_pointwise_modules(mpm.get_module()))

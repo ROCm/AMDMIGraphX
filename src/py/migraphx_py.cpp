@@ -287,7 +287,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::instruction_ref>(m, "instruction_ref");
+    py::class_<migraphx::instruction_ref>(m, "instruction_ref")
+        .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
+        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); });
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })

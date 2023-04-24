@@ -723,7 +723,7 @@ std::unordered_map<instruction_ref, std::string> module::print(
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
-        if (not this->name().empty() and this->name() != "main")
+        if(not this->name().empty() and this->name() != "main")
             var_name = this->name() + ":";
         if(ins->name() == "@param")
         {
@@ -796,7 +796,7 @@ static std::string to_c_id(const std::string& name, char rep = '_')
 static std::string cpp_var_name(const std::string& name)
 {
     std::string prefix = "x_";
-    if (not contains(name, "@"))
+    if(not contains(name, "@"))
         prefix = "p_";
     return to_c_id(prefix + replace_string(name, ":", "_module_"));
 }

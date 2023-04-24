@@ -862,7 +862,7 @@ void program::print_py(std::ostream& os) const
     for(auto& mod : vec_modules)
     {
         std::string var_name = "m";
-        if (mod->name() != "main")
+        if(mod->name() != "main")
             var_name += mod->name();
         os << var_name << " = ";
         if(mod->name() == "main")

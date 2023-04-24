@@ -146,7 +146,7 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
-void set_default_dyn_dim_value(onnx_options& options, shape::dynamic_dimension dd)
+void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
 {
     options.default_dyn_dim_value = dd;
 }
@@ -920,21 +920,24 @@ migraphx_dynamic_dimensions_size(size_t* out, migraphx_dynamic_dimensions_t dyna
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_dynamic_dimensions_get(
-    migraphx_dynamic_dimension_t* out, migraphx_dynamic_dimensions_t dynamic_dimensions, size_t idx)
+extern "C" migraphx_status
+migraphx_dynamic_dimensions_get(const_migraphx_dynamic_dimension_t* out,
+                                migraphx_dynamic_dimensions_t dynamic_dimensions,
+                                size_t idx)
 {
     auto api_error_result = migraphx::try_([&] {
         if(dynamic_dimensions == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter dynamic_dimensions: Null pointer");
-        *out = allocate<migraphx_dynamic_dimension_t>((dynamic_dimensions->object).at((idx)));
+        *out = object_cast<const_migraphx_dynamic_dimension_t>(
+            &((dynamic_dimensions->object).at((idx))));
     });
     return api_error_result;
 }
 
 extern "C" migraphx_status
 migraphx_dynamic_dimensions_add(migraphx_dynamic_dimensions_t dynamic_dimensions,
-                                migraphx_dynamic_dimension_t dyn_dim)
+                                const_migraphx_dynamic_dimension_t dyn_dim)
 {
     auto api_error_result = migraphx::try_([&] {
         if(dynamic_dimensions == nullptr)
@@ -1906,7 +1909,7 @@ migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options
 
 extern "C" migraphx_status
 migraphx_onnx_options_set_default_dyn_dim_value(migraphx_onnx_options_t onnx_options,
-                                                migraphx_dynamic_dimension_t dd)
+                                                const_migraphx_dynamic_dimension_t dd)
 {
     auto api_error_result = migraphx::try_([&] {
         if(onnx_options == nullptr)

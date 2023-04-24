@@ -596,7 +596,7 @@ struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
  * @brief Dynamic dimension object.
  * @details minimum, maximum, and optimal dimensions
  */
-struct dynamic_dimension : MIGRAPHX_HANDLE_BASE(dynamic_dimension)
+struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimension)
 
@@ -663,7 +663,7 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
 
     dynamic_dimension operator[](size_t pidx) const
     {
-        migraphx_dynamic_dimension_t pout;
+        const_migraphx_dynamic_dimension_t pout;
         call(&migraphx_dynamic_dimensions_get, &pout, this->get_handle_ptr(), pidx);
         return {pout, this->share_handle()};
     }
@@ -1328,7 +1328,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              dim.size());
     }
 
-    void set_dyn_input_parameter_shape(const std::string& name, dynamic_dimensions dyn_dims)
+    void set_dyn_input_parameter_shape(const std::string& name, const dynamic_dimensions& dyn_dims)
     {
         call(&migraphx_onnx_options_set_dyn_input_parameter_shape,
              this->get_handle_ptr(),
@@ -1342,7 +1342,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
         call(&migraphx_onnx_options_set_default_dim_value, this->get_handle_ptr(), value);
     }
 
-    void set_default_dyn_dim_value(dynamic_dimension dd)
+    void set_default_dyn_dim_value(const dynamic_dimension& dd)
     {
         call(&migraphx_onnx_options_set_default_dyn_dim_value,
              this->get_handle_ptr(),

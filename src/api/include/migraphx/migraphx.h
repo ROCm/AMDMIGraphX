@@ -210,12 +210,12 @@ migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimens
 migraphx_status migraphx_dynamic_dimensions_size(size_t* out,
                                                  migraphx_dynamic_dimensions_t dynamic_dimensions);
 
-migraphx_status migraphx_dynamic_dimensions_get(migraphx_dynamic_dimension_t* out,
+migraphx_status migraphx_dynamic_dimensions_get(const_migraphx_dynamic_dimension_t* out,
                                                 migraphx_dynamic_dimensions_t dynamic_dimensions,
                                                 size_t idx);
 
 migraphx_status migraphx_dynamic_dimensions_add(migraphx_dynamic_dimensions_t dynamic_dimensions,
-                                                migraphx_dynamic_dimension_t dyn_dim);
+                                                const_migraphx_dynamic_dimension_t dyn_dim);
 
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
@@ -486,7 +486,7 @@ migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_option
 
 migraphx_status
 migraphx_onnx_options_set_default_dyn_dim_value(migraphx_onnx_options_t onnx_options,
-                                                migraphx_dynamic_dimension_t dd);
+                                                const_migraphx_dynamic_dimension_t dd);
 
 migraphx_status
 migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,

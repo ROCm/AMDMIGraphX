@@ -146,7 +146,7 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
-void set_default_dyn_dim_value(onnx_options& options, shape::dynamic_dimension dd)
+void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
 {
     options.default_dyn_dim_value = dd;
 }

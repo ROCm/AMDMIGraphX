@@ -84,9 +84,9 @@ def dynamic_dimensions(h):
              api.params(idx='size_t'),
              fname='at',
              cpp_name='operator[]',
-             returns='migraphx::shape::dynamic_dimension')
+             returns='const migraphx::shape::dynamic_dimension&')
     h.method('add',
-             api.params(dyn_dim='migraphx::shape::dynamic_dimension'),
+             api.params(dyn_dim='const migraphx::shape::dynamic_dimension&'),
              fname='push_back')
 
 
@@ -350,7 +350,7 @@ def onnx_options(h):
     )
     h.method(
         'set_default_dyn_dim_value',
-        api.params(dd='migraphx::shape::dynamic_dimension'),
+        api.params(dd='const migraphx::shape::dynamic_dimension&'),
         invoke='migraphx::set_default_dyn_dim_value($@)',
     )
     h.method(

@@ -68,6 +68,8 @@ struct broadcast
         {
             // the ONNX broadcast op is deprecated now, so not handling the negative
             // value of axis anymore
+            if(s0.dynamic())
+                MIGRAPHX_THROW("BROADCAST: Single dynamic input shape not supported.  Use two inputs.");
             if(axis >= broadcast_lens.size())
             {
                 MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) +

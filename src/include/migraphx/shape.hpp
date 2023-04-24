@@ -163,7 +163,7 @@ struct shape
     const std::vector<std::size_t>& strides() const;
 
     /*!
-     * The number of dimensions in the shape.
+     * The number of dimensions in the shape, either static or dynamic.
      * Same as the number of indices required to get a data value.
      */
     std::size_t ndim() const;

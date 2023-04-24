@@ -37,8 +37,12 @@ namespace op {
 /**
  * Broadcast multiple dimensions between two tensors.
  * Two versions of this operator: one input and two inputs.
- * One input version uses output_lens attribute and broadcasts to it.
- * Two inputs version broadcasts both inputs to the common shape at evaluation time.
+ * One input version uses output_lens attribute and broadcasts to it (does not support
+ * dynamic shape input)).
+ * Two inputs version broadcasts to the shape of the second input at evaluation time.
+ * Use the make_op() command with two shape arguments for dynamic input and the 1-argument version
+ * for static input, since future compiler passes will differentiate the two
+ * and optimize them differently.
  */
 struct multibroadcast
 {
@@ -79,8 +83,11 @@ struct multibroadcast
             return bcast_strides;
         };
 
+        // One input shape or two?
         if(inputs.size() == 1)
-        {
+        { 
+            if(s0.dynamic())
+                MIGRAPHX_THROW("MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
             if(s0.lens().size() > output_lens.size())
             {
                 MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");

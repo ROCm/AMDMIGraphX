@@ -131,24 +131,6 @@ hip_ptr get_hip_buffer(size_t size)
 //    auto err      = hipMemcpy(
 //        host_arg.data(), output.data(), output.get_shape().bytes(), hipMemcpyDeviceToHost);
 //    EXPECT(err == hipSuccess);
-//
-//    std::vector<float> sol = {-0.20817225,
-//                              0.87965256,
-//                              0.14958936,
-//                              -1.24887264,
-//                              -0.06540672,
-//                              0.20778663,
-//                              0.40456355,
-//                              -0.99900877,
-//                              0.4917807,
-//                              0.1994698,
-//                              0.64205718,
-//                              0.37798831,
-//                              -0.25315839,
-//                              0.44276932,
-//                              -0.16138598,
-//                              0.79344082};
-//    EXPECT(host_arg.as_vector<float>() == sol);
 //}
 
 TEST_CASE(dynamic_batch_load_and_run_offload)

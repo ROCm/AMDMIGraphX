@@ -65,22 +65,55 @@ struct mlir_op
 {
     std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
-    shape output_shape;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"), f(self.output_shape, "output_shape"));
+        return pack(f(self.op, "op"));
     }
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        // Currently fused mlir fusion uses static shapes.
-        (void)inputs;
-        (void)mods;
-        auto* pm   = mods.front();
-        auto type  = pm->get_output_shapes().front().type();
-        return output_shape.with_type(type);
+        check_shapes{inputs, *this}.packed_or_broadcasted();
+        if(mods.size() != 1)
+            MIGRAPHX_THROW("should have one submodule.");
+        if(inputs.size() < 2)
+            MIGRAPHX_THROW("should have at least two inputs.");
+
+        module_ref mod = mods[0];
+        auto type      = mod->get_output_shapes().front().type();
+        std::unordered_map<instruction_ref, shape> ins_shapes;
+        size_t param_cnt               = 0;
+        std::vector<std::string> names = mod->get_parameter_names();
+        std::sort(names.begin(), names.end());
+        for(std::string param_name : names)
+        {
+            ins_shapes[mod->get_parameter(param_name)] = inputs[param_cnt++];
+        }
+        for(auto ins : iterator_for(*mod))
+        {
+            if(ins->name() == "@param")
+            {
+                continue;
+            }
+            if(ins->name() == "@literal")
+            {
+                ins_shapes[ins] = ins->get_shape();
+                continue;
+            }
+            if(ins->name() == "@return")
+            {
+                return ins_shapes[ins->inputs().at(0)].with_type(type);
+            }
+            std::vector<shape> input_shapes;
+            input_shapes.resize(ins->inputs().size());
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           input_shapes.begin(),
+                           [&](auto in) { return ins_shapes[in]; });
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+        }
+        MIGRAPHX_THROW("No return found in the submodule");
     }
 };
 MIGRAPHX_REGISTER_OP(mlir_op);
@@ -146,12 +179,9 @@ struct find_mlir_op
             top_inputs.push_back(input);
             instruction_ref prev_input =
                 mm->add_parameter("y" + std::to_string(input_cnt++), input->get_shape());
-            if(!op_stream.empty())
+            for(const auto& op : reverse(op_stream))
             {
-                for(auto op : reverse_iterator_for(op_stream))
-                {
-                    prev_input = mm->add_instruction((*op), {prev_input});
-                }
+                prev_input = mm->add_instruction(op, {prev_input});
             }
             imm_inputs.push_back(prev_input);
         }
@@ -217,7 +247,7 @@ struct find_mlir_op
                      [&](auto input) { return input != gemm_based_op; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator(), anchor_op->get_shape()}, inputs, {mm});
+            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 };
 

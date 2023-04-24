@@ -125,7 +125,7 @@ struct select_module
                            auto ps = param_shapes.at(name);
                            if(a.get_shape() != ps)
                            {
-                               assert(ps.bytes() == a.get_shape().bytes());
+                               assert(ps.bytes() <= a.get_shape().bytes());
                                return std::make_pair(name, a.reshape(ps));
                            }
                            else

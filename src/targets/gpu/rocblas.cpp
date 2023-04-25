@@ -56,7 +56,7 @@ const std::unordered_set<std::string>& get_rocblas_fp32_archs()
 bool get_compute_fp32_flag()
 {
     bool compute_fp32 = false;
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+#if ROCBLAS_VERSION_MAJOR >= 3 || ROCBLAS_VERSION_MAJOR == 2 && ROCBLAS_VERSION_MINOR >= 38
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     if(contains(get_rocblas_fp32_archs(), device_name))
         compute_fp32 = true;
@@ -67,7 +67,7 @@ bool get_compute_fp32_flag()
 bool get_int8_x4_format(context& ctx)
 {
     bool int8_x4_format = true;
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+#if ROCBLAS_VERSION_MAJOR >= 3 || ROCBLAS_VERSION_MAJOR == 2 && ROCBLAS_VERSION_MINOR >= 38
     rocblas_gemm_flags flag;
     rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
     int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);

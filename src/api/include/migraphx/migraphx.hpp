@@ -605,7 +605,7 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
         this->make_handle(&migraphx_dynamic_dimension_create_min_max, min, max);
     }
 
-    dynamic_dimension(size_t min, size_t max, optimals opts)
+    dynamic_dimension(size_t min, size_t max, const optimals& opts)
     {
         this->make_handle(
             &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());

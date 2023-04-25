@@ -58,6 +58,7 @@ static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <args.hpp>
 #include <migraphx/kernels/ck_gemm.hpp>
 #include <migraphx/kernels/pointwise.hpp>
+#include <migraphx/kernels/ops.hpp>
 
 namespace migraphx {
 

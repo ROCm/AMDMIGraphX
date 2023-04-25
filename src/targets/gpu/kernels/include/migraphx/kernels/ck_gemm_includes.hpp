@@ -29,6 +29,7 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 
+#include <iostream>
 #include <ck/utility/common_header.hpp>
 #include <ck/tensor_description/tensor_descriptor.hpp>
 #include <ck/tensor_description/tensor_descriptor_helper.hpp>

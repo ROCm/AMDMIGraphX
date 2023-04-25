@@ -29,6 +29,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -112,7 +113,7 @@ struct hip_copy_to_gpu
     std::string name() const { return "hip::copy_to_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2).same_type();
+        check_shapes{inputs, *this, true}.has(1, 2).same_type();
         return inputs.at(0);
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
@@ -121,6 +122,10 @@ struct hip_copy_to_gpu
         if(args.size() == 1)
             return input;
         argument result = args[1].share();
+        if(result.get_shape().dynamic())
+        {
+            result = result.reshape(args[0].get_shape());
+        }
         gpu_copy(ctx, input, result);
         // Associate the input since it was registered with hip
         return {result.get_shape(), [input, result]() mutable { return result.data(); }};
@@ -138,19 +143,24 @@ struct hip_copy_from_gpu
     std::string name() const { return "hip::copy_from_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1, 2).same_type();
+        check_shapes{inputs, *this, true}.has(1, 2).same_type();
         return inputs.at(0);
     }
     argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    compute(context& ctx, const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
         if(args.size() == 1)
         {
-            argument result = allocate_gpu(output_shape, true);
+            argument result = allocate_gpu(dyn_out.computed_shape, true);
             gpu_copy(ctx, args[0], result);
             return result;
         }
-        copy_from_gpu(ctx, args[0], args[1]);
+        argument input = args[0].share();
+        if(input.get_shape().dynamic())
+        {
+            input = input.reshape(args[1].get_shape());
+        }
+        copy_from_gpu(ctx, input, args[1]);
         return args[1];
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& args) const

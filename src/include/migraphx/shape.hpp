@@ -222,11 +222,15 @@ struct shape
     /// Map element index to space index
     std::size_t index(std::size_t i) const;
 
-    std::vector<std::size_t> multi(std::size_t i) const;
-    void multi_copy(std::size_t i, std::size_t* start, const std::size_t* end) const;
+    /// Map element index to multi-dimensional index
+    std::vector<std::size_t> multi(std::size_t idx) const;
 
-    /// Returns true if the shape is packed (number of elements and buffer size the same) with no
-    /// padding
+    /// Map element index to multi-dimensional index and put them them into location provided by
+    /// pointers
+    void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
+
+    /// Returns true if the shape is packed (number of elements and buffer size the same) with
+    /// no padding
     bool packed() const;
 
     /// Returns true is the shape has been transposed. That is the strides are not in descending

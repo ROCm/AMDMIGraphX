@@ -140,7 +140,7 @@ void gemm_impl(context& ctx,
             compute_type = rocblas_datatype_f32_r;
     }
 
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38 || ROCBLAS_VERSION_MAJOR >= 3
     rocblas_gemm_flags flag =
         int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
 #else

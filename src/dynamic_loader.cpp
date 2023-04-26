@@ -29,6 +29,8 @@
 #include <utility>
 #include <dlfcn.h>
 
+#include <iostream>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -48,7 +50,7 @@ struct dynamic_loader_impl
 #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif
     dynamic_loader_impl(const fs::path& p, std::shared_ptr<tmp_dir> t = nullptr)
-        : handle(dlopen(p.string().c_str(), RTLD_LAZY),
+        : handle(dlopen(p.string().c_str(), RTLD_GLOBAL | RTLD_NOW),
                  manage_deleter<decltype(&dlclose), &dlclose>{}),
           temp(std::move(t))
     {
@@ -79,6 +81,18 @@ fs::path dynamic_loader::path(void* address)
     if(dladdr(address, &info) != 0)
         p = info.dli_fname;
     return p;
+}
+
+optional<dynamic_loader> dynamic_loader::try_load(const fs::path& p)
+{
+    try
+    {
+        return dynamic_loader{p};
+    }
+    catch(const std::exception& e)
+    {
+        return nullopt;
+    }
 }
 
 dynamic_loader::dynamic_loader(const fs::path& p) : impl(std::make_shared<dynamic_loader_impl>(p))

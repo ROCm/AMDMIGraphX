@@ -43,7 +43,7 @@ add_custom_command(
 set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
 rocm_clang_tidy_check(driver)
 
-target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf migraphx_py)
 
 rocm_install_targets(
   TARGETS driver

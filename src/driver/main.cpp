@@ -32,6 +32,7 @@
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/py.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -253,7 +254,9 @@ struct loader
                 else if(ends_with(file, ".pb"))
                     file_type = "tf";
                 else if(ends_with(file, ".json"))
-                    file_type = "json";
+                    file_type = "py";
+                else if(ends_with(file, ".py"))
+                    file_type = "py";
                 else
                     file_type = "migraphx";
             }
@@ -271,6 +274,10 @@ struct loader
                 file_options options;
                 options.format = "json";
                 p              = migraphx::load(file, options);
+            }
+            else if(file_type == "py")
+            {
+                p = migraphx::load_py(file);
             }
             else if(file_type == "migraphx")
             {

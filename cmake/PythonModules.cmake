@@ -37,12 +37,23 @@ find_package(pybind11 REQUIRED)
 macro(find_python version)
     find_program(PYTHON_CONFIG_${version} python${version}-config)
     if(EXISTS ${PYTHON_CONFIG_${version}})
+        set(_embed_flag)
+        if(${version} VERSION_GREATER_EQUAL 3.0)
+            set(_embed_flag "--embed")
+        endif()
         py_exec(COMMAND ${PYTHON_CONFIG_${version}} --includes OUTPUT_VARIABLE _python_include_args)
+        py_exec(COMMAND ${PYTHON_CONFIG_${version}} --ldflags ${_embed_flag} OUTPUT_VARIABLE _python_ldflags_args)
         separate_arguments(_python_includes UNIX_COMMAND "${_python_include_args}")
+        separate_arguments(_python_ldflags UNIX_COMMAND "${_python_ldflags_args}")
         string(REPLACE "-I" "" _python_includes "${_python_includes}")
         add_library(python${version}::headers INTERFACE IMPORTED GLOBAL)
         set_target_properties(python${version}::headers PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES "${_python_includes}"
+        )
+        add_library(python${version}::runtime INTERFACE IMPORTED GLOBAL)
+        set_target_properties(python${version}::runtime PROPERTIES
+            INTERFACE_LINK_OPTIONS "${_python_ldflags}"
+            INTERFACE_LINK_LIBRARIES python${version}::headers
         )
         py_exec(COMMAND ${PYTHON_CONFIG_${version}} --prefix OUTPUT_VARIABLE _python_prefix)
         string(STRIP "${_python_prefix}" _python_prefix)

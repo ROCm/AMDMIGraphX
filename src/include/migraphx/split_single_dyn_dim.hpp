@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,26 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SPLIT_SINGLE_DYN_DIM_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <string>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
-struct test_gather_literal_inputs : verify_program<test_gather_literal_inputs>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+/**
+ * Split dynamic dimension over submodules if exactly one dimension in the parameter list is
+ * dynamic.
+ */
+struct split_single_dyn_dim
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape g_shape{migraphx::shape::int32_type, {1}, {0}};
-        migraphx::shape s_indices{migraphx::shape::int32_type, {3}};
-        std::vector<int> indices{3, 800, 800};
-        auto a0  = mm->add_literal(migraphx::literal{s_indices, indices});
-        auto a1  = mm->add_literal(migraphx::literal{g_shape, {1}});
-        int axis = 0;
-        mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
-
-        return p;
-    }
+    std::string name() const { return "split_single_dyn_dim"; }
+    void apply(module_pass_manager&) const;
 };
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

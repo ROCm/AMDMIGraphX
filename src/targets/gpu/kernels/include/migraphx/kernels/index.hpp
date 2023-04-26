@@ -233,6 +233,12 @@ struct index
     }
 };
 
+#ifdef MIGRAPHX_NLOCAL
+#define MIGRAPHX_GLOBAL \
+    __global__ __attribute__((amdgpu_flat_work_group_size(MIGRAPHX_NLOCAL, MIGRAPHX_NLOCAL)))
+#else
+#define MIGRAPHX_GLOBAL __global__
+#endif
 inline __device__ __attribute__((const)) index make_index()
 {
     return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT

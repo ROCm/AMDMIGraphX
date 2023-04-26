@@ -46,6 +46,8 @@ else()
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
+set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+
 project(migraphx)
 find_package(ROCM REQUIRED)
 
@@ -65,8 +67,10 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.6)
-set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+option(BUILD_DEV "Build for development purpose only" OFF)
+
+rocm_setup_version(VERSION 2.6.0)
+set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 

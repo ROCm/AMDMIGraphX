@@ -10,12 +10,12 @@ static std::vector<fs::path> find_available_python_versions()
 {
     std::vector<fs::path> result;
     auto path = dynamic_loader::path(&load_py).parent_path();
-    for(const auto& entry:fs::directory_iterator{path})
+    for(const auto& entry : fs::directory_iterator{path})
     {
-        if (not entry.is_regular_file())
+        if(not entry.is_regular_file())
             continue;
         auto p = entry.path();
-        if (not contains(p.stem().string(), "migraphx_py_"))
+        if(not contains(p.stem().string(), "migraphx_py_"))
             continue;
         result.push_back(p);
     }
@@ -26,10 +26,10 @@ static std::vector<fs::path> find_available_python_versions()
 static dynamic_loader load_py_lib()
 {
     auto libs = find_available_python_versions();
-    for(const auto& lib:libs)
+    for(const auto& lib : libs)
     {
         auto result = dynamic_loader::try_load(lib);
-        if (result.has_value())
+        if(result.has_value())
             return *result;
     }
     MIGRAPHX_THROW("Cant find a viable version of python");
@@ -49,4 +49,3 @@ program load_py(const std::string& filename)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

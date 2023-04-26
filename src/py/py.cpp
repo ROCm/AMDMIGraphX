@@ -30,20 +30,17 @@ static py::dict run_file(const std::string& file)
     return scope.cast<py::dict>();
 }
 
-
 extern "C" program migraphx_load_py(const std::string& filename)
 {
     py::scoped_interpreter guard{};
     py::dict vars = run_file(filename);
-    auto it = std::find_if(vars.begin(), vars.end(), [](const auto& p) {
+    auto it       = std::find_if(vars.begin(), vars.end(), [](const auto& p) {
         return py::isinstance<migraphx::program>(p.second);
     });
     if(it == vars.end())
         MIGRAPHX_THROW("No program variable found");
     return it->second.cast<migraphx::program>();
-
 }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

@@ -27,6 +27,7 @@ This workflow runs the MiGraphX performance benchmarks and generates comparison 
 </p>
 
 - ## Trigger
+TODO: Update [benchmarks.yml (archived)](https://github.com/ROCmSoftwarePlatform/actions/blob/main/.github/workflows/benchmarks.yml) link after workflow is updated
 > The workflow is triggered manually through the "Run workflow" button in the Actions tab of the repository and it will run reusable workflow [benchmarks.yml (archived)](https://github.com/ROCmSoftwarePlatform/actions/blob/main/.github/workflows/benchmarks.yml)
 
 - ## Input Parameters
@@ -62,81 +63,23 @@ The following jobs are executed in the workflow:
 > - `cancel`: This job is responsible for canceling any previous runs of the workflow that may still be running. It runs on an `ubuntu-latest` runner and uses the `styfle/cancel-workflow-action` action to cancel any previous runs of the workflow.
 
 > - `tidy`: It runs on an `ubuntu-20.04` runner and runs `clang-tidy` for the codebase in a Docker container with the MIGraphX build environment.
->The following steps are executed in this job:
->   - `Free space`: step deletes some directories that may take up space on the runner.
->   - `actions/checkout@v3`: step checks out the codebase from the repository.
->   - `Docker layer cache`: step creates a cache of Docker layers to speed up the build process.
->   - `Restore cache files for tidy`: step restores any previously saved cache files.
->   - `Build the Docker image`: step builds the Docker image with the name `migraphx` using the `hip-clang.docker` Dockerfile.
->   - `Clang tidy`: step runs `clang-tidy` on the source code in the `migraphx` Docker container. This step also compiles the source code and runs tests.
->   - `Clear tidy cache before saving`: step clears the cache before saving it.
->   - `Save cache files for tidy`: step saves the cache files.
 
 > - `cppcheck`: It runs on an `ubuntu-20.04` runner and performs static analysis on code in a Docker container, and caches the results for faster subsequent runs.
->The following steps are executed in this job:
->   - `Free space`: step deletes some directories that may take up space on the runner.
->   - `actions/checkout@v3`: step checks out the codebase from the repository.
->   - `Docker layer cache`: step creates a cache of Docker layers to speed up the build process.
->   - `Restore cache files for tidy`: step restores any previously saved cache files.
->   - `Build the Docker image`: step builds the Docker image with the name `migraphx` using the `hip-clang.docker` Dockerfile.
->   - `Cppcheck`: step runs `cppcheck` tool inside a Docker container, passing in the repository code as a volume. It uses CMake to configure the build, and then runs `make` to run the `cppcheck` tool.
->   - `Clear cppcheck  cache before saving`: step clears the cache before saving it.
->   - `Save cache files for cppcheck`: step saves the cache files.
 
 > - `format`: It runs on an `ubuntu-20.04` runner and includes steps for freeing up disk space, caching Docker layers, and checking code formatting.
->The following steps are executed in this job:
->   - `Free space`: step deletes some directories that may take up space on the runner.
->   - `actions/checkout@v3`: step checks out the codebase from the repository.
->   - `Docker layer cache`: step creates a cache of Docker layers to speed up the build process.
->   - `Build the Docker image`: step builds the Docker image with the name `migraphx` using the `hip-clang.docker` Dockerfile.
->   - `Check formatting`: step runs a command to check the formatting of the code. It finds all files in the project directory with specific file extensions, excluding those in the `build/` directory.
 
 > - `pyflakes`: It runs on an `ubuntu-20.04` runner and runs the Pyflakes static analysis tool to detect and report Python code issues.
->The following steps are executed in this job:
->   - `Free space`: step deletes some directories that may take up space on the runner.
->   - `actions/checkout@v3`: step checks out the codebase from the repository.
->   - `Set up Python`: step sets up the required version of Python for the job.
->   - `Install pyflakes`: step installs the required version of pyflakes and mypy using pip.
->   - `Run pyflakes`: step runs pyflakes and mypy on the specified directories and files.
 
 > - `licensing`: It runs on an `ubuntu-20.04` runner and includes steps to free up space, checkout the code, set up Python and run a license check using a Python script.
->The following steps are executed in this job:
->   - `Free space`: step deletes some directories that may take up space on the runner.
->   - `actions/checkout@v3`: step checks out the codebase from the repository.
->   - `Set up Python`: step sets up the required version of Python for the job.
->   - `run License Check`: step runs a Python script named `check_stamped.py` located in the tools directory using the python3 command. The script is responsible for checking the licensing of the project.
 
 ---
 
-After already explained jobs we have 2 jobs with multiple matrix configurations, both of them are running on `ubuntu-20.04` runner but right now only `linux` works on all 3 configurations (debug, release, codecov) ,`linux-fpga` works just on (debug).
+We have 2 jobs with multiple matrix configurations, both of them are running on `ubuntu-20.04` runner but right now only `linux` works on all 3 configurations (debug, release, codecov) ,`linux-fpga` works just on (debug).
 
 ---
 > - `linux`: this job runs continuous integration tests for AMDMIGraphX on a Linux operating system. It tests a variety of build configurations to ensure code quality and compatibility.
->The following steps are executed in this job:
->   - `Free space and install rbuild, lld`: step deletes some directories that may take up space on the runner and installs the LLVM linker (lld) and rbuild.
->   - `actions/checkout@v3`: step checks out the codebase from the repository.
->   - `Set up Python`: step sets up the required version of Python for the job.
->   - `Cache dependencies`: step caches build dependencies using the `actions/cache` action. If the cache already exists for the given dependencies, the job will skip the next step.
->   - `Install dependencies`: step installs dependencies required for the job.
->   - `Restore cache files for ccache`: step restores the ccache cache from a previous build, if it exists.
->   - `Build and test`: step builds and tests the codebase using rbuild. It sets several build flags, including one that enables the use of ccache, and another that enables coverage testing when the `codecov` configuration is used.
->   - `Clear ccache cache before saving`: step is a workaround for a limitation of GitHub Actions caching, and clears the ccache cache before saving it to the cache store.
->   - `Save cache files for ccache`: step saves the ccache cache to the cache store for future use.
->   - `Upload code coverage`: step uploads code coverage results to Codecov when the `codecov` configuration is used. It uses the `lcov` tool to generate coverage reports, and the `codecov` uploader to upload them.
 
 > - `linux-fpga`: this job builds and tests AMDMIGraphX on a Linux operating system with support for FPGA acceleration. It includes additional steps to verify FPGA functionality and performance.
->The following steps are executed in this job:
->   - `Free space`: step deletes some directories that may take up space on the runner.
->   - `actions/checkout@v3`: step checks out the codebase from the repository.
->   - `Set up Python`: step sets up the required version of Python for the job.
->   - `Cache dependencies`: step caches build dependencies using the `actions/cache` action. If the cache already exists for the given dependencies, the job will skip the next step.
->   - `Install dependencies`: step installs build dependencies using rbuild, if the dependencies were not found in the cache.
->   - `Restore cache files for ccache`: step restores the ccache cache from a previous build, if it exists.
->   - `Build and test`: step builds and tests the codebase using rbuild. It sets several build flags, including one that enables the use of ccache, and another that enables coverage testing when the `codecov` configuration is used.
->   - `Clear ccache cache before saving`: step is a workaround for a limitation of GitHub Actions caching, and clears the ccache cache before saving it to the cache store.
->   - `Save cache files for ccache`: step saves the ccache cache to the cache store for future use.
->- Comment out step for now: 
->   - `Upload code coverage`: step uploads code coverage results to Codecov when the `codecov` configuration is used. It uses the `lcov` tool to generate coverage reports, and the `codecov` uploader to upload them.
 
 For more details, please refer to the [ci.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/ci.yaml) file in the repository.
 

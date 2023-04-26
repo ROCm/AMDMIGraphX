@@ -21,6 +21,33 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-tensorflow==2.11.1
-onnxruntime
-tokenizers
+import migraphx
+
+
+def test_instruction_shape():
+    p = migraphx.program()
+    mm = p.get_main_module()
+    input_shape = migraphx.shape(lens=[4, 4, 64], type="half_type")
+    i = mm.add_parameter("x", input_shape)
+    i2 = mm.add_instruction(migraphx.op("reshape", dims=[16, 64]), [i])
+    out_shape = i2.shape()
+
+    assert out_shape.lens() == [16, 64]
+    assert out_shape.strides() == [64, 1]
+    assert out_shape.type_string() == "half_type"
+
+
+def test_instruction_op():
+    p = migraphx.program()
+    mm = p.get_main_module()
+    input_shape = migraphx.shape(lens=[2, 24])
+    i = mm.add_parameter("x", input_shape)
+    i2 = mm.add_instruction(migraphx.op("relu"), [i])
+    out_op = i2.op()
+
+    assert out_op.name() == "relu"
+
+
+if __name__ == "__main__":
+    test_instruction_shape()
+    test_instruction_op()

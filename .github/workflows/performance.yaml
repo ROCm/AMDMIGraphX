@@ -33,6 +33,10 @@ on:
         description: If model in performance test script passes this threshold, it will be skipped
         required: true
         default: '30m'
+      performance_backup_repo:
+        description: Repository for backup
+        required: true
+        default: migraphx-benchmark/performance-backup
       flags:
         description: -m for Max value; -s for Std dev; -r for Threshold file
         required: true

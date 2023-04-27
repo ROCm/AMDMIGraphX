@@ -3221,20 +3221,23 @@ TEST_CASE(instance_norm_dyn_batch_test)
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto epsilon_bcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
+        migraphx::make_op("multibroadcast"), epsilon_literal, x);
     auto variance_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), variance);
+        mm->add_instruction(migraphx::make_op("multibroadcast"), variance, x);
     auto l2          = mm->add_instruction(migraphx::make_op("add"), variance_bcast, epsilon_bcast);
     auto l3          = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
     auto l4          = mm->add_instruction(migraphx::make_op("mul"), l1, l3);
     auto scale_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
+        migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
     auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
+        migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
     auto l5 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
     mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
 
-    auto prog = optimize_onnx("instance_norm_dyn_batch_test.onnx");
+    // auto prog = optimize_onnx("instance_norm_dyn_batch_test.onnx"); 
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 2, {2}};
+    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_test.onnx", options); 
 
     EXPECT(p == prog);
 }

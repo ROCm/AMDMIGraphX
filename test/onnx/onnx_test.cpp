@@ -3214,7 +3214,7 @@ TEST_CASE(instance_norm_dyn_batch_test)
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
     auto mean_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
+        mm->add_instruction(migraphx::make_op("multibroadcast"), mean, x);
     auto l0       = mm->add_instruction(migraphx::make_op("sqdiff"), x, mean_bcast);
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
     auto l1       = mm->add_instruction(migraphx::make_op("sub"), x, mean_bcast);

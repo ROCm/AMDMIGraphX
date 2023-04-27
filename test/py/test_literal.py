@@ -27,8 +27,12 @@ import migraphx
 def test_add_fill():
     p = migraphx.program()
     mm = p.get_main_module()
-    x = mm.add_literal(migraphx.fill_argument(migraphx.shape(type='float_type', lens=[3, 3]), 1))
-    y = mm.add_literal(migraphx.fill_argument(migraphx.shape(type='float_type', lens=[3, 3]), 2))
+    x = mm.add_literal(
+        migraphx.fill_argument(migraphx.shape(type='float_type', lens=[3, 3]),
+                               1))
+    y = mm.add_literal(
+        migraphx.fill_argument(migraphx.shape(type='float_type', lens=[3, 3]),
+                               2))
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
@@ -36,11 +40,16 @@ def test_add_fill():
     output = p.run(params)[-1].tolist()
     assert output == list([3.0] * 9)
 
+
 def test_add_create():
     p = migraphx.program()
     mm = p.get_main_module()
-    x = mm.add_literal(migraphx.create_argument(migraphx.shape(type='float_type', lens=[2, 2]), [1, 2, 3, 4]))
-    y = mm.add_literal(migraphx.create_argument(migraphx.shape(type='float_type', lens=[2, 2]), [5, 6, 7, 8]))
+    x = mm.add_literal(
+        migraphx.create_argument(
+            migraphx.shape(type='float_type', lens=[2, 2]), [1, 2, 3, 4]))
+    y = mm.add_literal(
+        migraphx.create_argument(
+            migraphx.shape(type='float_type', lens=[2, 2]), [5, 6, 7, 8]))
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))

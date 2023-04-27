@@ -93,9 +93,9 @@ struct find_ck_gemm_pointwise
         {
             auto first_param    = pm->get_parameter(names[0]);
             auto gemm_param     = pm->get_parameter(names[gemm_idx]);
-            auto new_gemm_param = pm->add_parameter(names[0] + ".0", gemm_param->get_shape());
+            auto new_gemm_param = pm->add_parameter(names[0] + "_0", gemm_param->get_shape());
             auto new_first_param =
-                pm->add_parameter(names[gemm_idx] + ".0", first_param->get_shape());
+                pm->add_parameter(names[gemm_idx] + "_0", first_param->get_shape());
             pm->replace_instruction(gemm_param, new_gemm_param);
             pm->replace_instruction(first_param, new_first_param);
             pm->remove_instruction(first_param);

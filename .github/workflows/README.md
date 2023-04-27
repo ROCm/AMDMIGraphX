@@ -23,7 +23,7 @@ For more details, please refer to the [add-to-project.yaml](https://github.com/R
 ## `benchmark.yaml`
 
 <p>
-This workflow runs the MiGraphX performance benchmarks and generates comparison reports by comparing the results with the reference data.
+This workflow runs the `MiGraphX performance benchmarks` and generates reports by comparing the results with the reference data.
 </p>
 
 - ## Trigger
@@ -35,9 +35,9 @@ The workflow uses the following input parameters:
 
 > - `rocm_version`: the version of ROCm to use for running the benchmarks.
 
-> - `script_repo`: the repository containing the benchmark scripts.
+> - `script_repo`: repository that contains the benchmark scripts.
 
-> - `result_path`: the path where the benchmark results will be stored.
+> - `result_path`: the path where benchmark results will be stored.
 
 > - `result_repo`: the repository where the benchmark results will be pushed for comparison.
 

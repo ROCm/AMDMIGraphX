@@ -33,7 +33,7 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
+set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipClang APIs")
 
 include(Embed)
 file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}

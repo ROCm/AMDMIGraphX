@@ -62,6 +62,7 @@ namespace py = pybind11;
     PYBIND11_MODULE(__VA_ARGS__)      \
     MIGRAPHX_POP_WARNING
 
+#define MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM(x, t) .value(#x, migraphx::shape::type_t::x)
 namespace migraphx {
 
 migraphx::value to_value(py::kwargs kwargs);
@@ -235,7 +236,8 @@ migraphx::shape to_shape(const py::buffer_info& info)
 
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
-    py::class_<migraphx::shape>(m, "shape")
+    py::class_<migraphx::shape> shape_cls(m, "shape");
+    shape_cls
         .def(py::init([](py::kwargs kwargs) {
             auto v    = migraphx::to_value(kwargs);
             auto t    = migraphx::shape::parse_type(v.get("type", "float"));
@@ -261,6 +263,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("__ne__", std::not_equal_to<migraphx::shape>{})
         .def("__repr__", [](const migraphx::shape& s) { return migraphx::to_string(s); });
 
+    py::enum_<migraphx::shape::type_t>(shape_cls, "type_t")
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM);
+
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
         .def(py::init([](py::buffer b) {
@@ -282,7 +287,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::instruction_ref>(m, "instruction_ref");
+    py::class_<migraphx::instruction_ref>(m, "instruction_ref")
+        .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
+        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); });
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })

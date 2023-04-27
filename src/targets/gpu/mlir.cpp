@@ -197,10 +197,14 @@ struct mlir_program
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
             {
-                if(as.is_signed())
-                    result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
-                else
-                    result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
+                // Note: rocMLIR use signless integer type for tensors types. This
+                // will translate to signed implementation for current supported
+                // operations.
+                if(as.is_unsigned())
+                {
+                    MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
+                }
+                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -483,7 +487,7 @@ struct mlir_program
     static value get_operator_value(const operation& op)
     {
         auto v = op.to_value();
-        if(op.name() == "convolution")
+        if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
             // Adjust symetrical padding
             if(v.at("padding").size() == v.at("stride").size())

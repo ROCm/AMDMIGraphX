@@ -21,18 +21,33 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-cd /onnxruntime
-pip3 install -r requirements-dev.txt
-# Add newer cmake to the path
-export PATH="/opt/cmake/bin:$PATH"
-export CXXFLAGS="-D__HIP_PLATFORM_AMD__=1 -w"
-./build.sh --config Release  --cmake_extra_defines CMAKE_HIP_COMPILER=/opt/rocm/llvm/bin/clang++ --update --build --parallel --cmake_extra_defines ONNXRUNTIME_VERSION=$(cat ./VERSION_NUMBER) --skip_tests --rocm_home /opt/rocm --use_migraphx --migraphx_home /opt/rocm --rocm_version=`cat /opt/rocm/.info/version-dev` --allow_running_as_root
+import migraphx
 
-cd build/Linux/Release
-#Add test launcher for onnxrt tests
 
-echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
-echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions2' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
-echo 'InferenceSessionTests.Test3LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
-echo 'InferenceSessionTests.Test2LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
-../../../tools/ci_build/github/pai/migraphx_test_launcher.sh
+def test_instruction_shape():
+    p = migraphx.program()
+    mm = p.get_main_module()
+    input_shape = migraphx.shape(lens=[4, 4, 64], type="half_type")
+    i = mm.add_parameter("x", input_shape)
+    i2 = mm.add_instruction(migraphx.op("reshape", dims=[16, 64]), [i])
+    out_shape = i2.shape()
+
+    assert out_shape.lens() == [16, 64]
+    assert out_shape.strides() == [64, 1]
+    assert out_shape.type_string() == "half_type"
+
+
+def test_instruction_op():
+    p = migraphx.program()
+    mm = p.get_main_module()
+    input_shape = migraphx.shape(lens=[2, 24])
+    i = mm.add_parameter("x", input_shape)
+    i2 = mm.add_instruction(migraphx.op("relu"), [i])
+    out_op = i2.op()
+
+    assert out_op.name() == "relu"
+
+
+if __name__ == "__main__":
+    test_instruction_shape()
+    test_instruction_op()

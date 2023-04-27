@@ -505,6 +505,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("format") = "msgpack");
 
     m.def("get_target", &migraphx::make_target);
+    m.def("create_argument", [](const migraphx::shape& s, const std::vector<float>& values) {
+        migraphx::argument a{s};
+        a.fill(values.begin(), values.end());
+        return a;
+    });
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
     m.def("fill_argument", &migraphx::fill_argument, py::arg("s"), py::arg("value"));
     m.def("quantize_fp16",

@@ -148,9 +148,20 @@ def test_dyn_batch():
     def run_prog(batch_size):
         params = {}
         for key, value in p.get_parameter_shapes().items():
-            print("Parameter {} -> {}".format(key, value))
-            params[key] = migraphx.generate_argument(
-                value.to_static(batch_size))
+            # convert to a static shape
+            if value.dynamic():
+                dds = value.dyn_dims()
+                new_lens = []
+                for dd in dds:
+                    if dd.is_fixed():
+                        new_lens.append(dd.min)
+                    else:
+                        new_lens.append(batch_size)
+                s = migraphx.shape(type=value.type_string(), lens=new_lens)
+            else:
+                s = value
+            print("Parameter {} -> {}".format(key, s))
+            params[key] = migraphx.generate_argument(s)
         r = p.run(params)
         print(r)
 

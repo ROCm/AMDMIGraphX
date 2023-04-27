@@ -35,7 +35,6 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
-#include <migraphx/type_name.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
@@ -274,7 +273,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("type_string", &migraphx::shape::type_string)
         .def("type_size", &migraphx::shape::type_size)
         .def("dyn_dims", &migraphx::shape::dyn_dims)
-        .def("to_static", &migraphx::shape::to_static, py::arg("x"))
         .def("packed", &migraphx::shape::packed)
         .def("transposed", &migraphx::shape::transposed)
         .def("broadcasted", &migraphx::shape::broadcasted)
@@ -319,7 +317,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::instruction_ref>(m, "instruction_ref");
+    py::class_<migraphx::instruction_ref>(m, "instruction_ref")
+        .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
+        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); });
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
@@ -519,7 +519,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         },
         "Parse onnx file",
         py::arg("filename"),
-        py::arg("default_dim_value")     = 1,
+        py::arg("default_dim_value")     = 0,
         py::arg("default_dyn_dim_value") = migraphx::shape::dynamic_dimension{1, 1},
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =

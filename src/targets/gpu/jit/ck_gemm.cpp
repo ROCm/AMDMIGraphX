@@ -284,7 +284,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
         auto rank           = a_shape.lens().size();
         auto b_strides      = b_shape.strides();
-        bool can_fold_batch = rank >= 3 and b_strides[rank - 3] == 0;
+        bool can_fold_batch = false; // rank >= 3 and b_strides[rank - 3] == 0;
 
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];

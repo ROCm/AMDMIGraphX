@@ -294,9 +294,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def_readwrite("max", &migraphx::shape::dynamic_dimension::max)
         .def_readwrite("optimals", &migraphx::shape::dynamic_dimension::optimals)
         .def("is_fixed", &migraphx::shape::dynamic_dimension::is_fixed)
-        .def("has_optimal", &migraphx::shape::dynamic_dimension::has_optimal);
 
-    py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
+            py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
         .def(py::init([](py::buffer b) {
             py::buffer_info info = b.request();

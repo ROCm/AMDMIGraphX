@@ -69,7 +69,7 @@ struct test_conv_add_relu : verify_program<test_conv_add_relu>
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             bias);
         auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv, bcast_bias);
-        auto relu = mm->add_instruction(migraphx::make_op("relu"), bias_add);
+        auto relu     = mm->add_instruction(migraphx::make_op("relu"), bias_add);
         mm->add_instruction(migraphx::make_op("convolution"), relu, weights);
         return p;
     }

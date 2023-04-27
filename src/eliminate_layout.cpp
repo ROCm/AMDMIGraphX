@@ -104,7 +104,7 @@ void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_
         }
         if(contains(output_layouts, ins))
             continue;
-        
+
         m.replace_instruction(ins, ins->inputs().front());
     }
 }

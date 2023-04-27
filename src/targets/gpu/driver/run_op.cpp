@@ -36,7 +36,7 @@ struct run_op : action<run_op>
     static void apply(const parser& p, const value& v)
     {
         context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
+        auto inputs = p.get_inputs(v);
         auto name   = v.at("name").to<std::string>();
         if(not contains(name, "::"))
             name = "gpu::" + name;

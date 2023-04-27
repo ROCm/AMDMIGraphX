@@ -213,22 +213,28 @@ void from_value_impl(rank<6>, const value& v, optional<T>& x)
         x = from_value<T>(v);
 }
 
-template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{} or std::is_enum<T>{})>
+template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 void from_value_impl(rank<7>, const value& v, T& x)
 {
     x = v.to<T>();
 }
 
-inline void from_value_impl(rank<8>, const value& v, std::string& x) { x = v.to<std::string>(); }
+template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
+void from_value_impl(rank<8>, const value& v, T& x)
+{
+    x = v.to<T>();
+}
+
+inline void from_value_impl(rank<9>, const value& v, std::string& x) { x = v.to<std::string>(); }
 
 template <class T>
-auto from_value_impl(rank<9>, const value& v, T& x) -> decltype(x.from_value(v), void())
+auto from_value_impl(rank<10>, const value& v, T& x) -> decltype(x.from_value(v), void())
 {
     x.from_value(v);
 }
 
 template <class T>
-auto from_value_impl(rank<10>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
+auto from_value_impl(rank<11>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
 {
     migraphx_from_value(v, x);
 }
@@ -244,7 +250,7 @@ value to_value(const T& x)
 template <class T>
 void from_value(const value& v, T& x)
 {
-    detail::from_value_impl(rank<10>{}, v, x);
+    detail::from_value_impl(rank<11>{}, v, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

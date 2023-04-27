@@ -52,6 +52,7 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
     }
     return {shape_type, dyn_dims};
 }
+//MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REMOVE_LAST_OUTPUT);
 
 namespace onnx {
 
@@ -386,6 +387,9 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
                    prog_output_names.end(),
                    std::back_inserter(output_ins),
                    [&](const auto& name) { return instructions[name]; });
+
+    //if(enabled(MIGRAPHX_REMOVE_LAST_OUTPUT{}) and output_ins.size() > 1)
+        //output_ins.pop_back();
 
     if(not inlining)
     {

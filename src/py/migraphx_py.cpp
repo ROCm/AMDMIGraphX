@@ -148,10 +148,10 @@ struct npy_format_descriptor<half>
 } // namespace detail
 } // namespace pybind11
 
-template <class Vistor, class TupleVistor>
-void visit_type(const migraphx::shape& s, Vistor v, TupleVistor tv)
+template <class F>
+void visit_type(const migraphx::shape& s, F f)
 {
-    s.visit_type(v, tv);
+    s.visit_type(f);
 }
 
 template <class T, class F>
@@ -170,40 +170,35 @@ template <class T>
 py::buffer_info to_buffer_info(T& x)
 {
     migraphx::shape s = x.get_shape();
+    assert(s.type() != migraphx::shape::tuple_type);
     if(s.dynamic())
         MIGRAPHX_THROW("MIGRAPHX PYTHON: dynamic shape argument passed to to_buffer_info");
     auto strides = s.strides();
     std::transform(
         strides.begin(), strides.end(), strides.begin(), [&](auto i) { return i * s.type_size(); });
     py::buffer_info b;
-    visit_type(
-        s,
-        [&](auto as) {
-            // normal vistor
-            // migraphx use int8_t data to store bool type, we need to
-            // explicitly specify the data type as bool for python
-            if(s.type() == migraphx::shape::bool_type)
-            {
-                b = py::buffer_info(x.data(),
-                                    as.size(),
-                                    py::format_descriptor<bool>::format(),
-                                    s.ndim(),
-                                    s.lens(),
-                                    strides);
-            }
-            else
-            {
-                b = py::buffer_info(x.data(),
-                                    as.size(),
-                                    py::format_descriptor<decltype(as())>::format(),
-                                    s.ndim(),
-                                    s.lens(),
-                                    strides);
-            }
-        },
-        [&](auto as) {
-            // tuple visitor
-        });
+    visit_type(s, [&](auto as) {
+        // migraphx use int8_t data to store bool type, we need to
+        // explicitly specify the data type as bool for python
+        if(s.type() == migraphx::shape::bool_type)
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<bool>::format(),
+                                s.ndim(),
+                                s.lens(),
+                                strides);
+        }
+        else
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<decltype(as())>::format(),
+                                s.ndim(),
+                                s.lens(),
+                                strides);
+        }
+    });
     return b;
 }
 
@@ -390,19 +385,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("run",
              [](migraphx::program& p, py::dict params) {
                  migraphx::parameter_map pm;
-                 std::cout << "trying to convert params\n";
                  for(auto x : params)
                  {
-                     std::string key = x.first.cast<std::string>();
-                     py::buffer b    = x.second.cast<py::buffer>();
-                     std::cout << "requesting for param : " << key << "\n";
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
                      py::buffer_info info = b.request();
-                     std::cout << "finished requesting\n";
-                     std::cout << "making to argument for param : " << key << "\n";
-                     pm[key] = migraphx::argument(to_shape(info), info.ptr);
-                     std::cout << "finished making to argument\n";
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
                  }
-                 std::cout << "done converting params\n";
                  return p.eval(pm);
              })
         .def("run_async",

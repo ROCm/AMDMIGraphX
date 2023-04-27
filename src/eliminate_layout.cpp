@@ -75,12 +75,8 @@ std::unordered_set<instruction_ref> preserve_output_layout(module& m)
             refs,
             layout_ins->module_inputs());
 
-        // auto layout      = m.insert_instruction(
-        //     std::next(output),
-        //     make_op("gpu::precompile_op", {{"op", to_value(layout_ins->get_operator())}}),
-        //     output);
-        // m.debug_print();
         result.insert(layout);
+        // m.debug_print(layout);
     }
     return result;
 }
@@ -95,12 +91,20 @@ void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_
         auto precompile_op = ins->get_operator();
         auto val           = precompile_op.to_value();
 
-        if(val["op"].at("name") != "layout")
+        if(val["op"].at("name").to<std::string>() != "layout")
+        {
+            // std::cout << val["op"].at("name").to<std::string>() << std::endl;
             continue;
+        }
+        m.debug_print(ins);
         if(ins->get_shape() != ins->inputs().front()->get_shape())
+        {
+            std::cout << ins->get_shape() << " " << ins->inputs().front()->get_shape() << std::endl;
             continue;
+        }
         if(contains(output_layouts, ins))
             continue;
+        
         m.replace_instruction(ins, ins->inputs().front());
     }
 }

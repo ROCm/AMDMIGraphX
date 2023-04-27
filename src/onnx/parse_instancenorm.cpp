@@ -61,65 +61,47 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
                            ". Valid types are 1 (float), 10 (half), and 11 (double).");
 
         bool dyn_input = x->get_shape().dynamic();
-        auto ndims = x->get_shape().ndim();
+        auto ndims     = x->get_shape().ndim();
         assert(ndims >= 2);
         auto kdims = ndims - 2;
-                                                               
+
         if(x->get_shape().dynamic())
         {
-            dims= x->get_shape().min_lens();
+            dims = x->get_shape().min_lens();
         }
 
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), 2);
 
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
-        // Create a multibroadcast instruction.  Use the 2-argument
-        // version of the instruction for dynamic input and the 1-argument version
-        // for static input, since future compiler passes may optimize them differently.
-        instruction_ref mean_bcast;
-        if(dyn_input)
-            mean_bcast =
-                info.add_instruction(make_op("multibroadcast"), mean, x);
-        else
-            mean_bcast =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), mean);
+        // Use add_common_op to create a multibroadcast instruction when inputs may be static or
+        // dynamic.
+        auto mean_bcast = info.add_common_op("multibroadcast", {mean, x});
+
         auto l0              = info.add_instruction(make_op("sqdiff"), x, mean_bcast);
         auto variance        = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
         auto l1              = info.add_instruction(make_op("sub"), x, mean_bcast);
         auto epsilon_literal = info.add_literal(literal{shape{dtype}, {epsilon}});
-        instruction_ref epsilon_bcast, variance_bcast;
-        if(dyn_input)
-        {
-            epsilon_bcast =
-                info.add_instruction(make_op("multibroadcast"), epsilon_literal, x);
-            variance_bcast =
-                info.add_instruction(make_op("multibroadcast"), variance, x);
-        }
-        else
-        {
-            epsilon_bcast =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
-            variance_bcast =
-                info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), variance);
-        }
+
+        auto epsilon_bcast  = info.add_common_op("multibroadcast", {epsilon_literal, x});
+        auto variance_bcast = info.add_common_op("multibroadcast", {variance, x});
+
         auto l2 = info.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
         auto l3 = info.add_instruction(make_op("rsqrt"), l2);
         auto l4 = info.add_instruction(make_op("mul"), l1, l3);
-        // Same as for multibroadcast, use different overloads of make_op for the
-        // broadcast op and they will be handled differently in future optimization passes.
-        instruction_ref scale_bcast, bias_bcast;
+        // add_common_op not implemented in broadcast op, so use different overloads of make_op.
+        // Needed so they can be handled differently in future optimization passes.
+        instruction_ref scale_bcast;
+        instruction_ref bias_bcast;
         if(dyn_input)
         {
-            scale_bcast =
-                info.add_instruction(make_op("broadcast", {{"axis", 1}}), scale, x);
-            bias_bcast =
-                info.add_instruction(make_op("broadcast", {{"axis", 1}}), bias, x);
+            scale_bcast = info.add_instruction(make_op("broadcast", {{"axis", 1}}), scale, x);
+            bias_bcast  = info.add_instruction(make_op("broadcast", {{"axis", 1}}), bias, x);
         }
         else
         {
-            scale_bcast =
-                info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
+            scale_bcast = info.add_instruction(
+                make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
             bias_bcast =
                 info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
         }

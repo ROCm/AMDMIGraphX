@@ -148,6 +148,17 @@ shape common_shape(const std::vector<shape>& shapes)
     return {compute_common_types(shapes), compute_common_lens(shapes)};
 }
 
+/**
+ * @brief  Constructs an argument list while handling the shapes of given
+ *         arguments (whether static or dynamic) intelligently.
+ *         Inserts intermediate instructions.
+ *
+ * @param m         containing module for instruction
+ * @param ins       insertion location in instruction list
+ * @param inputs    instructions to use as argument list; specifically, the shapes
+ *                  attached to each instruction_ref are considered
+ * @return std::vector<instruction_ref>   a modified argument list
+ */
 std::vector<instruction_ref>
 insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs)
 {

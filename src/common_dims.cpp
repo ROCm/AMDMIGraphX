@@ -31,6 +31,33 @@ static auto elements(const Range& r)
     return elements(r.begin(), r.end());
 }
 
+struct common_dim_state
+{
+    common_dim_state(const std::vector<std::size_t>& pdims)
+    : dims(&pdims), it(dims->begin())
+    {}
+    const std::vector<std::size_t>* dims;
+    std::vector<std::size_t>::const_iterator it;
+    std::size_t rem = 1;
+    std::size_t get() const
+    {
+        return *it;
+    }
+    bool is_end() const
+    {
+        return it == dims->end();
+    }
+    void next(std::size_t i = 1)
+    {
+        it += i;
+    }
+    auto dims_for(std::size_t d) const
+    {
+        auto dim_end = compute_end_dim(it, dims->end(), d);
+        return range(it, dim_end);
+    }
+}
+
 common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
                                  const std::vector<std::size_t>& dims2)
 {

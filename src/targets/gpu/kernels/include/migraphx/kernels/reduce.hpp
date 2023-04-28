@@ -90,8 +90,8 @@ __device__ void dpp_reduce(T& in, Op op)
     __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32); }
 
 // Note: when max and min are in int32_t, signed version of instruction needs to be used.
-MIGRAPHX_DPP_REDUCE(op::sum, v_max, _u)
-MIGRAPHX_DPP_REDUCE(op::product, v_min, _u)
+MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
+MIGRAPHX_DPP_REDUCE(op::product, v_mul, _u)
 MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
 MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
 

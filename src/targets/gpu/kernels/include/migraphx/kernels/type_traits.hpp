@@ -218,15 +218,19 @@ using common_type_t = typename common_type<Ts...>::type;
 
 #define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
 
-// Note, this cannot be used to get the maximum value of int64_type or
-// uint64_type because it is undefined behavior to left shift 64 bits for
-// these types
-constexpr unsigned long int_max(unsigned long n) { return (1ul << (n * 8)) - 1; }
+constexpr unsigned long int_max(unsigned long n)
+{
+    // Note, left shift cannot be used to get the maximum value of int64_type or
+    // uint64_type because it is undefined behavior to left shift 64 bits for
+    // these types
+    if(n == sizeof(int64_t))
+        return -1;
+    return (1ul << (n * 8)) - 1;
+}
 
 template <class T,
           MIGRAPHX_REQUIRES(is_integral<T>{} or is_floating_point<T>{} or
-                            is_same<T, migraphx::half>{} and !is_same<T, int64_t>{} and
-                                !is_same<T, uint64_t>{})>
+                            is_same<T, migraphx::half>{})>
 constexpr T numeric_max()
 {
     if constexpr(is_integral<T>{})

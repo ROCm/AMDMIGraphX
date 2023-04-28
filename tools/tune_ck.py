@@ -104,7 +104,8 @@ def precompile(x):
 
 
 def precompile_log(f, n):
-    solutions = ((config, name, i) for config, name in parse_log(f) for i in range(n))
+    solutions = ((config, name, i) for config, name in parse_log(f)
+                 for i in range(n))
     with multiprocessing.Pool(24) as p:
         list(p.imap(precompile, solutions))
 

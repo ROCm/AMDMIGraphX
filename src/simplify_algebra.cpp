@@ -364,7 +364,7 @@ struct find_inner_broadcast
     static auto non_scalar_op(std::string name)
     {
         return [=](instruction_ref ins) {
-            if (ins->get_shape().scalar())
+            if(ins->get_shape().scalar())
                 return false;
             return ins->name() == name;
         };
@@ -376,38 +376,42 @@ struct find_inner_broadcast
         auto broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;
-        bool mixed_broadcasts = any_of(broadcasts, non_scalar_op("broadcast")) and any_of(broadcasts, non_scalar_op("multibroadcast"));
+        bool mixed_broadcasts = any_of(broadcasts, non_scalar_op("broadcast")) and
+                                any_of(broadcasts, non_scalar_op("multibroadcast"));
         // If the broadcast is not a single dimension, then dont perform inner_broadcast
-        if (mixed_broadcasts and any_of(broadcasts, [&](instruction_ref i) {
-            if (i->get_shape().scalar())
-                return false;
-            if (i->name() == "multibroadcast")
-                return false;
-            auto input = i->inputs().at(0);
-            const auto& lens = input->get_shape().lens();
-            return std::count_if(lens.begin(), lens.end(), [&](std::size_t i) { return i == 1; }) < (lens.size() - 1);
-        }))
+        if(mixed_broadcasts and any_of(broadcasts, [&](instruction_ref i) {
+               if(i->get_shape().scalar())
+                   return false;
+               if(i->name() == "multibroadcast")
+                   return false;
+               auto input       = i->inputs().at(0);
+               const auto& lens = input->get_shape().lens();
+               return std::count_if(lens.begin(), lens.end(), [&](std::size_t i) {
+                          return i == 1;
+                      }) < (lens.size() - 1);
+           }))
             return;
         std::vector<instruction_ref> inputs;
         std::transform(broadcasts.begin(),
                        broadcasts.end(),
                        std::back_inserter(inputs),
-                       [&](instruction_ref i) { 
-                        auto input = i->inputs().front();
-                        if (mixed_broadcasts and not i->get_shape().scalar() and i->get_shape().lens().size() > 1)
-                            return m.insert_instruction(i, make_op("squeeze"), input);
-                        return input; 
-                    });
+                       [&](instruction_ref i) {
+                           auto input = i->inputs().front();
+                           if(mixed_broadcasts and not i->get_shape().scalar() and
+                              i->get_shape().lens().size() > 1)
+                               return m.insert_instruction(i, make_op("squeeze"), input);
+                           return input;
+                       });
 
         std::sort(broadcasts.begin(), broadcasts.end(), by(std::less<>{}, [](instruction_ref i) {
-            if (i->get_shape().scalar())
-                return 2;
-            else if (i->name() == "broadcast")
-                return 0;
-            if (i->name() == "multibroadcast")
-                return 1;
-            return 3;
-        }));
+                      if(i->get_shape().scalar())
+                          return 2;
+                      else if(i->name() == "broadcast")
+                          return 0;
+                      if(i->name() == "multibroadcast")
+                          return 1;
+                      return 3;
+                  }));
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
         m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }

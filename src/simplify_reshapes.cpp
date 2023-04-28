@@ -913,6 +913,102 @@ struct find_broadcast_reshaper
     }
 };
 
+struct find_poinwise_reduce_reshape
+{
+    auto matcher() const
+    {
+        auto reshaper = match::name({"reshape", "squeeze", "unsqueeze"});
+        auto skip_contiguous = match::skip(match::name("contiguous"));
+        auto pointwise_or_reduce = match::any_of(match::pointwise(), match::reduce());
+        auto reshape_pointwise_or_reduce = reshaper(skip_contiguous(pointwise_or_reduce.bind("x"))).bind("reshape");
+        return pointwise_or_reduce(match::any_of[match::inputs()](reshape_pointwise_or_reduce));
+    }
+
+    static bool is_pointwise(instruction_ref ins)
+    {
+        auto a = ins->get_operator().attributes();
+        return a.get("pointwise", false);
+    }
+
+    static bool is_reduce(instruction_ref ins)
+    {
+        auto a = ins->get_operator().attributes();
+        return a.get("reduce", false);
+    }
+
+    static bool is_pointwise_or_reduce(instruction_ref ins)
+    {
+        auto a = ins->get_operator().attributes();
+        return a.get("pointwise", false) or a.get("reduce", false);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins           = r.result;
+        auto x_ins         = r.instructions["x"];
+        auto reshape_ins         = r.instructions["reshape"];
+
+        auto dims1 = x_ins->get_shape().lens();
+        auto dims2 = reshape_ins->get_shape().lens();
+
+        std::vector<int64_t> axes;
+        if (x_ins->get_operator().attributes().get("reduce", false))
+        {
+            axes = x_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        }
+        std::unordered_set<instruction_ref> inss;
+        instruction_ref entry;
+        // Collect from inputs
+        fix([&](auto self, instruction_ref i) {
+            inss.insert(i);
+            entry = i;
+            auto pointwise_or_reduce = [&](instruction_ref input) {
+                if (input->can_eval())
+                    return false;
+                return is_pointwise(input);
+            };
+            auto it = std::find_if(i->inputs().begin(), i->inputs().end(), pointwise_or_reduce);
+            if (it == i->inputs().end())
+                return;
+            auto it2 = std::find_if(it, i->inputs().end(), pointwise_or_reduce);
+            // If there is more than one pointwise_reduce than stop
+            if (it2 != i->inputs().end())
+                return;
+            self(*it);
+        })(x_ins);
+        // Collect from output
+        fix([&](auto self, instruction_ref out) {
+            for(auto output:out->outputs())
+            {
+                if (not std::all_of(output->inputs().begin(), output->inputs().end(), [&](auto input) {
+                    return input->can_eval() or contains(inss, input);
+                }))
+                    continue;
+                if (not is_pointwise_or_reduce(ins))
+                    continue;
+                inss.insert(output);
+                self(output);
+            }
+        })(x_ins);
+
+        std::vector<instruction_ref> instructions;
+        std::unordered_set<instruction_ref> aux;
+        // Topological sort
+        fix([&](auto self, instruction_ref i) {
+            instructions.push_back(i);
+            for(auto output:i->outputs())
+            {
+                if (not contains(inss, output))
+                {
+                    aux.insert(output);
+                    continue;
+                }
+                self(output);
+            }
+        })(entry);
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < 4; i++)

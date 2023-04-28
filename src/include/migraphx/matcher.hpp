@@ -474,7 +474,7 @@ struct match_fold_f
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
-        return make_bf_matcher(
+        return make_basic_fun_matcher(
             [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
                 bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
                 if(matches == Matches)
@@ -489,7 +489,7 @@ struct match_fold_f
         return [=](auto... ms) {
             // Workaround ICE on gcc by packing matchers into an object
             auto mpack = pack(ms...);
-            return make_bf_matcher(
+            return make_basic_fun_matcher(
                 [=](matcher_context& ctx, instruction_ref start) -> optional<instruction_ref> {
                     Op op;
                     bool matches = Start;
@@ -835,10 +835,28 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
+template<class T>
+inline auto has_attribute(const std::string& name, T value)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { 
+            auto attributes = ins->get_operator().attributes();
+            if (not attributes.contains(name))
+                return false;
+            return attributes[name].to<T>() == value;
+        });
+}
+
 template <class... Ms>
 auto pointwise(Ms... ms)
 {
-    return match::has_attribute("pointwise")(ms...);
+    return match::has_attribute("pointwise", true)(ms...);
+}
+
+template <class... Ms>
+auto reduce(Ms... ms)
+{
+    return match::has_attribute("reduce", true)(ms...);
 }
 
 } // namespace match

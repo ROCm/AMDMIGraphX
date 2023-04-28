@@ -356,4 +356,50 @@ TEST_CASE(compile_math)
     });
 }
 
+// NOLINTNEXTLINE
+const std::string assert_template = R"__migraphx__(
+#include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/types.hpp>
+using namespace migraphx;
+extern "C" {
+__global__ void kernel(void*) 
+{
+    static_assert(numeric_max<${type}>() == std::numeric_limits<${type}>::max(), "");
+    static_assert(numeric_lowest<${type}>() == std::numeric_limits<${type}>::lowest(), "");
+}
+}
+
+int main() {}
+
+)__migraphx__";
+
+TEST_CASE(assert_int_type_min_max)
+{
+    std::vector<std::string> data_types;
+    migraphx::gpu::hip_compile_options options;
+    for(auto&& t : migraphx::shape::types())
+    {
+        if(contains({migraphx::shape::bool_type,
+                     migraphx::shape::tuple_type,
+                     migraphx::shape::int64_type,
+                     migraphx::shape::uint64_type},
+                    t))
+            continue;
+        auto name = migraphx::shape::cpp_type(t);
+
+        migraphx::shape::visit(t, [&](auto as) {
+            if(!as.is_integral())
+                return;
+            auto src = migraphx::interpolate_string(assert_template, {{"type", name}});
+            migraphx::shape input{migraphx::shape::float_type, {5, 2}};
+            options.global = 1024;
+            options.local  = 1024;
+            options.inputs = {input};
+            options.output = input;
+
+            auto co = migraphx::gpu::compile_hip_code_object(src, options);
+        });
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

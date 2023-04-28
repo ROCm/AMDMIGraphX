@@ -79,35 +79,21 @@ __device__ void dpp_reduce(T& in, Op op)
 #endif
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix)                                                            \
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                                                      \
     __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64); } \
     __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32); }  \
     __device__ inline void dpp_reduce(half& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16); }   \
     __device__ inline void dpp_reduce(int32_t& x, op)                                              \
     {                                                                                              \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32);                                                  \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##sign##32);                                              \
     }                                                                                              \
     __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32); }
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE_OVERRIDE_I32(op, prefix)                                               \
-    __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64); } \
-    __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32); }  \
-    __device__ inline void dpp_reduce(half& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16); }   \
-    __device__ inline void dpp_reduce(int32_t& x, op)                                              \
-    {                                                                                              \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_i32);                                                  \
-    }                                                                                              \
-    __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32); }
-
-MIGRAPHX_DPP_REDUCE(op::sum, v_add)
-MIGRAPHX_DPP_REDUCE(op::product, v_mul)
-
-// Note: when max and min are in int32_t, I need to use the signed version of instruction: v_max_i32
-// and v_min_i32. However, it doesn't seems that v_add_i32 alternative exists. So there needs to be
-// a particular overrid that happens for those specific cases.
-MIGRAPHX_DPP_REDUCE_OVERRIDE_I32(op::max, v_max)
-MIGRAPHX_DPP_REDUCE_OVERRIDE_I32(op::min, v_min)
+// Note: when max and min are in int32_t, signed version of instruction needs to be used.
+MIGRAPHX_DPP_REDUCE(op::sum, v_max, _u)
+MIGRAPHX_DPP_REDUCE(op::product, v_min, _u)
+MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
+MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
 
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
@@ -120,23 +106,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 #endif
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
-    // Hack: Note when in int32_t and lowest/highest op, I need to overrid the init value
     type x = init;
-    type y = init;
-    if constexpr(is_same<type, int32_t>{})
-    {
-        if constexpr(is_same<T, lowest>{})
-        {
-            x = INT_MIN;
-            y = INT_MIN;
-        }
-        else if constexpr(is_same<T, highest>{})
-        {
-            x = INT_MAX;
-            y = INT_MAX;
-        }
-    }
-
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
 
@@ -147,6 +117,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     }
     __syncthreads();
 
+    type y = init;
     for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
     {
         y = op(y, buffer[i]);
@@ -160,15 +131,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     __shared__ type buffer[idx.max_nlocal()];
-    // Hack: Note when in int32_t and lowest/highest op, I need to overrid the init value
     type x = init;
-    if constexpr(is_same<type, int32_t>{})
-    {
-        if constexpr(is_same<T, lowest>{})
-            x = INT_MIN;
-        else if constexpr(is_same<T, highest>{})
-            x = INT_MAX;
-    }
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     buffer[idx.local] = x;
     __syncthreads();

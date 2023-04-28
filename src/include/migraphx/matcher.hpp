@@ -835,16 +835,15 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
-template<class T>
+template <class T>
 inline auto has_attribute(const std::string& name, T value)
 {
-    return make_basic_pred_matcher(
-        [=](instruction_ref ins) { 
-            auto attributes = ins->get_operator().attributes();
-            if (not attributes.contains(name))
-                return false;
-            return attributes[name].to<T>() == value;
-        });
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        auto attributes = ins->get_operator().attributes();
+        if(not attributes.contains(name))
+            return false;
+        return attributes[name].to<T>() == value;
+    });
 }
 
 template <class... Ms>

@@ -55,24 +55,15 @@ const std::unordered_set<std::string>& get_rocblas_fp32_archs()
 
 bool get_compute_fp32_flag()
 {
-    bool compute_fp32 = false;
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
     const auto device_name = trim(split_string(get_device_name(), ':').front());
-    if(contains(get_rocblas_fp32_archs(), device_name))
-        compute_fp32 = true;
-#endif
-    return compute_fp32;
+    return contains(get_rocblas_fp32_archs(), device_name);
 }
 
 bool get_int8_x4_format(context& ctx)
 {
-    bool int8_x4_format = true;
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
     rocblas_gemm_flags flag;
     rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-    int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
-#endif
-    return int8_x4_format;
+    return flag == rocblas_gemm_flags_pack_int8x4;
 }
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -21,29 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/tracer.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct compile_options
+struct test_reduce_mean_bias_half : verify_program<test_reduce_mean_bias_half>
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
-
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-    tracer trace{};
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {1, 32, 128}};
+        migraphx::shape bs{migraphx::shape::half_type, {1, 32, 128}};
+        auto x      = mm->add_parameter("x", s);
+        auto reduce = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+        auto bias   = mm->add_parameter("bias", reduce->get_shape());
+        auto add    = mm->add_instruction(migraphx::make_op("add"), reduce, bias);
+        auto abs    = mm->add_instruction(migraphx::make_op("abs"), add);
+        auto sqrt   = mm->add_instruction(migraphx::make_op("sqrt"), abs);
+        mm->add_return({sqrt});
+        return p;
+    };
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

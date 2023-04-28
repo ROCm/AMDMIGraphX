@@ -578,18 +578,11 @@ struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(optimals)
 
-    optimals() { this->make_handle(&migraphx_optimals_create); }
-
     optimals(std::initializer_list<size_t> init_list)
     {
-        this->make_handle(&migraphx_optimals_create);
-        for(auto&& dim : init_list)
-        {
-            this->insert(dim);
-        }
+        std::vector<size_t> a{init_list.begin(), init_list.end()};
+        this->make_handle(&migraphx_optimals_create, a.data(), a.size());
     }
-
-    void insert(size_t dim) { call(&migraphx_optimals_insert, this->get_handle_ptr(), dim); }
 };
 
 /**
@@ -638,15 +631,11 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)
 
-    dynamic_dimensions() { this->make_handle(&migraphx_dynamic_dimensions_create); }
-
-    dynamic_dimensions(std::initializer_list<dynamic_dimension> init_list)
+    template <class... Ts>
+    dynamic_dimensions(Ts... xs)
     {
-        this->make_handle(&migraphx_dynamic_dimensions_create);
-        for(auto&& dd : init_list)
-        {
-            this->add(dd);
-        }
+        std::array<const_migraphx_dynamic_dimension_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_dynamic_dimensions_create, a.data(), a.size());
     }
 
     size_t size() const
@@ -654,11 +643,6 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
         size_t pout;
         call(&migraphx_dynamic_dimensions_size, &pout, this->get_handle_ptr());
         return pout;
-    }
-
-    void add(const dynamic_dimension& dyn_dim) const
-    {
-        call(&migraphx_dynamic_dimensions_add, this->get_handle_ptr(), dyn_dim.get_handle_ptr());
     }
 
     dynamic_dimension operator[](size_t pidx) const
@@ -743,14 +727,6 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return {pout, own{}};
     }
 
-    // Create a static version of this shape using dim for any non-fixed dynamic dimensions
-    shape to_static(size_t dim) const
-    {
-        migraphx_shape_t pout;
-        call(&migraphx_shape_to_static, &pout, this->get_handle_ptr(), dim);
-        return {pout, own{}};
-    }
-
     migraphx_shape_datatype_t type() const
     {
         migraphx_shape_datatype_t pout;
@@ -822,12 +798,12 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 
     argument(shape pshape)
     {
-        this->make_handle(&migraphx_argument_create, pshape.get_handle_ptr());
+        this->make_handle(&migraphx_argument_create_empty, pshape.get_handle_ptr());
     }
 
     argument(shape pshape, void* pbuffer)
     {
-        this->make_handle(&migraphx_argument_create_with_buffer, pshape.get_handle_ptr(), pbuffer);
+        this->make_handle(&migraphx_argument_create, pshape.get_handle_ptr(), pbuffer);
     }
 
     shape get_shape() const
@@ -942,14 +918,6 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
              this->get_handle_ptr(),
              pname,
              pargument.get_handle_ptr());
-    }
-
-    /// Check if contains a parameter
-    bool contains(const char* pname) const
-    {
-        bool pout;
-        call(&migraphx_program_parameters_contains, &pout, this->get_handle_ptr(), pname);
-        return pout;
     }
 };
 

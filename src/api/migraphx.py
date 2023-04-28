@@ -55,10 +55,9 @@ def auto_handle(*args, **kwargs):
 
 @api.handle('migraphx_optimals', 'std::set<size_t>')
 def optimals(h):
-    h.constructor('create')
-    h.method('insert',
-             api.params(dim='size_t'),
-             invoke='${optimals}.insert(${dim})')
+    h.constructor('create',
+                  api.params(ptr='size_t*', size='size_t'),
+                  fname='migraphx::make_set<size_t>')
 
 
 @api.handle('migraphx_dynamic_dimension', 'migraphx::shape::dynamic_dimension')
@@ -78,16 +77,16 @@ def dynamic_dimension(h):
 @api.handle('migraphx_dynamic_dimensions',
             'std::vector<migraphx::shape::dynamic_dimension>')
 def dynamic_dimensions(h):
-    h.constructor('create')
+    h.constructor(
+        'create',
+        api.params(ptr='const_migraphx_dynamic_dimension_t*', size='size_t'),
+        fname='migraphx::to_obj_vector<const_migraphx_dynamic_dimension_t>')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),
              fname='at',
              cpp_name='operator[]',
              returns='const migraphx::shape::dynamic_dimension&')
-    h.method('add',
-             api.params(dyn_dim='const migraphx::shape::dynamic_dimension&'),
-             fname='push_back')
 
 
 @auto_handle()
@@ -114,10 +113,6 @@ def shape(h):
     h.method('dyn_dims',
              returns='std::vector<migraphx::shape::dynamic_dimension>',
              const=True)
-    h.method('to_static',
-             api.params(dim='size_t'),
-             returns='migraphx::shape',
-             const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
     h.method('elements', returns='size_t', const=True)
     h.method('bytes', returns='size_t', const=True)
@@ -134,9 +129,9 @@ def shape(h):
 
 @auto_handle()
 def argument(h):
-    h.constructor('create', api.params(shape='const migraphx::shape&'))
-    h.constructor('create_with_buffer',
+    h.constructor('create',
                   api.params(shape='const migraphx::shape&', buffer='void*'))
+    h.constructor('create_empty', api.params(shape='const migraphx::shape&'))
     h.method('shape',
              fname='get_shape',
              cpp_name='get_shape',
@@ -189,11 +184,6 @@ def program_parameters(h):
              api.params(name='const char*',
                         argument='const migraphx::argument&'),
              invoke='${program_parameters}[${name}] = ${argument}')
-    h.method('contains',
-             api.params(name='const char*'),
-             invoke='migraphx::contains(${program_parameters}, ${name})',
-             returns='bool',
-             const=True)
 
 
 @api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')

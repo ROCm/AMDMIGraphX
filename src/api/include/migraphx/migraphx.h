@@ -171,9 +171,7 @@ migraphx_status migraphx_optimals_destroy(migraphx_optimals_t optimals);
 migraphx_status migraphx_optimals_assign_to(migraphx_optimals_t output,
                                             const_migraphx_optimals_t input);
 
-migraphx_status migraphx_optimals_create(migraphx_optimals_t* optimals);
-
-migraphx_status migraphx_optimals_insert(migraphx_optimals_t optimals, size_t dim);
+migraphx_status migraphx_optimals_create(migraphx_optimals_t* optimals, size_t* ptr, size_t size);
 
 migraphx_status migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension);
 
@@ -205,7 +203,9 @@ migraphx_status migraphx_dynamic_dimensions_assign_to(migraphx_dynamic_dimension
                                                       const_migraphx_dynamic_dimensions_t input);
 
 migraphx_status
-migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions);
+migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions,
+                                   const_migraphx_dynamic_dimension_t* ptr,
+                                   size_t size);
 
 migraphx_status migraphx_dynamic_dimensions_size(size_t* out,
                                                  migraphx_dynamic_dimensions_t dynamic_dimensions);
@@ -213,9 +213,6 @@ migraphx_status migraphx_dynamic_dimensions_size(size_t* out,
 migraphx_status migraphx_dynamic_dimensions_get(const_migraphx_dynamic_dimension_t* out,
                                                 migraphx_dynamic_dimensions_t dynamic_dimensions,
                                                 size_t idx);
-
-migraphx_status migraphx_dynamic_dimensions_add(migraphx_dynamic_dimensions_t dynamic_dimensions,
-                                                const_migraphx_dynamic_dimension_t dyn_dim);
 
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
@@ -249,9 +246,6 @@ migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shap
 migraphx_status migraphx_shape_dyn_dims(migraphx_dynamic_dimensions_t* out,
                                         const_migraphx_shape_t shape);
 
-migraphx_status
-migraphx_shape_to_static(migraphx_shape_t* out, const_migraphx_shape_t shape, size_t dim);
-
 migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, const_migraphx_shape_t shape);
 
 migraphx_status migraphx_shape_elements(size_t* out, const_migraphx_shape_t shape);
@@ -274,12 +268,11 @@ migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 migraphx_status migraphx_argument_assign_to(migraphx_argument_t output,
                                             const_migraphx_argument_t input);
 
-migraphx_status migraphx_argument_create(migraphx_argument_t* argument,
-                                         const_migraphx_shape_t shape);
+migraphx_status
+migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer);
 
-migraphx_status migraphx_argument_create_with_buffer(migraphx_argument_t* argument,
-                                                     const_migraphx_shape_t shape,
-                                                     void* buffer);
+migraphx_status migraphx_argument_create_empty(migraphx_argument_t* argument,
+                                               const_migraphx_shape_t shape);
 
 migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out,
                                         const_migraphx_argument_t argument);
@@ -328,9 +321,6 @@ migraphx_program_parameters_create(migraphx_program_parameters_t* program_parame
 migraphx_status migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters,
                                                 const char* name,
                                                 const_migraphx_argument_t argument);
-
-migraphx_status migraphx_program_parameters_contains(
-    bool* out, const_migraphx_program_parameters_t program_parameters, const char* name);
 
 migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments);
 

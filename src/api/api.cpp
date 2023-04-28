@@ -200,6 +200,14 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     return result;
 }
 
+template <class T>
+std::set<T> make_set(const T* x, std::size_t n)
+{
+    std::set<T> result;
+    std::transform(x, x + n, std::inserter(result, result.begin()), [&](auto&& y) { return y; });
+    return result;
+}
+
 void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 {
     if(names.empty())
@@ -798,19 +806,12 @@ extern "C" migraphx_status migraphx_optimals_assign_to(migraphx_optimals_t outpu
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_optimals_create(migraphx_optimals_t* optimals)
-{
-    auto api_error_result = migraphx::try_(
-        [&] { *optimals = object_cast<migraphx_optimals_t>(allocate<std::set<size_t>>()); });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_optimals_insert(migraphx_optimals_t optimals, size_t dim)
+extern "C" migraphx_status
+migraphx_optimals_create(migraphx_optimals_t* optimals, size_t* ptr, size_t size)
 {
     auto api_error_result = migraphx::try_([&] {
-        if(optimals == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter optimals: Null pointer");
-        (optimals->object).insert((dim));
+        *optimals = object_cast<migraphx_optimals_t>(
+            allocate<std::set<size_t>>(migraphx::make_set<size_t>((ptr), (size))));
     });
     return api_error_result;
 }
@@ -899,11 +900,14 @@ migraphx_dynamic_dimensions_assign_to(migraphx_dynamic_dimensions_t output,
 }
 
 extern "C" migraphx_status
-migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions)
+migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions,
+                                   const_migraphx_dynamic_dimension_t* ptr,
+                                   size_t size)
 {
     auto api_error_result = migraphx::try_([&] {
         *dynamic_dimensions = object_cast<migraphx_dynamic_dimensions_t>(
-            allocate<std::vector<migraphx::shape::dynamic_dimension>>());
+            allocate<std::vector<migraphx::shape::dynamic_dimension>>(
+                migraphx::to_obj_vector<const_migraphx_dynamic_dimension_t>((ptr), (size))));
     });
     return api_error_result;
 }
@@ -931,21 +935,6 @@ migraphx_dynamic_dimensions_get(const_migraphx_dynamic_dimension_t* out,
                            "Bad parameter dynamic_dimensions: Null pointer");
         *out = object_cast<const_migraphx_dynamic_dimension_t>(
             &((dynamic_dimensions->object).at((idx))));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status
-migraphx_dynamic_dimensions_add(migraphx_dynamic_dimensions_t dynamic_dimensions,
-                                const_migraphx_dynamic_dimension_t dyn_dim)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(dynamic_dimensions == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter dynamic_dimensions: Null pointer");
-        if(dyn_dim == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dyn_dim: Null pointer");
-        (dynamic_dimensions->object).push_back((dyn_dim->object));
     });
     return api_error_result;
 }
@@ -1062,17 +1051,6 @@ extern "C" migraphx_status migraphx_shape_dyn_dims(migraphx_dynamic_dimensions_t
     return api_error_result;
 }
 
-extern "C" migraphx_status
-migraphx_shape_to_static(migraphx_shape_t* out, const_migraphx_shape_t shape, size_t dim)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(shape == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
-        *out = allocate<migraphx_shape_t>((shape->object).to_static((dim)));
-    });
-    return api_error_result;
-}
-
 extern "C" migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,
                                                const_migraphx_shape_t shape)
 {
@@ -1172,26 +1150,25 @@ extern "C" migraphx_status migraphx_argument_assign_to(migraphx_argument_t outpu
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_argument_create(migraphx_argument_t* argument,
-                                                    const_migraphx_shape_t shape)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(shape == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
-        *argument = object_cast<migraphx_argument_t>(allocate<migraphx::argument>((shape->object)));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_argument_create_with_buffer(migraphx_argument_t* argument,
-                                                                const_migraphx_shape_t shape,
-                                                                void* buffer)
+extern "C" migraphx_status
+migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer)
 {
     auto api_error_result = migraphx::try_([&] {
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *argument = object_cast<migraphx_argument_t>(
             allocate<migraphx::argument>((shape->object), (buffer)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_argument_create_empty(migraphx_argument_t* argument,
+                                                          const_migraphx_shape_t shape)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *argument = object_cast<migraphx_argument_t>(allocate<migraphx::argument>((shape->object)));
     });
     return api_error_result;
 }
@@ -1358,18 +1335,6 @@ migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters
         if(argument == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter argument: Null pointer");
         (program_parameters->object)[(name)] = (argument->object);
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_program_parameters_contains(
-    bool* out, const_migraphx_program_parameters_t program_parameters, const char* name)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(program_parameters == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter program_parameters: Null pointer");
-        *out = migraphx::contains((program_parameters->object), (name));
     });
     return api_error_result;
 }

@@ -25,7 +25,6 @@
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
-
 #include <migraphx/manage_ptr.hpp>
 #include "test.hpp"
 
@@ -136,9 +135,15 @@ hip_ptr get_hip_buffer(size_t size)
 TEST_CASE(dynamic_batch_load_and_run_offload)
 {
     migraphx::onnx_options o_options;
-    migraphx::dynamic_dimensions dyn_dims = {{1, 4, {2, 4}}, {3, 3}, {4, 4}, {4, 4}};
+    migraphx::dynamic_dimensions dyn_dims = {migraphx::dynamic_dimension{1, 4, {2, 4}},
+                                             migraphx::dynamic_dimension{3, 3},
+                                             migraphx::dynamic_dimension{4, 4},
+                                             migraphx::dynamic_dimension{4, 4}};
     o_options.set_dyn_input_parameter_shape("0", dyn_dims);
-    dyn_dims = {{2, 2}, {3, 3}, {3, 3}, {3, 3}};
+    dyn_dims = {migraphx::dynamic_dimension{2, 2},
+                migraphx::dynamic_dimension{3, 3},
+                migraphx::dynamic_dimension{3, 3},
+                migraphx::dynamic_dimension{3, 3}};
     o_options.set_dyn_input_parameter_shape("1", dyn_dims);
     auto p             = migraphx::parse_onnx("conv_dynamic_batch_test.onnx", o_options);
     auto shapes_before = p.get_output_shapes();
@@ -149,17 +154,20 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
     CHECK(out_shapes.size() == 1);
     EXPECT(out_shapes[0].dynamic());
 
+    // batch size = 2
     std::vector<float> a(2 * 3 * 4 * 4, 0.12);
     std::vector<float> c(2 * 3 * 3 * 3, 0.75);
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
-    int batch_size    = 2;
-    pp.add("0", migraphx::argument(param_shapes["0"].to_static(batch_size), a.data()));
-    pp.add("1", migraphx::argument(param_shapes["1"].to_static(batch_size), c.data()));
+    pp.add("0",
+           migraphx::argument(migraphx::shape(migraphx_shape_float_type, {2, 3, 4, 4}), a.data()));
+    pp.add("1",
+           migraphx::argument(migraphx::shape(migraphx_shape_float_type, {2, 3, 3, 3}), c.data()));
     auto outputs = p.eval(pp);
 
     CHECK(shapes_before.size() == outputs.size());
-    CHECK(bool{shapes_before.front().to_static(batch_size) == outputs.front().get_shape()});
+    CHECK(bool{outputs.front().get_shape() ==
+               migraphx::shape(migraphx_shape_float_type, {2, 1, 3, 3})});
 }
 
 TEST_CASE(load_and_run_async)

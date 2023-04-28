@@ -386,8 +386,8 @@ struct find_inner_broadcast
                    return false;
                auto input       = i->inputs().at(0);
                const auto& lens = input->get_shape().lens();
-               return std::count_if(lens.begin(), lens.end(), [&](std::size_t i) {
-                          return i == 1;
+               return std::count_if(lens.begin(), lens.end(), [&](std::size_t d) {
+                          return d == 1;
                       }) < (lens.size() - 1);
            }))
             return;

@@ -98,13 +98,13 @@ def parse_log(f):
 
 def precompile(x):
     try:
-        list(run_driver_ck(x[0], x[1], 0))
+        list(run_driver_ck(x[0], x[1], x[2], 0))
     except:
         pass
 
 
 def precompile_log(f, n):
-    solutions = ((config, i) for config in parse_log(f) for i in range(n))
+    solutions = ((config, name, i) for config, name in parse_log(f) for i in range(n))
     with multiprocessing.Pool(24) as p:
         list(p.imap(precompile, solutions))
 

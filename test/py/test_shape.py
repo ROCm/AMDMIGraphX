@@ -53,17 +53,14 @@ def test_create_shape_type():
 def test_create_dyn_dims():
     a = migraphx.shape.dynamic_dimension()
     assert a.is_fixed()
-    assert not a.has_optimal()
     assert a.min == 0
     b = migraphx.shape.dynamic_dimension(4, 4)
     assert b.is_fixed()
     assert b.max == 4
-    assert not b.has_optimal()
     c = migraphx.shape.dynamic_dimension(1, 4, {2, 4})
     assert not c.is_fixed()
     assert c.min == 1
     assert c.max == 4
-    assert c.has_optimal()
     assert c.optimals == {2, 4}
 
     dyn_dims = [a, b]
@@ -80,10 +77,6 @@ def test_create_dyn_shape():
     assert dyn_shape.dyn_dims()[0].min == dds[0].min
     assert dyn_shape.dyn_dims()[0].max == dds[0].max
     assert dyn_shape.dyn_dims()[0].optimals == dds[0].optimals
-
-    static_shape = dyn_shape.to_static(2)
-    assert not static_shape.dynamic()
-    assert static_shape.lens() == [2, 4]
 
 
 def test_type_enum():

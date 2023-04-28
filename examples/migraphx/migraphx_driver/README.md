@@ -53,7 +53,6 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | --enable-offload-copy                    | Enable implicit offload copying                           |
 | --disable-fast-math                      | Disable fast math optimization                            |
 | --exhaustive-tune                        | Enable exhaustive search to find fastest kernel           |
-| --split-single-dyn-dim                   | Enable split_single_dyn_dim compiler pass                 |
 | --fp16                                   | Quantize for fp16                                         |
 | --int8                                   | Quantize for int8                                         |
 | --tolerance                              | Tolerance for errors                                      |

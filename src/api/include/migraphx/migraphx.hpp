@@ -580,8 +580,7 @@ struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
 
     optimals(std::initializer_list<size_t> init_list)
     {
-        std::vector<size_t> a{init_list.begin(), init_list.end()};
-        this->make_handle(&migraphx_optimals_create, a.data(), a.size());
+        this->make_handle(&migraphx_optimals_create, init_list.begin(), init_list.size());
     }
 };
 

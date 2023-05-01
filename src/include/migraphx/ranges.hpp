@@ -248,6 +248,9 @@ struct iterator_range
     Iterator begin() const { return start; }
 
     Iterator end() const { return last; }
+
+    bool empty() const { return start == last; }
+    decltype(auto) front() const { return *start; }
 };
 
 template <class Iterator, MIGRAPHX_REQUIRES(not std::is_integral<Iterator>{})>

@@ -21,29 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/tracer.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct compile_options
+struct test_softmax4 : verify_program<test_softmax4>
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
-
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-    tracer trace{};
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 12, 384, 384}});
+        mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), x);
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

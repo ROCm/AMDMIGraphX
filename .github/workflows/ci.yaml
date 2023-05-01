@@ -1,6 +1,13 @@
 name: migraphx
 
-on: [push, pull_request]
+on: 
+  pull_request:
+  push:
+    branches: 
+      - develop
+      - master
+      - 'release/**'
+
 
 jobs:
   cancel:
@@ -17,40 +24,29 @@ jobs:
     - name: Free space
       run: |
         sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
-        du . --max-depth=1 -h
-        ls -la
-        cd /usr/local
-        du . --max-depth=1 -h
-        ls -la
-        cd /usr/local/lib
-        echo $(pwd)
-        du . --max-depth=1 -h
-        ls -la
 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    # name: Docker Layer Caching2
-    - uses: jpribyl/action-docker-layer-caching@v0.1.1
+    - name: Docker layer cache
+      uses: jpribyl/action-docker-layer-caching@v0.1.1
+      with:
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+        restore-keys:
+          docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash 
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
-
-    - name: Cache files for tidy
-      uses: pat-s/always-upload-cache@v3.0.11
+    - name: Restore cache files for tidy
+      uses: actions/cache/restore@v3 
+      id: tidy_restore
       with:
         path: tidy-cache
-        key: tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
-        restore-keys: |
-            tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
-            tidy-cache-
-
+        key: tidy-cache-${{ github.ref }}
+        restore-keys: tidy-cache-
+        
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
 
@@ -70,6 +66,25 @@ jobs:
           ..
         make -j2 -k onnx-proto tf-proto tidy
 
+    # GH actions can not update existing cache, as a workaround clear cache and then save it
+    - name: Clear tidy cache before saving
+      if: ${{ steps.tidy_restore.outputs.cache-hit }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh extension install actions/gh-actions-cache --pin v1.0.1
+        gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
+      continue-on-error: true
+
+    - name: Save cache files for tidy
+      uses: actions/cache/save@v3 
+      if: always()
+      with:
+        path: tidy-cache
+        key: tidy-cache-${{ github.ref }}
+
+
   cppcheck:
     runs-on: ubuntu-20.04
 
@@ -81,23 +96,22 @@ jobs:
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: jpribyl/action-docker-layer-caching@v0.1.1
+    - name: Docker layer cache
+      uses: jpribyl/action-docker-layer-caching@v0.1.1
+      with:
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+        restore-keys:
+          docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash 
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
-
-    - name: Cache files for cppcheck
-      uses: pat-s/always-upload-cache@v2.1.3
+    - name: Restore cache files for cppcheck
+      id: cppcheck_restore
+      uses: actions/cache/restore@v3
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
-        restore-keys: |
-            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
-            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
+        restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -114,6 +128,25 @@ jobs:
           ..
         make -j2 cppcheck
 
+    # GH actions can not update existing cache, as a workaround clear cache and then save it
+    - name: Clear cppcheck cache before saving
+      if: ${{ steps.cppcheck_restore.outputs.cache-hit }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh extension install actions/gh-actions-cache --pin v1.0.1
+        gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
+      continue-on-error: true
+
+    - name: Save cache files for cppcheck
+      uses: actions/cache/save@v3
+      if: always()
+      with:
+        path: cppcheck-cache
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
+
+
   format:
     runs-on: ubuntu-20.04
 
@@ -125,7 +158,12 @@ jobs:
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: jpribyl/action-docker-layer-caching@v0.1.1
+    - name: Docker layer cache
+      uses: jpribyl/action-docker-layer-caching@v0.1.1
+      with:
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+        restore-keys:
+          docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -206,8 +244,13 @@ jobs:
           - codecov
 
     steps:
-    - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
+    - name: Free space and install rbuild, lld
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
+        sudo apt-get install -y lld
+        python -m pip install --upgrade pip
+        pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -217,36 +260,25 @@ jobs:
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
       uses: actions/cache@v3
+      id: deps_cache
       with:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
-        key: 
-          ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
-          ${{ matrix.os }}-cget-4-
-
+        key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+        restore-keys: ${{ matrix.os }}-cget-4-
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
-        rbuild prepare -d cget -s gh
-        sudo apt-get install -y lld
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash 
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
+      if: steps.deps_cache.outputs.cache-hit != 'true'
+      run: rbuild prepare -d cget -s gh
 
-    - name: Cache files for ccache
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-      uses: pat-s/always-upload-cache@v2.1.3
+    - name: Restore cache files for ccache
+      uses: actions/cache/restore@v3 
+      id: ccache_restore
       with:
-        path: ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
-        restore-keys: |
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
+        restore-keys: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
 
     - name: Build and test
       env:
@@ -265,6 +297,23 @@ jobs:
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=lld' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=lld'
         ${{ github.workspace }}/cget/bin/ccache -s
+
+    # GH actions can not update existing cache, as a workaround clear cache and then save it
+    - name: Clear ccache cache before saving
+      if: ${{ steps.ccache_restore.outputs.cache-hit }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh extension install actions/gh-actions-cache --pin v1.0.1
+        gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
+
+    - name: Save cache files for ccache
+      uses: actions/cache/save@v3 
+      if: always()
+      with:
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
 
     - name: Upload code coverage
       if: "matrix.configuration == 'codecov'"
@@ -309,6 +358,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: 3.7
+
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
@@ -317,9 +367,8 @@ jobs:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
-        key: 
-          ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
-          ${{ matrix.os }}-cget-4-
+        key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+        restore-keys: ${{ matrix.os }}-cget-4-
 
 
     - name: Install dependencies
@@ -328,22 +377,15 @@ jobs:
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
         sudo apt-get install -y lld
-    - name: Prepare timestamp
-      id: cache_timestamp
-      shell: bash
-      run: echo timestamp="$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_OUTPUT
 
-    - name: Cache files for ccache
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-      uses: pat-s/always-upload-cache@v2.1.3
+    - name: Restore cache files for ccache
+      id: ccache_restore_fpga
+      uses: actions/cache/restore@v3 
       with:
-        path: ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
-        restore-keys: |
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
-            ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
-
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
+        restore-keys: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-
+    
     - name: Build and test
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
@@ -363,17 +405,36 @@ jobs:
           -DMIGRAPHX_ENABLE_FPGA=On
         ${{ github.workspace }}/cget/bin/ccache -s
 
-    #- name: Upload code coverage
-    #  if: "matrix.configuration == 'codecov'"
-    #  env:
-    #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
-    #  run: |
-    #    sudo apt-get install -y lcov
-    #    cd build
-    #    lcov --directory . --capture --output-file $(pwd)/coverage.info
-    #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
-    #    lcov --list $(pwd)/coverage.info
-    #    curl -Os https://uploader.codecov.io/latest/linux/codecov
-    #    chmod +x codecov
-    #    ./codecov -t ${CODECOV_TOKEN}
-    #    echo "Uploaded"
+    # this is a workaround, with GH actions can not update existing cache
+    - name: Clear ccache cache before saving
+      if: ${{ steps.ccache_restore_fpga.outputs.cache-hit }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh extension install actions/gh-actions-cache
+        gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
+      continue-on-error: true
+
+    - name: Save cache files for ccache
+      uses: actions/cache/save@v3 
+      if: always()
+      with:
+        path: ${{ github.workspace }}/ccache
+        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
+
+      #- name: Upload code coverage
+      #  if: "matrix.configuration == 'codecov'"
+      #  env:
+      #    CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
+      #  run: |
+      #    sudo apt-get install -y lcov
+      #    cd build
+      #    lcov --directory . --capture --output-file $(pwd)/coverage.info
+      #    lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
+      #    lcov --list $(pwd)/coverage.info
+      #    curl -Os https://uploader.codecov.io/latest/linux/codecov
+      #    chmod +x codecov
+      #    ./codecov -t ${CODECOV_TOKEN}
+      #    echo "Uploaded"
+

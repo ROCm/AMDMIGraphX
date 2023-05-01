@@ -45,7 +45,7 @@ struct common_dim_state
         auto dim_end = compute_end_dim(it, dims->end(), d);
         return range(it, dim_end);
     }
-}
+};
 
 common_dims
 common_dims::compute(const std::vector<std::size_t>& dims1, const std::vector<std::size_t>& dims2)

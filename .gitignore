@@ -65,10 +65,10 @@ test/onnx/models
 .vs
 
 # documentation artifacts
-build/
-_build/
-_images/
-_static/
-_templates/
-docBin/
-_doxygen/
+docs/_build
+docs/_images
+docs/_static
+docs/_templates
+docs/.doxygen/docBin
+docs/_doxygen
+/_readthedocs

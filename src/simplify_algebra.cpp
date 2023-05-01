@@ -361,7 +361,7 @@ struct find_inner_broadcast
 {
     auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
-    static auto non_scalar_op(std::string name)
+    static auto non_scalar_op(const std::string& name)
     {
         return [=](instruction_ref ins) {
             if(ins->get_shape().scalar())

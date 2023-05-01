@@ -38,21 +38,21 @@ int main(int argc, char** argv)
                                              migraphx::dynamic_dimension{4, 4},
                                              migraphx::dynamic_dimension{5, 5}};
     o_options.set_dyn_input_parameter_shape("0", dyn_dims);
-    auto p = migraphx::parse_onnx("add_bcast_test.onnx", o_options);
+    auto p = migraphx::parse_onnx("../add_scalar_test.onnx", o_options);
     migraphx::compile_options c_options;
     c_options.set_offload_copy();
     p.compile(migraphx::target("gpu"), c_options);
 
     // batch size = 2
-    std::vector<float> a(2 * 3 * 4 * 5, 0.15);
-    std::vector<float> b(3 * 4, 0.75);
+    std::vector<uint8_t> a(2 * 3 * 4 * 5, 3);
+    std::vector<uint8_t> b = {2};
     migraphx::program_parameters pp;
-    shape s = migraphx::shape(migraphx_shape_float_type, {2, 3, 4, 5});
+    migraphx::shape s = migraphx::shape(migraphx_shape_uint8_type, {2, 3, 4, 5});
     pp.add("0", migraphx::argument(s, a.data()));
-    pp.add("1", migraphx::argument(migraphx::shape(migraphx_shape_float_type, {3, 4}), b.data()));
+    pp.add("1", migraphx::argument(migraphx::shape(migraphx_shape_uint8_type, {1}, {0}), b.data()));
     auto outputs = p.eval(pp);
     auto result  = outputs[0];
-    std::vector<float> c(2 * 3 * 4 * 5, 0.90);
+    std::vector<uint8_t> c(2 * 3 * 4 * 5, 5);
     if(bool{result == migraphx::argument(s, c.data())})
     {
         std::cout << "Successfully executed dynamic batch add\n";

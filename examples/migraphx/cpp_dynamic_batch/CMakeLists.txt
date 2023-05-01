@@ -25,7 +25,7 @@ cmake_minimum_required(VERSION 3.5)
 project (cpp_dynamic_batch)
 
 set (CMAKE_CXX_STANDARD 14)
-set (EXAMPLE dynamic_batch))
+set (EXAMPLE dynamic_batch)
 
 list (APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package (migraphx)

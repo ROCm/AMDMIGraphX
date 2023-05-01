@@ -203,9 +203,7 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
 template <class T>
 std::set<T> make_set(const T* x, std::size_t n)
 {
-    std::set<T> result;
-    std::transform(x, x + n, std::inserter(result, result.begin()), [&](auto&& y) { return y; });
-    return result;
+    return {x, x + n};
 }
 
 void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
@@ -807,7 +805,7 @@ extern "C" migraphx_status migraphx_optimals_assign_to(migraphx_optimals_t outpu
 }
 
 extern "C" migraphx_status
-migraphx_optimals_create(migraphx_optimals_t* optimals, size_t* ptr, size_t size)
+migraphx_optimals_create(migraphx_optimals_t* optimals, const size_t* ptr, size_t size)
 {
     auto api_error_result = migraphx::try_([&] {
         *optimals = object_cast<migraphx_optimals_t>(

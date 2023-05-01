@@ -56,7 +56,7 @@ def auto_handle(*args, **kwargs):
 @api.handle('migraphx_optimals', 'std::set<size_t>')
 def optimals(h):
     h.constructor('create',
-                  api.params(ptr='size_t*', size='size_t'),
+                  api.params(ptr='const size_t*', size='size_t'),
                   fname='migraphx::make_set<size_t>')
 
 

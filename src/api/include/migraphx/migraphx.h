@@ -171,7 +171,8 @@ migraphx_status migraphx_optimals_destroy(migraphx_optimals_t optimals);
 migraphx_status migraphx_optimals_assign_to(migraphx_optimals_t output,
                                             const_migraphx_optimals_t input);
 
-migraphx_status migraphx_optimals_create(migraphx_optimals_t* optimals, size_t* ptr, size_t size);
+migraphx_status
+migraphx_optimals_create(migraphx_optimals_t* optimals, const size_t* ptr, size_t size);
 
 migraphx_status migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension);
 

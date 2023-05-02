@@ -86,6 +86,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
                                        {"lambda", v.at("lambda").to<std::string>()},
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})}});
+        //std::cout << src << std::endl;
         return compile_hip_code_object(src, options);
     }
 

@@ -80,17 +80,17 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             if(contains(param_map, input))
                 continue;
             auto scalar = get_scalar(input);
-            if(scalar.empty())
-            {
+            //if(scalar.empty())
+            //{
                 pointwise_inputs.push_back(input);
                 param_map[input] =
                     pm->add_parameter("x" + std::to_string(i), shape{input->get_shape().type()});
                 i++;
-            }
-            else
-            {
-                param_map[input] = pm->add_literal(scalar);
-            }
+            //}
+            //else
+            //{
+            //    param_map[input] = pm->add_literal(scalar);
+            //}
         }
 
         // Don't create pointwise module if no inputs are detected

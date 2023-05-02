@@ -34,14 +34,35 @@ struct test_dequantizelinear : verify_program<test_dequantizelinear>
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape sx{migraphx::shape::int8_type, {2, 2, 2}};
-        migraphx::shape ss{migraphx::shape::float_type, {2, 2, 2}};
-        migraphx::shape sz{migraphx::shape::int8_type, {2, 2, 2}};
-        auto input1 = mm->add_parameter("x", sx);
-        auto input2 = mm->add_parameter("x_scale", ss);
+        auto x    = mm->add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+        auto w    = mm->add_parameter("w", {migraphx::shape::int8_type, {2, 8, 3, 3}});
+        auto b    = mm->add_parameter("b", {migraphx::shape::int32_type, {1, 2, 2, 2}});
+        auto conv = mm->add_instruction(migraphx::make_op("quant_convolution"), x, w);
+        migraphx::shape ss{migraphx::shape::float_type, {1, 2, 2, 2}};
+        migraphx::shape sz{migraphx::shape::int32_type, {1, 2, 2, 2}};
+        //auto input2 = mm->add_parameter("x_scale", ss);
+        std::vector<float> datax = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8};
+        auto input2    = mm->add_literal(migraphx::literal(ss, datax));
         auto input3 = mm->add_parameter("x_zero_point", sz);
-        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), input1, input2, input3);
-        mm->add_return({r});
+        auto dequant =
+            mm->add_instruction(migraphx::make_op("dequantizelinear"), conv, input2, input3);
+        // conv, input2);
+        mm->add_return({dequant});
+        // mm->add_return({conv});
+        // auto add  = mm->add_instruction(migraphx::make_op("add"), conv, b);
+        // mm->add_return({add});
+        // auto r       = mm->add_instruction(migraphx::make_op("quantizelinear"), dequant, input2,
+        // input3); mm->add_return({r});
+        // auto s = migraphx::gpu::dump_mlir(m);
+
+        // migraphx::shape sx{migraphx::shape::int8_type, {2, 2, 2}};
+        // migraphx::shape ss{migraphx::shape::float_type, {2, 2, 2}};
+        // migraphx::shape sz{migraphx::shape::int8_type, {2, 2, 2}};
+        // auto input1 = mm->add_parameter("x", sx);
+        // auto input2 = mm->add_parameter("x_scale", ss);
+        // auto input3 = mm->add_parameter("x_zero_point", sz);
+        // auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), input1, input2,
+        // input3); mm->add_return({r});
         return p;
     };
 };

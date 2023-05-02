@@ -202,7 +202,15 @@ struct check_shapes
      */
     const check_shapes& same_dims() const
     {
-        if(not this->same([](const shape& s) { return s.max_lens(); }))
+        if(not this->same([](const shape& s) { 
+            auto print = [](std::vector<std::size_t> lens) {
+                        for (auto i : lens)
+                            std::cout << i << " ";
+                    };
+            std::cout << "s.lens() = ";
+            print(s.max_lens());
+            std::cout << std::endl;
+            return s.max_lens(); }))
             MIGRAPHX_THROW(prefix() + "Dimensions do not match");
         if(this->any_of([&](const shape& s) { return s.dynamic(); }))
             if(not this->same([](const shape& s) { return s.min_lens(); }))

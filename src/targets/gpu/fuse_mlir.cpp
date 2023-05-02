@@ -153,16 +153,40 @@ struct find_mlir_op
         auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
                                    gemm_based_op->inputs().at(1)->get_shape());
         auto conv = mm->add_instruction(gemm_based_op->get_operator(), {x, w});
+
+        std::cout << "Converting from module: " << pm->name() << std::endl;
+        pm->debug_print();
+        std::cout << "Converting to module: " << mm->name() << std::endl;
+
+        // Convert the parameters to the new module
         std::transform(names.begin(),
                        names.end(),
                        ins->inputs().begin(),
                        std::inserter(param_map, param_map.end()),
                        [&](auto name, auto input) {
+                           //ins->debug_print();
                            if(input == x_ins)
                                return std::make_pair(pm->get_parameter(name), conv);
                            return std::make_pair(pm->get_parameter(name),
                                                  mm->add_parameter(name, input->get_shape()));
                        });
+
+        // Convert the literals to the new module
+        //for(auto&& ins : iterator_for(*pm))
+        //{
+        //    if(ins->name() != "@literal")
+        //    {
+        //        continue;
+        //    }
+
+        //    auto shape = conv->get_shape().with_type(ins->get_shape().type());
+        //    ;
+        //    literal l{shape, ins->get_literal().data()};
+        //    param_map[ins] = mm->add_literal(l);
+        //    //ins->debug_print();
+        //}
+
+        // Insert the converted instructions and add the return
         mm->add_return(mm->insert_instructions(mm->end(), pm, param_map));
 
         std::vector<instruction_ref> inputs;
@@ -173,6 +197,7 @@ struct find_mlir_op
         inputs.insert(inputs.end(), gemm_based_op->inputs().begin(), gemm_based_op->inputs().end());
         mpm.get_module().replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
+        mm->debug_print();
     }
 };
 

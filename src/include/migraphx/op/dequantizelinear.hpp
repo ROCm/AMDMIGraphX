@@ -48,6 +48,9 @@ struct dequantizelinear
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
+        std::cout << "input[0] shape: " << inputs[0].type_string() << std::endl;
+        std::cout << "input[1] shape: " << inputs[1].type_string() << std::endl;
+
         check_shapes{inputs, *this}.same_dims().has(2, 3);
         if(inputs.size() == 3 and inputs[0].type() != inputs[2].type())
         {

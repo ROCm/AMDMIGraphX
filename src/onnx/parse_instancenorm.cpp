@@ -74,22 +74,19 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         std::iota(axes.begin(), axes.end(), 2);
 
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
-        // Use add_common_op to create a multibroadcast instruction when inputs may be static or
-        // dynamic.
-        auto mean_bcast = info.add_common_op("multibroadcast", {mean, x});
+        // Use add_common_op to create a multibroadcast instruction to when inputs may be 
+        // either static or dynamic.
 
-        auto l0              = info.add_instruction(make_op("sqdiff"), x, mean_bcast);
+        auto l0              = info.add_common_op("sqdiff", x, mean);
         auto variance        = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
-        auto l1              = info.add_instruction(make_op("sub"), x, mean_bcast);
+        auto l1              = info.add_common_op("sub", x, mean);
         auto epsilon_literal = info.add_literal(literal{shape{dtype}, {epsilon}});
+        auto l2 = info.add_common_op("add", variance, epsilon_literal);
 
-        auto epsilon_bcast  = info.add_common_op("multibroadcast", {epsilon_literal, x});
-        auto variance_bcast = info.add_common_op("multibroadcast", {variance, x});
-
-        auto l2 = info.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
         auto l3 = info.add_instruction(make_op("rsqrt"), l2);
-        auto l4 = info.add_instruction(make_op("mul"), l1, l3);
-        // add_common_op not implemented in broadcast op, so use different overloads of make_op.
+        auto l4 = info.add_common_op("mul", l1, l3);
+
+        // add_common_op not implemented for broadcast op, so use different overloads of make_op.
         // Needed so they can be handled differently in future optimization passes.
         instruction_ref scale_bcast;
         instruction_ref bias_bcast;

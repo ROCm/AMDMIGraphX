@@ -21,9 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
+project(migraphx-doc)
+find_package(ROCM REQUIRED)
 
+include(ROCMDoxygenDoc)
 include(ROCMSphinxDoc)
-rocm_add_sphinx_doc(.
+rocm_add_sphinx_doc(src 
     BUILDER html 
     OUTPUT_DIR html
     VARS 

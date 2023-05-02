@@ -436,11 +436,6 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
-        ap(co.split_single_dyn_dim,
-           {"--split-single-dyn-dim"},
-           ap.help("If there is a single non-fixed dynamic dimension in the model, then split to "
-                   "static submodules"),
-           ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
     }

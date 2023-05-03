@@ -32,6 +32,9 @@
 
 namespace migraphx {
 
+template <class T> inline constexpr T pi_v = 3.141592653589793238462643383279502;
+inline constexpr double pi = pi_v<double>;
+
 namespace math {
 constexpr float as_float(migraphx::half x) { return x; }
 template <class T>
@@ -221,7 +224,7 @@ constexpr auto min(const T& a, const U& b)
 template <class T, MIGRAPHX_REQUIRES(is_same<vec_type<T>, half>{})>
 constexpr T sin(T x)
 {
-    constexpr const T shift = HIP_PIO2_F;
+    constexpr const T shift = pi / 2;
     return migraphx::cos(shift - x);
 }
 

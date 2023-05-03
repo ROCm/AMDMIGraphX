@@ -32,7 +32,8 @@
 
 namespace migraphx {
 
-template <class T> inline constexpr T pi_v = 3.141592653589793238462643383279502;
+template <class T>
+inline constexpr T pi_v    = 3.141592653589793238462643383279502;
 inline constexpr double pi = pi_v<double>;
 
 namespace math {

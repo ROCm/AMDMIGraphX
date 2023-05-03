@@ -28,9 +28,6 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 #include <hip/math_functions.h>
-#include <hip/hip_math_constants.h>
-#else
-constexpr auto HIP_PIO2_F = 1.570796327F;
 #endif
 
 #endif // MIGRAPHX_GUARD_KERNELS_HIP_HPP

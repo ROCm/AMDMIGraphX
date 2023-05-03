@@ -46,7 +46,15 @@ bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins
     return false;
 }
 
-struct module_visitor
+struct module_input_visitor
+{
+    module* mm;
+    module& get_nodes() const { return *mm; }
+
+    const std::vector<instruction_ref>& get_children(instruction_ref ins) { return ins->inputs(); }
+};
+
+struct module_output_visitor
 {
     module* mm;
     module& get_nodes() const { return *mm; }
@@ -93,7 +101,12 @@ dominator_info compute_dominator_generic(Visitor v)
 
 dominator_info compute_dominator(module& m)
 {
-    return compute_dominator_generic(module_visitor{&m});
+    return compute_dominator_generic(module_input_visitor{&m});
+}
+
+dominator_info compute_post_dominator(module& m)
+{
+    return compute_dominator_generic(module_output_visitor{&m});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

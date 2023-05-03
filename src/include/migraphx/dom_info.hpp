@@ -42,7 +42,7 @@ struct dominator_info
 };
 
 dominator_info compute_dominator(module& m);
-// dominator_info compute_dominator_naive(const module& m);
+dominator_info compute_post_dominator(module& m);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

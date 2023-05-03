@@ -198,8 +198,8 @@ struct basic_matcher
 {
     M m;
 
-    template <class... Ts>
-    auto operator()(Ts... ms) const
+    template <class... Ms>
+    auto operator()(Ms... ms) const
     {
         // Copy m because we cant capture `this` by value
         auto mm = m;
@@ -209,7 +209,7 @@ struct basic_matcher
             if(result)
             {
                 bool matches =
-                    fold([&](auto x, auto y) { return x and ctx.matched(y, result); })(true, ms...);
++                    fold([&](auto x, auto y) { return x and ctx.matched(y, result); })(true, ms...);
                 if(matches)
                     return result;
             }

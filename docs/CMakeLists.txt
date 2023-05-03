@@ -24,13 +24,9 @@
 project(migraphx-doc)
 find_package(ROCM REQUIRED)
 
-include(ROCMDoxygenDoc)
 include(ROCMSphinxDoc)
-rocm_add_sphinx_doc(src 
+rocm_add_sphinx_doc(
+    .
     BUILDER html 
     OUTPUT_DIR html
-    VARS 
-        breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
-        breathe_default_project=proj
-    DEPENDS doxygen
 )

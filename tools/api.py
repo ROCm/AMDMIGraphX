@@ -764,10 +764,13 @@ const Target* object_cast(const U* x)
     return reinterpret_cast<const Target*>(x);
 }
 
-template<class T, class... Ts, class Target=std::remove_pointer_t<T>>
+template <class T, class... Ts, class Target = std::remove_pointer_t<T>>
 Target* allocate(Ts&&... xs)
 {
-    return new Target(std::forward<Ts>(xs)...); // NOLINT
+    if constexpr(std::is_aggregate<Target>{})
+        return new Target{std::forward<Ts>(xs)...}; // NOLINT
+    else
+        return new Target(std::forward<Ts>(xs)...); // NOLINT
 }
 
 template<class T>

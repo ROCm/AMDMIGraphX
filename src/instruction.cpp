@@ -328,7 +328,9 @@ bool instruction::can_eval() const
     }
     else if(is_context_free(op))
     {
-        assert(std::none_of(this->inputs().begin(), this->inputs().end(), [&](instruction_ref arg) { return std::addressof(*arg) == this; }));
+        assert(std::none_of(this->inputs().begin(), this->inputs().end(), [&](instruction_ref arg) {
+            return std::addressof(*arg) == this;
+        }));
         return std::all_of(
             this->inputs().begin(), this->inputs().end(), [](auto arg) { return arg->can_eval(); });
     }

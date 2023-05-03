@@ -430,11 +430,13 @@ module::insert_instructions(instruction_ref ins,
                             const std::vector<instruction_ref>& instructions,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
-    return insert_generic_instructions(*this, ins, instructions, std::move(map_ins), default_module_inserter());
+    return insert_generic_instructions(
+        *this, ins, instructions, std::move(map_ins), default_module_inserter());
 }
 
 std::vector<instruction_ref>
-module::insert_instructions(module::inserter insert, instruction_ref ins,
+module::insert_instructions(module::inserter insert,
+                            instruction_ref ins,
                             const std::vector<instruction_ref>& instructions,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
@@ -446,7 +448,8 @@ module::insert_instructions(instruction_ref ins,
                             const_module_ref m,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
-    return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins), default_module_inserter());
+    return insert_generic_instructions(
+        *this, ins, iterator_for(*m), std::move(map_ins), default_module_inserter());
 }
 
 std::vector<instruction_ref>
@@ -456,7 +459,8 @@ module::insert_instructions(instruction_ref ins,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     auto r = range(start, last);
-    return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins), default_module_inserter());
+    return insert_generic_instructions(
+        *this, ins, iterator_for(r), std::move(map_ins), default_module_inserter());
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }

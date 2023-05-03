@@ -12,10 +12,7 @@ struct common_dims
 {
     static common_dims compute(const std::vector<std::size_t>& dims1,
                                const std::vector<std::size_t>& dims2);
-    bool empty() const
-    {
-        return dims.empty();
-    }
+    bool empty() const { return dims.empty(); }
     std::vector<std::size_t> dims;
     std::vector<std::vector<std::size_t>> axes_map1;
     std::vector<std::vector<std::size_t>> axes_map2;

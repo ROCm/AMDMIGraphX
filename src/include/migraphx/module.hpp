@@ -54,7 +54,11 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
  */
 struct module
 {
-    using inserter = std::function<instruction_ref(module& m, instruction_ref ins, const operation& op, const std::vector<instruction_ref>& args, const std::vector<module_ref>& module_args)>;
+    using inserter = std::function<instruction_ref(module& m,
+                                                   instruction_ref ins,
+                                                   const operation& op,
+                                                   const std::vector<instruction_ref>& args,
+                                                   const std::vector<module_ref>& module_args)>;
     module(const std::string& name = "");
 
     // move constructor

@@ -203,18 +203,18 @@ struct basic_matcher
     {
         // Copy m because we cant capture `this` by value
         auto mm = m;
-        return make_basic_fun_matcher([=](matcher_context& ctx,
-                                          instruction_ref ins) -> optional<instruction_ref> {
-            auto result = mm.match(ctx, ins);
-            if(result)
-            {
-                bool matches =
-+                    fold([&](auto x, auto y) { return x and ctx.matched(y, result); })(true, ms...);
-                if(matches)
-                    return result;
-            }
-            return nullopt;
-        });
+        return make_basic_fun_matcher(
+            [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+                auto result = mm.match(ctx, ins);
+                if(result)
+                {
+                    bool matches = +fold(
+                        [&](auto x, auto y) { return x and ctx.matched(y, result); })(true, ms...);
+                    if(matches)
+                        return result;
+                }
+                return nullopt;
+            });
     }
 
     auto bind(std::string name) const { return bind_match(m, std::move(name)); }

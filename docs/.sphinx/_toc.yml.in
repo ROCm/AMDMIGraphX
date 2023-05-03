@@ -4,7 +4,7 @@ root: index
 subtrees:
   - numbered: False
     entries:
-    - file: python_user_guide
+    - file: py_user_guide
     - file: cpp_user_guide
     - file: driver
     - file: contributor_guide

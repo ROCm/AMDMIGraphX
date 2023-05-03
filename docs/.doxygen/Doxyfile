@@ -54,6 +54,6 @@ USE_PDFLATEX = NO
 
 WARN_LOGFILE = DoxygenWarningLog.txt
 
-DOT_PATH = "/usr/bin"
+DOT_PATH = 
 
-HAVE_DOT = YES
+HAVE_DOT = NO

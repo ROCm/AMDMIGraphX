@@ -217,8 +217,6 @@ constexpr auto min(const T& a, const U& b)
     return min<common_type_t<T, U>>(a, b);
 }
 
-
-
 MIGRAPHX_DEVICE_MATH_VEC(abs)
 MIGRAPHX_DEVICE_MATH_VEC(acos)
 MIGRAPHX_DEVICE_MATH_VEC(acosh)

@@ -34,6 +34,8 @@ struct module_pass_manager;
 
 namespace gpu {
 
+bool mlir_enabled();
+
 struct fuse_mlir
 {
     context* ctx = nullptr;

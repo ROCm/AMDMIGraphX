@@ -56,9 +56,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_SRC);
 
 #ifdef MIGRAPHX_USE_HIPRTC
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS);
-
 std::string hiprtc_error(hiprtcResult err, const std::string& msg)
 {
     return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));

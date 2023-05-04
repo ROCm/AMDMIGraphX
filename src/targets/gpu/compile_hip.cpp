@@ -194,6 +194,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
         options.push_back("-DMIGRAPHX_HAS_DPP=0");
         options.push_back("-DMIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=1");
         options.push_back("-Wno-reserved-identifier");
+        options.push_back("-Wno-unused-parameter");
         options.push_back("-Wno-gnu-line-marker");
         options.push_back("-Wno-old-style-cast");
     }
@@ -216,6 +217,15 @@ std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
+    if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
+    {
+        for(const auto& src : srcs)
+        {
+            if(src.path.extension() != ".cpp")
+                continue;
+            std::cout << std::string(src.content.first, src.len()) << std::endl;
+        }
+    }
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path().parent_path() / "bin" / "migraphx-hiprtc-driver";
 

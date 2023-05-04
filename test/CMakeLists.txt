@@ -134,9 +134,6 @@ if(MIGRAPHX_ENABLE_GPU)
             COST 10
             RESOURCE_LOCK gpu
         )
-        if(MIGRAPHX_USE_HIPRTC) 
-            target_compile_definitions(test_gpu_${BASE_NAME} PRIVATE -DMIGRAPHX_USE_HIPRTC)
-        endif()
         target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels)
     endforeach()
 endif()

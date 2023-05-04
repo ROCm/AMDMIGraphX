@@ -88,12 +88,12 @@ struct scatternd_compiler : compiler<scatternd_compiler>
     compiler_replace insert(const operation& co) const
     {
         return {co, [](module& m, instruction_ref ins, const operation& op) {
-            auto args = ins->inputs();
-            args.back() =
-                m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
-            args.erase(args.begin());
-            return m.replace_instruction(ins, op, args);
-        }};
+                    auto args = ins->inputs();
+                    args.back() =
+                        m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
+                    args.erase(args.begin());
+                    return m.replace_instruction(ins, op, args);
+                }};
     }
 };
 

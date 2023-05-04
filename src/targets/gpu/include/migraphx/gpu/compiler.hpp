@@ -42,13 +42,10 @@ struct compiler_replace
 {
     compiler_replace() = default;
 
-    compiler_replace(const operation& op)
-    : operators{op}
-    {}
+    compiler_replace(const operation& op) : operators{op} {}
 
-    template<class F>
-    compiler_replace(const operation& op, F f)
-    : operators{op}
+    template <class F>
+    compiler_replace(const operation& op, F f) : operators{op}
     {
         replace_fn = [=](const compiler_replace& cr, module& m, instruction_ref ins) {
             f(m, ins, cr.operators.front());
@@ -56,11 +53,12 @@ struct compiler_replace
     }
 
     std::vector<operation> operators = {};
-    std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn = nullptr;
+    std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
+        nullptr;
 
     void replace(module& m, instruction_ref ins) const
     {
-        if (replace_fn)
+        if(replace_fn)
             replace_fn(*this, m, ins);
         else
             m.replace_instruction(ins, operators.front(), ins->inputs());

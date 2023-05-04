@@ -97,8 +97,7 @@ void visit_py(T x, F f)
     }
     else if(py::isinstance<migraphx::shape::dynamic_dimension>(x))
     {
-        // skip serializing dynamic_dimension objects
-        f("");
+        f(migraphx::to_value(x.template cast<migraphx::shape::dynamic_dimension>()));
     }
     else
     {
@@ -252,7 +251,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             if(v.contains("dyn_dims"))
             {
                 auto dyn_dims =
-                    kwargs["dyn_dims"].cast<std::vector<migraphx::shape::dynamic_dimension>>();
+                    migraphx::from_value<std::vector<migraphx::shape::dynamic_dimension>>(
+                        v.at("dyn_dims"));
                 return migraphx::shape(t, dyn_dims);
             }
             else

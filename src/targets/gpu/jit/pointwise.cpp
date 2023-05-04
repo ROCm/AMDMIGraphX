@@ -93,10 +93,10 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     {
         if(contains({"layout", "contiguous"}, op.name()))
         {
-            return replace(compile_op(
+            return compile_op(
                 ctx,
                 to_shapes(ins->inputs()),
-                {{"lambda", "[](auto x) { return x; }"}, {"kernel", op.name() + "_kernel"}}));
+                {{"lambda", "[](auto x) { return x; }"}, {"kernel", op.name() + "_kernel"}});
         }
         else
         {
@@ -105,10 +105,10 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             auto pf            = generate_pointwise(*pm, "inner_pointwise");
             std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
             auto kernel_name   = generate_name_from_ops(*pm) + "_kernel";
-            return replace(
+            return 
                 compile_op(ctx,
                            to_shapes(ins->inputs()),
-                           {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}}));
+                           {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
         }
     }
 };

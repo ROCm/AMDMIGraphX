@@ -10,3 +10,23 @@ updates:
     open-pull-requests-limit: 10
     schedule:
       interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/tools/accuracy"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/examples/vision/python_unet"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/examples/vision/python_super_resolution"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "daily"

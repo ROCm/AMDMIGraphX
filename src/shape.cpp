@@ -706,9 +706,10 @@ void migraphx_from_value(const value& v, shape& s)
         {
             auto v_dd = v.at("dynamic_dimensions");
             std::vector<shape::dynamic_dimension> dyn_dims(v.at("dynamic_dimensions").size());
-            std::transform(v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](migraphx::value x) {
-                return from_value<shape::dynamic_dimension>(x);
-            });
+            std::transform(
+                v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](const migraphx::value& x) {
+                    return from_value<shape::dynamic_dimension>(x);
+                });
 
             s = shape{shape::parse_type(t), dyn_dims};
         }

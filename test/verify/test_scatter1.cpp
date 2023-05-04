@@ -35,11 +35,7 @@ struct test_scatter1 : verify_program<test_scatter1>
         auto* mm = p.get_main_module();
 
         migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
-        // Note, scatter op should tolerate indices of type int32_t.
-        // However, the existing implementation of scatter op is
-        // not jit and is based on hip_visit_all, which requires
-        // argument types to be similar with result type.
-        migraphx::shape si{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
         std::vector<int> vi = {-2, 0, 2, 0, -1, 1};
         migraphx::shape su{migraphx::shape::float_type, {2, 3}};
 

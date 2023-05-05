@@ -11,12 +11,16 @@ A dynamic shape is defined by a list of `dynamic_dimensions` while a static shap
 For example, a `dynamic_dimension` with `{min:1, max:10, optimals:{1, 4, 10}}` means that the dimension can be any value from 1 through 10 with the optimal values being 1, 4, and 10.
 Supplied optimal values may allow MIGraphX to optimize the program for those specific shapes.
 
+A fixed `dynamic_dimension` can be specified by setting the `min` and `max` to the same value (ex. `{min:3, max:3}`).
+A dynamic shape specified solely by fixed `dynamic_dimension` objects will be converted to a static shape during parsing.
+This can be useful for setting a static shape using the `set_dyn_input_parameter_shape()` method discussed later in this document.
+
 
 ## Parsing
-ONNX graphs [ONNX](https://onnx.ai/get-started.html) can be parsed by MIGraphX to create a runable program with dynamic batch sizes.
+ONNX graphs [ONNX](https://onnx.ai/get-started.html) can be parsed by MIGraphX to create a runnable program with dynamic batch sizes.
 The dynamic batch range must be specified by a `dynamic_dimension` object.
 
-One method to set the `dynamic_dimension` object works for ONNX files with a single symbolic batch size:
+One method to set the `dynamic_dimension` object works for ONNX files that only have symbolic variables for the batch dimensions:
 ```
 migraphx::program p;
 migraphx::onnx_options options;
@@ -52,11 +56,14 @@ A dynamic batch MIGraphX program can be saved and loaded to/from a MXR file the 
 
 
 ## Executing the dynamic batch model
-The compiled dynamic batch model can be executed the same way as a static model by suppling the input data as `arguments` in a `program_parameters` object.
+The compiled dynamic batch model can be executed the same way as a static model by supplying the input data as `arguments` in a `program_parameters` object.
 
 
 ## Running the Example
-The provided example [`dynamic_batch.cpp`](./dynamic_batch.cpp) 
+Your ROCm installation could be installed in a location other than the one specified in the CMakeLists.txt.
+You can set `LD_LIBRARY_PATH` or `CMAKE_PREFIX_PATH` to that location so that this program can still build.
+
+The provided example is [`dynamic_batch.cpp`](./dynamic_batch.cpp)
 To compile and run the example from this directory:
 ```
 $ mkdir build

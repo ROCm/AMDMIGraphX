@@ -46,6 +46,7 @@ std::vector<std::string> get_op_parsers()
                    op_parser_map().end(),
                    std::back_inserter(result),
                    [&](auto&& p) { return p.first; });
+    std::sort(result.begin(), result.end());
     return result;
 }
 

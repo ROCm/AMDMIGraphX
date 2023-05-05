@@ -57,13 +57,14 @@ jobs:
     - name: Build the Docker image
       run: |
         df -m
-        du -h -d2
-        du /usr/local -d1
+        sudo du / -h -d2
+        sudo du /home/runner/runners -h -d2
+        sudo du /usr/local -d1
               docker build . --file hip-clang.docker --tag migraphx
         df -m
-        du / -h -d2
-        du /home/runner/runners -h -d2
-        du /usr/local -d1
+        sudo du / -h -d2
+        sudo du /home/runner/runners -h -d2
+        sudo du /usr/local -d1
 
     - name: Clang tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
@@ -82,9 +83,10 @@ jobs:
         make -j2 -k onnx-proto tf-proto tidy
 
         df -m
-        du / -h -d2
-        du /home/runner/runners -h -d2
-        du /usr/local -d1
+        sudo du / -h -d2
+        sudo du /home/runner/runners -h -d2
+        sudo du /usr/local -d1
+
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
       if: ${{ steps.tidy_restore.outputs.cache-hit }}
@@ -95,9 +97,9 @@ jobs:
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
         df -m
-        du / -h -d2
-        du /home/runner/runners -h -d2
-        du /usr/local -d1
+        sudo du / -h -d2
+        sudo du /home/runner/runners -h -d2
+        sudo du /usr/local -d1
       continue-on-error: true
 
     - name: Save cache files for tidy

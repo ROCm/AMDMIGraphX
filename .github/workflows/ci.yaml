@@ -23,7 +23,13 @@ jobs:
     steps:
     - name: Free space
       run: |
+        df -m
+        du -h -d2
+        du /usr/local -d1
         sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
+        df -m
+        du -h -d2
+        du /usr/local -d1
 
     - uses: actions/checkout@v3
 
@@ -48,7 +54,14 @@ jobs:
         restore-keys: tidy-cache-
         
     - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+      run: |
+        df -m
+        du -h -d2
+        du /usr/local -d1
+              docker build . --file hip-clang.docker --tag migraphx
+        df -m
+        du -h -d2
+        du /usr/local -d1
 
     - name: Clang tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"

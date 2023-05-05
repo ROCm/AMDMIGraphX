@@ -24,13 +24,13 @@ jobs:
     - name: Free space
       run: |
         df -m
-        du -h -d2
-        du /usr/local -d1
+        du / -h -d2 ||true
+        du /usr/local -d1 ||true
         sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
         df -m
-        du / -h -d2
-        du /home/runner/runners -h -d2
-        du /usr/local -d1
+        du / -h -d2 ||true
+        du /home/runner/runners -h -d2 ||true
+        du /usr/local -d1 ||true
 
     - uses: actions/checkout@v3
 
@@ -57,14 +57,14 @@ jobs:
     - name: Build the Docker image
       run: |
         df -m
-        sudo du / -h -d2
-        sudo du /home/runner/runners -h -d2
-        sudo du /usr/local -d1
+        sudo du / -h -d2 ||true
+        sudo du /home/runner/runners -h -d2 ||true
+        sudo du /usr/local -d1 ||true
               docker build . --file hip-clang.docker --tag migraphx
-        df -m
-        sudo du / -h -d2
-        sudo du /home/runner/runners -h -d2
-        sudo du /usr/local -d1
+        df -m ||true
+        sudo du / -h -d2 ||true
+        sudo du /home/runner/runners -h -d2 ||true
+        sudo du /usr/local -d1 ||true
 
     - name: Clang tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
@@ -82,10 +82,10 @@ jobs:
           ..
         make -j2 -k onnx-proto tf-proto tidy
 
-        df -m
-        sudo du / -h -d2
-        sudo du /home/runner/runners -h -d2
-        sudo du /usr/local -d1
+        df -m ||true
+        sudo du / -h -d2 ||true
+        sudo du /home/runner/runners -h -d2 ||true
+        sudo du /usr/local -d1 ||true
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
@@ -97,9 +97,9 @@ jobs:
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
         df -m
-        sudo du / -h -d2
-        sudo du /home/runner/runners -h -d2
-        sudo du /usr/local -d1
+        sudo du / -h -d2 || true
+        sudo du /home/runner/runners -h -d2 ||true
+        sudo du /usr/local -d1 ||true 
       continue-on-error: true
 
     - name: Save cache files for tidy

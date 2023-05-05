@@ -179,6 +179,8 @@ std::string cpp_generator::generate_point_op(const operation& op,
         else if(with_char(::isdigit)(key[0]))
         {
             auto i = std::stoul(key);
+            if(i >= args.size())
+                MIGRAPHX_THROW("Invalid argument index: " + key);
             return args.at(i);
         }
         else if(v.contains(key))

@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
+#include <mutex>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -190,6 +191,57 @@ struct find_mlir_op
         return {new_gemm_based_op, top_inputs};
     }
 
+    std::string create_mlir_module_name(const module* pointwise_mod,
+                                        instruction_ref gemm_based_op) const
+    {
+        std::string name = "mlir_" + gemm_based_op->name();
+        if(gemm_based_op->name() == "dot")
+        {
+            auto a_shape = gemm_based_op->inputs().front()->get_shape();
+            auto b_shape = gemm_based_op->inputs().back()->get_shape();
+
+            auto m = a_shape.lens()[a_shape.lens().size() - 2];
+            name += "_m" + std::to_string(m);
+            auto k = a_shape.lens().back();
+            name += "_k" + std::to_string(k);
+            auto n = b_shape.lens().back();
+            name += "_n" + std::to_string(n);
+        }
+        else if(gemm_based_op->name() == "convolution" or
+                gemm_based_op->name() == "quant_convolution")
+        {
+            auto ifm_shape = gemm_based_op->inputs().front()->get_shape().lens();
+            name += "_ifm";
+            for(auto dim_size : ifm_shape)
+            {
+                name += "_" + std::to_string(dim_size);
+            }
+            auto w_shape = gemm_based_op->inputs().back()->get_shape().lens();
+            name += "_w";
+            for(auto dim_size : w_shape)
+            {
+                name += "_" + std::to_string(dim_size);
+            }
+        }
+        else
+        {
+            MIGRAPHX_THROW("mlir gemm_based_op has to be a dot or a convolution");
+        }
+        for(auto ins : iterator_for(*pointwise_mod))
+        {
+            if(contains({"@literal", "@param", "@return"}, ins->name()))
+            {
+                continue;
+            }
+            name += "_" + ins->name();
+        }
+        static size_t counter = 0;
+        static std::mutex g_mlirc_mutex; // NOLINT
+        const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
+        name += ":" + std::to_string(counter++);
+        return name;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins           = r.result;
@@ -223,7 +275,8 @@ struct find_mlir_op
            }))
             return;
         std::sort(names.begin(), names.end());
-        module_ref mm = mpm.create_module("mlir_" + pm->name());
+        std::string module_name = create_mlir_module_name(pm, gemm_based_op);
+        module_ref mm           = mpm.create_module(module_name);
         mm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> param_map =
             create_param_map_with_literals(mm, pm, gemm_based_op->get_shape());

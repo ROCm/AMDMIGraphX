@@ -516,14 +516,12 @@ struct mlir_program
 
     static std::string get_symbol_name(const module& m)
     {
-        for(auto ins : iterator_for(m))
+        if(not m.name().empty())
         {
-            if(ins->name() == "convolution" or ins->name() == "dot")
-            {
-                return "mlir_" + ins->name();
-            }
+            auto tokens = split_string(m.name(), ':');
+            return tokens[0];
         }
-        return "main";
+        return "mlir";
     }
 
     void parse(const module& m)

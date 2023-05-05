@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/tf/tf_parser.hpp>
+#include <migraphx/tf/op_parser.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -61,6 +62,8 @@ program parse_tf(const std::string& name, const tf_options& options)
 #endif
     return std::move(parser.prog);
 }
+
+std::vector<std::string> get_tf_operators() { return tf::get_op_parsers(); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

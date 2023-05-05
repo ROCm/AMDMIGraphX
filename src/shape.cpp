@@ -706,14 +706,10 @@ void migraphx_from_value(const value& v, shape& s)
         {
             auto v_dd = v.at("dynamic_dimensions");
             std::vector<shape::dynamic_dimension> dyn_dims(v.at("dynamic_dimensions").size());
-            std::transform(v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](migraphx::value x) {
-                auto x_min      = x.at("min").template to<size_t>();
-                auto x_max      = x.at("max").template to<size_t>();
-                auto v_optimals = x.at("optimals");
-                std::set<size_t> set_x_optimals =
-                    from_value<std::set<std::size_t>>(x.at("optimals"));
-                return shape::dynamic_dimension{x_min, x_max, set_x_optimals};
-            });
+            std::transform(
+                v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](const migraphx::value& x) {
+                    return from_value<shape::dynamic_dimension>(x);
+                });
 
             s = shape{shape::parse_type(t), dyn_dims};
         }

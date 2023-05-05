@@ -956,4 +956,67 @@ TEST_CASE(test_multi_index)
     EXPECT(migraphx::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
 }
 
+TEST_CASE(from_2d_permutation)
+{
+    auto print_2d_tensor = [](migraphx::shape s) {
+        std::cout << "{ \n";
+        for(std::size_t i = 0; i < s.lens().at(0); ++i)
+        {
+            std::cout << "[ ";
+            for(std::size_t j = 0; j < s.lens().at(1); ++j)
+            {
+                std::vector<std::size_t> inds = {i, j};
+                std::cout << s.index(inds) << ", ";
+            }
+            std::cout << "]\n";
+        }
+        std::cout << "}\n";
+    };
+    std::vector<std::size_t> ori_lens = {2, 3};
+    std::vector<int64_t> permutation  = {1, 0};
+    std::cout << "2x3 shape:\n";
+    migraphx::shape ori_shape = migraphx::shape{migraphx::shape::float_type, ori_lens};
+    print_2d_tensor(ori_shape);
+    std::cout << "3x2 shape:\n";
+    print_2d_tensor(migraphx::shape{migraphx::shape::float_type, {3, 2}});
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, ori_lens, permutation);
+    std::cout << "permed_shape:\n";
+    print_2d_tensor(out_shape);
+    // EXPECT(migraphx::verify_range(out_shape.strides(), std::vector<std::size_t>{12, 1, 3}));
+    // EXPECT(migraphx::verify_range(out_shape.lens(), std::vector<std::size_t>{2, 3, 4}));
+}
+
+TEST_CASE(from_3d_permutation)
+{
+    auto print_3d_tensor = [](migraphx::shape s) {
+        std::cout << "{ \n";
+        for(std::size_t i = 0; i < s.lens().at(0); ++i)
+        {
+            std::cout << "[\n";
+            for(std::size_t j = 0; j < s.lens().at(1); ++j)
+            {
+                std::cout << "[";
+                for(std::size_t k = 0; k < s.lens().at(2); ++k)
+                {
+                    std::vector<std::size_t> inds = {i, j, k};
+                    std::cout << s.index(inds) << ", ";
+                }
+                std::cout << "],\n";
+            }
+            std::cout << "]\n";
+        }
+        std::cout << "}\n";
+    };
+    std::vector<std::size_t> ori_lens = {2, 3, 4};
+    std::vector<int64_t> permutation  = {0, 2, 1};
+    std::cout << "ori_shape:\n";
+    migraphx::shape ori_shape = migraphx::shape{migraphx::shape::float_type, ori_lens};
+    print_3d_tensor(ori_shape);
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, ori_lens, permutation);
+    std::cout << "permed_shape:\n";
+    print_3d_tensor(out_shape);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

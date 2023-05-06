@@ -256,13 +256,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                 return migraphx::shape(t, dyn_dims);
             }
             else
-            {
-                auto lens = v.get<std::size_t>("lens", {1});
-                if(v.contains("strides"))
-                    return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
-                else
-                    return migraphx::shape(t, lens);
-            }
+	        return migraphx::shape(t, lens);
         }))
         .def("type", &migraphx::shape::type)
         .def("lens", &migraphx::shape::lens)

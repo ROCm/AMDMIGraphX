@@ -201,6 +201,20 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((2 + e) == d);
 }
 
+TEST_CASE(dynamic_dimension_serialize)
+{
+    using migraphx::shape;
+    auto a  = shape::dynamic_dimension{2, 5, {2, 3}};
+    auto b  = shape::dynamic_dimension{3, 6, {3}};
+    auto v1 = migraphx::to_value(a);
+    auto v2 = migraphx::to_value(b);
+    EXPECT(v1 != v2);
+    auto c = migraphx::from_value<shape::dynamic_dimension>(v1);
+    EXPECT(a == c);
+    auto d = migraphx::from_value<shape::dynamic_dimension>(v2);
+    EXPECT(b == d);
+}
+
 TEST_CASE(test_shape_dynamic_errors)
 {
     using migraphx::shape;

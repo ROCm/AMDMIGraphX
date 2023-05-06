@@ -23,7 +23,7 @@ jobs:
     steps:
     - name: Free space
       run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains /snap
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
         df -m
         du /home/runner/ -h -d3 ||true
         du /usr/local -d1 ||true

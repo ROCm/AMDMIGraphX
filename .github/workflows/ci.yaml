@@ -23,14 +23,15 @@ jobs:
     steps:
     - name: Free space
       run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az
         df -m
-        du / -h -d2 ||true
+        du /home/runner/ -h -d3 ||true
         du /usr/local -d1 ||true
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
-        df -m
-        du / -h -d2 ||true
-        du /home/runner/runners -h -d2 ||true
-        du /usr/local -d1 ||true
+        du /opt/hostedtoolcache -d2 ||true
+        du /opt/az -d2 ||true
+        du /opt/microsoft -d2 ||true
+        du /etc/skel -d2 || true
+
 
     - uses: actions/checkout@v3
 

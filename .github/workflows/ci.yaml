@@ -24,14 +24,6 @@ jobs:
     - name: Free space
       run: |
         sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
-        df -m
-        du /home/runner/ -h -d3 ||true
-        du /usr/local -d1 ||true
-        du /opt/hostedtoolcache -d2 ||true
-        du /opt/az -d2 ||true
-        du /opt/microsoft -d2 ||true
-        du /etc/skel -d2 || true
-
 
     - uses: actions/checkout@v3
 
@@ -57,15 +49,7 @@ jobs:
         
     - name: Build the Docker image
       run: |
-        df -m
-        sudo du / -h -d2 ||true
-        sudo du /home/runner/runners -h -d2 ||true
-        sudo du /usr/local -d1 ||true
-              docker build . --file hip-clang.docker --tag migraphx
-        df -m ||true
-        sudo du / -h -d2 ||true
-        sudo du /home/runner/runners -h -d2 ||true
-        sudo du /usr/local -d1 ||true
+        docker build . --file hip-clang.docker --tag migraphx
 
     - name: Clang tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
@@ -83,11 +67,6 @@ jobs:
           ..
         make -j2 -k onnx-proto tf-proto tidy
 
-        df -m ||true
-        sudo du / -h -d2 ||true
-        sudo du /home/runner/runners -h -d2 ||true
-        sudo du /usr/local -d1 ||true
-
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
       if: ${{ steps.tidy_restore.outputs.cache-hit }}
@@ -97,10 +76,6 @@ jobs:
       run: |
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
-        df -m
-        sudo du / -h -d2 || true
-        sudo du /home/runner/runners -h -d2 ||true
-        sudo du /usr/local -d1 ||true 
       continue-on-error: true
 
     - name: Save cache files for tidy
@@ -116,7 +91,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -178,7 +154,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -219,7 +196,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -240,7 +218,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -272,7 +251,7 @@ jobs:
     steps:
     - name: Free space and install rbuild, lld
       run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
         sudo apt-get install -y lld
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
@@ -378,7 +357,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4

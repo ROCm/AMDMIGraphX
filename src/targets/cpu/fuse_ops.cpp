@@ -24,9 +24,7 @@
 #include <migraphx/cpu/fuse_ops.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/operation.hpp>
-#include <migraphx/value.hpp>
 #include <migraphx/matcher.hpp>
-#include <migraphx/context.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -83,15 +81,15 @@ operation merge_post_ops(const operation& op, const operation& post_op)
 struct find_post_ops
 {
     context* ctx = nullptr;
-    match::any_matcher matcher() const
+    [[nodiscard]] static match::any_matcher matcher()
     {
-        if(enabled(MIGRAPHX_DISABLE_DNNL_POST_OPS_WORKAROUND{}))
-            return match::name("dnnl::eltwise",
-                               "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once()));
+        if(enabled(MIGRAPHX_DISABLE_DNNL_POST_OPS_WORKAROUND))
+            return match::any_matcher{ match::name("dnnl::eltwise",
+                               "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once())) };
         else
-            return match::name("dnnl::eltwise")(
+            return match::any_matcher{ match::name("dnnl::eltwise")(
                 without_post_ops(),
-                match::arg(0)(match::name("dnnl::binary")(without_post_ops(), match::used_once())));
+                match::arg(0)(match::name("dnnl::binary")(without_post_ops(), match::used_once()))) };
     }
 
     void apply(module& m, const match::matcher_result& r) const

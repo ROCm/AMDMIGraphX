@@ -22,32 +22,102 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
-find_package(miopen)
+include(GenerateExportHeader)
 
-# rocblas
-find_package(rocblas REQUIRED PATHS /opt/rocm)
-message(STATUS "Build with rocblas")
+find_package(miopen REQUIRED)
+message(STATUS "MIGraphX is using MIOpen")
 
-if(NOT TARGET MIOpen)
-    message(SEND_ERROR "Cant find miopen")
-endif()
+find_package(rocblas REQUIRED)
+message(STATUS "MIGraphX is using rocBLAS")
 
 set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipClang APIs")
 
-include(Embed)
-file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
-message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-add_embed_library(migraphx_kernels ${KERNEL_FILES})
+add_library(migraphx_device STATIC
+    device/argmax.cpp
+    device/argmin.cpp
+    device/contiguous.cpp
+    device/fill.cpp
+    device/gather.cpp
+    device/int8_gemm_pack.cpp
+    device/logsoftmax.cpp
+    device/multinomial.cpp
+    device/nonzero.cpp
+    device/pad.cpp
+    device/prefix_scan_sum.cpp
+    device/reverse.cpp
+    device/rnn_variable_seq_lens.cpp
+    device/scatter.cpp
+    device/topk.cpp)
 
-file(GLOB DEVICE_GPU_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
-add_library(migraphx_device ${DEVICE_GPU_SRCS})
+set(KERNEL_FILES
+    kernels/include/migraphx/kernels/algorithm.hpp
+    kernels/include/migraphx/kernels/algorithm.hpp
+    kernels/include/migraphx/kernels/args.hpp
+    kernels/include/migraphx/kernels/array.hpp
+    kernels/include/migraphx/kernels/concat.hpp
+    kernels/include/migraphx/kernels/debug.hpp
+    kernels/include/migraphx/kernels/dfor.hpp
+    kernels/include/migraphx/kernels/dpp.hpp
+    kernels/include/migraphx/kernels/functional.hpp
+    kernels/include/migraphx/kernels/gather.hpp
+    kernels/include/migraphx/kernels/gathernd.hpp
+    kernels/include/migraphx/kernels/generic_constant.hpp
+    kernels/include/migraphx/kernels/hip.hpp
+    kernels/include/migraphx/kernels/index.hpp
+    kernels/include/migraphx/kernels/integral_constant.hpp
+    kernels/include/migraphx/kernels/iota_iterator.hpp
+    kernels/include/migraphx/kernels/layernorm.hpp
+    kernels/include/migraphx/kernels/math.hpp
+    kernels/include/migraphx/kernels/ops.hpp
+    kernels/include/migraphx/kernels/pad.hpp
+    kernels/include/migraphx/kernels/pointwise.hpp
+    kernels/include/migraphx/kernels/preload.hpp
+    kernels/include/migraphx/kernels/print.hpp
+    kernels/include/migraphx/kernels/ranges.hpp
+    kernels/include/migraphx/kernels/reduce.hpp
+    kernels/include/migraphx/kernels/roialign.hpp
+    kernels/include/migraphx/kernels/scatternd.hpp
+    kernels/include/migraphx/kernels/shape.hpp
+    kernels/include/migraphx/kernels/softmax.hpp
+    kernels/include/migraphx/kernels/tensor_view.hpp
+    kernels/include/migraphx/kernels/type_traits.hpp
+    kernels/include/migraphx/kernels/types.hpp
+    kernels/include/migraphx/kernels/vec.hpp
+    kernels/include/migraphx/kernels/vectorize.hpp)
+
+if(NOT WIN32)
+    include(Embed)
+    add_embed_library(migraphx_kernels ${KERNEL_FILES})
+    target_include_directories(migraphx_kernels
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/include
+            ${CMAKE_BINARY_DIR}/include
+            ${CMAKE_BINARY_DIR}/src/include)
+endif()
+
+generate_export_header(migraphx_device
+    EXPORT_FILE_NAME ${CMAKE_BINARY_DIR}/include/migraphx/device/export.h)
 
 add_library(compile_for_gpu INTERFACE)
-target_compile_options(compile_for_gpu INTERFACE -std=c++17 -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
-target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+
+target_compile_options(compile_for_gpu
+    INTERFACE
+        -fno-gpu-rdc
+        -Wno-cuda-compat
+        -Wno-unused-command-line-argument
+        -Wno-invalid-command-line-argument
+        -Wno-option-ignored
+        -Xclang
+        -fallow-half-arguments-and-returns)
+
+target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
+
+if(WIN32)
+    target_compile_options(compile_for_gpu INTERFACE -fdelayed-template-parsing -fms-extensions -fms-compatibility)
+else()
+    target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
+endif()
 
 if(HAS_HIP_LAMBDA_HOST_DEVICE)
     message(STATUS "Enable -fhip-lambda-host-device")
@@ -55,10 +125,32 @@ if(HAS_HIP_LAMBDA_HOST_DEVICE)
 endif()
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
-rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
-rocm_clang_tidy_check(migraphx_device)
-target_link_libraries(migraphx_device PUBLIC migraphx)
-target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
+target_compile_options(migraphx_device
+    PRIVATE
+        -fno-gpu-rdc
+        -Xclang
+        -fallow-half-arguments-and-returns
+        -Wno-shadow-uncaptured-local
+        -Wno-cuda-compat
+        -Wno-unused-command-line-argument
+        -Wno-invalid-command-line-argument
+        -Wno-option-ignored)
+
+target_compile_features(migraphx_device PRIVATE cxx_std_17)
+set_property(TARGET migraphx_device PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+if(WIN32)
+    target_compile_options(migraphx_device PRIVATE -fdelayed-template-parsing -fms-extensions -fms-compatibility)
+else()
+    rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
+endif()
+
+if(CLANG_TIDY_EXE)
+    rocm_clang_tidy_check(migraphx_device)
+endif()
+
+target_link_libraries(migraphx_device PRIVATE migraphx compile_for_gpu)
+target_include_directories(migraphx_device PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include ${PROJECT_BINARY_DIR}/include)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
@@ -74,7 +166,9 @@ target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
 
-rocm_clang_tidy_check(kernel_file_check)
+if(CLANG_TIDY_EXE)
+    rocm_clang_tidy_check(kernel_file_check)
+endif()
 
 file(GLOB JIT_GPU_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 add_library(migraphx_gpu
@@ -125,6 +219,41 @@ add_library(migraphx_gpu
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 
+if(WIN32)
+    target_compile_options(migraphx_gpu
+        PRIVATE
+            -fdelayed-template-parsing
+            -fms-extensions
+            -fms-compatibility)
+
+    target_sources(migraphx_gpu
+        PRIVATE
+            kernels/migraphx_kernels.cpp
+            kernels/migraphx_kernels.hpp
+            kernels/resource.h
+            kernels/resource.rc)
+
+    target_include_directories(migraphx_gpu PRIVATE kernels)
+else()
+    target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+endif()
+
+target_compile_options(migraphx_gpu
+    PRIVATE
+        -fno-gpu-rdc
+        -Xclang
+        -fallow-half-arguments-and-returns
+        -Wno-shadow-uncaptured-local
+        -Wno-cuda-compat
+        -Wno-unused-command-line-argument
+        -Wno-invalid-command-line-argument
+        -Wno-option-ignored)
+
+target_include_directories(migraphx_gpu PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include)
+
+generate_export_header(migraphx_gpu
+    EXPORT_FILE_NAME ${CMAKE_BINARY_DIR}/include/migraphx/gpu/export.h)
+
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
         register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)
@@ -167,8 +296,14 @@ register_op(migraphx_gpu
 register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
     OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::deconvolution> gpu::miopen_convolution<op::quant_convolution>
     INCLUDES migraphx/gpu/context.hpp)
-rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
-rocm_clang_tidy_check(migraphx_gpu)
+
+if(NOT WIN32)
+    rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
+endif()
+
+if(CLANG_TIDY_EXE)
+    rocm_clang_tidy_check(migraphx_gpu)
+endif()
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 
@@ -181,9 +316,11 @@ if(MIGRAPHX_ENABLE_MLIR)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
+    find_package(hiprtc REQUIRED)
     message(STATUS "MIGraphX is using hipRTC")
     target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
 else()
+    find_package(hip REQUIRED)
     message(STATUS "MIGraphX is using HIP Clang")
 
     # Get flags needed to compile hip
@@ -191,8 +328,8 @@ else()
     target_flags(HIP_COMPILER_FLAGS hip::device)
 
     # Remove cuda arch flags
-    string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-    string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    string(REGEX REPLACE "--cuda-gpu-arch=[a-z0-9]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    string(REGEX REPLACE "--offload-arch=[a-z0-9:+-]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 
     # Skip library paths since hip will incorrectly treat it as a source file
     string(APPEND HIP_COMPILER_FLAGS " ")
@@ -201,16 +338,16 @@ else()
         string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     endforeach()
 
-    message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+    message(STATUS "Hip compiler flags: \"${HIP_COMPILER_FLAGS}\"")
     target_compile_definitions(migraphx_gpu PRIVATE
-        "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}"
-        "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}"
+        -DMIGRAPHX_HIP_COMPILER="${CMAKE_CXX_COMPILER}"
+        -DMIGRAPHX_HIP_COMPILER_FLAGS="${HIP_COMPILER_FLAGS}"
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
         execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
         string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
-        target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_HIP_COMPILER_LAUNCHER=${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
+        target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_HIP_COMPILER_LAUNCHER="${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
     endif()
 endif()
 
@@ -236,8 +373,8 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
-target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+target_include_directories(migraphx_gpu PRIVATE ${CMAKE_BINARY_DIR}/include)
+target_link_libraries(migraphx_gpu PRIVATE migraphx MIOpen roc::rocblas migraphx_device)
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)
@@ -245,5 +382,6 @@ add_subdirectory(hiprtc)
 rocm_install_targets(
     TARGETS migraphx_gpu migraphx_device compile_for_gpu
     INCLUDE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/include
 )

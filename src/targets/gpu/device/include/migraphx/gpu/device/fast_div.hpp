@@ -28,8 +28,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 constexpr const uint64_t fast_div_shift = 42;
 inline uint64_t encode_divisor(uint64_t divisor)
@@ -62,7 +61,6 @@ MIGRAPHX_DEVICE_CONSTEXPR uint64_t fast_mod(uint64_t dividend,
     return remainder(fast_div(dividend, encoded_divisor), dividend, divisor);
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

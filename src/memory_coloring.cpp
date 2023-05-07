@@ -354,7 +354,7 @@ void memory_coloring::apply(module& m) const
     }));
 
     // Print out segments
-    if(enabled(MIGRAPHX_DEBUG_MEMORY_COLORING{}))
+    if(enabled(MIGRAPHX_DEBUG_MEMORY_COLORING))
     {
         for(auto&& pp : conflict_table)
         {

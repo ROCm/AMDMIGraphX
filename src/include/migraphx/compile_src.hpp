@@ -37,21 +37,25 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct src_file
 {
     fs::path path;
-    std::pair<const char*, const char*> content;
-    std::size_t len() const { return content.second - content.first; }
+    std::string_view content;
+
+    src_file() = delete;
+    src_file(fs::path path_, std::string_view content_)
+        : path{ std::move(path_) }, content{ content_ } {}
 };
 
 struct src_compiler
 {
     std::string compiler                      = "c++";
-    std::string flags                         = "";
-    std::string output                        = "";
-    std::string launcher                      = "";
+    std::string flags;
+    std::string output;
+    std::string launcher;
     std::string out_ext                       = ".o";
     std::function<fs::path(fs::path)> process = nullptr;
-    std::vector<char> compile(const std::vector<src_file>& srcs) const;
+    [[nodiscard]] MIGRAPHX_EXPORT std::vector<char> compile(const std::vector<src_file>& srcs) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
 #endif // MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP

@@ -21,10 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/topk.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/visit.hpp>
@@ -32,8 +32,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 template <class T, class Index, class Compare>
 struct hip_heap_vector
@@ -233,7 +232,6 @@ argument topk_smallest(hipStream_t stream,
     return {topk(stream, val_res, ind_res, arg, k, axis, std::greater<>{})};
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

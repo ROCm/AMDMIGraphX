@@ -136,7 +136,7 @@ void quantize_int8(program& prog,
     }
 
     // print the quantization parameters in only the main module
-    if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
+    if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS))
     {
         for(std::size_t i = 0; i < int8_quant_params->size(); ++i)
         {

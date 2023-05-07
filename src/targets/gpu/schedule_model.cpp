@@ -40,8 +40,8 @@ struct record_event
     {
         return pack(f(self.event, "event"));
     }
-    std::string name() const { return "gpu::record_event"; }
-    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    static std::string name() { return "gpu::record_event"; }
+    static shape compute_shape(const std::vector<shape>&) { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
@@ -63,8 +63,8 @@ struct wait_event
     {
         return pack(f(self.event, "event"));
     }
-    std::string name() const { return "gpu::wait_event"; }
-    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    static std::string name() { return "gpu::wait_event"; }
+    static shape compute_shape(const std::vector<shape>&) { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
@@ -81,8 +81,8 @@ struct set_stream
     {
         return pack(f(self.stream, "stream"));
     }
-    std::string name() const { return "gpu::set_stream"; }
-    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    static std::string name() { return "gpu::set_stream"; }
+    static shape compute_shape(const std::vector<shape>&) { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
@@ -100,7 +100,7 @@ MIGRAPHX_REGISTER_OP(wait_event)
 MIGRAPHX_REGISTER_OP(set_stream)
 
 std::size_t schedule_model::concurrency() const { return streams; }
-void schedule_model::sched(module& m, instruction_ref ins, std::size_t n) const
+void schedule_model::sched(module& m, instruction_ref ins, std::size_t n)
 {
     auto last_stream = std::find_if(std::make_reverse_iterator(ins),
                                     std::make_reverse_iterator(m.begin()),
@@ -115,11 +115,11 @@ void schedule_model::sched(module& m, instruction_ref ins, std::size_t n) const
     m.insert_instruction(ins, set_stream{n});
 }
 
-void schedule_model::wait(module& m, instruction_ref ins, std::size_t wait_id) const
+void schedule_model::wait(module& m, instruction_ref ins, std::size_t wait_id)
 {
     m.insert_instruction(ins, wait_event{wait_id});
 }
-void schedule_model::record(module& m, instruction_ref ins, std::size_t wait_id) const
+void schedule_model::record(module& m, instruction_ref ins, std::size_t wait_id)
 {
     m.insert_instruction(std::next(ins), record_event{wait_id});
 }
@@ -142,7 +142,7 @@ static const std::unordered_map<std::string, std::size_t>& weight_map()
     return m;
 }
 
-std::size_t schedule_model::weight(const operation& op) const
+std::size_t schedule_model::weight(const operation& op)
 {
     if(weight_map().count(op.name()) == 0)
     {

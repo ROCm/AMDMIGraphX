@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_NONMAXSUPPRESSION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_NONMAXSUPPRESSION_HPP
 
+#include <array>
 #include <cmath>
 #include <queue>
 #include <cstdint>

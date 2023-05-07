@@ -37,7 +37,7 @@ struct preallocate_param
     std::string param;
     allocation_model model;
     std::string name() const { return "preallocate_param"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

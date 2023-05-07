@@ -40,7 +40,7 @@ struct replace_allocate
     allocation_model model;
     bool offload_copy = false;
     std::string name() const { return "replace_allocate"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

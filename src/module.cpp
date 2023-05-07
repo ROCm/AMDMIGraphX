@@ -652,7 +652,7 @@ instruction_ref module::find_dangling_reference() const
 
 void module::finalize(context& ctx)
 {
-    const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
+    const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE);
     for(auto ins : iterator_for(*this))
     {
         if(trace)

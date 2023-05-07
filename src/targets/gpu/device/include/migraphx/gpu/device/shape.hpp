@@ -30,8 +30,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 template <index_int N>
 struct hip_shape
@@ -112,7 +111,6 @@ hip_shape<N> make_hip_shape(const shape& x)
     return x;
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

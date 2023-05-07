@@ -24,6 +24,11 @@
 #ifndef MIGRAPHX_GUARD_MATCH_GELU_TANH_HPP
 #define MIGRAPHX_GUARD_MATCH_GELU_TANH_HPP
 
+#if defined(_MSC_VER)
+#define _USE_MATH_DEFINES
+#include <math.h>
+#endif
+
 #include <migraphx/config.hpp>
 #include <migraphx/matcher.hpp>
 

@@ -68,7 +68,7 @@ struct miopen_apply
         return *pass->ctx;
     }
 
-    void check_shape(shape x, instruction_ref i)
+    static void check_shape(shape x, instruction_ref i)
     {
         assert(x == i->get_shape());
         (void)x;

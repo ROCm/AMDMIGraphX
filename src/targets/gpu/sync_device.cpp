@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void sync_device::apply(module& m) const
+void sync_device::apply(module& m)
 {
     auto last = std::prev(m.end());
     if(last->name() == "@return")

@@ -30,8 +30,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 template <class... Ts>
 using common_type = typename std::common_type<Ts...>::type;
@@ -56,7 +55,6 @@ __device__ bool float_equal(T x, U y)
     return float_equal_device<common_type<T, U>>(x, y);
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

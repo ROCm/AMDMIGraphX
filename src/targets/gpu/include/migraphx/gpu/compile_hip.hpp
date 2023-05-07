@@ -40,7 +40,7 @@ struct hiprtc_src_file
 {
     hiprtc_src_file() = default;
     hiprtc_src_file(const src_file& s)
-        : path(s.path.string()), content(s.content.first, s.content.second)
+        : path(s.path.string()), content(s.content)
     {
     }
     std::string path;

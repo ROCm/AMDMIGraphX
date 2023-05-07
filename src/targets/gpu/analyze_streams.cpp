@@ -38,17 +38,17 @@ struct hip_stream_model
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
     std::size_t get_nstream() const { return max_stream + 1; }
     std::size_t get_stream(migraphx::instruction_ref ins) const { return ins2stream.at(ins); }
-    std::size_t get_event_id(migraphx::instruction_ref ins) const
+    static std::size_t get_event_id(migraphx::instruction_ref ins)
     {
         auto v = ins->get_operator().to_value();
         return v["event"].to<std::size_t>();
     }
     bool has_stream(migraphx::instruction_ref ins) const { return ins2stream.count(ins) > 0; }
-    bool is_record(migraphx::instruction_ref ins) const
+    static bool is_record(migraphx::instruction_ref ins)
     {
         return ins->name() == "gpu::record_event";
     }
-    bool is_wait(migraphx::instruction_ref ins) const { return ins->name() == "gpu::wait_event"; }
+    static bool is_wait(migraphx::instruction_ref ins) { return ins->name() == "gpu::wait_event"; }
 };
 
 stream_model make_stream_model(const module& m)

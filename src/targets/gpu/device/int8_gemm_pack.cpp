@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/int8_gemm_pack.hpp>
@@ -30,8 +31,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 void int8_gemm_pack_a(hipStream_t stream, const argument& result, const argument& arg)
 {
@@ -91,7 +91,6 @@ void int8_gemm_pack_b(hipStream_t stream, const argument& result, const argument
     });
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

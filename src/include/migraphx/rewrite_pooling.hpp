@@ -38,7 +38,7 @@ struct module;
 struct rewrite_pooling
 {
     std::string name() const { return "rewrite_pooling"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

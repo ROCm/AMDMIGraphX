@@ -39,7 +39,7 @@ struct module;
 struct rewrite_gelu
 {
     std::string name() const { return "rewrite_gelu"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -24,63 +24,64 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
 
+#include <string>
+#include <utility>
+
+#include <migraphx/config.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/module_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/erase.hpp>
-#include <migraphx/config.hpp>
-#include <string>
-#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
-shape compute_shape(const operation& op,
+MIGRAPHX_EXPORT shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
+MIGRAPHX_EXPORT shape compute_shape(const operation& op,
                     const std::vector<instruction_ref>& args,
                     const std::vector<module_ref>& mods);
-std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
-std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs);
+MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
+MIGRAPHX_EXPORT std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs);
 
 struct instruction
 {
-    instruction() {}
+    instruction() = default;
 
-    instruction(operation o, shape r, std::vector<instruction_ref> args);
+    MIGRAPHX_EXPORT instruction(operation o, shape r, std::vector<instruction_ref> args);
 
-    instruction(operation o,
+    MIGRAPHX_EXPORT instruction(operation o,
                 shape r,
                 std::vector<instruction_ref> args,
                 std::vector<module_ref> modules);
 
-    instruction(literal l);
+    MIGRAPHX_EXPORT instruction(literal l);
 
-    void replace(operation o);
+    MIGRAPHX_EXPORT void replace(operation o);
 
-    void recompute_shape();
+    MIGRAPHX_EXPORT void recompute_shape();
 
-    void clear_arguments();
+    MIGRAPHX_EXPORT void clear_arguments();
 
     friend bool operator==(const instruction& i, instruction_ref ref);
 
-    bool valid(instruction_ref start, bool check_order = false) const;
+    MIGRAPHX_EXPORT bool valid(instruction_ref start, bool check_order = false) const;
 
-    bool valid() const;
+    MIGRAPHX_EXPORT bool valid() const;
 
-    shape get_shape() const;
-    const literal& get_literal() const;
+    MIGRAPHX_EXPORT shape get_shape() const;
+    MIGRAPHX_EXPORT const literal& get_literal() const;
 
-    const operation& get_operator() const;
+    MIGRAPHX_EXPORT const operation& get_operator() const;
 
-    std::string name() const;
+    MIGRAPHX_EXPORT std::string name() const;
 
-    const std::vector<instruction_ref>& inputs() const;
+    MIGRAPHX_EXPORT const std::vector<instruction_ref>& inputs() const;
 
-    const std::vector<module_ref>& module_inputs() const;
+    MIGRAPHX_EXPORT const std::vector<module_ref>& module_inputs() const;
 
-    const std::vector<instruction_ref>& outputs() const;
+    MIGRAPHX_EXPORT const std::vector<instruction_ref>& outputs() const;
 
     friend bool operator==(const instruction& x, const instruction& y);
 
@@ -92,7 +93,7 @@ struct instruction
 
     friend bool operator!=(instruction_ref ref, const instruction& i);
 
-    void add_output(instruction_ref ins);
+    MIGRAPHX_EXPORT void add_output(instruction_ref ins);
 
     template <class T>
     void remove_output(const T& ins)
@@ -100,45 +101,45 @@ struct instruction
         migraphx::erase(output, ins);
     }
 
-    static void replace_refs(instruction_ref ins,
+    MIGRAPHX_EXPORT static void replace_refs(instruction_ref ins,
                              const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
                              const std::unordered_map<module_ref, module_ref>& map_mods);
 
-    static void backreference(instruction_ref ref);
+    MIGRAPHX_EXPORT static void backreference(instruction_ref ref);
 
-    static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins);
+    MIGRAPHX_EXPORT static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins);
 
-    static void replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod);
+    MIGRAPHX_EXPORT static void replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod);
 
-    static void
+    MIGRAPHX_EXPORT static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
-    static void replace(instruction_ref ins,
+    MIGRAPHX_EXPORT static void replace(instruction_ref ins,
                         operation o,
                         const shape& r,
                         std::vector<instruction_ref> args,
                         std::vector<module_ref> module_args);
 
-    bool can_eval() const;
+    MIGRAPHX_EXPORT bool can_eval() const;
 
-    bool is_undefined() const;
+    MIGRAPHX_EXPORT bool is_undefined() const;
 
-    argument eval(bool check_eval = true) const;
+    MIGRAPHX_EXPORT argument eval(bool check_eval = true) const;
 
-    void finalize(context& ctx);
+    MIGRAPHX_EXPORT void finalize(context& ctx);
 
-    static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
+    MIGRAPHX_EXPORT static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
 
-    void set_normalized(bool value = true);
-    bool is_normalized() const;
+    MIGRAPHX_EXPORT void set_normalized(bool value = true);
+    MIGRAPHX_EXPORT bool is_normalized() const;
 
-    bool need_normalization() const;
+    MIGRAPHX_EXPORT bool need_normalization() const;
 
-    operation normalized_operator() const;
+    MIGRAPHX_EXPORT operation normalized_operator() const;
 
-    void debug_print() const;
+    MIGRAPHX_EXPORT void debug_print() const;
 
-    static void print(std::ostream& os,
+    MIGRAPHX_EXPORT static void print(std::ostream& os,
                       instruction_ref ins,
                       const std::unordered_map<instruction_ref, std::string>& names);
 

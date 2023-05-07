@@ -42,7 +42,7 @@ void write_literals::apply(module& m) const
     {
         if(ins->name() == "@literal")
         {
-            if(enabled(MIGRAPHX_COPY_LITERALS{}))
+            if(enabled(MIGRAPHX_COPY_LITERALS))
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);

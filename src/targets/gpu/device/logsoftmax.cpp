@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/logsoftmax.hpp>
@@ -31,8 +32,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
@@ -74,7 +74,6 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
     });
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -542,7 +542,7 @@ void schedule::apply(module& m) const
     auto nstreams = si.assign_streams(m, model.concurrency());
     si.sort(m, model.concurrency());
 
-    if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
+    if(enabled(MIGRAPHX_TRACE_COMPILE) or enabled(MIGRAPHX_TRACE_SCHEDULE))
     {
         m.annotate(std::cout, [&](auto ins) {
             if(ins->name() == "@param" and not contains(si.weights, ins))

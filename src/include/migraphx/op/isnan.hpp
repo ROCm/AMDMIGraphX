@@ -35,7 +35,7 @@ struct isnan : unary<isnan>
 {
     auto apply() const
     {
-        return [](auto x) { return std::isnan(x); };
+        return [](auto x) { return std::isnan(static_cast<double>(x)); };
     }
 
     std::string name() const { return "isnan"; }

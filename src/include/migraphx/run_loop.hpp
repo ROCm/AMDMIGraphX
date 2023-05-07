@@ -24,6 +24,9 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 #define MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 
+#include <array>
+#include <string>
+
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
@@ -31,7 +34,6 @@
 #include <migraphx/module.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
-#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

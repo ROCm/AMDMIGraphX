@@ -42,7 +42,7 @@ struct module;
 struct rewrite_rnn
 {
     std::string name() const { return "rewrite_rnn"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 
     private:
     // for vanilla rnn operators

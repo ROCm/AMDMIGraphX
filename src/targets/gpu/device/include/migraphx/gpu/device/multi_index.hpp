@@ -31,8 +31,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 template <index_int N>
 struct multi_index
@@ -154,7 +153,6 @@ inline auto mi_gs_launch(hipStream_t stream, const hip_shape<N>& global, index_i
     };
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

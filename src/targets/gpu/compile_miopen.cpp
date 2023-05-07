@@ -45,7 +45,7 @@ struct miopen_op
         return pack(f(self.op, "op"));
     }
 
-    std::string name() const { return "gpu::miopen_op"; }
+    static std::string name() { return "gpu::miopen_op"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -53,7 +53,7 @@ struct miopen_op
         return op.compute_shape(inputs);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    static std::ptrdiff_t output_alias(const std::vector<shape>& shapes)
     {
         return shapes.size() - 1;
     }

@@ -26,6 +26,7 @@
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/device/export.h>
 #include <hip/hip_runtime_api.h>
 
 namespace migraphx {
@@ -33,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument
+MIGRAPHX_DEVICE_EXPORT argument
 reverse(hipStream_t stream, argument result, argument arg1, const std::vector<int64_t>& axes);
 
 } // namespace device

@@ -56,93 +56,93 @@ struct marker;
  */
 struct program
 {
-    program();
+    MIGRAPHX_EXPORT program();
 
     // move constructor
-    program(program&&) noexcept;
+    MIGRAPHX_EXPORT program(program&&) noexcept;
 
     // copy constructor
-    program(const program&);
+    MIGRAPHX_EXPORT program(const program&);
 
     // copy assignment operator
-    program& operator=(program);
+    MIGRAPHX_EXPORT program& operator=(program);
 
-    ~program() noexcept;
+    MIGRAPHX_EXPORT ~program() noexcept;
 
-    std::vector<std::string> get_parameter_names() const;
+    MIGRAPHX_EXPORT std::vector<std::string> get_parameter_names() const;
 
-    shape get_parameter_shape(std::string name) const;
+    MIGRAPHX_EXPORT shape get_parameter_shape(std::string name) const;
 
-    instruction_ref get_parameter(std::string name) const;
+    MIGRAPHX_EXPORT instruction_ref get_parameter(std::string name) const;
 
-    std::unordered_map<std::string, shape> get_parameter_shapes() const;
+    MIGRAPHX_EXPORT std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
-    std::vector<argument> eval(parameter_map params,
+    MIGRAPHX_EXPORT std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
-    std::size_t size() const;
+    MIGRAPHX_EXPORT std::size_t size() const;
 
-    std::vector<shape> get_output_shapes() const;
+    MIGRAPHX_EXPORT std::vector<shape> get_output_shapes() const;
 
-    context& get_context() const;
+    MIGRAPHX_EXPORT context& get_context() const;
 
-    instruction_ref validate() const;
+    MIGRAPHX_EXPORT instruction_ref validate() const;
 
-    target_assignments get_target_assignments(const std::vector<target>& targets,
+    MIGRAPHX_EXPORT target_assignments get_target_assignments(const std::vector<target>& targets,
                                               assignment_options options = assignment_options{});
 
-    void compile(const target& t, compile_options options = compile_options{});
+    MIGRAPHX_EXPORT void compile(const target& t, compile_options options = compile_options{});
 
-    bool is_compiled() const;
+    MIGRAPHX_EXPORT bool is_compiled() const;
 
-    void finalize();
+    MIGRAPHX_EXPORT void finalize();
 
-    void
+    MIGRAPHX_EXPORT void
     perf_report(std::ostream& os, std::size_t n, parameter_map params, std::size_t batch = 1) const;
 
-    void mark(const parameter_map& params, marker&& m);
+    MIGRAPHX_EXPORT void mark(const parameter_map& params, marker&& m);
 
-    value to_value() const;
-    void from_value(const value& v);
+    MIGRAPHX_EXPORT value to_value() const;
+    MIGRAPHX_EXPORT void from_value(const value& v);
 
-    void debug_print() const;
-    void debug_print(instruction_ref ins) const;
-    void print(std::unordered_map<instruction_ref, std::string>& names,
+    MIGRAPHX_EXPORT void debug_print() const;
+    MIGRAPHX_EXPORT void debug_print(instruction_ref ins) const;
+    MIGRAPHX_EXPORT void print(std::unordered_map<instruction_ref, std::string>& names,
                const std::function<void(instruction_ref,
                                         std::unordered_map<instruction_ref, std::string>)>&
                    print_func) const;
-    void print(const std::function<void(instruction_ref ins,
+    MIGRAPHX_EXPORT void print(const std::function<void(instruction_ref ins,
                                         std::unordered_map<instruction_ref, std::string>)>&
                    print_func) const;
 
-    void print_graph(std::ostream& os, bool brief = false) const;
-    void print_py(std::ostream& os) const;
-    void print_cpp(std::ostream& os) const;
+    MIGRAPHX_EXPORT void print_graph(std::ostream& os, bool brief = false) const;
+    MIGRAPHX_EXPORT void print_py(std::ostream& os) const;
+    MIGRAPHX_EXPORT void print_cpp(std::ostream& os) const;
 
-    void dry_run(parameter_map params) const;
+    MIGRAPHX_EXPORT void dry_run(parameter_map params) const;
 
-    void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
+    MIGRAPHX_EXPORT void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
 
-    program& sort();
+    MIGRAPHX_EXPORT program& sort();
 
-    friend std::ostream& operator<<(std::ostream& os, const program& p);
-    friend bool operator==(const program& x, const program& y);
-    friend bool operator!=(const program& x, const program& y) { return not(x == y); }
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const program& p);
+    MIGRAPHX_EXPORT friend bool operator==(const program& x, const program& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const program& x, const program& y) { return not(x == y); }
 
     // module related api
-    module* create_module(const std::string& name);
-    module* get_module(const std::string& name);
-    const module* get_module(const std::string& name) const;
+    MIGRAPHX_EXPORT module* create_module(const std::string& name);
+    MIGRAPHX_EXPORT module* get_module(const std::string& name);
+    MIGRAPHX_EXPORT const module* get_module(const std::string& name) const;
 
-    module* get_main_module();
-    const module* get_main_module() const;
+    MIGRAPHX_EXPORT module* get_main_module();
+    MIGRAPHX_EXPORT const module* get_main_module() const;
 
-    std::vector<const module*> get_modules() const;
-    std::vector<module*> get_modules();
+    MIGRAPHX_EXPORT std::vector<const module*> get_modules() const;
+    MIGRAPHX_EXPORT std::vector<module*> get_modules();
 
-    std::unordered_multimap<module_ref, module_ref> get_module_tree();
+    MIGRAPHX_EXPORT std::unordered_multimap<module_ref, module_ref> get_module_tree();
 
-    void remove_module(const std::string& name);
-    void remove_unused_modules();
+    MIGRAPHX_EXPORT void remove_module(const std::string& name);
+    MIGRAPHX_EXPORT void remove_unused_modules();
 
     private:
     void assign(const program& p);

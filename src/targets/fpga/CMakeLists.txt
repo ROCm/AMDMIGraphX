@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #####################################################################################
 
+include(GenerateExportHeader)
+
 add_library(migraphx_fpga
     target.cpp
     lowering.cpp
@@ -30,10 +32,21 @@ add_library(migraphx_fpga
 )
 
 set_target_properties(migraphx_fpga PROPERTIES EXPORT_NAME fpga)
-rocm_set_soversion(migraphx_fpga ${MIGRAPHX_SO_VERSION})
 
-rocm_clang_tidy_check(migraphx_fpga)
-target_link_libraries(migraphx_fpga migraphx)
+if(NOT WIN32)
+    rocm_set_soversion(migraphx_fpga ${MIGRAPHX_SO_VERSION})
+endif()
+
+generate_export_header(migraphx_fpga
+   EXPORT_FILE_NAME
+        ${CMAKE_BINARY_DIR}/include/migraphx/fpga/export.h)
+
+if(CLANG_TIDY_EXE)
+    rocm_clang_tidy_check(migraphx_fpga)
+endif()
+
+target_link_libraries(migraphx_fpga PRIVATE migraphx)
+target_include_directories(migraphx_fpga PRIVATE ${CMAKE_BINARY_DIR}/include)
 
 rocm_install_targets(
     TARGETS migraphx_fpga

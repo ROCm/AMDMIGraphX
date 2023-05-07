@@ -21,14 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/gpu/device/rnn_variable_seq_lens.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 #include <migraphx/gpu/device/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 void rnn_var_sl_shift_sequence(hipStream_t stream,
                                const argument& result,
@@ -134,7 +134,6 @@ void rnn_var_sl_last_output(hipStream_t stream,
     });
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

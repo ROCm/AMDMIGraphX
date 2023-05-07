@@ -39,7 +39,7 @@ struct module;
 struct simplify_qdq
 {
     std::string name() const { return "simplify_qdq"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

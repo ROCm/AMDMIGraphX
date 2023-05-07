@@ -132,7 +132,7 @@ run_verify::run_target(const migraphx::target& t,
                        const migraphx::compile_options& c_opts) const
 {
     auto_print pp{p, t.name()};
-    auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
+    auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE);
     compile_check(p, t, c_opts, (trace_target == t.name()));
     migraphx::parameter_map m;
     for(auto&& input : inputs)
@@ -170,7 +170,7 @@ void run_verify::verify(const std::string& name,
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     auto_print::set_terminate_handler(name);
-    if(migraphx::enabled(MIGRAPHX_DUMP_TEST{}))
+    if(migraphx::enabled(MIGRAPHX_DUMP_TEST))
         migraphx::save(p, name + ".mxr");
     verify_load_save(p);
     std::vector<std::string> target_names;
@@ -233,7 +233,7 @@ void run_verify::verify(const std::string& name,
                 passed &= migraphx::verify_args(tname, gold[i], result[i]);
             }
 
-            if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))
+            if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST))
             {
                 std::cout << p << std::endl;
                 std::cout << "ref:\n" << p << std::endl;

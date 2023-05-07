@@ -55,7 +55,7 @@ shape hip_rnn_var_sl_shift_sequence::compute_shape(std::vector<shape> inputs) co
 
 argument hip_rnn_var_sl_shift_sequence::compute(context& ctx,
                                                 const shape&,
-                                                const std::vector<argument>& args) const
+                                                const std::vector<argument>& args)
 {
     device::rnn_var_sl_shift_sequence(ctx.get_stream().get(), args.back(), args.at(0), args.at(1));
     return args.back();

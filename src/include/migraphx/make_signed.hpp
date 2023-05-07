@@ -24,9 +24,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MAKE_SIGNED_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MAKE_SIGNED_HPP
 
-#include <migraphx/config.hpp>
 #include <type_traits>
 #include <utility>
+
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -40,7 +40,7 @@ struct fuse_mlir
 {
     context* ctx = nullptr;
     std::string name() const { return "gpu::fuse_mlir"; }
-    void apply(module_pass_manager& mpm) const;
+    static void apply(module_pass_manager& mpm);
 };
 
 } // namespace gpu

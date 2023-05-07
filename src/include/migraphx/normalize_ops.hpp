@@ -42,7 +42,7 @@ struct module;
 struct normalize_ops
 {
     std::string name() const { return "normalize_ops"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

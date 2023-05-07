@@ -30,8 +30,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 struct index
 {
@@ -115,7 +114,6 @@ inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 #define MIGRAPHX_DEVICE_SHARED __shared__
 #endif
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -32,8 +32,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 using index_int = std::uint32_t;
 
@@ -161,7 +160,6 @@ MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, __fp16)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -39,7 +39,7 @@ shape hip_multinomial::compute_shape(std::vector<shape> inputs) const
 }
 
 argument
-hip_multinomial::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+hip_multinomial::compute(context& ctx, const shape&, const std::vector<argument>& args)
 {
     device::multinomial(ctx.get_stream().get(), args.back(), args.front(), args[1]);
     return args.back();

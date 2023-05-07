@@ -39,7 +39,7 @@ struct module;
 struct simplify_reshapes
 {
     std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

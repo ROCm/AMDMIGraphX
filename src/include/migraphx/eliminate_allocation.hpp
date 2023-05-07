@@ -42,7 +42,7 @@ struct eliminate_allocation
     std::string allocation_op{};
     std::size_t alignment = 32;
     std::string name() const { return "eliminate_allocation"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -34,12 +34,12 @@ namespace gpu {
 
 struct target
 {
-    std::string name() const;
-    std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;
-    migraphx::context get_context() const;
-    argument copy_to(const argument& arg) const;
-    argument copy_from(const argument& arg) const;
-    argument allocate(const shape& s) const;
+    static std::string name() ;
+    static std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) ;
+    static migraphx::context get_context() ;
+    static argument copy_to(const argument& arg) ;
+    static argument copy_from(const argument& arg) ;
+    static argument allocate(const shape& s) ;
 };
 
 } // namespace gpu

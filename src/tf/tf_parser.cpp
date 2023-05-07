@@ -22,24 +22,18 @@
  * THE SOFTWARE.
  */
 #include <google/protobuf/text_format.h>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <graph.pb.h>
 #include <iostream>
-#include <fstream>
 #include <unordered_map>
 #include <unordered_set>
-#include <functional>
 #include <array>
 #include <utility>
 #include <vector>
 
-#include <migraphx/fallthrough.hpp>
-#include <migraphx/program.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/tf.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 

@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/clamp.hpp>
@@ -32,8 +33,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 argument
 pad(hipStream_t stream, argument result, argument arg1, float value, std::vector<std::int64_t> pads)
@@ -60,7 +60,6 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
     return result;
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

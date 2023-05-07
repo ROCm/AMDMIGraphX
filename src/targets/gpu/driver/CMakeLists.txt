@@ -22,10 +22,22 @@
 # THE SOFTWARE.
 #####################################################################################
 
-file(GLOB GPU_DRIVER_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
-add_executable(gpu-driver
-    ${GPU_DRIVER_SRCS}
-)
-rocm_clang_tidy_check(gpu-driver)
-target_include_directories(gpu-driver PRIVATE include)
-target_link_libraries(gpu-driver PRIVATE migraphx_gpu)
+add_executable(migraphx_gpu_driver
+        action.cpp
+        include/migraphx/gpu/driver/action.hpp
+        compile_op.cpp
+        main.cpp
+        parser.cpp
+        include/migraphx/gpu/driver/parser.hpp
+        perf.cpp
+        include/migraphx/gpu/driver/perf.hpp
+        run_op.cpp)
+
+set_target_properties(migraphx_gpu_driver PROPERTIES OUTPUT_NAME migraphx-gpu-driver)
+
+if(CLANG_TIDY_EXE)
+    rocm_clang_tidy_check(migraphx_gpu_driver)
+endif()
+
+target_include_directories(migraphx_gpu_driver PRIVATE include ${CMAKE_BINARY_DIR}/include)
+target_link_libraries(migraphx_gpu_driver PRIVATE migraphx MIOpen migraphx_gpu hip::device)

@@ -41,7 +41,7 @@ struct eliminate_concat
 {
     concat_optimization concat_opt;
     std::string name() const { return "eliminate_concat"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

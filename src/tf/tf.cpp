@@ -21,18 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/tf/op_parser.hpp>
+
 #include <iostream>
 #include <fstream>
-#include <unordered_map>
-#include <functional>
-#include <array>
 #include <utility>
-#include <vector>
 
 #include <migraphx/program.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/tf/tf_parser.hpp>
+#include <migraphx/tf/op_parser.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

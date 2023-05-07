@@ -24,8 +24,10 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TF_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_TF_HPP
 
-#include <migraphx/program.hpp>
+#include <migraphx/tf/export.h>
+
 #include <migraphx/config.hpp>
+#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,6 +43,7 @@ struct tf_options
 };
 
 /// Create a program from a tf pb file (default is nhwc format)
+MIGRAPHX_TF_EXPORT
 program parse_tf(const std::string& name, const tf_options& options = tf_options{});
 
 std::vector<std::string> get_tf_operators();

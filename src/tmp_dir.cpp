@@ -21,18 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tmp_dir.hpp>
-#include <migraphx/env.hpp>
-#include <migraphx/errors.hpp>
-#include <migraphx/process.hpp>
+
 #include <algorithm>
 #include <random>
 #include <thread>
 #include <sstream>
 #include <iostream>
 #include <string>
-#include <sys/types.h>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#undef getpid
+#define getpid _getpid
+#else
 #include <unistd.h>
+#include <sys/types.h>
+#endif
+
+#include <migraphx/tmp_dir.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/process.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -78,7 +87,7 @@ void tmp_dir::execute(const std::string& exe, const std::string& args) const
 
 tmp_dir::~tmp_dir()
 {
-    if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
+    if(!enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR))
     {
         fs::remove_all(this->path);
     }

@@ -33,6 +33,7 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape_for_each.hpp>
+#include <array>
 #include <cmath>
 #include <numeric>
 #include <utility>

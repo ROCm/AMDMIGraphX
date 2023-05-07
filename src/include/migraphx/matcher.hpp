@@ -24,6 +24,11 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
+#include <array>
+#include <unordered_map>
+#include <unordered_set>
+
+#include <migraphx/config.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -31,9 +36,6 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/type_name.hpp>
-#include <migraphx/config.hpp>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,7 +44,7 @@ namespace match {
 
 struct matcher_context
 {
-    matcher_context(module& m) : mod(&m) {}
+    explicit matcher_context(module& m) : mod(&m) {}
     std::unordered_map<std::string, instruction_ref> instructions;
 
     template <class M>
@@ -65,20 +67,20 @@ struct matcher_context
         return [=] { return this->matched(m, ins); };
     }
 
-    bool has_instruction(instruction_ref ins) const
+    [[nodiscard]] bool has_instruction(instruction_ref ins) const
     {
         if(mod == nullptr)
             return true;
         return mod->has_instruction(ins);
     }
-    bool has_instruction(optional<instruction_ref> ins) const
+    [[nodiscard]] bool has_instruction(optional<instruction_ref> ins) const
     {
         if(ins)
             return this->has_instruction(*ins);
         return false;
     }
 
-    bool is_last(instruction_ref ins) const
+    [[nodiscard]] bool is_last(instruction_ref ins) const
     {
         assert(mod->begin() != mod->end());
         assert(this->has_instruction(ins));
@@ -95,7 +97,7 @@ struct predicate_matcher
 {
     P p;
 
-    optional<instruction_ref> match(const matcher_context&, instruction_ref ins) const
+    [[nodiscard]] optional<instruction_ref> match(const matcher_context&, instruction_ref ins) const
     {
         if(p(ins))
             return optional<instruction_ref>{ins};
@@ -124,14 +126,14 @@ template <class M>
 auto bind_match(M m, std::string name)
 {
     return make_function_matcher(
-        [=, name = std::move(name)](matcher_context& ctx,
-                                    instruction_ref ins) -> optional<instruction_ref> {
+        [=, name_ = std::move(name)](matcher_context& ctx,
+                                     instruction_ref ins) -> optional<instruction_ref> {
             auto result = m.match(ctx, ins);
             if(result)
             {
                 if(not ctx.has_instruction(ins))
                     return nullopt;
-                ctx.instructions[name] = ins;
+                ctx.instructions[name_] = ins;
             }
             return result;
         });
@@ -143,7 +145,7 @@ struct bindable_matcher
 {
     M m;
 
-    auto bind(std::string name) const { return bind_match(m, std::move(name)); }
+    [[nodiscard]] auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
     auto match(matcher_context& ctx, instruction_ref ins) const { return m.match(ctx, ins); }
 };
@@ -173,7 +175,7 @@ using bool_list = std::initializer_list<bool>;
 
 struct id_matcher
 {
-    auto match(matcher_context&, instruction_ref ins) const
+    static auto match(matcher_context&, instruction_ref ins)
     {
         return optional<instruction_ref>{ins};
     }
@@ -217,7 +219,7 @@ struct basic_matcher
         });
     }
 
-    auto bind(std::string name) const { return bind_match(m, std::move(name)); }
+    [[nodiscard]] auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
     auto match(matcher_context& ctx, instruction_ref ins) const { return m.match(ctx, ins); }
 };
@@ -249,7 +251,7 @@ using any_matcher_base = basic_matcher<
 struct any_matcher : any_matcher_base
 {
     template <class M>
-    any_matcher(M mm) : any_matcher_base({[=](auto& ctx, auto ins) { return mm.match(ctx, ins); }})
+    explicit any_matcher(M mm) : any_matcher_base({[=](auto& ctx, auto ins) { return mm.match(ctx, ins); }})
     {
     }
 };
@@ -278,9 +280,15 @@ struct matcher_result
     struct instruction_container
     {
         instruction_container() = default;
-        instruction_container(std::unordered_map<std::string, instruction_ref> x)
+        explicit instruction_container(std::unordered_map<std::string, instruction_ref> x)
             : ins_map(std::move(x))
         {
+        }
+
+        instruction_container& operator = (const std::unordered_map<std::string, instruction_ref>& x)
+        {
+            ins_map = x;
+            return *this;
         }
 
         instruction_ref operator[](const std::string& name) const
@@ -291,13 +299,13 @@ struct matcher_result
             return it->second;
         }
 
-        auto find(const std::string& name) const { return ins_map.find(name); }
+        [[nodiscard]] auto find(const std::string& name) const { return ins_map.find(name); }
 
-        auto begin() const { return ins_map.cbegin(); }
+        [[nodiscard]] auto begin() const { return ins_map.cbegin(); }
 
-        auto end() const { return ins_map.cend(); }
+        [[nodiscard]] auto end() const { return ins_map.cend(); }
 
-        bool has_instructions_in(const module& mod) const
+        [[nodiscard]] bool has_instructions_in(const module& mod) const
         {
             return std::all_of(ins_map.begin(), ins_map.end(), [&](auto&& p) {
                 return mod.has_instruction(p.second);
@@ -356,12 +364,12 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif
-        int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
+    auto trace{ value_of(MIGRAPHX_TRACE_MATCHES) };
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif
-        bool validate = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    bool match        = false;
+    auto validate{ enabled(MIGRAPHX_VALIDATE_MATCHES) };
+    bool match    = false;
     each_args(
         [&](auto&& m) {
             if(match)
@@ -632,9 +640,9 @@ auto skip_output(Ms... ms)
 inline auto var(std::string s)
 {
     return make_basic_fun_matcher(
-        [=, s = std::move(s)](const matcher_context& ctx,
-                              instruction_ref) -> optional<instruction_ref> {
-            auto it = ctx.instructions.find(s);
+        [=, s_ = std::move(s)](const matcher_context& ctx,
+                               instruction_ref) -> optional<instruction_ref> {
+            auto it = ctx.instructions.find(s_);
             if(it == ctx.instructions.end())
                 return nullopt;
             return it->second;
@@ -644,7 +652,7 @@ inline auto var(std::string s)
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [=, s = std::move(s)](instruction_ref ins) { return ins->name() == s; });
+        [=, s_ = std::move(s)](instruction_ref ins) { return ins->name() == s_; });
 }
 
 inline auto name_contains(const std::string& name)
@@ -655,8 +663,8 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([=, names = std::move(names)](instruction_ref ins) {
-        return names.count(ins->name()) > 0;
+    return make_basic_pred_matcher([=, names_ = std::move(names)](instruction_ref ins) {
+        return names_.count(ins->name()) > 0;
     });
 }
 

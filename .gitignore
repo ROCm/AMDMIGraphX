@@ -61,3 +61,7 @@ test/onnx/models
 # VS2017 and VSCode config files.
 .vscode
 .vs
+
+# Jetbrains IDEs
+.idea/
+build*/

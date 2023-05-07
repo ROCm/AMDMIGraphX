@@ -21,12 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <cassert>
+
 #include <migraphx/compile_src.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
-#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,7 +48,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         fs::path full_path   = td.path / src.path;
         fs::path parent_path = full_path.parent_path();
         fs::create_directories(parent_path);
-        write_buffer(full_path.string(), src.content.first, src.len());
+        write_buffer(full_path.string(), src.content.data(), src.content.size());
         if(src.path.extension().string() == ".cpp")
         {
             params += " " + src.path.filename().string();

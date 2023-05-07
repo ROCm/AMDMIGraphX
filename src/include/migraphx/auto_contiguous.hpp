@@ -36,7 +36,7 @@ struct module;
 struct auto_contiguous
 {
     std::string name() const { return "auto_contiguous"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

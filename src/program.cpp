@@ -211,7 +211,7 @@ void program::compile(const target& t, compile_options options)
     this->impl->target_name = t.name();
     this->impl->ctx         = t.get_context();
 
-    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+    if(enabled(MIGRAPHX_TRACE_COMPILE))
         options.trace = tracer{std::cout};
 
     options.trace(*this);
@@ -248,7 +248,7 @@ void program::finalize()
 template <class T>
 std::string classify(T x)
 {
-    switch(std::fpclassify(x))
+    switch(std::fpclassify(static_cast<double>(x)))
     {
     case FP_INFINITE: return "inf";
     case FP_NAN: return "nan";
@@ -422,7 +422,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     };
 #endif
 
-    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL);
     std::vector<argument> ret;
 
     if(exec_env.async)

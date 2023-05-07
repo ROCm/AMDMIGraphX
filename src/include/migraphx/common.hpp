@@ -34,23 +34,25 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 struct operation;
 
-std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
-                                                  std::vector<std::size_t> s1);
+MIGRAPHX_EXPORT std::vector<std::size_t>
+compute_broadcasted_lens(std::vector<std::size_t> s0,
+                         std::vector<std::size_t> s1);
 
-std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1);
+MIGRAPHX_EXPORT std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1);
 
-shape common_shape(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT shape common_shape(const std::vector<shape>& shapes);
 
-std::vector<instruction_ref>
+MIGRAPHX_EXPORT std::vector<instruction_ref>
 insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs);
 
-std::vector<instruction_ref> add_common_args(module& m, std::vector<instruction_ref> inputs);
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+add_common_args(module& m, std::vector<instruction_ref> inputs);
 
-instruction_ref insert_common_op(module& m,
+MIGRAPHX_EXPORT instruction_ref insert_common_op(module& m,
                                  instruction_ref ins,
                                  const operation& op,
                                  std::vector<instruction_ref> inputs);
-instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
+MIGRAPHX_EXPORT instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

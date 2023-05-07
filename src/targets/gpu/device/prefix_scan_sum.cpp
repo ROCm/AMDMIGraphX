@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/gpu/device/prefix_scan_sum.hpp>
 #include <migraphx/gpu/device/scan.hpp>
 #include <migraphx/gpu/device/reduce_ops.hpp>
@@ -29,8 +30,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 void prefix_scan_sum(hipStream_t stream,
                      const argument& result,
@@ -137,7 +137,6 @@ void prefix_scan_sum(hipStream_t stream,
         });
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

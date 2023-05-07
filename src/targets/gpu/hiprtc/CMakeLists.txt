@@ -22,12 +22,14 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(migraphx-hiprtc-driver
-    main.cpp
-)
-rocm_clang_tidy_check(migraphx-hiprtc-driver)
-target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
-add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
-rocm_install_targets(
-    TARGETS migraphx-hiprtc-driver
-)
+add_executable(migraphx_hiprtc_driver main.cpp)
+set_target_properties(migraphx_hiprtc_driver PROPERTIES OUTPUT_NAME migraphx-hiprtc-driver)
+
+if(CLANG_TIDY_EXE)
+    rocm_clang_tidy_check(migraphx_hiprtc_driver)
+endif()
+
+target_link_libraries(migraphx_hiprtc_driver PRIVATE migraphx migraphx_gpu)
+target_include_directories(migraphx_hiprtc_driver PRIVATE ${CMAKE_BINARY_DIR}/include)
+
+rocm_install_targets(TARGETS migraphx_hiprtc_driver)

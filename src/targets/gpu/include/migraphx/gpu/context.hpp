@@ -84,7 +84,7 @@ struct hip_device
 
         hipStream_t get()
         {
-            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
+            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM))
             {
                 setup();
                 if(s == nullptr)
@@ -97,7 +97,7 @@ struct hip_device
 
         auto create_miopen_handle()
         {
-            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
+            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM))
                 return make_obj<miopen_handle>(&miopenCreateWithStream, get());
             else
                 return make_obj<miopen_handle>(&miopenCreate);
@@ -197,7 +197,7 @@ struct hip_device
 
 struct context
 {
-    context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
+    context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS, 1))
         : current_device(std::make_shared<hip_device>(device_id, n)),
           begin_event(create_event()),
           finish_event(create_event())

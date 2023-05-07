@@ -32,7 +32,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void calculate_padding(int64_t idx,
+MIGRAPHX_EXPORT void calculate_padding(int64_t idx,
                        std::vector<int64_t>& pads,
                        int64_t input_dim,
                        int64_t stride,
@@ -45,7 +45,7 @@ void calculate_padding(int64_t idx,
  * where the padding calculation must be done at evaluation time.
  * \return padding in the form of {x0_begin, x1_begin, ... x0_end , x1_end, ...}
  */
-std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input_lens,
+MIGRAPHX_EXPORT std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input_lens,
                                            const std::vector<std::size_t>& wei_lens,
                                            const std::vector<std::size_t>& strides,
                                            const std::vector<std::size_t>& dilations,
@@ -53,7 +53,7 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input
 
 // Used for dynamic auto padding of convolution operators since padding needs to be computed at
 // evaulation time.
-shape compute_padded_shape(const shape& input,
+MIGRAPHX_EXPORT shape compute_padded_shape(const shape& input,
                            const shape& weights,
                            const std::vector<std::size_t>& padding,
                            const std::vector<std::size_t>& stride,

@@ -35,10 +35,10 @@ namespace gpu {
 
 struct gpu_allocation_model
 {
-    std::string name() const;
-    std::string copy() const;
-    operation allocate(const shape& s) const;
-    operation preallocate(const shape& s, const std::string& id) const;
+    static std::string name() ;
+    static std::string copy() ;
+    static operation allocate(const shape& s) ;
+    static operation preallocate(const shape& s, const std::string& id) ;
     bool needs_out_params() const { return true; }
 };
 

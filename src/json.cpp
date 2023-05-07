@@ -128,6 +128,7 @@ migraphx::value value_from_json(const json& j)
     case json::value_t::object:
         if(j.contains("bytes") and j.size() == 1)
         {
+            // TODO: port to MSVC - does not compile
             val = migraphx::value::binary{j["bytes"].get<std::vector<std::uint8_t>>()};
         }
         else

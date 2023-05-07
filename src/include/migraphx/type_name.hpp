@@ -35,8 +35,9 @@ std::string compute_type_name()
 {
     std::string name;
 #ifdef _MSC_VER
-    name = typeid(PrivateMigraphTypeNameProbe).name();
-    name = name.substr(7);
+// TODO: does not compile for ihipStream_t from hip/hip_runtime_api.h
+//    name = typeid(PrivateMigraphTypeNameProbe).name();
+//    name = name.substr(7);
 #else
     const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
 

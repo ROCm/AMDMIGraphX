@@ -21,13 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_STATIC_DEFINE
 #include "migraphx/gpu/device/visit.hpp"
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/reverse.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -194,7 +194,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
     create_pointwise_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
-    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
+    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION))
     {
         return;
     }

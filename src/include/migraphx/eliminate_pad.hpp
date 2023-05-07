@@ -43,7 +43,7 @@ struct eliminate_pad
 {
     std::string name() const { return "eliminate_pad"; }
 
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

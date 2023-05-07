@@ -39,7 +39,7 @@ struct module_pass_manager;
 struct layout_nhwc
 {
     std::string name() const { return "layout_nhwc"; }
-    void apply(module_pass_manager& mpm) const;
+    MIGRAPHX_EXPORT void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

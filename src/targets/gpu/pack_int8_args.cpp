@@ -205,7 +205,7 @@ void pack_int8_args::apply(module& m) const
     }
 }
 
-shape pack_int8_args::pack_int8_shape(const shape& s) const
+shape pack_int8_args::pack_int8_shape(const shape& s)
 {
     if(s.type() != shape::int8_type)
     {

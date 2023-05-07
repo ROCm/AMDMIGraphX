@@ -27,12 +27,13 @@
 #include <algorithm>
 #include <vector>
 #include <initializer_list>
+
+#include <migraphx/config.hpp>
 #include <migraphx/rank.hpp>
 #include <migraphx/iota_iterator.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/requires.hpp>
-#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

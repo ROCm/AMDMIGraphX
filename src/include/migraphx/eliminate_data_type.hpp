@@ -42,8 +42,8 @@ struct eliminate_data_type
 {
     std::set<shape::type_t> types;
     shape::type_t target_type;
-    std::string name() const { return "eliminate_data_type"; }
-    void apply(module& m) const;
+    static std::string name() { return "eliminate_data_type"; }
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -42,7 +42,7 @@ struct insert_pad
 {
     std::string name() const { return "insert_pad"; }
 
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

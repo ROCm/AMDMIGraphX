@@ -34,7 +34,7 @@ shape hip_nonzero::compute_shape(std::vector<shape> inputs) const
     return op.compute_shape({inputs.front()});
 }
 
-argument hip_nonzero::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+argument hip_nonzero::compute(context& ctx, const shape&, const std::vector<argument>& args)
 {
     return device::nonzero(ctx.get_stream().get(), args.back(), args.front());
 }

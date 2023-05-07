@@ -26,7 +26,18 @@
 
 #include <migraphx/config.hpp>
 
-#if defined(CPPCHECK)
+#if defined(_WIN32)
+#if _MSC_VER >= 1920
+#define MIGRAPHX_HAS_FILESYSTEM 1
+#define MIGRAPHX_HAS_FILESYSTEM_TS 0
+#elif _MSC_VER >= 1900
+#define MIGRAPHX_HAS_FILESYSTEM 0
+#define MIGRAPHX_HAS_FILESYSTEM_TS 1
+#else
+#define MIGRAPHX_HAS_FILESYSTEM 0
+#define MIGRAPHX_HAS_FILESYSTEM_TS 0
+#endif
+#elif defined(CPPCHECK)
 #define MIGRAPHX_HAS_FILESYSTEM 1
 #define MIGRAPHX_HAS_FILESYSTEM_TS 1
 #elif defined(__has_include)

@@ -76,7 +76,7 @@ struct gpu_loop
         }
     }
 
-    std::unordered_map<std::string, int> get_output_params(const module& m) const
+    static std::unordered_map<std::string, int> get_output_params(const module& m)
     {
         auto get_output_index = [](const std::string& name) {
             std::string out_prefix = "#output_";

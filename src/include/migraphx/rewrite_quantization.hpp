@@ -38,7 +38,7 @@ struct module;
 struct rewrite_quantization
 {
     std::string name() const { return "rewrite_quantization"; }
-    void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

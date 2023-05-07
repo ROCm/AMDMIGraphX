@@ -21,24 +21,83 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(Protobuf REQUIRED)
 
-protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
-add_library(onnx-proto STATIC ${PROTO_SRCS})
-target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
-target_compile_options(onnx-proto PRIVATE -w)
-target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
+# Minimum version required for protobuf::protoc IMPORTED target
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+
+include(GenerateExportHeader)
+
+add_library(onnx-proto STATIC onnx.proto)
 set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
+
+if(WIN32)
+    include(${protobuf_DIR}/protobuf-generate.cmake)
+    add_dependencies(onnx-proto protobuf::protoc)
+    target_compile_options(onnx-proto
+        PRIVATE
+            -Wno-used-but-marked-unused
+            -Wno-switch-enum
+            -Wno-reserved-identifier
+            -Wno-inconsistent-missing-destructor-override
+            -Wno-suggest-destructor-override
+            -Wno-zero-as-null-pointer-constant
+            -Wno-undef
+            -Wno-unused-parameter
+            -Wno-shadow-field-in-constructor
+            -Wno-covered-switch-default)
+    protobuf_generate(TARGET onnx-proto)
+else()
+    find_package(Protobuf REQUIRED)
+    protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
+    target_sources(onnx-proto PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
+    target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+    target_compile_options(onnx-proto PRIVATE -w)
+endif()
+
+target_link_libraries(onnx-proto PRIVATE protobuf::libprotobuf)
 
 file(GLOB ONNX_SRCS ${CONFIGURE_DEPENDS} *.cpp)
 add_library(migraphx_onnx ${ONNX_SRCS})
-target_include_directories(migraphx_onnx PRIVATE include)
-set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
-rocm_set_soversion(migraphx_onnx ${MIGRAPHX_SO_VERSION})
-rocm_clang_tidy_check(migraphx_onnx)
-target_link_libraries(migraphx_onnx PRIVATE onnx-proto "-Wl,--exclude-libs,ALL")
 target_link_libraries(migraphx_onnx PUBLIC migraphx)
+
+generate_export_header(migraphx_onnx
+    EXPORT_FILE_NAME
+        ${CMAKE_BINARY_DIR}/include/migraphx/onnx/export.h)
+
+target_include_directories(migraphx_onnx PRIVATE
+        include ${CMAKE_CURRENT_BINARY_DIR}/include ${PROJECT_BINARY_DIR}/include)
+
+if(WIN32)
+    # (!!!) Link protobuf statically on Windows (!!!)
+    # Refer to protobuf/cmake/README.md for details.
+    target_link_libraries(migraphx_onnx PRIVATE onnx-proto protobuf::libprotobuf)
+    target_include_directories(migraphx_onnx SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    target_compile_options(migraphx_onnx
+        PRIVATE
+            -Wno-used-but-marked-unused
+            -Wno-switch-enum
+            -Wno-reserved-identifier
+            -Wno-inconsistent-missing-destructor-override
+            -Wno-suggest-destructor-override
+            -Wno-zero-as-null-pointer-constant
+            -Wno-undef
+            -Wno-unused-parameter
+            -Wno-shadow-field-in-constructor
+            -Wno-covered-switch-default)
+else()
+    rocm_set_soversion(migraphx_onnx ${MIGRAPHX_SO_VERSION})
+    target_link_libraries(migraphx_onnx PRIVATE onnx-proto "-Wl,--exclude-libs,ALL")
+endif()
+
+set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
+
+if(CLANG_TIDY_EXE)
+    rocm_clang_tidy_check(migraphx_onnx)
+endif()
 
 rocm_install_targets(
   TARGETS migraphx_onnx
-)
+  INCLUDE
+      ${CMAKE_BINARY_DIR}/include
+      ${CMAKE_CURRENT_BINARY_DIR}/include
+  )

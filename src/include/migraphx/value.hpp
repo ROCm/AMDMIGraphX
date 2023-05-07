@@ -38,6 +38,10 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef __linux__
+#include <cstdint>
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -194,28 +198,29 @@ struct value
 
     value() = default;
 
-    value(const value& rhs);
-    value& operator=(value rhs);
-    value(const std::string& pkey, const value& rhs);
+    MIGRAPHX_EXPORT value(const value& rhs);
+    MIGRAPHX_EXPORT value& operator=(value rhs);
+    MIGRAPHX_EXPORT value(const std::string& pkey, const value& rhs);
 
-    value(const std::initializer_list<value>& i);
-    value(const std::vector<value>& v, bool array_on_empty = true);
-    value(const std::unordered_map<std::string, value>& m);
-    value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty = true);
-    value(const std::string& pkey, const std::unordered_map<std::string, value>& m);
-    value(const std::string& pkey, std::nullptr_t);
-    value(std::nullptr_t);
+    MIGRAPHX_EXPORT value(const std::initializer_list<value>& i);
+    MIGRAPHX_EXPORT value(const std::vector<value>& v, bool array_on_empty = true);
+    MIGRAPHX_EXPORT value(const std::unordered_map<std::string, value>& m);
+    MIGRAPHX_EXPORT value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty = true);
+    MIGRAPHX_EXPORT value(const std::string& pkey, const std::unordered_map<std::string, value>& m);
+    MIGRAPHX_EXPORT value(const std::string& pkey, std::nullptr_t);
+    MIGRAPHX_EXPORT value(std::nullptr_t);
 
-    value(const char* i);
-    value(const std::string& pkey, const char* i);
+    MIGRAPHX_EXPORT value(const char* i);
+    MIGRAPHX_EXPORT value(const std::string& pkey, const char* i);
 
 #define MIGRAPHX_VALUE_GENERATE_DECL_METHODS(vt, cpp_type) \
-    value(cpp_type i);                                     \
-    value(const std::string& pkey, cpp_type i);            \
-    value& operator=(cpp_type rhs);                        \
-    bool is_##vt() const;                                  \
-    const cpp_type& get_##vt() const;                      \
-    const cpp_type* if_##vt() const;
+    MIGRAPHX_EXPORT value(cpp_type i);                                     \
+    MIGRAPHX_EXPORT value(const std::string& pkey, cpp_type i);            \
+    MIGRAPHX_EXPORT value& operator=(cpp_type rhs);                        \
+    MIGRAPHX_EXPORT bool is_##vt() const;                                  \
+    MIGRAPHX_EXPORT const cpp_type& get_##vt() const;                      \
+    MIGRAPHX_EXPORT const cpp_type* if_##vt() const;
+
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
     template <class T>
@@ -282,51 +287,51 @@ struct value
         return *this = from_values(rhs); // NOLINT
     }
 
-    value& operator=(const char* c);
-    value& operator=(std::nullptr_t);
-    value& operator=(const std::initializer_list<value>& i);
+    MIGRAPHX_EXPORT value& operator=(const char* c);
+    MIGRAPHX_EXPORT value& operator=(std::nullptr_t);
+    MIGRAPHX_EXPORT value& operator=(const std::initializer_list<value>& i);
 
-    bool is_array() const;
-    const std::vector<value>& get_array() const;
-    const std::vector<value>* if_array() const;
+    MIGRAPHX_EXPORT bool is_array() const;
+    MIGRAPHX_EXPORT const std::vector<value>& get_array() const;
+    MIGRAPHX_EXPORT const std::vector<value>* if_array() const;
 
-    bool is_object() const;
-    const std::vector<value>& get_object() const;
-    const std::vector<value>* if_object() const;
+    MIGRAPHX_EXPORT bool is_object() const;
+    MIGRAPHX_EXPORT const std::vector<value>& get_object() const;
+    MIGRAPHX_EXPORT const std::vector<value>* if_object() const;
 
-    bool is_null() const;
+    MIGRAPHX_EXPORT bool is_null() const;
 
-    const std::string& get_key() const;
-    value* find(const std::string& pkey);
-    const value* find(const std::string& pkey) const;
-    bool contains(const std::string& pkey) const;
-    std::size_t size() const;
-    bool empty() const;
-    const value* data() const;
-    value* data();
-    value* begin();
-    const value* begin() const;
-    value* end();
-    const value* end() const;
+    MIGRAPHX_EXPORT const std::string& get_key() const;
+    MIGRAPHX_EXPORT value* find(const std::string& pkey);
+    MIGRAPHX_EXPORT const value* find(const std::string& pkey) const;
+    MIGRAPHX_EXPORT bool contains(const std::string& pkey) const;
+    MIGRAPHX_EXPORT std::size_t size() const;
+    MIGRAPHX_EXPORT bool empty() const;
+    MIGRAPHX_EXPORT const value* data() const;
+    MIGRAPHX_EXPORT value* data();
+    MIGRAPHX_EXPORT value* begin();
+    MIGRAPHX_EXPORT const value* begin() const;
+    MIGRAPHX_EXPORT value* end();
+    MIGRAPHX_EXPORT const value* end() const;
 
-    value& front();
-    const value& front() const;
-    value& back();
-    const value& back() const;
-    value& at(std::size_t i);
-    const value& at(std::size_t i) const;
-    value& at(const std::string& pkey);
-    const value& at(const std::string& pkey) const;
-    value& operator[](std::size_t i);
-    const value& operator[](std::size_t i) const;
-    value& operator[](const std::string& pkey);
+    MIGRAPHX_EXPORT value& front();
+    MIGRAPHX_EXPORT const value& front() const;
+    MIGRAPHX_EXPORT value& back();
+    MIGRAPHX_EXPORT const value& back() const;
+    MIGRAPHX_EXPORT value& at(std::size_t i);
+    MIGRAPHX_EXPORT const value& at(std::size_t i) const;
+    MIGRAPHX_EXPORT value& at(const std::string& pkey);
+    MIGRAPHX_EXPORT const value& at(const std::string& pkey) const;
+    MIGRAPHX_EXPORT value& operator[](std::size_t i);
+    MIGRAPHX_EXPORT const value& operator[](std::size_t i) const;
+    MIGRAPHX_EXPORT value& operator[](const std::string& pkey);
 
-    void clear();
-    void resize(std::size_t n);
-    void resize(std::size_t n, const value& v);
+    MIGRAPHX_EXPORT void clear();
+    MIGRAPHX_EXPORT void resize(std::size_t n);
+    MIGRAPHX_EXPORT void resize(std::size_t n, const value& v);
 
-    std::pair<value*, bool> insert(const value& v);
-    value* insert(const value* pos, const value& v);
+    MIGRAPHX_EXPORT std::pair<value*, bool> insert(const value& v);
+    MIGRAPHX_EXPORT value* insert(const value* pos, const value& v);
 
     template <class... Ts>
     std::pair<value*, bool> emplace(Ts&&... xs)
@@ -344,8 +349,8 @@ struct value
 
     void push_front(const value& v) { insert(begin(), v); }
 
-    value with_key(const std::string& pkey) const;
-    value without_key() const;
+    MIGRAPHX_EXPORT value with_key(const std::string& pkey) const;
+    MIGRAPHX_EXPORT value without_key() const;
 
     template <class Visitor>
     void visit(Visitor v) const
@@ -452,18 +457,18 @@ struct value
                    std::vector<literal_to_string<To>>{default_value.begin(), default_value.end()});
     }
 
-    friend bool operator==(const value& x, const value& y);
-    friend bool operator!=(const value& x, const value& y);
-    friend bool operator<(const value& x, const value& y);
-    friend bool operator<=(const value& x, const value& y);
-    friend bool operator>(const value& x, const value& y);
-    friend bool operator>=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator==(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator<(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator<=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator>(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator>=(const value& x, const value& y);
 
-    friend std::ostream& operator<<(std::ostream& os, const value& d);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const value& d);
 
-    void debug_print(bool show_type = false) const;
+    MIGRAPHX_EXPORT void debug_print(bool show_type = false) const;
 
-    type_t get_type() const;
+    MIGRAPHX_EXPORT type_t get_type() const;
 
     private:
     template <class T>

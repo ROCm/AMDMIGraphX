@@ -21,18 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_STATIC_DEFINE
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/gpu/device/multinomial.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace gpu::device {
 
 template <class Iterator, class T>
 constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value)
@@ -83,7 +83,6 @@ void multinomial(hipStream_t stream,
     });
 }
 
-} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

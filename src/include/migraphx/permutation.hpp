@@ -58,13 +58,13 @@ inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)
 /*!
  * Returns the permutation needed to apply to the shape to undo the current permutation
  */
-std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation);
+MIGRAPHX_EXPORT std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation);
 
 /*!
  * Finds the permutation most likely from a transpose operator that has been applied to the shape.
  */
-std::vector<int64_t> find_permutation(const shape& s);
-std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT std::vector<int64_t> find_permutation(const shape& s);
+MIGRAPHX_EXPORT std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -40,10 +40,10 @@ struct schedule_model
 {
     std::size_t streams = 0;
     std::size_t concurrency() const;
-    void sched(module& m, instruction_ref ins, std::size_t n) const;
-    void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
-    void record(module& m, instruction_ref ins, std::size_t wait_id) const;
-    std::size_t weight(const operation& op) const;
+    static void sched(module& m, instruction_ref ins, std::size_t n) ;
+    static void wait(module& m, instruction_ref ins, std::size_t wait_id) ;
+    static void record(module& m, instruction_ref ins, std::size_t wait_id) ;
+    static std::size_t weight(const operation& op) ;
 };
 
 } // namespace gpu

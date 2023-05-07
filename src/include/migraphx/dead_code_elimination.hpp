@@ -40,8 +40,8 @@ struct program;
 struct dead_code_elimination
 {
     std::string name() const { return "dead_code_elimination"; }
-    void apply(module& m) const;
-    void apply(program& p) const;
+    MIGRAPHX_EXPORT void apply(module& m) const;
+    MIGRAPHX_EXPORT void apply(program& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

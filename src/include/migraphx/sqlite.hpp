@@ -38,9 +38,9 @@ struct sqlite_impl;
 struct sqlite
 {
     sqlite() = default;
-    static sqlite read(const fs::path& p);
-    static sqlite write(const fs::path& p);
-    std::vector<std::unordered_map<std::string, std::string>> execute(const std::string& s);
+    MIGRAPHX_EXPORT static sqlite read(const fs::path& p);
+    MIGRAPHX_EXPORT static sqlite write(const fs::path& p);
+    MIGRAPHX_EXPORT std::vector<std::unordered_map<std::string, std::string>> execute(const std::string& s);
 
     private:
     std::shared_ptr<sqlite_impl> impl;

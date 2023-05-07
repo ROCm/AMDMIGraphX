@@ -255,7 +255,7 @@ struct find_mlir_op
 
 #endif
 
-void fuse_mlir::apply(module_pass_manager& mpm) const
+void fuse_mlir::apply(module_pass_manager& mpm)
 {
 #ifdef MIGRAPHX_MLIR
     match::find_matches(mpm, find_mlir_op{});

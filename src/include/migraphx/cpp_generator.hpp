@@ -58,7 +58,7 @@ struct cpp_generator
         std::string name                    = "";
         std::vector<std::string> attributes = {};
         std::vector<std::string> tparams    = {};
-        function& set_body(const module& m, const generate_module_callback& g);
+        MIGRAPHX_EXPORT function& set_body(const module& m, const generate_module_callback& g);
         function& set_body(const std::string& s)
         {
             body = s;
@@ -74,40 +74,40 @@ struct cpp_generator
             attributes = std::move(attrs);
             return *this;
         }
-        function& set_types(const module& m);
-        function& set_types(const module& m, const std::function<std::string(shape)>& parse);
-        function& set_generic_types(const module& m);
-        function& add_generic_param(const std::string& pname);
-        function& unused_param(const std::string& pname);
+        MIGRAPHX_EXPORT function& set_types(const module& m);
+        MIGRAPHX_EXPORT function& set_types(const module& m, const std::function<std::string(shape)>& parse);
+        MIGRAPHX_EXPORT function& set_generic_types(const module& m);
+        MIGRAPHX_EXPORT function& add_generic_param(const std::string& pname);
+        MIGRAPHX_EXPORT function& unused_param(const std::string& pname);
     };
 
-    cpp_generator();
+    MIGRAPHX_EXPORT cpp_generator();
 
     // move constructor
-    cpp_generator(cpp_generator&&) noexcept;
+    MIGRAPHX_EXPORT cpp_generator(cpp_generator&&) noexcept;
 
     // copy assignment operator
-    cpp_generator& operator=(cpp_generator rhs);
+    MIGRAPHX_EXPORT cpp_generator& operator=(cpp_generator rhs);
 
-    ~cpp_generator() noexcept;
+    MIGRAPHX_EXPORT ~cpp_generator() noexcept;
 
-    void fmap(const std::function<std::string(std::string)>& f);
+    MIGRAPHX_EXPORT void fmap(const std::function<std::string(std::string)>& f);
 
-    void fresult(const std::function<std::string(shape)>& f);
+    MIGRAPHX_EXPORT void fresult(const std::function<std::string(shape)>& f);
 
-    void add_point_op(const std::string& op_name, const std::string& code);
+    MIGRAPHX_EXPORT void add_point_op(const std::string& op_name, const std::string& code);
 
-    std::string generate_point_op(const operation& op, const std::vector<std::string>& args);
+    MIGRAPHX_EXPORT std::string generate_point_op(const operation& op, const std::vector<std::string>& args);
 
-    std::string str() const;
+    MIGRAPHX_EXPORT std::string str() const;
 
-    function generate_module(const module& m, const generate_module_callback& g);
+    MIGRAPHX_EXPORT function generate_module(const module& m, const generate_module_callback& g);
 
-    function generate_module(const module& m);
+    MIGRAPHX_EXPORT function generate_module(const module& m);
 
-    std::string create_function(const function& f);
+    MIGRAPHX_EXPORT std::string create_function(const function& f);
 
-    static std::vector<std::string>
+    MIGRAPHX_EXPORT static std::vector<std::string>
     to_args(const std::vector<instruction_ref>& inputs,
             const std::unordered_map<instruction_ref, std::string>& names);
 

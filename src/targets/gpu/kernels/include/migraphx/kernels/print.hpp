@@ -244,13 +244,13 @@ __device__ void print_once(Ts... xs)
 template <class... Ts>
 __device__ void println(Ts... xs)
 {
-    print_each(&coutln, xs...);
+    print_each(&cout, xs..., '\n');
 }
 
 template <class... Ts>
 __device__ void println_once(Ts... xs)
 {
-    print_each_once(&coutln, xs...);
+    print_each_once(&cout, xs..., '\n');
 }
 
 } // namespace migraphx

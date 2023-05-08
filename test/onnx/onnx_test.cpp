@@ -3163,10 +3163,9 @@ TEST_CASE(initializer_not_an_input)
 
 TEST_CASE(instance_norm_test)
 {
-    // std::vector<size_t> dims{1, 2, 3, 3};
-    // migraphx::shape s1{migraphx::shape::float_type, dims};
-    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 3, 3}};
-     migraphx::shape s2{migraphx::shape::float_type, {2}};
+    std::vector<size_t> dims{1, 2, 3, 3};
+    migraphx::shape s1{migraphx::shape::float_type, dims};
+    migraphx::shape s2{migraphx::shape::float_type, {2}};
 
     migraphx::program p;
     auto* mm   = p.get_main_module();
@@ -3175,7 +3174,7 @@ TEST_CASE(instance_norm_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto l0 = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
 
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
 
@@ -3184,27 +3183,26 @@ TEST_CASE(instance_norm_test)
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
 
-    auto l3          = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
-    auto l4          = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
 
     auto scale_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
-scale_bcast->debug_print();printf("dffffffffffffffffffffffffffffffffff\n");        
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
     auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
-    auto l5 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
+    auto l5  = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
     auto ret = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    // options.default_dyn_dim_value = {1, 2, {2}};
-    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_test.onnx", options); 
+    auto prog = migraphx::parse_onnx("instance_norm_test.onnx", options);
 
     EXPECT(p == prog);
 }
 
 TEST_CASE(instance_norm_dyn_batch_test)
 {
+    // instancenorm with dynamic input
     std::vector<size_t> dims{1, 2, 3, 3};
     migraphx::shape s1{migraphx::shape::float_type, {{1, 2, {2}}, {2, 2}, {3, 3}, {3, 3}}};
     migraphx::shape s2{migraphx::shape::float_type, {2}};
@@ -3216,7 +3214,7 @@ TEST_CASE(instance_norm_dyn_batch_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto l0 = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
 
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
 
@@ -3225,20 +3223,18 @@ TEST_CASE(instance_norm_dyn_batch_test)
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
 
-    auto l3          = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
-    auto l4          = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
 
-    auto scale_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
-    auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
-    auto l5 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
-    auto ret = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    auto scale_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
+    auto bias_bcast  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
+    auto l5          = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto ret         = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 2, {2}};
-    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_test.onnx", options); 
+    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -3256,28 +3252,28 @@ TEST_CASE(instance_norm_half_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto mean_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
-    auto l0       = mm->add_instruction(migraphx::make_op("sqdiff"), x, mean_bcast);
+    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
-    auto l1       = mm->add_instruction(migraphx::make_op("sub"), x, mean_bcast);
+
+    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {1e-5}});
-    auto epsilon_bcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
-    auto variance_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), variance);
-    auto l2          = mm->add_instruction(migraphx::make_op("add"), variance_bcast, epsilon_bcast);
-    auto l3          = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
-    auto l4          = mm->add_instruction(migraphx::make_op("mul"), l1, l3);
+    auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
+
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
+
     auto scale_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
-    auto l5 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
-    mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    auto l5  = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto ret = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    mm->add_return({ret});
 
-    auto prog = optimize_onnx("instance_norm_half_test.onnx");
+    migraphx::onnx_options options;
+    auto prog = migraphx::parse_onnx("instance_norm_half_test.onnx", options);
 
     EXPECT(p == prog);
 }

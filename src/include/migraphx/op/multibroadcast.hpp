@@ -85,9 +85,10 @@ struct multibroadcast
 
         // One input shape or two?
         if(inputs.size() == 1)
-        { 
+        {
             if(s0.dynamic())
-                MIGRAPHX_THROW("MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
+                MIGRAPHX_THROW(
+                    "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
             if(s0.lens().size() > output_lens.size())
             {
                 MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");

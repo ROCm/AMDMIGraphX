@@ -39,6 +39,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REMOVE_LAST_OUTPUT);
+
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
 {

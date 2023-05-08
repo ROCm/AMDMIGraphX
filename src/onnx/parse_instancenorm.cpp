@@ -74,14 +74,14 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         std::iota(axes.begin(), axes.end(), 2);
 
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
-        // Use add_common_op to create a multibroadcast instruction to when inputs may be 
+        // Use add_common_op to create a multibroadcast instruction to when inputs may be
         // either static or dynamic.
 
         auto l0              = info.add_common_op("sqdiff", x, mean);
         auto variance        = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
         auto l1              = info.add_common_op("sub", x, mean);
         auto epsilon_literal = info.add_literal(literal{shape{dtype}, {epsilon}});
-        auto l2 = info.add_common_op("add", variance, epsilon_literal);
+        auto l2              = info.add_common_op("add", variance, epsilon_literal);
 
         auto l3 = info.add_instruction(make_op("rsqrt"), l2);
         auto l4 = info.add_common_op("mul", l1, l3);

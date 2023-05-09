@@ -208,4 +208,7 @@ TEST_CASE(literal_rewrite_pooling_test)
                          migraphx::make_op("reduce_mean", {{"axes", {1}}}));
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

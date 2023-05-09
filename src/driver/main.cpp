@@ -744,7 +744,7 @@ struct main_command
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT
-int main(int argc, const char* argv[])
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
 {
     std::vector<std::string> args(argv + 1, argv + argc);
 

@@ -222,4 +222,7 @@ TEST_CASE(argument_share)
     EXPECT(a4.data() == a3.data());
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

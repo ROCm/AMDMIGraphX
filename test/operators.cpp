@@ -170,4 +170,7 @@ TEST_CASE(if_op)
     EXPECT(test::throws([&] { op.compute(s, {cond, a1, a2}, {&m, &m}, {}); }));
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

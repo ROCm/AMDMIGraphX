@@ -31,7 +31,7 @@ using namespace migraphx;              // NOLINT
 using namespace migraphx::gpu;         // NOLINT
 using namespace migraphx::gpu::driver; // NOLINT
 
-int main(int argc, char const* argv[])
+int main(int argc, char const* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
 {
     std::vector<std::string> args(argv, argv + argc);
     if(args.size() < 2)

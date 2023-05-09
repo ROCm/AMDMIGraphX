@@ -46,7 +46,7 @@ std::vector<char> read_stdin()
     return result;
 }
 
-int main(int argc, char const* argv[])
+int main(int argc, char const* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
 {
     if(argc < 2 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
     {

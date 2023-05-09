@@ -543,4 +543,7 @@ TEST_CASE(race_multi_wait_sync)
     EXPECT(races.empty());
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

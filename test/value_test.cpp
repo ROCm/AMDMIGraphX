@@ -958,4 +958,7 @@ TEST_CASE(value_get_default_string_literal_vector)
     EXPECT(v.get("missing", {"none"}) == fallback);
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

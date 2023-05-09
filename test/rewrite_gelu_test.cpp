@@ -122,4 +122,7 @@ TEST_CASE(non_bias_gelu)
     EXPECT(m1 == m2);
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

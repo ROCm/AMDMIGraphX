@@ -3408,4 +3408,7 @@ TEST_CASE(test_dyn_concat)
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

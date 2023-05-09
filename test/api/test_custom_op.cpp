@@ -154,4 +154,7 @@ TEST_CASE(run_custom_op_with_invalid_output_alias)
         "Currently, CustomOps in MIGraphX only supports one output_alias"));
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

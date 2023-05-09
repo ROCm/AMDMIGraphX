@@ -512,4 +512,7 @@ TEST_CASE(inline_tuple_false_test)
     EXPECT(p == create_inline());
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

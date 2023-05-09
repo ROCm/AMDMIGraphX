@@ -50,4 +50,7 @@ TEST_CASE(non_handle)
     EXPECT(bool{not has_handle(migraphx::rank<1>{}, &i)});
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

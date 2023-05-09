@@ -171,4 +171,7 @@ TEST_CASE(handling_tensors)
     EXPECT(migraphx::verify_range(results_vector, sol));
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

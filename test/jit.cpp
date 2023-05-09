@@ -104,4 +104,7 @@ TEST_CASE(generate_module_with_literals)
     EXPECT(test::near(f(0, 2), std::sqrt(3)));
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

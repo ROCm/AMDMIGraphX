@@ -56,4 +56,7 @@ TEST_CASE(load_save_json)
     std::remove(filename.c_str());
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

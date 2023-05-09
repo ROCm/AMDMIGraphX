@@ -100,4 +100,7 @@ TEST_CASE(dequantizelinear)
     EXPECT(none_of(*p2.get_main_module(), &is_dequantizelinear));
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

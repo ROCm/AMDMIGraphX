@@ -93,4 +93,7 @@ TEST_CASE(if_then_else_op)
     CHECK(bool{else_res == y_arg});
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

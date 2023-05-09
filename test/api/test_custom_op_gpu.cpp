@@ -323,4 +323,7 @@ TEST_CASE(custom_op_with_pre_and_post_subgraph_test)
                                              expected_result.data())});
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

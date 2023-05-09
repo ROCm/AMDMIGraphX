@@ -101,12 +101,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
-        enable_pass(options.split_single_dyn_dim, split_single_dyn_dim{}),
-        enable_pass(options.split_single_dyn_dim, dead_code_elimination{}),
+        split_single_dyn_dim{},
+        dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
         simplify_qdq{},
-        rewrite_quantization{},
+        enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
@@ -132,7 +132,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
         dead_code_elimination{},
-        fuse_mlir{&ctx},
+        enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

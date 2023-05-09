@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-bool mlir_enabled();
-
-struct fuse_mlir
+struct test_mul_dot_a : verify_program<test_mul_dot_a>
 {
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::fuse_mlir"; }
-    void apply(module_pass_manager& mpm) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+        migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+        auto a = mm->add_parameter("input", as);
+        auto lit =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 32}}));
+        auto litb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), lit);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), a, litb);
+        auto b   = mm->add_literal(migraphx::generate_literal(bs));
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), mul, b);
+        mm->add_return({dot});
+        return p;
+    }
 };
-
-} // namespace gpu
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP

@@ -48,5 +48,7 @@ TEST_CASE(test_int_name)
     EXPECT(test::throws([&] { p.get(migraphx::get_type_name(float{})); }));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion) 
-{ test::run(argc, argv); }
+int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+{
+    test::run(argc, argv);
+}

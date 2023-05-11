@@ -385,23 +385,21 @@ TEST_CASE(assert_type_min_max)
         if(t == migraphx::shape::half_type)
             name.insert(0, "migraphx::");
 
-        std::string min = "";
-        std::string max = "";
-        // Note 9223372036854775808 is a constant literal that is outside the range of long long
-        // type For the same reason, 18446744073709551616 needs postfix ULL to be parsed correctly
-        auto min_override_int64  = "(-9223372036854775807LL - 1)";
-        auto max_override_uint64 = "18446744073709551615ULL";
-
         migraphx::shape::visit(t, [&](auto as) {
+            std::string min = "";
+            std::string max = "";
+            // Note 9223372036854775808 is a constant literal that is outside the range of long
+            // long type For the same reason, 18446744073709551616 needs postfix ULL to be parsed
+            // correctly
             if(t == migraphx::shape::int64_type)
             {
-                min = min_override_int64;
+                min = "(-9223372036854775807LL - 1)";
                 max = std::to_string(as.max());
             }
             else if(t == migraphx::shape::uint64_type)
             {
                 min = std::to_string(as.min());
-                max = max_override_uint64;
+                max = "18446744073709551615ULL";
             }
             else
             {

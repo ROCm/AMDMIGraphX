@@ -30,6 +30,7 @@ def rocmtestnode(Map conf) {
             cd build
             cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On ${flags} ..
             make -j\$(nproc) generate all doc package check VERBOSE=1
+            md5sum ./*.deb
         """
         echo cmd
         sh cmd
@@ -148,6 +149,7 @@ rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
         sh '''
             apt install half
             ls -lR
+            md5sum ./build/*.deb
             dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''

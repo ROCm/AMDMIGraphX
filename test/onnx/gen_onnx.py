@@ -3340,6 +3340,7 @@ def instance_norm_type_mismatch_test():
 
     return ([node], [x, scale, bias], [y])
 
+
 @onnx_test()
 def instance_norm_dyn_batch_test():
     # the batch size is a dynamic dimension

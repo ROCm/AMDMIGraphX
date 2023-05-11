@@ -1,9 +1,7 @@
-#!/bin/bash
-
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,29 +21,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
+cmake_minimum_required(VERSION 3.5)
+project (cpp_dynamic_batch)
 
-set -e
+set (CMAKE_CXX_STANDARD 14)
+set (EXAMPLE dynamic_batch)
 
-if [ -z "$ONNX_HOME" ]
-then
-   # The onnx library uses ONNX_HOME, by default if it doesn't exist
-   # the path of " ~/.onnx " is used
-   ONNX_HOME=$HOME/.onnx
-fi
+list (APPEND CMAKE_PREFIX_PATH /opt/rocm)
+find_package (migraphx)
 
-model_dir=$ONNX_HOME/models
-tmp_dir=$ONNX_HOME/tmp/
-mkdir -p $model_dir
-mkdir -p $tmp_dir
-models="bvlc_alexnet \
-        densenet121 \
-        inception_v2 \
-        shufflenet \
-        vgg19 \
-        zfnet512"
+message("source file: " ${EXAMPLE}.cpp " ---> bin: " ${EXAMPLE})
+add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
 
-for name in $models
-do
-curl https://download.onnxruntime.ai/onnx/models/$name.tar.gz --output $tmp_dir/$name.tar.gz
-tar -xzvf $tmp_dir/$name.tar.gz --directory $model_dir && rm $tmp_dir/$name.tar.gz
-done
+target_link_libraries(${EXAMPLE} migraphx::c)

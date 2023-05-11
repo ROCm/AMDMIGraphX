@@ -48,7 +48,7 @@ def rocmtestnode(Map conf) {
                 pre()
                 stage("image ${variant}") {
                     try {
-                        docker.build("${image}", "${docker_build_args} .")
+                        docker.build("${image}", "${docker_build_args} --no-cache .")
                     } catch(Exception ex) {
                         docker.build("${image}", "${docker_build_args} --no-cache .")
 
@@ -148,7 +148,7 @@ rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half
-            ls -lR
+            #ls -lR
             md5sum ./build/*.deb
             dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh

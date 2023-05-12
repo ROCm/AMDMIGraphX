@@ -194,12 +194,10 @@ TEST_CASE(multitarget_compile_cpu_gpu)
     auto gpu_ins = mm->add_instruction(
         migraphx::make_op("run_on_target", {{"target", "gpu"}}), {cpu_ins, z_param}, {gpu_mod});
     mm->add_return({gpu_ins});
-    std::unordered_map<std::string, migraphx::compile_options> compile_opts;
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
-    compile_opts["gpu"]  = gpu_opt;
-    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, compile_opts);
-    CHECK(check_compiled_program(p, compile_opts));
+    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opt});
+    CHECK(check_compiled_program(p, {{"gpu", gpu_opt}}));
 }
 
 TEST_CASE(single_target_compile)
@@ -266,18 +264,16 @@ TEST_CASE(multitarget_compile_if_then_else)
     auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
     // compile
-    std::unordered_map<std::string, migraphx::compile_options> compile_opts;
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
-    compile_opts["gpu"]  = gpu_opt;
 
     p.compile(
         {
             migraphx::make_target("gpu"),
             migraphx::make_target("cpu"),
         },
-        compile_opts);
-    CHECK(check_compiled_program(p, compile_opts));
+        {gpu_opt});
+    CHECK(check_compiled_program(p, {{"gpu", gpu_opt}}));
 }
 
 TEST_CASE(multitarget_compile_nested_if_then_else)
@@ -371,17 +367,15 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
     mm->add_return({r});
 
     // compile
-    std::unordered_map<std::string, migraphx::compile_options> compile_opts;
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
-    compile_opts["gpu"]  = gpu_opt;
     p.compile({migraphx::make_target("gpu"),
                migraphx::make_target("cpu"),
                migraphx::make_target("fpga"),
                migraphx::make_target("ref")},
-              compile_opts);
+              {gpu_opt});
 
-    CHECK(check_compiled_program(p, compile_opts));
+    CHECK(check_compiled_program(p, {{"gpu", gpu_opt}}));
 }
 
 TEST_CASE(multitarget_select_module)
@@ -450,16 +444,14 @@ TEST_CASE(multitarget_select_module)
     auto ret1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), sm_ins);
     mm->add_return({ret0, ret1});
     // compile
-    std::unordered_map<std::string, migraphx::compile_options> compile_opts;
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
-    compile_opts["gpu"]  = gpu_opt;
     p.compile({migraphx::make_target("gpu"),
                migraphx::make_target("cpu"),
                migraphx::make_target("fpga"),
                migraphx::make_target("ref")},
-              compile_opts);
-    CHECK(check_compiled_program(p, compile_opts));
+              {gpu_opt});
+    CHECK(check_compiled_program(p, {{"gpu_opt", gpu_opt}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

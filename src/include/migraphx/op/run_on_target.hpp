@@ -76,7 +76,7 @@ struct run_on_target
     {
         std::unordered_map<std::string, migraphx::argument> params;
         std::set<std::string> pnames;
-        auto smod = mods.front();
+        const auto* smod = mods.front();
         assert(mods.size() == 1);
         auto names = smod->get_parameter_names();
         pnames.insert(names.begin(), names.end());

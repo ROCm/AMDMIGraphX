@@ -68,6 +68,7 @@ RUN dnf --enablerepo=powertools install -y --nobest \
     half \
     #libssl-devel \
     openssl-devel
+    gcc-toolset-11
     #zlib1g-devel && \
     #zlib-devel && \
 

@@ -33,7 +33,7 @@ export LANG=C.UTF-8
 
 
 # Need pip3 and Python headers to build dependencies
-dnf update && dnf install -y python3-pip python3-dev cmake rocm-cmake rocblas miopen-hip openmp-extras tbb2 tbb-devel
+dnf update && dnf install -y python3-pip python3-dev cmake rocm-cmake rocblas miopen-hip openmp-extras
 
 # Needed for cmake to build various pip packages
 pip3.8 install setuptools wheel

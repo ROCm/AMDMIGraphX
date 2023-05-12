@@ -174,7 +174,7 @@ struct instruction
     std::vector<instruction_ref> arguments;
     std::vector<module_ref> module_args;
     literal lit;
-    bool normalized = false;
+    bool normalized        = false;
     unsigned int target_id = 0;
 };
 } // namespace MIGRAPHX_INLINE_NS

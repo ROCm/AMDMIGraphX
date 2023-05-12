@@ -375,10 +375,11 @@ std::vector<argument> generic_eval(const module* mod,
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
-            results.emplace(ins, trace(ins, [&] {
-                                return ins->normalized_operator().compute(
-                                    ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
-                            }));
+            results.emplace(
+                ins, trace(ins, [&] {
+                    return ins->normalized_operator().compute(
+                        ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
+                }));
         }
         assert(results.find(ins) != results.end());
         if(not ins->get_shape().any_of_dynamic())
@@ -421,49 +422,40 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
 
-        ret = generic_eval(*this,
-                           ctx,
-                           std::move(params),
-                           [&](instruction_ref ins, auto f) {
-                                auto& ctx2 = ctx[ins->get_target_id()];
-                                ctx2.finish();
-                               std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                               timer t{};
-                               auto result = f();
-                               double t1   = t.record<milliseconds>();
-                               ctx2.finish();
-                               double t2 = t.record<milliseconds>();
-                               std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                               if(trace_level > 1 and ins->name().front() != '@' and
-                                  ins->name() != "load" and not result.empty())
-                               {
-                                   target tgt  = make_target(this->impl->target_name);
-                                   auto buffer = tgt.copy_from(result);
-                                   if(trace_level == 2)
-                                   {
-                                       std::cout << "Output has "
-                                                 << to_string_range(classify_argument(buffer))
-                                                 << std::endl;
-                                       std::cout << "Output: ";
-                                       preview_argument(std::cout, buffer);
-                                       std::cout << std::endl;
-                                   }
-                                   else
-                                   {
-                                       std::cout << "Output: " << buffer << std::endl;
-                                   }
-                               }
-                               return result;
-                           });
+        ret = generic_eval(*this, ctx, std::move(params), [&](instruction_ref ins, auto f) {
+            auto& ctx2 = ctx[ins->get_target_id()];
+            ctx2.finish();
+            std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+            timer t{};
+            auto result = f();
+            double t1   = t.record<milliseconds>();
+            ctx2.finish();
+            double t2 = t.record<milliseconds>();
+            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
+               not result.empty())
+            {
+                target tgt  = make_target(this->impl->target_name);
+                auto buffer = tgt.copy_from(result);
+                if(trace_level == 2)
+                {
+                    std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                              << std::endl;
+                    std::cout << "Output: ";
+                    preview_argument(std::cout, buffer);
+                    std::cout << std::endl;
+                }
+                else
+                {
+                    std::cout << "Output: " << buffer << std::endl;
+                }
+            }
+            return result;
+        });
     }
     else
     {
-        ret = generic_eval(*this,
-                           ctx,
-                           std::move(params),
-                           [&](auto&&, auto f) {
-                            return f();
-                           });
+        ret = generic_eval(*this, ctx, std::move(params), [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)
@@ -476,7 +468,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
 
 void program::finish() const
 {
-    for(const auto& ctx:this->impl->ctx)
+    for(const auto& ctx : this->impl->ctx)
         ctx.finish();
 }
 

@@ -399,7 +399,7 @@ TEST_CASE(assert_type_min_max)
             else if(t == migraphx::shape::uint64_type)
             {
                 min = std::to_string(as.min());
-                max = max = std::to_string(as.max()) + "ULL";
+                max = std::to_string(as.max()) + "ULL";
             }
             else
             {

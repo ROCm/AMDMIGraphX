@@ -151,7 +151,7 @@ shape common_shape(const std::vector<shape>& shapes)
 /**
  * @brief  Constructs an argument list while handling the shapes of given
  *         arguments (whether static or dynamic) intelligently.
- *         Inserts intermediate instructions.
+ *         Inserts intermediate "multibroadcast" instructions.
  *
  * @param m         containing module for instruction
  * @param ins       insertion location in instruction list

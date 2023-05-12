@@ -3202,7 +3202,7 @@ TEST_CASE(instance_norm_test)
 
 TEST_CASE(instance_norm_dyn_batch_test)
 {
-    // instancenorm with dynamic input
+    // instancenorm with dynamic input in the 0'th (batch) dimension
     migraphx::shape s1{migraphx::shape::float_type, {{1, 2, {2}}, {2, 2}, {3, 3}, {3, 3}}};
     migraphx::shape s2{migraphx::shape::float_type, {2}};
 

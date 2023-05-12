@@ -65,7 +65,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         assert(ndims >= 2);
         auto kdims = ndims - 2;
 
-        if(x->get_shape().dynamic())
+        if(dyn_input)
         {
             dims = x->get_shape().min_lens();
         }
@@ -74,9 +74,9 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         std::iota(axes.begin(), axes.end(), 2);
 
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
-        // Use add_common_op to create a multibroadcast instruction to when inputs may be
-        // either static or dynamic.
 
+        // Use add_common_op() to insert multibroadcast instructions where needed when inputs may be
+        // either static or dynamic.
         auto l0              = info.add_common_op("sqdiff", x, mean);
         auto variance        = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
         auto l1              = info.add_common_op("sub", x, mean);

@@ -36,8 +36,6 @@
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/env.hpp>
 
-#include <string>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -151,6 +149,17 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
     return this->add_common_op(op_name, arg0, arg1);
 }
 
+/**
+ * @brief A wrapper for insert_common_args(), which constructs an argument list
+ * that is suitable for optimization in later compiler passes and handles the
+ * insertion of multibroadcast ops where needed.
+ * Use add_common_op() to match input sizes when inputs may be
+ *  either static or dynamic.
+ *
+ * @param op_name
+ * @param inputs
+ * @return instruction_ref
+ */
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const
 {

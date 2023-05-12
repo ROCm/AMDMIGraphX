@@ -41,8 +41,9 @@ namespace op {
  * dynamic shape input)).
  * Two inputs version broadcasts to the shape of the second input at evaluation time.
  * Use the make_op() command with two shape arguments for dynamic input and the 1-argument version
- * for static input, since future compiler passes will differentiate the two
- * and optimize them differently.
+ * for static input, since later compiler passes will differentiate the two
+ * and optimize them differently; or use the add_common_op() method which wraps this
+ * decision logic.
  */
 struct multibroadcast
 {

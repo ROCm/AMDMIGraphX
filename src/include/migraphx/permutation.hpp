@@ -61,7 +61,7 @@ inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)
 std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation);
 
 /*!
- * Finds the permutation that would make the shape standard
+ * Finds the permutation that would put the strides in descending order
  */
 std::vector<int64_t> find_permutation(const shape& s);
 std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);

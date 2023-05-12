@@ -200,7 +200,6 @@ rocm_enable_clang_tidy(
     EXTRA_ARGS
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
-        "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
     CLANG_ARGS
         -analyzer-max-loop 10
         -analyzer-inline-max-stack-depth 10

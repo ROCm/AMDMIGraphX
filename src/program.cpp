@@ -146,7 +146,6 @@ std::vector<shape> program::get_output_shapes() const
     return mm->get_output_shapes();
 }
 
-// TODO: Remove this method
 context& program::get_context() const { return impl->contexts.front(); }
 
 instruction_ref program::validate() const

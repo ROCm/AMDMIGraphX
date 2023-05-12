@@ -28,6 +28,7 @@
 #include <vector>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/gpu/export.h>
 #include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
@@ -35,14 +36,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 namespace gpu {
 
-std::string dump_mlir(const module& m);
-code_object_op
+MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
+MIGRAPHX_GPU_EXPORT code_object_op
 compile_mlir(const context& ctx, module m, const std::vector<instruction_ref>& inputs);
 
-instruction_ref insert_mlir(module& m,
-                            instruction_ref ins,
-                            code_object_op co,
-                            const std::vector<instruction_ref>& inputs);
+MIGRAPHX_GPU_EXPORT instruction_ref
+insert_mlir(module& m,
+            instruction_ref ins,
+            code_object_op co,
+            const std::vector<instruction_ref>& inputs);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

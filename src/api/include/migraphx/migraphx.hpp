@@ -67,8 +67,9 @@ std::string compute_type_name()
 {
     std::string name;
 #ifdef _MSC_VER
-    name = typeid(PrivateMigraphTypeNameProbe).name();
-    name = name.substr(7);
+    // TODO: does not compile on Windows, need to be fixed!!!
+    //name = typeid(PrivateMigraphTypeNameProbe).name();
+    //name = name.substr(7);
 #else
     const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
 
@@ -1493,7 +1494,7 @@ struct experimental_custom_op_base
     virtual std::vector<size_t> output_alias(shapes) const { return {}; }
     // TODO: Return target string instead of bool
     virtual bool runs_on_offload_target() const = 0;
-    virtual ~experimental_custom_op_base()      = default;
+    virtual ~experimental_custom_op_base() = default;
 };
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>

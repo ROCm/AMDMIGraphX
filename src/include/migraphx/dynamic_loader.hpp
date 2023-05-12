@@ -45,13 +45,13 @@ struct dynamic_loader
     static fs::path path(void* address);
     dynamic_loader() = default;
 
-    dynamic_loader(const fs::path& p);
+    MIGRAPHX_EXPORT dynamic_loader(const fs::path& p);
 
-    dynamic_loader(const char* image, std::size_t size);
+    MIGRAPHX_EXPORT dynamic_loader(const char* image, std::size_t size);
 
-    dynamic_loader(const std::vector<char>& buffer);
+    MIGRAPHX_EXPORT dynamic_loader(const std::vector<char>& buffer);
 
-    std::shared_ptr<void> get_symbol(const std::string& name) const;
+    MIGRAPHX_EXPORT std::shared_ptr<void> get_symbol(const std::string& name) const;
 
     template <class F>
     std::function<F> get_function(const std::string& name) const

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#define MIGRAPHX_STATIC_DEFINE
 #include <migraphx/gpu/device/fill.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 

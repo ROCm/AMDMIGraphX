@@ -23,6 +23,11 @@
  */
 #include <iostream>
 #include <vector>
+
+#define MIGRAPHX_STATIC_DEFINE
+#define MIGRAPHX_ONNX_STATIC_DEFINE
+#define MIGRAPHX_GPU_STATIC_DEFINE
+
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>

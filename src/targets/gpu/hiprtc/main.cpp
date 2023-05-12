@@ -21,14 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <array>
+#include <iostream>
+#include <cstring>
+
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/msgpack.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/ranges.hpp>
-#include <iostream>
-#include <cstring>
 
 std::vector<char> read_stdin()
 {

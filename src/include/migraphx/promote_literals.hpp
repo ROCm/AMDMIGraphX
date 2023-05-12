@@ -38,7 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct promote_literals
 {
     std::string name() const { return "promote_literals"; }
-    void apply(module_pass_manager&) const;
+    MIGRAPHX_EXPORT void apply(module_pass_manager&) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

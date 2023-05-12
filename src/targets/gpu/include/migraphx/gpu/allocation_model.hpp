@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_GPU_ALLOCATION_MODEL_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
 #include <migraphx/operation.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <string>
@@ -35,10 +36,10 @@ namespace gpu {
 
 struct gpu_allocation_model
 {
-    static std::string name() ;
-    static std::string copy() ;
-    static operation allocate(const shape& s) ;
-    static operation preallocate(const shape& s, const std::string& id) ;
+    MIGRAPHX_GPU_EXPORT static std::string name();
+    MIGRAPHX_GPU_EXPORT static std::string copy();
+    MIGRAPHX_GPU_EXPORT static operation allocate(const shape& s);
+    MIGRAPHX_GPU_EXPORT static operation preallocate(const shape& s, const std::string& id);
     bool needs_out_params() const { return true; }
 };
 

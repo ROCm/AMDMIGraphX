@@ -24,6 +24,9 @@
 #ifndef MIGRAPHX_GUARD_TEST_GPU_MAKE_PRECOMPILE_OP_HPP
 #define MIGRAPHX_GUARD_TEST_GPU_MAKE_PRECOMPILE_OP_HPP
 
+#define MIGRAPHX_STATIC_DEFINE
+#define MIGRAPHX_GPU_STATIC_DEFINE
+
 #include <migraphx/operation.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>

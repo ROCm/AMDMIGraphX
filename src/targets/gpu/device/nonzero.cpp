@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#define MIGRAPHX_STATIC_DEFINE
 #include <migraphx/gpu/device/nonzero.hpp>
 #include <migraphx/gpu/device/float_equal.hpp>
 #include <migraphx/gpu/device/scan.hpp>

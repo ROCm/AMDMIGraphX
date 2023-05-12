@@ -33,12 +33,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-instruction_ref insert_apply_alpha_beta(module& m,
-                                        instruction_ref pos,
-                                        const std::vector<instruction_ref>& args,
-                                        const operation& op,
-                                        const literal& alpha,
-                                        const literal& beta);
+MIGRAPHX_EXPORT instruction_ref
+insert_apply_alpha_beta(module& m,
+                        instruction_ref pos,
+                        const std::vector<instruction_ref>& args,
+                        const operation& op,
+                        const literal& alpha,
+                        const literal& beta);
 
 template <typename T = float>
 instruction_ref insert_apply_alpha_beta(module& m,

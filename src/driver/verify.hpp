@@ -27,8 +27,7 @@
 #include "precision.hpp"
 #include <migraphx/program.hpp>
 
-namespace migraphx {
-namespace driver {
+namespace migraphx::driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
 void verify_program(const std::string& name,
@@ -51,7 +50,6 @@ void verify_reduced_program(const program& p,
                             double tolerance            = 80);
 
 } // namespace MIGRAPHX_INLINE_NS
-} // namespace driver
 } // namespace migraphx
 
 #endif

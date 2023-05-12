@@ -23,6 +23,10 @@
  */
 #include <iostream>
 #include <vector>
+
+#define MIGRAPHX_STATIC_DEFINE
+#define MIGRAPHX_GPU_STATIC_DEFINE
+
 #include <migraphx/verify.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/context.hpp>

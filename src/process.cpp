@@ -141,7 +141,7 @@ int exec(const std::string& cmd)
 {
     try
     {
-        if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
+        if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE))
             std::cout << cmd << std::endl;
 
         pipe stdin_{}, stdout_{};
@@ -278,7 +278,11 @@ void process::exec() { impl->check_exec(impl->get_command()); }
 
 void process::write(std::function<void(process::writer)> pipe_in)
 {
-    impl->check_exec(impl->get_command(), std::move(pipe_in));
+    impl->check_exec(impl->get_command()
+#ifndef WIN32
+                     , std::move(pipe_in)
+#endif
+                     );
 }
 
 } // namespace MIGRAPHX_INLINE_NS

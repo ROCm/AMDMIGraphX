@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
@@ -34,13 +35,13 @@ struct module_pass_manager;
 
 namespace gpu {
 
-bool mlir_enabled();
+MIGRAPHX_GPU_EXPORT bool mlir_enabled();
 
 struct fuse_mlir
 {
     context* ctx = nullptr;
     std::string name() const { return "gpu::fuse_mlir"; }
-    static void apply(module_pass_manager& mpm);
+    MIGRAPHX_GPU_EXPORT static void apply(module_pass_manager& mpm);
 };
 
 } // namespace gpu

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#define MIGRAPHX_STATIC_DEFINE
 #include <migraphx/gpu/device/prefix_scan_sum.hpp>
 #include <migraphx/gpu/device/scan.hpp>
 #include <migraphx/gpu/device/reduce_ops.hpp>

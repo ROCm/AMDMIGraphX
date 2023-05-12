@@ -22,6 +22,10 @@
  * THE SOFTWARE.
  */
 #include <test.hpp>
+
+#define MIGRAPHX_STATIC_DEFINE
+#define MIGRAPHX_GPU_STATIC_DEFINE
+
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>

@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_HIP_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
 #include <migraphx/argument.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/check_shapes.hpp>
@@ -38,26 +39,26 @@ namespace gpu {
 
 struct context;
 
-std::string hip_error(int error);
+MIGRAPHX_GPU_EXPORT std::string hip_error(int error);
 
-argument allocate_gpu(const shape& s, bool host = false);
+MIGRAPHX_GPU_EXPORT argument allocate_gpu(const shape& s, bool host = false);
 
-argument register_on_gpu(const argument& arg);
+MIGRAPHX_GPU_EXPORT argument register_on_gpu(const argument& arg);
 
-argument to_gpu(const argument& arg, bool host = false);
+MIGRAPHX_GPU_EXPORT argument to_gpu(const argument& arg, bool host = false);
 
-argument from_gpu(const argument& arg);
+MIGRAPHX_GPU_EXPORT argument from_gpu(const argument& arg);
 
-void set_device(std::size_t id);
+MIGRAPHX_GPU_EXPORT void set_device(std::size_t id);
 
-void gpu_sync();
-void gpu_sync(const context& ctx);
+MIGRAPHX_GPU_EXPORT void gpu_sync();
+MIGRAPHX_GPU_EXPORT void gpu_sync(const context& ctx);
 
-void gpu_copy(context& ctx, const argument& src, const argument& dst);
-void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
-void copy_from_gpu(context& ctx, const argument& src, const argument& dst);
+MIGRAPHX_GPU_EXPORT void gpu_copy(context& ctx, const argument& src, const argument& dst);
+MIGRAPHX_GPU_EXPORT void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
+MIGRAPHX_GPU_EXPORT void copy_from_gpu(context& ctx, const argument& src, const argument& dst);
 
-argument get_preallocation(context& ctx, const std::string& id);
+MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& id);
 
 struct hip_allocate
 {

@@ -24,13 +24,16 @@
 #ifndef MIGRAPHX_GUARD_GPU_COMPILER_HPP
 #define MIGRAPHX_GUARD_GPU_COMPILER_HPP
 
+#include <functional>
+
 #include <migraphx/config.hpp>
 #include <migraphx/auto_register.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
-#include <functional>
+
+#include <migraphx/gpu/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,11 +46,11 @@ using compiler_compile = std::function<compiler_replace(context&, instruction_re
 using compiler_compile_op =
     std::function<operation(context&, const std::vector<shape>& inputs, const value&)>;
 
-void register_compiler(const std::string& name, compiler_compile c, compiler_compile_op cop);
+MIGRAPHX_GPU_EXPORT void register_compiler(const std::string& name, compiler_compile c, compiler_compile_op cop);
 
-bool has_compiler_for(const std::string& name);
-compiler_replace compile(context& ctx, instruction_ref ins, const operation& op);
-operation
+MIGRAPHX_GPU_EXPORT bool has_compiler_for(const std::string& name);
+MIGRAPHX_GPU_EXPORT compiler_replace compile(context& ctx, instruction_ref ins, const operation& op);
+MIGRAPHX_GPU_EXPORT operation
 compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v);
 
 template <class T>

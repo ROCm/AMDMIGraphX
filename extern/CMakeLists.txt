@@ -279,12 +279,7 @@ set(HALF_INCLUDE_DIR ${CMAKE_BINARY_DIR}/_deps/half-src/include PARENT_SCOPE)
 set(BLAZE_INCLUDE ${CMAKE_BINARY_DIR}/_deps/blaze-src PARENT_SCOPE)
 set(protobuf_PROTOC_EXE ${protobuf_BINARY_DIR}/protoc.exe PARENT_SCOPE)
 
-set(protobuf_DIR ${protobuf_BINARY_DIR}/cmake)
-if(NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    set(protobuf_DIR ${protobuf_DIR}/protobuf)
-endif()
-
-set(protobuf_DIR ${protobuf_DIR} PARENT_SCOPE)
+set(protobuf_DIR ${protobuf_SOURCE_DIR}/cmake PARENT_SCOPE)
 
 find_program(NMAKE_EXECUTABLE NAMES nmake.exe REQUIRED HINTS "${NMAKE_DIR}")
 

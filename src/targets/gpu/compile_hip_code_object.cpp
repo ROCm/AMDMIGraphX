@@ -21,11 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>

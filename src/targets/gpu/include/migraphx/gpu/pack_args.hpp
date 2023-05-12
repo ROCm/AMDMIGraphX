@@ -24,10 +24,12 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_PACK_ARGS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_PACK_ARGS_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/requires.hpp>
 #include <utility>
 #include <vector>
+
+#include <migraphx/config.hpp>
+#include <migraphx/requires.hpp>
+#include <migraphx/gpu/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,7 +48,7 @@ struct kernel_argument
     void* data;
 };
 
-std::vector<char> pack_args(const std::vector<kernel_argument>& args);
+MIGRAPHX_GPU_EXPORT std::vector<char> pack_args(const std::vector<kernel_argument>& args);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

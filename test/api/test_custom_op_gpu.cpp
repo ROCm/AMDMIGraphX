@@ -21,6 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_C_STATIC_DEFINE
+
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>

@@ -27,6 +27,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,12 +35,12 @@ namespace gpu {
 
 struct target
 {
-    static std::string name() ;
-    static std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) ;
-    static migraphx::context get_context() ;
-    static argument copy_to(const argument& arg) ;
-    static argument copy_from(const argument& arg) ;
-    static argument allocate(const shape& s) ;
+    MIGRAPHX_GPU_EXPORT static std::string name();
+    MIGRAPHX_GPU_EXPORT static std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options);
+    MIGRAPHX_GPU_EXPORT static migraphx::context get_context();
+    MIGRAPHX_GPU_EXPORT static argument copy_to(const argument& arg);
+    MIGRAPHX_GPU_EXPORT static argument copy_from(const argument& arg);
+    MIGRAPHX_GPU_EXPORT static argument allocate(const shape& s);
 };
 
 } // namespace gpu

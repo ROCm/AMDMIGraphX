@@ -22,10 +22,9 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/shape.hpp>
+#define MIGRAPHX_STATIC_DEFINE
 #include <migraphx/argument.hpp>
 #include <migraphx/clamp.hpp>
-#include <migraphx/gpu/device/nary.hpp>
 #include <migraphx/gpu/device/pad.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>

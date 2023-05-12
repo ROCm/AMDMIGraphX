@@ -39,7 +39,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct split_single_dyn_dim
 {
     std::string name() const { return "split_single_dyn_dim"; }
-    void apply(module_pass_manager&) const;
+    MIGRAPHX_EXPORT void apply(module_pass_manager&) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

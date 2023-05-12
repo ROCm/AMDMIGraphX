@@ -207,7 +207,7 @@ struct shape
      * Optimum lengths for dynamic shape.
      * Empty for static shape.
      */
-    const std::vector<std::set<std::size_t>> opt_lens() const;
+    MIGRAPHX_EXPORT const std::vector<std::set<std::size_t>> opt_lens() const;
 
     /// Map multiple indices to space index
     MIGRAPHX_EXPORT std::size_t index(std::initializer_list<std::size_t> l) const;

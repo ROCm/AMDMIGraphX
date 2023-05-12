@@ -47,7 +47,7 @@ struct op_handler
 
 } // namespace detail
 
-void register_op_init();
+MIGRAPHX_EXPORT void register_op_init();
 
 MIGRAPHX_EXPORT void register_op(const operation& op);
 

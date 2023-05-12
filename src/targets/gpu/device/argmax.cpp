@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#define MIGRAPHX_STATIC_DEFINE
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/argmax.hpp>

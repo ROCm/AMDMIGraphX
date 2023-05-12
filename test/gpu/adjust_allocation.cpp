@@ -21,6 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_STATIC_DEFINE
+#define MIGRAPHX_GPU_STATIC_DEFINE
+
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>

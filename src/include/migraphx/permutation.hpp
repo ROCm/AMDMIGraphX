@@ -43,7 +43,7 @@ inline Vector reorder_dims(const Vector& dims, const std::vector<int64_t>& permu
     return result;
 }
 
-shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation);
+MIGRAPHX_EXPORT shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation);
 
 template <class Vector, class Op>
 inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)

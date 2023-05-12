@@ -24,9 +24,15 @@
 #include <algorithm>
 #include <cmath>
 #include <exception>
+#include <stdexcept>
+
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
-#include <stdexcept>
+
+#ifdef BUILD_DEV
+#include <migraphx/api/export.h>
+#endif
+
 #include "test.hpp"
 
 struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
@@ -99,7 +105,9 @@ TEST_CASE(run_sigmoid_custom_op)
     EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
 }
 
-extern "C" void migraphx_test_private_disable_exception_catch(bool b);
+#ifdef BUILD_DEV
+
+MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool b);
 
 TEST_CASE(run_sigmoid_with_incorrect_shape)
 {
@@ -153,5 +161,7 @@ TEST_CASE(run_custom_op_with_invalid_output_alias)
         [&] { p.compile(migraphx::target("ref")); },
         "Currently, CustomOps in MIGraphX only supports one output_alias"));
 }
+
+#endif
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

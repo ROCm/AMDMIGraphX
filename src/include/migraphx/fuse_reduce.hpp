@@ -35,7 +35,7 @@ struct module_pass_manager;
 struct fuse_reduce
 {
     std::string name() const { return "fuse_reduce"; }
-    void apply(module_pass_manager& mpm) const;
+    MIGRAPHX_EXPORT void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

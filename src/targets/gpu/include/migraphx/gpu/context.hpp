@@ -24,15 +24,17 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 
+#include <unordered_map>
+#include <memory>
+
+#include <migraphx/config.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>
-#include <migraphx/env.hpp>
-#include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
-#include <unordered_map>
-#include <memory>
+#include <migraphx/gpu/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

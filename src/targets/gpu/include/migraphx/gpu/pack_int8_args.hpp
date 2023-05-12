@@ -36,8 +36,8 @@ namespace gpu {
 struct pack_int8_args
 {
     std::string name() const { return "gpu::pack_int8_args"; }
-    void apply(module& m) const;
-    static shape pack_int8_shape(const shape& s) ;
+    MIGRAPHX_GPU_EXPORT void apply(module& m) const;
+    MIGRAPHX_GPU_EXPORT static shape pack_int8_shape(const shape& s);
 };
 
 } // namespace gpu

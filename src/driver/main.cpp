@@ -38,6 +38,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 
+#include <migraphx/instruction.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
@@ -52,8 +53,7 @@
 
 #include <fstream>
 
-namespace migraphx {
-namespace driver {
+namespace migraphx::driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct loader
@@ -740,7 +740,6 @@ struct main_command
 };
 
 } // namespace MIGRAPHX_INLINE_NS
-} // namespace driver
 } // namespace migraphx
 
 using namespace migraphx::driver; // NOLINT

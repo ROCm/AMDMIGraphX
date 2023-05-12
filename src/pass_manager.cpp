@@ -41,12 +41,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
 
-template <class T>
-std::vector<T*> generic_get_modules(T* mm);
-
-template <>
-std::vector<module*> generic_get_modules(module* mm);
-
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;
@@ -137,7 +131,8 @@ void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& pas
     for(const auto& p : passes)
     {
         auto tree                        = prog.get_module_tree();
-        std::vector<module_ref> sub_mods = generic_get_modules(root_mod);
+        std::vector<module_ref> sub_mods = root_mod->get_sub_modules();
+        sub_mods.insert(sub_mods.begin(), root_mod);
         visited.clear();
         for(const auto& mod : reverse(sub_mods))
         {

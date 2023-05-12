@@ -28,6 +28,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/register_target.hpp>
 #include "test.hpp"
 
 TEST_CASE(run_on_target_shape_tests)
@@ -64,7 +65,7 @@ TEST_CASE(eval_run_on_target)
     mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_on_ins);
 
     std::unordered_map<std::string, migraphx::compile_options> compile_opts;
-    p.compile({"ref"}, compile_opts);
+    p.compile({migraphx::make_target("ref")}, compile_opts);
     auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

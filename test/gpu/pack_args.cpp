@@ -24,6 +24,7 @@
 
 #include <test.hpp>
 
+#define MIGRAPHX_GPU_STATIC_DEFINE
 #define MIGRAPHX_STATIC_DEFINE
 
 #include <migraphx/gpu/pack_args.hpp>

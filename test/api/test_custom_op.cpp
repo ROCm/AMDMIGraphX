@@ -22,11 +22,9 @@
  * THE SOFTWARE.
  */
 #include <algorithm>
-#include <cmath>
 #include <exception>
 #include <stdexcept>
 
-#include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 
 #ifdef BUILD_DEV
@@ -37,8 +35,9 @@
 
 struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
 {
-    virtual std::string name() const override { return "sigmoid_custom_op"; }
-    virtual migraphx::argument
+    [[nodiscard]] std::string name() const override { return "sigmoid_custom_op"; }
+
+    [[nodiscard]] migraphx::argument
     compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override
     {
         auto* output_ptr = reinterpret_cast<float*>(inputs[1].data());
@@ -49,9 +48,9 @@ struct sigmoid_custom_op final : migraphx::experimental_custom_op_base
         return inputs[1];
     }
 
-    virtual bool runs_on_offload_target() const override { return true; }
+    [[nodiscard]] bool runs_on_offload_target() const override { return true; }
 
-    virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
+    [[nodiscard]] migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
         if(inputs.size() != 2)
         {
@@ -107,7 +106,7 @@ TEST_CASE(run_sigmoid_custom_op)
 
 #ifdef BUILD_DEV
 
-MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool b);
+MIGRAPHX_C_EXPORT extern "C" void migraphx_test_private_disable_exception_catch(bool);
 
 TEST_CASE(run_sigmoid_with_incorrect_shape)
 {
@@ -123,16 +122,17 @@ TEST_CASE(run_sigmoid_with_incorrect_shape)
 
 struct identity_custom_op final : migraphx::experimental_custom_op_base
 {
-    virtual std::string name() const override { return "identity_custom_op"; }
-    virtual migraphx::argument
+    [[nodiscard]] std::string name() const override { return "identity_custom_op"; }
+
+    [[nodiscard]] migraphx::argument
     compute(migraphx::context, migraphx::shape, migraphx::arguments inputs) const override
     {
         return inputs[0];
     }
 
-    virtual bool runs_on_offload_target() const override { return true; }
+    [[nodiscard]] bool runs_on_offload_target() const override { return true; }
 
-    virtual migraphx::shape compute_shape(migraphx::shapes inputs) const override
+    [[nodiscard]] migraphx::shape compute_shape(migraphx::shapes inputs) const override
     {
         if(inputs.size() != 1)
         {
@@ -141,7 +141,7 @@ struct identity_custom_op final : migraphx::experimental_custom_op_base
         return inputs.back();
     }
 
-    virtual std::vector<size_t> output_alias(migraphx::shapes) const override { return {0, 1}; }
+    [[nodiscard]] std::vector<size_t> output_alias(migraphx::shapes) const override { return {0, 1}; }
 };
 
 TEST_CASE(run_custom_op_with_invalid_output_alias)

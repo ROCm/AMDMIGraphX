@@ -22,11 +22,13 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_library(migraphx_ref
-    target.cpp
-    lowering.cpp
-    gemm.cpp
-)
+include(GenerateExportHeader)
+
+add_library(migraphx_ref target.cpp lowering.cpp gemm.cpp)
+
+generate_export_header(migraphx_ref
+        EXPORT_FILE_NAME ${CMAKE_BINARY_DIR}/include/migraphx/ref/export.h)
+
 set_target_properties(migraphx_ref PROPERTIES EXPORT_NAME ref)
 
 if(NOT WIN32)

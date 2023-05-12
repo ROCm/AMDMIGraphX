@@ -26,18 +26,23 @@
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/ref/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace ref {
 
-void migemm(
-    const argument& c_arg, const argument& a_arg, const argument& b_arg, float alpha, float beta);
-void migemm(const argument& c_arg,
-            const argument& a_arg,
-            const argument& b_arg,
-            int32_t alpha,
-            int32_t beta);
+MIGRAPHX_REF_EXPORT void
+migemm(const argument& c_arg,
+       const argument& a_arg,
+       const argument& b_arg,
+       float alpha, float beta);
+
+MIGRAPHX_REF_EXPORT void
+migemm(const argument& c_arg,
+       const argument& a_arg,
+       const argument& b_arg,
+       int32_t alpha, int32_t beta);
 
 } // namespace ref
 } // namespace MIGRAPHX_INLINE_NS

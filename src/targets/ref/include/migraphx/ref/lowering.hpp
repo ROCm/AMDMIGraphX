@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CPU_LOWERING_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/export.h>
+#include <migraphx/ref/export.h>
 #include <migraphx/program.hpp>
 
 namespace migraphx {
@@ -35,7 +35,7 @@ namespace ref {
 struct lowering
 {
     static std::string name() { return "ref::lowering"; }
-    MIGRAPHX_GPU_EXPORT static void apply(module& m);
+    MIGRAPHX_REF_EXPORT static void apply(module& m);
 };
 
 } // namespace ref

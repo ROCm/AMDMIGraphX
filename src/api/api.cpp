@@ -49,7 +49,7 @@ namespace migraphx {
 #ifdef BUILD_DEV
 static thread_local bool disable_exception_catch = false; // NOLINT
 
-MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool b)
+MIGRAPHX_C_EXPORT extern "C" void migraphx_test_private_disable_exception_catch(bool b)
 {
     disable_exception_catch = b;
 }

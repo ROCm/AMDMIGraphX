@@ -29,6 +29,7 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/ref/context.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/ref/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,13 +38,19 @@ namespace ref {
 
 struct target
 {
-    std::string name() const;
-    std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
-    migraphx::context get_context() const { return context{}; }
+    [[nodiscard]] std::string name() const;
 
-    argument copy_to(const argument& arg) const { return arg; }
-    argument copy_from(const argument& arg) const { return arg; }
-    argument allocate(const shape& s) const;
+    MIGRAPHX_REF_EXPORT std::vector<pass>
+    get_passes(migraphx::context& ctx,
+               const compile_options&) const;
+
+    static migraphx::context get_context() { return context{}; }
+
+    static argument copy_to(const argument& arg) { return arg; }
+    static argument copy_from(const argument& arg) { return arg; }
+
+    [[nodiscard]] MIGRAPHX_REF_EXPORT argument
+    allocate(const shape& s) const;
 };
 
 } // namespace ref

@@ -1503,7 +1503,4 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
     EXPECT(m1.sort() == m2.sort());
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -956,7 +956,4 @@ TEST_CASE(test_multi_index)
     EXPECT(migraphx::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

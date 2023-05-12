@@ -51,7 +51,4 @@ TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
 
 TEST_CASE(fail_dynamic_shape) { EXPECT(not create_shapes(false)); }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

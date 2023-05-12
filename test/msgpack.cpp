@@ -147,7 +147,4 @@ TEST_CASE(test_msgpack_array_class)
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

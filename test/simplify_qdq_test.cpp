@@ -753,7 +753,4 @@ TEST_CASE(dot_correctness)
     EXPECT(migraphx::verify_range(rv1, rv2));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

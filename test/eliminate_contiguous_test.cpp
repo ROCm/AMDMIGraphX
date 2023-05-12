@@ -225,7 +225,4 @@ TEST_CASE(slice_contiguous)
                m.begin(), m.end(), [](auto&& ins) { return ins.name() == "contiguous"; }) == 1);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

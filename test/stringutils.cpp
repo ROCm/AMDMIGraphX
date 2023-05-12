@@ -99,7 +99,4 @@ TEST_CASE(interpolate_string_custom3)
     EXPECT(s == "****b****");
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

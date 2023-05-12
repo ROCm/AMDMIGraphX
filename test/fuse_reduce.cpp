@@ -327,7 +327,4 @@ TEST_CASE(reduce_reduce_broadcast)
     EXPECT(p1 == p2);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

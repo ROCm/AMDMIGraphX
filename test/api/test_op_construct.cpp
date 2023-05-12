@@ -49,7 +49,4 @@ TEST_CASE(reduce_mean_with_format)
     EXPECT(rm.name() == "reduce_mean");
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

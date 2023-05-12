@@ -544,7 +544,4 @@ TEST_CASE(debug_print_test)
     EXPECT(p2_ins_out == "Instruction not part of module");
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

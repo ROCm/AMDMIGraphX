@@ -156,7 +156,4 @@ TEST_CASE(from_value_binary)
     EXPECT(out == data);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -92,7 +92,4 @@ TEST_CASE(simple_test_end_dependency)
     EXPECT(result == migraphx::literal{3.0});
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

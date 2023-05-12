@@ -37,7 +37,4 @@ TEST_CASE(compile_options_api_test)
     CHECK(s_options->offload_copy == false);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

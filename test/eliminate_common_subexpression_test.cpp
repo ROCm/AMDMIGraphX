@@ -226,7 +226,4 @@ TEST_CASE(cse_test_submodule)
     EXPECT(p == create_program(true));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

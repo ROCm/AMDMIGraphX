@@ -111,7 +111,4 @@ TEST_CASE(rewrite_pad_symmetric)
         m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

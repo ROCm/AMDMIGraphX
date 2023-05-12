@@ -63,7 +63,7 @@ void validate_gpu(const migraphx::program& p, const migraphx::parameter_map& m)
     EXPECT(is_shared(ctx, p.get_context()));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
+int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);

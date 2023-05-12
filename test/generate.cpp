@@ -61,7 +61,4 @@ TEST_CASE(generate_tuple)
     EXPECT(args.at(2) != migraphx::generate_argument(s2, 0));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -60,7 +60,4 @@ TEST_CASE(no_alias)
     EXPECT(bool{migraphx::instruction::get_output_alias(sum) == sum});
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

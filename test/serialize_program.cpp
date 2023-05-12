@@ -138,7 +138,4 @@ TEST_CASE(program_with_module)
     EXPECT(p1.sort() == p2.sort());
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

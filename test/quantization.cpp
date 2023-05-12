@@ -1280,7 +1280,4 @@ TEST_CASE(test_op_capture)
     EXPECT(migraphx::verify_range(vec, cap_vec));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

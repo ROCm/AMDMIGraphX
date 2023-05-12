@@ -7036,7 +7036,4 @@ TEST_CASE(where_mixed_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("where_mixed_test.onnx", options); }));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1755,7 +1755,4 @@ TEST_CASE(quant_dot_3args_batch)
     }
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

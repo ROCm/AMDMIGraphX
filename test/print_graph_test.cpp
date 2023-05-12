@@ -66,7 +66,4 @@ TEST_CASE(basic_graph_test)
     EXPECT(migraphx::contains(test, "[label=\"int64_type, {1}, {0}\"]"));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

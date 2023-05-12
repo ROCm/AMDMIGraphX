@@ -78,7 +78,4 @@ TEST_CASE(invalid_args)
     EXPECT(bool{mm->validate() == mm->begin()});
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

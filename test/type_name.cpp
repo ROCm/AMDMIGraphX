@@ -42,7 +42,7 @@ struct ns_class
 };
 } // namespace foo
 
-int main() // NOLINT(clang-diagnostic-disabled-macro-expansion)
+int main()
 {
     EXPECT(migraphx::get_type_name<global_class>() == "global_class");
     EXPECT(migraphx::get_type_name<global_class::inner_class>() == "global_class::inner_class");

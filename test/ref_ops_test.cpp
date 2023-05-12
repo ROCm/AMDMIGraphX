@@ -8396,7 +8396,4 @@ TEST_CASE(where_broadcasted_inputs_test)
     EXPECT(migraphx::verify_range(result_vec, gold));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -198,7 +198,4 @@ TEST_CASE(set_loop_default_iter_num)
     EXPECT(out_shapes[1].lengths() == out_lens1);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

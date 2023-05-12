@@ -177,7 +177,4 @@ TEST_CASE(value_literal)
     EXPECT(l4 == l2);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -115,7 +115,4 @@ TEST_CASE_REGISTER(test_limits<int, migraphx::half>);
 TEST_CASE_REGISTER(test_limits<long, int>);
 TEST_CASE_REGISTER(test_limits<long, char>);
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

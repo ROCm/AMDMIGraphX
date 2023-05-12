@@ -268,7 +268,4 @@ TEST_CASE(literal_value)
     EXPECT(l == l_rev);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

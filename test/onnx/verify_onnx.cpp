@@ -1651,7 +1651,4 @@ TEST_CASE(trilu_row_one_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

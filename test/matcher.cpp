@@ -1086,7 +1086,4 @@ TEST_CASE(match_finder)
     match::find_matches(mm, match_find_sum{sum}, match_find_literal{sum});
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

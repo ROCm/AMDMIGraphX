@@ -136,7 +136,4 @@ TEST_CASE(no_copy_dead_param)
     EXPECT(p1 == p2);
 }
 
-int main(int argc, const char* argv[]) // NOLINT(clang-diagnostic-disabled-macro-expansion)
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

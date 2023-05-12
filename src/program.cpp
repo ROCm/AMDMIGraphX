@@ -57,7 +57,7 @@ struct program_impl
 {
     // A map is used to keep references to modules of the program
     std::unordered_map<std::string, module> modules;
-    std::vector<context> ctx;
+    std::vector<context> contexts;
     std::vector<target> targets;
     std::string target_name;
 };
@@ -88,7 +88,7 @@ void program::assign(const program& p)
         impl->modules.clear();
     }
 
-    impl->ctx         = p.impl->ctx;
+    impl->contexts         = p.impl->contexts;
     impl->target_name = p.impl->target_name;
     impl->modules     = p.impl->modules;
 
@@ -154,7 +154,7 @@ std::vector<shape> program::get_output_shapes() const
 }
 
 // TODO: Remove this method
-context& program::get_context() const { return impl->ctx.front(); }
+context& program::get_context() const { return impl->contexts.front(); }
 
 instruction_ref program::validate() const
 {
@@ -211,14 +211,14 @@ void program::compile(const target& t, compile_options options)
 {
     assert(not this->is_compiled());
     this->impl->target_name = t.name();
-    this->impl->ctx         = {t.get_context()};
+    this->impl->contexts         = {t.get_context()};
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
 
     options.trace(*this);
     options.trace();
-    auto&& passes = t.get_passes(this->impl->ctx.front(), options);
+    auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
     auto mods = this->get_modules();
     // Validate and finalize
@@ -237,14 +237,14 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(this->impl->ctx.front());
+        mod->finalize(this->impl->contexts.front());
     }
 }
 
 void program::finalize()
 {
     auto* mm = this->get_main_module();
-    mm->finalize(this->impl->ctx.front());
+    mm->finalize(this->impl->contexts.front());
 }
 
 template <class T>
@@ -402,7 +402,7 @@ std::vector<argument> generic_eval(const program& p,
 
 std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
-    auto& ctx = this->impl->ctx;
+    auto& ctx = this->impl->contexts;
 
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
     std::vector<argument> ret;
@@ -468,7 +468,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
 
 void program::finish() const
 {
-    for(const auto& ctx : this->impl->ctx)
+    for(const auto& ctx : this->impl->contexts)
         ctx.finish();
 }
 
@@ -479,8 +479,8 @@ value program::to_value() const
     value result;
     result["version"] = program_file_version;
     result["target"]  = this->impl->target_name;
-    if(not this->impl->ctx.empty())
-        result["contexts"] = migraphx::to_value(this->impl->ctx);
+    if(not this->impl->contexts.empty())
+        result["contexts"] = migraphx::to_value(this->impl->contexts);
 
     value module_vals = value::object{};
     std::unordered_map<instruction_ref, std::string> names;
@@ -613,8 +613,8 @@ void program::from_value(const value& v)
     if(not this->impl->target_name.empty())
     {
         target t        = make_target(this->impl->target_name);
-        this->impl->ctx = {t.get_context()};
-        this->impl->ctx.front().from_value(v.at("contexts").front());
+        this->impl->contexts = {t.get_context()};
+        this->impl->contexts.front().from_value(v.at("contexts").front());
     }
 
     auto module_vals = v.at("modules");
@@ -655,7 +655,7 @@ std::string perf_group(const operation& op)
 
 void program::mark(const parameter_map& params, marker&& m)
 {
-    auto& ctx = this->impl->ctx;
+    auto& ctx = this->impl->contexts;
     // Run once by itself
     eval(params);
     this->finish();
@@ -676,7 +676,7 @@ void program::perf_report(std::ostream& os,
                           parameter_map params,
                           std::size_t batch) const
 {
-    auto& ctx = this->impl->ctx;
+    auto& ctx = this->impl->contexts;
     // Run once by itself
     eval(params);
     this->finish();
@@ -705,7 +705,7 @@ void program::perf_report(std::ostream& os,
             argument result;
             ins_vec[ins].push_back(time<milliseconds>([&] {
                 result = f();
-                this->impl->ctx[ins->get_target_id()];
+                this->impl->contexts[ins->get_target_id()];
             }));
             return result;
         });
@@ -874,7 +874,7 @@ void program::print_cpp(std::ostream& os) const
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
-    auto& ctx = this->impl->ctx;
+    auto& ctx = this->impl->contexts;
     generic_eval(*this, ctx, std::move(params), [](auto ins, auto&&...) {
         return argument{ins->get_shape(), nullptr};
     });

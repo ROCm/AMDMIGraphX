@@ -45,6 +45,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
+
 #ifdef DOXYGEN
 
 /// An interface for a compilation target
@@ -144,6 +146,10 @@ interface('target',
 %>
 
 #endif
+
+void migraphx_to_value(value& v, const target& op);
+void migraphx_from_value(const value& v, target& op);
+
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

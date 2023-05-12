@@ -393,13 +393,13 @@ TEST_CASE(assert_type_min_max)
             // correctly
             if(t == migraphx::shape::int64_type)
             {
-                min = "(-9223372036854775807LL - 1)";
+                min = "(" + std::to_string(as.min() + 1) + "LL - 1)";
                 max = std::to_string(as.max());
             }
             else if(t == migraphx::shape::uint64_type)
             {
                 min = std::to_string(as.min());
-                max = "18446744073709551615ULL";
+                max = max = std::to_string(as.max()) + "ULL";
             }
             else
             {

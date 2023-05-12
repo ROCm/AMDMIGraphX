@@ -393,14 +393,14 @@ std::vector<argument> generic_eval(const program& p,
 
 std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
-    auto& ctx = this->impl->contexts;
+    auto& contexts = this->impl->contexts;
 
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
     std::vector<argument> ret;
 
     if(exec_env.async)
     {
-        ctx.front().wait_for(exec_env.queue);
+        contexts.front().wait_for(exec_env.queue);
     }
 
     if(trace_level > 0)
@@ -413,14 +413,14 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
 
-        ret = generic_eval(*this, ctx, std::move(params), [&](instruction_ref ins, auto f) {
-            auto& ctx2 = ctx[ins->get_target_id()];
-            ctx2.finish();
+        ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
+            auto& ctx = contexts[ins->get_target_id()];
+            ctx.finish();
             std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             timer t{};
             auto result = f();
             double t1   = t.record<milliseconds>();
-            ctx2.finish();
+            ctx.finish();
             double t2 = t.record<milliseconds>();
             std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
@@ -446,12 +446,12 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     }
     else
     {
-        ret = generic_eval(*this, ctx, std::move(params), [&](auto&&, auto f) { return f(); });
+        ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)
     {
-        ctx.front().finish_on(exec_env.queue);
+        contexts.front().finish_on(exec_env.queue);
     }
 
     return ret;

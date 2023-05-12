@@ -229,14 +229,14 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(this->impl->contexts.front());
+        mod->finalize(this->impl->contexts);
     }
 }
 
 void program::finalize()
 {
     auto* mm = this->get_main_module();
-    mm->finalize(this->impl->contexts.front());
+    mm->finalize(this->impl->contexts);
 }
 
 template <class T>

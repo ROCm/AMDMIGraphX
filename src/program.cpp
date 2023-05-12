@@ -203,8 +203,8 @@ bool program::is_compiled() const { return not this->impl->contexts.empty(); }
 void program::compile(const target& t, compile_options options)
 {
     assert(not this->is_compiled());
-    this->impl->targets = {t};
-    this->impl->contexts    = {t.get_context()};
+    this->impl->targets  = {t};
+    this->impl->contexts = {t.get_context()};
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
@@ -427,8 +427,8 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
                not result.empty())
             {
-                const target& tgt  = this->impl->targets[ins->get_target_id()];
-                auto buffer = tgt.copy_from(result);
+                const target& tgt = this->impl->targets[ins->get_target_id()];
+                auto buffer       = tgt.copy_from(result);
                 if(trace_level == 2)
                 {
                     std::cout << "Output has " << to_string_range(classify_argument(buffer))
@@ -469,7 +469,7 @@ const int program_file_version = 6;
 value program::to_value() const
 {
     value result;
-    result["version"] = program_file_version;
+    result["version"]  = program_file_version;
     result["targets"]  = migraphx::to_value(this->impl->targets);
     result["contexts"] = migraphx::to_value(this->impl->contexts);
 
@@ -602,7 +602,7 @@ void program::from_value(const value& v)
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
 
-    for(auto i:range(this->impl->targets.size()))
+    for(auto i : range(this->impl->targets.size()))
     {
         this->impl->contexts.push_back(this->impl->targets[i].get_context());
         this->impl->contexts.back().from_value(v.at("contexts")[i]);

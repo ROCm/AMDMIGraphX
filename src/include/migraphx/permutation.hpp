@@ -56,12 +56,12 @@ inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)
 }
 
 /*!
- * Returns the permutation needed to apply to the shape to undo the current permutation
+ * Returns the inverse permutation that could be applied to reverse the inputted permutation
  */
 std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation);
 
 /*!
- * Finds the permutation most likely from a transpose operator that has been applied to the shape.
+ * Finds the permutation that would make the shape standard
  */
 std::vector<int64_t> find_permutation(const shape& s);
 std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);

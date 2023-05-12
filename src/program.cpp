@@ -88,7 +88,7 @@ void program::assign(const program& p)
         impl->modules.clear();
     }
 
-    impl->contexts         = p.impl->contexts;
+    impl->contexts    = p.impl->contexts;
     impl->target_name = p.impl->target_name;
     impl->modules     = p.impl->modules;
 
@@ -211,7 +211,7 @@ void program::compile(const target& t, compile_options options)
 {
     assert(not this->is_compiled());
     this->impl->target_name = t.name();
-    this->impl->contexts         = {t.get_context()};
+    this->impl->contexts    = {t.get_context()};
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
@@ -612,7 +612,7 @@ void program::from_value(const value& v)
     this->impl->target_name = v.at("target").to<std::string>();
     if(not this->impl->target_name.empty())
     {
-        target t        = make_target(this->impl->target_name);
+        target t             = make_target(this->impl->target_name);
         this->impl->contexts = {t.get_context()};
         this->impl->contexts.front().from_value(v.at("contexts").front());
     }

@@ -27,10 +27,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void migraphx_to_value(value& v, const target& t)
-{
-    v["name"]     = t.name();
-}
+void migraphx_to_value(value& v, const target& t) { v["name"] = t.name(); }
 void migraphx_from_value(const value& v, target& t)
 {
     t = make_target(v.at("name").to<std::string>());

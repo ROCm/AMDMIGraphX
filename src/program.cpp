@@ -59,7 +59,6 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
-    std::string target_name;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -83,14 +82,8 @@ void program::assign(const program& p)
     {
         impl = std::make_unique<program_impl>();
     }
-    else if(not impl->modules.empty())
-    {
-        impl->modules.clear();
-    }
 
-    impl->contexts    = p.impl->contexts;
-    impl->target_name = p.impl->target_name;
-    impl->modules     = p.impl->modules;
+    *impl = *p.impl;
 
     // build a map from old ins to new ins
     // Build a map from old module to new module
@@ -205,12 +198,12 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     return p;
 }
 
-bool program::is_compiled() const { return not this->impl->target_name.empty(); }
+bool program::is_compiled() const { return not this->impl->contexts.empty(); }
 
 void program::compile(const target& t, compile_options options)
 {
     assert(not this->is_compiled());
-    this->impl->target_name = t.name();
+    this->impl->targets = {t};
     this->impl->contexts    = {t.get_context()};
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
@@ -315,7 +308,6 @@ std::vector<argument> generic_eval(const module* mod,
     results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);
-    // auto trace = make_trace(mod);
     for(auto ins : iterator_for(*mod))
     {
         assert(results.find(ins) == results.end());
@@ -435,7 +427,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
                not result.empty())
             {
-                target tgt  = make_target(this->impl->target_name);
+                const target& tgt  = this->impl->targets[ins->get_target_id()];
                 auto buffer = tgt.copy_from(result);
                 if(trace_level == 2)
                 {
@@ -478,9 +470,8 @@ value program::to_value() const
 {
     value result;
     result["version"] = program_file_version;
-    result["target"]  = this->impl->target_name;
-    if(not this->impl->contexts.empty())
-        result["contexts"] = migraphx::to_value(this->impl->contexts);
+    result["targets"]  = migraphx::to_value(this->impl->targets);
+    result["contexts"] = migraphx::to_value(this->impl->contexts);
 
     value module_vals = value::object{};
     std::unordered_map<instruction_ref, std::string> names;
@@ -609,12 +600,12 @@ void program::from_value(const value& v)
         MIGRAPHX_THROW("Warning: Program version mismatch");
     }
 
-    this->impl->target_name = v.at("target").to<std::string>();
-    if(not this->impl->target_name.empty())
+    migraphx::from_value(v.at("targets"), this->impl->targets);
+
+    for(auto i:range(this->impl->targets.size()))
     {
-        target t             = make_target(this->impl->target_name);
-        this->impl->contexts = {t.get_context()};
-        this->impl->contexts.front().from_value(v.at("contexts").front());
+        this->impl->contexts.push_back(this->impl->targets[i].get_context());
+        this->impl->contexts.back().from_value(v.at("contexts")[i]);
     }
 
     auto module_vals = v.at("modules");

@@ -110,7 +110,7 @@ function(add_test_executable TEST_NAME)
     add_test_command(${TEST_NAME} ${TEST_COMMAND})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_all_targets)
+    target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_ref)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 

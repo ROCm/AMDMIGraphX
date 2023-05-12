@@ -208,11 +208,15 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
-void program::compile(const std::vector<std::string>& targets,
+void program::compile(const std::vector<target>& targets,
                       std::unordered_map<std::string, compile_options> compile_opt_map)
 {
     // Gather all the target roots
     std::unordered_multimap<std::string, module_ref> roots;
+    std::vector<std::string> target_names(targets.size());
+    std::transform(targets.begin(), targets.end(), target_names.begin(), [](const auto& t) {
+        return t.name();
+    });
     auto mods = this->get_modules();
     for(auto* mod : mods)
     {
@@ -223,7 +227,7 @@ void program::compile(const std::vector<std::string>& targets,
             auto v                       = ins.get_operator().to_value();
             module_ref root              = ins.module_inputs().front();
             std::string root_target_name = v.at("target").to<std::string>();
-            assert(contains(targets, root_target_name));
+            assert(contains(target_names, root_target_name));
             roots.insert({root_target_name, root});
         }
     }
@@ -237,18 +241,18 @@ void program::compile(const std::vector<std::string>& targets,
     trace();
 
     // Run passes on each root target
-    for(const auto& t : targets)
+    for(const auto& root_target : targets)
     {
-        auto root_target           = migraphx::make_target(t);
-        auto root_modules_range    = roots.equal_range(t);
-        this->impl->context_map[t] = root_target.get_context();
-        for(auto i = root_modules_range.first; i != root_modules_range.second; i++)
+        auto root_target_name                     = root_target.name();
+        auto root_modules_range                   = roots.equal_range(root_target_name);
+        this->impl->context_map[root_target_name] = root_target.get_context();
+        for(const auto& [id, current_mod] : range(root_modules_range))
         {
-            auto* current_mod = i->second;
-            i->second->set_target(t);
+            current_mod->set_target(root_target_name);
             run_passes(*this,
                        current_mod,
-                       root_target.get_passes(this->impl->context_map[t], compile_opt_map[t]),
+                       root_target.get_passes(this->impl->context_map[root_target_name],
+                                              compile_opt_map[root_target_name]),
                        trace);
             auto invalid = current_mod->validate();
             if(invalid != current_mod->end())
@@ -264,7 +268,7 @@ void program::compile(const std::vector<std::string>& targets,
                 MIGRAPHX_THROW("Dangling reference in module " + current_mod->name() +
                                " from instruction " + std::to_string(index));
             }
-            current_mod->finalize(this->impl->context_map[t]);
+            current_mod->finalize(this->impl->context_map[root_target_name]);
         }
     }
 }

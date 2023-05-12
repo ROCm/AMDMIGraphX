@@ -198,7 +198,7 @@ TEST_CASE(multitarget_compile_cpu_gpu)
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
     compile_opts["gpu"]  = gpu_opt;
-    p.compile({"gpu", "cpu"}, compile_opts);
+    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, compile_opts);
     CHECK(check_compiled_program(p, compile_opts));
 }
 
@@ -270,10 +270,11 @@ TEST_CASE(multitarget_compile_if_then_else)
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
     compile_opts["gpu"]  = gpu_opt;
+
     p.compile(
         {
-            "gpu",
-            "cpu",
+            migraphx::make_target("gpu"),
+            migraphx::make_target("cpu"),
         },
         compile_opts);
     CHECK(check_compiled_program(p, compile_opts));
@@ -374,7 +375,12 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
     compile_opts["gpu"]  = gpu_opt;
-    p.compile({"gpu", "cpu", "ref", "fpga"}, compile_opts);
+    p.compile({migraphx::make_target("gpu"),
+               migraphx::make_target("cpu"),
+               migraphx::make_target("fpga"),
+               migraphx::make_target("ref")},
+              compile_opts);
+
     CHECK(check_compiled_program(p, compile_opts));
 }
 
@@ -405,23 +411,31 @@ TEST_CASE(multitarget_select_module)
     migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
     auto input        = mm->add_parameter("data", s);
     auto* run_cpu_mod = p.create_module("cpu_mod");
-    auto run_cpu_ins  = run_cpu_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target", "cpu"}}), {input}, {batch1});
+    auto cpu_param    = run_cpu_mod->add_parameter(
+        "cpu_data", migraphx::shape{migraphx::shape::float_type, {1, 4}});
+    auto run_cpu_ins = run_cpu_mod->add_instruction(
+        migraphx::make_op("run_on_target", {{"target", "cpu"}}), {cpu_param}, {batch1});
     run_cpu_mod->add_return({run_cpu_ins});
 
     auto* run_gpu_mod = p.create_module("gpu_mod");
-    auto run_gpu_ins  = run_gpu_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target", "gpu"}}), {input}, {batch2});
+    auto gpu_param    = run_gpu_mod->add_parameter(
+        "gpu_data", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+    auto run_gpu_ins = run_gpu_mod->add_instruction(
+        migraphx::make_op("run_on_target", {{"target", "gpu"}}), {gpu_param}, {batch2});
     run_gpu_mod->add_return({run_gpu_ins});
 
     auto* run_fpga_mod = p.create_module("fpga_mod");
-    auto run_fpga_ins  = run_fpga_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target", "fpga"}}), {input}, {batch3});
+    auto fpga_param    = run_fpga_mod->add_parameter(
+        "fpga_data", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    auto run_fpga_ins = run_fpga_mod->add_instruction(
+        migraphx::make_op("run_on_target", {{"target", "fpga"}}), {fpga_param}, {batch3});
     run_fpga_mod->add_return({run_fpga_ins});
 
     auto* run_ref_mod = p.create_module("ref_mod");
-    auto run_ref_ins  = run_ref_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target", "ref"}}), {input}, {batch4});
+    auto ref_param    = run_fpga_mod->add_parameter(
+        "ref_data", migraphx::shape{migraphx::shape::float_type, {4, 4}});
+    auto run_ref_ins = run_ref_mod->add_instruction(
+        migraphx::make_op("run_on_target", {{"target", "ref"}}), {ref_param}, {batch4});
     run_ref_mod->add_return({run_ref_ins});
 
     std::vector<migraphx::shape> sub_shapes = {};
@@ -440,7 +454,11 @@ TEST_CASE(multitarget_select_module)
     migraphx::compile_options gpu_opt;
     gpu_opt.offload_copy = true;
     compile_opts["gpu"]  = gpu_opt;
-    p.compile({"gpu", "cpu", "fpga", "ref"}, compile_opts);
+    p.compile({migraphx::make_target("gpu"),
+               migraphx::make_target("cpu"),
+               migraphx::make_target("fpga"),
+               migraphx::make_target("ref")},
+              compile_opts);
     CHECK(check_compiled_program(p, compile_opts));
 }
 

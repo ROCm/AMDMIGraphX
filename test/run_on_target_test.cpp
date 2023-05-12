@@ -63,9 +63,7 @@ TEST_CASE(eval_run_on_target)
     auto run_on_ins =
         mm->add_instruction(migraphx::make_op("run_on_target", {{"target", "ref"}}), {}, {ref_mod});
     mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_on_ins);
-
-    std::unordered_map<std::string, migraphx::compile_options> compile_opts;
-    p.compile({migraphx::make_target("ref")}, compile_opts);
+    p.compile({migraphx::make_target("ref")});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

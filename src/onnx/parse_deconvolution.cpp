@@ -57,11 +57,10 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
         bool asym_padding = false;
-        auto in_lens      = l0->get_shape().lens();
-        assert(in_lens.size() > 2);
-        auto kdims = in_lens.size() - 2;
+        assert(l0->get_shape().ndim() > 2);
+        auto kdims = l0->get_shape().ndim() - 2;
 
-        // ensure pads availabe only when auto_pad is "NOT_SET"
+        // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, "CONV_TRANSPOSE");
 
         if(contains(info.attributes, "pads"))
@@ -81,6 +80,7 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
                                [](auto pad_val) { return pad_val; });
             }
         }
+
         if(contains(info.attributes, "strides"))
         {
             values["stride"].clear();
@@ -88,6 +88,7 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
             check_attr_sizes(
                 kdims, values["stride"].size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
         }
+
         if(contains(info.attributes, "dilations"))
         {
             values["dilation"].clear();
@@ -125,6 +126,7 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
         auto l1                   = info.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
         std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
+        // TODO why slice for asymmetrical padding?
         if(asym_padding)
         {
             std::vector<int64_t> axes(kdims);

@@ -445,7 +445,19 @@ TEST_CASE(contiguous_shape_singleton_dim)
     expect_shape(output, migraphx::make_op("contiguous"), input);
 }
 
-TEST_CASE(deconvolution_shape)
+TEST_CASE(deconvolution_1d)
+{
+    migraphx::shape input_1d{migraphx::shape::float_type, {4, 4, 1}};
+    migraphx::shape output_1d{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
+    expect_shape(
+        output_1d,
+        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        input_1d,
+        weights_1d);
+}
+
+TEST_CASE(deconvolution_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};
@@ -455,16 +467,10 @@ TEST_CASE(deconvolution_shape)
     throws_shape(
         migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
         input);
+}
 
-    migraphx::shape input_1d{migraphx::shape::float_type, {4, 4, 1}};
-    migraphx::shape output_1d{migraphx::shape::float_type, {4, 3, 3}};
-    migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
-    expect_shape(
-        output_1d,
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        input_1d,
-        weights_1d);
-
+TEST_CASE(deconvolution_3d)
+{
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
     migraphx::shape weights_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
@@ -474,6 +480,49 @@ TEST_CASE(deconvolution_shape)
                           {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
         input_3d,
         weights_3d);
+}
+
+TEST_CASE(deconvolution_channel_mismatch)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape weights{migraphx::shape::float_type, {3, 3, 3, 3}};
+    throws_shape(migraphx::make_op("deconvolution"), input, weights);
+}
+
+TEST_CASE(deconvolution_dyn_batch_2d)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {1, 1}, {1, 1}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}, {3, 3}}};
+    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
+    throws_shape(migraphx::make_op("deconvolution"), input);
+    throws_shape(
+        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        input);
+}
+
+TEST_CASE(deconvolution_dyn_img_2d)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 1}, {4, 4}, {1, 5}, {1, 5}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {3, 7}, {3, 7}}};
+    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
+    throws_shape(migraphx::make_op("deconvolution"), input);
+    throws_shape(
+        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        input);
+}
+
+TEST_CASE(deconvolution_dyn_kernel_2d)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 1, 1}};
+    migraphx::shape weights{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 6}, {2, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {3, 6}, {3, 6}}};
+    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
+    throws_shape(migraphx::make_op("deconvolution"), input);
+    throws_shape(
+        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        input);
 }
 
 TEST_CASE(dot_ndim_error0)

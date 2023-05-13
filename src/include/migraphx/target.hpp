@@ -469,8 +469,8 @@ inline const ValueType& any_cast(const target& x)
 
 #endif
 
-void migraphx_to_value(value& v, const target& op);
-void migraphx_from_value(const value& v, target& op);
+void migraphx_to_value(value& v, const target& t);
+void migraphx_from_value(const value& v, target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

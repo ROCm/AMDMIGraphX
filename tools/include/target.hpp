@@ -157,8 +157,8 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 
 #endif
 
-void migraphx_to_value(value& v, const target& op);
-void migraphx_from_value(const value& v, target& op);
+void migraphx_to_value(value& v, const target& t);
+void migraphx_from_value(const value& v, target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

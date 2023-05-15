@@ -50,7 +50,7 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
 bool get_compute_fp32_flag()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (contains(device_name, "gfx9") and device_name >= "gfx908")
+    return (contains(device_name, "gfx9") and device_name >= "gfx908");
 }
 
 bool get_int8_x4_format(context& ctx)

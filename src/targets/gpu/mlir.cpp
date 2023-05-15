@@ -167,7 +167,7 @@ std::string mlir_print(F f, T x)
 bool has_xdlops(const std::string& target_arch)
 {
     const auto device_name = trim(split_string(target_arch, ':').front());
-    return (contains(device_name, "gfx9") and device_name >= "gfx908")
+    return (contains(device_name, "gfx9") and device_name >= "gfx908");
 }
 
 struct mlir_program

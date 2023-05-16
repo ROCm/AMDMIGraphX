@@ -266,8 +266,7 @@ void program::compile(const std::vector<target>& targets,
         {
             auto passes = root_target.get_passes(this->impl->contexts[root_target_idx],
                                                  compile_opt_map[target_idx(root_target_name)]);
-            passes.insert(passes.begin(),
-                          mark_instruction_target{static_cast<unsigned int>(root_target_idx)});
+            passes.push_back(mark_instruction_target{static_cast<unsigned int>(root_target_idx)});
             run_passes(*this, current_mod, passes, trace);
 
             auto invalid = current_mod->validate();

@@ -35,6 +35,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#ifndef MIGRAPHX_USE_TYPE_ERASED_MATCHERS
+#define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -102,6 +106,13 @@ struct predicate_matcher
         return nullopt;
     }
 };
+
+/// Convert a predicate function into a matcher
+template <class P>
+predicate_matcher<P> make_predicate_matcher(P p)
+{
+    return {p};
+}
 
 /// Convert a function into a matcher
 template <class F>
@@ -183,14 +194,26 @@ struct id_matcher
 template <class M>
 struct basic_matcher;
 
+struct any_matcher;
+
+template<class M>
+struct type_erased_matcher
+{
+#if MIGRAPHX_USE_TYPE_ERASED_MATCHERS
+    using type = any_matcher;
+#else
+    using type = basic_matcher<M>;
+#endif
+};
+
 template <class M>
-basic_matcher<M> make_basic_matcher(M m);
+typename type_erased_matcher<M>::type make_basic_matcher(M m);
 
 template <class F>
-basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f);
+auto make_basic_fun_matcher(F f);
 
 template <class P>
-basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p);
+auto make_basic_pred_matcher(P p);
 
 /// The basic matcher provides the all_of composability of the matcher
 template <class M>
@@ -222,27 +245,6 @@ struct basic_matcher
     auto match(matcher_context& ctx, instruction_ref ins) const { return m.match(ctx, ins); }
 };
 
-/// Create a basic matcher from a matcher
-template <class M>
-basic_matcher<M> make_basic_matcher(M m)
-{
-    return {m};
-}
-
-/// Create a basic matcher from a function
-template <class F>
-basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f)
-{
-    return {{f}};
-}
-
-/// Create a basic matcher from a predicate function
-template <class P>
-basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
-{
-    return {{p}};
-}
-
 /// Create a typed-erased matcher
 using any_matcher_base = basic_matcher<
     function_matcher<std::function<optional<instruction_ref>(matcher_context&, instruction_ref)>>>;
@@ -253,6 +255,27 @@ struct any_matcher : any_matcher_base
     {
     }
 };
+
+/// Create a basic matcher from a matcher
+template <class M>
+typename type_erased_matcher<M>::type make_basic_matcher(M m)
+{
+    return {m};
+}
+
+/// Create a basic matcher from a function
+template <class F>
+auto make_basic_fun_matcher(F f)
+{
+    return make_basic_matcher(make_function_matcher(f));
+}
+
+/// Create a basic matcher from a predicate function
+template <class P>
+auto make_basic_pred_matcher(P p)
+{
+    return make_basic_matcher(make_predicate_matcher(p));
+}
 
 /// This macro takes care of the boilerplate for defining a matcher
 #define MIGRAPHX_BASIC_MATCHER(name, ...)                                     \

@@ -48,7 +48,7 @@ def rocmtestnode(Map conf) {
                 pre()
                 stage("image ${variant}") {
                     try {
-                        docker.build("${image}", "${docker_build_args} --no-cache .")
+                        docker.build("${image}", "${docker_build_args} .")
                     } catch(Exception ex) {
                         docker.build("${image}", "${docker_build_args} --no-cache .")
 

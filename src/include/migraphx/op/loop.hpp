@@ -59,7 +59,7 @@ struct loop
             MIGRAPHX_THROW("LOOP: operator should have one submodule.");
         }
 
-        const auto& mod     = mods.front();
+        const_module_ref mod     = mods.front();
         auto mod_out_shapes = mod->get_output_shapes();
         auto dep_param_num  = inputs.size() - 2;
 

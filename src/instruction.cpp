@@ -395,7 +395,7 @@ void instruction::print(std::ostream& os,
     if(not ins->module_inputs().empty())
     {
         std::string delim = ", [";
-        for(auto&& mod_arg : ins->module_inputs())
+        for(const auto& mod_arg : ins->module_inputs())
         {
             os << delim << mod_arg->name();
             delim = ", ";

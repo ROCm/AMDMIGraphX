@@ -813,6 +813,7 @@ instruction_ref
 insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
 {
     use(co);
+    use(m);
     return m.end();
 }
 

@@ -257,6 +257,8 @@ rocm_enable_cppcheck(
         __device__=
         __host__=
         __global__=
+    UNDEFINE
+        MIGRAPHX_USE_CLANG_TIDY
 )
 
 enable_testing()

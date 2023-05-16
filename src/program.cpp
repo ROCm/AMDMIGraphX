@@ -597,7 +597,7 @@ static void mod_from_val(module_ref mod,
                                std::back_inserter(module_inputs),
                                [&](const value& i) { return map_mods.at(i.to<std::string>()); });
 
-                for(auto& smod : module_inputs)
+                for(const auto& smod : module_inputs)
                 {
                     mod_from_val(smod, v, instructions, map_mods);
                 }
@@ -1039,7 +1039,7 @@ void program::remove_unused_modules()
     std::vector<module*> unused;
     generic_get_unused_modules(
         impl->modules, generic_get_modules(this->get_main_module()), std::back_inserter(unused));
-    for(auto* m : unused)
+    for(const auto* m : unused)
         this->remove_module(m->name());
 }
 

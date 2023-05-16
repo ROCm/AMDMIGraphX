@@ -55,6 +55,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 using milliseconds = std::chrono::duration<double, std::milli>;
 
+struct mark_instruction_target
+{
+    unsigned int target_id = 0;
+    std::string name() const { return "mark_instruction_target"; }
+    void apply(module& m) const
+    {
+        for(auto& ins : m)
+            ins.set_target_id(target_id);
+    }
+};
+
 struct program_impl
 {
     // A map is used to keep references to modules of the program
@@ -253,11 +264,12 @@ void program::compile(const std::vector<target>& targets,
         this->impl->contexts[root_target_idx] = root_target.get_context();
         for(const auto& [id, current_mod] : range(root_modules_range))
         {
-            run_passes(*this,
-                       current_mod,
-                       root_target.get_passes(this->impl->contexts[root_target_idx],
-                                              compile_opt_map[target_idx(root_target_name)]),
-                       trace);
+            auto passes = root_target.get_passes(this->impl->contexts[root_target_idx],
+                                                 compile_opt_map[target_idx(root_target_name)]);
+            passes.insert(passes.begin(),
+                          mark_instruction_target{static_cast<unsigned int>(root_target_idx)});
+            run_passes(*this, current_mod, passes, trace);
+
             auto invalid = current_mod->validate();
             if(invalid != current_mod->end())
             {

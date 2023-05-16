@@ -136,6 +136,9 @@ struct instruction
 
     operation normalized_operator() const;
 
+    unsigned int get_target_id() const;
+    void set_target_id(unsigned int tid);
+
     void debug_print() const;
 
     static void print(std::ostream& os,
@@ -172,7 +175,8 @@ struct instruction
     std::vector<instruction_ref> arguments;
     std::vector<module_ref> module_args;
     literal lit;
-    bool normalized = false;
+    bool normalized        = false;
+    unsigned int target_id = 0;
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -91,7 +91,7 @@ bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
 {
     return std::none_of(inss.begin(), inss.end(), [&](auto ins1) {
         return std::none_of(inss.begin(), inss.end(), [&](auto ins2) {
-            if (ins1 == ins2)
+            if(ins1 == ins2)
                 return true;
             return is_overlap_load(ins1, ins2);
         });

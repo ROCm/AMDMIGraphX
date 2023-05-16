@@ -55,7 +55,6 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
             l_val = literal({shape::float_type, {1}, {0}}, {0.0f});
         }
 
-
         if(args.empty())
         {
             MIGRAPHX_THROW("ConstantOfShape : must have 1 input!");

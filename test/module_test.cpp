@@ -137,13 +137,6 @@ TEST_CASE(module_name)
     EXPECT(m3.name() == "name");
 }
 
-TEST_CASE(module_set_target)
-{
-    migraphx::module m;
-    m.set_target("gpu");
-    EXPECT(m.get_target() == "gpu");
-}
-
 TEST_CASE(module_name_main)
 {
     migraphx::program p;

@@ -135,10 +135,6 @@ module& module::operator=(module m)
 
 std::string module::name() const { return impl->name; }
 
-void module::set_target(const std::string& target) { impl->target = target; }
-
-std::string module::get_target() const { return impl->target; }
-
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
 

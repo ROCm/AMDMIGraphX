@@ -69,8 +69,6 @@ struct module
 
     std::string name() const;
 
-    std::string get_target() const;
-    void set_target(const std::string& target_name);
     bool bypass() const;
     void set_bypass(bool b = true);
 

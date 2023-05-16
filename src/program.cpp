@@ -253,7 +253,6 @@ void program::compile(const std::vector<target>& targets,
         this->impl->contexts[root_target_idx] = root_target.get_context();
         for(const auto& [id, current_mod] : range(root_modules_range))
         {
-            current_mod->set_target(root_target_name);
             run_passes(*this,
                        current_mod,
                        root_target.get_passes(this->impl->contexts[root_target_idx],

@@ -406,6 +406,9 @@ void instruction::print(std::ostream& os,
     // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
+    // print tid
+
+    os << ", tid=" << ins->target_id;
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)

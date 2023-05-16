@@ -695,7 +695,7 @@ void program::perf_report(std::ostream& os,
             argument result;
             ins_vec[ins].push_back(time<milliseconds>([&] {
                 result = f();
-                this->impl->contexts[ins->get_target_id()];
+                this->impl->contexts[ins->get_target_id()].finish();
             }));
             return result;
         });

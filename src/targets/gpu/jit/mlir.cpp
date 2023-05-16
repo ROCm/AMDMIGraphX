@@ -36,7 +36,7 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
+    compiler_replace compile(const context& ctx, instruction_ref ins, const operation&) const
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);

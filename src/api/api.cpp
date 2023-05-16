@@ -91,8 +91,8 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         }
 #ifdef BUILD_DEV
     }
-    return migraphx_status_success;
 #endif
+    return migraphx_status_success;
 }
 
 shape::type_t to_shape_type(migraphx_shape_datatype_t t)

@@ -156,9 +156,14 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
  * Use add_common_op() to match input sizes when inputs may be
  *  either static or dynamic.
  *
- * @param op_name
- * @param inputs
- * @return instruction_ref
+ * @param op_name               string; Name of operation (op) to add; valid names are the same as
+ * for make_op()
+ *
+ * @param inputs                vector of instruction_ref.  List of instructions which are the
+ * inputs to the new operator.
+ *
+ * @return instruction_ref      Return is an instruction_ref which can be used as input to any
+ * subsequent operation.
  */
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const

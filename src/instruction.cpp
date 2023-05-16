@@ -469,7 +469,7 @@ operation instruction::normalized_operator() const
     }
     return o;
 }
-unsigned int instruction::get_target_id() const { return target_id; }
+std::size_t instruction::get_target_id() const { return target_id; }
 
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 {

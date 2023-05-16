@@ -196,7 +196,7 @@ struct basic_matcher;
 
 struct any_matcher;
 
-template<class M>
+template <class M>
 struct type_erased_matcher
 {
 #if MIGRAPHX_USE_TYPE_ERASED_MATCHERS

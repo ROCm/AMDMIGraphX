@@ -57,7 +57,7 @@ using milliseconds = std::chrono::duration<double, std::milli>;
 
 struct mark_instruction_target
 {
-    unsigned int target_id = 0;
+    std::size_t target_id = 0;
     std::string name() const { return "mark_instruction_target"; }
     void apply(module& m) const
     {
@@ -219,8 +219,7 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
-void program::compile(const std::vector<target>& targets,
-                      std::vector<compile_options> compile_opt_map)
+void program::compile(const std::vector<target>& targets, std::vector<compile_options> compile_opts)
 {
     // Gather all the target roots
     std::unordered_multimap<std::size_t, module_ref> roots;
@@ -229,7 +228,8 @@ void program::compile(const std::vector<target>& targets,
         return t.name();
     });
     auto target_idx = [&](const auto& t_name) {
-        return std::find(target_names.begin(), target_names.end(), t_name) - target_names.begin();
+        return static_cast<std::size_t>(
+            std::find(target_names.begin(), target_names.end(), t_name) - target_names.begin());
     };
     auto mods = this->get_modules();
     for(auto* mod : mods)
@@ -254,7 +254,25 @@ void program::compile(const std::vector<target>& targets,
 
     trace(*this);
     trace();
-    this->impl->contexts.resize(targets.size());
+    // It is assumed that all instructions outside of any root module would run on "ref" target
+    // Ref target may or may not be passed as one of the target for the "compile()".
+    // If it is not passed, Create one and add context of it into the map.
+    std::size_t ref_target_idx = target_idx("ref");
+    if(ref_target_idx == targets.size())
+    {
+        this->impl->contexts.resize(targets.size() + 1);
+        this->impl->contexts[ref_target_idx] = migraphx::make_target("ref").get_context();
+        // users could pass lessers compile_ops than targets, in that case use default compile_opts
+        compile_opts.resize(targets.size() + 1, migraphx::compile_options{});
+    }
+    else
+    {
+        this->impl->contexts.resize(targets.size());
+        compile_opts.resize(targets.size(), migraphx::compile_options{});
+    }
+    // mark all the instruction as ref target first, later change target_id based on root-target
+    run_passes(*this, {mark_instruction_target{ref_target_idx}});
+
     // Run passes on each root target
     for(const auto& root_target : targets)
     {
@@ -265,9 +283,10 @@ void program::compile(const std::vector<target>& targets,
         for(const auto& [id, current_mod] : range(root_modules_range))
         {
             auto passes = root_target.get_passes(this->impl->contexts[root_target_idx],
-                                                 compile_opt_map[target_idx(root_target_name)]);
-            passes.push_back(mark_instruction_target{static_cast<unsigned int>(root_target_idx)});
+                                                 compile_opts[root_target_idx]);
+            passes.push_back(mark_instruction_target{root_target_idx});
             run_passes(*this, current_mod, passes, trace);
+            current_mod->debug_print();
 
             auto invalid = current_mod->validate();
             if(invalid != current_mod->end())

@@ -472,8 +472,8 @@ operation instruction::normalized_operator() const
     }
     return o;
 }
-unsigned int instruction::get_target_id() const { return target_id; }
-void instruction::set_target_id(unsigned int tid) { this->target_id = tid; }
+std::size_t instruction::get_target_id() const { return target_id; }
+void instruction::set_target_id(std::size_t tid) { this->target_id = tid; }
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 {
     std::vector<shape> shapes(args.size());

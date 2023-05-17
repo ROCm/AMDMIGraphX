@@ -524,9 +524,9 @@ struct verify : command<verify>
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
         auto quantize = precision::fp32;
-        if (c.to_fp16)
+        if(c.to_fp16)
             quantize = precision::fp16;
-        if (c.to_int8)
+        if(c.to_int8)
             quantize = precision::int8;
 
         if(per_instruction)

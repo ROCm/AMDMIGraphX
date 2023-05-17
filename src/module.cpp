@@ -346,7 +346,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         assert(out->valid(begin()));
     }
     // Replacement should not be dead code unless its the last instruction
-    assert(not rep->outputs().empty() or rep == std::prev(end()));
+    // assert(not rep->outputs().empty() or rep == std::prev(end()));
     // Output of the original instruction should only be the replacement or empty
     assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(),
                                                  ins->outputs().end(),

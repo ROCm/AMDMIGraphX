@@ -415,7 +415,8 @@ struct compiler
     program_params parameters;
     compiler_target ct;
     compile_options co;
-    precision quantize = precision::fp32;
+    bool to_fp16 = false;
+    bool to_int8 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -436,13 +437,18 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
-        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
-        ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
+        ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
+        ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
     }
 
     auto params(const program& p)
     {
         return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
+    }
+
+    auto host_params(const program& p)
+    {
+        return parameters.generate(p, ct.get_target(), true, l.batch);
     }
 
     program compile()
@@ -452,13 +458,13 @@ struct compiler
         if(p.is_compiled())
             return p;
         auto t = ct.get_target();
-        if(quantize == precision::fp16)
+        if(to_fp16)
         {
             quantize_fp16(p);
         }
-        else if(quantize == precision::int8)
+        if(to_int8)
         {
-            quantize_int8(p, t, {params(p)});
+            quantize_int8(p, t, {host_params(p)});
         }
         p.compile(t, co);
         l.save(p);
@@ -517,17 +523,23 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
+        auto quantize = precision::fp32;
+        if (c.to_fp16)
+            quantize = precision::fp16;
+        if (c.to_int8)
+            quantize = precision::int8;
+
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, c.quantize, tolerance);
+            verify_instructions(p, t, c.co, quantize, tolerance);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, c.quantize, m, tolerance);
+            verify_reduced_program(p, t, c.co, quantize, m, tolerance);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, c.quantize, m, tolerance);
+            verify_program(c.l.file, p, t, c.co, quantize, m, tolerance);
         }
     }
 };

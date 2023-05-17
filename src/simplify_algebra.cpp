@@ -484,6 +484,7 @@ struct find_double_add_lit_broadcast
 
 struct find_inner_broadcast
 {
+    // (match::none_of(match::name("quantizelinear",  "dequantizelinear")))
     auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     static auto non_scalar_op(const std::string& name)
@@ -500,6 +501,9 @@ struct find_inner_broadcast
         auto ins        = r.result;
         auto broadcasts = ins->inputs();
         if(broadcasts.empty())
+            return;
+        // Skip if different data types are used
+        if (any_of(broadcasts, [&](auto i) { return i->get_shape().type() != broadcasts.front()->get_shape().type(); }))
             return;
         bool mixed_broadcasts = any_of(broadcasts, non_scalar_op("broadcast")) and
                                 any_of(broadcasts, non_scalar_op("multibroadcast"));

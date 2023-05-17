@@ -286,7 +286,6 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
                                                  compile_opts[root_target_idx]);
             passes.push_back(mark_instruction_target{root_target_idx});
             run_passes(*this, current_mod, passes, trace);
-            current_mod->debug_print();
 
             auto invalid = current_mod->validate();
             if(invalid != current_mod->end())

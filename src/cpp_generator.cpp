@@ -31,6 +31,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <map>
 #include <sstream>
+#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -207,9 +208,22 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
     });
     f.set_name(name).set_types(m).set_body(
         m, [&](instruction_ref ins, const auto& names) -> std::string {
-            if(ins->name() == "@literal")
-                return shape::cpp_type(ins->get_shape().type()) + "(" +
-                       ins->get_literal().to_string() + ")";
+            if(ins->name() == "@literal"){
+                auto string_literal = ins->get_literal().to_string();
+
+                if (string_literal == "inf") {
+                    string_literal =  std::numeric_limits<decltype(shape::cpp_type(ins->get_shape().type()))>::max() + "+ 1";
+                }
+
+                if(string_literal == "-inf") {
+                    string_literal =  std::numeric_limits<decltype(shape::cpp_type(ins->get_shape().type()))>::min() + "- 1";
+                }
+
+                auto s = shape::cpp_type(ins->get_shape().type()) + "(" +
+                    string_literal + ")";
+
+                return s;
+            }
             auto s = g(ins, names);
             if(impl->fresult)
                 return impl->fresult(ins->get_shape()) + '(' + s + ')';

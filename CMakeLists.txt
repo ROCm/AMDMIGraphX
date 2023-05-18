@@ -151,6 +151,8 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
+        -cppcoreguidelines-avoid-do-while
+        -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-explicit-virtual-functions
         -cppcoreguidelines-init-variables
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
@@ -198,7 +200,6 @@ rocm_enable_clang_tidy(
     EXTRA_ARGS
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
-        "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
     CLANG_ARGS
         -analyzer-max-loop 10
         -analyzer-inline-max-stack-depth 10

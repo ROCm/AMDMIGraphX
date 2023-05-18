@@ -128,6 +128,9 @@ struct reshape
                           });
     }
 
+    // This will reshape the dimesions of the input shape to use the lens of
+    // `rdims`. If this can't be done without changing memory layout then it
+    // will return nullopt
     static optional<shape> reshape_dims(const shape& input, const std::vector<std::size_t>& rdims)
     {
         if(input.standard())

@@ -38,6 +38,7 @@ struct test_gathernd_default : verify_program<test_gathernd_default>
         auto a0 = mm->add_parameter("data", ds);
         auto a1 = mm->add_literal(migraphx::literal{is, indices});
         mm->add_instruction(migraphx::make_op("gathernd"), a0, a1);
+        p.debug_print();
         return p;
     }
 };

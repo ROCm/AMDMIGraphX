@@ -41,6 +41,7 @@ struct test_gather : verify_program<test_gather<Axis>>
         auto a1  = mm->add_literal(migraphx::literal{s_indices, indices});
         int axis = Axis;
         mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), a0, a1);
+        p.debug_print();
         return p;
     }
 };

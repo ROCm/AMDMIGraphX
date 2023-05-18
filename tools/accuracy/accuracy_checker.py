@@ -52,6 +52,8 @@ def parse_args():
     parser.add_argument('--fill0',
                         action='store_true',
                         help='fill all arguments with a value of 0')
+    parser.add_argument('--numpy', action='append', help='fill argument with numpy saved array', type=str)
+    parser.add_argument('--np_path', action='append', help='Path for the saved numpy array', type=str)
     parser.add_argument('--verbose',
                         action='store_true',
                         help='show verbose information (for debugging)')
@@ -81,7 +83,7 @@ def parse_args():
                         action='store_true',
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
-
+    parser.add_argument('--save-ort-res', dest="save_ort", type=str, help='Save output of ORT as numpy array at path provided by this argument')
     args = parser.parse_args()
 
     return args
@@ -186,7 +188,12 @@ def main():
             print(f'Parameter {name} -> {shape}')
         in_shape = shape.lens()
         in_type = shape.type_string()
-        if not args.fill1 and not args.fill0:
+        if name in args.numpy:
+            in_path = args.np_path[args.numpy.index(name)]
+            if args.verbose:
+                print("Loading numpy array for input name : {name}, from path : {in_path}")
+            test_input = np.load(in_path).astype(get_np_datatype(in_type))
+        elif not args.fill1 and not args.fill0:
             test_input = np.random.rand(*(in_shape)).astype(
                 get_np_datatype(in_type))
         elif not args.fill0:
@@ -216,6 +223,10 @@ def main():
 
         try:
             pred_fw = sess.run(None, ort_params)[-1]
+            if(args.save_ort): 
+                if args.verbose:
+                    print("saving ORT result as numpy array at location : {args.save_ort}")
+                np.save(args.save_ort, pred_fw)
         except Exception as e:
             if any(input_dims):
                 print(

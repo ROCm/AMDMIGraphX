@@ -97,7 +97,7 @@ def parse_args():
         'Save output of ORT as numpy array at path provided by this argument')
     args = parser.parse_args()
     if args.verbose:
-        print("Tolerance is set at {args.tolerance}")
+        print(f"Tolerance is set at {args.tolerance}")
     return args
 
 
@@ -213,7 +213,7 @@ def main():
             in_path = args.np_path[args.numpy.index(name)]
             if args.verbose:
                 print(
-                    "Loading numpy array for input name : {name}, from path : {in_path}"
+                    f"Loading numpy array for input name : {name}, from path : {in_path}"
                 )
             test_input = np.load(in_path).astype(get_np_datatype(in_type))
         elif not args.fill1 and not args.fill0:
@@ -249,7 +249,7 @@ def main():
             if (args.save_ort):
                 if args.verbose:
                     print(
-                        "saving ORT result as numpy array at location : {args.save_ort}"
+                        f"saving ORT result as numpy array at location : {args.save_ort}"
                     )
                 np.save(args.save_ort, pred_fw)
         except Exception as e:

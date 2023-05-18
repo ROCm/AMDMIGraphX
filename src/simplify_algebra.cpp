@@ -484,7 +484,6 @@ struct find_double_add_lit_broadcast
 
 struct find_inner_broadcast
 {
-    // (match::none_of(match::name("quantizelinear",  "dequantizelinear")))
     auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
     static auto non_scalar_op(const std::string& name)

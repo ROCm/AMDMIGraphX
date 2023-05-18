@@ -207,19 +207,23 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
     });
     f.set_name(name).set_types(m).set_body(
         m, [&](instruction_ref ins, const auto& names) -> std::string {
-            if(ins->name() == "@literal"){
-                auto string_literal = ins->get_literal().to_string();
-
-                if (string_literal == "inf") {
-                    string_literal = "1.0 / 0.0";
-                }
-
-                if(string_literal == "-inf") {
-                    string_literal = "- 1.0 / 0.0";
-                }
-
-                auto s = shape::cpp_type(ins->get_shape().type()) + "(" +
-                    string_literal + ")";
+            if(ins->name() == "@literal") {
+                std::string string_literal;
+                ins->get_literal().visit([&](auto v) {
+                    assert(v.size() == 1);
+                    auto x = v.front();
+                    if(x > __builtin_huge_valf or x < - __builtin_huge_valf) 
+                    {
+                        string_literal = "__builtin_huge_valf";
+                        if(x < 0)
+                            string_literal = "- __builtin_huge_valf";
+                    }
+                    else if(std::isnan(x))
+                        string_literal = "__builtin_nanf";
+                    else
+                        string_literal = std::to_string(x);
+                });
+                auto s = shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
 
                 return s;
             }

@@ -59,7 +59,7 @@ struct run_on_target
         auto* mod_input = mods.front();
         if(inputs.size() != mod_input->get_parameter_shapes().size())
         {
-            MIGRAPHX_THROW("RUN_ON_TARGET: Number of input paramters mismatches");
+            MIGRAPHX_THROW("RUN_ON_TARGET: Mismatched number of input parameters");
         }
         auto mod_out_shapes = mod_input->get_output_shapes();
         return mod_out_shapes;

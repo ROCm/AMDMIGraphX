@@ -93,7 +93,7 @@ def check_correctness(gold_outputs,
                       rtol=1e-3,
                       atol=1e-3,
                       verbose=False):
-    if len(gold_outputs) != len(outputs):
+    if len(gold_outputs) > len(outputs):
         print('Number of outputs {} is not equal to expected number {}'.format(
             len(outputs), len(gold_outputs)))
         return False

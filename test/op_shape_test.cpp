@@ -2199,8 +2199,8 @@ TEST_CASE(reshape_nonstandard_unsqueeze)
 
     for(const auto& [dims, perm] : tests)
     {
-        migraphx::shape output        = migraphx::shape::from_permutation(
-        migraphx::shape::float_type, dims, migraphx::invert_permutation(perm));
+        migraphx::shape output = migraphx::shape::from_permutation(
+            migraphx::shape::float_type, dims, migraphx::invert_permutation(perm));
         expect_shape(output, migraphx::make_op("reshape", {{"dims", dims}}), input);
     }
 }
@@ -2227,7 +2227,6 @@ TEST_CASE(reshape_nonstandard_error)
         throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
 }
-
 
 TEST_CASE(reshape_nonpacked_unsqueeze1)
 {

@@ -408,7 +408,7 @@ void instruction::print(std::ostream& os,
         os << " -> " << ins->get_shape();
     // print tid
 
-    os << ", tid=" << ins->target_id;
+    os << ", target_id=" << ins->target_id;
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)

@@ -2185,7 +2185,7 @@ TEST_CASE(reshape_shape)
 
 TEST_CASE(reshape_nonstandard_unsqueeze)
 {
-    migraphx::shape input{migraphx::shape::float_type, {4, 24, 1, 1, 1}, {1, 4, 1, 1, 1}};
+    auto input = migraphx::shape::from_permutation(migraphx::version_1::shape::float_type, {4, 24, 1, 1, 1}, migraphx::invert_permutation({1, 0, 2, 3, 4}));
     std::vector<std::size_t> lens = {4, 1, 3, 4, 2};
     std::vector<int64_t> perm     = {4, 0, 1, 2, 3};
     migraphx::shape output        = migraphx::shape::from_permutation(
@@ -2195,7 +2195,7 @@ TEST_CASE(reshape_nonstandard_unsqueeze)
 
 TEST_CASE(reshape_nonstandard_squeeze)
 {
-    migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {327680, 16, 1, 256}};
+    auto input = migraphx::shape::from_permutation(migraphx::version_1::shape::float_type, {2, 16, 16, 1280}, migraphx::invert_permutation({0, 2, 3, 1}));
     std::vector<std::size_t> lens = {2, 256, 1280};
     std::vector<int64_t> perm     = {0, 2, 1};
     migraphx::shape output        = migraphx::shape::from_permutation(

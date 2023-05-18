@@ -96,7 +96,8 @@ def parse_args():
         help=
         'Save output of ORT as numpy array at path provided by this argument')
     args = parser.parse_args()
-
+    if args.verbose:
+        print("Tolerance is set at {args.tolerance}")
     return args
 
 
@@ -115,6 +116,15 @@ def check_correctness(gold_outputs,
     ret = True
     for i in range(out_num):
         if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
+            failed_idx = ~np.isclose(gold_outputs[i], outputs[i], rtol, atol)
+            if verbose:
+                print("Shape of Failed elements{} :\n".format(
+                    gold_outputs[i][failed_idx].shape))
+                print("Expected :\n{}".format(
+                    gold_outputs[i][failed_idx].tolist()[0:400:5]))
+                print('......')
+                print("Actual \n{}".format(
+                    outputs[i][failed_idx].tolist()[0:400:5]))
             ret = False
             if verbose:
                 print('\nOutput {} is incorrect ...'.format(i))

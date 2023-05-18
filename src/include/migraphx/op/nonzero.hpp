@@ -44,7 +44,7 @@ struct nonzero
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
-        auto elem_num                     = inputs[0].elements();
+        auto elem_num                     = inputs[0].elements() - 1;
         auto dim_num                      = inputs[0].lens().size();
         std::vector<std::size_t> out_lens = {dim_num, elem_num};
 

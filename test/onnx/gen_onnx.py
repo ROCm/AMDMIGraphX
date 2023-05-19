@@ -270,8 +270,9 @@ def averagepool_dyn_test():
     node = onnx.helper.make_node('AveragePool',
                                  inputs=['0'],
                                  outputs=['1'],
-                                 kernel_shape=[3, 3, 3])
-
+                                 kernel_shape=[3, 3, 3],
+                                 strides=[2, 2, 2],
+                                 auto_pad='SAME_UPPER')
     return ([node], [x], [out])
 
 

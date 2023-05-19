@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -150,17 +150,14 @@ struct parse_pooling : op_parser<parse_pooling>
             check_attr_sizes(
                 kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
         }
+                auto foo = info.attributes.at("auto_pad").s();
 
-        if(contains(info.attributes, "auto_pad"))
+        if(contains(info.attributes, "auto_pad") and to_upper(info.attributes.at("auto_pad").s()) != "NOTSET")
         {
+            // don't use the given padding sizes, if any
+            values["padding"].clear();
             if(in_shape.dynamic())
             {
-                MIGRAPHX_THROW(
-                    "PARSE_POOLING: Auto padding pooling with dynamic input shape not supported");
-            }
-            else
-            {
-                values["padding"].clear();
                 // return paddings could be empty, then setting to 0 for no padding
                 cal_auto_padding_size(info,
                                       values,
@@ -168,6 +165,20 @@ struct parse_pooling : op_parser<parse_pooling>
                                       {1, 1},
                                       in_shape.lens(),
                                       paddings);
+std::cout << "padding "; for(auto aa : paddings)  std::cout << aa << ", ";std::cout << "\n";                                     
+                values["padding_mode"] = info.attributes.at("auto_pad").i();
+            }
+            else
+            {
+                // return paddings could be empty, then setting to 0 for no padding
+                cal_auto_padding_size(info,
+                                      values,
+                                      values["lengths"].to_vector<std::size_t>(),
+                                      {1, 1},
+                                      in_shape.lens(),
+                                      paddings);
+                // default padding mode indicates that padding values are not calculated dynamically
+                values["padding_mode"] = migraphx::op::padding_mode_t::default_;
             }
         }
 

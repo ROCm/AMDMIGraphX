@@ -298,9 +298,11 @@ TEST_CASE(averagepool_dyn_test)
         "0", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}, {5, 5}}});
     auto ret = mm->add_instruction(migraphx::make_op("pooling",
                                                      {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {0, 0, 0, 0, 0, 0}},
-                                                      {"stride", {1, 1, 1}},
-                                                      {"lengths", {3, 3, 3}}}),
+                                                      {"stride", {2, 2, 2}},
+                                                      {"lengths", {3, 3, 3}},
+{"padding", {1, 2, 3, 4, 5}},                                                      
+                                                      {"padding_mode", 0},                                                      
+                                                      }),
                                    l0);
     mm->add_return({ret});
 

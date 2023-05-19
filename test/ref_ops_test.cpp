@@ -613,6 +613,7 @@ TEST_CASE(avgpool_rank3_test)
 
 TEST_CASE(avgpool_dyn_test)
 {
+    // Dynamic input, no padding
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
@@ -633,6 +634,65 @@ TEST_CASE(avgpool_dyn_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.25, 0.3, 0.25, 0.65, 0.7, 0.5, 0.4, 0.4, 0.35};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_dyn_pad_test)
+{
+    // Dynamic input with explicit padding
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}, {4, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"lengths", {2}},
+                                           {"padding", {1}},
+                                        //    {"padding_mode", migraphx::op::padding_mode_t::same_lower},
+                                           {"stride", {1}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 3, 4}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    // correct values: {1.5, 0.25, 0.3, 0.25, 0.05, 0.4, 0.65, 0.7, 0.5, 0.05, 0.05, 0.4, 0.4, 0.35, 0.3};
+    std::vector<float> gold{0.3, 0.25, 0.3, 0.25, 0.1, 0.8, 0.65, 0.7, 0.5, 0.1, 0.1, 0.4, 0.4, 0.35, 0.6};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_dyn_auto_pad_test)
+{
+    // Dynamic input with auto padding
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}, {4, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"lengths", {2}},
+                                           //    padding added will be {1, 0} to make output
+                                           //    the same size as input
+                                           {"padding_mode", migraphx::op::padding_mode_t::same_lower},
+                                           {"stride", {1}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 3, 4}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    // correct values: {1.5, 0.25, 0.3, 0.25,      0.4, 0.65, 0.7, 0.5,     0.05, 0.4, 0.4, 0.35};
+    std::vector<float> gold{0.3, 0.25, 0.3, 0.25,   0.8, 0.65, 0.7, 0.5,     0.1, 0.4, 0.4, 0.35};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1072,7 +1132,9 @@ TEST_CASE(conv_dyn_batch_test)
 
     auto input   = mm->add_parameter("X", input_dyn_shape);
     auto weights = mm->add_parameter("W", weights_shape);
-    mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
+    mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}},
+                                               {"padding_mode", migraphx::op::padding_mode_t::same_lower},
+}),
                         input,
                         weights);
 
@@ -3134,6 +3196,49 @@ TEST_CASE(globalmaxpool_dyn_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.4, 0.9, 0.7};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(maxpool_dyn_pad_test)
+{
+    // Pooling with dynamic input, multidimensional kernel and auto-padding
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s =
+        migraphx::shape{migraphx::shape::float_type, {{1, 1}, {1, 3}, {2, 6, {2}}, {2, 6, {2}}}};
+    auto x = mm->add_parameter("X", s);
+    mm->add_instruction(
+        migraphx::make_op("pooling",
+                          {{"mode", migraphx::op::pooling_mode::average},  //    <====== 
+                          {"dyn_global", false},
+                          // non-default auto padding
+                          {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                          {"lengths", {2, 3}},
+                          }),
+        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4};
+    
+    //  *    1 2 0 0
+    //  *    3 4 0 0      0-padding should look like this 
+    //  *    0 0 0 0
+    //  * 
+    //  *  or this
+    //  * 
+    //  *    0 1 2 0
+    //  *    0 3 4 0
+    //  *    0 0 0 0
+    
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+printf("**** result: ");
+for(auto aa : results_vector) printf(" %f,", aa);printf("\n");
+    std::vector<float> gold{2.5, 1.75, 1.5, 1.};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

@@ -41,15 +41,18 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 
     if(x->get_shape().type() != y_scale->get_shape().type())
     {
-        x = m.insert_instruction(ins, make_op("convert", {{"target_type", scale_type}}), x);
+        x = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", y_scale->get_shape().type()}}), x);
     }
     auto div            = m.insert_instruction(ins, make_op("div"), x, y_scale);
     auto add_zero_point = m.insert_instruction(ins, make_op("round"), div);
 
     if(ins->inputs().size() == 3)
     {
-        auto zero_point = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", scale_type}}), ins->inputs()[2]);
+        auto zero_point =
+            m.insert_instruction(ins,
+                                 make_op("convert", {{"target_type", y_scale->get_shape().type()}}),
+                                 ins->inputs()[2]);
         add_zero_point = m.insert_instruction(ins, make_op("add"), add_zero_point, zero_point);
     }
 
@@ -74,14 +77,15 @@ void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "dequantizelinear");
     auto x_scale = ins->inputs()[1];
-    auto scale_type = x_scale->get_shape().type();
-    auto x = m.insert_instruction(
-        ins, make_op("convert", {{"target_type", scale_type}}), ins->inputs()[0]);
+    auto x       = m.insert_instruction(
+        ins, make_op("convert", {{"target_type", x_scale->get_shape().type()}}), ins->inputs()[0]);
 
     if(ins->inputs().size() == 3)
     {
-        auto x_zero_point = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", scale_type}}), ins->inputs()[2]);
+        auto x_zero_point =
+            m.insert_instruction(ins,
+                                 make_op("convert", {{"target_type", x_scale->get_shape().type()}}),
+                                 ins->inputs()[2]);
         x = m.insert_instruction(ins, make_op("sub"), x, x_zero_point);
     }
 

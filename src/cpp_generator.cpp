@@ -222,7 +222,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                     else if(std::isnan(x))
                         string_literal = "__builtin_nanf()";
                     else
-                        string_literal = std::to_string(x);
+                        string_literal = ins->get_literal().to_string();
                 });
                 return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
             }

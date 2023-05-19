@@ -2251,8 +2251,9 @@ TEST_CASE(reshape_nonstandard_error)
                                                    {4, 24, 1, 1, 1},
                                                    migraphx::invert_permutation({1, 0, 2, 3, 4}));
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{{4, 8, 3, 2, 2},
+                                                             {1},
                                                              {4, 8, 4},
-                                                             {8, 4, 3, 2, 2},
+                                                             {4, 24, 1, 1, 1, 1, 2},
                                                              {8, 4, 4},
                                                              {4, 1, 3, -1, -1},
                                                              {4, 3, 0},

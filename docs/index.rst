@@ -3,18 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to AMD MIGraphX's documentation!
-========================================
+AMD MIGraphX documentation
+==========================
 
-.. toctree::
-   :maxdepth: 3
-   :caption: Contents:
-
-   py_user_guide
-   cpp_user_guide
-   driver
-   developer_guide
-
+AMD MIGraphX is AMD's graph inference engine that accelerates machine learning model inference. 
 
 Indices and tables
 ==================

@@ -146,7 +146,9 @@ jobs:
 
     - name: Run pyflakes
       run: |
-        pyflakes examples/ tools/ src/ test/ doc/
+        pyflakes --version
+        pyflakes examples/ tools/ src/ test/ docs/
+        mypy --version
         mypy tools/api.py
 
   linux:

@@ -32,12 +32,16 @@ struct test_literal_limits : verify_program<test_literal_limits>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto input_s = migraphx::shape(migraphx::shape::float_type, {3, 1});
+        auto* mm          = p.get_main_module();
+        auto input_s      = migraphx::shape(migraphx::shape::float_type, {3, 1});
         auto infinity_val = std::numeric_limits<float>::infinity();
-        std::vector<float> s_data{infinity_val, -infinity_val, std::numeric_limits<float>::quiet_NaN()};
-        auto input = mm->add_literal(migraphx::literal{input_s, s_data});
-        mm->add_instruction(migraphx::make_op("isnan"), input);
+        std::vector<float> s_data{
+            infinity_val, -infinity_val, std::numeric_limits<float>::quiet_NaN()};
+
+        auto input_param = mm->add_parameter("test_input", input_s);
+        auto input       = mm->add_literal(migraphx::literal{input_s, s_data});
+        auto o1          = mm->add_instruction(migraphx::make_op("mul"), input, input_param);
+        mm->add_instruction(migraphx::make_op("isnan"), o1);
         return p;
     }
 };

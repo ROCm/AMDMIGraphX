@@ -224,9 +224,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                     else
                         string_literal = std::to_string(x);
                 });
-                auto s = shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
-
-                return s;
+                return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
             }
             auto s = g(ins, names);
             if(impl->fresult)

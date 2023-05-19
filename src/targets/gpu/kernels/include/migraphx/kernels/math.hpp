@@ -138,7 +138,7 @@ MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, floor, ::hfloor)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, isnan, ::__hisnan)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, log, ::hlog)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, rsqrt, ::hrsqrt)
-// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sqrt, ::hsqrt)
 
 // Use float to compute half overload
@@ -176,7 +176,7 @@ MIGRAPHX_DEVICE_MATH_HALF2(log, ::h2log)
 MIGRAPHX_DEVICE_MATH_HALF2(log10, ::h2log10)
 MIGRAPHX_DEVICE_MATH_HALF2(log2, ::h2log2)
 MIGRAPHX_DEVICE_MATH_HALF2(rsqrt, ::h2rsqrt)
-// MIGRAPHX_DEVICE_MATH_HALF2(sin, ::h2sin)
+MIGRAPHX_DEVICE_MATH_HALF2(sin, ::h2sin)
 MIGRAPHX_DEVICE_MATH_HALF2(sqrt, ::h2sqrt)
 
 template <class T, class U>
@@ -215,14 +215,6 @@ template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any
 constexpr auto min(const T& a, const U& b)
 {
     return min<common_type_t<T, U>>(a, b);
-}
-
-// Sin for half is broken on hip, so use cos instead
-template <class T, MIGRAPHX_REQUIRES(is_same<vec_type<T>, half>{})>
-constexpr T sin(T x)
-{
-    constexpr const T shift = HIP_PIO2_F;
-    return migraphx::cos(shift - x);
 }
 
 MIGRAPHX_DEVICE_MATH_VEC(abs)

@@ -79,20 +79,21 @@ __device__ void dpp_reduce(T& in, Op op)
 #endif
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix)                                                            \
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                                                      \
     __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64); } \
     __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32); }  \
     __device__ inline void dpp_reduce(half& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16); }   \
     __device__ inline void dpp_reduce(int32_t& x, op)                                              \
     {                                                                                              \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32);                                                  \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##sign##32);                                              \
     }                                                                                              \
     __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32); }
 
-MIGRAPHX_DPP_REDUCE(op::sum, v_add)
-MIGRAPHX_DPP_REDUCE(op::max, v_max)
-MIGRAPHX_DPP_REDUCE(op::min, v_min)
-MIGRAPHX_DPP_REDUCE(op::product, v_mul)
+// Note: when max and min are in int32_t, signed version of instruction needs to be used.
+MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
+MIGRAPHX_DPP_REDUCE(op::product, v_mul, _u)
+MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
+MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
 
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
@@ -570,7 +571,7 @@ template <class Algo, class Reduced, class Output, class F>
 __device__ void fused_reduce(Output output, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
-        auto result = f(r);
+        auto result = f(r, out_idx);
         if constexpr(reduce::is_inner_storage<decltype(result)>{})
         {
             r.inner([&](auto& y, auto x) { y = x; })(output, result);

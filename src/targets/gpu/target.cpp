@@ -74,7 +74,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 struct id_pass
@@ -100,16 +99,17 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
+    unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
     // clang-format off
     return
     {
-        enable_pass(options.split_single_dyn_dim, split_single_dyn_dim{}),
-        enable_pass(options.split_single_dyn_dim, dead_code_elimination{}),
+        split_single_dyn_dim{},
+        dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
         simplify_qdq{},
-        rewrite_quantization{},
+        enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
@@ -133,11 +133,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_ck_gemm_softmax_gemm{&ctx},
         dead_code_elimination{},
         optimize_module{},
-        enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
+        fuse_pointwise{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
         dead_code_elimination{},
-        fuse_mlir{&ctx},
+        enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
         fuse_ck{&ctx},
         dead_code_elimination{},

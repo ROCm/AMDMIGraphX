@@ -197,10 +197,14 @@ struct mlir_program
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
             {
-                if(as.is_signed())
-                    result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
-                else
-                    result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
+                // Note: rocMLIR use signless integer type for tensors types. This
+                // will translate to signed implementation for current supported
+                // operations.
+                if(as.is_unsigned())
+                {
+                    MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
+                }
+                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -320,7 +324,8 @@ struct mlir_program
                                      std::string,
                                      value,
                                      std::vector<value>,
-                                     MlirType>;
+                                     MlirType,
+                                     MlirAttribute>;
     using named_attribute_t = std::pair<std::string_view, attribute_t>;
 
     MlirNamedAttribute name_attribute(const named_attribute_t& na) const
@@ -477,13 +482,17 @@ struct mlir_program
     {
         if(ins->name() == "@return")
             return "func.return";
+        if(ins->name() == "@literal")
+        {
+            return "tosa.const";
+        }
         return "migraphx." + ins->name();
     }
 
     static value get_operator_value(const operation& op)
     {
         auto v = op.to_value();
-        if(op.name() == "convolution")
+        if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
             // Adjust symetrical padding
             if(v.at("padding").size() == v.at("stride").size())
@@ -528,11 +537,24 @@ struct mlir_program
         {
             if(ins->name() == "@param")
                 continue;
+            if(ins->name() == "contiguous")
+            {
+                ins_map[ins] = ins_map[ins->inputs().at(0)];
+                continue;
+            }
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
+            if(ins->name() == "@literal")
+            {
+                literal r            = ins->get_literal();
+                MlirType tensor_type = make_tensor(ins->get_shape());
+                MlirAttribute mlir_value_attr =
+                    mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
+                ops.add_attributes({{"value", mlir_value_attr}});
+            }
             if(ins->name() == "convolution" or ins->name() == "dot")
             {
                 pp =
@@ -735,12 +757,13 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
 {
     adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
-    if(trace)
-        std::cout << m << std::endl;
-
     // set mutex while llvm thread support is disabled.
     static std::mutex g_mlirc_mutex; // NOLINT
     const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
+
+    if(trace)
+        std::cout << m << std::endl;
+
     mlir_program mp;
     mp.find_target();
     mp.parse(m);

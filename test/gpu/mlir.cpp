@@ -213,4 +213,37 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(conv_int8_dequantize_quantize)
+{
+    const std::string mlir_output = R"__migraphx__(
+module {
+  func.func @main(%arg0: tensor<2x8x3x3xi8>, %arg1: tensor<1x8x4x4xi8>, %arg2: tensor<1x2x2x2xf32>, %arg3: tensor<1x2x2x2xi32>) -> tensor<1x2x2x2xi32> attributes {arch = "", kernel = "mixr"} {
+      %0 = migraphx.quant_convolution(%arg1, %arg0) {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : (tensor<1x8x4x4xi8>, tensor<2x8x3x3xi8>) -> tensor<1x2x2x2xi32>
+      %1 = migraphx.dequantizelinear(%0, %arg2, %arg3) : (tensor<1x2x2x2xi32>, tensor<1x2x2x2xf32>, tensor<1x2x2x2xi32>) -> tensor<1x2x2x2xf32>
+      %2 = migraphx.quantizelinear(%1, %arg2, %arg3) : (tensor<1x2x2x2xf32>, tensor<1x2x2x2xf32>, tensor<1x2x2x2xi32>) -> tensor<1x2x2x2xi32>
+      return %2 : tensor<1x2x2x2xi32>
+    }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto x    = m.add_parameter("x", {migraphx::shape::int8_type, {1, 8, 4, 4}});
+    auto w    = m.add_parameter("w", {migraphx::shape::int8_type, {2, 8, 3, 3}});
+    auto conv = m.add_instruction(migraphx::make_op("quant_convolution"), x, w);
+    migraphx::shape ss{migraphx::shape::float_type, {1, 2, 2, 2}};
+    migraphx::shape sz{migraphx::shape::int32_type, {1, 2, 2, 2}};
+    auto input2  = m.add_parameter("x_scale", ss);
+    auto input3  = m.add_parameter("x_zero_point", sz);
+    auto dequant = m.add_instruction(migraphx::make_op("dequantizelinear"), conv, input2, input3);
+    auto r       = m.add_instruction(migraphx::make_op("quantizelinear"), dequant, input2, input3);
+
+    m.add_return({r});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    CHECK(encode(s) == encode(mlir_output));
+    EXPECT(verify_mlir(m));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

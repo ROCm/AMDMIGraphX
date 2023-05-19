@@ -40,13 +40,13 @@ namespace op {
 struct run_on_target
 {
 
-    std::string target = "ref";
+    std::size_t target_id = 0;
     std::string name() const { return "run_on_target"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.target, "target"));
+        return pack(f(self.target_id, "target_id"));
     }
 
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs,

@@ -61,7 +61,7 @@ TEST_CASE(eval_run_on_target)
     auto ref_rsqrt = ref_mod->add_instruction(migraphx::make_op("rsqrt"), l);
     ref_mod->add_return({ref_rsqrt});
     auto run_on_ins =
-        mm->add_instruction(migraphx::make_op("run_on_target", {{"target", "ref"}}), {}, {ref_mod});
+        mm->add_instruction(migraphx::make_op("run_on_target", {{"target_id", 0}}), {}, {ref_mod});
     mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_on_ins);
     p.compile({migraphx::make_target("ref")});
     auto result = p.eval({}).back();

@@ -223,14 +223,7 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
 {
     // Gather all the target roots
     std::unordered_multimap<std::size_t, module_ref> roots;
-    std::vector<std::string> target_names(targets.size());
-    std::transform(targets.begin(), targets.end(), target_names.begin(), [](const auto& t) {
-        return t.name();
-    });
-    auto target_idx = [&](const auto& t_name) {
-        return static_cast<std::size_t>(
-            std::find(target_names.begin(), target_names.end(), t_name) - target_names.begin());
-    };
+    std::vector<std::size_t> target_ids(targets.size());
     auto mods = this->get_modules();
     for(auto* mod : mods)
     {
@@ -238,12 +231,11 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
         {
             if(ins.name() != "run_on_target")
                 continue;
-            auto v                       = ins.get_operator().to_value();
-            module_ref root              = ins.module_inputs().front();
-            std::string root_target_name = v.at("target").to<std::string>();
-            assert(contains(target_names, root_target_name));
-            size_t root_target_idx = target_idx(root_target_name);
-            roots.insert({root_target_idx, root});
+            auto v                     = ins.get_operator().to_value();
+            module_ref root            = ins.module_inputs().front();
+            std::size_t root_target_id = v.at("target_id").to<std::size_t>();
+            assert(root_target_id < targets.size());
+            roots.insert({root_target_id, root});
         }
     }
 
@@ -257,11 +249,18 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     // It is assumed that all instructions outside of any root module would run on "ref" target
     // Ref target may or may not be passed as one of the target for the "compile()".
     // If it is not passed, Create one and add context of it into the map.
-    std::size_t ref_target_idx = target_idx("ref");
-    if(ref_target_idx == targets.size())
+    auto target_idx = [&](const std::string& t_name) {
+        return static_cast<std::size_t>(
+            std::find_if(
+                targets.begin(), targets.end(), [&](const auto& t) { return t.name() == t_name; }) -
+            targets.begin());
+    };
+
+    std::size_t ref_target_id = target_idx("ref");
+    if(ref_target_id == targets.size())
     {
         this->impl->contexts.resize(targets.size() + 1);
-        this->impl->contexts[ref_target_idx] = migraphx::make_target("ref").get_context();
+        this->impl->contexts[ref_target_id] = migraphx::make_target("ref").get_context();
         // users could pass lessers compile_ops than targets, in that case use default compile_opts
         compile_opts.resize(targets.size() + 1, migraphx::compile_options{});
     }
@@ -271,20 +270,20 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
         compile_opts.resize(targets.size(), migraphx::compile_options{});
     }
     // mark all the instruction as ref target first, later change target_id based on root-target
-    run_passes(*this, {mark_instruction_target{ref_target_idx}});
+    run_passes(*this, {mark_instruction_target{ref_target_id}});
 
     // Run passes on each root target
     for(const auto& root_target : targets)
     {
-        auto root_target_name                 = root_target.name();
-        auto root_target_idx                  = target_idx(root_target_name);
-        auto root_modules_range               = roots.equal_range(root_target_idx);
-        this->impl->contexts[root_target_idx] = root_target.get_context();
+        auto root_target_name                = root_target.name();
+        auto root_target_id                  = target_idx(root_target_name);
+        auto root_modules_range              = roots.equal_range(root_target_id);
+        this->impl->contexts[root_target_id] = root_target.get_context();
         for(const auto& [id, current_mod] : range(root_modules_range))
         {
-            auto passes = root_target.get_passes(this->impl->contexts[root_target_idx],
-                                                 compile_opts[root_target_idx]);
-            passes.push_back(mark_instruction_target{root_target_idx});
+            auto passes = root_target.get_passes(this->impl->contexts[root_target_id],
+                                                 compile_opts[root_target_id]);
+            passes.push_back(mark_instruction_target{root_target_id});
             run_passes(*this, current_mod, passes, trace);
 
             auto invalid = current_mod->validate();
@@ -301,7 +300,7 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
                 MIGRAPHX_THROW("Dangling reference in module " + current_mod->name() +
                                " from instruction " + std::to_string(index));
             }
-            current_mod->finalize(this->impl->contexts[root_target_idx]);
+            current_mod->finalize(this->impl->contexts[root_target_id]);
         }
     }
 }

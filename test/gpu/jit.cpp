@@ -364,4 +364,69 @@ TEST_CASE(compile_math)
     });
 }
 
+// NOLINTNEXTLINE
+const std::string assert_template = R"__migraphx__(
+#include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/types.hpp>
+using namespace migraphx;
+extern "C" {
+__global__ void kernel(void*) 
+{
+    static_assert(numeric_max<${type}>() == ${max}, "");
+    static_assert(numeric_lowest<${type}>() == ${min}, "");
+}
+}
+
+int main() {}
+
+)__migraphx__";
+
+TEST_CASE(assert_type_min_max)
+{
+    std::vector<std::string> data_types;
+    migraphx::gpu::hip_compile_options options;
+    for(auto&& t : migraphx::shape::types())
+    {
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
+            continue;
+        auto name = migraphx::shape::cpp_type(t);
+        if(t == migraphx::shape::half_type)
+            name.insert(0, "migraphx::");
+
+        migraphx::shape::visit(t, [&](auto as) {
+            std::string min = "";
+            std::string max = "";
+            // Note 9223372036854775808 is a constant literal that is outside the range of long
+            // long type For the same reason, 18446744073709551616 needs postfix ULL to be parsed
+            // correctly
+            if(t == migraphx::shape::int64_type)
+            {
+                min = "(" + std::to_string(as.min() + 1) + "LL - 1)";
+                max = std::to_string(as.max());
+            }
+            else if(t == migraphx::shape::uint64_type)
+            {
+                min = std::to_string(as.min());
+                max = std::to_string(as.max()) + "ULL";
+            }
+            else
+            {
+                min = std::to_string(as.min());
+                max = std::to_string(as.max());
+            }
+
+            auto src = migraphx::interpolate_string(assert_template,
+                                                    {{"type", name}, {"max", max}, {"min", min}});
+            migraphx::shape input{migraphx::shape::float_type, {5, 2}};
+            options.global = 1024;
+            options.local  = 1024;
+            options.inputs = {input};
+            options.output = input;
+            options.params = "-Wno-float-equal";
+
+            auto co = migraphx::gpu::compile_hip_code_object(src, options);
+        });
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

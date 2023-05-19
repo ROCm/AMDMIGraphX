@@ -26,7 +26,6 @@
 
 from rocm_docs import ROCmDocs
 
-html_output_directory = "../_readthedocs/html"
 setting_all_article_info = True
 all_article_info_os = ["linux"]
 

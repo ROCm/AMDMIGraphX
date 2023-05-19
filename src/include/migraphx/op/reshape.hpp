@@ -209,7 +209,6 @@ struct reshape
     {
         check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
-        // auto&& istrides = inputs.front().strides();
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
 
         for(std::size_t i = 0; i < dims.size(); i++)

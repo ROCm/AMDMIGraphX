@@ -122,6 +122,12 @@ struct instance
         params[8] = s;
     }
 
+    void set_e_type(const std::string& s)
+    {
+        //assert(params[9] == "ck::Tuple<>");
+        params[9] = s;
+    }
+
     void set_ds_op(const std::string& s)
     {
         assert(params[12] == "ck_passthrough");
@@ -132,6 +138,23 @@ struct instance
     {
         assert(params[13] == "ck::tensor_operation::device::GemmSpecialization::Default");
         params[13] = s;
+    }
+
+    void set_a_scalar_per_vec(const std::string& s)
+    {
+        params[block_size_index + 14] = s;
+        params[block_size_index + 15] = s;
+    }
+
+    void set_b_scalar_per_vec(const std::string& s)
+    {
+        params[block_size_index + 20] = s;
+        params[block_size_index + 21] = s;
+    }
+
+    void set_c_scalar_per_vec(const std::string& s)
+    {
+        params[params.size() - 3] = s;
     }
 
     std::string str() const { return join_strings(params, ","); }
@@ -175,12 +198,20 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
 {
     static auto tuning = read_tuning(string_value_of(MIGRAPHX_CK_TUNING{}, ""));
     if(tuning.empty())
-        std::cout << "*********** Warning: No CK tuning!" << std::endl;
+    {
+        std::cout << "*********** Warning: No CK tuning! for config:" << std::endl;
+        std::cout << "  " << inputs[0] << std::endl;
+        std::cout << "  " << inputs[1] << std::endl;
+        std::cout << "  " << inputs[2] << std::endl;
+    }
     auto it = std::find_if(
         tuning.begin(), tuning.end(), [&](const auto& p) { return p.first == inputs; });
     if(it == tuning.end())
     {
         std::cout << "*********** Warning: CK tuning missing for config!" << std::endl;
+        std::cout << "  " << inputs[0] << std::endl;
+        std::cout << "  " << inputs[1] << std::endl;
+        std::cout << "  " << inputs[2] << std::endl;
         std::vector<std::pair<float, std::size_t>> w;
         std::transform(tuning.begin(), tuning.end(), std::back_inserter(w), [&](const auto& p) {
             if(inputs.size() < 3 or p.first.size() < 3)
@@ -274,7 +305,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         s       = shape{s.type(), {m1, m2}};
     }
 
-    std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
+    std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm", "ck_gemm_int8", "gpu::ck_gemm_int8"}; }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
@@ -293,11 +324,27 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto k           = a_shape.lens().back();
         std::array<char, 3> keys{'M', 'N', 'K'};
         std::array<std::size_t, 3> config{m, n, k};
-        auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape}));
+        auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape.with_type(a_shape.type())}));
         auto ip         = instance{get_instance(tuning_val, [&](const auto& x) -> bool {
+            // if (not (get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
+            //        get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
+            //        get_type(b_shape) == x[5] and get_type(c_shape) == x[9]))
+            // {
+            //     std::cout << get_layout(a_shape) << " - " << x[0] <<std::endl;
+            //     std::cout << get_layout(b_shape) << " - " << x[1] <<std::endl;
+            //     std::cout << get_layout(c_shape) << " - " << x[3] <<std::endl;
+            //     std::cout << get_type(a_shape) << " - " << x[4] <<std::endl;
+            //     std::cout << get_type(b_shape) << " - " << x[5] <<std::endl;
+            //     std::cout << get_type(c_shape) << " - " << x[9] <<std::endl;
+            // }
+            
+
+            /* return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
+                   get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
+                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9]; */
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
-                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9];
+                   get_type(b_shape) == x[5];
         })};
         assert(inputs.size() < 4 or v.contains("post"));
         if(v.contains("post"))
@@ -305,7 +352,18 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             ip.set_ds_layout(ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_layout));
             ip.set_ds_type(ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_type));
             ip.set_ds_op(v.at("post").to<std::string>());
+            
         }
+        ip.set_e_type(get_type(c_shape));
+        if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "ck::half_t"; }))
+        {
+            ip.set_c_scalar_per_vec("8");
+        }
+        if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "float"; }))
+        {
+            ip.set_c_scalar_per_vec("4");
+        }
+            
 
         auto padding = ip.get_pad(config);
         std::string gemm_type;
@@ -349,7 +407,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
-
+        // std::cout << options.kernel_name << ": " << std::endl;
         return compile_hip_code_object(src, options);
     }
 
@@ -370,7 +428,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         return action_decorate(replace(compile_op(ctx, shapes, v)), [=] {
             if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
             {
-                std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};
+                std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back().with_type(shapes[0].type())};
                 std::cout << "ck_gemm: " << to_json_string(to_value(gemm_shapes)) << std::endl;
             }
         });

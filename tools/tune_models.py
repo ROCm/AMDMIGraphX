@@ -30,21 +30,26 @@ def parse_args():
         type=str,
         help=
         'Existing tuning JSON. Configs already present will not be re-tuned.')
+    parser.add_argument("-q", "--quantize_int8", action="store_true")
     args = parser.parse_args()
     return args
 
 
-def tune_models(models, batch_sizes, seq_len, n, existing):
+def tune_models(models, batch_sizes, seq_len, n, existing, q_int8):
     time_stamp = time.strftime("%Y_%m_%d_%H_%M")
     log_file = "ck_tuning_{}.log".format(time_stamp)
     json_file = "ck_tuning_{}.json".format(time_stamp)
+    prec_str = "--int8" if q_int8 else ""
     for model in models:
         for batch in batch_sizes:
-            params = "--input-dim @sample {} 4 64 64 @timestep 1 @encoder_hidden_states {} 64 1024 --fp16 ".format(
-                batch, batch)
+            params = "--input-dim @sample {} 4 64 64 @timestep 1 @encoder_hidden_states {} 64 1024 --fp16 {} ".format(
+                batch, batch, prec_str)
             if "bert" in model:
-                params = "--fill1 input_ids --input-dim @input_ids {} {} ".format(
-                    batch, seq_len)
+                params = "{} --fp16 --fill1 input_ids --input-dim @input_ids {} {} ".format(
+                    prec_str, batch, seq_len)
+            if "squad" in model:
+                params = "--fill1 input_ids:0 unique_ids_raw_output___9:0 input_mask:0 segment_ids:0 --input-dim @input_ids:0 {} 256 @input_mask:0 {} 256 @segment_ids:0 {} 256 --fp16 {}".format(
+                    batch, batch, batch, prec_str)
             out = subprocess.run(
                 'MIGRAPHX_LOG_CK_GEMM=1 ../build/bin/driver run {} -g {} | grep \'ck_gemm.*: \[{{\' | sort -u >> {}'
                 .format(model, params, log_file),
@@ -96,7 +101,7 @@ def tune_models(models, batch_sizes, seq_len, n, existing):
 
 def run(args):
     tune_models(args.models, args.batch_sizes, args.sequence_length, args.n,
-                args.update)
+                args.update, args.quantize_int8)
 
 
 run(parse_args())

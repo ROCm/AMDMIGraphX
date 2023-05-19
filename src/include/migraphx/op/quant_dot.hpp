@@ -73,7 +73,7 @@ struct quant_dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        return {shape::int32_type, out_lens};
+        return {shape::int8_type, out_lens};
     }
 };
 

@@ -37,10 +37,11 @@ void apply_quantizelinear(module& m, instruction_ref ins)
     assert(ins->name() == "quantizelinear");
     auto x       = ins->inputs()[0];
     auto y_scale = ins->inputs()[1];
+    auto scale_type = y_scale->get_shape().type();
 
     if(x->get_shape().type() != y_scale->get_shape().type())
     {
-        x = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), x);
+        x = m.insert_instruction(ins, make_op("convert", {{"target_type", scale_type}}), x);
     }
     auto div            = m.insert_instruction(ins, make_op("div"), x, y_scale);
     auto add_zero_point = m.insert_instruction(ins, make_op("round"), div);
@@ -48,7 +49,7 @@ void apply_quantizelinear(module& m, instruction_ref ins)
     if(ins->inputs().size() == 3)
     {
         auto zero_point = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
+            ins, make_op("convert", {{"target_type", scale_type}}), ins->inputs()[2]);
         add_zero_point = m.insert_instruction(ins, make_op("add"), add_zero_point, zero_point);
     }
 
@@ -72,14 +73,15 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "dequantizelinear");
-    auto x = m.insert_instruction(
-        ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[0]);
     auto x_scale = ins->inputs()[1];
+    auto scale_type = x_scale->get_shape().type();
+    auto x = m.insert_instruction(
+        ins, make_op("convert", {{"target_type", scale_type}}), ins->inputs()[0]);
 
     if(ins->inputs().size() == 3)
     {
         auto x_zero_point = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
+            ins, make_op("convert", {{"target_type", scale_type}}), ins->inputs()[2]);
         x = m.insert_instruction(ins, make_op("sub"), x, x_zero_point);
     }
 
@@ -100,6 +102,8 @@ void rewrite_quantization::apply(module& m) const
             apply_dequantizelinear(m, ins);
         }
     }
+    // std::cout << "after rwq: " << std::endl;
+    // m.debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -53,11 +53,11 @@ Average total time is also provided. There are three files provided for referenc
 
 An example output:
 
-.. image:: ./roctx1.jpg
+.. image:: ../data/roctx1.jpg
 
 Hotspot kerel timing information:
 
-.. image:: ./roctx2.jpg
+.. image:: ../data/roctx2.jpg
 
 **Parsing an already existing JSON file:**
 ::

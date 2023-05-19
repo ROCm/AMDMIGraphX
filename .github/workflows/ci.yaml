@@ -145,7 +145,25 @@ jobs:
       run: pip install pyflakes==2.3.1
 
     - name: Run pyflakes
-      run: pyflakes examples/ tools/ src/ test/ doc/
+      run: |
+        pyflakes --version
+        pyflakes examples/ tools/ src/ test/ docs/
+        mypy --version
+        mypy tools/api.py
+
+  licensing:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.8
+    - name: run License Check
+      run: python3 tools/check_stamped.py
 
   linux:
 

@@ -30,6 +30,7 @@
 #include <array>
 #include <algorithm>
 #include <numeric>
+#include <migraphx/verify.hpp>
 #include "test.hpp"
 
 TEST_CASE(test_shape_default)
@@ -198,6 +199,20 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((d - 2) == e);
     EXPECT((e + 2) == d);
     EXPECT((2 + e) == d);
+}
+
+TEST_CASE(dynamic_dimension_serialize)
+{
+    using migraphx::shape;
+    auto a  = shape::dynamic_dimension{2, 5, {2, 3}};
+    auto b  = shape::dynamic_dimension{3, 6, {3}};
+    auto v1 = migraphx::to_value(a);
+    auto v2 = migraphx::to_value(b);
+    EXPECT(v1 != v2);
+    auto c = migraphx::from_value<shape::dynamic_dimension>(v1);
+    EXPECT(a == c);
+    auto d = migraphx::from_value<shape::dynamic_dimension>(v2);
+    EXPECT(b == d);
 }
 
 TEST_CASE(test_shape_dynamic_errors)
@@ -927,6 +942,18 @@ TEST_CASE(test_with_type)
     EXPECT(s.type() != new_s.type());
     EXPECT(s.lens() == new_s.lens());
     EXPECT(s.strides() == new_s.strides());
+}
+
+TEST_CASE(test_multi_index)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4, 6}};
+    EXPECT(migraphx::verify_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
+    EXPECT(migraphx::verify_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
+    EXPECT(migraphx::verify_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
+    EXPECT(migraphx::verify_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
+    EXPECT(migraphx::verify_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
+    EXPECT(migraphx::verify_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
+    EXPECT(migraphx::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

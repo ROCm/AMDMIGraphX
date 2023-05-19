@@ -23,14 +23,19 @@ jobs:
     steps:
     - name: Free space
       run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: jpribyl/action-docker-layer-caching@v0.1.1
+    - name: Docker layer cache
+      uses: jpribyl/action-docker-layer-caching@v0.1.1
+      with:
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+        restore-keys:
+          docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -43,7 +48,8 @@ jobs:
         restore-keys: tidy-cache-
         
     - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+      run: |
+        docker build . --file hip-clang.docker --tag migraphx
 
     - name: Clang tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
@@ -85,13 +91,19 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: jpribyl/action-docker-layer-caching@v0.1.1
+    - name: Docker layer cache
+      uses: jpribyl/action-docker-layer-caching@v0.1.1
+      with:
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+        restore-keys:
+          docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -142,13 +154,19 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    - uses: jpribyl/action-docker-layer-caching@v0.1.1
+    - name: Docker layer cache
+      uses: jpribyl/action-docker-layer-caching@v0.1.1
+      with:
+        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+        restore-keys:
+          docker-layer-caching-migraphx-
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
@@ -178,7 +196,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -199,7 +218,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -231,7 +251,7 @@ jobs:
     steps:
     - name: Free space and install rbuild, lld
       run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
         sudo apt-get install -y lld
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
@@ -337,7 +357,8 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      run: |
+        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4

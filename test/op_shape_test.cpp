@@ -2208,13 +2208,14 @@ TEST_CASE(reshape_shape)
     }
 }
 
-TEST_CASE(reshape_nonstandard_unsqueeze)
+TEST_CASE(reshape_nonstandard)
 {
     auto input = migraphx::shape::from_permutation(migraphx::version_1::shape::float_type,
                                                    {4, 24, 1, 1, 1},
                                                    migraphx::invert_permutation({1, 0, 2, 3, 4}));
     std::vector<std::pair<std::vector<std::size_t>, std::vector<int64_t>>> tests{
         {{4, 24}, {1, 0}},
+        {{4, 24, 1, 1, 1, 1}, {1, 0, 2, 3, 4, 5}},
         {{4, 8, 3, 1, 1}, {2, 0, 1, 3, 4}},
         {{4, 1, 3, 4, 2}, {4, 0, 1, 2, 3}},
         {{4, 1, 4, 3, 2}, {4, 0, 1, 2, 3}},

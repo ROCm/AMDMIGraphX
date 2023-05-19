@@ -2214,6 +2214,7 @@ TEST_CASE(reshape_nonstandard_unsqueeze)
                                                    {4, 24, 1, 1, 1},
                                                    migraphx::invert_permutation({1, 0, 2, 3, 4}));
     std::vector<std::pair<std::vector<std::size_t>, std::vector<int64_t>>> tests{
+        {{4, 24}, {1, 0}},
         {{4, 8, 3, 1, 1}, {2, 0, 1, 3, 4}},
         {{4, 1, 3, 4, 2}, {4, 0, 1, 2, 3}},
         {{4, 1, 4, 3, 2}, {4, 0, 1, 2, 3}},

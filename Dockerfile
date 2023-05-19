@@ -65,7 +65,7 @@ RUN test -f /usr/local/hash || exit 1
 RUN pip3 install yapf==0.28.0
 
 # Install doc requirements
-ADD doc/requirements.txt /doc-requirements.txt
+ADD docs/.sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Download real models to run onnx unit tests
@@ -100,4 +100,3 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
-

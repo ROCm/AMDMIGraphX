@@ -35,8 +35,7 @@ namespace onnx {
 
 struct parse_randomuniform_ops : op_parser<parse_randomuniform_ops>
 {
-    const std::set<shape::type_t> valid_types = {
-        shape::float_type, shape::half_type, shape::double_type};
+    std::set<shape::type_t> valid_types = {shape::float_type, shape::half_type, shape::double_type};
 
     std::vector<op_desc> operators() const { return {{"RandomUniform"}, {"RandomUniformLike"}}; }
 

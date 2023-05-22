@@ -106,6 +106,11 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
     return *this;
 }
 
+cpp_generator::function& cpp_generator::function::unused_param(const std::string& pname)
+{
+    body.insert(0, "(void)" + pname + ";\n");
+    return *this;
+}
 cpp_generator::function& cpp_generator::function::add_generic_param(const std::string& pname)
 {
     params.push_back({pname, "T" + pname});
@@ -174,6 +179,8 @@ std::string cpp_generator::generate_point_op(const operation& op,
         else if(with_char(::isdigit)(key[0]))
         {
             auto i = std::stoul(key);
+            if(i >= args.size())
+                MIGRAPHX_THROW("Invalid argument index: " + key);
             return args.at(i);
         }
         else if(v.contains(key))

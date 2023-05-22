@@ -38,6 +38,27 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR);
 
+bool mlir_enabled()
+{
+#ifdef MIGRAPHX_MLIR
+    const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
+    if(mlir_enabled)
+    {
+        return true;
+    }
+    else
+    {
+
+        std::cerr << "WARNING: MIGraphX built with MLIR but it is not enabled. Please set the env "
+                     "var MIGRAPHX_ENABLE_MLIR to use MLIR kernel generator."
+                  << std::endl;
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
 #ifdef MIGRAPHX_MLIR
 
 struct mlir_op
@@ -58,8 +79,41 @@ struct mlir_op
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
-        auto n = inputs.size();
-        return op.compute_shape({inputs[n - 2], inputs[n - 1]});
+
+        module_ref mod = mods[0];
+        auto type      = mod->get_output_shapes().front().type();
+        std::unordered_map<instruction_ref, shape> ins_shapes;
+        size_t param_cnt               = 0;
+        std::vector<std::string> names = mod->get_parameter_names();
+        std::sort(names.begin(), names.end());
+        for(std::string param_name : names)
+        {
+            ins_shapes[mod->get_parameter(param_name)] = inputs[param_cnt++];
+        }
+        for(auto ins : iterator_for(*mod))
+        {
+            if(ins->name() == "@param")
+            {
+                continue;
+            }
+            if(ins->name() == "@literal")
+            {
+                ins_shapes[ins] = ins->get_shape();
+                continue;
+            }
+            if(ins->name() == "@return")
+            {
+                return ins_shapes[ins->inputs().at(0)].with_type(type);
+            }
+            std::vector<shape> input_shapes;
+            input_shapes.resize(ins->inputs().size());
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           input_shapes.begin(),
+                           [&](auto in) { return ins_shapes[in]; });
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+        }
+        MIGRAPHX_THROW("No return found in the submodule");
     }
 };
 MIGRAPHX_REGISTER_OP(mlir_op);
@@ -68,7 +122,7 @@ namespace {
 
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
-    if(ins->name() != "convolution")
+    if(ins->name() != "convolution" and ins->name() != "quant_convolution")
         return false;
     value v    = ins->get_operator().to_value();
     auto group = v.at("group").to<int>();
@@ -89,6 +143,53 @@ struct find_mlir_op
         return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
+    std::unordered_map<instruction_ref, instruction_ref>
+    create_param_map_with_literals(module_ref mm, const module* pm, const shape& shape) const
+    {
+        std::unordered_map<instruction_ref, instruction_ref> ins_map;
+        for(auto ins : iterator_for(*pm))
+        {
+            if(ins->name() != "@literal")
+            {
+                continue;
+            }
+            literal r               = ins->get_literal();
+            instruction_ref literal = mm->add_literal(r);
+            instruction_ref mbcast  = mm->add_instruction(
+                make_op("multibroadcast", {{"out_lens", shape.lens()}}), literal);
+            ins_map[ins] = mbcast;
+        }
+        return ins_map;
+    }
+
+    std::tuple<instruction_ref, std::vector<instruction_ref>>
+    fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op) const
+    {
+        std::vector<instruction_ref> top_inputs;
+        std::vector<instruction_ref> imm_inputs;
+        size_t input_cnt = 0;
+        for(instruction_ref input : gemm_based_op->inputs())
+        {
+            std::vector<operation> op_stream;
+            while(contains({"slice", "transpose", "contiguous", "reshape"}, input->name()))
+            {
+                op_stream.push_back(input->get_operator());
+                input = input->inputs().at(0);
+            }
+            top_inputs.push_back(input);
+            instruction_ref prev_input =
+                mm->add_parameter("y" + std::to_string(input_cnt++), input->get_shape());
+            for(const auto& op : reverse(op_stream))
+            {
+                prev_input = mm->add_instruction(op, {prev_input});
+            }
+            imm_inputs.push_back(prev_input);
+        }
+        instruction_ref new_gemm_based_op =
+            mm->add_instruction(gemm_based_op->get_operator(), imm_inputs);
+        return {new_gemm_based_op, top_inputs};
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins           = r.result;
@@ -98,33 +199,42 @@ struct find_mlir_op
         auto names         = pm->get_parameter_names();
         // Whitelist pointwise operators
         if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
-               return not contains(
-                   {"@literal", "@param", "@return", "convolution", "dot", "add", "relu"},
-                   i.name());
+               return not contains({"@literal",
+                                    "@param",
+                                    "@return",
+                                    "convolution",
+                                    "quant_convolution",
+                                    "dot",
+                                    "add",
+                                    "relu",
+                                    "dequantizelinear",
+                                    "quantizelinear",
+                                    "mul"},
+                                   i.name());
            }))
             return;
-        // Only fuse with fp32/fp16
+        // Only fuse with fp32/fp16/int8/int32
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-               return not contains({shape::type_t::float_type, shape::type_t::half_type},
+               return not contains({shape::type_t::float_type,
+                                    shape::type_t::half_type,
+                                    shape::type_t::int8_type,
+                                    shape::type_t::int32_type},
                                    i->get_shape().type());
            }))
             return;
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        std::unordered_map<instruction_ref, instruction_ref> param_map;
-        auto x    = mm->add_parameter("x" + std::to_string(names.size()),
-                                   gemm_based_op->inputs().at(0)->get_shape());
-        auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
-                                   gemm_based_op->inputs().at(1)->get_shape());
-        auto conv = mm->add_instruction(gemm_based_op->get_operator(), {x, w});
+        std::unordered_map<instruction_ref, instruction_ref> param_map =
+            create_param_map_with_literals(mm, pm, gemm_based_op->get_shape());
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm_based_op);
         std::transform(names.begin(),
                        names.end(),
                        ins->inputs().begin(),
                        std::inserter(param_map, param_map.end()),
-                       [&](auto name, auto input) {
+                       [&, &anchor_op = anchor_op](auto name, auto input) {
                            if(input == x_ins)
-                               return std::make_pair(pm->get_parameter(name), conv);
+                               return std::make_pair(pm->get_parameter(name), anchor_op);
                            return std::make_pair(pm->get_parameter(name),
                                                  mm->add_parameter(name, input->get_shape()));
                        });
@@ -135,7 +245,7 @@ struct find_mlir_op
                      ins->inputs().end(),
                      std::back_inserter(inputs),
                      [&](auto input) { return input != gemm_based_op; });
-        inputs.insert(inputs.end(), gemm_based_op->inputs().begin(), gemm_based_op->inputs().end());
+        inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
@@ -148,17 +258,7 @@ struct find_mlir_op
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
-    if(mlir_enabled)
-    {
-        match::find_matches(mpm, find_mlir_op{});
-    }
-    else
-    {
-        std::cerr << "WARNING: MIGraphX built with MLIR but it is not enabled. Please set the env "
-                     "var MIGRAPHX_ENABLE_MLIR to use MLIR kernel generator."
-                  << std::endl;
-    }
+    match::find_matches(mpm, find_mlir_op{});
 #else
     (void)mpm;
 #endif

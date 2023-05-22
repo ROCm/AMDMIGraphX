@@ -33,7 +33,7 @@ migraphx::shape x_model::get_shape() const { return shape; };
 
 void x_model::set_shape(migraphx::shape s) { shape = s; }
 
-x_model create_xmodel(const migraphx::module_ref mod)
+x_model create_xmodel(migraphx::const_module_ref mod)
 {
     std::cout << "Calling an external function: create_xmodel!\n";
     x_model xmodel;

@@ -152,6 +152,8 @@ if(CLANG_TIDY_EXE)
             -clang-diagnostic-extern-c-compat
             -clang-diagnostic-disabled-macro-expansion
             -clang-diagnostic-unused-command-line-argument
+            -cppcoreguidelines-avoid-do-while
+            -cppcoreguidelines-avoid-const-or-ref-data-members
             -cppcoreguidelines-explicit-virtual-functions
             -cppcoreguidelines-init-variables
             -cppcoreguidelines-pro-bounds-array-to-pointer-decay
@@ -199,7 +201,6 @@ if(CLANG_TIDY_EXE)
         EXTRA_ARGS
             -UNDEBUG
             -DMIGRAPHX_USE_CLANG_TIDY
-            "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
         CLANG_ARGS
             -analyzer-max-loop 10
             -analyzer-inline-max-stack-depth 10
@@ -271,7 +272,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 add_subdirectory(src)
-add_subdirectory(doc)
+add_subdirectory(docs)
 if(BUILD_TESTING)
     add_subdirectory(test)
 endif()

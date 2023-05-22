@@ -32,11 +32,17 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/compile_src.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/functional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+#ifdef MIGRAPHX_USE_HIPRTC
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS);
+#endif
 
 struct hiprtc_src_file
 {

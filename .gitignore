@@ -48,6 +48,8 @@
 
 /CMakeSettings.json
 
+# documentation artifacts
+_toc.yml
 
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
@@ -62,6 +64,16 @@ test/onnx/models
 .vscode
 .vs
 
-# Jetbrains IDEs
+# JetBrains IDEs
 .idea/
+cmake-build*/
 build*/
+
+# documentation artifacts
+docs/_build
+docs/_images
+docs/_static
+docs/_templates
+docs/.doxygen/docBin
+docs/_doxygen
+/_readthedocs

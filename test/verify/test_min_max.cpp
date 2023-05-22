@@ -22,31 +22,31 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_FPGA_VITIS_AI_ADAPTER_HPP
-#define MIGRAPHX_GUARD_FPGA_VITIS_AI_ADAPTER_HPP
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/max.hpp>
+#include <migraphx/op/min.hpp>
 
-#include <string>
-
-#include <migraphx/instruction.hpp>
-#include <migraphx/pass_manager.hpp>
-
-namespace vitis_ai {
-
-class x_model
+template <class Op, migraphx::shape::type_t T>
+struct test_min_max : verify_program<test_min_max<Op, T>>
 {
-    migraphx::shape shape;
-
-    public:
-    migraphx::shape get_shape() const;
-    void set_shape(migraphx::shape);
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{T, {128}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        mm->add_instruction(Op{}, x, y);
+        return p;
+    }
 };
 
-x_model create_xmodel(migraphx::const_module_ref mod);
+template struct test_min_max<migraphx::op::max, migraphx::shape::float_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::double_type>;
 
-migraphx::argument execute(const x_model& xmodel,
-                           const migraphx::shape& output_shape,
-                           std::vector<migraphx::argument>& args);
-
-} // namespace vitis_ai
-
-#endif // MIGRAPHX_GUARD_FPGA_VITIS_AI_ADAPTER_HPP
+template struct test_min_max<migraphx::op::min, migraphx::shape::float_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::double_type>;

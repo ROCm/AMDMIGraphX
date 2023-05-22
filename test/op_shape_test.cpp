@@ -2208,7 +2208,6 @@ TEST_CASE(reshape_shape)
     }
 }
 
-
 // This uses the permutation to compute the reshape since its simpler than
 // trying to calculate strides. As we collapse or expand dimensions, we
 // remove the collapsed dimensions or duplicate the expanded dimensions in
@@ -2245,9 +2244,8 @@ TEST_CASE(reshape_nonstandard)
 
 TEST_CASE(reshape_nonstandard_squeeze)
 {
-    auto input = migraphx::shape::from_permutation(migraphx::shape::float_type,
-                                                   {2, 16, 16, 1280},
-                                                   migraphx::invert_permutation({0, 2, 3, 1}));
+    auto input = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {2, 16, 16, 1280}, migraphx::invert_permutation({0, 2, 3, 1}));
     std::vector<std::size_t> lens = {2, 256, 1280};
     migraphx::shape output        = migraphx::shape::from_permutation(
         migraphx::shape::float_type, lens, migraphx::invert_permutation({0, 2, 1}));

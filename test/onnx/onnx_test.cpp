@@ -292,18 +292,24 @@ TEST_CASE(averagepool_3d_test)
 
 TEST_CASE(averagepool_dyn_test)
 {
+    // Pooling with dynamic input and auto padding
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter(
         "0", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}, {5, 5}}});
-    auto ret = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"stride", {2, 2, 2}},
-                                                      {"lengths", {3, 3, 3}},
-{"padding", {1, 2, 3, 4, 5}},                                                      
-                                                      {"padding_mode", 0},                                                      
-                                                      }),
-                                   l0);
+    auto ret = mm->add_instruction(
+        migraphx::make_op(
+            "pooling",
+            {
+                {"mode", migraphx::op::pooling_mode::average},
+                {"stride", {2, 2, 2}},
+                {"lengths", {3, 3, 3}},
+                // TODO: explicit padding is not used in auto padding scenario, but it won't
+                // default to the value the parser adds (all 0's vs all 1's).  Is this a problem?
+                {"padding", {1, 1, 1, 1, 1, 1}},
+                {"padding_mode", 2},
+            }),
+        l0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

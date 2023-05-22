@@ -26,7 +26,7 @@
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
-
+#include <migraphx/op/common.hpp>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -169,17 +169,20 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
         auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
         auto padding_size  = padding.size();
         auto padding_start = 2;
-
-        if(padding_size == 2 * (lens.size() - padding_start))
-            tuned = true;
-        else if(padding_size != (lens.size() - padding_start))
-            MIGRAPHX_THROW("inconsistent padding size");
-        else
+        bool use_auto_padding = (val.contains("padding_mode") && (val.at("padding_mode").to<int>() != migraphx::op::padding_mode_t::default_));
+        if(!use_auto_padding)
         {
-            auto result    = tune_pad_attribute(padding);
-            val["padding"] = result;
-            op.from_value(val);
-            tuned = true;
+            if(padding_size == 2 * (lens.size() - padding_start))
+                tuned = true;
+            else if(padding_size != (lens.size() - padding_start))
+                MIGRAPHX_THROW("inconsistent padding size");
+            else
+            {
+                auto result    = tune_pad_attribute(padding);
+                val["padding"] = result;
+                op.from_value(val);
+                tuned = true;
+            }
         }
     }
     if(not attrs.contains("normalize_axes"))

@@ -150,23 +150,27 @@ struct parse_pooling : op_parser<parse_pooling>
             check_attr_sizes(
                 kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
         }
-                auto foo = info.attributes.at("auto_pad").s();
 
-        if(contains(info.attributes, "auto_pad") and to_upper(info.attributes.at("auto_pad").s()) != "NOTSET")
+        if(contains(info.attributes, "auto_pad") and
+           to_upper(info.attributes["auto_pad"].s()) != "NOTSET")
         {
+            auto auto_pad = to_upper(info.attributes["auto_pad"].s());
             // don't use the given padding sizes, if any
             values["padding"].clear();
             if(in_shape.dynamic())
             {
                 // return paddings could be empty, then setting to 0 for no padding
+                // dilations (argument 4) not supported; default to all 1's
                 cal_auto_padding_size(info,
                                       values,
                                       values["lengths"].to_vector<std::size_t>(),
-                                      {1, 1},
-                                      in_shape.lens(),
+                                      std::vector<size_t>(in_shape.ndim() - 2, 1),
+                                      in_shape.max_lens(),
                                       paddings);
-std::cout << "padding "; for(auto aa : paddings)  std::cout << aa << ", ";std::cout << "\n";                                     
-                values["padding_mode"] = info.attributes.at("auto_pad").i();
+
+                bool is_same_upper     = (auto_pad.find("SAME_UPPER") != std::string::npos);
+                values["padding_mode"] = is_same_upper ? to_value(op::padding_mode_t::same_upper)
+                                                       : to_value(op::padding_mode_t::same_lower);
             }
             else
             {
@@ -174,7 +178,7 @@ std::cout << "padding "; for(auto aa : paddings)  std::cout << aa << ", ";std::c
                 cal_auto_padding_size(info,
                                       values,
                                       values["lengths"].to_vector<std::size_t>(),
-                                      {1, 1},
+                                      std::vector<size_t>(in_shape.ndim() - 2, 1),
                                       in_shape.lens(),
                                       paddings);
                 // default padding mode indicates that padding values are not calculated dynamically

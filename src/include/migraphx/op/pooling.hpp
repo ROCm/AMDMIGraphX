@@ -98,7 +98,7 @@ struct pooling
 
     void check_attribute_size() const
     {
-        if((padding.size() != stride.size() and (padding.size()) != stride.size() * 2) or
+        if  ((padding_mode == default_ and padding.size() != stride.size() and (padding.size()) != stride.size() * 2) or
            (not dyn_global and stride.size() != lengths.size()))
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");

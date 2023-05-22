@@ -2208,6 +2208,15 @@ TEST_CASE(reshape_shape)
     }
 }
 
+
+// This uses the permutation to compute the reshape since its simpler than
+// trying to calculate strides. As we collapse or expand dimensions, we
+// remove the collapsed dimensions or duplicate the expanded dimensions in
+// the permutation. Then we renumber the permutation. So for dimensions of 4,
+// 24, 1, 1, 1 with a permutation of 1, 0, 2, 3, 4 that reshapes to 4, 1, 3,
+// 4, 2, we first remove the collapsed dimensions or duplicate the expanded
+// dimensions which gives 1, 0, 0, 0, 0. Then after renumbering we get a
+// final permutation of 4, 0, 1, 2, 3.
 TEST_CASE(reshape_nonstandard)
 {
     auto input = migraphx::shape::from_permutation(migraphx::shape::float_type,

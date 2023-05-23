@@ -215,12 +215,12 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                     auto x = v.front();
                     if(std::isinf(x))
                     {
-                        string_literal = "__builtin_huge_valf()";
+                        string_literal = "__builtin_huge_val()";
                         if(x < 0)
-                            string_literal = "-__builtin_huge_valf()";
+                            string_literal = "-__builtin_huge_val()";
                     }
                     else if(std::isnan(x))
-                        string_literal = "__builtin_nanf()";
+                        string_literal = "__builtin_nan()";
                     else
                         string_literal = ins->get_literal().to_string();
                 });

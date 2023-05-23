@@ -188,7 +188,7 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::min)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
-// Add overloads for half that calls the float version, this should use "hmax" and "hmin" once 
+// Add overloads for half that calls the float version, this should use "hmax" and "hmin" once
 // perf CI docker is upgraded to rocm-5.5
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::fminf)

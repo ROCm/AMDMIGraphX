@@ -151,12 +151,38 @@ struct parse_pooling : op_parser<parse_pooling>
                 kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
         }
 
+        if(paddings.size() != 2 * kdims)
+        {
+if(paddings.size() == kdims)
+printf("Isnt %lu good enough?\n", paddings.size());
+            paddings.resize(kdims * 2);
+            std::fill_n(paddings.begin(), 2 * kdims, 0);
+        }
+
+        if(values["padding"].size() != kdims)
+        {
+printf("swapping %lu for %lu\n", values["padding"].size(), kdims)            ;
+            values["padding"].resize(kdims);
+            std::fill_n(values["padding"].begin(), kdims, 0);
+        }
+
+        if(values["stride"].size() != kdims)
+        {
+            values["stride"].resize(kdims);
+            std::fill_n(values["stride"].begin(), kdims, 1);
+        }
+
+        // used to calculate the supposed output shape
+        std::vector<int64_t> orig_padding = paddings;
+
+        // TODO:  add parsing for dilations
+
         if(contains(info.attributes, "auto_pad") and
            to_upper(info.attributes["auto_pad"].s()) != "NOTSET")
         {
             auto auto_pad = to_upper(info.attributes["auto_pad"].s());
             // don't use the given padding sizes, if any
-            values["padding"].clear();
+            // values["padding"].clear();
             if(in_shape.dynamic())
             {
                 // return paddings could be empty, then setting to 0 for no padding
@@ -181,31 +207,11 @@ struct parse_pooling : op_parser<parse_pooling>
                                       std::vector<size_t>(in_shape.ndim() - 2, 1),
                                       in_shape.lens(),
                                       paddings);
-                // default padding mode indicates that padding values are not calculated dynamically
+                values["padding"] = paddings;
+                // default padding mode indicates that padding sizes are not calculated dynamically
                 values["padding_mode"] = migraphx::op::padding_mode_t::default_;
             }
         }
-
-        if(paddings.size() != 2 * kdims)
-        {
-            paddings.resize(kdims * 2);
-            std::fill_n(paddings.begin(), 2 * kdims, 0);
-        }
-
-        if(values["padding"].size() != kdims)
-        {
-            values["padding"].resize(kdims);
-            std::fill_n(values["padding"].begin(), kdims, 0);
-        }
-
-        if(values["stride"].size() != kdims)
-        {
-            values["stride"].resize(kdims);
-            std::fill_n(values["stride"].begin(), kdims, 1);
-        }
-
-        // used to calculate the supposed output shape
-        std::vector<int64_t> orig_padding = paddings;
 
         std::vector<int64_t> slice_start;
         std::vector<int64_t> slice_end;
@@ -223,9 +229,21 @@ struct parse_pooling : op_parser<parse_pooling>
             orig_padding.insert(orig_padding.begin(), 2, 0);
             op::pad pad{orig_padding, 0.0f};
             shape padded_shape = pad.compute_shape({l0->get_shape()});
-            auto out_lens      = make_op("pooling", values).compute_shape({padded_shape}).lens();
 
+auto zzz =             values["padding"];
+printf("values contains ");
+for(auto aa : zzz) std::cout << aa << std::endl; std::cout << std::endl;
+
+printf("padded shape contains ");
+for(auto gg : padded_shape.lens())
+std::cout << "gg " << gg<< std::endl;
+
+
+// make an op just to get its output shape?
+            auto out_lens      = make_op("pooling", values).compute_shape({padded_shape}).lens();
+for(auto aa : out_lens) printf(" outl %lu ", aa); std::cout << std::endl;
             // compute slice_end information
+printf("slice start size %lu\n", slice_start.size())   ;         
             slice_end.resize(slice_start.size());
             std::transform(out_lens.begin() + 2,
                            out_lens.end(),

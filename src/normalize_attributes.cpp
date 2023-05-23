@@ -175,7 +175,11 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             if(padding_size == 2 * (lens.size() - padding_start))
                 tuned = true;
             else if(padding_size != (lens.size() - padding_start))
-                MIGRAPHX_THROW("inconsistent padding size");
+            {
+                auto msg = std::string("inconsistent padding size ");
+                msg += (to_string(padding_size) + " vs " + to_string(lens.size() - padding_start));
+                MIGRAPHX_THROW(msg.c_str());
+            }
             else
             {
                 auto result    = tune_pad_attribute(padding);

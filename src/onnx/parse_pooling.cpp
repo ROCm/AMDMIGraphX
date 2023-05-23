@@ -153,15 +153,12 @@ struct parse_pooling : op_parser<parse_pooling>
 
         if(paddings.size() != 2 * kdims)
         {
-if(paddings.size() == kdims)
-printf("Isnt %lu good enough?\n", paddings.size());
             paddings.resize(kdims * 2);
             std::fill_n(paddings.begin(), 2 * kdims, 0);
         }
 
         if(values["padding"].size() != kdims)
         {
-printf("swapping %lu for %lu\n", values["padding"].size(), kdims)            ;
             values["padding"].resize(kdims);
             std::fill_n(values["padding"].begin(), kdims, 0);
         }
@@ -230,20 +227,9 @@ printf("swapping %lu for %lu\n", values["padding"].size(), kdims)            ;
             op::pad pad{orig_padding, 0.0f};
             shape padded_shape = pad.compute_shape({l0->get_shape()});
 
-auto zzz =             values["padding"];
-printf("values contains ");
-for(auto aa : zzz) std::cout << aa << std::endl; std::cout << std::endl;
-
-printf("padded shape contains ");
-for(auto gg : padded_shape.lens())
-std::cout << "gg " << gg<< std::endl;
-
-
-// make an op just to get its output shape?
-            auto out_lens      = make_op("pooling", values).compute_shape({padded_shape}).lens();
-for(auto aa : out_lens) printf(" outl %lu ", aa); std::cout << std::endl;
+            // make an op just to get its output shape
+            auto out_lens = make_op("pooling", values).compute_shape({padded_shape}).lens();
             // compute slice_end information
-printf("slice start size %lu\n", slice_start.size())   ;         
             slice_end.resize(slice_start.size());
             std::transform(out_lens.begin() + 2,
                            out_lens.end(),

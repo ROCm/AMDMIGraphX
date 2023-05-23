@@ -388,15 +388,17 @@ TEST_CASE(averagepool_same_lower_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {1, 1, 1, 1}},
-                                                      {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}},
-                                                      {"padding_mode", migraphx::op::padding_mode_t::default_},
-                                                      }),
-                                   input);
-    auto ret   = mm->add_instruction(
+    auto ins   = mm->add_instruction(
+        migraphx::make_op("pooling",
+                          {
+                              {"mode", migraphx::op::pooling_mode::average},
+                              {"padding", {1, 1, 1, 1}},
+                              {"stride", {1, 1}},
+                              {"lengths", {2, 2}},
+                              {"padding_mode", migraphx::op::padding_mode_t::default_},
+                          }),
+        input);
+    auto ret = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {5, 5}}}), ins);
     mm->add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_same_lower_test.onnx");

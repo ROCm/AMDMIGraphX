@@ -98,7 +98,8 @@ struct pooling
 
     void check_attribute_size() const
     {
-        if  ((padding_mode == default_ and padding.size() != stride.size() and (padding.size()) != stride.size() * 2) or
+        if((padding_mode == default_ and padding.size() != stride.size() and
+            (padding.size()) != stride.size() * 2) or
            (not dyn_global and stride.size() != lengths.size()))
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
@@ -371,8 +372,8 @@ struct pooling
 
             auto type = args[0].get_shape().type();
             // dilation not currently supported for pooling, so default to all 1's
-            temp_padding = calc_dyn_auto_pad(input_lens, wei_lens, 
-                stride, {1, 1}, bool(padding_mode == op::same_upper));
+            temp_padding = calc_dyn_auto_pad(
+                input_lens, wei_lens, stride, {1, 1}, bool(padding_mode == op::same_upper));
 
             output_shape = compute_padded_pool_shape(
                 args[0].get_shape(), shape(type, kernel_dims), temp_padding, stride, {1, 1});

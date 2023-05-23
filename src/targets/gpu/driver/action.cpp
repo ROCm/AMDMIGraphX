@@ -21,13 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_STATIC_DEFINE
+
 #include <migraphx/gpu/driver/action.hpp>
 #include <migraphx/errors.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+namespace gpu::driver {
 
 auto& action_map()
 {
@@ -44,7 +46,6 @@ action_function get_action(const std::string& name)
 
 void register_action(const std::string& name, const action_function& a) { action_map()[name] = a; }
 
-} // namespace driver
-} // namespace gpu
+} // namespace gpu::driver
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

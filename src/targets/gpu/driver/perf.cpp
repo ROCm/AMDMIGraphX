@@ -21,6 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_GPU_STATIC_DEFINE
+#define MIGRAPHX_STATIC_DEFINE
+
 #include <migraphx/gpu/driver/perf.hpp>
 #include <migraphx/context.hpp>
 #include <migraphx/generate.hpp>
@@ -29,8 +33,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+namespace gpu::driver {
 
 std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsigned long seed = 0)
 {
@@ -69,7 +72,6 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
     return std::make_pair(host_time / n, device_time / n);
 }
 
-} // namespace driver
-} // namespace gpu
+} // namespace gpu::driver
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

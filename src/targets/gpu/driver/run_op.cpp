@@ -21,6 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_GPU_STATIC_DEFINE
+#define MIGRAPHX_STATIC_DEFINE
+
 #include <migraphx/gpu/driver/action.hpp>
 #include <migraphx/gpu/driver/perf.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -28,8 +32,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+namespace gpu::driver {
 
 struct run_op : action<run_op>
 {
@@ -48,7 +51,6 @@ struct run_op : action<run_op>
     }
 };
 
-} // namespace driver
-} // namespace gpu
+} // namespace gpu::driver
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

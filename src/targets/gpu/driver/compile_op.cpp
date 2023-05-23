@@ -49,6 +49,6 @@ struct compile_op : action<compile_op>
     }
 };
 
-} // namespace gpu
+} // namespace gpu::driver
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

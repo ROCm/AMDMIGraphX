@@ -21,6 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_STATIC_DEFINE
+
 #include <migraphx/gpu/driver/parser.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>

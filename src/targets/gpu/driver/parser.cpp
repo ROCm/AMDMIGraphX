@@ -21,14 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#define MIGRAPHX_STATIC_DEFINE
+
 #include <migraphx/gpu/driver/parser.hpp>
 #include <migraphx/gpu/driver/action.hpp>
 #include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+namespace gpu::driver {
 
 [[noreturn]] void error(const std::string& msg)
 {
@@ -75,7 +77,6 @@ void parser::process(const value& v)
     }
 }
 
-} // namespace driver
-} // namespace gpu
+} // namespace gpu::driver
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

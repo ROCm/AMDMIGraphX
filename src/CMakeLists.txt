@@ -50,6 +50,7 @@ add_library(migraphx
     env.cpp
     file_buffer.cpp
     fuse_pointwise.cpp
+    fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
     insert_pad.cpp
@@ -73,6 +74,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
+    promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
     quantize_int8.cpp
@@ -91,6 +93,7 @@ add_library(migraphx
     shape.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    split_single_dyn_dim.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp
@@ -199,6 +202,7 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    select_module
     sigmoid
     sign
     sinh
@@ -250,7 +254,10 @@ find_package(PkgConfig)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
 target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
 
-find_package(msgpack REQUIRED)
+find_package(msgpackc-cxx QUIET)
+if(NOT msgpackc-cxx_FOUND)
+    find_package(msgpack REQUIRED)
+endif()
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
@@ -286,6 +293,10 @@ endif()
 
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
+endif()
+
+if(BUILD_DEV)
+    target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
 rocm_export_targets(

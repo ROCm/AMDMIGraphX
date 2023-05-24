@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip /opt/rocm/hcc)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package(miopen)
 
 # rocblas
@@ -33,7 +33,7 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
+set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipClang APIs")
 
 include(Embed)
 file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
@@ -172,21 +172,6 @@ register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-get_filename_component(CMAKE_CXX_COMPILER_PATH "${CMAKE_CXX_COMPILER}" PATH)
-
-if(NOT CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+$")
-    find_program(MIGRAPHX_EXTRACT_KERNEL extractkernel
-        PATH_SUFFIXES bin
-        HINTS ${CMAKE_CXX_COMPILER_PATH}
-        PATHS
-        /opt/rocm/hip
-        /opt/rocm/hcc
-        /opt/rocm
-    )
-endif()
-
-message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
-
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
@@ -228,7 +213,6 @@ else()
     target_compile_definitions(migraphx_gpu PRIVATE
         "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}"
         "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}"
-        "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
@@ -244,8 +228,7 @@ get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 
-# TODO: Set default to HAS_FIND_2_API
-set(MIGRAPHX_USE_FIND_2_API OFF CACHE BOOL "")
+set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
 if(MIGRAPHX_USE_FIND_2_API)
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
@@ -263,12 +246,11 @@ endif()
 
 find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
 
-# Workaround broken rocblas headers
-target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
 
 add_subdirectory(driver)
+add_subdirectory(hiprtc)
 
 rocm_install_targets(
     TARGETS migraphx_gpu migraphx_device compile_for_gpu

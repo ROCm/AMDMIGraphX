@@ -46,12 +46,16 @@ else()
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
+set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+
 project(migraphx)
 find_package(ROCM REQUIRED)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+else()
+	message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
 endif()
 
 include(CheckTypeSize)
@@ -63,8 +67,10 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.5)
-set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+option(BUILD_DEV "Build for development purpose only" OFF)
+
+rocm_setup_version(VERSION 2.7.0)
+set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -95,7 +101,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
+if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip
 elseif(MIGRAPHX_ENABLE_GPU)
@@ -145,6 +151,8 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
+        -cppcoreguidelines-avoid-do-while
+        -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-explicit-virtual-functions
         -cppcoreguidelines-init-variables
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
@@ -192,7 +200,6 @@ rocm_enable_clang_tidy(
     EXTRA_ARGS
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
-        "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
     CLANG_ARGS
         -analyzer-max-loop 10
         -analyzer-inline-max-stack-depth 10
@@ -261,7 +268,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 add_subdirectory(src)
-add_subdirectory(doc)
+add_subdirectory(docs)
 add_subdirectory(test)
 add_subdirectory(tools)
 

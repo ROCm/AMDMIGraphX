@@ -28,16 +28,15 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${flags} ..
+            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On ${flags} ..
             make -j\$(nproc) generate all doc package check VERBOSE=1
+            md5sum ./*.deb
         """
         echo cmd
         sh cmd
-        if (compiler != "hcc") {
-            // Only archive from master or develop
-            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
-            }
+        // Only archive from master or develop
+        if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
         }
     }
     node(name) {
@@ -118,9 +117,11 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     }
 }, mlir_debug: rocmnode('vega') { cmake_build ->
     stage('MLIR Debug') {
-        def sanitizers = "undefined"
-        def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
+        withEnv(['MIGRAPHX_ENABLE_MLIR=1']) {
+            def sanitizers = "undefined"
+            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
+        }
     }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
@@ -147,7 +148,8 @@ rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half
-            ls -lR
+            #ls -lR
+            md5sum ./build/*.deb
             dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''

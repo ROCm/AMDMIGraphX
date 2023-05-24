@@ -148,13 +148,21 @@ struct value_parser
     template <MIGRAPHX_REQUIRES(not std::is_enum<T>{} and not is_multi_value<T>{})>
     static T apply(const std::string& x)
     {
-        T result;
-        std::stringstream ss;
-        ss.str(x);
-        ss >> result;
-        if(ss.fail())
-            throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
-        return result;
+        // handle whitespace in string
+        if constexpr(std::is_same<T, std::string>{})
+        {
+            return x;
+        }
+        else
+        {
+            T result;
+            std::stringstream ss;
+            ss.str(x);
+            ss >> result;
+            if(ss.fail())
+                throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
+            return result;
+        }
     }
 
     template <MIGRAPHX_REQUIRES(std::is_enum<T>{} and not is_multi_value<T>{})>

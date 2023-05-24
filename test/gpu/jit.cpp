@@ -27,8 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/gpu/kernel.hpp>
-#include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -206,8 +206,16 @@ TEST_CASE(compile_warnings)
     EXPECT(not compile("").empty());
     EXPECT(not compile("-Wunused-parameter -Wno-error").empty());
     EXPECT(not compile("-Wno-unused-parameter -Werror").empty());
+#ifdef MIGRAPHX_USE_HIPRTC
+    if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
+    {
+        EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
+        EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
+    }
+#else
     EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
     EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
+#endif
 }
 
 TEST_CASE(code_object_hip)
@@ -235,7 +243,7 @@ TEST_CASE(code_object_hip)
     auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
     migraphx::compile_options options;
-    p.compile(migraphx::gpu::target{}, options);
+    p.compile(migraphx::make_target("gpu"), options);
 
     auto result =
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
@@ -261,7 +269,7 @@ TEST_CASE(compile_code_object_hip)
     auto x              = mm->add_literal(input_literal);
     auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
-    p.compile(migraphx::gpu::target{}, migraphx::compile_options{});
+    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
 
     auto result =
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
@@ -284,7 +292,7 @@ TEST_CASE(compile_pointwise)
     auto x              = mm->add_literal(input_literal);
     auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
-    p.compile(migraphx::gpu::target{}, migraphx::compile_options{});
+    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
 
     auto result =
         migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
@@ -354,6 +362,71 @@ TEST_CASE(compile_math)
         auto co  = migraphx::gpu::compile_hip_code_object(src, options);
         (void)co;
     });
+}
+
+// NOLINTNEXTLINE
+const std::string assert_template = R"__migraphx__(
+#include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/types.hpp>
+using namespace migraphx;
+extern "C" {
+__global__ void kernel(void*) 
+{
+    static_assert(numeric_max<${type}>() == ${max}, "");
+    static_assert(numeric_lowest<${type}>() == ${min}, "");
+}
+}
+
+int main() {}
+
+)__migraphx__";
+
+TEST_CASE(assert_type_min_max)
+{
+    std::vector<std::string> data_types;
+    migraphx::gpu::hip_compile_options options;
+    for(auto&& t : migraphx::shape::types())
+    {
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
+            continue;
+        auto name = migraphx::shape::cpp_type(t);
+        if(t == migraphx::shape::half_type)
+            name.insert(0, "migraphx::");
+
+        migraphx::shape::visit(t, [&](auto as) {
+            std::string min = "";
+            std::string max = "";
+            // Note 9223372036854775808 is a constant literal that is outside the range of long
+            // long type For the same reason, 18446744073709551616 needs postfix ULL to be parsed
+            // correctly
+            if(t == migraphx::shape::int64_type)
+            {
+                min = "(" + std::to_string(as.min() + 1) + "LL - 1)";
+                max = std::to_string(as.max());
+            }
+            else if(t == migraphx::shape::uint64_type)
+            {
+                min = std::to_string(as.min());
+                max = std::to_string(as.max()) + "ULL";
+            }
+            else
+            {
+                min = std::to_string(as.min());
+                max = std::to_string(as.max());
+            }
+
+            auto src = migraphx::interpolate_string(assert_template,
+                                                    {{"type", name}, {"max", max}, {"min", min}});
+            migraphx::shape input{migraphx::shape::float_type, {5, 2}};
+            options.global = 1024;
+            options.local  = 1024;
+            options.inputs = {input};
+            options.output = input;
+            options.params = "-Wno-float-equal";
+
+            auto co = migraphx::gpu::compile_hip_code_object(src, options);
+        });
+    }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

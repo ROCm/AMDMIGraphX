@@ -51,7 +51,7 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
             np.testing.assert_equal(ref_outputs[i].dtype,
                                     outputs[i].dtype,
                                     err_msg=prog_string)
-            if ref_outputs[i].dtype == np.object:
+            if ref_outputs[i].dtype == object:
                 np.testing.assert_array_equal(ref_outputs[i],
                                               outputs[i],
                                               err_msg=prog_string)
@@ -102,6 +102,10 @@ def disabled_tests_onnx_1_10_0(backend_test):
     backend_test.exclude(r'test_shape_start_1_end_2_cpu')
     backend_test.exclude(r'test_shape_start_1_end_negative_1_cpu')
     backend_test.exclude(r'test_shape_start_negative_1_cpu')
+
+
+def disabled_tests_onnx_1_12_0(backend_test):
+    backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
 
 
 def create_backend_test(testname=None, target_device=None):
@@ -326,6 +330,9 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.10.0"):
             disabled_tests_onnx_1_10_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.12.0"):
+            disabled_tests_onnx_1_12_0(backend_test)
 
 
 # import all test cases at global scope to make

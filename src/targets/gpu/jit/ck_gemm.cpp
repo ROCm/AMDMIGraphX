@@ -38,18 +38,8 @@
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
 
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/include/device_gemm_multiple_d.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/gemm_add_add_fastgelu.hpp"
-#include "ck/library/tensor_operation_instance/solution_instances/gemm_multiple_d_xdlop_cshuffle.hpp"
-
-#include <iostream>
-
-const std::vector<std::string>&
-get_instance(std::size_t i, const std::function<bool(const std::vector<std::string>&)>& pred);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -68,7 +58,7 @@ static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <args.hpp>
 #include <migraphx/kernels/ck_gemm.hpp>
 #include <migraphx/kernels/pointwise.hpp>
-#include <ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp>
+#include <migraphx/kernels/${include}>
 
 namespace migraphx {
 
@@ -89,64 +79,7 @@ __global__ void ${kernel}(${params})
 
 )__migraphx__";
 
-static std::size_t int_div_ceil(std::size_t x, std::size_t y) { return (x + y - 1) / y; }
 
-struct instance
-{
-    std::vector<std::string> params;
-    static const std::size_t block_size_index = 15;
-
-    std::size_t int_at(std::size_t i) const { return std::stoull(params[i]); }
-
-    std::size_t get_block_size() const { return int_at(block_size_index); }
-
-    std::size_t get_pb(std::size_t i) const
-    {
-        assert(i < 4);
-        return int_at(block_size_index + 1 + i);
-    }
-
-    std::array<std::size_t, 3> get_pad(const std::array<std::size_t, 3>& config) const
-    {
-        std::array<std::size_t, 3> result{};
-        for(auto i : range(config.size()))
-        {
-            result[i] = int_div_ceil(config[i], get_pb(i)) * get_pb(i) - config[i];
-        }
-        return result;
-    }
-
-    std::size_t get_grid_size(const std::array<std::size_t, 3>& config) const
-    {
-        return int_div_ceil(config[0], get_pb(0)) * int_div_ceil(config[1], get_pb(1));
-    }
-
-    void set_ds_layout(const std::string& s)
-    {
-        assert(params[2] == "ck::Tuple<>");
-        params[2] = s;
-    }
-
-    void set_ds_type(const std::string& s)
-    {
-        assert(params[8] == "ck::Tuple<>");
-        params[8] = s;
-    }
-
-    void set_ds_op(const std::string& s)
-    {
-        assert(params[12] == "ck_passthrough");
-        params[12] = s;
-    }
-
-    void set_gemm(const std::string& s)
-    {
-        assert(params[13] == "ck::tensor_operation::device::GemmSpecialization::Default");
-        params[13] = s;
-    }
-
-    std::string str() const { return join_strings(params, ","); }
-};
 
 static bool transposed_matrix(const shape& s) { return s.strides().back() != 1; }
 
@@ -304,18 +237,18 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto n           = c_shape.lens().back();
         auto k           = a_shape.lens().back();
 
-        const auto numDTensors = inputs.size() - 3;
         const bool transA      = transposed_matrix(a_shape);
         const bool transB      = transposed_matrix(b_shape);
-        const bool transCDE    = transposed_matrix(c_shape);
+        const bool transE    = transposed_matrix(c_shape);
         const auto a_type      = get_type(a_shape);
         const auto b_type      = get_type(b_shape);
-        const auto cde_type =
-            ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_type); // get_type(c_shape);
-        const auto cde_layout = ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_layout);
+        const auto e_type      = get_type(c_shape);
+        std::vector<bool> ds_layout;
+        std::transform(inputs.begin() + 2, inputs.end() - 1, std::back_inserter(ds_layout), [](const auto& i){ return transposed_matrix(i); });
+        std::vector<std::string> ds_type;
+        std::transform(inputs.begin() + 2, inputs.end() - 1, std::back_inserter(ds_type), [](const auto& i){ return get_type(i); });
 
-        std::string ck_passthrough =
-            "ck_passthrough"; //"ck::tensor_operation::element_wise::PassThrough";
+        std::string ck_passthrough = "ck_passthrough"; 
         std::string cde_op = ck_passthrough;
         assert(inputs.size() < 4 or v.contains("post"));
         if(v.contains("post"))
@@ -324,27 +257,33 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         }
 
         auto problem =
-            ck::tensor_operation::device::instance::Problem{static_cast<ck::index_t>(m),
+            ck::tensor_operation::device::device_gemm_multiple_d::
+                                                    Problem{static_cast<ck::index_t>(m),
                                                             static_cast<ck::index_t>(n),
                                                             static_cast<ck::index_t>(k),
-                                                            static_cast<ck::index_t>(numDTensors),
                                                             transA,
                                                             transB,
-                                                            transCDE,
+                                                            transE,
+                                                            ds_layout,
                                                             a_type,
                                                             b_type,
-                                                            cde_type,
+                                                            e_type,
+                                                            ds_type,
                                                             ck_passthrough,
                                                             ck_passthrough,
-                                                            cde_op,
-                                                            cde_layout};
-        const auto solutions        = problem.GetSolutions();
+                                                            cde_op};
+
+        const auto include_header   = problem.GetIncludeHeader();
+        const auto ck_headers       = problem.GetHeaders();
+        const auto solutions        = problem.GetSolutions("gfx90a");
         const auto solution         = solutions.at(tuning_value);
-        const auto template_str     = solution.GetStr();
-        const auto blocks_per_batch = solution.GetGridSize();
-        const auto block_size       = solution.GetBlockSize();
+        const auto template_str     = solution.template_str;
+        const auto blocks_per_batch = solution.grid_size;
+        const auto block_size       = solution.block_size;
+
 
         hip_compile_options options;
+        options.embedded_headers = ck_headers;
         auto grid_size = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
@@ -365,12 +304,13 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
         auto src = interpolate_string(ck_gemm_kernel,
                                       {{"solution", template_str},
+                                       {"include", include_header},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
-        std::cout << src << std::endl;
+
         return compile_hip_code_object(src, options);
     }
 

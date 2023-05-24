@@ -29,7 +29,6 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/ck.hpp>
-#include <migraphx/kernels/ck_gemm_includes.hpp>
 #include <migraphx/kernels/gemm_batcher.hpp>
 
 namespace migraphx {

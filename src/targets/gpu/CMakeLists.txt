@@ -261,15 +261,12 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
-#find_package(composable_kernel REQUIRED PATHS /code/composable_kernel)
-find_package(composable_kernel 1.0.0 COMPONENTS device_operations)
-
-#target_link_libraries(migraphx_gpu PRIVATE composable_kernel::device_operations)
+find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
 
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::device_operations)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
 
 add_subdirectory(driver)
 

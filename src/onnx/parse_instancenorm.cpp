@@ -44,7 +44,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
         // mean = reduce_mean({D1, D2, ... Dk}, x)
         // variance = reduce_mean({D1, D2, ... Dk}, (x - mean)^2)
-        bool convert_fp16 = true;
+        bool convert_fp16 = false;
         float epsilon     = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
@@ -82,13 +82,24 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
 
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), 2);
-
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
         auto mean_bcast =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), mean);
+        auto l1                    = info.add_instruction(make_op("sub"), x, mean_bcast);
+        std::string reduce_op_name = (dtype == shape::half_type) ? "reduce_sum" : "reduce_mean";
+        if(dtype == shape::half_type)
+        {
+            double n =
+                std::accumulate(dims.begin() + 2, dims.end(), 1, [&](const auto& i, const auto& j) {
+                    return i * j;
+                });
+            n              = 1.0 / std::sqrt(n);
+            auto n_literal = info.add_literal(literal{dtype, {n}});
+            mean_bcast     = info.add_common_op("mul", {mean_bcast, n_literal});
+            x              = info.add_common_op("mul", {x, n_literal});
+        }
         auto l0              = info.add_instruction(make_op("sqdiff"), x, mean_bcast);
-        auto variance        = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
-        auto l1              = info.add_instruction(make_op("sub"), x, mean_bcast);
+        auto variance        = info.add_instruction(make_op(reduce_op_name, {{"axes", axes}}), l0);
         auto epsilon_literal = info.add_literal(literal{shape{literal_dtype}, {epsilon}});
         auto epsilon_bcast =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
@@ -99,7 +110,6 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto l4 = info.add_instruction(make_op("mul"), l1, l3);
         auto scale_bcast =
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
-        ;
         auto bias_bcast =
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
         auto l5  = info.add_instruction(make_op("mul"), l4, scale_bcast);

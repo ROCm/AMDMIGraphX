@@ -82,7 +82,7 @@ struct gathernd_compiler : compiler<gathernd_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
     }
 };
 

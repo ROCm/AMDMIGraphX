@@ -42,8 +42,7 @@ struct hip_compile_options
     std::string kernel_name           = "kernel";
     std::string params                = "";
     std::vector<shape> virtual_inputs = {};
-    std::unordered_map<std::string, std::pair<const char*,const char*>> embedded_headers;
-
+    std::unordered_map<std::string, std::pair<const char*, const char*>> embedded_headers;
 
     /**
      * @brief Set the launch parameters but allow v to override the values

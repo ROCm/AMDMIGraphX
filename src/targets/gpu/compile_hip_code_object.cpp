@@ -167,19 +167,19 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                        auto path   = fs::path{"migraphx"} / "kernels" / name;
                        return src_file{path, c};
                    });
-    if (not options.embedded_headers.empty())
+    if(not options.embedded_headers.empty())
     {
         std::transform(options.embedded_headers.begin(),
-                  options.embedded_headers.end(),
-                   std::back_inserter(srcs),
-                   [](auto&& p) {
-                       auto&& name = p.first;
-                       auto&& c    = p.second;
-                       auto path   = fs::path{"migraphx"} / "kernels" / name;
-                       return src_file{path, c};
-                   });
+                       options.embedded_headers.end(),
+                       std::back_inserter(srcs),
+                       [](auto&& p) {
+                           auto&& name = p.first;
+                           auto&& c    = p.second;
+                           auto path   = fs::path{"migraphx"} / "kernels" / name;
+                           return src_file{path, c};
+                       });
     }
-    
+
     srcs.push_back(src_file{fs::path{"main.cpp"},
                             std::make_pair(content.data(), content.data() + content.size())});
     auto args_hpp =

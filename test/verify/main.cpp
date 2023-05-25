@@ -74,7 +74,9 @@ int main(int argc, const char* argv[])
                          "test_select_module_add",
                          "test_select_module_reduce",
                          "test_select_module_conv",
-                         "test_split_single_dyn_dim"});
+                         "test_split_single_dyn_dim",
+                         "test_instancenorm_large_3D<migraphx::shape::half_type>",
+                         "test_instancenorm_large_3D<migraphx::shape::float_type>"});
     rv.disable_test_for("gpu", {"test_conv_bn_add"});
     rv.run(argc, argv);
 }

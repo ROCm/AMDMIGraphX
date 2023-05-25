@@ -223,7 +223,6 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
 {
     // Gather all the target roots
     std::unordered_multimap<std::size_t, module_ref> roots;
-    std::vector<std::size_t> target_ids(targets.size());
     auto mods = this->get_modules();
     for(auto* mod : mods)
     {
@@ -273,17 +272,17 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     run_passes(*this, {mark_instruction_target{ref_target_id}});
 
     // Run passes on each root target
-    for(const auto& root_target : targets)
+    for(const auto i : range(targets.size()))
     {
-        auto root_target_name                = root_target.name();
-        auto root_target_id                  = target_idx(root_target_name);
+        const auto& root_target              = targets.at(i);
+        auto root_target_id                  = i;
         auto root_modules_range              = roots.equal_range(root_target_id);
         this->impl->contexts[root_target_id] = root_target.get_context();
         for(const auto& [id, current_mod] : range(root_modules_range))
         {
             auto passes = root_target.get_passes(this->impl->contexts[root_target_id],
                                                  compile_opts[root_target_id]);
-            passes.push_back(mark_instruction_target{root_target_id});
+            passes.push_back(mark_instruction_target{static_cast<size_t>(root_target_id)});
             run_passes(*this, current_mod, passes, trace);
 
             auto invalid = current_mod->validate();

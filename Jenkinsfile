@@ -84,6 +84,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && vega";
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
+    } else if(name == "anygpu") {
+        node_name = "${rocmtest_name} && (mi100 || mi200 || vega)";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
     }
@@ -144,7 +146,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
+rocmtest onnx: onnxnode('anygpu') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half

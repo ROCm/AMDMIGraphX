@@ -68,8 +68,8 @@ struct find_ck_gemm_pointwise
     // Find a gemm followed by a pointwise operation.
     auto matcher() const
     {
-        auto gemm =
-            match::skip(match::name("contiguous"))(match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm")));
+        auto gemm = match::skip(match::name("contiguous"))(
+            match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm")));
         return match::name("pointwise")(match::any_of[match::inputs()](gemm.bind("x")));
     }
 
@@ -85,7 +85,8 @@ struct find_ck_gemm_pointwise
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         assert(gemm_it != inputs.end());
-        if(not contains({shape::half_type, shape::int8_type, shape::int32_type}, ins->get_shape().type()))
+        if(not contains({shape::half_type, shape::int8_type, shape::int32_type},
+                        ins->get_shape().type()))
             return;
         if(gemm_idx != 0)
         {
@@ -121,7 +122,7 @@ struct find_ck_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    if (enabled(MIGRAPHX_ENABLE_CK_GEMM{}))
+    if(enabled(MIGRAPHX_ENABLE_CK_GEMM{}))
     {
         match::find_matches(mpm, find_ck_gemm_pointwise{});
         match::find_matches(mpm, find_ck_gemm{});

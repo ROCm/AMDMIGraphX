@@ -220,10 +220,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         s       = shape{s.type(), {m1, m2}};
     }
 
-    std::vector<std::string> names() const
-    {
-        return {"ck_gemm", "gpu::ck_gemm"};
-    }
+    std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {

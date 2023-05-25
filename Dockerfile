@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && 
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - 
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.4.2/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.5/ focal main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -83,7 +83,7 @@ RUN test -f /usr/local/hash || exit 1
 RUN pip3 install yapf==0.28.0
 
 # Install doc requirements
-ADD doc/requirements.txt /doc-requirements.txt
+ADD docs/.sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Download real models to run onnx unit tests
@@ -120,4 +120,3 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
-

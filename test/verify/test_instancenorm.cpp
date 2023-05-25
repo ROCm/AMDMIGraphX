@@ -38,20 +38,9 @@ migraphx::instruction_ref add_instancenorm(migraphx::module& m,
     auto x_lens   = x->get_shape().lens();
     std::vector<size_t> axes(x_lens.size() - 2);
     std::iota(axes.begin(), axes.end(), 2);
-    auto scale        = m.add_parameter("scale", migraphx::shape{mgx_type, dims});
-    auto bias         = m.add_parameter("bias", migraphx::shape{mgx_type, dims});
-    auto literal_type = mgx_type;
-    if(mgx_type == migraphx::shape::half_type)
-    {
-        x = m.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-        scale = m.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale);
-        bias = m.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bias);
-        literal_type = migraphx::shape::float_type;
-    }
-    auto epsilon = m.add_literal(migraphx::literal{migraphx::shape{literal_type}, {eps}});
+    auto scale   = m.add_parameter("scale", migraphx::shape{mgx_type, dims});
+    auto bias    = m.add_parameter("bias", migraphx::shape{mgx_type, dims});
+    auto epsilon = m.add_literal(migraphx::literal{migraphx::shape{mgx_type}, {eps}});
 
     auto mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", axes}}), x);
     auto mean_mbcast =
@@ -71,12 +60,7 @@ migraphx::instruction_ref add_instancenorm(migraphx::module& m,
     auto mul = m.add_instruction(migraphx::make_op("mul"), scale_mbcast, l1);
     auto bias_mbcast =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), bias);
-    auto ret = m.add_instruction(migraphx::make_op("add"), mul, bias_mbcast);
-    if(mgx_type == migraphx::shape::half_type)
-    {
-        return m.add_instruction(migraphx::make_op("convert", {{"target_type", mgx_type}}), ret);
-    }
-    return ret;
+    return m.add_instruction(migraphx::make_op("add"), mul, bias_mbcast);
 }
 
 template <migraphx::shape::type_t TYPE>

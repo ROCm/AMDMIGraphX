@@ -222,7 +222,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
     std::vector<std::string> names() const
     {
-        return {"ck_gemm", "gpu::ck_gemm", "ck_gemm_int8", "gpu::ck_gemm_int8"};
+        return {"ck_gemm", "gpu::ck_gemm"};
     }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const

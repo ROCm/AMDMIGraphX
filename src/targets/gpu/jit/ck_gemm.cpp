@@ -291,9 +291,12 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto block_size       = solution.block_size;
 
         hip_compile_options options;
-        std::transform(ck_headers.begin(), ck_headers.end(), std::back_inserter(options.additional_src_files), [&](auto&& p) {
-            return src_file{fs::path{p.first}, p.second};
-        });
+        std::transform(ck_headers.begin(),
+                       ck_headers.end(),
+                       std::back_inserter(options.additional_src_files),
+                       [&](auto&& p) {
+                           return src_file{fs::path{p.first}, p.second};
+                       });
         auto grid_size = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;

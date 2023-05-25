@@ -38,8 +38,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
 
-const std::vector<std::string>&
-get_instance(std::size_t i, const std::function<bool(const std::vector<std::string>&)>& pred);
+#include "ck/include/device_gemm_multiple_d.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,6 +57,7 @@ static const char* const ck_gemm_kernel = R"__migraphx__(
 #include <args.hpp>
 #include <migraphx/kernels/ck_gemm.hpp>
 #include <migraphx/kernels/pointwise.hpp>
+#include <migraphx/kernels/${include}>
 
 namespace migraphx {
 
@@ -68,7 +68,7 @@ extern "C" {
 __global__ void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        ck_gemm<CK_DeviceGemmMultipleD<${instance}>, ${blocks_per_batch}>(xs...);
+        ck_gemm<${solution}, ${blocks_per_batch}>(xs...);
     });
 }
 
@@ -77,88 +77,6 @@ __global__ void ${kernel}(${params})
 } // namespace migraphx
 
 )__migraphx__";
-
-static std::size_t int_div_ceil(std::size_t x, std::size_t y) { return (x + y - 1) / y; }
-
-struct instance
-{
-    std::vector<std::string> params;
-    static const std::size_t block_size_index = 15;
-
-    std::size_t int_at(std::size_t i) const { return std::stoull(params[i]); }
-
-    std::size_t get_block_size() const { return int_at(block_size_index); }
-
-    std::size_t get_pb(std::size_t i) const
-    {
-        assert(i < 4);
-        return int_at(block_size_index + 1 + i);
-    }
-
-    std::array<std::size_t, 3> get_pad(const std::array<std::size_t, 3>& config) const
-    {
-        std::array<std::size_t, 3> result{};
-        for(auto i : range(config.size()))
-        {
-            result[i] = int_div_ceil(config[i], get_pb(i)) * get_pb(i) - config[i];
-        }
-        return result;
-    }
-
-    std::size_t get_grid_size(const std::array<std::size_t, 3>& config) const
-    {
-        return int_div_ceil(config[0], get_pb(0)) * int_div_ceil(config[1], get_pb(1));
-    }
-
-    void set_ds_layout(const std::string& s)
-    {
-        assert(params[2] == "ck::Tuple<>");
-        params[2] = s;
-    }
-
-    void set_ds_type(const std::string& s)
-    {
-        assert(params[8] == "ck::Tuple<>");
-        params[8] = s;
-    }
-
-    void set_e_type(const std::string& s)
-    {
-        //assert(params[9] == "ck::Tuple<>");
-        params[9] = s;
-    }
-
-    void set_ds_op(const std::string& s)
-    {
-        assert(params[12] == "ck_passthrough");
-        params[12] = s;
-    }
-
-    void set_gemm(const std::string& s)
-    {
-        assert(params[13] == "ck::tensor_operation::device::GemmSpecialization::Default");
-        params[13] = s;
-    }
-
-    void set_a_scalar_per_vec(const std::string& s)
-    {
-        params[block_size_index + 14] = s;
-        params[block_size_index + 15] = s;
-    }
-
-    void set_b_scalar_per_vec(const std::string& s)
-    {
-        params[block_size_index + 20] = s;
-        params[block_size_index + 21] = s;
-    }
-
-    void set_c_scalar_per_vec(const std::string& s)
-    {
-        params[params.size() - 3] = s;
-    }
-
-    std::string str() const { return join_strings(params, ","); }
-};
 
 static bool transposed_matrix(const shape& s) { return s.strides().back() != 1; }
 
@@ -309,9 +227,10 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
-        auto a_shape = inputs[0];
-        auto b_shape = inputs[1];
-        auto c_shape = inputs.back();
+        auto a_shape      = inputs[0];
+        auto b_shape      = inputs[1];
+        auto c_shape      = inputs.back();
+        auto tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
 
         auto rank           = a_shape.lens().size();
         auto b_strides      = b_shape.strides();
@@ -322,55 +241,61 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         m                = can_fold_batch ? m * batch_count : m;
         auto n           = c_shape.lens().back();
         auto k           = a_shape.lens().back();
-        std::array<char, 3> keys{'M', 'N', 'K'};
-        std::array<std::size_t, 3> config{m, n, k};
-        auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape.with_type(a_shape.type())}));
-        auto ip         = instance{get_instance(tuning_val, [&](const auto& x) -> bool {
-            return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
-                   get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
-                   get_type(b_shape) == x[5];
-        })};
+
+        const bool transA = transposed_matrix(a_shape);
+        const bool transB = transposed_matrix(b_shape);
+        const bool transE = transposed_matrix(c_shape);
+        const auto a_type = get_type(a_shape);
+        const auto b_type = get_type(b_shape);
+        const auto e_type = get_type(c_shape);
+        std::vector<bool> ds_layout;
+        std::transform(inputs.begin() + 2,
+                       inputs.end() - 1,
+                       std::back_inserter(ds_layout),
+                       [](const auto& i) { return transposed_matrix(i); });
+        std::vector<std::string> ds_type;
+        std::transform(inputs.begin() + 2,
+                       inputs.end() - 1,
+                       std::back_inserter(ds_type),
+                       [](const auto& i) { return get_type(i); });
+
+        std::string ck_passthrough = "ck_passthrough";
+        std::string cde_op         = ck_passthrough;
         assert(inputs.size() < 4 or v.contains("post"));
         if(v.contains("post"))
         {
-            ip.set_ds_layout(ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_layout));
-            ip.set_ds_type(ck_tuple(inputs.begin() + 2, inputs.end() - 1, &get_type));
-            ip.set_ds_op(v.at("post").to<std::string>());
-            
-        }
-        if (a_shape.type() == shape::int8_type)
-        {
-            ip.set_e_type(get_type(c_shape));
-            if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "ck::half_t"; }))
-            {
-                ip.set_c_scalar_per_vec("8");
-            }
-            if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "float"; }))
-            {
-                ip.set_c_scalar_per_vec("4");
-            }
+            cde_op = v.at("post").to<std::string>();
         }
         
             
 
-        auto padding = ip.get_pad(config);
-        std::string gemm_type;
-        for(auto i : range(padding.size()))
-        {
-            if(padding[i] != 0)
-                gemm_type += keys[i];
-        }
-        if(gemm_type.empty())
-            gemm_type = "Default";
-        else
-            gemm_type += "Padding";
-        ip.set_gemm("ck::tensor_operation::device::GemmSpecialization::" + gemm_type);
+        auto problem = ck::tensor_operation::device::device_gemm_multiple_d::Problem{
+            static_cast<ck::index_t>(m),
+            static_cast<ck::index_t>(n),
+            static_cast<ck::index_t>(k),
+            transA,
+            transB,
+            transE,
+            ds_layout,
+            a_type,
+            b_type,
+            e_type,
+            ds_type,
+            ck_passthrough,
+            ck_passthrough,
+            cde_op};
 
-        auto blocks_per_batch = ip.get_grid_size(config);
+        const auto include_header   = problem.GetIncludeHeader();
+        const auto ck_headers       = problem.GetHeaders();
+        const auto solutions        = problem.GetSolutions("gfx90a");
+        const auto solution         = solutions.at(tuning_value);
+        const auto template_str     = solution.template_str;
+        const auto blocks_per_batch = solution.grid_size;
+        const auto block_size       = solution.block_size;
 
         hip_compile_options options;
-        auto block_size = ip.get_block_size();
-        auto grid_size  = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
+        options.embedded_headers = ck_headers;
+        auto grid_size = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;
         options.output         = c_shape;
@@ -389,7 +314,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             options.params += " -DMIGRAPHX_CK_CHECK=1";
 
         auto src = interpolate_string(ck_gemm_kernel,
-                                      {{"instance", ip.str()},
+                                      {{"solution", template_str},
+                                       {"include", include_header},
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"blocks_per_batch", to_string(blocks_per_batch)},

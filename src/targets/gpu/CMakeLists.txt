@@ -243,8 +243,10 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
+find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
+
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)

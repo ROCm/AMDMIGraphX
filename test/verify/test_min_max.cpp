@@ -22,43 +22,31 @@
  * THE SOFTWARE.
  */
 
-#include <unordered_set>
-#include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/rocblas.hpp>
-#include <migraphx/gpu/context.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/max.hpp>
+#include <migraphx/op/min.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-rocblas_handle_ptr create_rocblas_handle_ptr()
+template <class Op, migraphx::shape::type_t T>
+struct test_min_max : verify_program<test_min_max<Op, T>>
 {
-    rocblas_handle handle;
-    rocblas_create_handle(&handle);
-    return rocblas_handle_ptr{handle};
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{T, {128}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        mm->add_instruction(Op{}, x, y);
+        return p;
+    }
+};
 
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
-{
-    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
-    rocblas_set_stream(rb.get(), s);
-    return rb;
-}
+template struct test_min_max<migraphx::op::max, migraphx::shape::float_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::double_type>;
 
-bool get_compute_fp32_flag()
-{
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
-}
-
-bool get_int8_x4_format(context& ctx)
-{
-    rocblas_gemm_flags flag;
-    rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-    return flag == rocblas_gemm_flags_pack_int8x4;
-}
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+template struct test_min_max<migraphx::op::min, migraphx::shape::float_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::double_type>;

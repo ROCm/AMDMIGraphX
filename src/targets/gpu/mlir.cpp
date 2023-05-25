@@ -244,8 +244,6 @@ struct mlir_program
 
     MlirAttribute attribute(std::int64_t i) const
     {
-        if(i < 0)
-            MIGRAPHX_THROW("MLIR cant handle negative values since they are ambiguous");
         return mlirIntegerAttrGet(mlirIntegerTypeGet(ctx.get(), 64), i);
     }
     MlirAttribute attribute(std::uint64_t i) const

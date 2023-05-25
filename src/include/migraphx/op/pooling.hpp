@@ -66,7 +66,7 @@ struct pooling
     // make pooling window fit in the data area.  padding can also have size
     // double the number of dimensions, in which case padding[i] and padding[i+lengths.size()]
     // are the padding before and after the i'th dimension.
-    std::vector<std::size_t> padding = {0, 0, 0, 0, 0, 0, 0};
+    std::vector<std::size_t> padding = {0, 0};
     // Number of elements to step, in each dimension, from one pooling window to the next.
     // If stride is smaller than lengths, pooling windows will overlap.
     std::vector<std::size_t> stride = {1, 1};

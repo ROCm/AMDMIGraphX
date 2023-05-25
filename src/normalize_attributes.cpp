@@ -169,16 +169,16 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
         auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
         auto padding_size  = padding.size();
         auto padding_start = 2;
-        bool use_auto_padding = (val.contains("padding_mode") && (val.at("padding_mode").to<int>() != migraphx::op::padding_mode_t::default_));
+        bool use_auto_padding =
+            (val.contains("padding_mode") &&
+             (val.at("padding_mode").to<int>() != migraphx::op::padding_mode_t::default_));
         if(!use_auto_padding)
         {
             if(padding_size == 2 * (lens.size() - padding_start))
                 tuned = true;
             else if(padding_size != (lens.size() - padding_start))
             {
-                auto msg = std::string("inconsistent padding size ");
-                msg += (to_string(padding_size) + " vs " + to_string(lens.size() - padding_start));
-                MIGRAPHX_THROW(msg.c_str());
+                MIGRAPHX_THROW("normalize_attributes: inconsistent padding vector size ");
             }
             else
             {

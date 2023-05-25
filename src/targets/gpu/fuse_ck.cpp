@@ -149,8 +149,8 @@ struct find_ck_gemm_pointwise_int8
     // Find a gemm followed by a pointwise operation.
     auto matcher() const
     {
-        auto gemm =
-            match::skip(match::name("contiguous"))(match::name("quant_dot")(is_ck_gemm().bind("gemm")));
+        auto gemm = match::skip(match::name("contiguous"))(
+            match::name("quant_dot")(is_ck_gemm().bind("gemm")));
         return match::name("pointwise")(match::any_of[match::inputs()](gemm.bind("x")));
     }
 
@@ -162,7 +162,7 @@ struct find_ck_gemm_pointwise_int8
         auto next_ins = std::next(ins);
         auto* pm      = ins->module_inputs().front();
         auto names    = pm->get_parameter_names();
-        
+
         std::sort(names.begin(), names.end());
         auto inputs   = ins->inputs();
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);

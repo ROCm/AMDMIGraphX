@@ -229,7 +229,10 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         s       = shape{s.type(), {m1, m2}};
     }
 
-    std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm", "ck_gemm_int8", "gpu::ck_gemm_int8"}; }
+    std::vector<std::string> names() const
+    {
+        return {"ck_gemm", "gpu::ck_gemm", "ck_gemm_int8", "gpu::ck_gemm_int8"};
+    }
 
     operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
     {
@@ -272,24 +275,21 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         {
             cde_op = v.at("post").to<std::string>();
         }
-        
-            
 
-        auto problem = ck::host::device_gemm_multiple_d::Problem{
-            m,
-            n,
-            k,
-            transA,
-            transB,
-            transE,
-            ds_layout,
-            a_type,
-            b_type,
-            e_type,
-            ds_type,
-            ck_passthrough,
-            ck_passthrough,
-            cde_op};
+        auto problem = ck::host::device_gemm_multiple_d::Problem{m,
+                                                                 n,
+                                                                 k,
+                                                                 transA,
+                                                                 transB,
+                                                                 transE,
+                                                                 ds_layout,
+                                                                 a_type,
+                                                                 b_type,
+                                                                 e_type,
+                                                                 ds_type,
+                                                                 ck_passthrough,
+                                                                 ck_passthrough,
+                                                                 cde_op};
 
         const auto include_header   = problem.GetIncludeHeader();
         const auto ck_headers       = ck::host::GetHeaders();
@@ -345,14 +345,17 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         }
 
         auto shapes = to_shapes(ins->inputs());
-        return {compile_op(ctx, shapes, v), [=](module& m, instruction_ref ins2, const operation& code_object) {
-            if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
-            {
-                std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back().with_type(shapes[0].type())};
-                std::cout << "ck_gemm: " << to_json_string(to_value(gemm_shapes)) << std::endl;
-            }
-            m.replace_instruction(ins2, code_object, ins2->inputs());
-        }};
+        return {compile_op(ctx, shapes, v),
+                [=](module& m, instruction_ref ins2, const operation& code_object) {
+                    if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
+                    {
+                        std::vector<shape> gemm_shapes{
+                            shapes[0], shapes[1], shapes.back().with_type(shapes[0].type())};
+                        std::cout << "ck_gemm: " << to_json_string(to_value(gemm_shapes))
+                                  << std::endl;
+                    }
+                    m.replace_instruction(ins2, code_object, ins2->inputs());
+                }};
     }
 };
 

@@ -55,6 +55,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto dtype         = oargs[0]->get_shape().type();
         auto literal_dtype = dtype;
         std::vector<instruction_ref> args;
+        // cppcheck-suppress knownConditionTrueFalse
         if(dtype == shape::half_type and convert_fp16)
         {
             std::transform(oargs.begin(), oargs.end(), std::back_inserter(args), [&](const auto i) {

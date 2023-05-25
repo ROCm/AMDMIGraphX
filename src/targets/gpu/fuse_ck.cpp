@@ -96,8 +96,8 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
-    // if(a.lens().back() > 2048)
-    //     return false;
+    if(a.lens().back() > 2048)
+        return false;
     return true;
 }
 
@@ -160,20 +160,6 @@ struct find_ck_gemm_pointwise_int8
         auto gemm_ins = r.instructions["gemm"];
         auto x_ins    = r.instructions["x"]; // input after contiguous
         auto next_ins = std::next(ins);
-        // if (next_ins->name() == "quant_dot")
-        // {
-        //     std::cout << "\nins: ";
-        //     ins->debug_print(); 
-        //     std::cout << "\ngemm_ins: ";
-        //     gemm_ins->debug_print(); 
-        //     std::cout << "\nx_ins: ";
-        //     x_ins->debug_print(); 
-        //     std::cout << "\nnext: ";
-        //     next_ins->debug_print();
-        //     mpm.get_module().debug_print();
-        // }
-        
-        
         auto* pm      = ins->module_inputs().front();
         auto names    = pm->get_parameter_names();
         
@@ -182,13 +168,6 @@ struct find_ck_gemm_pointwise_int8
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         assert(gemm_it != inputs.end());
-        // if(ins->get_shape().type() != shape::half_type)
-        //     return;
-        // if (next_ins->name() == "reshape")
-        // {
-        //     std::cout << "PM before: " << std::endl;
-        //     pm->debug_print();
-        // }
         if(gemm_idx != 0)
         {
             auto first_param    = pm->get_parameter(names[0]);
@@ -201,31 +180,9 @@ struct find_ck_gemm_pointwise_int8
             pm->remove_instruction(first_param);
             pm->remove_instruction(gemm_param);
         }
-        // if (next_ins->name() == "reshape")
-        // {
-        //     std::cout << "PM after: " << std::endl;
-        //     pm->debug_print();
-        // }
         inputs.erase(gemm_it);
         inputs.insert(inputs.begin(), gemm_ins->inputs().begin(), gemm_ins->inputs().end());
-        // std::cout << "Next_ins inputs: " << std::endl;
-        // for (auto& in : next_ins->inputs())
-        // {
-        //     in->debug_print();
-        // }
-        // auto out_shape = compute_shape(ck_gemm_int8{}, inputs, {pm});
-        // instruction::replace(ins, ck_gemm_int8{}, out_shape.with_type(migraphx::shape::half_type), inputs, {pm});
         mpm.get_module().replace_instruction(ins, ck_gemm_int8{}, inputs, {pm});
-        // std::cout << "Next_ins inputs (post replace): " << std::endl;
-        // for (auto& in : std::next(ins)->inputs())
-        // {
-        //     in->debug_print();
-        // }
-        // if (next_ins->name() == "softmax" or next_ins->name() == "reshape")
-        // {
-        //     std::cout << "After replace: " << std::endl;
-        //     mpm.get_module().debug_print();
-        // }
     }
 };
 

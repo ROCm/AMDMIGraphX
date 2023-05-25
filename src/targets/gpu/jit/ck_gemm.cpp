@@ -326,22 +326,6 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         std::array<std::size_t, 3> config{m, n, k};
         auto tuning_val = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape.with_type(a_shape.type())}));
         auto ip         = instance{get_instance(tuning_val, [&](const auto& x) -> bool {
-            // if (not (get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
-            //        get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
-            //        get_type(b_shape) == x[5] and get_type(c_shape) == x[9]))
-            // {
-            //     std::cout << get_layout(a_shape) << " - " << x[0] <<std::endl;
-            //     std::cout << get_layout(b_shape) << " - " << x[1] <<std::endl;
-            //     std::cout << get_layout(c_shape) << " - " << x[3] <<std::endl;
-            //     std::cout << get_type(a_shape) << " - " << x[4] <<std::endl;
-            //     std::cout << get_type(b_shape) << " - " << x[5] <<std::endl;
-            //     std::cout << get_type(c_shape) << " - " << x[9] <<std::endl;
-            // }
-            
-
-            /* return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
-                   get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
-                   get_type(b_shape) == x[5] and get_type(c_shape) == x[9]; */
             return get_layout(a_shape) == x[0] and get_layout(b_shape) == x[1] and
                    get_layout(c_shape) == x[3] and get_type(a_shape) == x[4] and
                    get_type(b_shape) == x[5];
@@ -354,15 +338,19 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             ip.set_ds_op(v.at("post").to<std::string>());
             
         }
-        ip.set_e_type(get_type(c_shape));
-        if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "ck::half_t"; }))
+        if (a_shape.type() == shape::int8_type)
         {
-            ip.set_c_scalar_per_vec("8");
+            ip.set_e_type(get_type(c_shape));
+            if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "ck::half_t"; }))
+            {
+                ip.set_c_scalar_per_vec("8");
+            }
+            if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "float"; }))
+            {
+                ip.set_c_scalar_per_vec("4");
+            }
         }
-        if (std::any_of(inputs.begin(), inputs.end(), [](auto s) { return get_type(s) == "float"; }))
-        {
-            ip.set_c_scalar_per_vec("4");
-        }
+        
             
 
         auto padding = ip.get_pad(config);
@@ -407,7 +395,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
-        // std::cout << options.kernel_name << ": " << std::endl;
+
         return compile_hip_code_object(src, options);
     }
 

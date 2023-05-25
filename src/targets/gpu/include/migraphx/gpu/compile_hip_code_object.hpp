@@ -26,12 +26,10 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/compile_src.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct src_file;
-
 namespace gpu {
 
 struct context;

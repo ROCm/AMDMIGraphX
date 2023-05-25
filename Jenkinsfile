@@ -85,7 +85,7 @@ def rocmnodename(name) {
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
     } else if(name == "anygpu") {
-        node_name = "${rocmtest_name} && (mi100 || mi200 || vega)";
+        node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega)";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
     }

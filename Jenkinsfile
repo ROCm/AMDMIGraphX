@@ -134,6 +134,13 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
 //        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
 //    }
 //}
+, clang_release_navi: rocmnode('navi32') { cmake_build ->
+    stage('HIP Clang Release Navi32') {
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
+    }
+}
+
+
 
 def onnxnode(name, body) {
     return { label ->

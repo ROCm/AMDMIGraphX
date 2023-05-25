@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <iterator>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -56,12 +57,10 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         std::vector<instruction_ref> args;
         if(dtype == shape::half_type and convert_fp16)
         {
-            args.push_back(info.add_instruction(
-                make_op("convert", {{"target_type", shape::float_type}}), oargs[0]));
-            args.push_back(info.add_instruction(
-                make_op("convert", {{"target_type", shape::float_type}}), oargs[1]));
-            args.push_back(info.add_instruction(
-                make_op("convert", {{"target_type", shape::float_type}}), oargs[2]));
+            std::transform(oargs.begin(), oargs.end(), std::back_inserter(args), [&](const auto i) {
+                return info.add_instruction(
+                    make_op("convert", {{"target_type", shape::float_type}}), i);
+            });
             literal_dtype = shape::float_type;
         }
         else

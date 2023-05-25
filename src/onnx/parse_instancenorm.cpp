@@ -87,7 +87,8 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
             info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), mean);
         auto l1 = info.add_instruction(make_op("sub"), x, mean_bcast);
         // for the fp16, if not converting to fp32 then divide `x` and `mean` by `sqrt(n)` and take
-        // reduce_sum
+        // reduce_sum to calculate variance i.e.
+        // var =  reduce_sum((x/s_n - mean/s_n)^2) where s_n = sqrt(n)
         std::string reduce_op_name =
             (dtype == shape::half_type and not convert_fp16) ? "reduce_sum" : "reduce_mean";
         if(dtype == shape::half_type and not convert_fp16)

@@ -29,6 +29,9 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct src_file;
+
 namespace gpu {
 
 struct context;
@@ -42,6 +45,7 @@ struct hip_compile_options
     std::string kernel_name           = "kernel";
     std::string params                = "";
     std::vector<shape> virtual_inputs = {};
+    std::vector<src_file> additional_src_files = {};
 
     /**
      * @brief Set the launch parameters but allow v to override the values

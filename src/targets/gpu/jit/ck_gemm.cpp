@@ -80,15 +80,6 @@ __global__ void ${kernel}(${params})
 
 static bool transposed_matrix(const shape& s) { return s.strides().back() != 1; }
 
-template <class F, class Action>
-auto action_decorate(F f, Action action)
-{
-    return [=](auto&&... xs) {
-        action();
-        f(std::forward<decltype(xs)>(xs)...);
-    };
-}
-
 using tuning_entry = std::pair<std::vector<shape>, size_t>;
 static std::vector<tuning_entry> read_tuning(const std::string& s)
 {
@@ -300,7 +291,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto block_size       = solution.block_size;
 
         hip_compile_options options;
-        options.embedded_headers = ck_headers;
+        std::transform(ck_headers.begin(), ck_headers.end(), std::back_inserter(options.additional_src_files), [&](auto&& p) {
+            return src_file{fs::path{p.first}, p.second};
+        });
         auto grid_size = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;

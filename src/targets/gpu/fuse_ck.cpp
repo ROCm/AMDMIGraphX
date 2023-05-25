@@ -7,7 +7,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
 
 struct module;
 
@@ -122,7 +122,7 @@ struct find_ck_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    if(enabled(MIGRAPHX_ENABLE_CK_GEMM{}))
+    if(enabled(MIGRAPHX_ENABLE_CK{}))
     {
         match::find_matches(mpm, find_ck_gemm_pointwise{});
         match::find_matches(mpm, find_ck_gemm{});

@@ -102,7 +102,7 @@ struct test_instancenorm_large_3D : verify_program<test_instancenorm_large_3D<TY
     {
         migraphx::program p;
         auto* mm                 = p.get_main_module();
-        std::vector<size_t> dims = {1, 32, 32, 32, 32};
+        std::vector<size_t> dims = {1, 32, 64, 64, 64};
         auto x                   = mm->add_parameter("x", migraphx::shape{TYPE, dims});
         add_instancenorm(*mm, x, {1, 32, 1, 1, 1});
         return p;

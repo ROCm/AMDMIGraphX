@@ -33,6 +33,8 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
+find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
+
 set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipClang APIs")
 
 include(Embed)
@@ -237,7 +239,7 @@ else()
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)

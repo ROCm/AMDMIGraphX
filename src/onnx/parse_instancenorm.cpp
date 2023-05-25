@@ -44,7 +44,8 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
         // mean = reduce_mean({D1, D2, ... Dk}, x)
         // variance = reduce_mean({D1, D2, ... Dk}, (x - mean)^2)
-        bool convert_fp16 = false;
+        // Convert fp16 to fp32 to workaround for FP16 accuracy issues with reduce_mean/variance.
+        bool convert_fp16 = true;
         float epsilon     = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
@@ -85,9 +86,11 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
         auto mean_bcast =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), mean);
-        auto l1                    = info.add_instruction(make_op("sub"), x, mean_bcast);
-        std::string reduce_op_name = (dtype == shape::half_type) ? "reduce_sum" : "reduce_mean";
-        if(dtype == shape::half_type)
+        auto l1 = info.add_instruction(make_op("sub"), x, mean_bcast);
+        // for the FP16, if not converting to fp32 then use reduce_sum
+        std::string reduce_op_name =
+            (dtype == shape::half_type and not convert_fp16) ? "reduce_sum" : "reduce_mean";
+        if(dtype == shape::half_type and not convert_fp16)
         {
             double n =
                 std::accumulate(dims.begin() + 2, dims.end(), 1, [&](const auto& i, const auto& j) {

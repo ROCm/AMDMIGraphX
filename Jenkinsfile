@@ -85,7 +85,7 @@ def rocmnodename(name) {
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
     } else if(name == "nogpu") {
-        return rocmtest_name;
+        node_name = "${rocmtest_name} && nogpu";
     }
     return node_name
 }

@@ -56,15 +56,14 @@ echo "Dependencies are installed at $PREFIX"
 # Install deps with rbuild
 rbuild prepare -d $PREFIX -s develop
 
-if ! python3 -c 'import sys; assert sys.version_info >= (3, 10)' > /dev/null; then
-  python3.8 -m pip install protobuf==3.20.3 onnx==1.10.2 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
+if python3 -c 'import sys; assert sys.version_info >= (3, 10)' > /dev/null; then
   export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
-  python3.10 -m pip install onnx==1.10.2
-  python3.10 -m pip install protobuf==3.20.3 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
+  python3.10 -m pip onnx==1.10.2 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
 else
   # install onnx package for unit tests
   pip3 install onnx==1.10.2 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
 
   # pin version of protobuf in Python for onnx runtime unit tests
-  pip3 install protobuf==3.20.0
 fi
+
+pip3 install protobuf==3.20.0

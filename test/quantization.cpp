@@ -647,6 +647,7 @@ TEST_CASE(dot_float)
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sc.lens()}}), dc);
         auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, mdc);
         mm->add_return({r});
+        mm->debug_print();
 
         return p;
     };

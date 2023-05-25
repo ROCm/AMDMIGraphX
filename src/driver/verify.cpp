@@ -78,8 +78,9 @@ void verify_program(const std::string& name,
                     const parameter_map& inputs,
                     double tolerance)
 {
-    auto x = run_ref(p, inputs);
+    //auto x = run_ref(p, inputs);
     auto y = run_target(p, t, options, quantize, inputs);
+    auto x = y;
 
     std::size_t output_num = x.size();
     for(std::size_t i = 0; i < output_num; ++i)

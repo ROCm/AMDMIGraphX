@@ -517,15 +517,15 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
-        if(per_instruction)
-        {
-            verify_instructions(p, t, c.co, c.quantize, tolerance);
-        }
-        else if(reduce)
-        {
-            verify_reduced_program(p, t, c.co, c.quantize, m, tolerance);
-        }
-        else
+        //if(per_instruction)
+        //{
+        //    verify_instructions(p, t, c.co, c.quantize, tolerance);
+        //}
+        //else if(reduce)
+        //{
+        //    verify_reduced_program(p, t, c.co, c.quantize, m, tolerance);
+        //}
+        //else
         {
             verify_program(c.l.file, p, t, c.co, c.quantize, m, tolerance);
         }

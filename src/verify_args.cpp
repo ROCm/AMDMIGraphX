@@ -36,15 +36,18 @@ bool verify_args(const std::string& name,
     visit_all(ref_arg, target_arg)([&](auto ref, auto target) {
         double error;
         passed = verify_range(ref, target, tolerance, &error);
+        std::cout << "error: " << error << std::endl;
+        std::cout << "ref:" << ref << std::endl;
+        std::cout << "target:" << target << std::endl;
         if(not passed)
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
-            std::cout << "error: " << error << std::endl;
-            if(ref.size() < 32)
-                std::cout << "ref:" << ref << std::endl;
-            if(target.size() < 32)
-                std::cout << "target:" << target << std::endl;
+            //std::cout << "error: " << error << std::endl;
+            //if(ref.size() < 32)
+            //    std::cout << "ref:" << ref << std::endl;
+            //if(target.size() < 32)
+            //    std::cout << "target:" << target << std::endl;
             if(range_zero(ref))
                 std::cout << "Ref data is all zeros" << std::endl;
             if(range_zero(target))

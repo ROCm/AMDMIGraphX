@@ -6,9 +6,6 @@
 #include <migraphx/env.hpp>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
-
 struct module;
 
 namespace gpu {
@@ -122,11 +119,8 @@ struct find_ck_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    if(enabled(MIGRAPHX_ENABLE_CK{}))
-    {
-        match::find_matches(mpm, find_ck_gemm_pointwise{});
-        match::find_matches(mpm, find_ck_gemm{});
-    }
+    match::find_matches(mpm, find_ck_gemm_pointwise{});
+    match::find_matches(mpm, find_ck_gemm{});
 }
 
 } // namespace gpu

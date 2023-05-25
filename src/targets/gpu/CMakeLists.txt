@@ -93,6 +93,7 @@ add_library(migraphx_gpu
     compile_miopen.cpp
     compiler.cpp
     device_name.cpp
+    fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp

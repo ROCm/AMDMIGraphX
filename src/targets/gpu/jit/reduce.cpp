@@ -189,7 +189,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         v["read"]      = r.read;
         v["write"]     = r.write;
         v["init"]      = r.init;
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 
@@ -285,7 +285,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 } // namespace gpu

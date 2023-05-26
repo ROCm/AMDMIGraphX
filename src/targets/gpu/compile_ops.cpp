@@ -101,7 +101,7 @@ void compile_ops::apply(module& m) const
     par_compile(compiles.size(), [&](auto i) { results[i] = compiles[i](); });
     for(const auto& cr : results)
     {
-        cr.replace(m, cr.ins);
+        cr.replace.replace(m, cr.ins);
     }
 }
 

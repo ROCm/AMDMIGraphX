@@ -45,10 +45,10 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     compiler_replace insert(code_object_op co) const
     {
-        return [co_ = std::move(co)](module& m, instruction_ref ins) {
-            auto mlir = insert_mlir(m, ins, co_, ins->inputs());
-            m.replace_instruction(ins, mlir);
-        };
+        return {std::move(co), [](module& m, instruction_ref ins, const operation& op) {
+                    auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(op), ins->inputs());
+                    m.replace_instruction(ins, mlir);
+                }};
     }
 };
 

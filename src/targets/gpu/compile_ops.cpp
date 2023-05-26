@@ -87,14 +87,11 @@ struct problem_cache
     {
         cache[create_key(name, problem)] = solution;
     }
-    void mark(const std::string& name, const value& problem)
-    {
-        insert(name, problem, value{});
-    }
+    void mark(const std::string& name, const value& problem) { insert(name, problem, value{}); }
     optional<value> get(const std::string& name, const value& problem) const
     {
         auto it = cache.find(create_key(name, problem));
-        if (it == cache.end())
+        if(it == cache.end())
             return nullopt;
         return it->second;
     }
@@ -189,7 +186,7 @@ struct compile_manager
     problem_cache pc;
     std::vector<compile_plan> cps;
 
-    template<class... Ts>
+    template <class... Ts>
     void add_plan(Ts&&... xs)
     {
         cps.push_back({std::forward<Ts>(xs)...});
@@ -218,9 +215,10 @@ struct compile_manager
         }
 
         // Remove compile_plan already executed
-        cps.erase(std::remove_if(cps.begin(), cps.end(), [](const auto& cp) {
-            return not cp.results.empty();
-        }), cps.end());
+        cps.erase(std::remove_if(cps.begin(),
+                                 cps.end(),
+                                 [](const auto& cp) { return not cp.results.empty(); }),
+                  cps.end());
     }
 };
 

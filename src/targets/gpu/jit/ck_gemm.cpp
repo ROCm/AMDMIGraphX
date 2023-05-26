@@ -86,10 +86,11 @@ ${content}
 #pragma clang diagnostic pop
 )__migraphx__";
 
-template<class P>
+template <class P>
 static std::string ck_disable_warnings(P p)
 {
-    return interpolate_string(disable_warning_pragma, {{"content", std::string{p.first, p.second}}});
+    return interpolate_string(disable_warning_pragma,
+                              {{"content", std::string{p.first, p.second}}});
 }
 
 static std::unordered_map<std::string, std::string> create_ck_header_strings()
@@ -97,12 +98,10 @@ static std::unordered_map<std::string, std::string> create_ck_header_strings()
     std::unordered_map<std::string, std::string> result;
     auto ck_headers = ck::host::GetHeaders();
 
-    std::transform(ck_headers.begin(),
-                       ck_headers.end(),
-                       std::inserter(result, result.begin()),
-                       [&](auto&& p) {
-                           return std::make_pair(p.first, ck_disable_warnings(p.second));
-                       });
+    std::transform(
+        ck_headers.begin(), ck_headers.end(), std::inserter(result, result.begin()), [&](auto&& p) {
+            return std::make_pair(p.first, ck_disable_warnings(p.second));
+        });
     return result;
 }
 
@@ -110,12 +109,11 @@ static std::vector<src_file> create_ck_headers()
 {
     static const auto& header_strings = create_ck_header_strings();
     std::vector<src_file> srcs;
-    std::transform(header_strings.begin(),
-                       header_strings.end(),
-                       std::back_inserter(srcs),
-                       [&](auto&& p) {
-                           return src_file{fs::path{p.first}, {p.second.data(), p.second.data()+p.second.size()}};
-                       });
+    std::transform(
+        header_strings.begin(), header_strings.end(), std::back_inserter(srcs), [&](auto&& p) {
+            return src_file{fs::path{p.first},
+                            {p.second.data(), p.second.data() + p.second.size()}};
+        });
     return srcs;
 }
 

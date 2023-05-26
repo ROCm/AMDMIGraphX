@@ -84,6 +84,8 @@ struct find_ck_gemm_pointwise
         auto inputs   = ins->inputs();
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
+        if (ins->get_shape().type() != gemm_ins->get_shape().type())
+            return;
         assert(gemm_it != inputs.end());
         if(gemm_idx != 0)
         {

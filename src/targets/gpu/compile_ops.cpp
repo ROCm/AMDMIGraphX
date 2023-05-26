@@ -85,9 +85,12 @@ struct problem_cache
     }
     void insert(const std::string& name, const value& problem, const value& solution)
     {
+        assert(not solution.is_null());
         cache[create_key(name, problem)] = solution;
     }
-    void mark(const std::string& name, const value& problem) { insert(name, problem, value{}); }
+    void mark(const std::string& name, const value& problem) { 
+        cache.insert(std::make_pair(create_key(name, problem), value{})); 
+    }
     optional<value> get(const std::string& name, const value& problem) const
     {
         auto it = cache.find(create_key(name, problem));
@@ -120,7 +123,7 @@ struct compile_plan
             {
                 auto solution = sol.value();
                 // No solution yet until benchmarked so skip for now
-                if(solution.empty())
+                if(solution.is_null())
                     return;
                 compiles.emplace_back([=] {
                     results[0] = compiled_result{compile(*ctx, ins, preop, solution), ins};
@@ -163,7 +166,7 @@ struct compile_plan
                 time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first);
         }
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        pc.insert(preop.name(), config.value().problem, config.value().solutions[i]);
+        pc.insert(preop.name(), config.value().problem, config.value().solutions.at(i));
         return results[i];
     }
     void replace(module& m, problem_cache& pc) const
@@ -239,6 +242,8 @@ void compile_ops::apply(module& m) const
     cm.compile(m);
     // Compile already tuned configs
     cm.compile(m);
+    if (not cm.cps.empty())
+        MIGRAPHX_THROW("Untuned configs");
 }
 
 } // namespace gpu

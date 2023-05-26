@@ -483,20 +483,15 @@ struct value
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-
 namespace std {
 template <>
 struct hash<migraphx::value>
 {
     using argument_type = migraphx::value;
     using result_type   = std::size_t;
-    result_type operator()(const migraphx::value& x) const noexcept
-    {
-        return x.hash();
-    }
+    result_type operator()(const migraphx::value& x) const noexcept { return x.hash(); }
 };
 
 } // namespace std
-
 
 #endif

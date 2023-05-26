@@ -341,8 +341,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto tuning_value = v.get("tuning_value", 4);
         if(not v.contains("tuning_value"))
             tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
-        auto batch_count  = get_batch_count(c_shape);
-        auto problem      = create_problem(inputs, v);
+        auto batch_count = get_batch_count(c_shape);
+        auto problem     = create_problem(inputs, v);
 
         const auto include_header   = problem.GetIncludeHeader();
         const auto solutions        = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
@@ -398,10 +398,11 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         return v;
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
-        auto shapes = to_shapes(ins->inputs());
-        auto v = create_settings(ins, op);
+        auto shapes       = to_shapes(ins->inputs());
+        auto v            = create_settings(ins, op);
         v["tuning_value"] = solution;
         return {compile_op(ctx, shapes, v),
                 [=](module& m, instruction_ref ins2, const operation& code_object) {
@@ -425,8 +426,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto solutions = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
         tc.solutions.resize(solutions.size());
         std::iota(tc.solutions.begin(), tc.solutions.end(), 0);
-        std::vector<shape> gemm_shapes{
-                            shapes[0], shapes[1], shapes.back()};
+        std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};
         tc.problem = to_value(shapes);
         return tc;
     }

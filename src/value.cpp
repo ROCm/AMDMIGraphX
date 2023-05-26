@@ -520,7 +520,7 @@ std::ostream& operator<<(std::ostream& os, const value& d)
     return os;
 }
 
-template<class T>
+template <class T>
 std::size_t value_hash(const std::string& key, const T& x)
 {
     std::size_t h = hash_value(key);
@@ -530,14 +530,14 @@ std::size_t value_hash(const std::string& key, const T& x)
 std::size_t value_hash(const std::string& key, const std::vector<value>& x)
 {
     std::size_t h = hash_value(key);
-    for(const auto& v:x)
+    for(const auto& v : x)
         hash_combine(h, v);
     return h;
 }
 std::size_t value_hash(const std::string& key, const value::binary& x)
 {
     std::size_t h = hash_value(key);
-    for(const auto& v:x)
+    for(const auto& v : x)
         hash_combine(h, v);
     return h;
 }
@@ -545,9 +545,7 @@ std::size_t value_hash(const std::string& key, const value::binary& x)
 std::size_t value::hash() const
 {
     std::size_t h = 0;
-    this->visit_value([&](const auto& a) {
-        h = value_hash(this->get_key(), a);
-    });
+    this->visit_value([&](const auto& a) { h = value_hash(this->get_key(), a); });
     return h;
 }
 

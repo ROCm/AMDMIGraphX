@@ -81,17 +81,20 @@ struct compile_plan
     context* ctx;
     operation preop;
     instruction_ref ins;
-    optional<tuning_config> config       = nullopt;
+    optional<tuning_config> config = nullopt;
     std::vector<compiled_result> results = {};
-    void update_config() { config = get_tuning_config(*ctx, ins, preop); }
-    template <class Vector>
+    void update_config()
+    {
+        config = get_tuning_config(*ctx, ins, preop);
+    }
+    template<class Vector>
     void add_compiles(Vector& compiles)
     {
-        if(config.has_value())
+        if (config.has_value())
         {
             const auto& solutions = config.value().solutions;
             results.resize(solutions.size());
-            for(auto i : range(solutions.size()))
+            for(auto i:range(solutions.size()))
             {
                 auto solution = solutions[i];
                 compiles.emplace_back([=] {
@@ -131,6 +134,7 @@ void par_compile(std::size_t n, F f)
 void compile_ops::apply(module& m) const
 {
     std::vector<compile_plan> cps;
+    // Find all precompile opes
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::precompile_op")
@@ -138,15 +142,20 @@ void compile_ops::apply(module& m) const
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         cps.push_back({ctx, preop, ins});
     }
-    par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
+    // Get the tuning configs for all ops
+    par_compile(cps.size(), [&](auto i) {
+        cps[i].update_config();
+    });
+    // Compile everything in parallel
     std::vector<std::function<void()>> compiles;
-    for(auto& cp : cps)
+    for(auto& cp:cps)
     {
         cp.add_compiles(compiles);
     }
     par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
-    for(const auto& cp : cps)
+    // Replace and/or benchmark
+    for(const auto& cp:cps)
     {
         cp.replace(m);
     }

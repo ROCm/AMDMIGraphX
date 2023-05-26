@@ -333,7 +333,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                                          cde_op};
     }
 
-    operation compile_op(context& /* ctx */, const std::vector<shape>& inputs, const value& v) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto a_shape      = inputs[0];
         auto b_shape      = inputs[1];
@@ -343,7 +343,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto problem      = create_problem(inputs, v);
 
         const auto include_header   = problem.GetIncludeHeader();
-        const auto solutions        = problem.GetSolutions("gfx90a");
+        const auto solutions        = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
         const auto solution         = solutions.at(tuning_value);
         const auto template_str     = solution.template_str;
         const auto blocks_per_batch = solution.grid_size;

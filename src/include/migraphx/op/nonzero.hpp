@@ -66,7 +66,7 @@ struct nonzero
 
         argument result{output_shape};
         result.visit([&](auto output) {
-            std::fill(output.begin(), output.end(), 0);
+            std::fill(output.begin(), output.end(), output_shape.elements());
             par_for(vec_idx.size(), [&](auto i) {
                 for(std::size_t j = 0; j < vec_idx.front().size(); ++j)
                 {

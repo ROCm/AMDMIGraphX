@@ -45,8 +45,8 @@ argument nonzero(hipStream_t stream, const argument& result, const argument& arg
         const auto* in_ptr = device_cast(input.data());
         auto* ptr          = result.cast<int64_t>();
         gs_launch(stream, block_size, block_size)([=](auto, auto idx) __device__ {
-            // fill all output to 0 first
-            idx.local_stride(out_elem_num, [&](auto j) { ptr[j] = 0; });
+            // fill all output to elem_num first
+            idx.local_stride(out_elem_num, [&](auto j) { ptr[j] = elem_num; });
 
             block_scan<block_size>(
                 idx,

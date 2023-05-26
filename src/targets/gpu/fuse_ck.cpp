@@ -54,8 +54,8 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     if(ins->name() != "dot" and ins->name() != "quant_dot")
         return false;
     if(not contains({shape::half_type, shape::int8_type, shape::int32_type},
-                        ins->get_shape().type()))
-            return false;
+                    ins->get_shape().type()))
+        return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
     if(a.lens().back() > 2048)

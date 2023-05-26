@@ -110,6 +110,8 @@ struct compile_plan
     }
     const compiled_result& benchmark() const
     {
+        if(results.empty())
+            MIGRAPHX_THROW("No configs to tune");
         if(results.size() == 1)
             return results.front();
         std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"

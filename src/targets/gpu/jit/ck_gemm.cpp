@@ -411,6 +411,17 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                     m.replace_instruction(ins2, code_object, ins2->inputs());
                 }};
     }
+
+    optional<tuning_config> get_tuning_config(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        tuning_config tc;
+        auto shapes = to_shapes(ins->inputs());
+        auto problem = create_problem(shapes, create_settings(ins, op));
+        auto solutions = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
+        tc.solutions.resize(solutions.size());
+        std::iota(tc.solutions.begin(), tc.solutions.end(), 0);
+        return tc;
+    }
 };
 
 } // namespace gpu

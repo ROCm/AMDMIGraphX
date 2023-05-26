@@ -230,7 +230,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto a_shape      = inputs[0];
         auto b_shape      = inputs[1];
         auto c_shape      = inputs.back();
-        auto tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
+        auto tuning_value = v.get("tuning_val", get_tuning_for({a_shape, b_shape, c_shape}));
 
         auto rank           = a_shape.lens().size();
         auto b_strides      = b_shape.strides();
@@ -321,7 +321,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
-
+        std::cout << "instances: " << solutions.size() << ", val: " << tuning_value << std::endl;
+        std::cout << template_str << std::endl;
         return compile_hip_code_object(src, options);
     }
 

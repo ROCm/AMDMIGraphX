@@ -94,7 +94,7 @@ void compile_ops::apply(module& m) const
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         compiles.emplace_back([=]() -> compiled_result {
-            return {compile(*ctx, ins, preop), ins};
+            return {compile(*ctx, ins, preop, value{}), ins};
         });
     }
     std::vector<compiled_result> results(compiles.size());

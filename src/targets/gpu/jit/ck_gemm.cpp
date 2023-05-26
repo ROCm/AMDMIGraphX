@@ -78,6 +78,53 @@ __global__ void ${kernel}(${params})
 
 )__migraphx__";
 
+// NOLINTNEXTLINE
+static const char* const disable_warning_pragma = R"__migraphx__(
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+${content}
+#pragma clang diagnostic pop
+)__migraphx__";
+
+template<class P>
+static std::string ck_disable_warnings(P p)
+{
+    return interpolate_string(disable_warning_pragma, {{"content", std::string{p.first, p.second}}});
+}
+
+static std::unordered_map<std::string, std::string> create_ck_header_strings()
+{
+    std::unordered_map<std::string, std::string> result;
+    auto ck_headers = ck::host::GetHeaders();
+
+    std::transform(ck_headers.begin(),
+                       ck_headers.end(),
+                       std::inserter(result, result.begin()),
+                       [&](auto&& p) {
+                           return std::make_pair(p.first, ck_disable_warnings(p.second));
+                       });
+    return result;
+}
+
+static std::vector<src_file> create_ck_headers()
+{
+    static const auto& header_strings = create_ck_header_strings();
+    std::vector<src_file> srcs;
+    std::transform(header_strings.begin(),
+                       header_strings.end(),
+                       std::back_inserter(srcs),
+                       [&](auto&& p) {
+                           return src_file{fs::path{p.first}, {p.second.data(), p.second.data()+p.second.size()}};
+                       });
+    return srcs;
+}
+
+static const std::vector<src_file>& ck_headers()
+{
+    static const auto& headers = create_ck_headers();
+    return headers;
+}
+
 static bool transposed_matrix(const shape& s) { return s.strides().back() != 1; }
 
 using tuning_entry = std::pair<std::vector<shape>, size_t>;
@@ -280,7 +327,6 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
                                                                  cde_op};
 
         const auto include_header   = problem.GetIncludeHeader();
-        const auto ck_headers       = ck::host::GetHeaders();
         const auto solutions        = problem.GetSolutions("gfx90a");
         const auto solution         = solutions.at(tuning_value);
         const auto template_str     = solution.template_str;
@@ -288,12 +334,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto block_size       = solution.block_size;
 
         hip_compile_options options;
-        std::transform(ck_headers.begin(),
-                       ck_headers.end(),
-                       std::back_inserter(options.additional_src_files),
-                       [&](auto&& p) {
-                           return src_file{fs::path{p.first}, p.second};
-                       });
+        options.additional_src_files = ck_headers();
         auto grid_size = can_fold_batch ? blocks_per_batch : batch_count * blocks_per_batch;
         options.set_launch_params(v, grid_size * block_size, block_size);
         options.inputs         = inputs;

@@ -426,6 +426,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto solutions = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
         tc.solutions.resize(solutions.size());
         std::iota(tc.solutions.begin(), tc.solutions.end(), 0);
+        std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};
+        tc.problem = to_value(shapes);
         return tc;
     }
 };

@@ -77,6 +77,30 @@ struct compiled_result
     instruction_ref ins;
 };
 
+struct problem_cache
+{
+    bool has(const std::string& name, const value& problem) const
+    {
+        return contains(cache, create_key(name, problem));
+    }
+    void insert(const std::string& name, const value& problem, const value& solution)
+    {
+        cache[create_key(name, problem)] = solution;
+    }
+    optional<value> get(const std::string& name, const value& problem) const
+    {
+        auto it = cache.find(create_key(name, problem));
+        if(it == cache.end())
+            return nullopt;
+        return it->second;
+    }
+    static value create_key(const std::string& name, const value& problem)
+    {
+        return {{"name", name}, {"problem", problem}};
+    }
+    std::unordered_map<value, value> cache;
+};
+
 struct compile_plan
 {
     context* ctx;
@@ -86,18 +110,32 @@ struct compile_plan
     std::vector<compiled_result> results = {};
     void update_config() { config = get_tuning_config(*ctx, ins, preop); }
     template <class Vector>
-    void add_compiles(Vector& compiles)
+    void add_compiles(Vector& compiles, problem_cache& pc)
     {
         if(config.has_value())
         {
-            const auto& solutions = config.value().solutions;
-            results.resize(solutions.size());
-            for(auto i : range(solutions.size()))
+            const auto& problem = config.value().problem;
+            if(auto sol = pc.get(preop.name(), problem))
             {
-                auto solution = solutions[i];
+                auto solution = sol.value();
+                // No solution yet until benchmarked so skip for now
+                if(solution.empty())
+                    return;
                 compiles.emplace_back([=] {
-                    results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
+                    results[0] = compiled_result{compile(*ctx, ins, preop, solution), ins};
                 });
+            }
+            else
+            {
+                const auto& solutions = config.value().solutions;
+                results.resize(solutions.size());
+                for(auto i : range(solutions.size()))
+                {
+                    auto solution = solutions[i];
+                    compiles.emplace_back([=] {
+                        results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
+                    });
+                }
             }
         }
         else
@@ -108,7 +146,7 @@ struct compile_plan
             });
         }
     }
-    const compiled_result& benchmark() const
+    const compiled_result& benchmark(problem_cache& pc) const
     {
         if(results.empty())
             MIGRAPHX_THROW("No configs to tune");
@@ -123,11 +161,12 @@ struct compile_plan
                 time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first);
         }
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
+        pc.insert(preop.name(), config.value().problem, config.value().solutions[i]);
         return results[i];
     }
-    void replace(module& m) const
+    void replace(module& m, problem_cache& pc) const
     {
-        const auto& cr = benchmark();
+        const auto& cr = benchmark(pc);
         cr.replace.replace(m, cr.ins);
     }
 };
@@ -140,8 +179,51 @@ void par_compile(std::size_t n, F f)
     par_for(n, n / value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, n), f);
 }
 
+struct compile_manager
+{
+    problem_cache pc;
+    std::vector<compile_plan> cps;
+
+    template <class... Ts>
+    void add_plan(Ts&&... xs)
+    {
+        cps.push_back({std::forward<Ts>(xs)...});
+    }
+
+    void update_configs()
+    {
+        par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
+    }
+
+    void compile(module& m)
+    {
+        std::vector<std::function<void()>> compiles;
+        for(auto& cp : cps)
+        {
+            cp.add_compiles(compiles, pc);
+        }
+        par_compile(compiles.size(), [&](auto i) { compiles[i](); });
+
+        // Replace and/or benchmark
+        for(const auto& cp : cps)
+        {
+            if(cp.results.empty())
+                continue;
+            cp.replace(m, pc);
+        }
+
+        // Remove compile_plan already executed
+        cps.erase(std::remove_if(cps.begin(),
+                                 cps.end(),
+                                 [](const auto& cp) { return not cp.results.empty(); }),
+                  cps.end());
+    }
+};
+
 void compile_ops::apply(module& m) const
 {
+    compile_manager cm;
+    problem_cache pc;
     std::vector<compile_plan> cps;
     // Find all precompile opes
     for(auto ins : iterator_for(m))
@@ -149,23 +231,12 @@ void compile_ops::apply(module& m) const
         if(ins->name() != "gpu::precompile_op")
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cps.push_back({ctx, preop, ins});
+        cm.add_plan(ctx, preop, ins);
     }
-    // Get the tuning configs for all ops
-    par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
-    // Compile everything in parallel
-    std::vector<std::function<void()>> compiles;
-    for(auto& cp : cps)
-    {
-        cp.add_compiles(compiles);
-    }
-    par_compile(compiles.size(), [&](auto i) { compiles[i](); });
-
-    // Replace and/or benchmark
-    for(const auto& cp : cps)
-    {
-        cp.replace(m);
-    }
+    cm.update_configs();
+    cm.compile(m);
+    // Compile already tuned configs
+    cm.compile(m);
 }
 
 } // namespace gpu

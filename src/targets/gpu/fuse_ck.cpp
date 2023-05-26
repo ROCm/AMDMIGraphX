@@ -53,6 +53,9 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
 {
     if(ins->name() != "dot" and ins->name() != "quant_dot")
         return false;
+    if(not contains({shape::half_type, shape::int8_type, shape::int32_type},
+                    ins->get_shape().type()))
+        return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
     if(a.lens().back() > 2048)
@@ -82,9 +85,6 @@ struct find_ck_gemm_pointwise
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         assert(gemm_it != inputs.end());
-        if(not contains({shape::half_type, shape::int8_type, shape::int32_type},
-                        ins->get_shape().type()))
-            return;
         if(gemm_idx != 0)
         {
             auto first_param    = pm->get_parameter(names[0]);

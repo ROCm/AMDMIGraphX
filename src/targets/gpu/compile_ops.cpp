@@ -112,11 +112,13 @@ struct compile_plan
     {
         if(results.size() == 1)
             return results.front();
-        std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs" << std::endl;
+        std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
+                  << std::endl;
         std::vector<double> times;
-        for(const auto& cr:results)
+        for(const auto& cr : results)
         {
-            times.push_back(time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first);
+            times.push_back(
+                time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first);
         }
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         return results[i];

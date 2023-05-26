@@ -88,8 +88,9 @@ struct problem_cache
         assert(not solution.is_null());
         cache[create_key(name, problem)] = solution;
     }
-    void mark(const std::string& name, const value& problem) { 
-        cache.insert(std::make_pair(create_key(name, problem), value{})); 
+    void mark(const std::string& name, const value& problem)
+    {
+        cache.insert(std::make_pair(create_key(name, problem), value{}));
     }
     optional<value> get(const std::string& name, const value& problem) const
     {
@@ -242,7 +243,7 @@ void compile_ops::apply(module& m) const
     cm.compile(m);
     // Compile already tuned configs
     cm.compile(m);
-    if (not cm.cps.empty())
+    if(not cm.cps.empty())
         MIGRAPHX_THROW("Untuned configs");
 }
 

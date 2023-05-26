@@ -29,13 +29,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 namespace {
-    struct compiler_handle
-    {
-        compiler_compile compile;
-        compiler_compile_op compile_op;
-        compiler_tuning_config get_tuning_config;
-    };
-}
+struct compiler_handle
+{
+    compiler_compile compile;
+    compiler_compile_op compile_op;
+    compiler_tuning_config get_tuning_config;
+};
+} // namespace
 
 auto& compiler_map()
 {
@@ -43,13 +43,17 @@ auto& compiler_map()
     return m;
 }
 
-void register_compiler(const std::string& name, compiler_compile c, compiler_compile_op cop, compiler_tuning_config ctg)
+void register_compiler(const std::string& name,
+                       compiler_compile c,
+                       compiler_compile_op cop,
+                       compiler_tuning_config ctg)
 {
-    compiler_map()[name]    = {std::move(c), std::move(cop), std::move(ctg)};
+    compiler_map()[name] = {std::move(c), std::move(cop), std::move(ctg)};
 }
 
 bool has_compiler_for(const std::string& name) { return compiler_map().count(name) > 0; }
-compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution)
+compiler_replace
+compile(context& ctx, instruction_ref ins, const operation& op, const value& solution)
 {
     return compiler_map().at(op.name()).compile(ctx, ins, op, solution);
 }

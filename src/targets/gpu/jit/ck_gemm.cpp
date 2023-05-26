@@ -338,7 +338,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         auto a_shape      = inputs[0];
         auto b_shape      = inputs[1];
         auto c_shape      = inputs.back();
-        auto tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
+        auto tuning_value = v.get("tuning_value", 4);
+        if(not v.contains("tuning_value"))
+            tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
         auto batch_count  = get_batch_count(c_shape);
         auto problem      = create_problem(inputs, v);
 
@@ -396,10 +398,12 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         return v;
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
         auto shapes = to_shapes(ins->inputs());
-        return {compile_op(ctx, shapes, create_settings(ins, op)),
+        auto v = create_settings(ins, op);
+        v["tuning_value"] = solution;
+        return {compile_op(ctx, shapes, v),
                 [=](module& m, instruction_ref ins2, const operation& code_object) {
                     if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
                     {

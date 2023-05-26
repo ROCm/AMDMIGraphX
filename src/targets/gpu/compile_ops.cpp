@@ -30,6 +30,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/time_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -107,16 +108,23 @@ struct compile_plan
             });
         }
     }
-    void replace(module& m) const
+    const compiled_result& benchmark() const
     {
         if(results.size() == 1)
+            return results.front();
+        std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs" << std::endl;
+        std::vector<double> times;
+        for(const auto& cr:results)
         {
-            results.front().replace.replace(m, results.front().ins);
+            times.push_back(time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first);
         }
-        else
-        {
-            // TODO: Benchmark
-        }
+        auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
+        return results[i];
+    }
+    void replace(module& m) const
+    {
+        const auto& cr = benchmark();
+        cr.replace.replace(m, cr.ins);
     }
 };
 

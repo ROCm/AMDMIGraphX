@@ -126,6 +126,7 @@ struct compile_plan
                 // No solution yet until benchmarked so skip for now
                 if(solution.is_null())
                     return;
+                results.resize(1);
                 compiles.emplace_back([=] {
                     results[0] = compiled_result{compile(*ctx, ins, preop, solution), ins};
                 });

@@ -21,23 +21,53 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/operation.hpp>
+#include <migraphx/gpu/time_op.hpp>
+#include <migraphx/context.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/time.hpp>
+#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-namespace driver {
 
+std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsigned long seed = 0)
+{
+    std::vector<argument> args;
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](auto& s) {
+        return to_gpu(generate_argument(s, seed++));
+    });
+    return args;
+}
+
+using milliseconds = std::chrono::duration<double, std::milli>;
 std::pair<double, double>
-time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
+time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+{
 
-} // namespace driver
+    // TODO: Use std::ref
+    migraphx::context ctx = ictx;
+    auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
+    auto output           = op.compute_shape(inputs);
+    op.finalize(ctx, output, inputs);
+    auto args = generate_arguments(inputs);
+    auto run  = [&] {
+        op.compute(ctx, output, args);
+        ctx.finish();
+    };
+    gctx.enable_perf_measurement();
+    run();
+    double host_time   = 0.0;
+    double device_time = 0.0;
+    for(auto i : range(n))
+    {
+        (void)i;
+        host_time += time<milliseconds>(run);
+        device_time += gctx.get_elapsed_ms();
+    }
+    return std::make_pair(host_time / n, device_time / n);
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP

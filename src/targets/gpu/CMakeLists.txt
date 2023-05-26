@@ -122,6 +122,7 @@ add_library(migraphx_gpu
     schedule_model.cpp
     sync_device.cpp
     target.cpp
+    time_op.cpp
     topk.cpp
     write_literals.cpp
     ${JIT_GPU_SRCS}

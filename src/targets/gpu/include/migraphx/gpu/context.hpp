@@ -171,7 +171,7 @@ struct hip_device
     std::size_t stream_id() const { return current_stream; }
 
     std::string get_device_name() const { return get_arch_name(device_props); }
-    
+
     std::string get_gfx_name() const { return trim(split_string(get_device_name(), ':').front()); }
 
     std::size_t get_device_major() const { return device_props.major; }

@@ -43,10 +43,7 @@ auto get_arch_name(rank<1>, const HipDeviceProp& props) -> decltype(std::string(
     return std::string(props.gcnArchName);
 }
 
-std::string get_arch_name(const hipDeviceProp_t& props)
-{
-    return get_arch_name(rank<1>{}, props);
-}
+std::string get_arch_name(const hipDeviceProp_t& props) { return get_arch_name(rank<1>{}, props); }
 
 int get_device_id()
 {

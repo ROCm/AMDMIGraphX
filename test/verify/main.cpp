@@ -76,10 +76,10 @@ int main(int argc, const char* argv[])
          "test_select_module_reduce",
          "test_select_module_conv",
          "test_split_single_dyn_dim",
-         "test_instancenorm_large_3d<migraphx::MIGRAPHX_INLINE_NS::shape::half_type>",
+         "test_instancenorm_large_3d<migraphx::version_1::shape::half_type>",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
-         "test_instancenorm_large_3d<migraphx::MIGRAPHX_INLINE_NS::shape::float_type>"});
+         "test_instancenorm_large_3d<migraphx::version_1::shape::float_type>"});
     rv.disable_test_for("gpu", {"test_conv_bn_add"});
     rv.run(argc, argv);
 }

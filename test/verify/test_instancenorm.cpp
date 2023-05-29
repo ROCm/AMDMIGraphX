@@ -31,7 +31,7 @@
 
 migraphx::instruction_ref add_instancenorm(migraphx::module& m,
                                            migraphx::instruction_ref x,
-                                           std::vector<size_t> dims,
+                                           const std::vector<size_t>& dims,
                                            float eps = 1e-5f)
 {
     auto mgx_type = x->get_shape().type();
@@ -80,7 +80,7 @@ template struct test_instancenorm<migraphx::shape::float_type>;
 template struct test_instancenorm<migraphx::shape::half_type>;
 
 template <migraphx::shape::type_t TYPE>
-struct test_instancenorm_large_3D : verify_program<test_instancenorm_large_3D<TYPE>>
+struct test_instancenorm_large_3d : verify_program<test_instancenorm_large_3d<TYPE>>
 {
     migraphx::program create_program() const
     {
@@ -93,5 +93,5 @@ struct test_instancenorm_large_3D : verify_program<test_instancenorm_large_3D<TY
     }
 };
 
-template struct test_instancenorm_large_3D<migraphx::shape::float_type>;
-template struct test_instancenorm_large_3D<migraphx::shape::half_type>;
+template struct test_instancenorm_large_3d<migraphx::shape::float_type>;
+template struct test_instancenorm_large_3d<migraphx::shape::half_type>;

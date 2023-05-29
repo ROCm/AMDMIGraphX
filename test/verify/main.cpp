@@ -67,16 +67,17 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
-    rv.disable_test_for("cpu",
-                        {"test_if_lp",
-                         "test_if_param",
-                         "test_if_literal",
-                         "test_select_module_add",
-                         "test_select_module_reduce",
-                         "test_select_module_conv",
-                         "test_split_single_dyn_dim",
-                         "test_instancenorm_large_3D<migraphx::shape::half_type>",
-                         "test_instancenorm_large_3D<migraphx::shape::float_type>"});
+    rv.disable_test_for(
+        "cpu",
+        {"test_if_lp",
+         "test_if_param",
+         "test_if_literal",
+         "test_select_module_add",
+         "test_select_module_reduce",
+         "test_select_module_conv",
+         "test_split_single_dyn_dim",
+         "test_instancenorm_large_3d<migraphx::MIGRAPHX_INLINE_NS::shape::half_type>",
+         "test_instancenorm_large_3d<migraphx::MIGRAPHX_INLINE_NS::shape::float_type>"});
     rv.disable_test_for("gpu", {"test_conv_bn_add"});
     rv.run(argc, argv);
 }

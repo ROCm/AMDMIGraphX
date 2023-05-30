@@ -29,8 +29,6 @@
 #include <utility>
 #include <dlfcn.h>
 
-#include <iostream>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 

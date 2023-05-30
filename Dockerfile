@@ -74,7 +74,6 @@ ENV LANG=C.UTF-8
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
-ADD 105.txt /105.txt
 
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
@@ -111,7 +110,7 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
-RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@c66db54322cb1963a502d8ac0d0cd24685f4f9ab -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off
+RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@3a94f885bc4b78cf01b20e28b3baaaa412748355 -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

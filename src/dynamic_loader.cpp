@@ -89,7 +89,7 @@ optional<dynamic_loader> dynamic_loader::try_load(const fs::path& p)
     {
         return dynamic_loader{p};
     }
-    catch(const std::exception& e)
+    catch(const std::exception&)
     {
         return nullopt;
     }

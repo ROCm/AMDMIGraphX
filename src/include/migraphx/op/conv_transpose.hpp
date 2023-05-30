@@ -21,9 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_DECONVOLUTION_HPP
-#define MIGRAPHX_GUARD_OPERATORS_DECONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_CONV_TRANSPOSE_HPP
+#define MIGRAPHX_GUARD_OPERATORS_CONV_TRANSPOSE_HPP
 
+#include <cmath>
+#include <utility>
 #include <migraphx/op/common.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
@@ -31,14 +33,13 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/shape_for_each.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct deconvolution
+struct conv_transpose
 {
     std::vector<std::size_t> padding  = {0, 0};
     std::vector<std::size_t> stride   = {1, 1};
@@ -57,14 +58,14 @@ struct deconvolution
                     f(self.group, "group"));
     }
 
-    std::string name() const { return "deconvolution"; }
+    std::string name() const { return "conv_transpose"; }
 
     void check_attribute_size() const
     {
         if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
            stride.size() != dilation.size())
         {
-            MIGRAPHX_THROW("DECONVOLUTION: inconsistent attribute sizes");
+            MIGRAPHX_THROW("CONV_TRANSPOSE: inconsistent attribute sizes");
         }
     }
 
@@ -76,13 +77,13 @@ struct deconvolution
         const shape& w_shape = inputs.at(1);
         if(x_shape.ndim() - 2 != this->kdims())
         {
-            MIGRAPHX_THROW("DECONVOLUTION: input k-dims does not match attribute size");
+            MIGRAPHX_THROW("CONV_TRANSPOSE: input k-dims does not match attribute size");
         }
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
            x_shape.lens().at(1) != (w_shape.lens().at(0) * group))
         {
-            MIGRAPHX_THROW("DECONVOLUTION: mismatched channel numbers");
+            MIGRAPHX_THROW("CONV_TRANSPOSE: mismatched channel numbers");
         }
 
         if(x_shape.dynamic() or w_shape.dynamic())
@@ -102,7 +103,7 @@ struct deconvolution
         size_t num_spatial_dims          = x_lens.size() - 2;
 
         // stride * (input - 1) + output_padding + ((kernel - 1) * dilation + 1) - padding_L -
-        // padding_R
+        // padding_R This assumes padding_L = padding_R
         for(size_t i = 0; i < num_spatial_dims; i++)
         {
             spatial_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
@@ -140,9 +141,9 @@ struct deconvolution
         return x_shape.with_lens(output_lens);
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         auto num_spatial_dims = this->kdims();
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             using type = typename decltype(output)::value_type;
@@ -157,12 +158,12 @@ struct deconvolution
             auto wei_n = wei[0];
             auto wei_c = wei[1];
 
-            auto out_lens = output_shape.lens();
+            auto out_lens = dyn_out.computed_shape.lens();
 
             std::vector<std::size_t> win_size{in_c};
             std::copy(in_lens.begin() + 2, in_lens.end(), std::back_inserter(win_size));
             std::copy(wei.begin() + 2, wei.end(), std::back_inserter(win_size));
-            shape win_shape{output_shape.type(), win_size};
+            shape win_shape{dyn_out.computed_shape.type(), win_size};
 
             par_dfor(in_n, wei_c)([&](int o, int k) {
                 shape_for_each(win_shape, [&](auto idx_win) {

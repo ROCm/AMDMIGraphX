@@ -1391,19 +1391,19 @@ TEST_CASE(cosh_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_test)
+TEST_CASE(conv_transpose_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    mm->add_instruction(migraphx::make_op("deconvolution"), l0, l1);
+    mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
 
-    auto prog = optimize_onnx("deconv_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_bias_test)
+TEST_CASE(conv_transpose_bias_test)
 {
     migraphx::program p;
     auto* mm      = p.get_main_module();
@@ -1411,120 +1411,120 @@ TEST_CASE(deconv_bias_test)
     auto l1       = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l2       = mm->add_parameter("b", {migraphx::shape::float_type, {1}});
     uint64_t axis = 1;
-    auto l3       = mm->add_instruction(migraphx::make_op("deconvolution"), l0, l1);
+    auto l3       = mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
     auto l4       = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
     mm->add_instruction(migraphx::make_op("add"), l3, l4);
 
-    auto prog = optimize_onnx("deconv_bias_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_bias_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_input_pads_strides_test)
+TEST_CASE(conv_transpose_input_pads_strides_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {1, 1}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("conv_transpose", {{"padding", {1, 1}}, {"stride", {3, 2}}}), l0, l1);
 
-    auto prog = optimize_onnx("deconv_input_pads_strides_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_input_pads_strides_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_input_pads_asymm_test)
+TEST_CASE(conv_transpose_input_pads_asymm_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("conv_transpose", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
     mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {8, 6}}}), l2);
 
-    auto prog = optimize_onnx("deconv_input_pads_asymm_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_input_pads_asymm_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_input_pads_asymm_1d_test)
+TEST_CASE(conv_transpose_input_pads_asymm_1d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("conv_transpose",
                           {{"padding", {0, 0}}, {"stride", {2}}, {"dilation", {1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {6}}}),
                         l2);
 
-    auto prog = optimize_onnx("deconv_input_pads_asymm_1d_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_input_pads_asymm_1d_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_padding_test)
+TEST_CASE(conv_transpose_output_padding_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("conv_transpose", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_padding_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_padding_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_padding_3d_test)
+TEST_CASE(conv_transpose_output_padding_3d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("conv_transpose",
                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_padding_3d_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_padding_3d_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_shape_test)
+TEST_CASE(conv_transpose_output_shape_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("conv_transpose", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_shape_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_shape_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_shape_3d_test)
+TEST_CASE(conv_transpose_output_shape_3d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("conv_transpose",
                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_shape_3d_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_shape_3d_test.onnx");
     EXPECT(p == prog);
 }
 

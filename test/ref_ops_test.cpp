@@ -1849,7 +1849,7 @@ TEST_CASE(cosh_dyn_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(deconv_1d_test)
+TEST_CASE(conv_transpose_1d)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3}};
     std::vector<float> x_data{0, 0.5, 1};
@@ -1863,7 +1863,7 @@ TEST_CASE(deconv_1d_test)
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
     mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        migraphx::make_op("conv_transpose", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
         x,
         w);
     p.compile(migraphx::make_target("ref"));
@@ -1874,7 +1874,30 @@ TEST_CASE(deconv_1d_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(deconv_3d_test)
+TEST_CASE(conv_transpose_2d)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+    std::vector<float> gold{0,  1,  3, 3,  2,  3,  8,  15, 12, 7,  9,  21, 36,
+                            27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{s, x_data});
+    auto w   = mm->add_literal(migraphx::literal{s, w_data});
+
+    mm->add_instruction(migraphx::make_op("conv_transpose"), x, w);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(conv_transpose_3d)
 {
     migraphx::shape s_1{migraphx::shape::float_type, {1, 1, 1, 2, 3}};
     migraphx::shape s_2{migraphx::shape::float_type, {1, 1, 3, 2, 3}};
@@ -1911,7 +1934,7 @@ TEST_CASE(deconv_3d_test)
     auto w   = mm->add_literal(migraphx::literal{s_2, w_data});
 
     mm->add_instruction(
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("conv_transpose",
                           {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
         x,
         w);
@@ -1923,8 +1946,9 @@ TEST_CASE(deconv_3d_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(deconv_test)
+TEST_CASE(conv_transpose_padding)
 {
+
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
@@ -1937,7 +1961,11 @@ TEST_CASE(deconv_test)
     auto x   = mm->add_literal(migraphx::literal{s, x_data});
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
-    mm->add_instruction(migraphx::make_op("deconvolution"), x, w);
+    mm->add_instruction(
+        migraphx::make_op("conv_transpose",
+                          {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+        x,
+        w);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
@@ -1945,6 +1973,8 @@ TEST_CASE(deconv_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
+
+TEST_CASE(conv_transpose_dyn) {}
 
 TEST_CASE(dequantizelinear)
 {

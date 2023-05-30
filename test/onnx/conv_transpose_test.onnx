@@ -1,7 +1,7 @@
-deconv_test:Ö
+conv_transpose_test:ç
 
 x
-wyconv1"ConvTransposedeconv_testZ
+wyconv1"ConvTransposeconv_transpose_testZ
 x
 
 
@@ -19,4 +19,4 @@
 
 
 
-B
+B

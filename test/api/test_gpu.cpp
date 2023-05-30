@@ -167,7 +167,7 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
 
     CHECK(shapes_before.size() == outputs.size());
     CHECK(bool{outputs.front().get_shape() ==
-               migraphx::shape(migraphx_shape_float_type, {2, 1, 3, 3})});
+               migraphx::shape(migraphx_shape_float_type, {2, 2, 3, 3})});
 }
 
 TEST_CASE(load_and_run_async)

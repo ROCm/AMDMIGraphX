@@ -42,7 +42,7 @@ std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
     return output_vector;
 }
 
-struct parse_deconvolution : op_parser<parse_deconvolution>
+struct parse_conv_transpose : op_parser<parse_conv_transpose>
 {
     std::vector<op_desc> operators() const { return {{"ConvTranspose"}}; }
 
@@ -51,9 +51,9 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        operation op = make_op("deconvolution");
+        operation op = make_op("conv_transpose");
         value values = op.to_value();
-        // op::deconvolution op;
+        // op::conv_transpose op;
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
         bool asym_padding = false;
@@ -146,15 +146,17 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), l1);
         }
 
+        // TODO, pretty sure this is not working as intended by the spec
         if(contains(info.attributes, "output_padding"))
         {
-            size_t non_kdims = dims.size() * 2 - kdims;
-            std::vector<int64_t> output_padding(non_kdims, 0);
-            copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
-            check_attr_sizes(kdims,
-                             output_padding.size() - non_kdims,
-                             "PARSE_CONV_TRANSPOSE: inconsistent output padding");
-            l1 = info.add_instruction(make_op("pad", {{"pads", output_padding}}), l1);
+            MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: output_padding attribute not supported");
+            // size_t non_kdims = dims.size() * 2 - kdims;
+            // std::vector<int64_t> output_padding(non_kdims, 0);
+            // copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
+            // check_attr_sizes(kdims,
+            //                 output_padding.size() - non_kdims,
+            //                 "PARSE_CONV_TRANSPOSE: inconsistent output padding");
+            // l1 = info.add_instruction(make_op("pad", {{"pads", output_padding}}), l1);
         }
 
         if(contains(info.attributes, "output_shape"))

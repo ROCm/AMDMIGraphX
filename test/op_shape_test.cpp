@@ -445,84 +445,108 @@ TEST_CASE(contiguous_shape_singleton_dim)
     expect_shape(output, migraphx::make_op("contiguous"), input);
 }
 
-TEST_CASE(deconvolution_1d)
+TEST_CASE(conv_transpose_1d)
 {
     migraphx::shape input_1d{migraphx::shape::float_type, {4, 4, 1}};
-    migraphx::shape output_1d{migraphx::shape::float_type, {4, 3, 3}};
     migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape output_1d{migraphx::shape::float_type, {4, 3, 3}};
     expect_shape(
         output_1d,
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        migraphx::make_op("conv_transpose", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
         input_1d,
         weights_1d);
 }
 
-TEST_CASE(deconvolution_2d)
+TEST_CASE(conv_transpose_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
-    migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
-    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
-    throws_shape(migraphx::make_op("deconvolution"), input);
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};
+    expect_shape(output, migraphx::make_op("conv_transpose"), input, weights);
+    throws_shape(migraphx::make_op("conv_transpose"), input);
     throws_shape(
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        migraphx::make_op("conv_transpose", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
         input);
 }
 
-TEST_CASE(deconvolution_3d)
+TEST_CASE(conv_transpose_1padding)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};
+    expect_shape(output,
+                 migraphx::make_op("conv_transpose",
+                                   {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_transpose_2stride)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 9, 9}};
+    expect_shape(output,
+                 migraphx::make_op("conv_transpose",
+                                   {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_transpose_2dilation)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 8, 8}};
+    expect_shape(output,
+                 migraphx::make_op("conv_transpose",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {2, 2}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_transpose_3d)
 {
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
     migraphx::shape weights_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
     expect_shape(
         output_3d,
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("conv_transpose",
                           {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
         input_3d,
         weights_3d);
 }
 
-TEST_CASE(deconvolution_channel_mismatch)
+TEST_CASE(conv_transpose_channel_mismatch)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
     migraphx::shape weights{migraphx::shape::float_type, {3, 3, 3, 3}};
-    throws_shape(migraphx::make_op("deconvolution"), input, weights);
+    throws_shape(migraphx::make_op("conv_transpose"), input, weights);
 }
 
-TEST_CASE(deconvolution_dyn_batch_2d)
+TEST_CASE(conv_transpose_dyn_batch_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {1, 1}, {1, 1}}};
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}, {3, 3}}};
-    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
-    throws_shape(migraphx::make_op("deconvolution"), input);
-    throws_shape(
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        input);
+    expect_shape(output, migraphx::make_op("conv_transpose"), input, weights);
 }
 
-TEST_CASE(deconvolution_dyn_img_2d)
+TEST_CASE(conv_transpose_dyn_img_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 1}, {4, 4}, {1, 5}, {1, 5}}};
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {3, 7}, {3, 7}}};
-    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
-    throws_shape(migraphx::make_op("deconvolution"), input);
-    throws_shape(
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        input);
+    expect_shape(output, migraphx::make_op("conv_transpose"), input, weights);
 }
 
-TEST_CASE(deconvolution_dyn_kernel_2d)
+TEST_CASE(conv_transpose_dyn_kernel_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {1, 4, 1, 1}};
     migraphx::shape weights{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 6}, {2, 6}}};
     migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {3, 6}, {3, 6}}};
-    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
-    throws_shape(migraphx::make_op("deconvolution"), input);
-    throws_shape(
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        input);
+    expect_shape(output, migraphx::make_op("conv_transpose"), input, weights);
 }
 
 TEST_CASE(dot_ndim_error0)
@@ -1175,7 +1199,7 @@ TEST_CASE(inconsistent_attr_shape)
                                    {{"padding", {1, 1}}, {"stride", {2}}, {"dilation", {3, 3, 3}}}),
                  input,
                  weights);
-    throws_shape(migraphx::make_op("deconvolution",
+    throws_shape(migraphx::make_op("conv_transpose",
                                    {{"padding", {1, 1}}, {"stride", {2}}, {"dilation", {3, 3, 3}}}),
                  input,
                  weights);

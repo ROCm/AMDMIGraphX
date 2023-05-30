@@ -55,7 +55,6 @@ struct module_impl
     std::string name;
     uint32_t nparams   = 0;
     bool bypass        = false;
-    std::string target = "ref";
 
     bool contains(instruction_ref ins) const
     {

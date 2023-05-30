@@ -1391,6 +1391,8 @@ bool has_finalize(const T& x)
 void migraphx_to_value(value& v, const operation& op);
 void migraphx_from_value(const value& v, operation& op);
 
+void a_new_function() {}
+
 #endif
 
 } // namespace MIGRAPHX_INLINE_NS

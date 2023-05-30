@@ -200,7 +200,7 @@ struct compile_manager
 
     void update_configs()
     {
-        if(not exhaustive)
+        if (not exhaustive)
             return;
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
     }
@@ -246,8 +246,7 @@ void compile_ops::apply(module& m) const
     cm.compile(m);
     // Compile already tuned configs
     cm.compile(m);
-    if(not cm.cps.empty())
-        MIGRAPHX_THROW("Untuned configs");
+    assert(cm.cps.empty());
 }
 
 } // namespace gpu

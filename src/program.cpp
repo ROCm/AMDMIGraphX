@@ -960,7 +960,9 @@ void program::print_py(std::ostream& os) const
     os << "p = migraphx.program()\n";
     for(auto& mod : vec_modules)
     {
-        std::string var_name = "m" + mod->name();
+        std::string var_name = "m";
+        if(mod->name() != "main")
+            var_name += mod->name();
         os << var_name << " = ";
         if(mod->name() == "main")
             os << "p.get_main_module()";

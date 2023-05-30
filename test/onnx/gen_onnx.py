@@ -2178,6 +2178,37 @@ def gathernd_batch_dims_test():
 
 
 @onnx_test()
+def gatherND_gtn_filter():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, 10])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 1])
+    yt = helper.make_tensor_value_info('yt', TensorProto.FLOAT, [10, 1])
+    yn = helper.make_tensor_value_info('yn', TensorProto.FLOAT, [1, 10])
+
+    n_node = onnx.helper.make_node(
+        'NonZero',
+        inputs=['indices'],
+        outputs=['yn'],
+    )
+
+    t_node = onnx.helper.make_node(
+        'Transpose',
+        inputs=['yn'],
+        outputs=['yt'],
+        perm=[1, 0],
+    )
+
+    node = onnx.helper.make_node(
+        'GatherND',
+        inputs=['data', 'yt'],
+        outputs=['y'],
+        batch_dims=1,
+    )
+
+    return ([n_node, t_node, node], [data, indices], [y])
+
+
+@onnx_test()
 def gemm_test():
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [8, 6])
     B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [8, 7])

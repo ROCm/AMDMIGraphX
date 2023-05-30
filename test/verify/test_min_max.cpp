@@ -21,37 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/mlir.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/max.hpp>
+#include <migraphx/op/min.hpp>
 
-struct mlir_compiler : compiler<mlir_compiler>
+template <class Op, migraphx::shape::type_t T>
+struct test_min_max : verify_program<test_min_max<Op, T>>
 {
-    std::vector<std::string> names() const { return {"gpu::mlir_op"}; }
-
-    operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
-
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
+    migraphx::program create_program() const
     {
-        auto* smod = ins->module_inputs().front();
-        assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
-        return insert(compile_mlir(ctx, *smod, ins->inputs()));
-    }
-
-    compiler_replace insert(code_object_op co) const
-    {
-        return {std::move(co), [](module& m, instruction_ref ins, const operation& op) {
-                    auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(op), ins->inputs());
-                    m.replace_instruction(ins, mlir);
-                }};
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{T, {128}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        mm->add_instruction(Op{}, x, y);
+        return p;
     }
 };
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+template struct test_min_max<migraphx::op::max, migraphx::shape::float_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::double_type>;
+
+template struct test_min_max<migraphx::op::min, migraphx::shape::float_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::half_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::double_type>;

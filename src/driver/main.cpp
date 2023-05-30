@@ -242,6 +242,20 @@ struct loader
         return options;
     }
 
+    static std::string get_file_type(const std::string& file)
+    {
+        if(ends_with(file, ".onnx"))
+            return "onnx";
+        else if(ends_with(file, ".pb"))
+            return "tf";
+        else if(ends_with(file, ".json"))
+            return "json";
+        else if(ends_with(file, ".py"))
+            return "py";
+        else
+            return "migraphx";
+    }
+
     program load()
     {
         program p;
@@ -249,16 +263,7 @@ struct loader
         {
             if(file_type.empty())
             {
-                if(ends_with(file, ".onnx"))
-                    file_type = "onnx";
-                else if(ends_with(file, ".pb"))
-                    file_type = "tf";
-                else if(ends_with(file, ".json"))
-                    file_type = "json";
-                else if(ends_with(file, ".py"))
-                    file_type = "py";
-                else
-                    file_type = "migraphx";
+                file_type = get_file_type(file);
             }
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")

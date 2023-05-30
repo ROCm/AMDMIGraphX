@@ -53,8 +53,8 @@ struct module_impl
     std::list<instruction> instructions;
     std::unordered_set<instruction*> instruction_set;
     std::string name;
-    uint32_t nparams   = 0;
-    bool bypass        = false;
+    uint32_t nparams = 0;
+    bool bypass      = false;
 
     bool contains(instruction_ref ins) const
     {

@@ -27,16 +27,15 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
 
-#include <migraphx/gpu/compile_hip_code_object.hpp>
-#include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/env.hpp>
-#include <migraphx/reduce_dims.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/module.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/reduce_dims.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include "ck/host/device_gemm_multiple_d.hpp"
 
@@ -269,8 +268,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
     bool can_fold_batch(const std::vector<shape>& inputs) const
     {
-        auto a_shape   = inputs[0];
-        auto b_shape   = inputs[1];
+        const auto& a_shape   = inputs[0];
+        const auto& b_shape   = inputs[1];
         auto rank      = a_shape.lens().size();
         auto b_strides = b_shape.strides();
         return rank >= 3 and b_strides[rank - 3] == 0;
@@ -279,22 +278,21 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     ck::host::device_gemm_multiple_d::Problem create_problem(const std::vector<shape>& inputs,
                                                              const value& v) const
     {
-        auto a_shape = inputs[0];
-        auto b_shape = inputs[1];
-        auto c_shape = inputs.back();
+        const auto& a_shape = inputs[0];
+        const auto& b_shape = inputs[1];
+        const auto& c_shape = inputs.back();
 
         auto rank      = a_shape.lens().size();
-        auto b_strides = b_shape.strides();
-
+        
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];
         m                = can_fold_batch(inputs) ? m * batch_count : m;
         auto n           = c_shape.lens().back();
         auto k           = a_shape.lens().back();
 
-        const bool transA = transposed_matrix(a_shape);
-        const bool transB = transposed_matrix(b_shape);
-        const bool transE = transposed_matrix(c_shape);
+        const bool trans_a = transposed_matrix(a_shape);
+        const bool trans_b = transposed_matrix(b_shape);
+        const bool trans_e = transposed_matrix(c_shape);
         const auto a_type = get_type(a_shape);
         const auto b_type = get_type(b_shape);
         const auto e_type = get_type(c_shape);
@@ -320,9 +318,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         return ck::host::device_gemm_multiple_d::Problem{m,
                                                          n,
                                                          k,
-                                                         transA,
-                                                         transB,
-                                                         transE,
+                                                         trans_a,
+                                                         trans_b,
+                                                         trans_e,
                                                          ds_layout,
                                                          a_type,
                                                          b_type,
@@ -335,9 +333,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto a_shape      = inputs[0];
-        auto b_shape      = inputs[1];
-        auto c_shape      = inputs.back();
+        const auto& a_shape      = inputs[0];
+        const auto& b_shape      = inputs[1];
+        const auto& c_shape      = inputs.back();
         auto tuning_value = v.get("tuning_value", 4);
         if(not v.contains("tuning_value"))
             tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
@@ -346,7 +344,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
         const auto include_header   = problem.GetIncludeHeader();
         const auto solutions        = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
-        const auto solution         = solutions.at(tuning_value);
+        const auto& solution         = solutions.at(tuning_value);
         const auto template_str     = solution.template_str;
         const auto blocks_per_batch = solution.grid_size;
         const auto block_size       = solution.block_size;

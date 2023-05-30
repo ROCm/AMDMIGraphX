@@ -162,7 +162,8 @@ struct compile_plan
         std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
                   << std::endl;
         std::vector<double> times;
-        for(const auto& cr : results)
+        times.reserve(results.size());
+for(const auto& cr : results)
         {
             times.push_back(
                 time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first);

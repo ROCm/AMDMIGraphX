@@ -58,9 +58,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
-    if(a.lens().back() > 2048)
-        return false;
-    return true;
+    return a.lens().back() <= 2048;
 }
 
 struct find_ck_gemm_pointwise

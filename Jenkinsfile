@@ -29,7 +29,9 @@ def rocmtestnode(Map conf) {
             mkdir build
             cd build
             cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On ${flags} ..
-            make -j\$(nproc) generate all doc package check VERBOSE=1
+            make -j\$(nproc) generate VERBOSE=1
+            git diff-index --quiet HEAD
+            make -j\$(nproc) all doc package check VERBOSE=1
             md5sum ./*.deb
         """
         echo cmd

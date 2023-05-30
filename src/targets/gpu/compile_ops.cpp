@@ -190,6 +190,7 @@ struct compile_manager
 {
     problem_cache pc;
     std::vector<compile_plan> cps;
+    bool exhaustive = false;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -199,6 +200,8 @@ struct compile_manager
 
     void update_configs()
     {
+        if (not exhaustive)
+            return;
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
     }
 
@@ -230,8 +233,7 @@ struct compile_manager
 void compile_ops::apply(module& m) const
 {
     compile_manager cm;
-    problem_cache pc;
-    std::vector<compile_plan> cps;
+    cm.exhaustive = exhaustive_tune;
     // Find all precompile opes
     for(auto ins : iterator_for(m))
     {

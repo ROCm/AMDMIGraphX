@@ -41,6 +41,9 @@ pip3 install setuptools wheel
 # install rbuild to build dependencies
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
+# +++pf: patch cget for lockhart proxy issues
+patch -d /usr/local/lib/python3.8/dist-packages/ -p1 < /105.txt
+
 
 PREFIX=/usr/local
 REQ_FILE_DIR=""

@@ -75,7 +75,7 @@ void multinomial(hipStream_t stream,
                         auto idx       = output.get_shape().multi(i);
                         auto cdf_begin = cdf.begin() + (idx.front() * class_size);
                         auto cdf_end   = cdf_begin + class_size;
-                        auto sample_iter =
+                        auto* sample_iter =
                             upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
                         output[i] = std::distance(cdf_begin, sample_iter);
                     });

@@ -16,7 +16,7 @@ std::size_t hash_value(const T& v)
 template <class T>
 void hash_combine(std::size_t& seed, const T& v)
 {
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

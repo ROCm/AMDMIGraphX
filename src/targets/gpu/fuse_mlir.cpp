@@ -209,7 +209,12 @@ struct find_mlir_op
                                     "relu",
                                     "dequantizelinear",
                                     "quantizelinear",
-                                    "mul"},
+                                    "mul",
+                                    "sub",
+                                    "div",
+                                    "neg",
+                                    "exp",
+                                    "erf"},
                                    i.name());
            }))
             return;

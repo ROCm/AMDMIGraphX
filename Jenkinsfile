@@ -30,6 +30,7 @@ def rocmtestnode(Map conf) {
             cd build
             cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On ${flags} ..
             make -j\$(nproc) generate all doc package check VERBOSE=1
+            md5sum ./*.deb
         """
         echo cmd
         sh cmd
@@ -83,8 +84,10 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && vega";
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
+    } else if(name == "anygpu") {
+        node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega)";
     } else if(name == "nogpu") {
-        return rocmtest_name;
+        node_name = "${rocmtest_name} && nogpu";
     }
     return node_name
 }
@@ -143,11 +146,12 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
+rocmtest onnx: onnxnode('anygpu') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half
-            ls -lR
+            #ls -lR
+            md5sum ./build/*.deb
             dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''

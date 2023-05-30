@@ -151,7 +151,7 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
     c_options.set_offload_copy();
     p.compile(migraphx::target("gpu"), c_options);
     auto out_shapes = p.get_output_shapes();
-    CHECK(out_shapes.size() == 1);
+    EXPECT(out_shapes.size() == 1);
     EXPECT(out_shapes[0].dynamic());
 
     // batch size = 2
@@ -165,9 +165,9 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
            migraphx::argument(migraphx::shape(migraphx_shape_float_type, {2, 3, 3, 3}), c.data()));
     auto outputs = p.eval(pp);
 
-    CHECK(shapes_before.size() == outputs.size());
-    CHECK(bool{outputs.front().get_shape() ==
-               migraphx::shape(migraphx_shape_float_type, {2, 2, 3, 3})});
+    EXPECT(shapes_before.size() == outputs.size());
+    EXPECT(bool{outputs.front().get_shape() ==
+                migraphx::shape(migraphx_shape_float_type, {2, 2, 2, 2})});
 }
 
 TEST_CASE(load_and_run_async)

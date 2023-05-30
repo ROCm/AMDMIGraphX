@@ -200,7 +200,7 @@ struct compile_manager
 
     void update_configs()
     {
-        if (not exhaustive)
+        if(not exhaustive)
             return;
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
     }

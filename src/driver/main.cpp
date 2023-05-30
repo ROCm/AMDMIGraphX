@@ -254,7 +254,7 @@ struct loader
                 else if(ends_with(file, ".pb"))
                     file_type = "tf";
                 else if(ends_with(file, ".json"))
-                    file_type = "py";
+                    file_type = "json";
                 else if(ends_with(file, ".py"))
                     file_type = "py";
                 else

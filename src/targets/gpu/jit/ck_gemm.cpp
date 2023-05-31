@@ -270,6 +270,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     {
         const auto& a_shape = inputs[0];
         const auto& b_shape = inputs[1];
+        // cppcheck-suppress unreadVariable
         auto rank           = a_shape.lens().size();
         auto b_strides      = b_shape.strides();
         return rank >= 3 and b_strides[rank - 3] == 0;
@@ -425,7 +426,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         tc.solutions.resize(solutions.size());
         std::iota(tc.solutions.begin(), tc.solutions.end(), 0);
         std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};
-        tc.problem = to_value(shapes);
+        tc.problem = to_value(gemm_shapes);
         return tc;
     }
 };

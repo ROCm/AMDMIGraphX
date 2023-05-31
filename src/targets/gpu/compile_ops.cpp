@@ -119,7 +119,7 @@ struct compile_plan
     {
         if(config.has_value())
         {
-            const auto& problem = config.value().problem;
+            const auto& problem = config->problem;
             if(auto sol = pc.get(preop.name(), problem))
             {
                 auto solution = sol.value();
@@ -134,7 +134,7 @@ struct compile_plan
             else
             {
                 pc.mark(preop.name(), problem);
-                const auto& solutions = config.value().solutions;
+                const auto& solutions = config->solutions;
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {
@@ -163,13 +163,11 @@ struct compile_plan
                   << std::endl;
         std::vector<double> times;
         times.reserve(results.size());
-        for(const auto& cr : results)
-        {
-            times.push_back(
-                time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first);
-        }
+        std::transform(results.begin(), results.end(), std::back_inserter(times), [&](const auto& cr) {
+            return time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first;
+        });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        pc.insert(preop.name(), config.value().problem, config.value().solutions.at(i));
+        pc.insert(preop.name(), config->problem, config->solutions.at(i));
         return results[i];
     }
     void replace(module& m, problem_cache& pc) const

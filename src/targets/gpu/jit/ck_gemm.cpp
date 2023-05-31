@@ -271,8 +271,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto& a_shape = inputs[0];
         const auto& b_shape = inputs[1];
         // cppcheck-suppress unreadVariable
-        auto rank           = a_shape.lens().size();
-        auto b_strides      = b_shape.strides();
+        auto rank      = a_shape.lens().size();
+        auto b_strides = b_shape.strides();
         return rank >= 3 and b_strides[rank - 3] == 0;
     }
 

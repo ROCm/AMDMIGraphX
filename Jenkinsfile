@@ -120,7 +120,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
 }, mlir_debug: rocmnode('vega') { cmake_build ->
     stage('MLIR Debug') {
         withEnv(['MIGRAPHX_ENABLE_MLIR=1']) {
-            def sanitizers = "undefined"
+            def sanitizers = "thread"
             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
         }

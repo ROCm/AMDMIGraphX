@@ -60,7 +60,7 @@ struct register_verify_program_action
             split_name.end(),
             std::back_inserter(name_without_version),
             [&](const auto& i) { return not i.empty() and not migraphx::contains(i, "version"); });
-        pi.name            = migraphx::join_strings(name_without_version, "::");
+        pi.name            = migraphx::trim(migraphx::join_strings(name_without_version, "::"));
         pi.section         = x.section();
         pi.get_program     = [x] { return x.create_program(); };
         pi.compile_options = x.get_compile_options();

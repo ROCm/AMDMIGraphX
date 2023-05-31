@@ -29,6 +29,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/ranges.hpp>
 
 struct program_info
 {

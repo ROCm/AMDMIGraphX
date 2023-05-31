@@ -55,10 +55,11 @@ struct register_verify_program_action
         // test_type_name could contain internal namespace name with version_x_y_z i.e.
         // test_instancenorm<migraphx::version_1::shape::float_type> remove version and construct
         // test_name such as test_instancenorm<migraphx::shape::float_type>
-        std::copy_if(split_name.begin(),
-                     split_name.end(),
-                     std::back_inserter(name_without_version),
-                     [&](const auto& i) { return not i.empty() and not contains(i, "version"); });
+        std::copy_if(
+            split_name.begin(),
+            split_name.end(),
+            std::back_inserter(name_without_version),
+            [&](const auto& i) { return not i.empty() and not migraphx::contains(i, "version"); });
         pi.name            = migraphx::join_strings(name_without_version, "::");
         pi.section         = x.section();
         pi.get_program     = [x] { return x.create_program(); };

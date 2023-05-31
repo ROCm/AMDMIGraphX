@@ -29,8 +29,10 @@ def rocmtestnode(Map conf) {
             mkdir build
             cd build
             cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On ${flags} ..
+            git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
             make -j\$(nproc) generate VERBOSE=1
+            git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
             make -j\$(nproc) all doc package check VERBOSE=1
             md5sum ./*.deb

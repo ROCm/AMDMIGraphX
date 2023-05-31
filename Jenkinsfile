@@ -129,12 +129,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
     }
-}//, clang_release_navi: rocmnode('navi21') { cmake_build ->
-//    stage('HIP Clang Release Navi') {
-//        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
-//    }
-//}
-, clang_release_navi: rocmnode('navi32') { cmake_build ->
+}, clang_release_navi: rocmnode('navi32') { cmake_build ->
     stage('HIP Clang Release Navi32') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
     }

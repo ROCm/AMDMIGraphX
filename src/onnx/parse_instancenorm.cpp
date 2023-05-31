@@ -26,6 +26,9 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/env.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,7 +50,11 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         // variance = reduce_mean({D1, D2, ... Dk}, (x - mean)^2)
         // Convert fp16 to fp32 to workaround for FP16 accuracy issues with reduce_mean/variance.
         bool convert_fp16 = true;
-        float epsilon     = 1e-5f;
+        if(enabled(MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT{}))
+        {
+            convert_fp16 = false;
+        }
+        float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = parser.parse_value(info.attributes.at("epsilon")).at<float>();

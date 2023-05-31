@@ -117,6 +117,10 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     stage('HipRTC GPU Debug') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true, hiprtc_workarounds:  true)
     }
+}, all_targets_debug : rocmnode('vega') { cmake_build ->
+    stage('All targets Release') {
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On") 
+    }
 }, mlir_debug: rocmnode('vega') { cmake_build ->
     stage('MLIR Debug') {
         withEnv(['MIGRAPHX_ENABLE_MLIR=1']) {

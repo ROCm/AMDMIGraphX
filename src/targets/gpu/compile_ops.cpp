@@ -163,9 +163,10 @@ struct compile_plan
                   << std::endl;
         std::vector<double> times;
         times.reserve(results.size());
-        std::transform(results.begin(), results.end(), std::back_inserter(times), [&](const auto& cr) {
-            return time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first;
-        });
+        std::transform(
+            results.begin(), results.end(), std::back_inserter(times), [&](const auto& cr) {
+                return time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first;
+            });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
         return results[i];

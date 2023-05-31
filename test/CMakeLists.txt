@@ -190,6 +190,25 @@ if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)
 endif()
 
+# multitarget test
+if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
+    set(TEST_MULTI_TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/multi_target)
+    file(GLOB MULTI_TARGET_TESTS ${CONFIGURE_DEPENDS} ${TEST_MULTI_TARGET_DIR}/*.cpp)
+
+    foreach(MULTI_TARGET_TEST ${MULTI_TARGET_TESTS})
+        get_filename_component(BASE_NAME ${MULTI_TARGET_TEST} NAME_WE)
+        set(TEST_NAME test_${BASE_NAME})
+        add_executable(${TEST_NAME} ${MULTI_TARGET_TEST})
+        rocm_clang_tidy_check(${TEST_NAME})
+        target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
+        target_include_directories(${TEST_NAME} PUBLIC include)
+        add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_MULTI_TARGET_DIR})
+        add_dependencies(tests ${TEST_NAME})
+        add_dependencies(check ${TEST_NAME})
+    endforeach()
+endif()
+
+
 function(test_header NAME HEADER)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
         "#include <${HEADER}>\nint main() {}\n"
@@ -227,4 +246,5 @@ endif()
 if(MIGRAPHX_ENABLE_FPGA)
     test_headers(migraphx/fpga ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp)
 endif()
+
 

@@ -159,7 +159,7 @@ struct compile_plan
             MIGRAPHX_THROW("No configs to tune");
         if(results.size() == 1)
             return results.front();
-        if (not config)
+        if(not config)
             MIGRAPHX_THROW("Multiple kernels without config");
         std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
                   << std::endl;

@@ -43,6 +43,7 @@ if(NOT WIN32)
     )
     set_directory_properties(PROPERTIES ADDITIONAL_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
 endif()
+target_compile_options(driver PRIVATE -Wno-ignored-attributes -Wno-unused-parameter)
 rocm_clang_tidy_check(driver)
 
 file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)

@@ -138,6 +138,8 @@ struct instruction
 
     std::size_t get_target_id() const;
 
+    void set_target_id(std::size_t tid);
+
     void debug_print() const;
 
     static void print(std::ostream& os,

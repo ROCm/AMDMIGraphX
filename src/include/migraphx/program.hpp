@@ -95,6 +95,9 @@ struct program
 
     void compile(const target& t, compile_options options = compile_options{});
 
+    void compile(const std::vector<target>& targets,
+                 std::vector<compile_options> compile_opts = {});
+
     bool is_compiled() const;
 
     void finalize();

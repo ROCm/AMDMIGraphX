@@ -406,6 +406,9 @@ void instruction::print(std::ostream& os,
     // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
+    // print tid
+
+    os << ", target_id=" << ins->target_id;
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)
@@ -470,6 +473,8 @@ operation instruction::normalized_operator() const
     return o;
 }
 std::size_t instruction::get_target_id() const { return target_id; }
+
+void instruction::set_target_id(std::size_t tid) { this->target_id = tid; }
 
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 {

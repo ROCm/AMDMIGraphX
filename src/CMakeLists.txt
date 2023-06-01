@@ -196,6 +196,7 @@ register_migraphx_ops(
     roialign
     round
     rsqrt
+    run_on_target
     scalar
     scatter_add
     scatter_mul

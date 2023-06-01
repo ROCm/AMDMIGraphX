@@ -723,15 +723,15 @@ std::unordered_map<instruction_ref, std::string> module::print(
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
+        if(not this->name().empty() and this->name() != "main")
+            var_name = this->name() + ":";
         if(ins->name() == "@param")
         {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            var_name.append(any_cast<builtin::param>(ins->get_operator()).parameter);
         }
         else
         {
-            var_name = this->name();
-            var_name.append((this->name().empty() ? "@" : ":@"));
-            var_name.append(std::to_string(count));
+            var_name.append("@" + std::to_string(count));
         }
         // count every instruction so index matches loc in the printout program
         count++;
@@ -795,7 +795,10 @@ static std::string to_c_id(const std::string& name, char rep = '_')
 
 static std::string cpp_var_name(const std::string& name)
 {
-    return to_c_id("x_" + replace_string(name, ":", "_module_"));
+    std::string prefix = "x_";
+    if(not contains(name, "@"))
+        prefix = "p_";
+    return to_c_id(prefix + replace_string(name, ":", "_module_"));
 }
 
 static void print_py_op(std::ostream& os, const operation& op)
@@ -875,7 +878,7 @@ module::print_py(std::ostream& os,
                 use_abs = false;
                 if(use_abs)
                     os << "migraphx.abs_literal(";
-                os << "migraphx.generate_literal(";
+                os << "migraphx.generate_argument(";
                 print_py_shape(os, ins->get_shape());
                 os << ", " << seed << ")";
                 if(use_abs)

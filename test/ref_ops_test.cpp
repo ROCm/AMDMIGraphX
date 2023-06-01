@@ -636,6 +636,40 @@ TEST_CASE(avgpool_dyn_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(avgpool_dyn_pad_test)
+{
+    // pooling with dynamic input and padding
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1, 3}, {2, 4}, {2, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"lengths", {2, 3}},
+                                           {"padding", {1, 2}},
+                                           {"stride", {1, 1}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4};
+    
+    //  * 0 0  0  0 0 0 
+    //  * 0 0  1  2 0 0
+    //  * 0 0  3  4 0 0      0-padding will look like this 
+    //  * 0 0  0  0 0 0 
+    
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+printf("**** result: ");
+for(auto aa : results_vector) printf(" %f,", aa);printf("\n");
+    std::vector<float> gold{0.166667, 0.500000, 0.500000, 0.333333, 0.666667, 1.666667, 1.666667, 1.000000, 0.500000, 1.166667, 1.166667, 0.666667};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(avgpool_rank3_stride2_test)
 {
     // 1D case 2, stride 2

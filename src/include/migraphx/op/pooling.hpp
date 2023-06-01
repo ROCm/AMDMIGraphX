@@ -195,7 +195,10 @@ struct pooling
             return 0.0;
         }
 
-        double operator()(double x, double y) const { return x + y; }
+        double operator()(double x, double y) const {
+            
+            printf(" avg op x = %f y = %f\n", x, y);
+             return x + y; }
 
         double final(double x, std::size_t y) const { return (y == 0) ? 0.0 : (x / y); }
     };
@@ -222,36 +225,108 @@ struct pooling
     {
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
+            std::vector<int> in_lens_i(in_s.lens().begin(), in_s.lens().end());
+
         par_for(output_shape.elements(), [&](auto i) {
             auto idx_o = output_shape.multi(i);
             auto n_dim = idx_o.size();
-            std::vector<std::size_t> win_start;
+            std::vector<int> win_start;
             std::vector<std::size_t> win_size;
+printf("\n");            
             for(std::size_t dim = 2; dim < n_dim; ++dim)
             {
                 auto d_2 = dim - 2;
                 int start =
                     static_cast<int>(idx_o[dim] * stride[d_2]) - static_cast<int>(padding[d_2]);
-                int end = std::min(start + kernel_dims[d_2], in_lens[dim]);
-                start   = std::max(start, 0);
+                // int end = std::min(start + kernel_dims[d_2], in_lens[dim]);
+                int end = start + kernel_dims[d_2] - 1;
+                // start   = std::max(start, 0);
                 win_start.push_back(start);
-                win_size.push_back(end - start);
+                // win_size.push_back(end - start);
+                win_size.push_back(kernel_dims[d_2]);
+printf("start = %d end = %d\n", start, end)    ;
             }
-
+// where are int getting converted to size_t and losing negatives?            
+printf("win_size ");for(auto aa : win_size) std::cout << aa << ", ";    std::cout << "\n";         
             shape win_shape{output_shape.type(), win_size};
+printf("win_shape ");for(auto aa : win_shape.lens()) std::cout << aa << ", ";    std::cout << "\n";         
             auto pool_size    = win_shape.elements();
             double output_val = op.template init<Type>();
             shape_for_each(win_shape, [&](auto idx_w) {
-                auto idx = idx_o;
+            auto idx = idx_o;
+            std::vector<int> idx_i(idx_o.begin(), idx_o.end());
+
+                // add elements of idx_w to win_start (indexes)
                 std::transform(idx_w.begin(),
                                idx_w.end(),
                                win_start.begin(),
                                idx.begin() + 2,
                                [](auto ii, auto jj) { return ii + jj; });
-                if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                   idx < in_lens)
+
+                std::transform(idx_w.begin(),
+                               idx_w.end(),
+                               win_start.begin(),
+                               idx_i.begin() + 2,
+                               [](auto ii, auto jj) {
+ printf("ii = %lu jj = %d\n", ii, jj)    ;                               
+                                 return static_cast<int>(ii) + jj; });
+std::cout <<  " idx_i  transformed ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
+                // if all indexes of this element lie within in_s bounds
+                // This "if" was working by accident because negative numbers cast to unsigned
+                // are very large
+                bool fits = true;
+                for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
                 {
+                    if(idx_i[ijk] < 0){
+                        printf("out because idx_i[%d] = %d\n", ijk, idx_i[ijk]);
+                        fits = false;
+                }}
+
+                for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
+                {
+                    if(idx[ijk] >= in_lens[ijk]){
+                        printf("out because idx[%d] = %lu\n", ijk, idx[ijk]);
+                        fits = false;
+                }}
+
+                for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
+                {
+                    if(idx_i[ijk] >= in_lens_i[ijk]){
+                        printf("out because idx_i[%d] = %d\n", ijk, idx_i[ijk]);
+                        fits = false;
+                }}
+
+                // may 30: try this.  Success--Looks like it detects padding locations correctly without 
+                // neeeding idx_i (signed integer) and can still do the in_s.index() call to get
+                // strided location.
+                // Results look plausible but aren't in the right order?
+fits = (std::mismatch(idx.begin() + 2, idx.end(), in_lens.begin() + 2, in_lens.end(), std::less<>{}) == std::make_pair(idx.end(), in_lens.end()));             ;
+
+
+
+//                 if(std::all_of(idx_i.begin() + 2, idx_i.end(), [&](auto ii) { return ii >= 0; }) and
+// //                 //    std::all_of(idx_i.begin() + 2, idx_i.end(),in_lens.begin() + 2, [&](auto ii, auto jj) { return ii < jj; })
+// //                 std::mismatch(idx.begin() + 2, idx_i.end(), in_lens.begin() + 2, in_lens.end(), std::less<>{}) == std::make_pair(idx_i.end(), in_lens.end())and
+
+// // std::mismatch(idx_i.begin() + 2, idx_i.end(), in_lens_i.begin() + 2, in_lens_i.end(), std::less<>{}) == std::make_pair(idx_i.end(), in_lens_i.end())                
+//                    idx < in_lens
+//                    and idx_i < in_lens_i
+//                    )
+                if(fits)
+                {
+std::cout <<  " idx  in bounds ";  for(auto aa : idx) std::cout << aa << ", ";   std::cout << "\n";
+std::cout <<  " idx_i  in bounds ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
+std::cout <<  " in_s index   " << in_s.index(idx) << "\n";
                     output_val = op(output_val, input[in_s.index(idx)]);
+                }
+                else
+                {
+                    // this is a padding element.  Only zero-padding is supported.  Zeroes
+                    // don't contribute to average padding result but can play in max or
+                    // lpnorm padding.
+std::cout <<  " idx out bounds ";  for(auto aa : idx) std::cout << aa << ", ";   std::cout << "\n";
+std::cout <<  " idx_i out bounds ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
+                    output_val = op(output_val, 0);
                 }
             });
             output[i] = Type(op.final(output_val, pool_size));

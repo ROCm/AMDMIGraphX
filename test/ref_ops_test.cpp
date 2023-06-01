@@ -1978,7 +1978,7 @@ TEST_CASE(conv_transpose_padding2)
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-    std::vector<float> gold{3.,  8., 15., 12.,  7., 9., 21., 36., 27., 15., 9., 20., 33., 24., 13.};
+    std::vector<float> gold{3., 8., 15., 12., 7., 9., 21., 36., 27., 15., 9., 20., 33., 24., 13.};
 
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -2003,15 +2003,10 @@ TEST_CASE(conv_transpose_2stride)
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
-    std::vector<float> gold{
-        0.,  0.,  1.,  1.,  3.,  2.,  2.,
-        0.,  0.,  1.,  1.,  3.,  2.,  2.,
-        3.,  3.,  8.,  5., 12.,  7.,  7.,
-        3.,  3.,  7.,  4.,  9.,  5.,  5.,
-        9.,  9., 20., 11., 24., 13., 13.,
-        6.,  6., 13.,  7., 15.,  8.,  8.,
-        6.,  6., 13.,  7., 15.,  8.,  8.
-    };
+    std::vector<float> gold{0.,  0., 1., 1., 3.,  2.,  2.,  0.,  0.,  1., 1., 3.,  2.,
+                            2.,  3., 3., 8., 5.,  12., 7.,  7.,  3.,  3., 7., 4.,  9.,
+                            5.,  5., 9., 9., 20., 11., 24., 13., 13., 6., 6., 13., 7.,
+                            15., 8., 8., 6., 6.,  13., 7.,  15., 8.,  8.};
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_literal(migraphx::literal{s, x_data});
@@ -2035,15 +2030,10 @@ TEST_CASE(conv_transpose_2dilation)
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
-    std::vector<float> gold{
-        0.,  1.,  2.,  1.,  2.,  1.,  2.,
-        3.,  4.,  8.,  4.,  8.,  4.,  5.,
-        6.,  8., 16.,  8., 16.,  8., 10.,
-        3.,  4.,  8.,  4.,  8.,  4.,  5.,
-        6.,  8., 16.,  8., 16.,  8., 10.,
-        3.,  4.,  8.,  4.,  8.,  4.,  5.,
-        6.,  7., 14.,  7., 14.,  7.,  8.
-    };
+    std::vector<float> gold{0., 1., 2., 1.,  2.,  1.,  2.,  3.,  4.,  8., 4., 8., 4.,
+                            5., 6., 8., 16., 8.,  16., 8.,  10., 3.,  4., 8., 4., 8.,
+                            4., 5., 6., 8.,  16., 8.,  16., 8.,  10., 3., 4., 8., 4.,
+                            8., 4., 5., 6.,  7.,  14., 7.,  14., 7.,  8.};
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_literal(migraphx::literal{s, x_data});
@@ -2066,9 +2056,16 @@ TEST_CASE(conv_transpose_dyn_batch)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {1, 1,}, {3, 3}, {3, 3}}};
-    auto x   = mm->add_parameter("x", s);
-    auto w   = mm->add_parameter("w", s);
+    migraphx::shape s{migraphx::shape::float_type,
+                      {{1, 4},
+                       {
+                           1,
+                           1,
+                       },
+                       {3, 3},
+                       {3, 3}}};
+    auto x = mm->add_parameter("x", s);
+    auto w = mm->add_parameter("w", s);
 
     mm->add_instruction(migraphx::make_op("conv_transpose"), x, w);
     p.compile(migraphx::make_target("ref"));

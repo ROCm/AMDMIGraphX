@@ -1361,6 +1361,7 @@ def conv_transpose_test():
 
     return ([node], [x, w], [y])
 
+
 @onnx_test()
 def conv_transpose_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
@@ -1554,11 +1555,14 @@ def conv_transpose_dyn_batch_test():
 
     return ([node], [x, w], [y])
 
+
 @onnx_test()
 def conv_transpose_dyn_img_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, None, None])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [1, 1, None, None])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      [1, 1, None, None])
 
     node = onnx.helper.make_node('ConvTranspose',
                                  name='conv1',

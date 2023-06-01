@@ -53,7 +53,7 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
     {
         operation op = make_op("conv_transpose");
         value values = op.to_value();
-        auto l0 = args[0];
+        auto l0      = args[0];
         std::vector<std::int64_t> padding;
         bool asym_padding = false;
         assert(l0->get_shape().ndim() > 2);
@@ -80,7 +80,8 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
             }
             else if(l0->get_shape().dynamic())
             {
-                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: asymmetric padding (padding_L != padding_R) not supported with dynamic shapes");
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: asymmetric padding (padding_L != padding_R) "
+                               "not supported with dynamic shapes");
             }
         }
 
@@ -114,7 +115,7 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
         recalc_conv_attributes(values, kdims);
 
         op.from_value(values);
-        auto l1                   = info.add_instruction(op, l0, args[1]);
+        auto l1 = info.add_instruction(op, l0, args[1]);
         if(asym_padding)
         {
             std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
@@ -127,34 +128,36 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
 
             std::vector<int64_t> ends{};
             std::transform(curr_shape.begin(),
-                    curr_shape.end(),
-                    pad_kdim_start,
-                    std::back_inserter(ends),
-                    [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
+                           curr_shape.end(),
+                           pad_kdim_start,
+                           std::back_inserter(ends),
+                           [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
 
             l1 = info.add_instruction(
-                    make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), l1);
+                make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), l1);
         }
 
         // TODO, should check output_padding < (strides or dilations)
-        if(contains(info.attributes, "output_padding") and not contains(info.attributes, "output_shape"))
+        if(contains(info.attributes, "output_padding") and
+           not contains(info.attributes, "output_shape"))
         {
-             size_t non_kdims = l1->get_shape().ndim() * 2 - kdims;
-             std::vector<int64_t> output_padding(non_kdims, 0);
-             copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
-             check_attr_sizes(kdims,
+            size_t non_kdims = l1->get_shape().ndim() * 2 - kdims;
+            std::vector<int64_t> output_padding(non_kdims, 0);
+            copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
+            check_attr_sizes(kdims,
                              output_padding.size() - non_kdims,
                              "PARSE_CONV_TRANSPOSE: inconsistent output padding");
-             l1 = info.add_instruction(make_op("pad", {{"pads", output_padding}}), l1);
+            l1 = info.add_instruction(make_op("pad", {{"pads", output_padding}}), l1);
         }
-    
+
         // TODO, might be doing unnecessary calcuations with this. Could instead
         // calculate the padding to conv_transpose that would give the output_shape.
         if(contains(info.attributes, "output_shape"))
         {
             if(l1->get_shape().dynamic())
             {
-                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: output_shape attribute and dynamic shapes not supported");
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: output_shape attribute and dynamic shapes "
+                               "not supported");
             }
             std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
             std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());

@@ -1528,6 +1528,56 @@ TEST_CASE(conv_transpose_output_shape_3d_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(conv_transpose_auto_pad_error)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_transpose_auto_pad_test.onnx"); }));
+}
+
+TEST_CASE(conv_transpose_dyn_asym_padding_error)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_transpose_dyn_asym_padding_test.onnx", options); }));
+}
+
+TEST_CASE(conv_transpose_dyn_output_shape_error)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_transpose_dyn_output_shape_test.onnx", options); }));
+}
+
+TEST_CASE(conv_transpose_dyn_batch_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {{1, 4}, {1, 1}, {3, 3}, {3, 3}}});
+    auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto ret = mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    auto prog = parse_onnx("conv_transpose_dyn_batch_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_transpose_dyn_img_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {{1, 1}, {1, 1}, {3, 6}, {3, 6}}});
+    auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto ret = mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {3, 6};
+    auto prog = parse_onnx("conv_transpose_dyn_img_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+
 TEST_CASE(depthtospace_test)
 {
     migraphx::program p;

@@ -103,7 +103,7 @@ struct conv_transpose
         size_t num_spatial_dims          = x_lens.size() - 2;
 
         // stride * (input - 1) + output_padding + ((kernel - 1) * dilation + 1) - padding_L -
-        // padding_R This assumes padding_L = padding_R
+        // padding_R. This assumes padding_L = padding_R and output_padding handled in parser.
         for(size_t i = 0; i < num_spatial_dims; i++)
         {
             spatial_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(

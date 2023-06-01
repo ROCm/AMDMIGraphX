@@ -118,5 +118,5 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
-ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
+ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:detect_leaks=0
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer

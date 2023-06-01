@@ -43,6 +43,7 @@ if(NOT WIN32)
     )
     set_directory_properties(PROPERTIES ADDITIONAL_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
 endif()
+target_compile_options(driver PRIVATE -Wno-ignored-attributes -Wno-unused-parameter)
 rocm_clang_tidy_check(driver)
 
 target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf migraphx_py)

@@ -21,59 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_FILESYSTEM_HPP
-#define MIGRAPHX_GUARD_RTGLIB_FILESYSTEM_HPP
 
-#include <migraphx/config.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_KERNELS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_KERNELS_HPP
 
-#if defined(CPPCHECK)
-#define MIGRAPHX_HAS_FILESYSTEM 1
-#define MIGRAPHX_HAS_FILESYSTEM_TS 1
-#elif defined(_WIN32)
-#if _MSC_VER >= 1920
-#define MIGRAPHX_HAS_FILESYSTEM 1
-#define MIGRAPHX_HAS_FILESYSTEM_TS 0
-#elif _MSC_VER >= 1900
-#define MIGRAPHX_HAS_FILESYSTEM 0
-#define MIGRAPHX_HAS_FILESYSTEM_TS 1
-#else
-#define MIGRAPHX_HAS_FILESYSTEM 0
-#define MIGRAPHX_HAS_FILESYSTEM_TS 0
-#endif
-#elif defined(__has_include)
-#if __has_include(<filesystem>) && __cplusplus >= 201703L
-#define MIGRAPHX_HAS_FILESYSTEM 1
-#else
-#define MIGRAPHX_HAS_FILESYSTEM 0
-#endif
-#if __has_include(<experimental/filesystem>) && __cplusplus >= 201103L
-#define MIGRAPHX_HAS_FILESYSTEM_TS 1
-#else
-#define MIGRAPHX_HAS_FILESYSTEM_TS 0
-#endif
-#else
-#define MIGRAPHX_HAS_FILESYSTEM 0
-#define MIGRAPHX_HAS_FILESYSTEM_TS 0
-#endif
-
-#if MIGRAPHX_HAS_FILESYSTEM
-#include <filesystem>
-#elif MIGRAPHX_HAS_FILESYSTEM_TS
-#include <experimental/filesystem>
-#else
-#error "No filesystem include available"
-#endif
+#include "migraphx/compile_src.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-#if MIGRAPHX_HAS_FILESYSTEM
-namespace fs = ::std::filesystem;
-#elif MIGRAPHX_HAS_FILESYSTEM_TS
-namespace fs = ::std::experimental::filesystem;
-#endif
-
+namespace gpu {
+std::vector<src_file> migraphx_kernels();
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_KERNELS_HPP

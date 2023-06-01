@@ -1,0 +1,59 @@
+//
+// The MIT License (MIT)
+//
+// Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+
+#include "resource.h"
+
+MIGRAPHX_IDR_ALGORITHM_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/algorithm.hpp"
+MIGRAPHX_IDR_ARGS_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/args.hpp"
+MIGRAPHX_IDR_ARRAY_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/array.hpp"
+MIGRAPHX_IDR_CONCAT_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/concat.hpp"
+MIGRAPHX_IDR_DEBUG_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/debug.hpp"
+MIGRAPHX_IDR_DFOR_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/dfor.hpp"
+MIGRAPHX_IDR_DPP_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/dpp.hpp"
+MIGRAPHX_IDR_FUNCTIONAL_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/functional.hpp"
+MIGRAPHX_IDR_GATHER_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/gather.hpp"
+MIGRAPHX_IDR_GATHERND_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/gathernd.hpp"
+MIGRAPHX_IDR_GENERIC_CONSTANT_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/generic_constant.hpp"
+MIGRAPHX_IDR_HIP_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/hip.hpp"
+MIGRAPHX_IDR_INDEX_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/index.hpp"
+MIGRAPHX_IDR_INTEGRAL_CONSTANT_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/integral_constant.hpp"
+MIGRAPHX_IDR_IOTA_ITERATOR_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/iota_iterator.hpp"
+MIGRAPHX_IDR_LAYERNORM_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/layernorm.hpp"
+MIGRAPHX_IDR_MATH_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/math.hpp"
+MIGRAPHX_IDR_OPS_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/ops.hpp"
+MIGRAPHX_IDR_PAD_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/pad.hpp"
+MIGRAPHX_IDR_POINTWISE_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/pointwise.hpp"
+MIGRAPHX_IDR_PRELOAD_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/preload.hpp"
+MIGRAPHX_IDR_PRINT_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/print.hpp"
+MIGRAPHX_IDR_RANGES_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/ranges.hpp"
+MIGRAPHX_IDR_REDUCE_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/reduce.hpp"
+MIGRAPHX_IDR_ROIALIGN_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/roialign.hpp"
+MIGRAPHX_IDR_SCATTERND_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/scatternd.hpp"
+MIGRAPHX_IDR_SHAPE_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/shape.hpp"
+MIGRAPHX_IDR_SOFTMAX_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/softmax.hpp"
+MIGRAPHX_IDR_TENSOR_VIEW_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/tensor_view.hpp"
+MIGRAPHX_IDR_TYPE_TRAITS_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/type_traits.hpp"
+MIGRAPHX_IDR_TYPES_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/types.hpp"
+MIGRAPHX_IDR_VEC_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/vec.hpp"
+MIGRAPHX_IDR_VECTORIZE_HPP MIGRAPHX_TEXTFILE "include/migraphx/kernels/vectorize.hpp"

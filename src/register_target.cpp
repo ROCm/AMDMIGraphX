@@ -56,7 +56,11 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
+#ifdef _WIN32
+        std::string target_name = "migraphx_" + name + ".dll";
+#else
         std::string target_name = "libmigraphx_" + name + ".so";
+#endif
         store_target_lib(dynamic_loader(target_name));
     }
     const auto it = target_map().find(name);

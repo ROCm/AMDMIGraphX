@@ -2179,12 +2179,20 @@ def gathernd_batch_dims_test():
 
 @onnx_test()
 def gatherND_gtn_filter():
-    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, 10])
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [5, 2])
     indices = helper.make_tensor_value_info('indices', TensorProto.INT64, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 1])
     yt = helper.make_tensor_value_info('yt', TensorProto.FLOAT, [10, 1])
     yn = helper.make_tensor_value_info('yn', TensorProto.FLOAT, [1, 10])
     yg = helper.make_tensor_value_info('yg', TensorProto.FLOAT, [1, 10])
+    yr = helper.make_tensor_value_info('yr', TensorProto.FLOAT, [1, 10])
+
+    r_node = helper.make_node(
+        'Reshape',
+        inputs=['data'],
+        outputs=['yr'],
+        shape=[1, 10],
+    )
 
     thresh_const = helper.make_node(
         'Constant',
@@ -2214,12 +2222,13 @@ def gatherND_gtn_filter():
 
     node = onnx.helper.make_node(
         'GatherND',
-        inputs=['data', 'yt'],
+        inputs=['yr', 'yt'],
         outputs=['y'],
         batch_dims=1,
     )
 
-    return ([thresh_const, g_node, n_node, t_node, node], [data, indices], [y])
+    return ([r_node, thresh_const, g_node, n_node, t_node,
+             node], [data, indices], [y])
 
 
 @onnx_test()

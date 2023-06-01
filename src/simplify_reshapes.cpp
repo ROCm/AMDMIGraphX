@@ -496,13 +496,16 @@ struct find_nonzero_gathernd_filter
     auto matcher() const
     {
         return match::name("gathernd")(
-            match::args((match::arg(1)(match::name("transpose").bind("data")))));
+            match::args(match::name("reshape").bind("data"),
+                        match::name("transpose")(match::args(match::arg(0)(match::name("nonzero")(
+                            match::args(match::arg(0)(match::name("greater").bind("ind")))))))));
     }
 
-    void apply(module &m, const match::matcher_result& r) const
+    void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins     = r.result;
-        auto reshape = r.instructions["data"];
+        auto ins         = r.result;
+        auto data_input  = r.instructions["data"];
+        auto index_input = r.instructions["ind"];
 
         std::cout << "Beep" << std::endl;
     }

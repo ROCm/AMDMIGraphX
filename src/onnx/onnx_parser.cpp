@@ -39,6 +39,20 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+static shape shape_from_dyn_dims(shape::type_t shape_type,
+                                 const std::vector<shape::dynamic_dimension>& dyn_dims)
+{
+    if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](auto dd) { return dd.is_fixed(); }))
+    {
+        std::vector<std::size_t> dims;
+        std::transform(dyn_dims.cbegin(), dyn_dims.cend(), std::back_inserter(dims), [](auto d) {
+            return d.max;
+        });
+        return {shape_type, dims};
+    }
+    return {shape_type, dyn_dims};
+}
+
 namespace onnx {
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
@@ -300,7 +314,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
             else if(map_dyn_input_dims.count(name) > 0)
             {
                 shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
-                s                        = {shape_type, map_dyn_input_dims.at(name)};
+                s = shape_from_dyn_dims(shape_type, map_dyn_input_dims.at(name));
             }
             else
             {
@@ -491,7 +505,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                                return default_dyn_dim_value;
                            }
                            std::size_t tmp = d.dim_value();
-                           return {tmp, tmp, 0};
+                           return {tmp, tmp};
                        }
                        else
                        {
@@ -503,16 +517,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
     {
         return {shape_type};
     }
-    if(std::all_of(dynamic_dims.begin(), dynamic_dims.end(), [](auto dd) { return dd.is_fixed(); }))
-    {
-        std::vector<std::size_t> dims;
-        std::transform(dynamic_dims.begin(),
-                       dynamic_dims.end(),
-                       std::back_inserter(dims),
-                       [](auto d) { return d.max; });
-        return {shape_type, dims};
-    }
-    return {shape_type, dynamic_dims};
+    return shape_from_dyn_dims(shape_type, dynamic_dims);
 }
 
 shape::type_t get_type(int dtype)

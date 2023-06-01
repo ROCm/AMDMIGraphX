@@ -27,7 +27,7 @@ project (custom_miopen_kernel)
 set (CMAKE_CXX_STANDARD 14)
 set (EXAMPLE custom_op_miopen_kernel)
 
-list (APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+list (APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package (migraphx REQUIRED)
 find_package (miopen REQUIRED)
 

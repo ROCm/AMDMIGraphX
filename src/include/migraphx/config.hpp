@@ -26,6 +26,10 @@
 
 #include <migraphx/export.h>
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <ciso646>
+#endif
+
 #if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
 
 #ifdef BUILD_DEV

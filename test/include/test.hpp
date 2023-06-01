@@ -333,7 +333,7 @@ enum class color
     bg_blue    = 44,
     bg_default = 49
 };
-inline std::ostream& operator<<(std::ostream& os, const color& c)
+inline std::ostream& operator<<(std::ostream& os, [[maybe_unused]] const color& c)
 {
 #ifndef _WIN32
     static const bool use_color = isatty(STDOUT_FILENO) != 0;

@@ -59,6 +59,7 @@ constexpr auto gemm_batch_slice(Tensor t, T i)
 {
     constexpr auto batch  = gemm_get_batches<Tensor>();
     constexpr auto matrix = gemm_get_matrix<Tensor>();
+    MIGRAPHX_ASSERT((batch.index(i) + matrix.get_shape().element_space()) <= t.get_shape().element_space());
     return make_tensor_view(t.data() + batch.index(i), matrix);
 }
 

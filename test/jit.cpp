@@ -46,8 +46,12 @@ std::function<F>
 compile_function(const std::string& src, const std::string& flags, const std::string& fname)
 {
     migraphx::src_compiler compiler;
-    compiler.flags  = flags + "-std=c++14 -fPIC -shared";
+    compiler.flags = flags + "-std=c++14 -fPIC -shared";
+#ifdef _WIN32
+    compiler.output = "simple.dll";
+#else
     compiler.output = "libsimple.so";
+#endif
     migraphx::src_file f{"main.cpp", src};
     auto image = compiler.compile({f});
     return migraphx::dynamic_loader{image}.get_function<F>(fname);

@@ -37,12 +37,15 @@ struct dynamic_loader_impl;
 
 struct MIGRAPHX_EXPORT dynamic_loader
 {
+#ifndef _WIN32
     template <class T>
     static fs::path path(T* address)
     {
         return path(reinterpret_cast<void*>(address));
     }
     static fs::path path(void* address);
+#endif
+
     dynamic_loader() = default;
 
     dynamic_loader(const fs::path& p);

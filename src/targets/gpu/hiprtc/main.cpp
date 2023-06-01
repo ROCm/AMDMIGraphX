@@ -27,6 +27,7 @@
 #include <migraphx/msgpack.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/ranges.hpp>
+#include <array>
 #include <iostream>
 #include <cstring>
 

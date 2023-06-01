@@ -62,10 +62,9 @@ const int auto_register<Action, T>::static_register = auto_register_action<Actio
 #define MIGRAPHX_AUTO_REGISTER_NAME_DETAIL(x) migraphx_auto_register_##x
 #define MIGRAPHX_AUTO_REGISTER_NAME(x) MIGRAPHX_AUTO_REGISTER_NAME_DETAIL(x)
 // NOLINTNEXTLINE
-#define MIGRAPHX_AUTO_REGISTER(...)                                                        \
-    void MIGRAPHX_AUTO_REGISTER_NAME(__LINE__)(migraphx::auto_register<__VA_ARGS__> x =    \
-                                                   migraphx::auto_register<__VA_ARGS__>{}) \
-        __attribute__((unused));
+#define MIGRAPHX_AUTO_REGISTER(...)                              \
+    [[maybe_unused]] void MIGRAPHX_AUTO_REGISTER_NAME(__LINE__)( \
+        migraphx::auto_register<__VA_ARGS__> x = migraphx::auto_register<__VA_ARGS__>{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

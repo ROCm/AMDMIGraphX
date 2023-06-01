@@ -27,9 +27,6 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
-#ifdef _MSC_VER
-#include <iso646.h>
-#endif
 
 #include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>

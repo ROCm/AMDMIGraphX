@@ -38,6 +38,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <array>
 #include <algorithm>
 #include <cstdarg>
 

@@ -24,38 +24,29 @@
 
 cmake_policy(SET CMP0057 NEW)
 
-find_package(Threads REQUIRED)
 include(ProcessorCount)
 ProcessorCount(N)
 set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR} --timeout 5000)
 add_custom_target(tests)
 
-find_program(MIGRAPHX_GDB gdb)
-
-if(MIGRAPHX_GDB)
-    set(MIGRAPHX_TEST_GDB On CACHE BOOL "")
-else()
+if(WIN32)
     set(MIGRAPHX_TEST_GDB Off CACHE BOOL "")
+else()
+    find_program(MIGRAPHX_GDB gdb)
+    if(MIGRAPHX_GDB)
+        set(MIGRAPHX_TEST_GDB On CACHE BOOL "")
+    else()
+        set(MIGRAPHX_TEST_GDB Off CACHE BOOL "")
+    endif()
 endif()
-
-set(SKIP_TESTS)
 
 function(add_test_command NAME EXE)
     if(NAME IN_LIST SKIP_TESTS)
         add_test(NAME ${NAME} COMMAND echo skipped)
         set_tests_properties(${NAME} PROPERTIES DISABLED On)
     elseif(WIN32)
-        set(WINPATH)
-
-        foreach(PATH ${CMAKE_FIND_ROOT_PATH})
-            list(APPEND WINPATH ${PATH}/bin)
-        endforeach()
-
-        file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd"
-            CONTENT "set PATH=${WINPATH};%PATH%
-                    %1 ${ARGN}")
-        add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
+        add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${EXE}> ${ARGN})
     else()
         if(MIGRAPHX_TEST_GDB)
             # add_test(NAME ${NAME} COMMAND ${MIGRAPHX_GDB}
@@ -102,9 +93,11 @@ function(add_test_executable TEST_NAME)
     add_test_command(${TEST_NAME} ${TEST_COMMAND})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
+    target_compile_features(${TEST_NAME} PRIVATE cxx_std_17)
     target_link_libraries(${TEST_NAME} Threads::Threads migraphx migraphx_onnx migraphx_ref)
     target_include_directories(${TEST_NAME} PUBLIC include)
-endfunction(add_test_executable)
+    target_compile_options(${TEST_NAME} PRIVATE -Wno-ignored-attributes)
+endfunction()
 
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 
@@ -115,8 +108,18 @@ foreach(TEST ${TESTS})
 endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
-    # gpu tests
-    file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)
+    set(GPU_TESTS
+        gpu/adjust_allocation.cpp
+        gpu/context_serialize.cpp
+        gpu/hip.cpp
+        gpu/jit.cpp
+        gpu/literal.cpp
+        gpu/manage_host_buffer.cpp
+        gpu/mlir.cpp
+        gpu/pack_args.cpp
+        gpu/pack_int8_args.cpp
+        gpu/quantization.cpp
+        gpu/stream_sync.cpp)
 
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -126,16 +129,22 @@ if(MIGRAPHX_ENABLE_GPU)
             COST 10
             RESOURCE_LOCK gpu
         )
+        if(WIN32)
+            target_include_directories(test_gpu_${BASE_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src/targets/gpu/kernels)
+        else()
+            target_link_libraries(test_gpu_${BASE_NAME} migraphx_kernels)
+        endif()
         if(MIGRAPHX_USE_HIPRTC)
         target_compile_definitions(test_gpu_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_HIPRTC)
         endif()
-        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels)
+        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu)
     endforeach()
 endif()
 
 if(MIGRAPHX_ENABLE_FPGA)
-    # fpga tests
-    file(GLOB FPGA_TESTS CONFIGURE_DEPENDS fpga/*.cpp)
+    set(FPGA_TESTS
+            fpga/get_target_assignments.cpp
+            fpga/test_compile.cpp)
 
     foreach(TEST ${FPGA_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -151,7 +160,10 @@ endif()
 
 # Onnx test
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
-file(GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)
+set(ONNX_TESTS
+    onnx/onnx_rnn_test.cpp
+    onnx/onnx_test.cpp
+    onnx/verify_onnx.cpp)
 
 foreach(ONNX_TEST ${ONNX_TESTS})
     get_filename_component(BASE_NAME ${ONNX_TEST} NAME_WE)

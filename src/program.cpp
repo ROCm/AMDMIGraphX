@@ -292,9 +292,9 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
                 MIGRAPHX_THROW("Dangling reference in module " + current_mod->name() +
                                " from instruction " + std::to_string(index));
             }
-            current_mod->finalize(this->impl->contexts[root_target_id]);
         }
     }
+    this->finalize();
 }
 
 void program::compile(const target& t, compile_options options)

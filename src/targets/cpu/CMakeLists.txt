@@ -31,7 +31,7 @@ add_library(migraphx_cpu
     concat.cpp
     convolution.cpp
     copy.cpp
-    conv_transpose.cpp
+    deconvolution.cpp
     dnnl.cpp
     eltwise.cpp
     erf.cpp

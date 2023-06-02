@@ -72,7 +72,7 @@ MIGRAPHX_REGISTER_OP(ck_gemm);
 
 namespace {
 
-static bool is_ck_supported_type(shape::type_t t)
+bool is_ck_supported_type(shape::type_t t)
 {
     return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
 }

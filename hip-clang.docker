@@ -47,7 +47,7 @@ ENV LANG=C.UTF-8
 RUN pip3 install yapf==0.28.0
 
 # Install doc requirements
-ADD doc/requirements.txt /doc-requirements.txt
+ADD docs/.sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Install dependencies
@@ -57,4 +57,3 @@ ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
-

@@ -22,8 +22,14 @@ jobs:
 
     steps:
     - name: Free space
-      run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
 
     - uses: actions/checkout@v3
 
@@ -91,8 +97,16 @@ jobs:
 
     steps:
     - name: Free space
-      run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+
+
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -154,8 +168,14 @@ jobs:
 
     steps:
     - name: Free space
-      run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -196,8 +216,15 @@ jobs:
 
     steps:
     - name: Free space
-      run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -209,7 +236,7 @@ jobs:
     - name: Run pyflakes
       run: |
         pyflakes --version
-        pyflakes examples/ tools/ src/ test/ doc/
+        pyflakes examples/ tools/ src/ test/ docs/
         mypy --version
         mypy tools/api.py
 
@@ -218,8 +245,15 @@ jobs:
 
     steps:
     - name: Free space
-      run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -249,9 +283,18 @@ jobs:
           - codecov
 
     steps:
-    - name: Free space and install rbuild, lld
+    - name: Free space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+
+    - name : Install rbuild and lld
       run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
         sudo apt-get install -y lld
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
@@ -357,8 +400,15 @@ jobs:
 
     steps:
     - name: Free space
-      run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku /opt/az /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/node /opt/hostedtoolcache/go /opt/hostedtoolcache/Python/2* /opt/hostedtoolcache/CodeQL /opt/microsoft /etc/skel /home/runner/.rustup/toolchains 
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4

@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/pass.hpp>
+#include <migraphx/module_ref.hpp>
 #include <migraphx/tracer.hpp>
 #include <vector>
 
@@ -46,6 +47,10 @@ struct module_pass_manager
     virtual ~module_pass_manager() {}
 };
 
+void run_passes(program& prog,
+                module_ref root_mod,
+                const std::vector<pass>& passes,
+                tracer trace = tracer{});
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
 

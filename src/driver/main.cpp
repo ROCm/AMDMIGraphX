@@ -456,7 +456,11 @@ struct compiler
         auto p = l.load();
         // Dont compile if its already been compiled
         if(p.is_compiled())
+        {
+            if(ct.target_name == "gpu")
+                co.offload_copy = is_offload_copy_set(p);
             return p;
+        }
         auto t = ct.get_target();
         if(to_fp16)
         {

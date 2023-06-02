@@ -37,6 +37,7 @@ parameter_map fill_param_map(parameter_map& m,
 parameter_map create_param_map(const program& p, const target& t, bool offload = false);
 
 parameter_map fill_param_map(parameter_map& m, const program& p, bool gpu);
+bool is_offload_copy_set(const program& p);
 parameter_map create_param_map(const program& p, bool gpu = true);
 target get_target(bool gpu);
 

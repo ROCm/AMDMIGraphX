@@ -23,7 +23,10 @@
  */
 #include "perf.hpp"
 
+#include <unordered_map>
+#include <iterator>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -87,6 +90,44 @@ parameter_map create_param_map(const program& p, bool gpu)
             m[x.first] = generate_argument(x.second, get_hash(x.first));
     }
     return m;
+}
+
+bool is_offload_copy_set(const program& p)
+{
+    assert(p.is_compiled());
+    std::vector<std::string> param_names = p.get_parameter_names();
+    std::unordered_set<instruction_ref> param_ins;
+    std::transform(param_names.begin(),
+                   param_names.end(),
+                   std::inserter(param_ins, param_ins.begin()),
+                   [&](const auto& i) { return p.get_parameter(i); });
+    const module mm = *p.get_main_module();
+    for(const auto& i : mm)
+    {
+        if(i.name() == "hip::copy_to_gpu")
+        {
+            auto copy_arg = instruction::get_output_alias(i.inputs().front(), true);
+            if(param_ins.count(copy_arg))
+                param_ins.erase(copy_arg);
+        }
+        else if(i.name() == "@return")
+        {
+            auto return_args = i.inputs();
+            for(const auto& j : return_args)
+            {
+                auto alias_ins = instruction::get_output_alias(j, true);
+                if(alias_ins->name() == "@param")
+                {
+                    return param_ins.erase(alias_ins);
+                }
+                else if(alias_ins->name() != "hip::copy_from_gpu")
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    return param_ins.empty();
 }
 
 target get_target(bool gpu)

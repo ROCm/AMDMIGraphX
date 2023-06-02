@@ -117,7 +117,8 @@ bool is_offload_copy_set(const program& p)
                 auto alias_ins = instruction::get_output_alias(j, true);
                 if(alias_ins->name() == "@param")
                 {
-                    if(!param_ins.erase(alias_ins)) {
+                    if(!param_ins.erase(alias_ins))
+                    {
                         return false;
                     }
                 }

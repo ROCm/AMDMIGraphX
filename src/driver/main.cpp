@@ -459,8 +459,8 @@ struct compiler
         {
             if(ct.target_name == "gpu" && is_offload_copy_set(p))
             {
-                std::cout << "Compiled program likely has offload_copy set, Try passing "
-                             "`--enable-offload-copy` if program fails.";
+                std::cout << "Compiled MIGraphX program likely has offload_copy set, Try passing "
+                             "`--enable-offload-copy` if program run fails.";
             }
             return p;
         }

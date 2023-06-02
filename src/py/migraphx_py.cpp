@@ -506,6 +506,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     m.def("get_target", &migraphx::make_target);
     m.def("create_argument", [](const migraphx::shape& s, const std::vector<float>& values) {
+        if(values.size() != s.elements())
+            MIGRAPHX_THROW("Values and shape elements do not match");
         migraphx::argument a{s};
         a.fill(values.begin(), values.end());
         return a;

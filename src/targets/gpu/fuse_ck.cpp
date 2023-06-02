@@ -111,9 +111,9 @@ struct find_ck_gemm_pointwise
         auto gemm_idx = gemm_it - inputs.begin();
         if(ins->get_shape().type() != gemm_ins->get_shape().type())
             return;
-        if (std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
-            return not is_ck_supported_type(input->get_shape().type());
-        }))
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
+               return not is_ck_supported_type(input->get_shape().type());
+           }))
             return;
         assert(gemm_it != inputs.end());
         if(gemm_idx != 0)

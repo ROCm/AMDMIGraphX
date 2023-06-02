@@ -726,7 +726,7 @@ void program::from_value(const value& v)
     mod_from_val(mm, module_vals, map_insts, map_mods);
 
     // Finalize a compiled model
-    if (not this->impl->contexts.empty())
+    if(not this->impl->contexts.empty())
         this->finalize();
 }
 

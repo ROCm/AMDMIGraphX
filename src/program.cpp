@@ -498,6 +498,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
 
     if(exec_env.async)
     {
+        assert(contexts.size() == 1);
         contexts.front().wait_for(exec_env.queue);
     }
 
@@ -549,6 +550,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
 
     if(exec_env.async)
     {
+        assert(contexts.size() == 1);
         contexts.front().finish_on(exec_env.queue);
     }
 
@@ -724,7 +726,7 @@ void program::from_value(const value& v)
     mod_from_val(mm, module_vals, map_insts, map_mods);
 
     // Finalize a compiled model
-    if(not this->impl->contexts.empty())
+    if (not this->impl->contexts.empty())
         this->finalize();
 }
 

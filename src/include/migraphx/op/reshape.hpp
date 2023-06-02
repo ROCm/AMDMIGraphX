@@ -158,8 +158,7 @@ struct reshape
                 if(it == start)
                     return nullopt;
                 auto n = it - start;
-                if((i + n) > istrides.size())
-                    return nullopt;
+                assert((i + n) <= istrides.size());
                 if(not can_strides_merge(
                        start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
                     return nullopt;
@@ -174,8 +173,7 @@ struct reshape
                 if(it == start)
                     return nullopt;
                 auto n = it - start;
-                if((r + n) > rdims.size())
-                    return nullopt;
+                assert((r + n) <= rdims.size());
                 auto stride = istrides[i] * idim;
                 std::for_each(start, it + 1, [&](auto dim) {
                     stride /= dim;

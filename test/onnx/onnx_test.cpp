@@ -3174,11 +3174,11 @@ TEST_CASE(instance_norm_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
 
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
 
-    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
@@ -3213,11 +3213,9 @@ TEST_CASE(instance_norm_dyn_batch_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
-
-    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
-
     auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
@@ -3251,11 +3249,11 @@ TEST_CASE(instance_norm_half_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
 
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
 
-    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});

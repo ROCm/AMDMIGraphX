@@ -455,8 +455,10 @@ struct compiler
     {
         auto p = l.load();
         // Dont compile if its already been compiled
+
         if(p.is_compiled())
         {
+
             if(ct.target_name == "gpu" && is_offload_copy_set(p))
             {
                 std::cout << "Compiled MIGraphX program likely has offload_copy set, Try passing "

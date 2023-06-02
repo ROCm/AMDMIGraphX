@@ -23,10 +23,9 @@
  */
 #include "perf.hpp"
 
-#include <unordered_map>
-#include <iterator>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -95,14 +94,14 @@ parameter_map create_param_map(const program& p, bool gpu)
 bool is_offload_copy_set(const program& p)
 {
     assert(p.is_compiled());
-    std::vector<std::string> param_names = p.get_parameter_names();
+    const module* mm                     = p.get_main_module();
+    std::vector<std::string> param_names = mm->get_parameter_names();
     std::unordered_set<instruction_ref> param_ins;
     std::transform(param_names.begin(),
                    param_names.end(),
                    std::inserter(param_ins, param_ins.begin()),
-                   [&](const auto& i) { return p.get_parameter(i); });
-    const module mm = *p.get_main_module();
-    for(const auto& i : mm)
+                   [&](const auto& i) { return mm->get_parameter(i); });
+    for(const auto& i : *mm)
     {
         if(i.name() == "hip::copy_to_gpu")
         {

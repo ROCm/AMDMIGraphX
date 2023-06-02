@@ -107,7 +107,7 @@ bool is_offload_copy_set(const program& p)
         if(i.name() == "hip::copy_to_gpu")
         {
             auto copy_arg = instruction::get_output_alias(i.inputs().front(), true);
-            if(param_ins.count(copy_arg))
+            if(param_ins.find(copy_arg) != param_ins.end())
                 param_ins.erase(copy_arg);
         }
         else if(i.name() == "@return")
@@ -118,7 +118,14 @@ bool is_offload_copy_set(const program& p)
                 auto alias_ins = instruction::get_output_alias(j, true);
                 if(alias_ins->name() == "@param")
                 {
-                    return param_ins.erase(alias_ins);
+                    if(param_ins.find(alias_ins) != param_ins.end())
+                    {
+                        param_ins.erase(alias_ins);
+                    }
+                    else
+                    {
+                        return false;
+                    }
                 }
                 else if(alias_ins->name() != "hip::copy_from_gpu")
                 {

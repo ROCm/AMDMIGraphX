@@ -545,7 +545,7 @@ TEST_CASE(conv_transpose_dyn_kernel_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {1, 4, 1, 1}};
     migraphx::shape weights{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 6}, {2, 6}}};
-    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {3, 6}, {3, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 6}, {2, 6}}};
     expect_shape(output, migraphx::make_op("conv_transpose"), input, weights);
 }
 

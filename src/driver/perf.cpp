@@ -115,17 +115,10 @@ bool is_offload_copy_set(const program& p)
             for(const auto& j : return_args)
             {
                 auto alias_ins = instruction::get_output_alias(j, true);
-                if(alias_ins->name() == "@param")
-                {
-                    if(not param_ins.erase(alias_ins))
-                    {
-                        return false;
-                    }
-                }
-                else if(alias_ins->name() != "hip::copy_from_gpu")
-                {
+                if(alias_ins->name() == "@param" && param_ins.erase(alias_ins) == 0)
                     return false;
-                }
+                else if(alias_ins->name() != "hip::copy_from_gpu")
+                    return false;
             }
         }
     }

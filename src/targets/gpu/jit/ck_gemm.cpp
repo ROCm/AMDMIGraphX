@@ -269,7 +269,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
     static bool standard_batch(const shape& s)
     {
-        if (s.lens().size() < 3)
+        if(s.lens().size() < 3)
             return true;
         std::vector<std::size_t> lens(s.lens().begin(), s.lens().end() - 2);
         std::vector<std::size_t> strides(s.strides().begin(), s.strides().end() - 2);

@@ -72,12 +72,16 @@ MIGRAPHX_REGISTER_OP(ck_gemm);
 
 namespace {
 
+static bool is_ck_supported_type(shape::type_t t)
+{
+    return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
+}
+
 MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
 {
     if(ins->name() != "dot" and ins->name() != "quant_dot")
         return false;
-    if(not contains({shape::half_type, shape::int8_type, shape::int32_type},
-                    ins->get_shape().type()))
+    if(not is_ck_supported_type(ins->get_shape().type()))
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
@@ -106,6 +110,10 @@ struct find_ck_gemm_pointwise
         auto gemm_it  = std::find(inputs.begin(), inputs.end(), x_ins);
         auto gemm_idx = gemm_it - inputs.begin();
         if(ins->get_shape().type() != gemm_ins->get_shape().type())
+            return;
+        if (std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
+            return not is_ck_supported_type(input->get_shape().type());
+        }))
             return;
         assert(gemm_it != inputs.end());
         if(gemm_idx != 0)

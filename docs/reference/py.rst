@@ -6,9 +6,9 @@ Python Reference
 shape
 -----
 
-.. py:class:: shape(type, lens, strides=None)
+.. py:class:: shape(type, lens, strides=None, dyn_dims)
 
-    Describes the shape of a tensor. This includes size, layout, and data type/
+    Describes the shape of a tensor. This includes size, layout, and data type. Can be a dynamic shape by using dyn_dims.
 
 .. py:method:: type()
 
@@ -34,6 +34,12 @@ shape
 
     :rtype: int
 
+.. py:method:: dyn_dims()
+
+    The dynamic dimensions of the shape.
+
+    :rtype: list[dynamic_dimension]
+
 .. py:method:: bytes()
 
     The number of bytes the shape uses.
@@ -43,6 +49,12 @@ shape
 .. py:method:: type_size()
 
     The number of bytes one element uses
+
+    :rtype: int
+
+.. py:method:: ndim()
+
+    The number of dimensions for the shape.
 
     :rtype: int
 
@@ -64,6 +76,12 @@ shape
 
     :rtype: bool
 
+.. py:method:: dynamic()
+
+    Returns true if the shape is dynamic.
+
+    :rtype: bool
+
 .. py:method:: standard()
 
     Returns true if the shape is a standard shape. That is, the shape is both packed and not transposed.
@@ -76,6 +94,18 @@ shape
 
     :rtype: bool
 
+dynamic_dimension
+--------
+
+.. py:class:: dynamic_dimension(min, max, optimals)
+
+    Construct a dynamic_dimension from a minimum, a maximum, and optionally a set of optimals.
+
+.. py:method:: is_fixed()
+    
+    Returns true if the dynamic_dimension is fixed.
+
+    :rtype : int
 
 argument
 --------
@@ -301,8 +331,10 @@ parse_onnx
     Load and parse an onnx file.
 
     :param str filename: Path to file.
-    :param str default_dim_value: default batch size to use (if not specified in onnx file).
+    :param str default_dim_value: default dimension to use (if not specified in onnx file).
+    :param dynamic_dimension default_dyn_dim_value: default dynamic_dimension value to use.
     :param str map_input_dims: Explicitly specify the dims of an input.
+    :param list[dynamic_dimension] map_dyn_input_dims: Explicitly specify the dynamic_dimensions of an input.
     :param str skip_unknown_operators: Continue parsing onnx file if an unknown operator is found.
     :param str print_program_on_error: Print program if an error occurs.
     :param int max_loop_iterations: Maximum iteration number for the loop operator.

@@ -462,6 +462,13 @@ struct compiler
                 std::cout << "Compiled MIGraphX program likely has offload_copy set, Try passing "
                              "`--enable-offload-copy` if program run fails.";
             }
+            else if(ct.target_name == "gpu")
+            {
+                std::cout
+                    << "Compiled MIGraphX program likely compiled without offload_copy set, Try "
+                       "removing "
+                       "`--enable-offload-copy` flag if passed to driver, if program run fails.";
+            }
             return p;
         }
         auto t = ct.get_target();

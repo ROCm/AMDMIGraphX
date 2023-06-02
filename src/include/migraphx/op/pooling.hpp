@@ -244,12 +244,12 @@ printf("\n");
                 win_start.push_back(start);
                 // win_size.push_back(end - start);
                 win_size.push_back(kernel_dims[d_2]);
-printf("start = %d end = %d\n", start, end)    ;
+// printf("start = %d end = %d\n", start, end)    ;
             }
 // where are int getting converted to size_t and losing negatives?            
-printf("win_size ");for(auto aa : win_size) std::cout << aa << ", ";    std::cout << "\n";         
+// printf("win_size ");for(auto aa : win_size) std::cout << aa << ", ";    std::cout << "\n";         
             shape win_shape{output_shape.type(), win_size};
-printf("win_shape ");for(auto aa : win_shape.lens()) std::cout << aa << ", ";    std::cout << "\n";         
+// printf("win_shape ");for(auto aa : win_shape.lens()) std::cout << aa << ", ";    std::cout << "\n";         
             auto pool_size    = win_shape.elements();
             double output_val = op.template init<Type>();
             shape_for_each(win_shape, [&](auto idx_w) {
@@ -268,9 +268,9 @@ printf("win_shape ");for(auto aa : win_shape.lens()) std::cout << aa << ", ";   
                                win_start.begin(),
                                idx_i.begin() + 2,
                                [](auto ii, auto jj) {
- printf("ii = %lu jj = %d\n", ii, jj)    ;                               
+//  printf("ii = %lu jj = %d\n", ii, jj)    ;                               
                                  return static_cast<int>(ii) + jj; });
-std::cout <<  " idx_i  transformed ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
+// std::cout <<  " idx_i  transformed ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
                 // if all indexes of this element lie within in_s bounds
                 // This "if" was working by accident because negative numbers cast to unsigned
                 // are very large
@@ -278,14 +278,14 @@ std::cout <<  " idx_i  transformed ";  for(auto aa : idx_i) std::cout << aa << "
                 for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
                 {
                     if(idx_i[ijk] < 0){
-                        printf("out because idx_i[%d] = %d\n", ijk, idx_i[ijk]);
+                        // printf("out because idx_i[%d] = %d\n", ijk, idx_i[ijk]);
                         fits = false;
                 }}
 
                 for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
                 {
                     if(idx[ijk] >= in_lens[ijk]){
-                        printf("out because idx[%d] = %lu\n", ijk, idx[ijk]);
+                        // printf("out because idx[%d] = %lu\n", ijk, idx[ijk]);
                         fits = false;
                 }}
 

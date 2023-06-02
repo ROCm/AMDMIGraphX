@@ -703,6 +703,8 @@ TEST_CASE(avgpool_rank3_stride2_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+printf("**** result: ");
+for(auto aa : results_vector) printf(" %f,", aa);printf("\n");
     std::vector<float> gold{1.6321,
                             -1.0974,
                             -1.4232,
@@ -4427,6 +4429,9 @@ TEST_CASE(maxpool_rank3_ceil_test)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+printf("**** result: ");
+for(auto aa : results_vector) printf(" %f,", aa);printf("\n");
+
     std::vector<float> gold{0.4975,
                             -0.0405,
                             -0.1227,

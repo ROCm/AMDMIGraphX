@@ -151,8 +151,9 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
 
 /**
  * @brief A wrapper for insert_common_args(), which constructs an argument list
- * that is suitable for optimization in later compiler passes and handles the
- * insertion of multibroadcast ops where needed.
+ * and inserts multibroadcast ops to broadcast and typecast inputs to a common type and shape
+ * as required.
+ *
  * Use add_common_op() to match input sizes when inputs may be
  *  either static or dynamic.
  *

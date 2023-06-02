@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,10 +40,7 @@ namespace op {
  * One input version uses output_lens attribute and broadcasts to it (does not support
  * dynamic shape input)).
  * Two inputs version broadcasts to the shape of the second input at evaluation time.
- * Use the make_op() command with two shape arguments for dynamic input and the 1-argument version
- * for static input, since later compiler passes will differentiate the two
- * and optimize them differently; or use the add_common_op() method which wraps this
- * decision logic.
+
  */
 struct multibroadcast
 {
@@ -84,7 +81,6 @@ struct multibroadcast
             return bcast_strides;
         };
 
-        // One input shape or two?
         if(inputs.size() == 1)
         {
             if(s0.dynamic())

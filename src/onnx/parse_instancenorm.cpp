@@ -63,12 +63,6 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto ndims     = x->get_shape().ndim();
         assert(ndims >= 2);
         auto kdims = ndims - 2;
-
-        if(dyn_input)
-        {
-            dims = x->get_shape().min_lens();
-        }
-
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), 2);
 

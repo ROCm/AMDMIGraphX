@@ -723,7 +723,9 @@ void program::from_value(const value& v)
     auto* mm = get_main_module();
     mod_from_val(mm, module_vals, map_insts, map_mods);
 
-    this->finalize();
+    // Finalize a compiled model
+    if (not this->impl->contexts.empty())
+        this->finalize();
 }
 
 double common_average(const std::vector<double>& v)

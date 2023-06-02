@@ -652,6 +652,7 @@ instruction_ref module::find_dangling_reference() const
 
 void module::finalize(std::vector<context>& contexts)
 {
+    assert(not contexts.empty());
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {

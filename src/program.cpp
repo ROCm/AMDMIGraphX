@@ -159,7 +159,11 @@ std::vector<shape> program::get_output_shapes() const
     return mm->get_output_shapes();
 }
 
-context& program::get_context() const { return impl->contexts.front(); }
+context& program::get_context() const
+{
+    assert(impl->contexts.size() == 1);
+    return impl->contexts.front(); 
+}
 
 instruction_ref program::validate() const
 {

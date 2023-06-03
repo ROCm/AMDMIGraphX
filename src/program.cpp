@@ -162,7 +162,7 @@ std::vector<shape> program::get_output_shapes() const
 context& program::get_context() const
 {
     assert(impl->contexts.size() == 1);
-    return impl->contexts.front(); 
+    return impl->contexts.front();
 }
 
 instruction_ref program::validate() const

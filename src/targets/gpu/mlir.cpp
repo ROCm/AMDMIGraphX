@@ -164,10 +164,10 @@ std::string mlir_print(F f, T x)
     return ss.str();
 }
 
-const std::unordered_set<std::string>& get_xdlops_archs()
+bool has_xdlops(const std::string& target_arch)
 {
-    static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
-    return supported_archs;
+    const auto device_name = trim(split_string(target_arch, ':').front());
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
 }
 
 struct mlir_program
@@ -558,9 +558,7 @@ struct mlir_program
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
                 // check if HW supports xdlops
-                auto target_chip = trim(split_string(target_arch, ':').front());
-                bool xdlops      = contains(get_xdlops_archs(), target_chip);
-                if(xdlops)
+                if(has_xdlops(target_arch))
                     ops.add_attributes({{"xdlopsV2", true}});
             }
 

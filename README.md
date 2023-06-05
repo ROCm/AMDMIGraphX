@@ -203,13 +203,19 @@ HTML and PDF documentation can be built using:
 
 `cmake --build . --config Release --target doc` **OR** `make doc`
 
-This will build a local searchable web site inside the doc/html folder.
+This will build a local searchable web site inside the docs/html folder.
 
-Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html), [Sphinx](http://www.sphinx-doc.org/en/stable/index.html), and [Breathe](https://breathe.readthedocs.io/en/latest/)
+Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html) and [rocm-docs-core](https://github.com/RadeonOpenCompute/rocm-docs-core)
 
-Requirements for both Sphinx and Breathe can be installed with:
+Run the steps below to build documentation locally.
 
-`pip install -r doc/requirements.txt`
+```
+cd docs
+
+pip3 install -r .sphinx/requirements.txt
+
+python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+```
 
 Depending on your setup `sudo` may be required for the pip install.
 

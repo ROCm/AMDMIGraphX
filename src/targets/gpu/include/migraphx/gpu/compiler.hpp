@@ -38,7 +38,34 @@ namespace gpu {
 
 struct context;
 
-using compiler_replace = std::function<void(module& m, instruction_ref ins)>;
+struct compiler_replace
+{
+    compiler_replace() = default;
+
+    compiler_replace(const operation& op) : code_object{op} {}
+
+    template <class F>
+    compiler_replace(const operation& op, F f)
+        : code_object{op},
+          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
+              f(m, ins, cr.code_object);
+          })
+    {
+    }
+
+    operation code_object = {};
+    std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
+        nullptr;
+
+    void replace(module& m, instruction_ref ins) const
+    {
+        if(replace_fn)
+            replace_fn(*this, m, ins);
+        else
+            m.replace_instruction(ins, code_object, ins->inputs());
+    }
+};
+
 using compiler_compile = std::function<compiler_replace(context&, instruction_ref, operation)>;
 using compiler_compile_op =
     std::function<operation(context&, const std::vector<shape>& inputs, const value&)>;
@@ -78,11 +105,6 @@ using auto_register_compiler = auto_register<register_compiler_action, T>;
 template <class Derived>
 struct compiler : auto_register_compiler<Derived>
 {
-    auto replace(const operation& op) const
-    {
-        return
-            [=](module& m, instruction_ref ins) { m.replace_instruction(ins, op, ins->inputs()); };
-    }
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 };
 

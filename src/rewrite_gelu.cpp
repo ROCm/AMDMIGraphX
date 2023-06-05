@@ -28,6 +28,8 @@
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/common.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_FAST_GELU)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -41,15 +43,31 @@ struct find_gelu_erf
         auto x   = r.instructions["x"];
         if(x->get_shape().type() != migraphx::shape::half_type)
             return;
-
-        auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
-        auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});
-        auto sig = m.insert_instruction(ins, make_op("neg"), mul);
-        sig      = m.insert_instruction(ins, make_op("exp"), sig);
-        auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
-        sig      = insert_common_op(m, ins, make_op("add"), {sig, one});
-        sig      = m.insert_instruction(ins, make_op("div"), x, sig);
-        m.replace_instruction(ins, sig);
+        if(enabled(MIGRAPHX_USE_FAST_GELU{})) {
+            auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
+            auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});
+            auto sig = m.insert_instruction(ins, make_op("neg"), mul);
+            sig      = m.insert_instruction(ins, make_op("exp"), sig);
+            auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+            sig      = insert_common_op(m, ins, make_op("add"), {sig, one});
+            sig      = m.insert_instruction(ins, make_op("div"), x, sig);
+            m.replace_instruction(ins, sig);
+        } else {
+            auto lit1 = m.add_literal(literal{shape{x->get_shape().type()}, {0.7978845608028654f}});// sqrt(2.0/M_PI)
+            auto lit2 = m.add_literal(literal{shape{x->get_shape().type()}, {0.035677408136300125f}}); // 0.044715 * sqrt(2.0/M_PI)
+            auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+            auto two = m.add_literal(literal{shape{x->get_shape().type()}, {2.0f}});
+            auto three = m.add_literal(literal{shape{x->get_shape().type()}, {3.0f}});
+            auto mul1 = insert_common_op(m, ins, make_op("mul"), {x, lit1}); 
+            auto x_3 = insert_common_op(m, ins, make_op("pow"), {x, three}); // x^3
+            auto mul2 = insert_common_op(m, ins, make_op("mul"), {x_3, lit2});
+            auto add1 = insert_common_op(m, ins, make_op("add"), {mul1, mul2}); 
+            auto tanh_ins = insert_common_op(m, ins, make_op("tanh"), {add1});
+            auto add2 = insert_common_op(m, ins, make_op("add"), {one, tanh_ins});
+            auto x_div = insert_common_op(m, ins, make_op("div"), {x, two});
+            auto gelu_tanh = insert_common_op(m, ins, make_op("mul"), {x_div, add2});
+            m.replace_instruction(ins, gelu_tanh);
+        }
     }
 };
 

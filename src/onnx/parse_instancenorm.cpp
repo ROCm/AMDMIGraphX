@@ -92,9 +92,9 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         std::iota(axes.begin(), axes.end(), 2);
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
 
-        // Use add_common_op() to insert multibroadcast instructions where needed when inputs may be
-        // either static or dynamic.
-        auto l1              = info.add_common_op("sub", x, mean);
+        // Use add_common_op() to insert multibroadcast/convert instructions where needed when
+        // inputs may be either static or dynamic.
+        auto l1 = info.add_common_op("sub", x, mean);
         // for the fp16, if not converting to fp32 then divide `x` and `mean` by `sqrt(n)` and take
         // reduce_sum to calculate variance i.e.
         // var =  reduce_sum((x/s_n - mean/s_n)^2) where s_n = sqrt(n)
@@ -134,7 +134,7 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
             bias_bcast =
                 info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
         }
-        auto l5 = info.add_instruction(make_op("mul"), l4, scale_bcast);
+        auto l5  = info.add_instruction(make_op("mul"), l4, scale_bcast);
         auto ret = info.add_instruction(make_op("add"), l5, bias_bcast);
         if(dtype == shape::half_type and convert_fp16)
         {

@@ -34,13 +34,7 @@ template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
     std::string name;
-#ifdef _MSC_VER
-// TODO: does not compile for ihipStream_t from hip/hip_runtime_api.h
-//    name = typeid(PrivateMigraphTypeNameProbe).name();
-//    name = name.substr(7);
-#else
     const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
-
     name = __PRETTY_FUNCTION__;
 
     auto begin  = name.find(parameter_name) + sizeof(parameter_name);
@@ -50,7 +44,6 @@ std::string compute_type_name()
     auto length = name.find_first_of("];", begin) - begin;
 #endif
     name        = name.substr(begin, length);
-#endif
     return name;
 }
 

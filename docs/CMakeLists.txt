@@ -21,8 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-docutils==0.17.1
-sphinx==4.2.0
-breathe==4.31.0
-sphinx_rtd_theme==1.0.0
-# git+https://github.com/arximboldi/breathe@fix-node-parent
+project(migraphx-doc)
+find_package(ROCM REQUIRED)
+
+include(ROCMSphinxDoc)
+rocm_add_sphinx_doc(
+    .
+    BUILDER html 
+    OUTPUT_DIR html
+)

@@ -121,7 +121,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         inline_module{},
         rewrite_pooling{},
         dead_code_elimination{},
-        rewrite_gelu{},
+        enable_pass(options.fast_math, rewrite_gelu{}),
         optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},

@@ -28,7 +28,6 @@
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/common.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FAST_GELU)
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,7 +40,7 @@ struct find_gelu_erf
     {
         auto ins = r.result;
         auto x   = r.instructions["x"];
-        if(x->get_shape().type() != migraphx::shape::half_type or enabled(MIGRAPHX_DISABLE_FAST_GELU{}))
+        if(x->get_shape().type() != migraphx::shape::half_type)
             return;
         auto lit = m.add_literal(literal{shape{x->get_shape().type()}, {1.702f}});
         auto mul = insert_common_op(m, ins, make_op("mul"), {x, lit});

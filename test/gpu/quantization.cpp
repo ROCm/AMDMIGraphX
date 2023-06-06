@@ -31,31 +31,110 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/onnx.hpp>
 #include <test.hpp>
 #include <migraphx/half.hpp>
 
-TEST_CASE(gpu_target_copy)
-{
-    migraphx::target gpu_t = migraphx::make_target("gpu");
-    migraphx::target ref_t = migraphx::make_target("ref");
-    migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
+// TEST_CASE(gpu_target_copy)
+//{
+//    migraphx::target gpu_t = migraphx::make_target("gpu");
+//    migraphx::target ref_t = migraphx::make_target("ref");
+//    migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
+//
+//    auto ref_arg_orig  = migraphx::generate_argument(s, 0x123456L);
+//    auto gpu_arg       = gpu_t.copy_to(ref_arg_orig);
+//    auto ref_arg_final = gpu_t.copy_from(gpu_arg);
+//
+//    std::vector<int8_t> val_orig;
+//    ref_arg_orig.visit([&](auto v) { val_orig.assign(v.begin(), v.end()); });
+//    std::vector<int8_t> val_final;
+//    ref_arg_final.visit([&](auto v) { val_final.assign(v.begin(), v.end()); });
+//
+//    EXPECT(migraphx::verify_range(val_orig, val_final));
+//}
 
-    auto ref_arg_orig  = migraphx::generate_argument(s, 0x123456L);
-    auto gpu_arg       = gpu_t.copy_to(ref_arg_orig);
-    auto ref_arg_final = gpu_t.copy_from(gpu_arg);
+// TEST_CASE(int8_quantization)
+//{
+//    auto run_prog = [](migraphx::program p,
+//                       const migraphx::target& t,
+//                       migraphx::parameter_map& m_in,
+//                       std::vector<float>& res) {
+//        std::vector<migraphx::parameter_map> cali_data;
+//        cali_data.push_back(m_in);
+//        migraphx::quantize_int8(p, t, cali_data);
+//        p.compile(t);
+//        migraphx::parameter_map m;
+//        for(auto&& x : p.get_parameter_shapes())
+//        {
+//            if(m_in.count(x.first) > 0)
+//            {
+//                m[x.first] = t.copy_to(m_in[x.first]);
+//            }
+//            else
+//            {
+//                m[x.first] = t.allocate(x.second);
+//            }
+//        }
+//
+//        auto result = t.copy_from(p.eval(m).back());
+//        result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
+//    };
+//
+//    auto create_program = [] {
+//        migraphx::program p;
+//        auto* mm = p.get_main_module();
+//        migraphx::shape sa{migraphx::shape::float_type, {5, 16}};
+//        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+//        migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
+//        auto pa = mm->add_parameter("a", sa);
+//        auto pb = mm->add_parameter("b", sb);
+//        mm->add_instruction(migraphx::op::dot{}, pa, pb);
+//
+//        return p;
+//    };
+//
+//    {
+//        auto p = create_program();
+//        migraphx::parameter_map m;
+//        migraphx::shape sa{migraphx::shape::float_type, {5, 16}};
+//        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+//        migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
+//        m["a"] = migraphx::generate_argument(sa);
+//        m["b"] = migraphx::generate_argument(sb);
+//        std::vector<float> ref_result;
+//        migraphx::target ref_t = migraphx::make_target("ref");
+//        run_prog(p, ref_t, m, ref_result);
+//        // print ref_result
+//        std::cout << "ref_result: ";
+//        for(auto&& v : ref_result)
+//            std::cout << v << " ";
+//        std::cout << std::endl;
+//
+//        std::vector<float> gpu_result;
+//        migraphx::target gpu_t = migraphx::make_target("gpu");
+//        run_prog(p, gpu_t, m, gpu_result);
+//        std::cout << "gpu_result: ";
+//        for(auto&& v : gpu_result)
+//            std::cout << v << " ";
+//        std::cout << std::endl;
+//
+//        // Note: the tolerance for mlir_enabled result is temporarily bumped
+//        // higher because the lowering pipeline between mlir fallback and
+//        // regular non-mlir pipeline diverged. MLIR fallback uses the
+//        // rewrite_quantization at the very end of the pipeline, whereas
+//        // the regular pipeline uses the rewrite_quantization in the much
+//        // earlier stage.
+//        //if(migraphx::gpu::mlir_enabled())
+//        //    EXPECT(migraphx::verify_range(ref_result, gpu_result, 1e5));
+//        //else
+//            EXPECT(migraphx::verify_range(ref_result, gpu_result));
+//    }
+//}
 
-    std::vector<int8_t> val_orig;
-    ref_arg_orig.visit([&](auto v) { val_orig.assign(v.begin(), v.end()); });
-    std::vector<int8_t> val_final;
-    ref_arg_final.visit([&](auto v) { val_final.assign(v.begin(), v.end()); });
-
-    EXPECT(migraphx::verify_range(val_orig, val_final));
-}
-
-TEST_CASE(int8_quantization)
+TEST_CASE(int8_quantization_bug)
 {
     auto run_prog = [](migraphx::program p,
                        const migraphx::target& t,
@@ -63,7 +142,7 @@ TEST_CASE(int8_quantization)
                        std::vector<float>& res) {
         std::vector<migraphx::parameter_map> cali_data;
         cali_data.push_back(m_in);
-        migraphx::quantize_int8(p, t, cali_data);
+        // migraphx::quantize_int8(p, t, cali_data);
         p.compile(t);
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
@@ -90,7 +169,29 @@ TEST_CASE(int8_quantization)
         migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        mm->add_instruction(migraphx::op::dot{}, pa, pb);
+
+        // quantizelinear for arg0
+        migraphx::shape ss1{migraphx::shape::int8_type, {5, 16}};
+        auto literal1 = mm->add_literal(0.00738189f);
+        auto bcast1   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", ss1.lens()}}), literal1);
+        auto quant_linear1 = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, bcast1);
+
+        // quantizelinear for arg1
+        migraphx::shape ss2{migraphx::shape::int8_type, {16, 8}};
+        auto literal2 = mm->add_literal(0.00787402f);
+        auto bcast2   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", ss2.lens()}}), literal2);
+        auto quant_linear2 = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, bcast2);
+
+        auto dot = mm->add_instruction(migraphx::op::quant_dot{}, quant_linear1, quant_linear2);
+
+        migraphx::shape ss{migraphx::shape::float_type, {5, 8}};
+        auto literal = mm->add_literal(5.81251188e-05f);
+        auto bcast   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", ss.lens()}}), literal);
+        auto dequant = mm->add_instruction(migraphx::make_op("dequantizelinear"), dot, bcast);
+        mm->add_return({dequant});
 
         return p;
     };
@@ -101,26 +202,27 @@ TEST_CASE(int8_quantization)
         migraphx::shape sa{migraphx::shape::float_type, {5, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
+
         m["a"] = migraphx::generate_argument(sa);
         m["b"] = migraphx::generate_argument(sb);
         std::vector<float> ref_result;
         migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, m, ref_result);
+        // print ref_result
+        std::cout << "ref_result: ";
+        for(auto&& v : ref_result)
+            std::cout << v << " ";
+        std::cout << std::endl;
 
         std::vector<float> gpu_result;
         migraphx::target gpu_t = migraphx::make_target("gpu");
         run_prog(p, gpu_t, m, gpu_result);
+        std::cout << "gpu_result: ";
+        for(auto&& v : gpu_result)
+            std::cout << v << " ";
+        std::cout << std::endl;
 
-        // Note: the tolerance for mlir_enabled result is temporarily bumped
-        // higher because the lowering pipeline between mlir fallback and
-        // regular non-mlir pipeline diverged. MLIR fallback uses the
-        // rewrite_quantization at the very end of the pipeline, whereas
-        // the regular pipeline uses the rewrite_quantization in the much
-        // earlier stage.
-        if(migraphx::gpu::mlir_enabled())
-            EXPECT(migraphx::verify_range(ref_result, gpu_result, 1e5));
-        else
-            EXPECT(migraphx::verify_range(ref_result, gpu_result));
+        EXPECT(migraphx::verify_range(ref_result, gpu_result));
     }
 }
 

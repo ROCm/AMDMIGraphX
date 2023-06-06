@@ -151,7 +151,7 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
 
 /**
  * @brief A wrapper for insert_common_args(), which constructs an argument list
- * and inserts multibroadcast ops to broadcast and typecast inputs to a common type and shape
+ * and inserts multibroadcast and convert ops to match inputs to a common shape and type
  * as required.
  *
  * Use add_common_op() to match input sizes when inputs may be
@@ -163,8 +163,10 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
  * @param inputs                vector of instruction_ref.  List of instructions which are the
  * inputs to the new operator.
  *
- * @return instruction_ref      Return is an instruction_ref which can be used as input to any
- * subsequent operation.
+ * @return instruction_ref      Returns an instruction_ref which is the result of the requested
+ * operation.  This makes the added multibroadcast and convert ops, if any, transparent to the
+ * programmer.
+ *
  */
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const

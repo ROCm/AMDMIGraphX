@@ -38,9 +38,10 @@ namespace op {
  * Broadcast multiple dimensions between two tensors.
  * Two versions of this operator: one input and two inputs.
  * One input version uses output_lens attribute and broadcasts to it (does not support
- * dynamic shape input)).
- * Two inputs version broadcasts to the shape of the second input at evaluation time.
-
+ * dynamic shape input).
+ *
+ * Two inputs version broadcasts to a shape compatible with both inputs at evaluation
+ * time, which may or may not match one of the inputs.
  */
 struct multibroadcast
 {

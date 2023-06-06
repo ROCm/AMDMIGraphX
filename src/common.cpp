@@ -156,8 +156,8 @@ shape common_shape(const std::vector<shape>& shapes)
  *
  * @param m         containing module for instruction
  * @param ins       insertion location in instruction list
- * @param inputs    instructions to use as argument list; specifically, the shapes
- *                  attached to each instruction_ref are considered
+ * @param inputs    instructions to use as argument list; also, the shapes
+ *                  attached to each instruction_ref are considered for broadcasting
  * @return std::vector<instruction_ref>   a modified argument list
  */
 std::vector<instruction_ref>

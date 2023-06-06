@@ -355,7 +355,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto& c_shape = inputs.back();
         auto tuning_value   = v.get("tuning_value", 4);
         if(not v.contains("tuning_value"))
-            tuning_value = get_tuning_for({a_shape, b_shape, c_shape});   
+            tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
         auto batch_count = get_batch_count(c_shape);
         auto problem     = create_problem(inputs, v);
 
@@ -416,9 +416,9 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
-        auto shapes       = to_shapes(ins->inputs());
-        auto v            = create_settings(ins, op);
-        if (solution.is_null())
+        auto shapes = to_shapes(ins->inputs());
+        auto v      = create_settings(ins, op);
+        if(solution.is_null())
             v["tuning_value"] = 4;
         else
             v["tuning_value"] = solution;

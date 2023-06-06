@@ -59,12 +59,13 @@ struct parse_where : op_parser<parse_where>
                 compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
             lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
 
-            if (enabled(MIGRAPHX_ENABLE_CK{}))
+            if(enabled(MIGRAPHX_ENABLE_CK{}))
             {
                 // Convert condition tensor to int32 to work around CK not supporting bool type
-                args[0] = info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), args[0]);
+                args[0] = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::int32_type}}), args[0]);
             }
-            
+
             if(args[0]->get_shape().lens() != lens)
             {
                 args[0] =

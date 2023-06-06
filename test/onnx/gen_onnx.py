@@ -2612,7 +2612,7 @@ def if_else_test_inlined():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([0]).astype(np.bool)
+    cond = np.array([0]).astype(bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
@@ -2682,7 +2682,7 @@ def if_then_else_multi_output_shapes_inlined_test():
     else_body = onnx.helper.make_graph([else_mul_node, else_sub_node],
                                        'else_body', [], [else_out, else_out2])
 
-    cond = np.array([1]).astype(np.bool)
+    cond = np.array([1]).astype(bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
@@ -3117,7 +3117,7 @@ def if_then_test_inlined():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([1]).astype(np.bool)
+    cond = np.array([1]).astype(bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
@@ -6933,7 +6933,7 @@ def sum_type_test():
     t_bool = helper.make_tensor(name="bool",
                                 data_type=TensorProto.BOOL,
                                 dims=valb.shape,
-                                vals=valb.astype(np.bool))
+                                vals=valb.astype(bool))
 
     val = np.array([1, 1])
     t_int8 = helper.make_tensor(name="int8",

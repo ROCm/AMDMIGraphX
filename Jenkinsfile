@@ -29,7 +29,12 @@ def rocmtestnode(Map conf) {
             mkdir build
             cd build
             cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On ${flags} ..
-            make -j\$(nproc) generate all doc package check VERBOSE=1
+            git diff
+            git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
+            make -j\$(nproc) generate VERBOSE=1
+            git diff
+            git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
+            make -j\$(nproc) all doc package check VERBOSE=1
             md5sum ./*.deb
         """
         echo cmd
@@ -84,8 +89,10 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && vega";
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
+    } else if(name == "anygpu") {
+        node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega)";
     } else if(name == "nogpu") {
-        return rocmtest_name;
+        node_name = "${rocmtest_name} && nogpu";
     }
     return node_name
 }
@@ -114,6 +121,10 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
 }, hiprtc_gpu_debug: rocmnode('vega') { cmake_build ->
     stage('HipRTC GPU Debug') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true, hiprtc_workarounds:  true)
+    }
+}, all_targets_debug : rocmnode('vega') { cmake_build ->
+    stage('All targets Release') {
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On") 
     }
 }, mlir_debug: rocmnode('vega') { cmake_build ->
     stage('MLIR Debug') {
@@ -144,7 +155,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
+rocmtest onnx: onnxnode('anygpu') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half

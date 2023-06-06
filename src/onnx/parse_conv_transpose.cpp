@@ -51,7 +51,7 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        operation op = make_op("conv_transpose");
+        operation op = make_op("convolution_backwards");
         value values = op.to_value();
         auto l0      = args[0];
         std::vector<std::int64_t> padding;

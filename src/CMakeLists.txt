@@ -126,7 +126,7 @@ register_migraphx_ops(
     contiguous
     convert
     convolution
-    conv_transpose
+    convolution_backwards
     cosh
     cos
     dequantizelinear

@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_CONV_TRANSPOSE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_CONV_TRANSPOSE_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_CONVOLUTION_BACKWARDS_HPP
+#define MIGRAPHX_GUARD_OPERATORS_CONVOLUTION_BACKWARDS_HPP
 
 #include <cmath>
 #include <utility>
@@ -39,7 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct conv_transpose
+struct convolution_backwards
 {
     std::vector<std::size_t> padding  = {0, 0};
     std::vector<std::size_t> stride   = {1, 1};
@@ -58,14 +58,14 @@ struct conv_transpose
                     f(self.group, "group"));
     }
 
-    std::string name() const { return "conv_transpose"; }
+    std::string name() const { return "convolution_backwards"; }
 
     void check_attribute_size() const
     {
         if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
            stride.size() != dilation.size())
         {
-            MIGRAPHX_THROW("CONV_TRANSPOSE: inconsistent attribute sizes");
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: inconsistent attribute sizes");
         }
     }
 
@@ -77,13 +77,13 @@ struct conv_transpose
         const shape& w_shape = inputs.at(1);
         if(x_shape.ndim() - 2 != this->kdims())
         {
-            MIGRAPHX_THROW("CONV_TRANSPOSE: input k-dims does not match attribute size");
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: input k-dims does not match attribute size");
         }
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
            x_shape.lens().at(1) != (w_shape.lens().at(0) * group))
         {
-            MIGRAPHX_THROW("CONV_TRANSPOSE: mismatched channel numbers");
+            MIGRAPHX_THROW("CONVOLUTION_BACKWARDS: mismatched channel numbers");
         }
 
         if(x_shape.dynamic() or w_shape.dynamic())

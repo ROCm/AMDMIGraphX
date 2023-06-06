@@ -1849,7 +1849,7 @@ TEST_CASE(cosh_dyn_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_1d)
+TEST_CASE(convolution_backwards_1d)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3}};
     std::vector<float> x_data{0, 0.5, 1};
@@ -1862,10 +1862,10 @@ TEST_CASE(conv_transpose_1d)
     auto x   = mm->add_literal(migraphx::literal{s, x_data});
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
-    mm->add_instruction(
-        migraphx::make_op("conv_transpose", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        x,
-        w);
+    mm->add_instruction(migraphx::make_op("convolution_backwards",
+                                          {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+                        x,
+                        w);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
@@ -1874,7 +1874,7 @@ TEST_CASE(conv_transpose_1d)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_2d)
+TEST_CASE(convolution_backwards_2d)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
@@ -1888,7 +1888,7 @@ TEST_CASE(conv_transpose_2d)
     auto x   = mm->add_literal(migraphx::literal{s, x_data});
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
-    mm->add_instruction(migraphx::make_op("conv_transpose"), x, w);
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), x, w);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
@@ -1897,7 +1897,7 @@ TEST_CASE(conv_transpose_2d)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_3d)
+TEST_CASE(convolution_backwards_3d)
 {
     migraphx::shape s_1{migraphx::shape::float_type, {1, 1, 1, 2, 3}};
     migraphx::shape s_2{migraphx::shape::float_type, {1, 1, 3, 2, 3}};
@@ -1934,7 +1934,7 @@ TEST_CASE(conv_transpose_3d)
     auto w   = mm->add_literal(migraphx::literal{s_2, w_data});
 
     mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
         x,
         w);
@@ -1946,7 +1946,7 @@ TEST_CASE(conv_transpose_3d)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_padding1)
+TEST_CASE(convolution_backwards_padding1)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
@@ -1960,7 +1960,7 @@ TEST_CASE(conv_transpose_padding1)
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
     mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
         x,
         w);
@@ -1972,7 +1972,7 @@ TEST_CASE(conv_transpose_padding1)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_padding2)
+TEST_CASE(convolution_backwards_padding2)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
@@ -1986,7 +1986,7 @@ TEST_CASE(conv_transpose_padding2)
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
     mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {1, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
         x,
         w);
@@ -1998,7 +1998,7 @@ TEST_CASE(conv_transpose_padding2)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_2stride)
+TEST_CASE(convolution_backwards_2stride)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
@@ -2013,7 +2013,7 @@ TEST_CASE(conv_transpose_2stride)
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
     mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
         x,
         w);
@@ -2025,7 +2025,7 @@ TEST_CASE(conv_transpose_2stride)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_2dilation)
+TEST_CASE(convolution_backwards_2dilation)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
@@ -2040,7 +2040,7 @@ TEST_CASE(conv_transpose_2dilation)
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
     mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {2, 2}}}),
         x,
         w);
@@ -2052,7 +2052,7 @@ TEST_CASE(conv_transpose_2dilation)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(conv_transpose_dyn_batch)
+TEST_CASE(convolution_backwards_dyn_batch)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -2067,7 +2067,7 @@ TEST_CASE(conv_transpose_dyn_batch)
     auto x = mm->add_parameter("x", s);
     auto w = mm->add_parameter("w", s);
 
-    mm->add_instruction(migraphx::make_op("conv_transpose"), x, w);
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), x, w);
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};

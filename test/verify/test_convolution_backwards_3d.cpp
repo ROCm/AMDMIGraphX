@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_conv_transpose_3d : verify_program<test_conv_transpose_3d>
+struct test_convolution_backwards_3d : verify_program<test_convolution_backwards_3d>
 {
     migraphx::program create_program() const
     {
@@ -39,7 +39,7 @@ struct test_conv_transpose_3d : verify_program<test_conv_transpose_3d>
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
         mm->add_instruction(
             migraphx::make_op(
-                "conv_transpose",
+                "convolution_backwards",
                 {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
             input,
             weights);

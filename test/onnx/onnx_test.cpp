@@ -1397,7 +1397,7 @@ TEST_CASE(conv_transpose_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
 
     auto prog = optimize_onnx("conv_transpose_test.onnx");
     EXPECT(p == prog);
@@ -1411,7 +1411,7 @@ TEST_CASE(conv_transpose_bias_test)
     auto l1       = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l2       = mm->add_parameter("b", {migraphx::shape::float_type, {1}});
     uint64_t axis = 1;
-    auto l3       = mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
+    auto l3       = mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
     auto l4       = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
     mm->add_instruction(migraphx::make_op("add"), l3, l4);
@@ -1427,7 +1427,9 @@ TEST_CASE(conv_transpose_input_pads_strides_test)
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     mm->add_instruction(
-        migraphx::make_op("conv_transpose", {{"padding", {1, 1}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {1, 1}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
 
     auto prog = optimize_onnx("conv_transpose_input_pads_strides_test.onnx");
     EXPECT(p == prog);
@@ -1440,7 +1442,9 @@ TEST_CASE(conv_transpose_input_pads_asymm_test)
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("conv_transpose", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {0, 0}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
     mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {8, 6}}}), l2);
 
@@ -1455,7 +1459,7 @@ TEST_CASE(conv_transpose_input_pads_asymm_1d_test)
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0}}, {"stride", {2}}, {"dilation", {1}}}),
         l0,
         l1);
@@ -1473,7 +1477,9 @@ TEST_CASE(conv_transpose_output_padding_test)
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("conv_transpose", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {0, 0}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), l2);
 
     auto prog = optimize_onnx("conv_transpose_output_padding_test.onnx");
@@ -1487,7 +1493,7 @@ TEST_CASE(conv_transpose_output_padding_3d_test)
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
@@ -1504,7 +1510,9 @@ TEST_CASE(conv_transpose_output_shape_test)
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("conv_transpose", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {0, 0}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), l2);
 
     auto prog = optimize_onnx("conv_transpose_output_shape_test.onnx");
@@ -1518,7 +1526,7 @@ TEST_CASE(conv_transpose_output_shape_3d_test)
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("conv_transpose",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
@@ -1556,7 +1564,7 @@ TEST_CASE(conv_transpose_dyn_batch_test)
     auto l0 =
         mm->add_parameter("x", {migraphx::shape::float_type, {{1, 4}, {1, 1}, {3, 3}, {3, 3}}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto ret = mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
+    auto ret = mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
@@ -1572,7 +1580,7 @@ TEST_CASE(conv_transpose_dyn_img_test)
     auto l0 =
         mm->add_parameter("x", {migraphx::shape::float_type, {{1, 1}, {1, 1}, {3, 6}, {3, 6}}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto ret = mm->add_instruction(migraphx::make_op("conv_transpose"), l0, l1);
+    auto ret = mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_conv_transpose : verify_program<test_conv_transpose>
+struct test_convolution_backwards : verify_program<test_convolution_backwards>
 {
     migraphx::program create_program() const
     {
@@ -37,7 +37,7 @@ struct test_conv_transpose : verify_program<test_conv_transpose>
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        mm->add_instruction(migraphx::make_op("conv_transpose"), input, weights);
+        mm->add_instruction(migraphx::make_op("convolution_backwards"), input, weights);
         return p;
     }
 };

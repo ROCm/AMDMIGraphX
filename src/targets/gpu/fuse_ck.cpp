@@ -26,7 +26,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
-#include <migraphx/env.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 struct module;
@@ -83,6 +83,9 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
+    // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy 
+    // to avoid poor-performing GEMM kernels from CK
+    // To-do: Investigate a more precise strategy
     return a.lens().back() <= 2048;
 }
 

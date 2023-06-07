@@ -237,7 +237,7 @@ instruction_ref insert_common_op(module& m,
 }
 
 /**
- * Wrapper for insert_common_args() which inserts operation at the end of the module. 
+ * Wrapper for insert_common_args() which inserts operation at the end of the module.
  */
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs)
 {

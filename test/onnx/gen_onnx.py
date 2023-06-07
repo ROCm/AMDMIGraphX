@@ -3360,11 +3360,11 @@ def instance_norm_dyn_batch_test():
 @onnx_test()
 def instance_norm_dyn_batch_half_test():
     # the batch size is a dynamic dimension
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, 
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
                                       [None, 2, 3, 3])
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [2])
     bias = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [2])
-    y = helper.make_tensor_value_info('3', TensorProto.FLOAT16, 
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT16,
                                       [None, 2, 3, 3])
 
     node = onnx.helper.make_node('InstanceNormalization',

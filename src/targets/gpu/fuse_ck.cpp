@@ -54,8 +54,6 @@ struct ck_gemm
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
         check_shapes{inputs, *this}.same_ndims();
-        // if(mods.size() != 1)
-        //     MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
         auto a = inputs[0];

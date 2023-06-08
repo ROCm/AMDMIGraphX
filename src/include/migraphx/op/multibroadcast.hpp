@@ -38,7 +38,7 @@ namespace op {
  * Broadcast multiple dimensions between two tensors.
  * Two versions of this operator: one input and two inputs.
  * One input version uses output_lens attribute and broadcasts to it.
- * Two inputs version broadcasts both inputs to the common shape at evaluation time.
+ * 2+ inputs version broadcasts first input to the common shape at evaluation time.
  */
 struct multibroadcast
 {
@@ -102,7 +102,8 @@ struct multibroadcast
         }
         else
         {
-            // two inputs
+            // TODO
+            // 2+ inputs
             auto s1 = inputs.at(1);
             if(s0.dynamic() or s1.dynamic())
             {

@@ -102,6 +102,15 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
     return out_dims;
 }
 
+std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes)
+{
+    auto ret_shape = shapes.at(0);
+    std::for_each(shapes.cbegin() + 1, shapes.cend(), [&](auto s) {
+        ret_shape = shape{ret_shape.type(), compute_broadcasted_dyn_dims(ret_shape, s)};
+    });
+    return ret_shape.dyn_dims();
+}
+
 // Compute the common (broadcasted) dimensions of a list of fixed shapes
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
 {
@@ -154,34 +163,29 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
     if(std::any_of(
            inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().dynamic(); }))
     {
-        // currently only handles the binary case
-        if(inputs.size() != 2)
-        {
-            MIGRAPHX_THROW("INSERT_COMMON_OP: not handled; " + migraphx::to_string(inputs.size()) +
-                           "inputs, only handle two inputs if any are dynamic shape");
-        }
-
-        auto c_type = compute_common_types(to_shapes(inputs));
-        auto c_dyn_dims =
-            compute_broadcasted_dyn_dims(inputs[0]->get_shape(), inputs[1]->get_shape());
+        auto input_shapes = to_shapes(inputs);
+        auto c_type       = compute_common_types(input_shapes);
+        auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
 
         // following should work for a static or dynamic shape
         if(inputs[0]->get_shape().dyn_dims() != c_dyn_dims)
         {
             inputs[0] = m.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                inputs[0],
-                inputs[1]);
+                ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
         }
-        if(inputs[1]->get_shape().dyn_dims() != c_dyn_dims)
-        {
-            inputs[1] = m.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                inputs[1],
-                inputs[0]);
-        }
+        std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
+            // uses previous multibroadcast to avoid recalculating the common shape from the
+            // full set of input shapes at runtime
+            if(input->get_shape().dyn_dims() != c_dyn_dims)
+            {
+                return m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                    input,
+                    inputs[0]);
+            }
+            return input;
+        });
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input->get_shape().type() != c_type)
             {

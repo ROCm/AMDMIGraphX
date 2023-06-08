@@ -21,23 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/operation.hpp>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
 
-std::pair<double, double>
-time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
+template <class T>
+std::size_t hash_value(const T& v)
+{
+    return std::hash<T>{}(v);
+}
 
-} // namespace driver
-} // namespace gpu
+template <class T>
+void hash_combine(std::size_t& seed, const T& v)
+{
+    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP

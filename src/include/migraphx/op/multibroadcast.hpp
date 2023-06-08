@@ -40,8 +40,7 @@ namespace op {
  * One input version uses output_lens attribute and broadcasts to it (does not support
  * dynamic shape input).
  *
- * Two inputs version broadcasts to a shape compatible with both inputs at evaluation
- * time, which may or may not match one of the inputs.
+ * Two inputs version broadcasts the first input to the common shape of the two inputs.
  */
 struct multibroadcast
 {

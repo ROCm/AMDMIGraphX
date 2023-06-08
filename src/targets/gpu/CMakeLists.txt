@@ -33,13 +33,12 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
-
-if(BUILD_DEV)
-    set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
-else()
-    set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
-endif()
+set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
+#if(BUILD_DEV)
+#set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
+#else()
+#set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
+#endif()
 
 include(Embed)
 file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}

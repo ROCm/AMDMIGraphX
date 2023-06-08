@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/driver/perf.hpp>
+#include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/make_op.hpp>
 

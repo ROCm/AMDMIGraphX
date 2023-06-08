@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,12 +42,41 @@ namespace op {
 
 struct pooling
 {
-    pooling_mode mode                = {pooling_mode::average};
-    std::vector<std::size_t> padding = {0, 0};
-    std::vector<std::size_t> stride  = {1, 1};
+    pooling_mode mode = {pooling_mode::average};
+
+    // dimensions of the pooling kernel or window.  Must have size
+    // 2 smaller than the input tensor dimensions, since the first
+    // two indices are considered
+    // non-spatial: batch size and channel
     std::vector<std::size_t> lengths = {1, 1};
-    bool ceil_mode                   = false;
-    int lp_order                     = 2;
+
+    // Size of stride to take from one placement of the pooling kernel to the
+    // next.  Usually set the same as lengths so that the kernel tiles over
+    // the input with no gaps or overlaps.
+    // Must be the same size as lengths.
+
+    // This is distinct from the strides used by the shape class.
+    std::vector<std::size_t> stride = {1, 1};
+
+    // The amount each dimension is padded, both before and after.  Can be
+    // either the same size as lengths, or twice as long.  When padding
+    // is double the length of lengths, the first n values are read as
+    // pre-padding for each dimension and the last n values are post-padding.
+    // (The latter most commonly used if the total padding desired is an odd number)
+    std::vector<std::size_t> padding = {0, 0};
+
+    // Dilations are not supported at this time.
+
+    // ceiling mode flag.  When true, round the size of output up and add
+    // padding as necessary to allow placements of the pooling kernel.
+    // When false, round down NEW: also clip the pooling window if it extends
+    // beyond the input bounds, leaving padding cells out of the calculation.
+    // (It's still possible fot the window to start on a padding cell if it
+    // extends partially into the input bounds)
+    // TODO:  should this be true or false by default?  Should it be set to true whenever any
+    // padding is given?
+    bool ceil_mode = false;
+    int lp_order   = 2;
 
     // Global pooling with dynamic shape input
     bool dyn_global = false;
@@ -195,10 +224,7 @@ struct pooling
             return 0.0;
         }
 
-        double operator()(double x, double y) const {
-            
-            printf(" avg op x = %f y = %f\n", x, y);
-             return x + y; }
+        double operator()(double x, double y) const { return x + y; }
 
         double final(double x, std::size_t y) const { return (y == 0) ? 0.0 : (x / y); }
     };
@@ -225,107 +251,84 @@ struct pooling
     {
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
-            std::vector<int> in_lens_i(in_s.lens().begin(), in_s.lens().end());
+        // printf("strides ");for(auto aa : stride) std::cout << aa << ", ";    std::cout << "\n";
+        // printf("in_lens ");for(auto aa : in_lens) std::cout << aa << ", ";    std::cout << "\n";
 
+        // For each element of output; i.e., for each placement of pooling kernel...
         par_for(output_shape.elements(), [&](auto i) {
             auto idx_o = output_shape.multi(i);
             auto n_dim = idx_o.size();
+            // win_start is the starting offset of the pooling window
             std::vector<int> win_start;
+
+            // TODO Thu Jun 8 2023:  if we want to allow reduced-size non-pad windows, then
+            //   insert the clipped size into win_size.  if(!ceil_mode)...
             std::vector<std::size_t> win_size;
-printf("\n");            
+            // printf("\n");
+
+            // For each spatial dimension, find starting and ending index of pooling kernel
             for(std::size_t dim = 2; dim < n_dim; ++dim)
             {
                 auto d_2 = dim - 2;
                 int start =
                     static_cast<int>(idx_o[dim] * stride[d_2]) - static_cast<int>(padding[d_2]);
-                // int end = std::min(start + kernel_dims[d_2], in_lens[dim]);
-                int end = start + kernel_dims[d_2] - 1;
-                // start   = std::max(start, 0);
-                win_start.push_back(start);
-                // win_size.push_back(end - start);
-                win_size.push_back(kernel_dims[d_2]);
-// printf("start = %d end = %d\n", start, end)    ;
+
+                if(ceil_mode)
+                {
+                    // In ceiling mode, the pooling kernel always fits, possibly using
+                    // padding values
+                    win_start.push_back(start);
+                    win_size.push_back(kernel_dims[d_2]);
+                }
+                else
+                {
+                    // In non-ceiling mode, we clip the pooling kernel at the edges of the input
+                    // TODO: what is behavior when ceil_mode is false but padding is given?
+                    int end = std::min(start + kernel_dims[d_2], in_lens[dim]);
+                    start   = std::max(start, 0);
+                    win_start.push_back(start);
+                    win_size.push_back(end - start);
+                }
             }
-// where are int getting converted to size_t and losing negatives?            
-// printf("win_size ");for(auto aa : win_size) std::cout << aa << ", ";    std::cout << "\n";         
+
             shape win_shape{output_shape.type(), win_size};
-// printf("win_shape ");for(auto aa : win_shape.lens()) std::cout << aa << ", ";    std::cout << "\n";         
             auto pool_size    = win_shape.elements();
             double output_val = op.template init<Type>();
-            shape_for_each(win_shape, [&](auto idx_w) {
-            auto idx = idx_o;
-            std::vector<int> idx_i(idx_o.begin(), idx_o.end());
 
-                // add elements of idx_w to win_start (indexes)
+            // for each element in the window...
+            shape_for_each(win_shape, [&](auto idx_w) {
+                // the coordinates of this element
+                auto idx = idx_o;
+
+                // Add the kernel location idx_w and the offset win_start, for each dimension.
+                // Negative results are cast to very large unsigned integers.
                 std::transform(idx_w.begin(),
                                idx_w.end(),
                                win_start.begin(),
                                idx.begin() + 2,
                                [](auto ii, auto jj) { return ii + jj; });
 
-                std::transform(idx_w.begin(),
-                               idx_w.end(),
-                               win_start.begin(),
-                               idx_i.begin() + 2,
-                               [](auto ii, auto jj) {
-//  printf("ii = %lu jj = %d\n", ii, jj)    ;                               
-                                 return static_cast<int>(ii) + jj; });
-// std::cout <<  " idx_i  transformed ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
-                // if all indexes of this element lie within in_s bounds
-                // This "if" was working by accident because negative numbers cast to unsigned
-                // are very large
-                bool fits = true;
-                for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
+                // Check if any of coordinates are out of input tensor's range
+                if(std::mismatch(idx.begin() + 2,
+                                 idx.end(),
+                                 in_lens.begin() + 2,
+                                 in_lens.end(),
+                                 std::less<>{}) == std::make_pair(idx.end(), in_lens.end()))
                 {
-                    if(idx_i[ijk] < 0){
-                        // printf("out because idx_i[%d] = %d\n", ijk, idx_i[ijk]);
-                        fits = false;
-                }}
-
-                for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
-                {
-                    if(idx[ijk] >= in_lens[ijk]){
-                        // printf("out because idx[%d] = %lu\n", ijk, idx[ijk]);
-                        fits = false;
-                }}
-
-                for(int ijk = 2; ijk < idx_i.size() and fits; ijk++)
-                {
-                    if(idx_i[ijk] >= in_lens_i[ijk]){
-                        printf("out because idx_i[%d] = %d\n", ijk, idx_i[ijk]);
-                        fits = false;
-                }}
-
-                // may 30: try this.  Success--Looks like it detects padding locations correctly without 
-                // neeeding idx_i (signed integer) and can still do the in_s.index() call to get
-                // strided location.
-                // Results look plausible but aren't in the right order?
-fits = (std::mismatch(idx.begin() + 2, idx.end(), in_lens.begin() + 2, in_lens.end(), std::less<>{}) == std::make_pair(idx.end(), in_lens.end()));             ;
-
-
-
-//                 if(std::all_of(idx_i.begin() + 2, idx_i.end(), [&](auto ii) { return ii >= 0; }) and
-// //                 //    std::all_of(idx_i.begin() + 2, idx_i.end(),in_lens.begin() + 2, [&](auto ii, auto jj) { return ii < jj; })
-// //                 std::mismatch(idx.begin() + 2, idx_i.end(), in_lens.begin() + 2, in_lens.end(), std::less<>{}) == std::make_pair(idx_i.end(), in_lens.end())and
-
-// // std::mismatch(idx_i.begin() + 2, idx_i.end(), in_lens_i.begin() + 2, in_lens_i.end(), std::less<>{}) == std::make_pair(idx_i.end(), in_lens_i.end())                
-//                    idx < in_lens
-//                    and idx_i < in_lens_i
-//                    )
-                if(fits)
-                {
-std::cout <<  " idx  in bounds ";  for(auto aa : idx) std::cout << aa << ", ";   std::cout << "\n";
-std::cout <<  " idx_i  in bounds ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
-std::cout <<  " in_s index   " << in_s.index(idx) << "\n";
+                    // std::cout <<  " idx  in bounds ";  for(auto aa : idx) std::cout << aa << ",
+                    // ";   std::cout << "\n"; std::cout <<  " window locations ";  for(auto aa :
+                    // win_start) std::cout << aa << ", ";   std::cout << "\n"; std::cout <<  " in_s
+                    // index   " << in_s.index(idx) << " data is " << input[in_s.index(idx)]  <<
+                    // "\n";
                     output_val = op(output_val, input[in_s.index(idx)]);
                 }
                 else
                 {
                     // this is a padding element.  Only zero-padding is supported.  Zeroes
-                    // don't contribute to average padding result but can play in max or
+                    // don't contribute to average padding total but can play in max or
                     // lpnorm padding.
-std::cout <<  " idx out bounds ";  for(auto aa : idx) std::cout << aa << ", ";   std::cout << "\n";
-std::cout <<  " idx_i out bounds ";  for(auto aa : idx_i) std::cout << aa << ", ";   std::cout << "\n";
+                    // std::cout <<  " idx out bounds ";  for(auto aa : idx) std::cout << aa << ",
+                    // ";   std::cout << "\n";
                     output_val = op(output_val, 0);
                 }
             });

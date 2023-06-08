@@ -31,6 +31,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
+
 struct parse_where : op_parser<parse_where>
 {
     std::vector<op_desc> operators() const { return {{"Where"}}; }
@@ -56,6 +58,14 @@ struct parse_where : op_parser<parse_where>
             auto lens =
                 compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
             lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
+
+            if(enabled(MIGRAPHX_ENABLE_CK{}))
+            {
+                // Convert condition tensor to int32 to work around CK not supporting bool type
+                args[0] = info.add_instruction(
+                    make_op("convert", {{"target_type", shape::int32_type}}), args[0]);
+            }
+
             if(args[0]->get_shape().lens() != lens)
             {
                 args[0] =

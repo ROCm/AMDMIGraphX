@@ -527,6 +527,11 @@ std::size_t value_hash(const std::string& key, const T& x)
     hash_combine(h, x);
     return h;
 }
+
+std::size_t value_hash(const std::string& key, std::nullptr_t) {
+    return hash_value(key);
+}
+
 std::size_t value_hash(const std::string& key, const std::vector<value>& x)
 {
     std::size_t h = hash_value(key);

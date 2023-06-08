@@ -33,6 +33,8 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
+find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
+
 set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
 #if(BUILD_DEV)
 #set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")

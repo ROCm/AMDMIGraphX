@@ -46,6 +46,24 @@ else()
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
+# Determine UNIX distribution
+if(NOT WIN32)
+    file(READ "/etc/os-release" ETC_ISSUE)
+    string(REGEX MATCH "Debian|Ubuntu|CentOS|RHEL|SLES" DIST ${ETC_ISSUE})
+
+    if (DIST STREQUAL "Debian")
+        message(STATUS "Debian OS detected!")
+    elseif(DIST STREQUAL "Ubuntu")
+        message(STATUS "Ubuntu OS detected!")
+    elseif(DIST STREQUAL "CentOS")
+        message(STATUS "CENTOS detected!")
+    elseif(DIST STREQUAL "Red Hat")
+        message(STATUS "Red Hat detected!")
+    elseif(DIST STREQUAL "SUSE")
+        message(STATUS "SLES detected!")
+    endif()
+endif()
+
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
 
 project(migraphx)

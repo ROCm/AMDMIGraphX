@@ -118,8 +118,8 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto l3 = info.add_instruction(make_op("rsqrt"), l2);
         auto l4 = info.add_common_op("mul", l1, l3);
 
-        // add_common_op not implemented for broadcast op, so use different overloads of make_op.
-        // Needed so they can be handled differently in future optimization passes.
+        // add_common_op() doesn't apply the plain broadcast op, so we add that op explicitly for
+        // both scale and bias.
         instruction_ref scale_bcast;
         instruction_ref bias_bcast;
         if(dyn_input)

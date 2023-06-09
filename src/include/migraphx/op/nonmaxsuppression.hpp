@@ -28,7 +28,6 @@
 #include <queue>
 #include <cstdint>
 #include <iterator>
-#include <execution>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/float_equal.hpp>
@@ -38,6 +37,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/execution.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -253,10 +253,8 @@ struct nonmaxsuppression
                                return std::make_pair(sc, box_idx - 1);
                            });
         }
-        std::sort(std::execution::par,
-                  boxes_heap.begin(),
-                  boxes_heap.end(),
-                  std::greater<std::pair<double, int64_t>>{});
+        migraphx::sort(
+            boxes_heap.begin(), boxes_heap.end(), std::greater<std::pair<double, int64_t>>{});
         return boxes_heap;
     }
 
@@ -302,8 +300,7 @@ struct nonmaxsuppression
 
                 std::vector<std::pair<double, int64_t>> remainder_boxes(boxes_heap.size());
 
-                auto it = std::copy_if(
-                    std::execution::par,
+                auto it = migraphx::copy_if(
                     boxes_heap.begin() + 1,
                     boxes_heap.end(),
                     remainder_boxes.begin(),

@@ -170,7 +170,7 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
         if(inputs.size() != 2)
         {
             MIGRAPHX_THROW("INSERT_COMMON_OP: not handled; " + migraphx::to_string(inputs.size()) +
-                           "inputs, only handles two inputs if any are dynamic shape");
+                           " inputs.  Requires exactly two inputs if any are dynamic shape");
         }
 
         auto c_type = compute_common_types(to_shapes(inputs));

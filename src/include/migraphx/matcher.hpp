@@ -135,14 +135,14 @@ template <class M>
 auto bind_match(M m, std::string name)
 {
     return make_function_matcher(
-        [=, name = std::move(name)](matcher_context& ctx,
-                                    instruction_ref ins) -> optional<instruction_ref> {
+        [=, _name = std::move(name)](matcher_context& ctx,
+                                     instruction_ref ins) -> optional<instruction_ref> {
             auto result = m.match(ctx, ins);
             if(result)
             {
                 if(not ctx.has_instruction(ins))
                     return nullopt;
-                ctx.instructions[name] = ins;
+                ctx.instructions[_name] = ins;
             }
             return result;
         });
@@ -655,9 +655,9 @@ auto skip_output(Ms... ms)
 inline auto var(std::string s)
 {
     return make_basic_fun_matcher(
-        [=, s = std::move(s)](const matcher_context& ctx,
-                              instruction_ref) -> optional<instruction_ref> {
-            auto it = ctx.instructions.find(s);
+        [=, _s = std::move(s)](const matcher_context& ctx,
+                               instruction_ref) -> optional<instruction_ref> {
+            auto it = ctx.instructions.find(_s);
             if(it == ctx.instructions.end())
                 return nullopt;
             return it->second;
@@ -667,7 +667,7 @@ inline auto var(std::string s)
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [=, s = std::move(s)](instruction_ref ins) { return ins->name() == s; });
+        [=, _s = std::move(s)](instruction_ref ins) { return ins->name() == _s; });
 }
 
 inline auto name_contains(const std::string& name)
@@ -678,8 +678,8 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([=, names = std::move(names)](instruction_ref ins) {
-        return names.count(ins->name()) > 0;
+    return make_basic_pred_matcher([=, _names = std::move(names)](instruction_ref ins) {
+        return _names.count(ins->name()) > 0;
     });
 }
 

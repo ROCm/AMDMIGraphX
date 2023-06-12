@@ -91,6 +91,14 @@ parameter_map create_param_map(const program& p, bool gpu)
     return m;
 }
 
+target get_target(bool gpu)
+{
+    if(gpu)
+        return make_target("gpu");
+    else
+        return make_target("cpu");
+}
+
 bool is_offload_copy_set(const program& p)
 {
     assert(p.is_compiled());
@@ -121,14 +129,6 @@ bool is_offload_copy_set(const program& p)
         }
     }
     return param_ins.empty();
-}
-
-target get_target(bool gpu)
-{
-    if(gpu)
-        return make_target("gpu");
-    else
-        return make_target("cpu");
 }
 
 } // namespace  MIGRAPHX_INLINE_NS

@@ -56,9 +56,7 @@ echo "Dependencies are installed at $PREFIX"
 # Install deps with rbuild
 rbuild prepare -d $PREFIX -s develop
 
-if python3 -c 'import sys; assert sys.version_info >= (3, 10)' > /dev/null; then
-  export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
-fi
+export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
 pip3 install onnx==1.10.2 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
 

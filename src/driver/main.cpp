@@ -459,12 +459,12 @@ struct compiler
         if(p.is_compiled())
         {
 
-            if(ct.target_name == "gpu" && is_offload_copy_set(p))
+            if(ct.target_name == "gpu" and is_offload_copy_set(p) and not co.offload_copy)
             {
                 std::cout << "Compiled MIGraphX program likely has offload_copy set, Try passing "
                              "`--enable-offload-copy` if program run fails.\n";
             }
-            else if(ct.target_name == "gpu")
+            else if(ct.target_name == "gpu" and co.offload_copy)
             {
                 std::cout
                     << "Compiled MIGraphX program likely compiled without offload_copy set, Try "

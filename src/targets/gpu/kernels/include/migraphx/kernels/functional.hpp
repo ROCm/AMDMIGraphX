@@ -32,8 +32,17 @@
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...)                           \
-    [](auto&&... private_lisft_xs) MIGRAPHX_RETURNS( \
-        (__VA_ARGS__)(static_cast<decltype(private_lisft_xs)>(private_lisft_xs)...))
+    [](auto&&... private_lifts_xs) MIGRAPHX_RETURNS( \
+        (__VA_ARGS__)(static_cast<decltype(private_lifts_xs)>(private_lifts_xs)...))
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_LIFT_CLASS(name, ...)                                                         \
+    struct name                                                                                \
+    {                                                                                          \
+        template <class... PrivateLiftTs>                                                      \
+        constexpr auto operator()(PrivateLiftTs&&... private_lifts_xs) const MIGRAPHX_RETURNS( \
+            (__VA_ARGS__)(static_cast<decltype(private_lifts_xs)>(private_lifts_xs)...))       \
+    }
 
 namespace migraphx {
 

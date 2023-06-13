@@ -41,6 +41,9 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
 
 shape common_shape(const std::vector<shape>& shapes);
 
+std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes);
+std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes);
+
 std::vector<instruction_ref>
 insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs);
 

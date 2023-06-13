@@ -36,7 +36,7 @@ namespace op {
 
 /**
  * Broadcast multiple dimensions between two tensors.
- * Two versions of this operator: one input and two inputs.
+ * Two versions of this operator: 1 input and 2+ inputs.
  * One input version uses output_lens attribute and broadcasts to it.
  * 2+ inputs version broadcasts first input to the common shape at evaluation time.
  */
@@ -57,12 +57,12 @@ struct multibroadcast
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1, 2);
+        check_shapes{inputs, *this, true}.has_at_least(1);
 
         auto t  = inputs.at(0).type();
         auto s0 = inputs.at(0);
 
-        if(s0.max_lens().empty())
+        if(s0.ndim() < 1)
         {
             MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should be > 0");
         }
@@ -102,20 +102,19 @@ struct multibroadcast
         }
         else
         {
-            // TODO
             // 2+ inputs
-            auto s1 = inputs.at(1);
-            if(s0.dynamic() or s1.dynamic())
+            if(std::any_of(
+                   inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
             {
                 if(not output_dyn_dims.empty())
                 {
                     return {t, output_dyn_dims};
                 }
-                return {t, compute_broadcasted_dyn_dims(s0, s1)};
+                return {t, compute_common_dyn_dims(inputs)};
             }
             else
             {
-                auto bcast_lens    = compute_broadcasted_lens(s0.lens(), s1.lens());
+                auto bcast_lens    = compute_common_lens(inputs);
                 auto offset        = bcast_lens.size() - s0.lens().size();
                 auto bcast_strides = make_bcast_strides(bcast_lens, offset);
                 return {t, std::move(bcast_lens), std::move(bcast_strides)};

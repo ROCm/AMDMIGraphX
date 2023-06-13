@@ -32,18 +32,23 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// Example:
+// Right-handed shape broadcasting rules like in Numpy.
+// example 1:
 // s0 = (3,2,4,5) and s1 = (2,1,1)
 //
 // In this case we need to broadcast (:,1,1) portion of
 // s1 plus broadcast the 1st dimension of s1
 // giving output_lens = (3,2,4,5)
 //
-// Another example:
+// example 2:
 // s0 = (3,2,1,5) and s1 = (2,7,5)
 // In this case we need to broadcast the (:,:,1:,:) axis
 // of s0 plus the 1st dimension of s1 giving
 // output_lens = (3,2,7,5)
+//
+// example 3:
+// s0 = (4, 1, 1) and s1 = (3, 4)
+// output_lens = (4, 3, 4)
 //
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1)

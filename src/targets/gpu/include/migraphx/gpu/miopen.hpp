@@ -138,10 +138,10 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
         MIGRAPHX_THROW("MAKE_TENSOR: unsupported type");
     }
 
-    
     // miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());
-    miopenSetNdTensorDescriptorWithLayout(t.get(), d, miopenTensorLayout_t::miopenTensorNHWC, lens.data(), lens.size());
-    
+    miopenSetNdTensorDescriptorWithLayout(
+        t.get(), d, miopenTensorLayout_t::miopenTensorNHWC, lens.data(), lens.size());
+
     return t;
 }
 

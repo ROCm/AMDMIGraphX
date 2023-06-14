@@ -60,8 +60,7 @@ struct parse_pack : op_parser<parse_pack>
             [&](instruction_ref arg) {
                 return info.add_instruction(make_op("unsqueeze", {{"axes", {axis}}}), arg);
             });
-        return 
-            info.add_instruction(make_op("concat", {{"axis", axis}}), unsqueezed_args);
+        return info.add_instruction(make_op("concat", {{"axis", axis}}), unsqueezed_args);
         // return parser.to_nhwc(
         //     info.add_instruction(make_op("concat", {{"axis", axis}}), unsqueezed_args));
     }

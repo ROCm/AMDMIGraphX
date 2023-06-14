@@ -96,8 +96,8 @@ struct convolution
         }
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
-           (x_shape.lens().at(1) != (w_shape.lens().at(1) * group) and 
-           x_shape.lens().back() != (w_shape.lens().back() * group)))
+           (x_shape.lens().at(1) != (w_shape.lens().at(1) * group) and
+            x_shape.lens().back() != (w_shape.lens().back() * group)))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
 
         if(x_shape.dynamic() or w_shape.dynamic())
@@ -135,7 +135,8 @@ struct convolution
 
                 ret.push_back(std::size_t(std::max<std::ptrdiff_t>(
                     1,
-                    (x_lens[i + 1] - (1 + dilation[i] * (*(w_lens.rbegin() + i) - 1)) + padding_factor) /
+                    (x_lens[i + 1] - (1 + dilation[i] * (*(w_lens.rbegin() + i) - 1)) +
+                     padding_factor) /
                             stride[i] +
                         1)));
             }

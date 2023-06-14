@@ -89,7 +89,7 @@ struct op_parser : auto_register<register_op_parser_action, Derived>
         // }
         // else
         // {
-            result = implicit_multi_op(self.parse(opd, parser, info, args));
+        result = implicit_multi_op(self.parse(opd, parser, info, args));
         // }
         return result;
     }

@@ -1483,12 +1483,18 @@ struct find_split_transpose
     }
 };
 
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_SIMPLIFY_ALGEBRA_MATCHES)
+
 void simplify_algebra::apply(module& m) const
 {
+    int trace = value_of(MIGRAPHX_TRACE_SIMPLIFY_ALGEBRA_MATCHES{});
+
     // Run simplifications multiple times
     for(int i = 0; i < 8; i++)
     {
-        match::find_matches(m,
+        match::find_matches(trace,
+                            m,
                             find_inner_broadcast{},
                             find_dot_broadcast{},
                             find_double_add_lit_broadcast{},

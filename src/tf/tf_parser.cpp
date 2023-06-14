@@ -71,7 +71,10 @@ instruction_ref tf_parser::to_nchw(instruction_ref ins) const
 
 instruction_ref tf_parser::to_kcxy(instruction_ref ins) const
 {
-    return mm->add_instruction(make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), ins);
+    // x y c k
+    // k c x y
+    // k y x c
+    return mm->add_instruction(make_op("transpose", {{"permutation", {3, 1, 0, 2}}}), ins);
 }
 
 std::vector<instruction_ref> tf_parser::to_nchw(const std::vector<instruction_ref>& args) const
@@ -282,17 +285,19 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         }
         else
         {
-            if(is_nhwc and dims.size() >= 4)
-            {
-                this->reorder_data(dims);
-            }
+            // if(is_nhwc and dims.size() >= 4)
+            // {
+            //     this->reorder_data(dims);
+            // }
             std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
                 return static_cast<int>(dim) <= 0 ? batch_size : dim;
             });
         }
 
         shape s            = shape{shape_type, dims};
-        instructions[name] = to_nhwc(mm->add_parameter(name, s));
+        instructions[name] = mm->add_parameter(name, s);
+
+        // instructions[name] = to_nhwc(mm->add_parameter(name, s));
     }
     for(auto&& p : nodes)
     {

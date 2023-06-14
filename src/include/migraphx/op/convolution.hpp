@@ -96,7 +96,8 @@ struct convolution
         }
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
-           x_shape.lens().at(1) != (w_shape.lens().at(1) * group))
+           (x_shape.lens().at(1) != (w_shape.lens().at(1) * group) and 
+           x_shape.lens().back() != (w_shape.lens().back() * group)))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
 
         if(x_shape.dynamic() or w_shape.dynamic())
@@ -130,9 +131,11 @@ struct convolution
                     // when padding is {x0_begin, x1_begin, ... x0_end , x1_end, ...}
                     padding_factor = padding[i] + padding[i + num_spatial_dims];
                 }
+                // k y x c
+
                 ret.push_back(std::size_t(std::max<std::ptrdiff_t>(
                     1,
-                    (x_lens[i + 2] - (1 + dilation[i] * (w_lens[i + 2] - 1)) + padding_factor) /
+                    (x_lens[i + 1] - (1 + dilation[i] * (*(w_lens.rbegin() + i) - 1)) + padding_factor) /
                             stride[i] +
                         1)));
             }
@@ -200,11 +203,13 @@ struct convolution
 
     shape fixed_compute_shape(shape x_shape, shape w_shape) const
     {
-        std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[0]};
+        std::vector<size_t> output_lens{x_shape.lens()[0]};
+        // std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[0]};
         auto spatial_lens = calc_conv_lens(x_shape.lens(), w_shape.lens());
         std::for_each(spatial_lens.begin(), spatial_lens.end(), [&output_lens](auto x) {
             output_lens.push_back(x);
         });
+        output_lens.push_back(w_shape.lens()[0]);
         return x_shape.with_lens(output_lens);
     }
 

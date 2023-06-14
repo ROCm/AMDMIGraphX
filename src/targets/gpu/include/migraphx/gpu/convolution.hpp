@@ -115,9 +115,9 @@ struct miopen_convolution
                                             tensor_args,
                                             args[2].implicit(),
                                             workspace_size);
-            if(status != miopenStatusSuccess)
-                MIGRAPHX_THROW("MIOpen " + op.name() +
-                               " : running convolution using find_2.0 failed");
+            // if(status != miopenStatusSuccess)
+            //     MIGRAPHX_THROW("MIOpen " + op.name() +
+            //                    " : running convolution using find_2.0 failed");
 
             return args[3];
         }

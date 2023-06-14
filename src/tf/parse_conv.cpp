@@ -47,7 +47,7 @@ struct parse_conv : op_parser<parse_conv>
         {
             std::vector<size_t> stride;
             copy(info.attributes.at("strides").list().i(), std::back_inserter(stride));
-            parser.reorder_data(stride);
+            // parser.reorder_data(stride);
             if(stride.size() != 4)
             {
                 MIGRAPHX_THROW("strides should have 4 values");
@@ -59,7 +59,7 @@ struct parse_conv : op_parser<parse_conv>
         {
             std::vector<size_t> dilation;
             copy(info.attributes.at("dilations").list().i(), std::back_inserter(dilation));
-            parser.reorder_data(dilation);
+            // parser.reorder_data(dilation);
             if(dilation.size() != 4)
             {
                 MIGRAPHX_THROW("dilation should have 4 values");

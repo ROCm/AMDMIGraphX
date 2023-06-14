@@ -80,17 +80,17 @@ struct op_parser : auto_register<register_op_parser_action, Derived>
     {
         std::vector<instruction_ref> result;
         auto& self = static_cast<const Derived&>(*this);
-        if(self.transpose())
-        {
-            result = implicit_multi_op(self.parse(opd, parser, info, parser.to_nchw(args)));
-            std::transform(result.begin(), result.end(), result.begin(), [&](auto ins) {
-                return parser.to_nhwc(ins);
-            });
-        }
-        else
-        {
+        // if(self.transpose())
+        // {
+        //     result = implicit_multi_op(self.parse(opd, parser, info, parser.to_nchw(args)));
+        //     std::transform(result.begin(), result.end(), result.begin(), [&](auto ins) {
+        //         return parser.to_nhwc(ins);
+        //     });
+        // }
+        // else
+        // {
             result = implicit_multi_op(self.parse(opd, parser, info, args));
-        }
+        // }
         return result;
     }
 };

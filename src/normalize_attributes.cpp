@@ -40,12 +40,10 @@ inline namespace MIGRAPHX_INLINE_NS {
  *
  * See normalize_attribute.hpp for explaining the options.
  */
-template <class Message>
 auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<int64_t>& axes,
                     const value& val,
-                    const std::vector<std::size_t>& lens,
-                    Message m)
+                    const std::vector<std::size_t>& lens)
 {
     std::vector<int64_t> result(vec);
     int64_t n_rank                                 = lens.size();
@@ -86,14 +84,14 @@ auto tune_attribute(const std::vector<int64_t>& vec,
         {
             if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
             {
-                MIGRAPHX_THROW(m() + "value out of range!");
+                MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
         }
         else
         {
             if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{}))
             {
-                MIGRAPHX_THROW(m() + "value out of range!");
+                MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
         }
     }
@@ -126,14 +124,14 @@ auto tune_attribute(const std::vector<int64_t>& vec,
             if(not std::equal(
                    min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
             {
-                MIGRAPHX_THROW(m() + "attribute out of range!");
+                MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
         }
         else
         {
             if(not std::equal(result.begin(), result.end(), min_vals.begin(), std::less<>{}))
             {
-                MIGRAPHX_THROW(m() + "attribute out of range!");
+                MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
         }
     }
@@ -195,8 +193,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
         const auto& key = rv.get_key();
         if(val.contains(key))
         {
-            auto message = [&] { return op.name() + ": " + key + ": "; };
-            auto vv      = val.at(key).without_key();
+            auto vv = val.at(key).without_key();
             if(vv.is_array())
             {
                 std::vector<int64_t> axes;
@@ -205,7 +202,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
                     axes = val.at("axes").without_key().to_vector<int64_t>();
                 }
                 auto vec    = vv.to_vector<int64_t>();
-                auto result = tune_attribute(vec, axes, rv.without_key(), lens, message);
+                auto result = tune_attribute(vec, axes, rv.without_key(), lens);
                 val[key]    = result;
                 op.from_value(val);
                 val   = op.to_value();
@@ -214,7 +211,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             else
             {
                 auto num    = vv.to<int64_t>();
-                auto result = tune_attribute({num}, {num}, rv.without_key(), lens, message);
+                auto result = tune_attribute({num}, {num}, rv.without_key(), lens);
                 val[key]    = result.front();
                 op.from_value(val);
                 val   = op.to_value();

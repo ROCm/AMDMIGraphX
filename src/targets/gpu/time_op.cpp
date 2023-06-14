@@ -21,51 +21,51 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compiler.hpp>
-#include <utility>
+#include <migraphx/gpu/time_op.hpp>
+#include <migraphx/context.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/time.hpp>
+#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-namespace {
-struct compiler_handle
+std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsigned long seed = 0)
 {
-    compiler_compile compile;
-    compiler_compile_op compile_op;
-    compiler_tuning_config get_tuning_config;
-};
-} // namespace
-
-auto& compiler_map()
-{
-    static std::unordered_map<std::string, compiler_handle> m; // NOLINT
-    return m;
+    std::vector<argument> args;
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](auto& s) {
+        return to_gpu(generate_argument(s, seed++));
+    });
+    return args;
 }
 
-void register_compiler(const std::string& name,
-                       compiler_compile c,
-                       compiler_compile_op cop,
-                       compiler_tuning_config ctg)
+using milliseconds = std::chrono::duration<double, std::milli>;
+std::pair<double, double>
+time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
-    compiler_map()[name] = {std::move(c), std::move(cop), std::move(ctg)};
-}
 
-bool has_compiler_for(const std::string& name) { return compiler_map().count(name) > 0; }
-compiler_replace
-compile(context& ctx, instruction_ref ins, const operation& op, const value& solution)
-{
-    return compiler_map().at(op.name()).compile(ctx, ins, op, solution);
-}
-operation
-compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v)
-{
-    return compiler_map().at(name).compile_op(ctx, inputs, v);
-}
-
-optional<tuning_config> get_tuning_config(context& ctx, instruction_ref ins, const operation& op)
-{
-    return compiler_map().at(op.name()).get_tuning_config(ctx, ins, op);
+    // TODO: Use std::ref
+    migraphx::context ctx = ictx;
+    auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
+    auto output           = op.compute_shape(inputs);
+    op.finalize(ctx, output, inputs);
+    auto args = generate_arguments(inputs);
+    auto run  = [&] {
+        op.compute(ctx, output, args);
+        ctx.finish();
+    };
+    gctx.enable_perf_measurement();
+    run();
+    double host_time   = 0.0;
+    double device_time = 0.0;
+    for(auto i : range(n))
+    {
+        (void)i;
+        host_time += time<milliseconds>(run);
+        device_time += gctx.get_elapsed_ms();
+    }
+    return std::make_pair(host_time / n, device_time / n);
 }
 
 } // namespace gpu

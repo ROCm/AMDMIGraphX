@@ -28,3 +28,4 @@ ROCmSoftwarePlatform/half@rocm-5.4.2
 pybind/pybind11@d159a563383d10c821ba7b2a71905d1207db6de4 --build
 msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
 sqlite3@3.17 -DCMAKE_POSITION_INDEPENDENT_CODE=On
+ROCmSoftwarePlatform/composable_kernel@84c5bec1d66a633802fd977bd61e0aada7a6f153 -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On

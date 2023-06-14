@@ -33,6 +33,8 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
+find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
+
 if(BUILD_DEV)
     set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
 else()
@@ -95,6 +97,7 @@ add_library(migraphx_gpu
     compile_miopen.cpp
     compiler.cpp
     device_name.cpp
+    fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp
@@ -123,6 +126,7 @@ add_library(migraphx_gpu
     schedule_model.cpp
     sync_device.cpp
     target.cpp
+    time_op.cpp
     topk.cpp
     write_literals.cpp
     ${JIT_GPU_SRCS}
@@ -241,7 +245,7 @@ else()
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)

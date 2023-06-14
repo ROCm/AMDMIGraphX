@@ -1483,7 +1483,6 @@ struct find_split_transpose
     }
 };
 
-
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_SIMPLIFY_ALGEBRA_MATCHES)
 
 void simplify_algebra::apply(module& m) const

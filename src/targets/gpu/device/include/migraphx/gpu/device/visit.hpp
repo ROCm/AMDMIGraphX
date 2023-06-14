@@ -94,6 +94,10 @@ template <>
 struct is_hip_type<std::uint8_t> : std::true_type
 {
 };
+template <>
+struct is_hip_type<std::int32_t> : std::true_type
+{
+};
 
 template <class T, class V, MIGRAPHX_REQUIRES(is_hip_type<typename T::type>{})>
 void hip_visitor_invoke(T as, V&& v)

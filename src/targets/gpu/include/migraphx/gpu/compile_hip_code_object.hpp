@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/compile_src.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,9 +40,10 @@ struct hip_compile_options
     std::size_t local;
     std::vector<shape> inputs;
     shape output;
-    std::string kernel_name           = "kernel";
-    std::string params                = "";
-    std::vector<shape> virtual_inputs = {};
+    std::string kernel_name                    = "kernel";
+    std::string params                         = "";
+    std::vector<shape> virtual_inputs          = {};
+    std::vector<src_file> additional_src_files = {};
 
     /**
      * @brief Set the launch parameters but allow v to override the values

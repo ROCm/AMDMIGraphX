@@ -108,7 +108,7 @@ struct concat_compiler : compiler<concat_compiler>
             v["post"]          = "MIGRAPHX_LIFT(post_concat)";
             v["kernel"]        = "concat_" + generate_name_from_ops(*pm) + "_kernel";
         }
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

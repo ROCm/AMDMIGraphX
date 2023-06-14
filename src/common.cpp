@@ -87,21 +87,13 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
                    s1.dyn_dims().cbegin() + offset,
                    out_dims.begin() + offset,
                    [&](auto a, auto b) {
-                       if(a == b)
+                       if(a == b or b == 1)
                        {
                            return a;
-                       }
-                       else if(a == 1 and b == 1)
-                       {
-                           return shape::dynamic_dimension{1, 1};
                        }
                        else if(a == 1)
                        {
                            return b;
-                       }
-                       else if(b == 1)
-                       {
-                           return a;
                        }
                        else
                        {

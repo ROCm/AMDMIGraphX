@@ -82,28 +82,34 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
     }
     auto offset = s1.ndim() - s0.ndim();
     std::vector<shape::dynamic_dimension> out_dims(s1.dyn_dims());
-    std::transform(
-        s0.dyn_dims().cbegin(),
-        s0.dyn_dims().cend(),
-        s1.dyn_dims().cbegin() + offset,
-        out_dims.begin() + offset,
-        [&](auto a, auto b) {
-            if(a == b)
-            {
-                return a;
-            }
-            else if(a == 1 or b == 1)
-            {
-                // setting optimals to empty, may need to be changed
-                return shape::dynamic_dimension{std::max(a.min, b.min), std::max(a.max, b.max)};
-            }
-            else
-            {
-                MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
-                               migraphx::to_string_range(s0.dyn_dims()) + "} and {" +
-                               migraphx::to_string_range(s1.dyn_dims()) + "} mismatch!");
-            }
-        });
+    std::transform(s0.dyn_dims().cbegin(),
+                   s0.dyn_dims().cend(),
+                   s1.dyn_dims().cbegin() + offset,
+                   out_dims.begin() + offset,
+                   [&](auto a, auto b) {
+                       if(a == b)
+                       {
+                           return a;
+                       }
+                       else if(a == 1 and b == 1)
+                       {
+                           return shape::dynamic_dimension{1, 1};
+                       }
+                       else if(a == 1)
+                       {
+                           return b;
+                       }
+                       else if(b == 1)
+                       {
+                           return a;
+                       }
+                       else
+                       {
+                           MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
+                                          migraphx::to_string_range(s0.dyn_dims()) + "} and {" +
+                                          migraphx::to_string_range(s1.dyn_dims()) + "} mismatch!");
+                       }
+                   });
     return out_dims;
 }
 

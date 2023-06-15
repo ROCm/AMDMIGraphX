@@ -117,6 +117,8 @@ struct multibroadcast
             }
             else
             {
+                // output_lens will not be set for 2+ input version
+                // convert to 1 input version if all static input shapes
                 auto bcast_lens    = compute_common_lens(inputs);
                 auto offset        = bcast_lens.size() - s0.lens().size();
                 auto bcast_strides = make_bcast_strides(bcast_lens, offset);

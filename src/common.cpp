@@ -31,25 +31,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-// Right-handed shape broadcasting rules like in Numpy.
-// example 1:
-// s0 = (3,2,4,5) and s1 = (2,1,1)
-//
-// In this case we need to broadcast (:,1,1) portion of
-// s1 plus broadcast the 1st dimension of s1
-// giving output_lens = (3,2,4,5)
-//
-// example 2:
-// s0 = (3,2,1,5) and s1 = (2,7,5)
-// In this case we need to broadcast the (:,:,1:,:) axis
-// of s0 plus the 1st dimension of s1 giving
-// output_lens = (3,2,7,5)
-//
-// example 3:
-// s0 = (4, 1, 1) and s1 = (3, 4)
-// output_lens = (4, 3, 4)
-//
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1)
 {
@@ -114,7 +95,6 @@ std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<
     return ret_shape.dyn_dims();
 }
 
-// Compute the common (broadcasted) dimensions of a list of fixed shapes
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
 {
     assert(not shapes.empty());
@@ -160,18 +140,6 @@ shape common_shape(const std::vector<shape>& shapes)
     return {compute_common_types(shapes), compute_common_lens(shapes)};
 }
 
-/**
- * @brief  Creates and adds instructions to convert input arguments to common shapes and types
- * by adding multi-broadcast and type convert operations. This is a utility function for creating
- * operations where the shape and type of inputs need to match. It supports both dynamic and
- * static-shaped arguments.
- *
- * @param m         containing module for instruction
- * @param ins       insertion location in instruction list
- * @param inputs    instructions to use as argument list; also, the shapes
- *                  attached to each instruction_ref are considered for broadcasting
- * @return std::vector<instruction_ref>   a modified argument list
- */
 std::vector<instruction_ref>
 insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs)
 {
@@ -243,9 +211,6 @@ instruction_ref insert_common_op(module& m,
     return m.insert_instruction(ins, op, insert_common_args(m, ins, std::move(inputs)));
 }
 
-/**
- * Wrapper for insert_common_args() which inserts operation at the end of the module.
- */
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs)
 {
     return insert_common_op(m, m.end(), op, std::move(inputs));

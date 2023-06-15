@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -160,6 +160,18 @@ shape common_shape(const std::vector<shape>& shapes)
     return {compute_common_types(shapes), compute_common_lens(shapes)};
 }
 
+/**
+ * @brief  Creates and adds instructions to convert input arguments to common shapes and types
+ * by adding multi-broadcast and type convert operations. This is a utility function for creating
+ * operations where the shape and type of inputs need to match. It supports both dynamic and
+ * static-shaped arguments.
+ *
+ * @param m         containing module for instruction
+ * @param ins       insertion location in instruction list
+ * @param inputs    instructions to use as argument list; also, the shapes
+ *                  attached to each instruction_ref are considered for broadcasting
+ * @return std::vector<instruction_ref>   a modified argument list
+ */
 std::vector<instruction_ref>
 insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> inputs)
 {
@@ -231,6 +243,9 @@ instruction_ref insert_common_op(module& m,
     return m.insert_instruction(ins, op, insert_common_args(m, ins, std::move(inputs)));
 }
 
+/**
+ * Wrapper for insert_common_args() which inserts operation at the end of the module.
+ */
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs)
 {
     return insert_common_op(m, m.end(), op, std::move(inputs));

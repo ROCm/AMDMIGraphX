@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,6 +81,9 @@ struct multibroadcast
 
         if(inputs.size() == 1)
         {
+            if(s0.dynamic())
+                MIGRAPHX_THROW(
+                    "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
             if(s0.lens().size() > output_lens.size())
             {
                 MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");

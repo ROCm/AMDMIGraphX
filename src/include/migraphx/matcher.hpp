@@ -374,7 +374,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 
 /// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
-void find_matches(size_t trace_mod, Mod& mod, instruction_ref ins, Ms&&... ms)
+void find_matches(size_t trace_pass, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
@@ -389,12 +389,12 @@ void find_matches(size_t trace_mod, Mod& mod, instruction_ref ins, Ms&&... ms)
         [&](auto&& m) {
             if(match)
                 return;
-            if(trace > 1 or trace_mod > 1)
+            if(trace > 1 or trace_pass > 1)
                 std::cout << "Match: " << get_type_name(m) << std::endl;
             auto r = match_instruction(get_module(mod), ins, m.matcher());
             if(r.result == get_module(mod).end())
                 return;
-            if(trace > 0 or trace_mod > 0)
+            if(trace > 0 or trace_pass > 0)
             {
                 std::cout << "Matched by " << get_type_name(m) << std::endl;
                 get_module(mod).debug_print(ins);
@@ -428,13 +428,13 @@ void find_matches(Mod& mod, Ms&&... ms)
     }
 }
 
-/// Find matches in a module
+/// Find matches in a pass
 template <class Mod, class... Ms>
-void find_matches(size_t trace_mod, Mod& mod, Ms&&... ms)
+void find_matches(size_t trace_pass, Mod& mod, Ms&&... ms)
 {
     for(auto ins : iterator_for(get_module(mod)))
     {
-        find_matches(trace_mod, mod, ins, ms...);
+        find_matches(trace_pass, mod, ins, ms...);
     }
 }
 

@@ -38,8 +38,8 @@ struct check_shapes
 {
     const shape* begin;
     const shape* end;
-    const std::string name;
-    const bool dynamic_allowed;
+    std::string name;
+    bool dynamic_allowed;
 
     check_shapes(const shape* b, const shape* e, const std::string& n, const bool d = false)
         : begin(b), end(e), name(n), dynamic_allowed(d)

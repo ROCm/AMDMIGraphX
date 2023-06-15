@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/compile_options.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -42,6 +43,7 @@
 #include <sstream>
 #include <algorithm>
 #include <set>
+#include <unordered_map>
 #include <utility>
 
 #include <unordered_set>
@@ -53,12 +55,24 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 using milliseconds = std::chrono::duration<double, std::milli>;
 
+struct mark_instruction_target
+{
+    std::size_t target_id = 0;
+    std::string name() const { return "mark_instruction_target"; }
+    void apply(module& m) const
+    {
+        for(auto& ins : m)
+            ins.set_target_id(target_id);
+    }
+};
+
 struct program_impl
 {
     // A map is used to keep references to modules of the program
     std::unordered_map<std::string, module> modules;
     context ctx;
     std::string target_name;
+    std::vector<context> contexts;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -205,8 +219,94 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
+void program::compile(const std::vector<target>& targets, std::vector<compile_options> compile_opts)
+{
+    // Gather all the target roots
+    std::unordered_multimap<std::size_t, module_ref> roots;
+    auto mods = this->get_modules();
+    for(auto* mod : mods)
+    {
+        for(const auto& ins : *mod)
+        {
+            if(ins.name() != "run_on_target")
+                continue;
+            auto v                     = ins.get_operator().to_value();
+            module_ref root            = ins.module_inputs().front();
+            std::size_t root_target_id = v.at("target_id").to<std::size_t>();
+            assert(root_target_id < targets.size());
+            roots.insert({root_target_id, root});
+        }
+    }
+
+    auto trace = tracer{};
+    // TODO: Add tracer based on compile options
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+        trace = tracer{std::cout};
+
+    trace(*this);
+    trace();
+    // It is assumed that all instructions outside of any root module would run on "ref" target
+    // Ref target may or may not be passed as one of the target for the "compile()".
+    // If it is not passed, Create one and add context of it into the map.
+    auto target_idx = [&](const std::string& t_name) {
+        return static_cast<std::size_t>(
+            std::find_if(
+                targets.begin(), targets.end(), [&](const auto& t) { return t.name() == t_name; }) -
+            targets.begin());
+    };
+
+    std::size_t ref_target_id = target_idx("ref");
+    if(ref_target_id == targets.size())
+    {
+        this->impl->contexts.resize(targets.size() + 1);
+        this->impl->contexts[ref_target_id] = migraphx::make_target("ref").get_context();
+        // users could pass lessers compile_ops than targets, in that case use default compile_opts
+        compile_opts.resize(targets.size() + 1, migraphx::compile_options{});
+    }
+    else
+    {
+        this->impl->contexts.resize(targets.size());
+        compile_opts.resize(targets.size(), migraphx::compile_options{});
+    }
+    // mark all the instruction as ref target first, later change target_id based on root-target
+    run_passes(*this, {mark_instruction_target{ref_target_id}});
+
+    // Run passes on each root target
+    for(const auto i : range(targets.size()))
+    {
+        const auto& root_target              = targets.at(i);
+        auto root_target_id                  = i;
+        auto root_modules_range              = roots.equal_range(root_target_id);
+        this->impl->contexts[root_target_id] = root_target.get_context();
+        for(const auto& [id, current_mod] : range(root_modules_range))
+        {
+            auto passes = root_target.get_passes(this->impl->contexts[root_target_id],
+                                                 compile_opts[root_target_id]);
+            passes.push_back(mark_instruction_target{static_cast<size_t>(root_target_id)});
+            run_passes(*this, current_mod, passes, trace);
+
+            auto invalid = current_mod->validate();
+            if(invalid != current_mod->end())
+            {
+                MIGRAPHX_THROW("Invalid module " + current_mod->name() +
+                               " from compilation at instruction " +
+                               std::to_string(std::distance(current_mod->begin(), invalid)));
+            }
+            auto dangling = current_mod->find_dangling_reference();
+            if(dangling != current_mod->end())
+            {
+                auto index = std::distance(current_mod->begin(), dangling);
+                MIGRAPHX_THROW("Dangling reference in module " + current_mod->name() +
+                               " from instruction " + std::to_string(index));
+            }
+            current_mod->finalize(this->impl->contexts[root_target_id]);
+        }
+    }
+}
+
 void program::compile(const target& t, compile_options options)
 {
+    // todo: combine with multi-target compile method
     assert(not this->is_compiled());
     this->impl->target_name = t.name();
     this->impl->ctx         = t.get_context();
@@ -366,7 +466,6 @@ std::vector<argument> generic_eval(const module* mod,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
-
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
@@ -440,39 +539,53 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
 
-        ret = generic_eval(*this,
-                           ctx,
-                           std::move(params),
-                           with_check_context([&](auto& ins, auto f, auto&& check_context) {
-                               ctx.finish();
-                               std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                               timer t{};
-                               auto result = check_context(f);
-                               double t1   = t.record<milliseconds>();
-                               ctx.finish();
-                               double t2 = t.record<milliseconds>();
-                               std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                               if(trace_level > 1 and ins->name().front() != '@' and
-                                  ins->name() != "load" and not result.empty())
-                               {
-                                   target tgt  = make_target(this->impl->target_name);
-                                   auto buffer = tgt.copy_from(result);
-                                   if(trace_level == 2)
-                                   {
-                                       std::cout << "Output has "
-                                                 << to_string_range(classify_argument(buffer))
-                                                 << std::endl;
-                                       std::cout << "Output: ";
-                                       preview_argument(std::cout, buffer);
-                                       std::cout << std::endl;
-                                   }
-                                   else
-                                   {
-                                       std::cout << "Output: " << buffer << std::endl;
-                                   }
-                               }
-                               return result;
-                           }));
+        ret = generic_eval(
+            *this,
+            ctx,
+            std::move(params),
+            with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                ctx.finish();
+                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                timer t{};
+                auto result = check_context(f);
+                double t1   = t.record<milliseconds>();
+                ctx.finish();
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
+                   not result.empty())
+                {
+                    migraphx::argument buffer;
+                    try
+                    {
+                        target tgt = make_target(this->impl->target_name);
+                        buffer     = tgt.copy_from(result);
+                    }
+                    catch(const migraphx::exception&)
+                    {
+                        // instruction was run on host then no need to copy buffer from target
+                        buffer = result;
+                    }
+                    catch(...)
+                    {
+                        MIGRAPHX_THROW(
+                            "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
+                    }
+                    if(trace_level == 2)
+                    {
+                        std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                                  << std::endl;
+                        std::cout << "Output: ";
+                        preview_argument(std::cout, buffer);
+                        std::cout << std::endl;
+                    }
+                    else
+                    {
+                        std::cout << "Output: " << buffer << std::endl;
+                    }
+                }
+                return result;
+            }));
     }
     else
     {
@@ -861,7 +974,9 @@ void program::print_py(std::ostream& os) const
     os << "p = migraphx.program()\n";
     for(auto& mod : vec_modules)
     {
-        std::string var_name = "m" + mod->name();
+        std::string var_name = "m";
+        if(mod->name() != "main")
+            var_name += mod->name();
         os << var_name << " = ";
         if(mod->name() == "main")
             os << "p.get_main_module()";

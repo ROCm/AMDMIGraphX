@@ -47,16 +47,10 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
     return rb;
 }
 
-const std::unordered_set<std::string>& get_rocblas_fp32_archs()
-{
-    static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
-    return supported_archs;
-}
-
 bool get_compute_fp32_flag()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return contains(get_rocblas_fp32_archs(), device_name);
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
 }
 
 bool get_int8_x4_format(context& ctx)

@@ -33,8 +33,7 @@ namespace onnx {
 
 struct parse_mean : op_parser<parse_mean>
 {
-    const std::set<shape::type_t> float_types = {
-        shape::float_type, shape::half_type, shape::double_type};
+    std::set<shape::type_t> float_types = {shape::float_type, shape::half_type, shape::double_type};
 
     std::vector<op_desc> operators() const { return {{"Mean"}}; }
 

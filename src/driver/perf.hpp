@@ -39,6 +39,15 @@ parameter_map create_param_map(const program& p, const target& t, bool offload =
 parameter_map fill_param_map(parameter_map& m, const program& p, bool gpu);
 parameter_map create_param_map(const program& p, bool gpu = true);
 target get_target(bool gpu);
+/**
+ * @brief Checks if MIGraphX program compiled for "GPU" has offload_copy set of not. This is
+ intended to print a HINT for the users and would not always correctly classify compiled program as
+ with or without offload_copy in all cases.
+
+ * @param p Compiled MIGraphX program for GPU backend
+ * @return true if program is classified as compiled with "offload_copy" set
+ */
+bool is_offload_copy_set(const program& p);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

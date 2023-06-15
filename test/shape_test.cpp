@@ -956,4 +956,67 @@ TEST_CASE(test_multi_index)
     EXPECT(migraphx::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
 }
 
+TEST_CASE(find_permutation_2d_standard)
+{
+    migraphx::shape s                = {migraphx::shape::float_type, {2, 3}};
+    std::vector<int64_t> permutation = {0, 1};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_2d_transpose)
+{
+    migraphx::shape s                = {migraphx::shape::float_type, {2, 3}, {1, 2}};
+    std::vector<int64_t> permutation = {1, 0};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_3d)
+{
+    migraphx::shape s                = {migraphx::shape::float_type, {2, 3, 4}, {1, 8, 2}};
+    std::vector<int64_t> permutation = {1, 2, 0};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_4d)
+{
+    // ori_lens = 2, 3, 4, 5
+    // ori_strides = 60, 20, 5, 1
+    // perm = 3, 2, 0, 1
+    // inv_perm = 2, 3, 1, 0
+    // out_strides = 5, 1, 20, 60
+    migraphx::shape s                = {migraphx::shape::float_type, {5, 4, 2, 3}, {5, 1, 20, 60}};
+    std::vector<int64_t> permutation = {3, 2, 0, 1};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(from_2d_permutation)
+{
+    std::vector<std::size_t> out_lens = {2, 3};
+    std::vector<int64_t> permutation  = {1, 0};
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
+    EXPECT(out_shape.lens() == out_lens);
+    EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
+TEST_CASE(from_3d_permutation)
+{
+    std::vector<std::size_t> out_lens = {2, 3, 4};
+    std::vector<int64_t> permutation  = {1, 2, 0};
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
+    EXPECT(out_shape.lens() == out_lens);
+    EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
+TEST_CASE(from_4d_permutation)
+{
+    std::vector<std::size_t> out_lens = {5, 4, 2, 3};
+    std::vector<int64_t> permutation  = {3, 2, 0, 1};
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
+    EXPECT(out_shape.lens() == out_lens);
+    EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -123,27 +123,18 @@ struct module_pm : module_pass_manager
 
 module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 
-void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
-{
-    if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{std::cout};
-    for(const auto& p : passes)
-    {
-        module_pm{&mod, &trace}.run_pass(p);
-    }
-}
-
-void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
+void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
         trace = tracer{std::cout};
     std::unordered_set<module_ref> visited;
     for(const auto& p : passes)
     {
-        auto mods = prog.get_modules();
-        auto tree = prog.get_module_tree();
+        auto tree                        = prog.get_module_tree();
+        std::vector<module_ref> sub_mods = root_mod->get_sub_modules();
+        sub_mods.insert(sub_mods.begin(), root_mod);
         visited.clear();
-        for(const auto& mod : reverse(mods))
+        for(const auto& mod : reverse(sub_mods))
         {
             if(mod->bypass())
                 continue;
@@ -165,6 +156,21 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
         }
         run_pass(prog, p, trace);
     }
+}
+
+void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
+{
+    if(enabled(MIGRAPHX_TRACE_PASSES{}))
+        trace = tracer{std::cout};
+    for(const auto& p : passes)
+    {
+        module_pm{&mod, &trace}.run_pass(p);
+    }
+}
+
+void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
+{
+    run_passes(prog, prog.get_main_module(), passes, trace);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

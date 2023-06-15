@@ -38,7 +38,8 @@ struct context;
 
 struct compile_ops
 {
-    context* ctx = nullptr;
+    context* ctx         = nullptr;
+    bool exhaustive_tune = false;
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module& m) const;
 };

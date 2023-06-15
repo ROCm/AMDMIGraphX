@@ -299,6 +299,8 @@ struct shape
 
         type min() const { return std::numeric_limits<type>::lowest(); }
 
+        type nan() const {return std::numeric_limits<type>::quiet_NaN();}
+
         template <class U>
         type operator()(U u) const
         {

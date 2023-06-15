@@ -3342,6 +3342,39 @@ def instance_norm_type_mismatch_test():
 
 
 @onnx_test()
+def instance_norm_dyn_batch_test():
+    # the batch size is a dynamic dimension
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [None, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
+def instance_norm_dyn_batch_half_test():
+    # the batch size is a dynamic dimension
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
+                                      [None, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT16,
+                                      [None, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
 def instance_norm_invalid_type_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT32, [1, 2, 3, 3])
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])

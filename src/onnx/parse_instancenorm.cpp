@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -84,16 +84,17 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
             MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(dtype) +
                            ". Valid types are 1 (float), 10 (half), and 11 (double).");
 
-        auto ndims = dims.size();
+        bool dyn_input = x->get_shape().dynamic();
+        auto ndims     = x->get_shape().ndim();
         assert(ndims >= 2);
         auto kdims = ndims - 2;
-
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), 2);
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
-        auto mean_bcast =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), mean);
-        auto l1 = info.add_instruction(make_op("sub"), x, mean_bcast);
+
+        // Use add_common_op() to insert multibroadcast/convert instructions where needed when
+        // inputs may be either static or dynamic.
+        auto l1 = info.add_common_op("sub", x, mean);
         // for the fp16, if not converting to fp32 then divide `x` and `mean` by `sqrt(n)` and take
         // reduce_sum to calculate variance i.e.
         // var =  reduce_sum((x/s_n - mean/s_n)^2) where s_n = sqrt(n)
@@ -107,23 +108,32 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
                 });
             n              = 1.0 / std::sqrt(n);
             auto n_literal = info.add_literal(literal{dtype, {n}});
-            mean_bcast     = info.add_common_op("mul", {mean_bcast, n_literal});
             x              = info.add_common_op("mul", {x, n_literal});
         }
-        auto l0              = info.add_instruction(make_op("sqdiff"), x, mean_bcast);
+        auto l0              = info.add_common_op("sqdiff", x, mean);
         auto variance        = info.add_instruction(make_op(reduce_op_name, {{"axes", axes}}), l0);
         auto epsilon_literal = info.add_literal(literal{shape{literal_dtype}, {epsilon}});
-        auto epsilon_bcast =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
-        auto variance_bcast =
-            info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), variance);
-        auto l2 = info.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
+        auto l2              = info.add_common_op("add", variance, epsilon_literal);
+
         auto l3 = info.add_instruction(make_op("rsqrt"), l2);
-        auto l4 = info.add_instruction(make_op("mul"), l1, l3);
-        auto scale_bcast =
-            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
-        auto bias_bcast =
-            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
+        auto l4 = info.add_common_op("mul", l1, l3);
+
+        // add_common_op() doesn't apply the plain broadcast op, so we add that op explicitly for
+        // both scale and bias.
+        instruction_ref scale_bcast;
+        instruction_ref bias_bcast;
+        if(dyn_input)
+        {
+            scale_bcast = info.add_instruction(make_op("broadcast", {{"axis", 1}}), scale, x);
+            bias_bcast  = info.add_instruction(make_op("broadcast", {{"axis", 1}}), bias, x);
+        }
+        else
+        {
+            scale_bcast = info.add_instruction(
+                make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
+            bias_bcast =
+                info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
+        }
         auto l5  = info.add_instruction(make_op("mul"), l4, scale_bcast);
         auto ret = info.add_instruction(make_op("add"), l5, bias_bcast);
         if(dtype == shape::half_type and convert_fp16)

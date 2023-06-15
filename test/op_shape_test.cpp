@@ -187,6 +187,14 @@ TEST_CASE(broadcast_axis_out_of_range_error)
     throws_shape(migraphx::make_op("broadcast", {{"axis", 4}, {"out_lens", lens}}), input);
 }
 
+TEST_CASE(broadcast_1in_dyn_error)
+{
+    // broadcast doesn't support single dynamic shape input
+    std::vector<std::size_t> lens{3, 2, 4, 3};
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {2, 2}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", lens}}), input);
+}
+
 TEST_CASE(broadcast_2in_static_static)
 {
     migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
@@ -1432,6 +1440,14 @@ TEST_CASE(multibroadcast)
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};
         throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
+}
+
+TEST_CASE(multibroadcast_1in_dyn_error_0)
+{
+    // multibroadcast doesn't support single dynamic shape input
+    std::vector<std::size_t> lens{4, 4, 1, 3};
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
 }
 
 TEST_CASE(multibroadcast_2in_static_dyn0)

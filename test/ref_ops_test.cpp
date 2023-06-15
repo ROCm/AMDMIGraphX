@@ -1849,7 +1849,7 @@ TEST_CASE(cosh_dyn_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(convert_nan_test_upcast) {
+TEST_CASE(convert_nan_upcast_test) {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::half_type, {2, 2}};
@@ -1860,11 +1860,10 @@ TEST_CASE(convert_nan_test_upcast) {
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4, -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold(4, std::numeric_limits<float>::quiet_NaN());
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {return std::isnan(x);}));
 }
 
-TEST_CASE(convert_nan_test_downcast) {
+TEST_CASE(convert_nan_downcast_test) {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::double_type, {2, 2}};
@@ -1875,8 +1874,7 @@ TEST_CASE(convert_nan_test_downcast) {
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4, -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold(4, std::numeric_limits<float>::quiet_NaN());
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {return std::isnan(x);}));
 }
 
 TEST_CASE(deconv_1d_test)

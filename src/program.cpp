@@ -539,39 +539,53 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
 
-        ret = generic_eval(*this,
-                           ctx,
-                           std::move(params),
-                           with_check_context([&](auto& ins, auto f, auto&& check_context) {
-                               ctx.finish();
-                               std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                               timer t{};
-                               auto result = check_context(f);
-                               double t1   = t.record<milliseconds>();
-                               ctx.finish();
-                               double t2 = t.record<milliseconds>();
-                               std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                               if(trace_level > 1 and ins->name().front() != '@' and
-                                  ins->name() != "load" and not result.empty())
-                               {
-                                   target tgt  = make_target(this->impl->target_name);
-                                   auto buffer = tgt.copy_from(result);
-                                   if(trace_level == 2)
-                                   {
-                                       std::cout << "Output has "
-                                                 << to_string_range(classify_argument(buffer))
-                                                 << std::endl;
-                                       std::cout << "Output: ";
-                                       preview_argument(std::cout, buffer);
-                                       std::cout << std::endl;
-                                   }
-                                   else
-                                   {
-                                       std::cout << "Output: " << buffer << std::endl;
-                                   }
-                               }
-                               return result;
-                           }));
+        ret = generic_eval(
+            *this,
+            ctx,
+            std::move(params),
+            with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                ctx.finish();
+                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                timer t{};
+                auto result = check_context(f);
+                double t1   = t.record<milliseconds>();
+                ctx.finish();
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
+                   not result.empty())
+                {
+                    migraphx::argument buffer;
+                    try
+                    {
+                        target tgt = make_target(this->impl->target_name);
+                        buffer     = tgt.copy_from(result);
+                    }
+                    catch(const migraphx::exception&)
+                    {
+                        // instruction was run on host then no need to copy buffer from target
+                        buffer = result;
+                    }
+                    catch(...)
+                    {
+                        MIGRAPHX_THROW(
+                            "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
+                    }
+                    if(trace_level == 2)
+                    {
+                        std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                                  << std::endl;
+                        std::cout << "Output: ";
+                        preview_argument(std::cout, buffer);
+                        std::cout << std::endl;
+                    }
+                    else
+                    {
+                        std::cout << "Output: " << buffer << std::endl;
+                    }
+                }
+                return result;
+            }));
     }
     else
     {

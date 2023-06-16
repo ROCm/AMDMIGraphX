@@ -528,22 +528,21 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
                not result.empty())
             {
-                 migraphx::argument buffer;
-                    try
-                    {
-                        const target& tgt = this->impl->targets[ins->get_target_id()];
-                        buffer     = tgt.copy_from(result);
-                    }
-                    catch(const migraphx::exception&)
-                    {
-                        // instruction was run on host then no need to copy buffer from target
-                        buffer = result;
-                    }
-                    catch(...)
-                    {
-                        MIGRAPHX_THROW(
-                            "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
-                    }
+                migraphx::argument buffer;
+                try
+                {
+                    const target& tgt = this->impl->targets[ins->get_target_id()];
+                    buffer            = tgt.copy_from(result);
+                }
+                catch(const migraphx::exception&)
+                {
+                    // instruction was run on host then no need to copy buffer from target
+                    buffer = result;
+                }
+                catch(...)
+                {
+                    MIGRAPHX_THROW("MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
+                }
                 if(trace_level == 2)
                 {
                     std::cout << "Output has " << to_string_range(classify_argument(buffer))

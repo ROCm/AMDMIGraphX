@@ -1849,32 +1849,38 @@ TEST_CASE(cosh_dyn_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(convert_nan_upcast_test) {
+TEST_CASE(convert_nan_upcast_test)
+{
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::half_type, {2, 2}};
     std::vector<migraphx::half> data(4, std::numeric_limits<migraphx::half>::quiet_NaN());
-    auto l                  = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4, -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {return std::isnan(x);}));
+    EXPECT(std::all_of(
+        results_vector.begin(), results_vector.end(), [](const auto& x) { return std::isnan(x); }));
 }
 
-TEST_CASE(convert_nan_downcast_test) {
+TEST_CASE(convert_nan_downcast_test)
+{
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::double_type, {2, 2}};
     std::vector<double> data(4, std::numeric_limits<double>::quiet_NaN());
-    auto l                  = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(4, -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {return std::isnan(x);}));
+    EXPECT(std::all_of(
+        results_vector.begin(), results_vector.end(), [](const auto& x) { return std::isnan(x); }));
 }
 
 TEST_CASE(deconv_1d_test)

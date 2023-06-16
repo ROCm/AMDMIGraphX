@@ -4832,6 +4832,39 @@ TEST_CASE(multibroadcast_2in_dyn_test)
     EXPECT(output(1, 1) == -3);
 }
 
+TEST_CASE(multibroadcast_3in_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::int32_type, {{2, 4}, {2, 2}}};
+    migraphx::shape b_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape c_shape{migraphx::shape::int32_type, {{1, 4, {2, 4}}, {2, 4}, {2, 2}}};
+    auto l1 = mm->add_parameter("a", a_shape);
+    std::vector<int32_t> b_data{-2, -3};
+    auto l2 = mm->add_literal(migraphx::literal{b_shape, b_data});
+    auto l3 = mm->add_parameter("c", c_shape);
+    mm->add_instruction(migraphx::make_op("multibroadcast"), l2, l1, l3);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int32_t> a_data(4, 0);
+    std::vector<int32_t> c_data(8, 0);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape_a{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape input_fixed_shape_c{migraphx::shape::float_type, {2, 2, 2}};
+    params["a"] = migraphx::argument(input_fixed_shape_a, a_data.data());
+    params["c"] = migraphx::argument(input_fixed_shape_c, c_data.data());
+    auto result = p.eval(params).back();
+    auto output = result.get<int32_t>();
+    EXPECT(output(0, 0, 0) == -2);
+    EXPECT(output(0, 0, 1) == -3);
+    EXPECT(output(0, 1, 0) == -2);
+    EXPECT(output(0, 1, 1) == -3);
+    EXPECT(output(1, 0, 0) == -2);
+    EXPECT(output(1, 0, 1) == -3);
+    EXPECT(output(1, 1, 0) == -2);
+    EXPECT(output(1, 1, 1) == -3);
+}
+
 TEST_CASE(multinomial_test)
 {
     migraphx::program p;

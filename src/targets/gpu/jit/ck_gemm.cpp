@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <fstream>
-#include <filesystem>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>

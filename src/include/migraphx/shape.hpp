@@ -156,14 +156,34 @@ struct shape
 
     shape(const std::vector<shape>& subs);
 
+    /**
+     * Creates an output shape with dimensions equal to the input lengths and strides determined
+     * by the permutation argument such that find_permutation() of the output shape returns the
+     * inputted permuation.
+     *
+     * 2D example:
+     *   parameters:
+     *     l = [2, 3], perm = [1, 0]
+     *   therefore:
+     *     "original" shape = {lens = [3, 2], strides = [2, 1]}
+     *     output_shape = {lens = [2, 3], strides = [1, 2]
+     *
+     * 3D example:
+     *   parameters:
+     *     l = [2, 3, 4], perm = [1, 2, 0]
+     *   therefore:
+     *     "original" shape = {lens = [3, 4, 2], strides = [8, 2, 1]}
+     *     output_shape = {lens = [2, 3, 4], strides = [1, 8, 2]}
+     */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
+
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
 
     /*!
-     * The number of dimensions in the shape.
+     * The number of dimensions in the shape, either static or dynamic.
      * Same as the number of indices required to get a data value.
      */
     std::size_t ndim() const;

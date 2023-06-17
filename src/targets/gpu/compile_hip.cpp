@@ -248,7 +248,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            std::cout << std::string(src.content.first, src.len()) << std::endl;
+            std::cout << std::string(src.content) << std::endl;
         }
     }
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
@@ -338,7 +338,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            std::cout << std::string(src.content.first, src.len()) << std::endl;
+            std::cout << std::string(src.content) << std::endl;
         }
     }
 

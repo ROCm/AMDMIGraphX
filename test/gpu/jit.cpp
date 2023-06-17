@@ -155,7 +155,7 @@ int main() {}
 
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
-    return {name, std::make_pair(content.data(), content.data() + content.size())};
+    return {name, content};
 }
 
 TEST_CASE(simple_compile_hip)

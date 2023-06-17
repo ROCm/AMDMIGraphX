@@ -183,7 +183,7 @@ struct shape
     const std::vector<std::size_t>& strides() const;
 
     /*!
-     * The number of dimensions in the shape.
+     * The number of dimensions in the shape, either static or dynamic.
      * Same as the number of indices required to get a data value.
      */
     std::size_t ndim() const;
@@ -298,6 +298,8 @@ struct shape
         type max() const { return std::numeric_limits<type>::max(); }
 
         type min() const { return std::numeric_limits<type>::lowest(); }
+
+        type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
 
         template <class U>
         type operator()(U u) const

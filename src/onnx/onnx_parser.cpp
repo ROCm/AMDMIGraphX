@@ -149,6 +149,25 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
     return this->add_common_op(op_name, arg0, arg1);
 }
 
+/**
+ * @brief A wrapper for insert_common_args(), which constructs an argument list
+ * and inserts multibroadcast and convert ops to match inputs to a common shape and type
+ * as required.  The requested operation is placed after the added multibroadcast and convert ops,
+ * if any, so that their results are transparent to the programmer.
+ *
+ * Use add_common_op() to match input sizes when inputs may be
+ *  either static or dynamic.
+ *
+ * @param op_name               string; Name of operation (op) to add; valid names are the same as
+ * for make_op()
+ *
+ * @param inputs                vector of instruction_ref.  List of instructions for the new
+ * operator.  Multibroadcast and convert operations, if needed, are deduced from these too.
+ *
+ * @return instruction_ref      Returns an instruction_ref which is the result of the requested
+ * operation.
+ *
+ */
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const
 {

@@ -44,11 +44,45 @@ else()
     set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
 endif()
 
-include(Embed)
-file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
-message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-add_embed_library(migraphx_kernels ${KERNEL_FILES})
+set(KERNEL_FILES
+    kernels/include/migraphx/kernels/algorithm.hpp
+    kernels/include/migraphx/kernels/args.hpp
+    kernels/include/migraphx/kernels/array.hpp
+    kernels/include/migraphx/kernels/concat.hpp
+    kernels/include/migraphx/kernels/debug.hpp
+    kernels/include/migraphx/kernels/dfor.hpp
+    kernels/include/migraphx/kernels/dpp.hpp
+    kernels/include/migraphx/kernels/functional.hpp
+    kernels/include/migraphx/kernels/gather.hpp
+    kernels/include/migraphx/kernels/gathernd.hpp
+    kernels/include/migraphx/kernels/generic_constant.hpp
+    kernels/include/migraphx/kernels/hip.hpp
+    kernels/include/migraphx/kernels/index.hpp
+    kernels/include/migraphx/kernels/integral_constant.hpp
+    kernels/include/migraphx/kernels/iota_iterator.hpp
+    kernels/include/migraphx/kernels/layernorm.hpp
+    kernels/include/migraphx/kernels/math.hpp
+    kernels/include/migraphx/kernels/ops.hpp
+    kernels/include/migraphx/kernels/pad.hpp
+    kernels/include/migraphx/kernels/pointwise.hpp
+    kernels/include/migraphx/kernels/preload.hpp
+    kernels/include/migraphx/kernels/print.hpp
+    kernels/include/migraphx/kernels/ranges.hpp
+    kernels/include/migraphx/kernels/reduce.hpp
+    kernels/include/migraphx/kernels/roialign.hpp
+    kernels/include/migraphx/kernels/scatternd.hpp
+    kernels/include/migraphx/kernels/shape.hpp
+    kernels/include/migraphx/kernels/softmax.hpp
+    kernels/include/migraphx/kernels/tensor_view.hpp
+    kernels/include/migraphx/kernels/type_traits.hpp
+    kernels/include/migraphx/kernels/types.hpp
+    kernels/include/migraphx/kernels/vec.hpp
+    kernels/include/migraphx/kernels/vectorize.hpp)
+
+if(NOT WIN32)
+    include(Embed)
+    add_embed_library(migraphx_kernels ${KERNEL_FILES})
+endif()
 
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})

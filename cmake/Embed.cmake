@@ -24,11 +24,8 @@
 find_program(EMBED_LD ld)
 find_program(EMBED_OBJCOPY objcopy)
 
-if(LINUX)
-    option(EMBED_USE_LD "Use ld to embed data files" ON)
-else()
-    option(EMBED_USE_LD "Use ld to embed data files" OFF)
-endif()
+include(CMakeDependentOption)
+cmake_dependent_option(EMBED_USE_LD "Use ld to embed data files" ON "NOT WIN32" OFF)
 
 function(wrap_string)
     set(options)
@@ -79,16 +76,17 @@ function(generate_embed_source EMBED_NAME)
         list(GET PARSE_SYMBOLS ${idx} SYMBOL)
         list(GET PARSE_OBJECTS ${idx} OBJECT)
         set(START_SYMBOL "_binary_${SYMBOL}_start")
-        set(END_SYMBOL "_binary_${SYMBOL}_end")
+        set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
         if(EMBED_USE_LD)
             string(APPEND EXTERNS "
                 extern const char ${START_SYMBOL}[];
-                extern const char ${END_SYMBOL}[];
+                extern const size_t _binary_${SYMBOL}_size;
+                const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
             ")
         else()
             string(APPEND EXTERNS "
                 extern const char ${START_SYMBOL}[];
-                extern const char* ${END_SYMBOL};
+                extern const size_t ${LENGTH_SYMBOL};
             ")
         endif()
 
@@ -97,23 +95,23 @@ function(generate_embed_source EMBED_NAME)
         string(REGEX REPLACE ".[A-Za-z0-9_]+$" "" BASE_NAME ${BASE_NAME})
 
         string(APPEND INIT_KERNELS "
-            { \"${BASE_NAME}\", { ${START_SYMBOL}, ${END_SYMBOL}} },
+            { \"migraphx/kernels/${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL} } },
         ")
     endforeach()
 
     file(WRITE "${PARSE_HEADER}" "
-#include <unordered_map>
-#include <string>
 #include <utility>
-const std::unordered_map<std::string, std::pair<const char*,const char*>>& ${EMBED_NAME}();
+#include <string_view>
+#include <vector>
+std::vector<std::pair<std::string_view, std::string_view>> ${EMBED_NAME}();
 ")
 
     file(WRITE "${PARSE_SRC}" "
 #include <${EMBED_NAME}.hpp>
 ${EXTERNS}
-const std::unordered_map<std::string, std::pair<const char*,const char*>>& ${EMBED_NAME}()
+std::vector<std::pair<std::string_view, std::string_view>> ${EMBED_NAME}()
 {
-    static const std::unordered_map<std::string, std::pair<const char*,const char*>> result = {${INIT_KERNELS}};
+    static std::vector<std::pair<std::string_view, std::string_view>> result = {${INIT_KERNELS}};
     return result;
 }
 ")
@@ -155,22 +153,18 @@ function(embed_file OUTPUT_FILE OUTPUT_SYMBOL FILE)
             string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
             file(WRITE "${OUT_FILE}" "
                 extern const char _binary_${SYMBOL}_start[] = { ${ARRAY_VALUES} };
-                extern const char* _binary_${SYMBOL}_end = _binary_${SYMBOL}_start + sizeof(_binary_${SYMBOL}_start);
+                extern const size_t _binary_${SYMBOL}_length = sizeof(_binary_${SYMBOL}_start);
             \n")
         endif()
     endforeach()
 endfunction()
 
 function(add_embed_library EMBED_NAME)
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/embed)
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/embed/${EMBED_NAME})
     set(EMBED_DIR ${CMAKE_CURRENT_BINARY_DIR}/embed/${EMBED_NAME})
+    file(MAKE_DIRECTORY ${EMBED_DIR})
     set(SRC_FILE "${EMBED_DIR}/${EMBED_NAME}.cpp")
     set(HEADER_FILE "${EMBED_DIR}/include/${EMBED_NAME}.hpp")
-    set(WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    set(OUTPUT_FILES)
-    set(SYMBOLS)
-    message(STATUS "Embedding files")
+    message(STATUS "Embedding kernel files: ${ARGN}")
     foreach(FILE ${ARGN})
         embed_file(OUTPUT_FILE OUTPUT_SYMBOL ${FILE})
         list(APPEND OUTPUT_FILES ${OUTPUT_FILE})

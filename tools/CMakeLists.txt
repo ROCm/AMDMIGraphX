@@ -22,4 +22,8 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_custom_target(generate bash ${CMAKE_CURRENT_SOURCE_DIR}/generate.sh)
+if(WIN32)
+    add_custom_target(generate generate.cmd WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+else()
+    add_custom_target(generate bash ${CMAKE_CURRENT_SOURCE_DIR}/generate.sh)
+endif()

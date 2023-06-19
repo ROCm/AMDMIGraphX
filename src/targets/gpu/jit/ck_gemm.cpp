@@ -50,6 +50,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING_VALUE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_DEBUG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TUNE_CK);
 
 // NOLINTNEXTLINE
 static const char* const ck_gemm_kernel = R"__migraphx__(
@@ -436,8 +437,10 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     }
 
     optional<tuning_config>
-    get_tuning_config(context& ctx, instruction_ref ins, const operation& op) const
+    get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
+        if (not exhaustive and not enabled(MIGRAPHX_TUNE_CK{}))
+            return nullopt;
         tuning_config tc;
         auto shapes    = to_shapes(ins->inputs());
         auto problem   = create_problem(shapes, create_settings(ins, op));

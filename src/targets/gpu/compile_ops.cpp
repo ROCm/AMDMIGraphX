@@ -113,7 +113,7 @@ struct compile_plan
     instruction_ref ins;
     optional<tuning_config> config       = nullopt;
     std::vector<compiled_result> results = {};
-    void update_config() { config = get_tuning_config(*ctx, ins, preop); }
+    void update_config(bool exhaustive) { config = get_tuning_config(*ctx, ins, preop, exhaustive); }
     template <class Vector>
     void add_compiles(Vector& compiles, problem_cache& pc)
     {
@@ -202,9 +202,7 @@ struct compile_manager
 
     void update_configs()
     {
-        if(not exhaustive)
-            return;
-        par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
+        par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
     void compile(module& m)

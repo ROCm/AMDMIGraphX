@@ -79,7 +79,7 @@ using compiler_compile =
 using compiler_compile_op =
     std::function<operation(context&, const std::vector<shape>& inputs, const value&)>;
 using compiler_tuning_config =
-    std::function<optional<tuning_config>(context&, instruction_ref, const operation&)>;
+    std::function<optional<tuning_config>(context&, instruction_ref, const operation&, bool)>;
 
 void register_compiler(const std::string& name,
                        compiler_compile c,
@@ -91,7 +91,7 @@ compiler_replace
 compile(context& ctx, instruction_ref ins, const operation& op, const value& solution);
 operation
 compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v);
-optional<tuning_config> get_tuning_config(context& ctx, instruction_ref ins, const operation& op);
+optional<tuning_config> get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive);
 
 template <class T>
 void register_compiler()
@@ -125,7 +125,7 @@ template <class Derived>
 struct compiler : auto_register_compiler<Derived>
 {
     const Derived& derived() const { return static_cast<const Derived&>(*this); }
-    optional<tuning_config> get_tuning_config(context&, instruction_ref, const operation&) const
+    optional<tuning_config> get_tuning_config(context&, instruction_ref, const operation&, bool) const
     {
         return nullopt;
     }

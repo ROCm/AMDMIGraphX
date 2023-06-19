@@ -37,10 +37,13 @@ namespace op {
  * 1 input version:
  * Broadcasts a tensor from the original shape to the broadcast_lens by setting the stride of
  * broadcasted dimensions to zero. `axis` attribute for a 1D input shape is the output dimension
- * that stays the same. ex: broadcasting shape [1024] -> [4, 1024, 3] has axis = 1 For higher rank
- * input shapes, axis is an offset parameter for the broadcasting. Such that this operator would
- * work in the opposite direction of NumPy broadcasting. ex: broadcasting shape [2, 2] -> [2, 2, 3]
- * with axis = 0
+ * that stays the same.
+ * ex: broadcasting shape [1024] -> [4, 1024, 3] has axis = 1.
+ *
+ * For higher rank input shapes, axis is an offset parameter for the broadcasting.
+ * Such that this operator would work in the opposite direction of NumPy broadcasting
+ * (left-most to rightwards element-wise comparison)
+ * ex: broadcasting shape [2, 2] -> [2, 2, 3] with axis = 0
  *
  * 2 input version:
  * Broadcast the first input 1D shape into the second input shape based on the axis parameter.

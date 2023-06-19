@@ -48,7 +48,7 @@ constexpr T normalize(unsigned long z)
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max      = 1UL << (sizeof(T) * 5);
+    const auto max      = 1ULL << (sizeof(T) * 5);
     const auto half_max = max / 2;
     return half_max - (z % max);
 }
@@ -58,7 +58,7 @@ template <class T,
                             not std::is_same<T, bool>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max = 1UL << (sizeof(T) * 5);
+    const auto max = 1ULL << (sizeof(T) * 5);
     return z % max;
 }
 

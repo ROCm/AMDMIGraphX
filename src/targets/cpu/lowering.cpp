@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/cpu/lowering.hpp>
+#if !defined(_MSC_VER)
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/identity.hpp>
@@ -51,12 +52,15 @@
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
+#endif
 #include <migraphx/program.hpp>
+#if !defined(_MSC_VER)
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/match/gelu_erf.hpp>
 #include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/matcher.hpp>
+#endif
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -65,6 +69,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
+#if !defined(_MSC_VER)
 template <typename T>
 T zero(const T&)
 {
@@ -445,8 +450,14 @@ struct cpu_apply
         return modl->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 };
+#endif
 
-void lowering::apply(module& m) const { cpu_apply{&m}.apply(); }
+void lowering::apply(module& m) const
+{
+#if !defined(_MSC_VER)
+    cpu_apply{&m}.apply();
+#endif
+}
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

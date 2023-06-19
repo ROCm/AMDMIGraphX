@@ -33,7 +33,10 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
+if(NOT WIN32)
+    # TODO: reenable when CK is ported to Windows
+    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+endif()
 
 if(BUILD_DEV)
     set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
@@ -84,7 +87,6 @@ target_link_libraries(kernel_file_check compile_for_gpu)
 
 rocm_clang_tidy_check(kernel_file_check)
 
-file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -131,8 +133,23 @@ add_library(migraphx_gpu
     time_op.cpp
     topk.cpp
     write_literals.cpp
-    ${JIT_GPU_SRCS}
+    jit/concat.cpp
+    jit/gather.cpp
+    jit/gathernd.cpp
+    jit/layernorm.cpp
+    jit/mlir.cpp
+    jit/pad.cpp
+    jit/pointwise.cpp
+    jit/reduce.cpp
+    jit/roialign.cpp
+    jit/scatternd.cpp
+    jit/softmax.cpp
 )
+
+if(NOT WIN32)
+    target_sources(migraphx_gpu PRIVATE jit/ck_gemm.cpp)
+endif()
+
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 
@@ -255,7 +272,10 @@ else()
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+if(NOT WIN32)
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+endif()
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)

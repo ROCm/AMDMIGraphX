@@ -439,7 +439,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
-        if (not exhaustive and not enabled(MIGRAPHX_TUNE_CK{}))
+        if(not exhaustive and not enabled(MIGRAPHX_TUNE_CK{}))
             return nullopt;
         tuning_config tc;
         auto shapes    = to_shapes(ins->inputs());

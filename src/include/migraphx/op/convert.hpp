@@ -66,9 +66,7 @@ struct convert : unary<convert>
         auto type = target_type;
         return [type](auto x) {
             auto y = x;
-            shape::visit(type, [&](auto as) {
-               y = as(x); 
-            });
+            shape::visit(type, [&](auto as) { y = as(x); });
             return y;
         };
     }

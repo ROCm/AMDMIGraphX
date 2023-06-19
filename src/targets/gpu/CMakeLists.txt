@@ -162,6 +162,8 @@ add_library(migraphx_gpu
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 
+target_link_options(migraphx_gpu PUBLIC -Wno-option-ignored)
+
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
         register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)

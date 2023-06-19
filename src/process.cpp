@@ -26,17 +26,21 @@
 #include <migraphx/env.hpp>
 #include <functional>
 #include <iostream>
+
+#ifdef _WIN32
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#else
 #include <unistd.h>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_CMD_EXECUTE)
 
-std::function<void(const char*)> redirect_to(std::ostream& os)
-{
-    return [&](const char* x) { os << x; };
-}
+#ifndef _WIN32
 
 template <class F>
 int exec(const std::string& cmd, const char* type, F f)
@@ -58,10 +62,11 @@ int exec(const std::string& cmd, const char* type, F f)
     return ec;
 }
 
-int exec(const std::string& cmd, const std::function<void(const char*)>& std_out)
+int exec(const std::string& cmd)
 {
+    auto std_out{[](const char* x) { std::cout << x; }};
     return exec(cmd, "r", [&](FILE* f) {
-        std::array<char, 128> buffer;
+        std::array<char, 128> buffer{};
         while(fgets(buffer.data(), buffer.size(), f) != nullptr)
             std_out(buffer.data());
     });
@@ -73,6 +78,131 @@ int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
         std_in([&](const char* buffer, std::size_t n) { std::fwrite(buffer, 1, n, f); });
     });
 }
+
+#else
+
+#define MIGRAPHX_PROCESS_BUFSIZE 4096
+
+class pipe
+{
+    public:
+    explicit pipe(bool inherit_handle = true)
+    {
+        SECURITY_ATTRIBUTES attrs;
+        attrs.nLength              = sizeof(SECURITY_ATTRIBUTES);
+        attrs.bInheritHandle       = inherit_handle ? TRUE : FALSE;
+        attrs.lpSecurityDescriptor = nullptr;
+
+        if(CreatePipe(&hRead_, &hWrite_, &attrs, 0) == FALSE)
+            throw GetLastError();
+
+        if(SetHandleInformation(&hRead_, HANDLE_FLAG_INHERIT, 0) == FALSE)
+            throw GetLastError();
+    }
+
+    ~pipe()
+    {
+        close_write_handle();
+        close_read_handle();
+    }
+
+    HANDLE get_read_handle() const { return hRead_; }
+
+    void close_read_handle()
+    {
+        if(hRead_ != nullptr)
+        {
+            CloseHandle(hRead_);
+            hRead_ = nullptr;
+        }
+    }
+
+    HANDLE get_write_handle() const { return hWrite_; }
+
+    void close_write_handle()
+    {
+        if(hWrite_ != nullptr)
+        {
+            CloseHandle(hWrite_);
+            hWrite_ = nullptr;
+        }
+    }
+
+    private:
+    HANDLE hWrite_{nullptr}, hRead_{nullptr};
+};
+
+int exec(const std::string& cmd)
+{
+    try
+    {
+        if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
+            std::cout << cmd << std::endl;
+
+        pipe stdin_{}, stdout_{};
+
+        STARTUPINFO info;
+        PROCESS_INFORMATION processInfo;
+
+        ZeroMemory(&info, sizeof(STARTUPINFO));
+        info.cb         = sizeof(STARTUPINFO);
+        info.hStdError  = stdout_.get_write_handle();
+        info.hStdOutput = stdout_.get_write_handle();
+        info.hStdInput  = stdin_.get_read_handle();
+        info.dwFlags |= STARTF_USESTDHANDLES;
+
+        ZeroMemory(&processInfo, sizeof(processInfo));
+
+        LPSTR lpCmdLn{const_cast<LPSTR>(cmd.c_str())};
+
+        BOOL bSuccess = CreateProcess(
+            nullptr, lpCmdLn, nullptr, nullptr, TRUE, 0, nullptr, nullptr, &info, &processInfo);
+
+        if(bSuccess == FALSE)
+            return GetLastError();
+
+        DWORD dwRead, dwWritten;
+        TCHAR chBuf[MIGRAPHX_PROCESS_BUFSIZE];
+        HANDLE hStdOut{GetStdHandle(STD_OUTPUT_HANDLE)};
+
+        for(;;)
+        {
+            BOOL bRead = ReadFile(
+                stdout_.get_read_handle(), chBuf, MIGRAPHX_PROCESS_BUFSIZE, &dwRead, nullptr);
+
+            if(bRead == FALSE)
+            {
+                if(GetLastError() != ERROR_MORE_DATA)
+                    break;
+            }
+
+            if(dwRead == 0)
+                break;
+
+            BOOL bWrite = WriteFile(hStdOut, chBuf, dwRead, &dwWritten, nullptr);
+
+            if(bWrite == FALSE)
+                break;
+        }
+
+        WaitForSingleObject(processInfo.hProcess, INFINITE);
+
+        DWORD status{};
+        GetExitCodeProcess(processInfo.hProcess, &status);
+
+        CloseHandle(processInfo.hProcess);
+        CloseHandle(processInfo.hThread);
+
+        return static_cast<int>(status);
+    }
+    // cppcheck-suppress catchExceptionByValue
+    catch(DWORD lastError)
+    {
+        return lastError;
+    }
+}
+
+#endif
 
 struct process_impl
 {
@@ -119,11 +249,15 @@ process& process::cwd(const fs::path& p)
     return *this;
 }
 
-void process::exec() { impl->check_exec(impl->get_command(), redirect_to(std::cout)); }
+void process::exec() { impl->check_exec(impl->get_command()); }
 
 void process::write(std::function<void(process::writer)> pipe_in)
 {
+#ifdef _WIN32
+    impl->check_exec(impl->get_command());
+#else
     impl->check_exec(impl->get_command(), std::move(pipe_in));
+#endif
 }
 
 } // namespace MIGRAPHX_INLINE_NS

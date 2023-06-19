@@ -37,6 +37,7 @@ void run_pass(migraphx::program& p)
     migraphx::run_passes(p, {migraphx::gpu::fuse_mlir{}, migraphx::dead_code_elimination{}});
 }
 
+// NOLINTNEXTLINE
 #define VERIFY_MLIR(pass, ref)            \
     do                                    \
     {                                     \
@@ -52,7 +53,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
                                    F f)
 {
     assert(inputs.size() == arg_names.size() && "One interior parameter name given per input.");
-    auto mm  = p.get_main_module();
+    auto* mm = p.get_main_module();
     auto* pm = p.create_module(name);
     pm->set_bypass();
     std::vector<migraphx::instruction_ref> params;

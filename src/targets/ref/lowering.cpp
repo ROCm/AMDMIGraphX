@@ -88,13 +88,13 @@ struct ref_lrn
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
-            int n_batch         = output_shape.lens()[0];
-            int channels        = output_shape.lens()[1];
-            int height          = output_shape.lens()[2];
-            int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / float(op.size);
-            int radius_lower    = (op.size - 1) / 2;
-            int radius_upper    = op.size / 2 + 1;
+            auto n_batch       = output_shape.lens()[0];
+            auto channels      = output_shape.lens()[1];
+            auto height        = output_shape.lens()[2];
+            auto width         = output_shape.lens()[3];
+            auto alphaoverarea = op.alpha / float(op.size);
+            auto radius_lower  = (op.size - 1) / 2;
+            auto radius_upper  = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
                 float scale = 0;
@@ -185,9 +185,7 @@ struct ref_im2col
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
-                                          ? input(0, c, idx, jdx)
-                                          : 0;
+                        col(ldx, p) = ((idx < height) && (jdx < width)) ? input(0, c, idx, jdx) : 0;
                         p++;
                     });
                 }

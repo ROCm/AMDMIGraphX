@@ -638,6 +638,40 @@ TEST_CASE(avgpool_dyn_test)
 
 TEST_CASE(avgpool_dyn_pad_test)
 {
+    // pooling with dynamic input and padding, ceiling mode for output size
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1, 3}, {2, 4}, {2, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"lengths", {2, 2}},
+                                           {"padding", {1, 0}},
+                                           {"ceil_mode", true},
+                                           {"stride", {2, 2}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4, 5, 6};
+
+    //      0  0  0
+    //      1  2  3
+    //      4  5  6        0-padding will look like this
+    //      0  0  0
+
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 3}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{0.75, 1.5, 2.25, 3.};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_dyn_pad_ceil_test)
+{
     // pooling with dynamic input and padding
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -665,8 +699,6 @@ TEST_CASE(avgpool_dyn_pad_test)
     auto result = p.eval(params).back();
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    // printf("**** result: ");
-    // for(auto aa : results_vector) printf(" %f,", aa);printf("\n");
     // clang-format off
     std::vector<float> gold{0.166667, 0.500000, 0.500000, 0.333333, 
                             0.666667, 1.666667, 1.666667, 1.000000, 
@@ -698,10 +730,9 @@ TEST_CASE(avgpool_rank3_stride2_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    // printf("**** result: ");
-    // for(auto aa : results_vector) printf(" %f,", aa);printf("\n");
+
     // clang-format off
-    std::vector<float> gold{1.6321, -1.0974, -1.4232,
+    std::vector<float> gold{1.6321, -1.09735, -1.4232,
                             0.8158, 0.0477, -0.1361, 
                             -0.3442, 1.22005, 1.5295,
                             0.9965, 0.7854, -0.2915};
@@ -4348,6 +4379,35 @@ TEST_CASE(maxpool_test)
     EXPECT(migraphx::verify_range(results_vector, c));
 }
 
+TEST_CASE(maxpool_pad_test)
+{
+    migraphx::program p;
+    auto* mm             = p.get_main_module();
+    std::vector<float> a = {-6, -5, -4, -3, -5, -1, 0, 1, 2, 3, 4, 5};
+    std::vector<float> c = {-4, -3, -4, -1, 2, 3, 4, 5};
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 3, 2}};
+    auto al = mm->add_literal(migraphx::literal{a_shape, a});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {1, 1}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {3, 2}}}),
+                        al);
+
+    //   * *  *  *                                           * *  *  *
+    //   * -6 -5 *                                           * 0  1  *
+    //   * -4 -3 *      padding will look like this          * 2  3  *
+    //   * -5 -1 *                  and this                 * 4  5  *
+    //   * *  *  *      The * values are actually -INF       * *  *  *
+
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(8);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    EXPECT(migraphx::verify_range(results_vector, c));
+}
+
 TEST_CASE(maxpool_rank3_test0)
 {
     // 1D case 1, input is 3D
@@ -4421,21 +4481,12 @@ TEST_CASE(maxpool_rank3_ceil_test)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    // printf("**** result: ");
-    // for(auto aa : results_vector) printf(" %f,", aa);printf("\n");
 
-    std::vector<float> gold{0.4975,
-                            -0.0405,
-                            0,
-                            -0.6186,
-                            0.6022,
-                            1.1925,
-                            0.5493,
-                            -0.8039,
-                            0.9907,
-                            1.5001,
-                            -1.1603,
-                            1.2556};
+    // clang-format off
+    std::vector<float> gold{0.4975, -0.0405, -0.1227, -0.6186,
+                            0.6022, 1.1925, 0.5493, -0.8039,
+                            0.9907, 1.5001, -1.1603, 1.2556};
+    // clang-format on
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

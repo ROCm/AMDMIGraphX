@@ -45,36 +45,31 @@ struct pooling
     pooling_mode mode = {pooling_mode::average};
 
     // dimensions of the pooling kernel or window.  Must have size
-    // 2 smaller than the input tensor dimensions, since the first
-    // two indices are considered
-    // non-spatial: batch size and channel
+    // 2 smaller than the input tensor rank, since the first
+    // two dimensions are considered
+    // non-spatial: batch size and channel (NCHW layout)
     std::vector<std::size_t> lengths = {1, 1};
 
-    // Size of stride to take from one placement of the pooling kernel to the
-    // next.  Usually set the same as lengths so that the kernel tiles over
-    // the input with no gaps or overlaps.
-    // Must be the same size as lengths.
-
-    // This is distinct from the strides used by the shape class.
+    // Size of stride to take from one placement of the pooling kernel to the next.
+    // This is distinct from the strides used by the shape class.  If set the same as lengths, the
+    // kernel tiles over the input with no gaps or overlaps. Must be the same size as lengths.
     std::vector<std::size_t> stride = {1, 1};
 
     // The amount each dimension is padded, both before and after.  Can be
     // either the same size as lengths, or twice as long.  When padding
     // is double the length of lengths, the first n values are read as
     // pre-padding for each dimension and the last n values are post-padding.
-    // (The latter most commonly used if the total padding desired is an odd number)
+    // (The latter is necessary if the total padding desired is an odd number)
     std::vector<std::size_t> padding = {0, 0};
 
     // Dilations are not supported at this time.
 
-    // ceiling mode flag.  When true, round the size of output up and add
-    // padding as necessary to allow placements of the pooling kernel.
-    // When false, round down NEW: also clip the pooling window if it extends
-    // beyond the input bounds, leaving padding cells out of the calculation.
-    // (It's still possible fot the window to start on a padding cell if it
-    // extends partially into the input bounds)
-    // TODO:  should this be true or false by default?  Should it be set to true whenever any
-    // padding is given?
+    // ceiling mode is a flag affecting output size
+    // or equivalently, placements of the pooling kernel.
+    // When true, round the size upwards, possibly
+    // including partial placements where the kernel extends beyond the edge
+    // of input and even padding.  When false, round down so that all
+    // kernel placements fit but some input values may be dropped.
     bool ceil_mode = false;
     int lp_order   = 2;
 
@@ -97,7 +92,7 @@ struct pooling
 
     void check_attribute_size() const
     {
-        if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
+        if((padding.size() != stride.size() and (padding.size()) != stride.size() * 2) or
            (not dyn_global and stride.size() != lengths.size()))
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
@@ -141,7 +136,7 @@ struct pooling
         const shape& input = inputs.at(0);
         auto padding_size  = padding.size();
         size_t kdims       = input.ndim() - 2;
-        if(input.ndim() != padding_size / 2 + 2 and input.ndim() != padding_size + 2)
+        if(input.ndim() * 2 != padding_size + 4 and input.ndim() != padding_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
@@ -161,7 +156,7 @@ struct pooling
             }
             else
             {
-                // does not compute for optimals
+                // does not compute optimals
                 auto min_spatial_dims = calc_spatial_dim_out(input.min_lens(), kdims);
                 auto max_spatial_dims = calc_spatial_dim_out(input.max_lens(), kdims);
                 for(size_t i = 0; i < kdims; ++i)
@@ -178,7 +173,7 @@ struct pooling
 
             std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
             // Used for when normalize_compute_shape() is called again at model eval time
-            // for an originally dynamic shape. Since kernel shape is not used with dyn_global.
+            // for an originally dynamic shape. Kernel shape is not used with dyn_global.
             if(dyn_global)
             {
                 for(size_t i = 0; i < kdims; ++i)
@@ -251,20 +246,14 @@ struct pooling
     {
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
-        // printf("strides ");for(auto aa : stride) std::cout << aa << ", ";    std::cout << "\n";
-        // printf("in_lens ");for(auto aa : in_lens) std::cout << aa << ", ";    std::cout << "\n";
 
         // For each element of output; i.e., for each placement of pooling kernel...
         par_for(output_shape.elements(), [&](auto i) {
             auto idx_o = output_shape.multi(i);
             auto n_dim = idx_o.size();
-            // win_start is the starting offset of the pooling window
+            // starting offset of the pooling window
             std::vector<int> win_start;
-
-            // TODO Thu Jun 8 2023:  if we want to allow reduced-size non-pad windows, then
-            //   insert the clipped size into win_size.  if(!ceil_mode)...
             std::vector<std::size_t> win_size;
-            // printf("\n");
 
             // For each spatial dimension, find starting and ending index of pooling kernel
             for(std::size_t dim = 2; dim < n_dim; ++dim)
@@ -272,23 +261,25 @@ struct pooling
                 auto d_2 = dim - 2;
                 int start =
                     static_cast<int>(idx_o[dim] * stride[d_2]) - static_cast<int>(padding[d_2]);
-
-                if(ceil_mode)
+                int end;
+                if(ceil_mode and (mode != pooling_mode::max))
                 {
-                    // In ceiling mode, the pooling kernel always fits, possibly using
-                    // padding values
-                    win_start.push_back(start);
-                    win_size.push_back(kernel_dims[d_2]);
+                    // If in ceiling mode, a window extending beyond the end of both input and
+                    // padding may need to be clipped.  For max pooling, padding is never
+                    // considered.  This matches behavior of Onnx Runtime.
+
+                    // Check if this kernel extends beyond the padding at end of dimension
+                    end = std::min(start + kernel_dims[d_2],
+                                   in_lens[dim] + static_cast<int>(padding[d_2]));
                 }
                 else
                 {
-                    // In non-ceiling mode, we clip the pooling kernel at the edges of the input
-                    // TODO: what is behavior when ceil_mode is false but padding is given?
-                    int end = std::min(start + kernel_dims[d_2], in_lens[dim]);
-                    start   = std::max(start, 0);
-                    win_start.push_back(start);
-                    win_size.push_back(end - start);
+                    // In non-ceiling mode or for max pooling, clip off padding.
+                    end   = std::min(start + kernel_dims[d_2], in_lens[dim]);
+                    start = std::max(start, 0);
                 }
+                win_start.push_back(start);
+                win_size.push_back(end - start);
             }
 
             shape win_shape{output_shape.type(), win_size};
@@ -307,7 +298,6 @@ struct pooling
                                win_start.begin(),
                                idx.begin() + 2,
                                [](auto ii, auto jj) { return ii + jj; });
-
                 // Check if any of coordinates are out of input tensor's range
                 if(std::mismatch(idx.begin() + 2,
                                  idx.end(),
@@ -315,20 +305,13 @@ struct pooling
                                  in_lens.end(),
                                  std::less<>{}) == std::make_pair(idx.end(), in_lens.end()))
                 {
-                    // std::cout <<  " idx  in bounds ";  for(auto aa : idx) std::cout << aa << ",
-                    // ";   std::cout << "\n"; std::cout <<  " window locations ";  for(auto aa :
-                    // win_start) std::cout << aa << ", ";   std::cout << "\n"; std::cout <<  " in_s
-                    // index   " << in_s.index(idx) << " data is " << input[in_s.index(idx)]  <<
-                    // "\n";
                     output_val = op(output_val, input[in_s.index(idx)]);
                 }
                 else
                 {
                     // this is a padding element.  Only zero-padding is supported.  Zeroes
-                    // don't contribute to average padding total but can play in max or
-                    // lpnorm padding.
-                    // std::cout <<  " idx out bounds ";  for(auto aa : idx) std::cout << aa << ",
-                    // ";   std::cout << "\n";
+                    // don't contribute to average or max pooling total but can play in
+                    // lpnorm pooling.
                     output_val = op(output_val, 0);
                 }
             });

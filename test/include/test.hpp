@@ -384,7 +384,7 @@ bool throws(F f, const std::string& msg = "")
 }
 
 template <class T, class U>
-auto near(T px, U py, double ptol = 1e-6f)
+auto make_near(T px, U py, double ptol = 1e-6f)
 {
     return make_function("near", [](auto x, auto y, auto tol) { return std::abs(x - y) < tol; })(
         px, py, ptol);

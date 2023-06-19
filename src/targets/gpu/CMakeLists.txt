@@ -236,16 +236,16 @@ else()
         string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     endforeach()
 
-    message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+    message(STATUS "Hip compiler flags: \"${HIP_COMPILER_FLAGS}\"")
     target_compile_definitions(migraphx_gpu PRIVATE
-        "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}"
-        "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}"
+        -DMIGRAPHX_HIP_COMPILER="${CMAKE_CXX_COMPILER}"
+        -DMIGRAPHX_HIP_COMPILER_FLAGS="${HIP_COMPILER_FLAGS}"
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
         execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
         string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
-        target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_HIP_COMPILER_LAUNCHER=${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
+        target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_HIP_COMPILER_LAUNCHER="${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
     endif()
 endif()
 

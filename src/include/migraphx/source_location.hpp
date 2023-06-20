@@ -37,26 +37,11 @@ using source_location = std::experimental::source_location;
 #else
 struct source_location
 {
-    static constexpr source_location current() noexcept
-    {
-        return source_location{};
-    }
-    constexpr std::uint_least32_t line() const noexcept
-    {
-        return 0;
-    }
-    constexpr std::uint_least32_t column() const noexcept
-    {
-        return 0;
-    }
-    constexpr const char* file_name() const noexcept
-    {
-        return "";
-    }
-    constexpr const char* function_name() const noexcept
-    {
-        return "";
-    }
+    static constexpr source_location current() noexcept { return source_location{}; }
+    constexpr std::uint_least32_t line() const noexcept { return 0; }
+    constexpr std::uint_least32_t column() const noexcept { return 0; }
+    constexpr const char* file_name() const noexcept { return ""; }
+    constexpr const char* function_name() const noexcept { return ""; }
 };
 #endif
 

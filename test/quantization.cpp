@@ -82,13 +82,18 @@ TEST_CASE(param_add)
         auto hp1 = mm->add_instruction(migraphx::make_op("convert"), p1);
         auto hp2 = mm->add_instruction(migraphx::make_op("convert"), p2);
         auto hs  = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
-        auto res = mm->add_instruction(
+        auto fs  = mm->add_instruction(
             migraphx::make_op("convert",
                               {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hs);
         if(add_return)
         {
-            mm->add_return({res});
+            mm->add_return({fs});
+        }
+        else
+        {
+
+            mm->add_instruction(migraphx::make_op("identity"), {fs});
         }
 
         return p;
@@ -159,10 +164,10 @@ TEST_CASE(param_add_sub)
         auto diff  = mm->add_instruction(migraphx::make_op("sub"), sum, p2);
         auto hdiff = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), diff);
-        auto res = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
-        auto r   = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), res);
-        mm->add_return({r});
+        auto hadd = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
+        auto fadd = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hadd);
+        mm->add_return({fadd});
 
         return p;
     };
@@ -258,7 +263,7 @@ TEST_CASE(param_add_sub)
         };
 
         auto p0 = create_program_float();
-        migraphx::run_passes(p0, {migraphx::quantize_fp16_pass{{"all"}}});
+        migraphx::quantize_fp16(p0);
         EXPECT(p0 == create_program_fp16());
 
         auto p1 = create_program_float();
@@ -278,7 +283,6 @@ TEST_CASE(literal_add)
         auto l1 = mm->add_literal(migraphx::literal(s, data));
         auto l2 = mm->add_literal(migraphx::literal(s, data));
         mm->add_instruction(migraphx::make_op("add"), l1, l2);
-
         return p;
     };
 
@@ -291,11 +295,11 @@ TEST_CASE(literal_add)
         auto l1 = mm->add_literal(migraphx::literal(s, data));
         auto l2 = mm->add_literal(migraphx::literal(s, data));
         auto hs = mm->add_instruction(migraphx::make_op("add"), l1, l2);
-        mm->add_instruction(
+        auto fs = mm->add_instruction(
             migraphx::make_op("convert",
                               {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hs);
-
+        mm->add_instruction(migraphx::make_op("identity"), fs);
         return p;
     };
 
@@ -435,7 +439,8 @@ TEST_CASE(fp16_subgraph)
     };
 
     auto p1 = create_program();
-    migraphx::quantize_fp16(p1);
+    migraphx::run_passes(
+        p1, {migraphx::quantize_fp16_pass{}, migraphx::dead_code_elimination{}}, std::cout);
 
     auto p2 = create_fp16_program();
 

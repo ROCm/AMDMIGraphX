@@ -111,7 +111,7 @@ struct compile_plan
     context* ctx;
     operation preop;
     instruction_ref ins;
-    optional<tuning_config> config       = nullopt;
+    optional<tuning_config> config                 = nullopt;
     std::vector<optional<compiled_result>> results = {};
     void update_config(bool exhaustive)
     {
@@ -180,9 +180,10 @@ struct compile_plan
         times.reserve(results.size());
         std::transform(
             results.begin(), results.end(), std::back_inserter(times), [&](const auto& cr) {
-                if (not cr.has_value())
+                if(not cr.has_value())
                     return std::numeric_limits<double>::max();
-                return time_op(*ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20).first;
+                return time_op(*ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20)
+                    .first;
             });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
@@ -203,7 +204,7 @@ void par_compile(std::size_t n, F f)
     if(n == 0)
         return;
     auto d = value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{});
-    if (d == 0)
+    if(d == 0)
         d = n;
     par_for(n, n / d, f);
 }

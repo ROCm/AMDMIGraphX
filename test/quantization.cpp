@@ -441,8 +441,6 @@ TEST_CASE(fp16_subgraph)
 
     auto p1 = create_program();
     migraphx::quantize_fp16(p1);
-    // migraphx::run_passes(
-    //   p1, {migraphx::quantize_fp16_pass{}, migraphx::dead_code_elimination{}}, std::cout);
 
     auto p2 = create_fp16_program();
 

@@ -99,14 +99,13 @@ struct convolution_backwards
     std::vector<std::size_t> calc_spatial_lens(std::vector<std::size_t> x_lens,
                                                std::vector<std::size_t> w_lens) const
     {
-        std::vector<size_t> spatial_lens = {};
-        size_t num_spatial_dims          = x_lens.size() - 2;
+        std::vector<size_t> spatial_lens(x_lens.size() - 2);
 
         // stride * (input - 1) + output_padding + ((kernel - 1) * dilation + 1) - padding_L -
         // padding_R. This assumes padding_L = padding_R and output_padding handled in parser.
-        for(size_t i = 0; i < num_spatial_dims; i++)
+        for(size_t i = 0; i < spatial_lens.size(); i++)
         {
-            spatial_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+            spatial_lens.at(i) = (std::size_t(std::max<std::ptrdiff_t>(
                 1,
                 stride[i] * (x_lens[i + 2] - 1) + ((w_lens[i + 2] - 1) * dilation[i] + 1) -
                     2 * padding[i])));

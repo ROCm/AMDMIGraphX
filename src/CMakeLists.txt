@@ -43,7 +43,6 @@ add_library(migraphx
     cpp_generator.cpp
     dead_code_elimination.cpp
     dom_info.cpp
-    dynamic_loader.cpp
     eliminate_allocation.cpp
     eliminate_common_subexpression.cpp
     eliminate_concat.cpp
@@ -104,6 +103,12 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
+if(WIN32)
+    target_sources(migraphx PRIVATE dynamic_loader_win32.cpp)
+    target_compile_definitions(migraphx PUBLIC -D_USE_MATH_DEFINES)
+else()
+    target_sources(migraphx PRIVATE dynamic_loader.cpp)
+endif()
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
@@ -246,28 +251,34 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
-check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
-if(HAS_LIB_STD_FILESYSTEM)
-target_link_libraries(migraphx PRIVATE -lstdc++fs)
+if(NOT WIN32)
+    check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
+    if(HAS_LIB_STD_FILESYSTEM)
+        target_link_libraries(migraphx PRIVATE -lstdc++fs)
+    endif()
+    target_link_libraries(migraphx PRIVATE -ldl)
 endif()
-
-target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
-find_package(nlohmann_json 3.8.0 REQUIRED)
+if(NOT WIN32)
+    find_package(nlohmann_json 3.8.0 REQUIRED)
+endif()
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 migraphx_generate_export_header(migraphx)
 
-find_package(PkgConfig)
-pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
+if(NOT WIN32)
+    find_package(PkgConfig)
+    pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
+endif()
 target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
 
-find_package(msgpackc-cxx QUIET)
-if(NOT msgpackc-cxx_FOUND)
-    find_package(msgpack REQUIRED)
+if(NOT WIN32)
+    find_package(msgpackc-cxx QUIET)
+    if(NOT msgpackc-cxx_FOUND)
+        find_package(msgpack REQUIRED)
+    endif()
 endif()
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
@@ -277,8 +288,6 @@ add_library(migraphx_all_targets INTERFACE)
 
 include(CMakeDependentOption)
 cmake_dependent_option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON "WIN32" OFF)
-
-set(PACKAGE_DEPENDS)
 
 add_subdirectory(api)
 add_subdirectory(driver)

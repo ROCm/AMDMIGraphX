@@ -66,7 +66,7 @@ template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
     std::string name;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
     name = typeid(PrivateMigraphTypeNameProbe).name();
     name = name.substr(7);
 #else

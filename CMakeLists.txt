@@ -47,6 +47,8 @@ set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
 
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
+
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
@@ -56,12 +58,16 @@ find_package(Threads REQUIRED)
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
-find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
-if (NOT HALF_INCLUDE_DIR)
-    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+if(WIN32)
+    add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS>)
+    add_subdirectory(extern)
 else()
-	message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
+    find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
+    if (NOT HALF_INCLUDE_DIR)
+        message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+    endif()
 endif()
+message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
 
 include(CheckTypeSize)
 set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
@@ -94,13 +100,14 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 # Disable fpga backend by default
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
-set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
-if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
+if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+.*")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip
 elseif(MIGRAPHX_ENABLE_GPU)

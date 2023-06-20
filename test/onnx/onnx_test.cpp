@@ -823,6 +823,45 @@ TEST_CASE(clip_test_args_type_mismatch)
     EXPECT(p == prog);
 }
 
+TEST_CASE(clip_dyn_min_max_test)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto min_val = mm->add_literal(0.0f);
+    auto max_val = mm->add_literal(6.0f);
+    auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast"), min_val, l0);
+    max_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast"), max_val, l0);
+    mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 8, {3}};
+    auto prog                     = parse_onnx("concat_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(clip_dyn_min_only_test)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto min_val = mm->add_literal(0.0f);
+    auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast"), min_val, l0);
+    mm->add_instruction(migraphx::make_op("clip"), l0, min_val);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 8, {3}};
+    auto prog                     = parse_onnx("concat_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;

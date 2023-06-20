@@ -151,7 +151,6 @@ struct compile_plan
             {
                 pc.mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
-                std::cout << solutions.size() << std::endl;
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {

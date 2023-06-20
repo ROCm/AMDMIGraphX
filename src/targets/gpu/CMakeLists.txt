@@ -22,16 +22,14 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
-find_package(miopen)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
+
+find_package(miopen REQUIRED)
+message(STATUS "MIGraphX is using MIOpen")
 
 # rocblas
-find_package(rocblas REQUIRED PATHS /opt/rocm)
-message(STATUS "Build with rocblas")
-
-if(NOT TARGET MIOpen)
-    message(SEND_ERROR "Cant find miopen")
-endif()
+find_package(rocblas REQUIRED)
+message(STATUS "MIGraphX build with rocBLAS")
 
 if(NOT WIN32)
     # TODO: re-enable when CK is ported to Windows
@@ -60,18 +58,34 @@ if(NOT WIN32)
 endif()
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
-file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
-add_library(migraphx_device ${DEVICE_GPU_SRCS})
-
 add_library(compile_for_gpu INTERFACE)
-target_compile_options(compile_for_gpu INTERFACE -std=c++17 -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
-target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
+target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
+target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 
 if(HAS_HIP_LAMBDA_HOST_DEVICE)
     message(STATUS "Enable -fhip-lambda-host-device")
     target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
 endif()
+
+add_library(migraphx_device
+        device/argmax.cpp
+        device/argmin.cpp
+        device/contiguous.cpp
+        device/fill.cpp
+        device/gather.cpp
+        device/int8_gemm_pack.cpp
+        device/logsoftmax.cpp
+        device/multinomial.cpp
+        device/nonzero.cpp
+        device/pad.cpp
+        device/prefix_scan_sum.cpp
+        device/reverse.cpp
+        device/rnn_variable_seq_lens.cpp
+        device/scatter.cpp
+        device/topk.cpp)
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})

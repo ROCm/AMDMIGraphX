@@ -263,7 +263,8 @@ TEST_CASE(param_add_sub)
         };
 
         auto p0 = create_program_float();
-        migraphx::quantize_fp16(p0);
+        migraphx::run_passes(
+            p0, {migraphx::quantize_fp16_pass{{"all"}}, migraphx::dead_code_elimination{}});
         EXPECT(p0 == create_program_fp16());
 
         auto p1 = create_program_float();
@@ -439,8 +440,9 @@ TEST_CASE(fp16_subgraph)
     };
 
     auto p1 = create_program();
-    migraphx::run_passes(
-        p1, {migraphx::quantize_fp16_pass{}, migraphx::dead_code_elimination{}}, std::cout);
+    migraphx::quantize_fp16(p1);
+    // migraphx::run_passes(
+    //   p1, {migraphx::quantize_fp16_pass{}, migraphx::dead_code_elimination{}}, std::cout);
 
     auto p2 = create_fp16_program();
 

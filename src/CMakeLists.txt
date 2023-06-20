@@ -51,6 +51,7 @@ add_library(migraphx
     env.cpp
     file_buffer.cpp
     fuse_pointwise.cpp
+    fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
     insert_pad.cpp
@@ -74,6 +75,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
+    promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
     quantize_int8.cpp
@@ -92,6 +94,7 @@ add_library(migraphx
     shape.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    split_single_dyn_dim.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp
@@ -193,6 +196,7 @@ register_migraphx_ops(
     roialign
     round
     rsqrt
+    run_on_target
     scalar
     scatter_add
     scatter_mul

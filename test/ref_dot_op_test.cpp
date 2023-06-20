@@ -1197,7 +1197,7 @@ TEST_CASE(dot_dyn_2D_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape a_shape{migraphx::shape::float_type, {{1, 4, 0}, {5, 5, 0}}};
+    migraphx::shape a_shape{migraphx::shape::float_type, {{1, 4}, {5, 5}}};
     auto ap = mm->add_parameter("a", a_shape);
     migraphx::shape b_shape{migraphx::shape::float_type, {5, 3}};
     auto bp = mm->add_parameter("b", b_shape);
@@ -1250,8 +1250,7 @@ TEST_CASE(dot_dyn_4D_test)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    migraphx::shape a_shape{migraphx::shape::float_type,
-                            {{1, 1, 0}, {1, 1, 0}, {4, 6, 4}, {5, 5, 0}}};
+    migraphx::shape a_shape{migraphx::shape::float_type, {{1, 1}, {1, 1}, {4, 6, {4}}, {5, 5}}};
     auto al = mm->add_parameter("a", a_shape);
     migraphx::shape b_shape{migraphx::shape::float_type, {1, 1, 5, 3}};
     auto bl = mm->add_parameter("b", b_shape);

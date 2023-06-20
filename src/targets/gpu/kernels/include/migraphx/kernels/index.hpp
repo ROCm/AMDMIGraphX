@@ -130,6 +130,8 @@ struct index
         return blockDim.x;
     }
 #endif
+
+    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
     template <class N, class Stride>
     static constexpr auto max_stride_iterations(N n, Stride stride)
     {
@@ -231,8 +233,20 @@ struct index
     {
         for_stride<true>(local, n, nlocal(), f);
     }
+
+    template <class F, class N>
+    __device__ void group_stride(N n, F f) const
+    {
+        for_stride<false>(group, n, ngroup(), f);
+    }
 };
 
+#ifdef MIGRAPHX_NLOCAL
+#define MIGRAPHX_GLOBAL \
+    __global__ __attribute__((amdgpu_flat_work_group_size(MIGRAPHX_NLOCAL, MIGRAPHX_NLOCAL)))
+#else
+#define MIGRAPHX_GLOBAL __global__
+#endif
 inline __device__ __attribute__((const)) index make_index()
 {
     return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT

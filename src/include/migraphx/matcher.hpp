@@ -31,6 +31,7 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -370,31 +371,31 @@ match::matcher_result find_match(module& modl, M&& m)
 }
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 
 /// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
-void find_matches(size_t trace_pass, Mod& mod, instruction_ref ins, Ms&&... ms)
+void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
-#endif
         int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
-#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
-#endif
         bool validate = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const
+        auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const bool trace_for = not trace_filter.empty() and (contains(std::string{location.file_name()}, trace_filter) or contains(std::string{location.function_name()}, trace_filter));
     bool match        = false;
     each_args(
         [&](auto&& m) {
             if(match)
                 return;
-            if(trace > 1 or trace_pass > 1)
+            if(trace > 1)
                 std::cout << "Match: " << get_type_name(m) << std::endl;
             auto r = match_instruction(get_module(mod), ins, m.matcher());
             if(r.result == get_module(mod).end())
                 return;
-            if(trace > 0 or trace_pass > 0)
+            if(trace > 0 or trace_for)
             {
                 std::cout << "Matched by " << get_type_name(m) << std::endl;
                 get_module(mod).debug_print(ins);
@@ -420,23 +421,19 @@ void find_matches(size_t trace_pass, Mod& mod, instruction_ref ins, Ms&&... ms)
 
 /// Find matches in a module
 template <class Mod, class... Ms>
-void find_matches(Mod& mod, Ms&&... ms)
+struct find_matches
 {
-    for(auto ins : iterator_for(get_module(mod)))
+    find_matches(Mod& mod, Ms&&... ms, source_location location = source_location::current())
     {
-        find_matches(0, mod, ins, ms...);
+        for(auto ins : iterator_for(get_module(mod)))
+        {
+            find_matches_for(location, mod, ins, ms...);
+        }
     }
-}
+};
 
-/// Find matches in a pass
 template <class Mod, class... Ms>
-void find_matches(size_t trace_pass, Mod& mod, Ms&&... ms)
-{
-    for(auto ins : iterator_for(get_module(mod)))
-    {
-        find_matches(trace_pass, mod, ins, ms...);
-    }
-}
+find_matches(Mod& mod, Ms&&... ms) -> find_matches<Mod, Ms...>;
 
 template <class M, class F>
 struct find_generic_match

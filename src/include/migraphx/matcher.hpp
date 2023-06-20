@@ -378,14 +378,13 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 template <class Mod, class... Ms>
 void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-    const
-        int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
-    const
-        bool validate = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    const
-        auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
-    const bool trace_for = not trace_filter.empty() and (contains(std::string{location.file_name()}, trace_filter) or contains(std::string{location.function_name()}, trace_filter));
-    bool match        = false;
+    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const bool trace_for    = not trace_filter.empty() and
+                           (contains(std::string{location.file_name()}, trace_filter) or
+                            contains(std::string{location.function_name()}, trace_filter));
+    bool match = false;
     each_args(
         [&](auto&& m) {
             if(match)

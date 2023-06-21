@@ -266,7 +266,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         s       = shape{s.type(), {m1, m2}};
     }
 
-    std::vector<std::string> names() const { return {"gpu::ck_gemm"}; }
+    std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
 
     static bool standard_batch(const shape& s)
     {

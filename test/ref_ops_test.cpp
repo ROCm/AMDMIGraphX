@@ -854,7 +854,8 @@ TEST_CASE(clip_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 8, {3}}}};
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    migraphx::shape s{migraphx::shape::float_type, dds};
     auto l       = mm->add_parameter("X", s);
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
@@ -866,9 +867,9 @@ TEST_CASE(clip_dyn_test)
     p.compile(migraphx::make_target("ref"));
 
 
-    migraphx::shape static_shape{migraphx::shape::int32_type, {3}};
+    migraphx::shape static_shape{migraphx::shape::float_type, {3}};
     migraphx::parameter_map params;
-    std::vector<int> data0 = {-1.0, 0.0, 10.0};
+    std::vector<float> data = {-1.0, 0.0, 10.0};
     params["X"] = migraphx::argument(static_shape, data.data());
     auto result = p.eval(params).back();
     std::vector<float> results_vector(3);

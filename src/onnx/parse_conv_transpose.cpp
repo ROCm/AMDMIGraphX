@@ -102,9 +102,9 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
         }
 
         // TODO: auto padding needs to be implemented for this parser and operator
-        if(contains(info.attributes, "auto_pad"))
+        if(contains(info.attributes, "auto_pad") and to_upper(info.attributes.at("auto_pad").s()) != "NOT_SET")
         {
-            MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad not supported");
+            MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto padding not supported");
         }
 
         if(contains(info.attributes, "group"))

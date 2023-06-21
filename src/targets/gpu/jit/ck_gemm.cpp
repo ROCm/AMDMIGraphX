@@ -419,9 +419,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     {
         auto shapes = to_shapes(ins->inputs());
         auto v      = create_settings(ins, op);
-        if(solution.is_null())
-            v["tuning_value"] = 4;
-        else
+        if(not solution.is_null())
             v["tuning_value"] = solution;
         return {compile_op(ctx, shapes, v),
                 [=](module& m, instruction_ref ins2, const operation& code_object) {

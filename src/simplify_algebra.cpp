@@ -39,6 +39,8 @@
 #include <migraphx/algorithm.hpp>
 #include <unordered_set>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_SIMPLIFY_ALGEBRA_MATCHES)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -1485,10 +1487,13 @@ struct find_split_transpose
 
 void simplify_algebra::apply(module& m) const
 {
+    size_t trace = value_of(MIGRAPHX_TRACE_SIMPLIFY_ALGEBRA_MATCHES{});
+
     // Run simplifications multiple times
     for(int i = 0; i < 8; i++)
     {
-        match::find_matches(m,
+        match::find_matches(trace,
+                            m,
                             find_inner_broadcast{},
                             find_dot_broadcast{},
                             find_double_add_lit_broadcast{},

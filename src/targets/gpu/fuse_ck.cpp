@@ -72,7 +72,7 @@ namespace {
 
 bool is_ck_supported_type(shape::type_t t)
 {
-    return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
+    return contains({shape::half_type, shape::int8_type}, t);
 }
 
 MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)

@@ -667,6 +667,31 @@ TEST_CASE(simplify_inner_broadcast_different_broadcasts)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_inner_broadcast_input_broadcast)
+{
+    auto mb  = migraphx::op::multibroadcast{{2, 576, 1}};
+    auto mb2 = migraphx::op::multibroadcast{{2, 576, 1}};
+    migraphx::module m1;
+    {
+        auto fl_cons =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1}}));
+        auto fl_cons_b = m1.add_instruction(mb2, fl_cons);
+        auto y         = m1.add_parameter("y", {migraphx::shape::float_type, {2, 576, 768}});
+        auto yb        = m1.add_instruction(mb, y);
+        auto sum       = m1.add_instruction(migraphx::make_op("add"), fl_cons_b, yb);
+        auto sqrt      = m1.add_instruction(migraphx::make_op("sqrt"), sum);
+        // auto div = m1.add_instruction(migraphx::make_op("div"), sqrt);
+        m1.add_instruction(pass_op{}, sqrt);
+    }
+    run_pass(m1);
+    run_pass(m1);
+    run_pass(m1);
+
+    m1.debug_print();
+
+    EXPECT(true);
+}
+
 TEST_CASE(simplify_add_conv1)
 {
     migraphx::module m;

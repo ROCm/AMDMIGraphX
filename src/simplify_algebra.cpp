@@ -544,8 +544,15 @@ struct find_inner_broadcast
                           return 1;
                       return 3;
                   }));
+
+        // m.debug_print();
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        op->debug_print();
+        ins->debug_print();
+        broadcasts.front()->debug_print();
+        auto r_op = m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        r_op->debug_print();
+        std::cout << "\n" << std::endl;
     }
 };
 
@@ -1196,6 +1203,7 @@ struct find_div_const
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
 
+        // m.debug_print();
         auto recip = m.insert_instruction(std::next(c_ins), make_op("recip"), c_ins);
 
         auto args = ins->inputs();

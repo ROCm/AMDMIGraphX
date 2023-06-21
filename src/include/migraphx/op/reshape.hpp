@@ -156,12 +156,20 @@ struct reshape
                 auto start = idims.begin() + i;
                 auto it    = compute_end_dim(start, idims.end(), rdim);
                 if(it == start)
+                {
+                    std::cout << "kabo" << std::endl;
                     return nullopt;
+                }
                 auto n = it - start;
                 assert((i + n) <= istrides.size());
                 if(not can_strides_merge(
                        start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
+                {
+                    std::cout << "kaboom" << std::endl;
+                    std::cout << "i=" << i << " r=" << r << std::endl;
+                    std::cout << "idim=" << idim << " rdim=" << rdim << std::endl;
                     return nullopt;
+                }
                 i += n;
                 rstrides.push_back(istrides[i]);
             }
@@ -171,7 +179,10 @@ struct reshape
                 auto start = rdims.begin() + i;
                 auto it    = compute_end_dim(start, rdims.end(), idim);
                 if(it == start)
+                {
+                    std::cout << "kaboomie" << std::endl;
                     return nullopt;
+                }
                 auto n = it - start;
                 assert((r + n) <= rdims.size());
                 auto stride = istrides[i] * idim;
@@ -234,8 +245,10 @@ struct reshape
 
         auto s = reshape_dims(inputs.front(), rdims);
         if(not s.has_value())
+        {
+            std::cout << inputs.front() << std::endl;
             MIGRAPHX_THROW("Reshape on axis that is not packed.");
-
+        }
         if(s->elements() != inputs.front().elements())
             MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
                            std::to_string(s->elements()) + " elements whereas the input has " +

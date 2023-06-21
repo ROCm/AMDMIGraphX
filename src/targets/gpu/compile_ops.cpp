@@ -185,6 +185,7 @@ struct compile_plan
                     .first;
             });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
+        std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation.");

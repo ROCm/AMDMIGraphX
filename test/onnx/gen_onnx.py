@@ -765,9 +765,7 @@ def clip_dyn_min_only_test():
 
     min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
 
-    node = onnx.helper.make_node('Clip',
-                                 inputs=['0', 'min'],
-                                 outputs=['1'])
+    node = onnx.helper.make_node('Clip', inputs=['0', 'min'], outputs=['1'])
 
     return ([node], [x], [y], [min_val])
 

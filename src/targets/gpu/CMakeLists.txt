@@ -169,7 +169,19 @@ add_library(migraphx_gpu
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 
-target_link_options(migraphx_gpu PUBLIC -Wno-option-ignored)
+if(WIN32)
+    target_include_directories(migraphx_gpu PRIVATE kernels)
+    target_sources(migraphx_gpu
+        PRIVATE
+            kernels/migraphx_kernels.cpp
+            kernels/migraphx_kernels.hpp
+            kernels/resource.h
+            kernels/resource.rc)
+    target_compile_options(migraphx_gpu PUBLIC $<BUILD_INTERFACE:-Wno-ignored-attributes>)
+else()
+    target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+    target_link_options(migraphx_gpu PUBLIC -Wno-option-ignored)
+endif()
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
@@ -290,7 +302,7 @@ else()
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 if(NOT WIN32)
     # TODO: re-enable when CK is ported to Windows
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)

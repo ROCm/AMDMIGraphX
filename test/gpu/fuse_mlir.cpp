@@ -37,6 +37,7 @@ void run_pass(migraphx::program& p)
     migraphx::run_passes(p, {migraphx::gpu::fuse_mlir{}, migraphx::dead_code_elimination{}});
 }
 
+// cppcheck-suppress definePrefix
 // NOLINTNEXTLINE
 #define VERIFY_MLIR(pass, ref)            \
     do                                    \

@@ -106,6 +106,11 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
     return *this;
 }
 
+cpp_generator::function& cpp_generator::function::unused_param(const std::string& pname)
+{
+    body.insert(0, "(void)" + pname + ";\n");
+    return *this;
+}
 cpp_generator::function& cpp_generator::function::add_generic_param(const std::string& pname)
 {
     params.push_back({pname, "T" + pname});
@@ -174,6 +179,8 @@ std::string cpp_generator::generate_point_op(const operation& op,
         else if(with_char(::isdigit)(key[0]))
         {
             auto i = std::stoul(key);
+            if(i >= args.size())
+                MIGRAPHX_THROW("Invalid argument index: " + key);
             return args.at(i);
         }
         else if(v.contains(key))
@@ -201,8 +208,24 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
     f.set_name(name).set_types(m).set_body(
         m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
-                return shape::cpp_type(ins->get_shape().type()) + "(" +
-                       ins->get_literal().to_string() + ")";
+            {
+                std::string string_literal;
+                ins->get_literal().visit([&](auto v) {
+                    assert(v.size() == 1);
+                    auto x = v.front();
+                    if(std::isinf(x))
+                    {
+                        string_literal = "__builtin_huge_val()";
+                        if(x < 0)
+                            string_literal = "-__builtin_huge_val()";
+                    }
+                    else if(std::isnan(x))
+                        string_literal = "__builtin_nan()";
+                    else
+                        string_literal = ins->get_literal().to_string();
+                });
+                return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
+            }
             auto s = g(ins, names);
             if(impl->fresult)
                 return impl->fresult(ins->get_shape()) + '(' + s + ')';

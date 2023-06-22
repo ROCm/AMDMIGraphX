@@ -389,7 +389,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
         [&](auto&& m) {
             if(match)
                 return;
-            if(trace > 1)
+            if(trace > 1 or trace_for)
                 std::cout << "Match: " << get_type_name(m) << std::endl;
             auto r = match_instruction(get_module(mod), ins, m.matcher());
             if(r.result == get_module(mod).end())

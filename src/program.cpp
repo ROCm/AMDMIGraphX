@@ -365,8 +365,8 @@ void print_statistics(std::ostream& os, const argument& a)
         [&](auto t) {
             os << "Min value: " << *std::min_element(t.begin(), t.end()) << ", ";
             os << "Max value: " << *std::max_element(t.begin(), t.end()) << ", ";
-            auto num_elements = t.size();
-            auto mean         = std::reduce(t.begin(), t.end()) / num_elements;
+            auto num_elements = static_cast<double>(t.size());
+            auto mean         = std::reduce(t.begin(), t.end(), 0.0) / num_elements;
             auto stddev       = std::sqrt(
                 std::accumulate(t.begin(),
                                 t.end(),

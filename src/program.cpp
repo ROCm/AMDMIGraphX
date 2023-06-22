@@ -786,7 +786,7 @@ void program::from_value(const value& v)
             ", Try regenerating MXR file using installed MIGraphX and running again.");
     }
 
-    auto migx_version = v.at("migx_vesion").to<std::string>();
+    auto migx_version = v.at("migx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
         std::cout << "WARNING: MXR File was created using MIGraphX version: " << migx_version

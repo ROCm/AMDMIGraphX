@@ -186,6 +186,18 @@ struct nop
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const { return {}; }
 };
 
+struct tuple_op
+{
+    std::string name() const { return "tuple_op"; }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const { return {inputs}; }
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& input_args) const
+    {
+        return input_args;
+    }
+};
+
 inline migraphx::literal get_2x2(int base = 0)
 {
     return migraphx::literal{{migraphx::shape::float_type, {2, 2}},

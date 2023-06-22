@@ -92,7 +92,6 @@ TEST_CASE(param_add)
         }
         else
         {
-
             mm->add_instruction(migraphx::make_op("identity"), {fs});
         }
 

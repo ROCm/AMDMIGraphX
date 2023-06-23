@@ -649,9 +649,9 @@ const int program_file_version = 6;
 value program::to_value() const
 {
     value result;
-    result["version"]      = program_file_version;
-    result["migx_version"] = get_migraphx_version();
-    result["target"]       = this->impl->target_name;
+    result["version"]          = program_file_version;
+    result["migraphx_version"] = get_migraphx_version();
+    result["target"]           = this->impl->target_name;
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
 
@@ -786,7 +786,7 @@ void program::from_value(const value& v)
             ", Try regenerating MXR file using installed MIGraphX and running again.");
     }
 
-    auto migx_version = v.at("migx_version").to<std::string>();
+    auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
         std::cout << "WARNING: MXR File was created using MIGraphX version: " << migx_version

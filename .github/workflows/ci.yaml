@@ -121,6 +121,7 @@ jobs:
     - name: Remove Cached Docker images
       run: |
         sudo docker image prune --all --force
+      
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,

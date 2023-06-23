@@ -2126,7 +2126,7 @@ TEST_CASE(convolution_backwards_2dilation)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(convolution_backwards_dyn_batch)
+TEST_CASE(convolution_backwards_dyn_batch1)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -2154,6 +2154,49 @@ TEST_CASE(convolution_backwards_dyn_batch)
 
     std::vector<float> gold{0,  1,  3, 3,  2,  3,  8,  15, 12, 7,  9,  21, 36,
                             27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_dyn_batch2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type,
+                      {{1, 4},
+                       {
+                           1,
+                           1,
+                       },
+                       {5, 5},
+                       {5, 5}}};
+    auto x = mm->add_parameter("x", s);
+    auto w = mm->add_parameter("w", s);
+
+    mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {2, 2}}, {"stride", {2, 2}}, {"dilation", {2, 2}}}),
+        x,
+        w);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x_data(25);
+    std::iota(x_data.begin(), x_data.end(), 0.);
+    std::vector<float> w_data(9, 1.);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 5, 5}};
+    params["x"] = migraphx::argument(input_fixed_shape, x_data.data());
+    params["w"] = migraphx::argument(input_fixed_shape, w_data.data());
+    auto result = p.eval(params).back();
+
+    std::vector<float> gold{12.,   0.,  21.,   0.,  27.,   0.,  33.,   0.,  24.,   0.,   0.,   0.,
+          0.,   0.,   0.,   0.,   0.,   0.,  33.,   0.,  54.,   0.,  63.,   0.,
+         72.,   0.,  51.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,
+         63.,   0.,  99.,   0., 108.,   0., 117.,   0.,  81.,   0.,   0.,   0.,
+          0.,   0.,   0.,   0.,   0.,   0.,  93.,   0., 144.,   0., 153.,   0.,
+        162.,   0., 111.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,
+         72.,   0., 111.,   0., 117.,   0., 123.,   0.,  84.};
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, gold));

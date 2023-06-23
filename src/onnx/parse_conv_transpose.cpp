@@ -68,9 +68,9 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
 
             asym_padding = is_asym_padding(padding);
 
+            size_t pad_ndims = padding.size() / 2;
             if(not asym_padding)
             {
-                size_t pad_ndims = padding.size() / 2;
                 check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
                 values["padding"].clear();
                 std::transform(padding.begin(),
@@ -82,6 +82,12 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
             {
                 MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: asymmetric padding (padding_L != padding_R) "
                                "not supported with dynamic shapes");
+            }
+            else
+            {
+                // set padding to 0s, asym_padding handled by parser with slice
+                // TODO changing parser and op to do asym padding in op
+                values["padding"] = std::vector<std::size_t>(pad_ndims, 0);
             }
         }
 
@@ -103,7 +109,7 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
 
         // TODO: auto padding needs to be implemented for this parser and operator
         if(contains(info.attributes, "auto_pad") and
-           to_upper(info.attributes.at("auto_pad").s()) != "NOT_SET")
+           to_upper(info.attributes.at("auto_pad").s()) != "NOTSET")
         {
             MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto padding not supported");
         }
@@ -151,7 +157,7 @@ struct parse_conv_transpose : op_parser<parse_conv_transpose>
             l1 = info.add_instruction(make_op("pad", {{"pads", output_padding}}), l1);
         }
 
-        // TODO, might be doing unnecessary calcuations with this. Could instead
+        // TODO, doing unnecessary calcuations with this. Could instead
         // calculate the padding to conv_transpose that would give the output_shape.
         if(contains(info.attributes, "output_shape"))
         {

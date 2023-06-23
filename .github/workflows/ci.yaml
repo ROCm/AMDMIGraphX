@@ -31,6 +31,14 @@ jobs:
         large-packages: true
         swap-storage: true
 
+    # Github Runners comes with pre-cached docker images
+    # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md#cached-docker-images
+    # MIGraphX CI doesn't require any of those, hence remove them. 
+    # TODO: Use flag to "Free Space" stage when this is merged. https://github.com/jlumbroso/free-disk-space/pull/5 
+    - name: Remove Cached Docker images
+      run: |
+        sudo docker image prune --all --force
+
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -106,7 +114,13 @@ jobs:
         large-packages: true
         swap-storage: true
 
-
+    # Github Runners comes with pre-cached docker images
+    # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md#cached-docker-images
+    # MIGraphX CI doesn't require any of those, hence remove them. 
+    # TODO: Use flag to "Free Space" stage when this is merged. https://github.com/jlumbroso/free-disk-space/pull/5 
+    - name: Remove Cached Docker images
+      run: |
+        sudo docker image prune --all --force
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -176,6 +190,15 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+
+    # Github Runners comes with pre-cached docker images
+    # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md#cached-docker-images
+    # MIGraphX CI doesn't require any of those, hence remove them. 
+    # TODO: Use flag to "Free Space" stage when this is merged. https://github.com/jlumbroso/free-disk-space/pull/5 
+    - name: Remove Cached Docker images
+      run: |
+        sudo docker image prune --all --force
+    
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -225,6 +248,14 @@ jobs:
         large-packages: true
         swap-storage: true
 
+    # Github Runners comes with pre-cached docker images
+    # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md#cached-docker-images
+    # MIGraphX CI doesn't require any of those, hence remove them. 
+    # TODO: Use flag to "Free Space" stage when this is merged. https://github.com/jlumbroso/free-disk-space/pull/5 
+    - name: Remove Cached Docker images
+      run: |
+        sudo docker image prune --all --force
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -253,6 +284,14 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+
+    # Github Runners comes with pre-cached docker images
+    # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md#cached-docker-images
+    # MIGraphX CI doesn't require any of those, hence remove them. 
+    # TODO: Use flag to "Free Space" stage when this is merged. https://github.com/jlumbroso/free-disk-space/pull/5 
+    - name: Remove Cached Docker images
+      run: |
+        sudo docker image prune --all --force
 
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -292,6 +331,14 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+
+    # Github Runners comes with pre-cached docker images
+    # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md#cached-docker-images
+    # MIGraphX CI doesn't require any of those, hence remove them. 
+    # TODO: Use flag to "Free Space" stage when this is merged. https://github.com/jlumbroso/free-disk-space/pull/5 
+    - name: Remove Cached Docker images
+      run: |
+        sudo docker image prune --all --force
 
     - name : Install rbuild and lld
       run: |
@@ -408,6 +455,14 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+
+    # Github Runners comes with pre-cached docker images
+    # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2004-Readme.md#cached-docker-images
+    # MIGraphX CI doesn't require any of those, hence remove them. 
+    # TODO: Use flag to "Free Space" stage when this is merged. https://github.com/jlumbroso/free-disk-space/pull/5 
+    - name: Remove Cached Docker images
+      run: |
+        sudo docker image prune --all --force
 
     - uses: actions/checkout@v3
     - name: Set up Python

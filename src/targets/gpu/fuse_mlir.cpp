@@ -139,7 +139,8 @@ struct find_mlir_op
     auto matcher() const
     {
         auto dot_or_conv = match::skip(match::name("contiguous"))(
-            match::any_of(match::name("dot"), is_mlir_conv()).bind("gemm_based_op"));
+            match::any_of(match::name("dot"), match::name("quant_dot"), is_mlir_conv())
+                .bind("gemm_based_op"));
         return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
@@ -205,6 +206,7 @@ struct find_mlir_op
                                     "convolution",
                                     "quant_convolution",
                                     "dot",
+                                    "quant_dot",
                                     "add",
                                     "relu",
                                     "dequantizelinear",

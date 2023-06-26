@@ -203,11 +203,10 @@ struct mlir_program
 
     static mlir_thread_pool& get_thread_pool()
     {
-        static std::once_flag init_guard;
-        static mlir_thread_pool the_pool;
         // To save on overhead, we create one LLVM thread pool and reuse it
         // across all MLIR contexts as recommended by MLIR upstream.
-        std::call_once(init_guard, [&]() { the_pool = mlirLlvmThreadPoolCreate(); });
+        // Note that this is thread-safe as of C++11.
+        static mlir_thread_pool the_pool = mlirLlvmThreadPoolCreate();
         return the_pool;
     }
 

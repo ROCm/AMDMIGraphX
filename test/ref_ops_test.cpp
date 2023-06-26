@@ -654,10 +654,10 @@ TEST_CASE(avgpool_dyn_pad_test)
 
     std::vector<float> data{1, 2, 3, 4, 5, 6};
 
-    //      0  0  0
-    //      1  2  3
-    //      4  5  6        0-padding will look like this
-    //      0  0  0
+    //      *  *  *
+    //      1  2  3        padding will look like this
+    //      4  5  6        The * are used when tiling the kernel
+    //      *  *  *        but are ignored in averaging
 
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 3}};
     migraphx::parameter_map params;
@@ -665,8 +665,7 @@ TEST_CASE(avgpool_dyn_pad_test)
     auto result = p.eval(params).back();
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold{0.75, 1.5, 2.25, 3.};
+    std::vector<float> gold{1.5, 3.0, 4.5, 6.0};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -688,10 +687,10 @@ TEST_CASE(avgpool_dyn_pad_ceil_test)
 
     std::vector<float> data{1, 2, 3, 4};
 
-    //  * 0 0  0  0 0 0
-    //  * 0 0  1  2 0 0
-    //  * 0 0  3  4 0 0      0-padding will look like this
-    //  * 0 0  0  0 0 0
+    //  * *  *  * * *
+    //  * *  1  2 * *      padded input will look like this
+    //  * *  3  4 * *      but the * are ignored in averaging
+    //  * *  *  * * *
 
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 2}};
     migraphx::parameter_map params;
@@ -700,9 +699,9 @@ TEST_CASE(avgpool_dyn_pad_ceil_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     // clang-format off
-    std::vector<float> gold{0.166667, 0.500000, 0.500000, 0.333333, 
-                            0.666667, 1.666667, 1.666667, 1.000000, 
-                            0.500000, 1.166667, 1.166667, 0.666667};
+    std::vector<float> gold{1.0, 1.5, 1.5, 2.0, 
+                            2.0, 2.5, 2.5, 3.0, 
+                            3.0, 3.5, 3.5, 4.0};
     // clang-format on
     EXPECT(migraphx::verify_range(results_vector, gold));
 }

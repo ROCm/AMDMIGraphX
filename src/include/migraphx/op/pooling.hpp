@@ -44,23 +44,25 @@ struct pooling
 {
     pooling_mode mode = {pooling_mode::average};
 
-    // dimensions of the pooling kernel or window.  Must have size
-    // 2 smaller than the input tensor rank, since the first
-    // two dimensions are considered
-    // non-spatial: batch size and channel (NCHW layout)
-    std::vector<std::size_t> lengths = {1, 1};
+    // The amount each dimension is padded, both before and after.  Can be
+    // either the same size as lengths, or twice as long.  When padding
+    // is double the length of lengths, the first n values are read as
+    // pre-padding for each dimension and the last n values are post-padding.
+    // (The latter is necessary if the total padding desired is an odd number)
+    //
+    //
+    std::vector<std::size_t> padding = {0, 0};
 
     // Size of stride to take from one placement of the pooling kernel to the next.
     // This is distinct from the strides used by the shape class.  If set the same as lengths, the
     // kernel tiles over the input with no gaps or overlaps. Must be the same size as lengths.
     std::vector<std::size_t> stride = {1, 1};
 
-    // The amount each dimension is padded, both before and after.  Can be
-    // either the same size as lengths, or twice as long.  When padding
-    // is double the length of lengths, the first n values are read as
-    // pre-padding for each dimension and the last n values are post-padding.
-    // (The latter is necessary if the total padding desired is an odd number)
-    std::vector<std::size_t> padding = {0, 0};
+    // dimensions of the pooling kernel or window.  Must have size
+    // 2 smaller than the input tensor rank, since the first
+    // two dimensions are considered
+    // non-spatial: batch size and channel (NCHW layout)
+    std::vector<std::size_t> lengths = {1, 1};
 
     // Dilations are not supported at this time.
 
@@ -75,6 +77,12 @@ struct pooling
 
     // Global pooling with dynamic shape input
     bool dyn_global = false;
+
+    // an attribute of the Onnx pooling operator, not currently enabled here because MIOpen can't
+    // support it. We currently implement padding for average pooling by inserting a Padding
+    // operator during Onnx parsing. But to support dynamic shape inputs and count_include_pad
+    // together, it would be necessary to do this calculation at runtime in MIOpen.
+    bool count_include_pad = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -92,10 +100,17 @@ struct pooling
 
     void check_attribute_size() const
     {
+        if(dyn_global)
+            return;
         if((padding.size() != stride.size() and (padding.size()) != stride.size() * 2) or
-           (not dyn_global and stride.size() != lengths.size()))
+           stride.size() != lengths.size())
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
+        }
+        if(std::any_of(lengths.begin(), lengths.end(), [&](auto i) { return (i == 0); }) or
+           std::any_of(stride.begin(), stride.end(), [&](auto i) { return (i == 0); }))
+        {
+            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride");
         }
     }
 
@@ -136,6 +151,10 @@ struct pooling
         const shape& input = inputs.at(0);
         auto padding_size  = padding.size();
         size_t kdims       = input.ndim() - 2;
+        if(input.ndim() < 3)
+        {
+            MIGRAPHX_THROW("POOLING: input must have 3 or more dimensions and be nonempty");
+        }
         if(input.ndim() * 2 != padding_size + 4 and input.ndim() != padding_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
@@ -208,7 +227,7 @@ struct pooling
 
         double operator()(double x, double y) const { return x + std::pow(std::abs(y), p); }
 
-        double final(double x, std::size_t) const { return std::pow(x, 1. / p); }
+        double final(double x, std::size_t) const { return (p == 0) ? 1 : std::pow(x, 1. / p); }
     };
 
     struct avg_pool
@@ -262,11 +281,12 @@ struct pooling
                 int start =
                     static_cast<int>(idx_o[dim] * stride[d_2]) - static_cast<int>(padding[d_2]);
                 int end;
-                if(ceil_mode and (mode != pooling_mode::max))
+                // NOLINT
+                if(count_include_pad and ceil_mode and (mode != pooling_mode::max))
                 {
-                    // If in ceiling mode, a window extending beyond the end of both input and
-                    // padding may need to be clipped.  For max pooling, padding is never
-                    // considered.  This matches behavior of Onnx Runtime.
+                    // TODO: this block can't execute until we enable count_include_pad
+                    // Even when using padding, a window extending beyond the end of both input and
+                    // padding must be clipped to avoid indexing errors.
 
                     // Check if this kernel extends beyond the padding at end of dimension
                     end = std::min(start + kernel_dims[d_2],
@@ -274,11 +294,17 @@ struct pooling
                 }
                 else
                 {
-                    // In non-ceiling mode or for max pooling, clip off padding.
+                    // In non-ceiling mode, when
+                    // count_include_pad is false, or for max pooling, clip off padding.
                     end   = std::min(start + kernel_dims[d_2], in_lens[dim]);
                     start = std::max(start, 0);
                 }
                 win_start.push_back(start);
+                if(end < start)
+                {
+                    // This error can be caused by misc. bad input combinations
+                    MIGRAPHX_THROW("POOLING:  invalid attributes");
+                }
                 win_size.push_back(end - start);
             }
 
@@ -309,7 +335,7 @@ struct pooling
                 }
                 else
                 {
-                    // this is a padding element.  Only zero-padding is supported.  Zeroes
+                    // this is a padding element.  Padding locations
                     // don't contribute to average or max pooling total but can play in
                     // lpnorm pooling.
                     output_val = op(output_val, 0);

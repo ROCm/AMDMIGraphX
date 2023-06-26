@@ -96,7 +96,7 @@ TEST_CASE(dot_add)
                      });
         mm->add_return({fused});
     }
-    CHECK(p1.sort() == p2.sort());
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(int_quant_dot_abs)
@@ -127,7 +127,7 @@ TEST_CASE(int_quant_dot_abs)
             });
         mm->add_return({fused});
     }
-    CHECK(p1.sort() == p2.sort());
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(int_quant_dot_tanh_fails)
@@ -146,7 +146,7 @@ TEST_CASE(int_quant_dot_tanh_fails)
     migraphx::program p2(p1);
     // This pass should do nothing as int32_t tanh isn't supported.
     run_pass(p1);
-    CHECK(p1 == p2);
+    EXPECT(p1 == p2);
 }
 
 int main(int argc, const char* argv[])

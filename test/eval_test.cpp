@@ -460,7 +460,7 @@ TEST_CASE(eval_context1)
     mm->add_instruction(sum_op{}, one, two);
     p.compile(t);
     EXPECT(is_shared(t.ctx, p.get_context()));
-    p.eval({}).back();
+    std::ignore = p.eval({}).back();
     EXPECT(is_shared(t.ctx, p.get_context()));
 }
 
@@ -475,7 +475,7 @@ TEST_CASE(eval_context2)
     mm->add_instruction(id_ctx_op{}, one, two);
     p.compile(t);
     EXPECT(is_shared(t.ctx, p.get_context()));
-    p.eval({}).back();
+    std::ignore = p.eval({}).back();
     // id_ctx_op will modify the context
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }
@@ -492,8 +492,8 @@ TEST_CASE(eval_context3)
     p.compile(t);
     // Finalizer will modify the context
     EXPECT(not is_shared(t.ctx, p.get_context()));
-    auto ctx = p.get_context();
-    p.eval({}).back();
+    auto ctx    = p.get_context();
+    std::ignore = p.eval({}).back();
     EXPECT(is_shared(ctx, p.get_context()));
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }

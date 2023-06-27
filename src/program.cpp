@@ -470,7 +470,12 @@ std::vector<argument> generic_eval(const module* mod,
 
             results.emplace(
                 ins, trace(ins, [&] {
-                    return ins->normalized_operator().compute(
+                    auto op = ins->normalized_operator();
+                    if (op.is_context_free())
+                        return op.compute(ins->get_shape(), values, mod_args, module_eval);
+                    if (ins->get_target_id() >= ctx.size())
+                        MIGRAPHX_THROW("No context available.");
+                    return op.compute(
                         ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
                 }));
         }

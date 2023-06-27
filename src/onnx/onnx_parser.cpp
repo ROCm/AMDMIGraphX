@@ -300,7 +300,7 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void print_added_instructions(module* mod,
                               const std::vector<instruction_ref>& args,
-                              std::vector<instruction_ref> result)
+                              const std::vector<instruction_ref>& result)
 {
     // Print instructions added by the parser not in args
     std::vector<instruction_ref> added_instructions;

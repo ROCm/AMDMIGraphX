@@ -58,7 +58,7 @@ struct quantizelinear
         {
             return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
         }
-        return {shape::uint8_type, inputs[0].lens(), inputs[0].strides()};
+        return {shape::int8_type, inputs[0].lens(), inputs[0].strides()};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

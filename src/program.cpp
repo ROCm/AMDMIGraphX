@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <iomanip>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>

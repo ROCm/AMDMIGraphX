@@ -209,7 +209,7 @@ rocm_enable_clang_tidy(
         -analyzer-config cfg-lifetime=true
         -analyzer-config cfg-scopes=true
 )
-include(ROCMCppCheck)
+include(CppCheck)
 rocm_enable_cppcheck(
     CHECKS
         warning

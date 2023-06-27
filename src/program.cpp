@@ -359,6 +359,31 @@ std::string classify(T x)
     }
 }
 
+void print_statistics(std::ostream& os, const argument& a)
+{
+    a.visit(
+        [&](auto t) {
+            os << "Min value: " << *std::min_element(t.begin(), t.end()) << ", ";
+            os << "Max value: " << *std::max_element(t.begin(), t.end()) << ", ";
+            double num_elements = t.size();
+            auto mean           = std::reduce(t.begin(), t.end(), 0.0) / num_elements;
+            auto stddev         = std::sqrt(
+                std::accumulate(t.begin(),
+                                t.end(),
+                                0.0,
+                                [&](auto r, auto v) { return r + std::pow((v - mean), 2.0); }) /
+                num_elements);
+            os << "Mean: " << mean << ", ";
+            os << "StdDev: " << stddev << "\n";
+        },
+        [&](const auto& xs) {
+            for(const auto& x : xs)
+            {
+                print_statistics(os, x);
+            }
+        });
+}
+
 std::unordered_set<std::string> classify_argument(const argument& a)
 {
     std::unordered_set<std::string> result;
@@ -578,6 +603,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                         std::cout << "Output: ";
                         preview_argument(std::cout, buffer);
                         std::cout << std::endl;
+                        print_statistics(std::cout, buffer);
                     }
                     else
                     {

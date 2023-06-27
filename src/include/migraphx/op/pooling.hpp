@@ -294,7 +294,7 @@ struct pooling
                 }
                 else
                 {
-                    // In non-ceiling mode, when
+                    // When
                     // count_include_pad is false, or for max pooling, clip off padding.
                     end   = std::min(start + kernel_dims[d_2], in_lens[dim]);
                     start = std::max(start, 0);

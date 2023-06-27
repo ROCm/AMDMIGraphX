@@ -21,38 +21,23 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(Protobuf REQUIRED)
 
-protobuf_generate_cpp(
-    PROTO_SRCS PROTO_HDRS 
-    graph.proto
-    node_def.proto
-    attr_value.proto
-    tensor.proto
-    tensor_shape.proto
-    resource_handle.proto
-    types.proto
-    function.proto
-    op_def.proto
-    versions.proto
-)
-add_library(tf-proto STATIC ${PROTO_SRCS})
-target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
-target_compile_options(tf-proto PRIVATE -w)
-target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
-set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
+if(COMMAND migraphx_generate_export_header)
+    return()
+endif()
 
-file(GLOB TF_SRCS ${CONFIGURE_DEPENDS} *.cpp)
-add_library(migraphx_tf ${TF_SRCS})
-migraphx_generate_export_header(migraphx_tf)
-target_include_directories(migraphx_tf PRIVATE include)
-set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
-rocm_set_soversion(migraphx_tf ${MIGRAPHX_SO_VERSION})
-rocm_clang_tidy_check(migraphx_tf)
-target_link_libraries(migraphx_tf PRIVATE tf-proto "-Wl,--exclude-libs,ALL")
-target_link_libraries(migraphx_tf PUBLIC migraphx)
+include(GenerateExportHeader)
 
-rocm_install_targets(
-  TARGETS migraphx_tf
-)
-
+function(migraphx_generate_export_header TARGET)
+    cmake_parse_arguments(PARSE "" "DIRECTORY" "" ${ARGN})
+    if(PARSE_DIRECTORY)
+        set(__directory ${PARSE_DIRECTORY})
+    else()
+        string(REPLACE "_" "/" __directory ${TARGET})
+        string(TOLOWER ${__directory} __directory)
+    endif()
+    set(__file_name ${CMAKE_CURRENT_BINARY_DIR}/include/${__directory}/export.h)
+    generate_export_header(${TARGET} EXPORT_FILE_NAME ${__file_name})
+    target_include_directories(${TARGET} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+    rocm_install(FILES ${__file_name} DESTINATION include/${__directory})
+endfunction()

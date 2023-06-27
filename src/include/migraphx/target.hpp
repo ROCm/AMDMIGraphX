@@ -125,7 +125,7 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct target
+struct MIGRAPHX_EXPORT target
 {
     //
     std::string name() const;

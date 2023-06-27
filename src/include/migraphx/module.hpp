@@ -52,7 +52,7 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
 /**
  * @brief Stores the instruction stream
  */
-struct module
+struct MIGRAPHX_EXPORT module
 {
     module(const std::string& name = "");
 
@@ -225,8 +225,8 @@ struct module
     module& sort();
     ins_dep_map calc_implicit_deps() const;
 
-    friend std::ostream& operator<<(std::ostream& os, const module& m);
-    friend bool operator==(const module& x, const module& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
+    MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     private:

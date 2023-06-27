@@ -2163,7 +2163,7 @@ TEST_CASE(convolution_backwards_dyn_batch2)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type,
+    migraphx::shape x_shape{migraphx::shape::float_type,
                       {{1, 4},
                        {
                            1,
@@ -2171,8 +2171,10 @@ TEST_CASE(convolution_backwards_dyn_batch2)
                        },
                        {5, 5},
                        {5, 5}}};
-    auto x = mm->add_parameter("x", s);
-    auto w = mm->add_parameter("w", s);
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape w_shape{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> w_data(9, 1.);
+    auto w = mm->add_literal(migraphx::literal{w_shape, w_data});
 
     mm->add_instruction(
         migraphx::make_op("convolution_backwards",
@@ -2183,11 +2185,9 @@ TEST_CASE(convolution_backwards_dyn_batch2)
 
     std::vector<float> x_data(25);
     std::iota(x_data.begin(), x_data.end(), 0.);
-    std::vector<float> w_data(9, 1.);
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 5, 5}};
     params["x"] = migraphx::argument(input_fixed_shape, x_data.data());
-    params["w"] = migraphx::argument(input_fixed_shape, w_data.data());
     auto result = p.eval(params).back();
 
     std::vector<float> gold{12.,   0.,  21.,   0.,  27.,   0.,  33.,   0.,  24.,   0.,   0.,   0.,

@@ -100,7 +100,7 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
-include(ROCMClangTidy)
+include(ClangTidy)
 if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip

@@ -266,7 +266,7 @@ argument compute_op(rank<0>,
                     const std::vector<module_ref>& module_args,
                     F)
 {
-    if (module_args.empty())
+    if(module_args.empty())
         return compute_op(x, output, inputs);
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);

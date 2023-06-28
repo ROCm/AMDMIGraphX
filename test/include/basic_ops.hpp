@@ -107,7 +107,8 @@ struct pass_op
 struct non_const_pass_op
 {
     std::string name() const { return "pass"; }
-    migraphx::argument compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
+    migraphx::argument
+    compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
     {
         if(args.empty())
             return {};

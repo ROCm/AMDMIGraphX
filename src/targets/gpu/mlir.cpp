@@ -122,7 +122,7 @@ struct mlir_handle
 
 #define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
 
-using mlir_context           = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
+using mlir_context     = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
 using mlir_thread_pool = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirLlvmThreadPool, mlirLlvmThreadPoolDestroy);
 using mlir_dialect_registry  = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirDialectRegistry,
                                                           mlirDialectRegistryDestroy);
@@ -666,7 +666,7 @@ struct mlir_program
         // We need to make a copy of the buffer since mlirRockTuningSetFromStr may modify the string
         std::vector<char> buffer(str.begin(), str.end());
         buffer.push_back(0);
-        if (not mlirRockTuningSetFromStr(mmodule.get(), buffer.data()))
+        if(not mlirRockTuningSetFromStr(mmodule.get(), buffer.data()))
             MIGRAPHX_THROW("Failed setting tuning key: " + str);
     }
 
@@ -675,10 +675,10 @@ struct mlir_program
         tuning_config tc;
         run_high_level_pipeline();
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get())};
-        for(auto i:range(mlirRockTuningGetNumParamsFull(params.get())))
+        for(auto i : range(mlirRockTuningGetNumParamsFull(params.get())))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};
-            if (not mlirRockTuningParamGet(params.get(), i, param.get()))
+            if(not mlirRockTuningParamGet(params.get(), i, param.get()))
                 MIGRAPHX_THROW("Incorrect mlir tuning parameter: " + std::to_string(i));
             tc.solutions.push_back(std::string{mlirRockTuningGetParamStr(param.get())});
         }
@@ -818,7 +818,10 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
     }
 }
 
-code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs, const value& solution)
+code_object_op compile_mlir(const context&,
+                            module m,
+                            const std::vector<instruction_ref>& inputs,
+                            const value& solution)
 {
     adjust_param_shapes(m, to_shapes(inputs));
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});

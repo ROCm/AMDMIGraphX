@@ -36,7 +36,8 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
@@ -51,11 +52,10 @@ struct mlir_compiler : compiler<mlir_compiler>
                 }};
     }
 
-    optional<tuning_config>
-    get_tuning_config(context&, instruction_ref ins, const operation&) const
+    optional<tuning_config> get_tuning_config(context&, instruction_ref ins, const operation&) const
     {
-        auto shapes    = to_shapes(ins->inputs());
-        auto* smod = ins->module_inputs().front();
+        auto shapes = to_shapes(ins->inputs());
+        auto* smod  = ins->module_inputs().front();
         return get_tuning_config_mlir(*smod, shapes);
     }
 };

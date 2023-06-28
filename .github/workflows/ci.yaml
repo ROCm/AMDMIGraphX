@@ -60,7 +60,7 @@ jobs:
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
           ..
-        make -j2 -k onnx-proto tf-proto tidy
+        make -j$(nproc) -k onnx-proto tf-proto tidy
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
@@ -119,7 +119,7 @@ jobs:
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
-        make -j2 cppcheck
+        make -j$(nproc) cppcheck
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear cppcheck cache before saving

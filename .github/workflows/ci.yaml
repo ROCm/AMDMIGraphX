@@ -18,7 +18,7 @@ jobs:
         with:
           access_token: ${{ github.token }}
   tidy:
-    runs-on: runs-on: ROCM-Ubuntu
+    runs-on: ROCM-Ubuntu
     steps:
     - name: Free space
       uses: jlumbroso/free-disk-space@main

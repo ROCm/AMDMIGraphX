@@ -171,7 +171,7 @@ struct compile_plan
             MIGRAPHX_THROW("No configs to tune");
         if(results.size() == 1)
         {
-            if (not results.front().has_value())
+            if(not results.front().has_value())
                 MIGRAPHX_THROW("No configs to tune");
             return *results.front();
         }

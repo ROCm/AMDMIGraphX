@@ -243,6 +243,15 @@ struct reshape
             }
         }
 
+        std::cout << "rdims:";
+        for(auto& r : rdims)
+        {
+            std::cout << r << ", ";
+        }
+        std::cout << std::endl;
+
+        std::cout << inputs.front() << std::endl;
+
         auto s = reshape_dims(inputs.front(), rdims);
         if(not s.has_value())
         {

@@ -547,9 +547,12 @@ struct find_inner_broadcast
 
         // m.debug_print();
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-        op->debug_print();
-        ins->debug_print();
-        broadcasts.front()->debug_print();
+        m.debug_print(op);
+        m.debug_print(ins);
+        m.debug_print(broadcasts);
+        m.debug_print(broadcasts.front()->outputs());
+        m.debug_print(broadcasts.front()->outputs().front()->outputs());
+        m.debug_print();
         auto r_op = m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
         r_op->debug_print();
         std::cout << "\n" << std::endl;

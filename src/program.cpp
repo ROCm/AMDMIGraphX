@@ -564,14 +564,14 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                     migraphx::argument buffer;
                     try
                     {
-                        if (this->impl->targets.empty())
+                        if(this->impl->targets.empty())
                         {
                             buffer = result;
                         }
                         else
                         {
                             const target& tgt = this->impl->targets[ins->get_target_id()];
-                            buffer     = tgt.copy_from(result);
+                            buffer            = tgt.copy_from(result);
                         }
                     }
                     catch(const migraphx::exception&)

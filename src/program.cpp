@@ -356,6 +356,31 @@ std::string classify(T x)
     }
 }
 
+void print_statistics(std::ostream& os, const argument& a)
+{
+    a.visit(
+        [&](auto t) {
+            os << "Min value: " << *std::min_element(t.begin(), t.end()) << ", ";
+            os << "Max value: " << *std::max_element(t.begin(), t.end()) << ", ";
+            double num_elements = t.size();
+            auto mean           = std::reduce(t.begin(), t.end(), 0.0) / num_elements;
+            auto stddev         = std::sqrt(
+                std::accumulate(t.begin(),
+                                t.end(),
+                                0.0,
+                                [&](auto r, auto v) { return r + std::pow((v - mean), 2.0); }) /
+                num_elements);
+            os << "Mean: " << mean << ", ";
+            os << "StdDev: " << stddev << "\n";
+        },
+        [&](const auto& xs) {
+            for(const auto& x : xs)
+            {
+                print_statistics(os, x);
+            }
+        });
+}
+
 std::unordered_set<std::string> classify_argument(const argument& a)
 {
     std::unordered_set<std::string> result;
@@ -536,8 +561,42 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                 migraphx::argument buffer;
                 try
                 {
-                    const target& tgt = this->impl->targets[ins->get_target_id()];
-                    buffer            = tgt.copy_from(result);
+                    migraphx::argument buffer;
+                    try
+                    {
+                        if (this->impl->targets.empty())
+                        {
+                            buffer = result;
+                        }
+                        else
+                        {
+                            const target& tgt = this->impl->targets[ins->get_target_id()];
+                            buffer     = tgt.copy_from(result);
+                        }
+                    }
+                    catch(const migraphx::exception&)
+                    {
+                        // instruction was run on host then no need to copy buffer from target
+                        buffer = result;
+                    }
+                    catch(...)
+                    {
+                        MIGRAPHX_THROW(
+                            "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
+                    }
+                    if(trace_level == 2)
+                    {
+                        std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                                  << std::endl;
+                        std::cout << "Output: ";
+                        preview_argument(std::cout, buffer);
+                        std::cout << std::endl;
+                        print_statistics(std::cout, buffer);
+                    }
+                    else
+                    {
+                        std::cout << "Output: " << buffer << std::endl;
+                    }
                 }
                 catch(const migraphx::exception&)
                 {

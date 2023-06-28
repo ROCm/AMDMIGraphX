@@ -571,8 +571,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                 }
                 catch(...)
                 {
-                    MIGRAPHX_THROW(
-                        "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
+                    MIGRAPHX_THROW("MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
                 }
                 if(trace_level == 2)
                 {

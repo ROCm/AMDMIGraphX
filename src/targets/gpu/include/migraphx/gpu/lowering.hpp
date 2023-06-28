@@ -45,7 +45,7 @@ struct lowering
     context* ctx;
     bool offload_copy;
     std::string name() const { return "gpu::lowering"; }
-    void apply(module_pass_manager& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

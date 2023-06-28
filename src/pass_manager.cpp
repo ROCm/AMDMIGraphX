@@ -103,7 +103,7 @@ struct module_pm : module_pass_manager
 
     virtual module* get_root_module() override
     {
-        if(root_mod)
+        if(root_mod != nullptr)
             return root_mod;
         assert(prog);
         return prog->get_main_module();

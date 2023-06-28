@@ -170,7 +170,11 @@ struct compile_plan
         if(results.empty())
             MIGRAPHX_THROW("No configs to tune");
         if(results.size() == 1)
+        {
+            if (not results.front().has_value())
+                MIGRAPHX_THROW("No configs to tune");
             return *results.front();
+        }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config");
         std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"

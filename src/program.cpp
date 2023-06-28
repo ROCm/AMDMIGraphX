@@ -561,42 +561,8 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                 migraphx::argument buffer;
                 try
                 {
-                    migraphx::argument buffer;
-                    try
-                    {
-                        if(this->impl->targets.empty())
-                        {
-                            buffer = result;
-                        }
-                        else
-                        {
-                            const target& tgt = this->impl->targets[ins->get_target_id()];
-                            buffer            = tgt.copy_from(result);
-                        }
-                    }
-                    catch(const migraphx::exception&)
-                    {
-                        // instruction was run on host then no need to copy buffer from target
-                        buffer = result;
-                    }
-                    catch(...)
-                    {
-                        MIGRAPHX_THROW(
-                            "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
-                    }
-                    if(trace_level == 2)
-                    {
-                        std::cout << "Output has " << to_string_range(classify_argument(buffer))
-                                  << std::endl;
-                        std::cout << "Output: ";
-                        preview_argument(std::cout, buffer);
-                        std::cout << std::endl;
-                        print_statistics(std::cout, buffer);
-                    }
-                    else
-                    {
-                        std::cout << "Output: " << buffer << std::endl;
-                    }
+                    const target& tgt = this->impl->targets.at(ins->get_target_id());
+                    buffer            = tgt.copy_from(result);
                 }
                 catch(const migraphx::exception&)
                 {
@@ -605,7 +571,8 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                 }
                 catch(...)
                 {
-                    MIGRAPHX_THROW("MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
+                    MIGRAPHX_THROW(
+                        "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
                 }
                 if(trace_level == 2)
                 {
@@ -614,6 +581,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                     std::cout << "Output: ";
                     preview_argument(std::cout, buffer);
                     std::cout << std::endl;
+                    print_statistics(std::cout, buffer);
                 }
                 else
                 {

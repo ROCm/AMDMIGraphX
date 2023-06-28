@@ -48,7 +48,9 @@ endif()
 
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
 
-project(migraphx)
+project(migraphx LANGUAGES C CXX)
+include(CTest)
+
 find_package(ROCM REQUIRED)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
@@ -269,7 +271,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 add_subdirectory(src)
 add_subdirectory(docs)
-add_subdirectory(test)
+if(BUILD_TESTING)
+    add_subdirectory(test)
+endif()
 add_subdirectory(tools)
 
 set(DEST_DIR ${CMAKE_BINARY_DIR})

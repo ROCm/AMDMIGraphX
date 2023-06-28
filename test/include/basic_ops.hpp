@@ -189,7 +189,10 @@ struct nop
 struct tuple_op
 {
     std::string name() const { return "tuple_op"; }
-    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const { return {inputs}; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        return {inputs};
+    }
     migraphx::argument compute(migraphx::context&,
                                const migraphx::shape&,
                                const std::vector<migraphx::argument>& input_args) const

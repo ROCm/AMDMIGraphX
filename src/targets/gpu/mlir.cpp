@@ -52,6 +52,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/perfdb.hpp>
+#include <migraphx/gpu/tuning_config.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <deque>
@@ -134,6 +135,10 @@ using mlir_block             = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirBlock, mlirBlockD
 using mlir_pass_manager      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirPassManager, mlirPassManagerDestroy);
 using mlir_tuning_table      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningTable,
                                                       mlirRockTuningTableDestroy);
+using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
+                                                      mlirRockTuningSpaceDestroy);
+using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
+                                                      mlirRockTuningParamDestroy);
 
 std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
@@ -601,18 +606,30 @@ struct mlir_program
         }
     }
 
-    code_object_op compile() MIGRAPHX_TIDY_CONST
+    void run_high_level_pipeline() MIGRAPHX_TIDY_CONST
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
-        mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-        // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
         mlirPassManagerRun(pm_front.get(), mmodule.get());
+    }
 
-        // 2nd pipeline to call
-        get_module_tuned();
+    void run_backend_pipeline() MIGRAPHX_TIDY_CONST
+    {
+        mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
         mlirPassManagerRun(pm_back.get(), mmodule.get());
+    }
+
+    code_object_op compile(const value& solution) MIGRAPHX_TIDY_CONST
+    {
+        // 1st pipeline to call
+        run_high_level_pipeline();
+        if(solution.is_null())
+            get_module_tuned();
+        else
+            set_tuning(solution);
+        // 2nd pipeline to call
+        run_backend_pipeline();
 
         code_object_op op{};
         op.symbol_name                = sym_name;
@@ -641,6 +658,33 @@ struct mlir_program
         if(mlirGetBinary(mmodule.get(), &size, reinterpret_cast<char*>(result.data())))
             return result;
         MIGRAPHX_THROW("Failed to compile mlir program");
+    }
+
+    void set_tuning(const value& v)
+    {
+        auto str = v.to<std::string>();
+        // We need to make a copy of the buffer since mlirRockTuningSetFromStr may modify the string
+        std::vector<char> buffer(str.begin(), str.end());
+        buffer.push_back(0);
+        if (not mlirRockTuningSetFromStr(mmodule.get(), buffer.data()))
+            MIGRAPHX_THROW("Failed setting tuning key: " + str);
+    }
+
+    tuning_config get_tuning_config() MIGRAPHX_TIDY_CONST
+    {
+        tuning_config tc;
+        run_high_level_pipeline();
+        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get())};
+        for(auto i:range(mlirRockTuningGetNumParamsFull(params.get())))
+        {
+            mlir_tuning_param param{mlirRockTuningParamCreate()};
+            if (not mlirRockTuningParamGet(params.get(), i, param.get()))
+                MIGRAPHX_THROW("Incorrect mlir tuning parameter: " + std::to_string(i));
+            tc.solutions.push_back(std::string{mlirRockTuningGetParamStr(param.get())});
+        }
+        mlir_tuning_table tuning_table{mlirRockTuningTableCreate()};
+        tc.problem = std::string{mlirRockTuningGetKey(tuning_table.get(), mmodule.get())};
+        return tc;
     }
 
     std::string get_tune_params(bool xdlops) const { return get_mlir_perf_for_conv(pp, xdlops); }
@@ -729,14 +773,14 @@ std::string dump_mlir(const module& m)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
+void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
     for(auto i : range(names.size()))
     {
         const auto& name  = names[i];
-        const auto& input = inputs[i]->get_shape();
+        const auto& input = inputs[i];
         auto param        = m.get_parameter(name);
         if(input.standard())
             continue;
@@ -774,9 +818,9 @@ void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
     }
 }
 
-code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs)
+code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs, const value& solution)
 {
-    adjust_param_shapes(m, inputs);
+    adjust_param_shapes(m, to_shapes(inputs));
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     // set mutex while llvm thread support is disabled.
     static std::mutex g_mlirc_mutex; // NOLINT
@@ -791,7 +835,7 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-    auto co   = mp.compile();
+    auto co   = mp.compile(solution);
     co.output = m.get_output_shapes().front();
     return co;
 }
@@ -810,6 +854,16 @@ instruction_ref insert_mlir(module& m,
     co.expected_inputs = to_shapes(refs);
     co.output_arg      = last;
     return m.insert_instruction(ins, co, refs);
+}
+
+tuning_config get_tuning_config_mlir(module m, const std::vector<shape>& inputs)
+{
+    adjust_param_shapes(m, inputs);
+
+    mlir_program mp;
+    mp.find_target();
+    mp.parse(m);
+    return mp.get_tuning_config();
 }
 
 #else

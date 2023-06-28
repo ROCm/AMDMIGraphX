@@ -778,9 +778,6 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
 {
     adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
-    // set mutex while llvm thread support is disabled.
-    static std::mutex g_mlirc_mutex; // NOLINT
-    const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
 
     if(trace)
         std::cout << m << std::endl;

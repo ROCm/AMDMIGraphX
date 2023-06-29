@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,10 +53,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
         // Subtract the per-batch maximum log-probability, making the per-batch max 0
         auto maxes =
             info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
-        auto mb_maxes = info.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
-            maxes);
-        auto cdf = info.add_instruction(migraphx::make_op("sub"), args[0], mb_maxes);
+        auto cdf = info.add_common_op("sub", args[0], maxes);        
         // Take the element-wise exponent to get probabilities in the range (0, 1]
         cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
         // Compute the cumulative density function
@@ -69,7 +66,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
             gen.seed(info.attributes.at("seed").f());
 
         std::uniform_real_distribution<> dis(0.0, 1.0);
-        size_t batch_size = args[0]->get_shape().lens().front();
+        size_t batch_size = args[0]->get_shape().max_lens().front();
         migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};
 
         std::vector<float> random_dist(batch_size * sample_size);

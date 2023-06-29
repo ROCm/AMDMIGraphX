@@ -654,10 +654,10 @@ TEST_CASE(avgpool_dyn_pad_test)
 
     std::vector<float> data{1, 2, 3, 4, 5, 6};
 
-    //      0  0  0
-    //      1  2  3
-    //      4  5  6        0-padding will look like this
-    //      0  0  0
+    //      *  *  *
+    //      1  2  3        padding will look like this
+    //      4  5  6        The * are used when tiling the kernel
+    //      *  *  *        but are ignored in averaging
 
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 3}};
     migraphx::parameter_map params;
@@ -665,8 +665,7 @@ TEST_CASE(avgpool_dyn_pad_test)
     auto result = p.eval(params).back();
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold{0.75, 1.5, 2.25, 3.};
+    std::vector<float> gold{1.5, 3.0, 4.5, 6.0};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -688,10 +687,10 @@ TEST_CASE(avgpool_dyn_pad_ceil_test)
 
     std::vector<float> data{1, 2, 3, 4};
 
-    //  * 0 0  0  0 0 0
-    //  * 0 0  1  2 0 0
-    //  * 0 0  3  4 0 0      0-padding will look like this
-    //  * 0 0  0  0 0 0
+    //  * *  *  * * *
+    //  * *  1  2 * *      padded input will look like this
+    //  * *  3  4 * *      but the * are ignored in averaging
+    //  * *  *  * * *
 
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 2}};
     migraphx::parameter_map params;
@@ -700,9 +699,9 @@ TEST_CASE(avgpool_dyn_pad_ceil_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     // clang-format off
-    std::vector<float> gold{0.166667, 0.500000, 0.500000, 0.333333, 
-                            0.666667, 1.666667, 1.666667, 1.000000, 
-                            0.500000, 1.166667, 1.166667, 0.666667};
+    std::vector<float> gold{1.0, 1.5, 1.5, 2.0, 
+                            2.0, 2.5, 2.5, 3.0, 
+                            3.0, 3.5, 3.5, 4.0};
     // clang-format on
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
@@ -4194,6 +4193,27 @@ TEST_CASE(lppool_l1_norm_test)
     std::vector<float> gold{0.5, 0.6, 0.5, 1.3, 1.4, 1.0, 0.8, 0.8, 0.7};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
+
+// TODO: this tests compliance with a oneDNN rule and a feature that's commented out
+// in pooling.hpp
+// TEST_CASE(lppool_l1_norm_err_test)
+// {
+//     // padding too large for kernel size
+//     migraphx::program p;
+//     auto* mm    = p.get_main_module();
+//     auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 5}};
+//     auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+//     op.lengths  = {3};
+//     op.padding  = {2};
+//     op.stride   = {1};
+//     op.lp_order = 1;
+
+//     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7};
+//     auto l0 = mm->add_literal(migraphx::literal{s, data});
+//     EXPECT(test::throws([&] {
+//             mm->add_instruction(op, l0);
+//         }));
+// }
 
 TEST_CASE(lppool_l2_norm_test)
 {

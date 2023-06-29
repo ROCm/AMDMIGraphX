@@ -30,8 +30,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-// Use a literal instruction to replace the shape since, output of
-// shape operator are literals in migraphx
+/**
+ * If static shape input, creates a literal in migraphx.
+ * If dynamic shape input, creates a shape operator in migraphx (runtime evaluation of shape).
+ */
 struct parse_shape : op_parser<parse_shape>
 {
     std::vector<op_desc> operators() const { return {{"Shape"}}; }
@@ -43,13 +45,49 @@ struct parse_shape : op_parser<parse_shape>
     {
         if(args.size() != 1)
             MIGRAPHX_THROW("Shape: operator should have 1 operand");
-        std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
-        std::vector<int64_t> vec_shape(arg_shape.size());
-        migraphx::shape s(migraphx::shape::int64_type, {arg_shape.size()});
-        std::transform(arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) {
-            return int64_t(i);
-        });
-        return info.add_literal(migraphx::literal{s, vec_shape});
+        auto input_shape = args[0]->get_shape();
+        int input_ndim = input_shape.ndim();
+        auto is_ind_out_of_bounds = [&](auto ind){ return (ind > (input_ndim)) or (ind < (-1 * input_ndim)); };
+        int64_t start = 0;
+        int64_t end = input_shape.ndim();
+        if(contains(info.attributes, "end"))
+        {
+            auto end_attr = info.attributes.at("end").i();
+            if(is_ind_out_of_bounds(end_attr))
+            {
+                MIGRAPHX_THROW("PARSE_SHAPE: end attribute is out of bounds, end: " + std::to_string(end_attr));
+            }
+            end = (end_attr >= 0) ? end_attr : input_ndim - end_attr;
+        }
+        if(contains(info.attributes, "start"))
+        {
+            auto start_attr = info.attributes.at("start").i();
+            if(is_ind_out_of_bounds(start_attr))
+            {
+                MIGRAPHX_THROW("PARSE_SHAPE: start attribute is out of bounds, start: " + std::to_string(start_attr));
+            }
+            start = (start_attr >= 0) ? start_attr : input_ndim - start_attr;
+        }
+        if(end <= start)
+        {
+            MIGRAPHX_THROW("PARSE_SHAPE: ending axis <= starting axis, end: " + std::to_string(end) + " start: " + std::to_string(start));
+        }
+
+        if(input_shape.dynamic())
+        {
+           return info.add_instruction(make_op("dimensions_of", {{"start", start}, {"end", end}}), args[0]);          
+        }
+        else
+        {
+            std::size_t output_ndim = end - start;
+            std::vector<int64_t> vec_shape(output_ndim);
+            migraphx::shape s(migraphx::shape::int64_type, {output_ndim});
+            std::vector<std::size_t> input_lens = input_shape.lens();
+            std::transform(input_lens.begin() + start, input_lens.begin() + end, vec_shape.begin(), [](auto i) {
+                return int64_t(i);
+            });
+            return info.add_literal(migraphx::literal{s, vec_shape});
+        }
     }
 };
 

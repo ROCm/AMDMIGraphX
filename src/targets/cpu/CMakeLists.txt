@@ -88,8 +88,6 @@ foreach(LIBRARY ${OpenMP_CXX_LIBRARIES})
     endif()
 endforeach()
 
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
-
 rocm_install_targets(
   TARGETS migraphx_cpu
   INCLUDE

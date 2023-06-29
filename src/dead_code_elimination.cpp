@@ -49,7 +49,7 @@ void dead_code_elimination::apply(module& m) const
         if(i == last)
             break;
         // Skip instruction with empty shape as output unless its [dynamic, builtin, undefined,
-        // identity, allocate]
+        // identity, allocate or tuple_type]
         if((not i->get_shape().dynamic() and
             (i->get_shape().elements() == 0 and
              i->get_shape().type() != migraphx::shape::tuple_type)) and

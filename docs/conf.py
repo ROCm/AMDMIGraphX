@@ -27,6 +27,7 @@
 from rocm_docs import ROCmDocs
 
 external_projects_current_project = "amdmigraphx"
+
 setting_all_article_info = True
 all_article_info_os = ["linux"]
 

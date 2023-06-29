@@ -4328,6 +4328,23 @@ def multinomial_test():
 
 
 @onnx_test()
+def multinomial_dyn_test():
+    sample_size = 10
+    seed = 0.0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [None, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [None, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 seed=seed,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test()
 def multinomial_generated_seed_test():
     sample_size = 10
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])

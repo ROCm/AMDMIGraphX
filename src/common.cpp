@@ -208,6 +208,8 @@ instruction_ref insert_common_op(module& m,
                                  const operation& op,
                                  std::vector<instruction_ref> inputs)
 {
+    if(op.name() == "clip")
+       return inputs[0];
     return m.insert_instruction(ins, op, insert_common_args(m, ins, std::move(inputs)));
 }
 

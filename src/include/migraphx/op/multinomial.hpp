@@ -47,22 +47,22 @@ struct multinomial
     std::string name() const { return "multinomial"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).only_dims(2);
-        size_t sample_size = inputs.back().lens().back();
+        check_shapes{inputs, *this, true}.has(2).only_dims(2);
+        size_t sample_size = inputs.back().max_lens().back();
 
         if(not contains({shape::int32_type, shape::int64_type}, dtype))
             MIGRAPHX_THROW(
                 "Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
 
-        return {dtype, {inputs.front().lens().front(), sample_size}};
+        return {dtype, {inputs.front().max_lens().front(), sample_size}};
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        size_t batch_size  = output_shape.lens().front();
-        size_t class_size  = args[0].get_shape().lens().back();
-        size_t sample_size = output_shape.lens().back();
+        argument result{dyn_out.computed_shape};
+        size_t batch_size  = dyn_out.computed_shape.lens().front();
+        size_t class_size  = args[0].get_shape().max_lens().back();
+        size_t sample_size = dyn_out.computed_shape.lens().back();
 
         visit_all(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {

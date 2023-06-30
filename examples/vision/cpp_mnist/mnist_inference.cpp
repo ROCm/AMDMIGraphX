@@ -160,9 +160,9 @@ int main(int argc, char** argv)
     auto lengths = shape.lengths();
     auto num_results =
         std::accumulate(lengths.begin(), lengths.end(), 1, std::multiplies<size_t>());
-    float* results = reinterpret_cast<float*>(outputs[0].data());
-    const float* max     = std::max_element(results, results + num_results);
-    int answer     = max - results;
+    float* results   = reinterpret_cast<float*>(outputs[0].data());
+    const float* max = std::max_element(results, results + num_results);
+    int answer       = max - results;
 
     std::cout << std::endl
               << "Randomly chosen digit: " << rand_digit << std::endl

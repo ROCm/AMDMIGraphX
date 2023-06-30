@@ -33,11 +33,10 @@
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
 
-
 // This test ensures that the codegen path doesn't round up literals,
 // otherwise there are accuracy differences compared to ref.
 // The values being passed in are 0.5 * (1/0.00787402),
-// and after rounding must equal 63, not 64. 
+// and after rounding must equal 63, not 64.
 TEST_CASE(mul_literal_round_test)
 {
     auto run_prog = [](migraphx::program p,
@@ -69,7 +68,7 @@ TEST_CASE(mul_literal_round_test)
         auto l0 = mm->add_parameter("a", s0);
         auto l1 = mm->add_literal(1 / 0.00787402f);
 
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), l0, l1);
+        auto mul   = mm->add_instruction(migraphx::make_op("mul"), l0, l1);
         auto round = mm->add_instruction(migraphx::make_op("round"), mul);
 
         mm->add_return({round});
@@ -96,7 +95,5 @@ TEST_CASE(mul_literal_round_test)
         EXPECT(migraphx::verify_range(ref_result, gpu_result));
     }
 }
-
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

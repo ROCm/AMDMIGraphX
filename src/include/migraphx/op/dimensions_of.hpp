@@ -24,13 +24,52 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_DIMENSIONS_OF_HPP
 #define MIGRAPHX_GUARD_OPERATORS_DIMENSIONS_OF_HPP
 
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/dyn_output.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Returns the dimensions of the input argument from starting axis to ending axis.
+ * This should only be used for dynamic shapes as this can be simplified to a literal
+ * for static shapes.
+ */
 struct dimensions_of
 {
+    std::size_t start;
+    std::size_t end;
+    
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.start),
+                    f(self.end));
+    }
 
+    std::string name() const { return "dimensions_of"; }
+    
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this, true}.has(1);
+        if(start >= end)
+        {
+            MIGRAPHX_THROW("DIMENSIONS_OF: start >= end. start = " + std::to_string(start) + ", end = " + std::to_string(end));
+        }
+        return shape{shape::int64_type, {end - start}};
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            auto input_lens = input.get_shape().lens();
+            std::copy(input_lens.cbegin(), input_lens.cend(), output.begin());
+        });
+        return result;
+    }
 };
 
 } // namespace op

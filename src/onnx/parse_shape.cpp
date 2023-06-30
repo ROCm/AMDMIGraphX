@@ -48,8 +48,9 @@ struct parse_shape : op_parser<parse_shape>
         auto input_shape = args[0]->get_shape();
         int input_ndim = input_shape.ndim();
         auto is_ind_out_of_bounds = [&](auto ind){ return (ind > (input_ndim)) or (ind < (-1 * input_ndim)); };
-        int64_t start = 0;
-        int64_t end = input_shape.ndim();
+        std::size_t start = 0;
+        std::size_t end = input_shape.ndim();
+        // Normalizing the start and end is handled here because of how the static shape version works
         if(contains(info.attributes, "end"))
         {
             auto end_attr = info.attributes.at("end").i();

@@ -232,14 +232,12 @@ rocm_enable_cppcheck(
         shadowVar
         shadowVariable
         unsafeClassDivZero
+        # Disable because of too many FPs
+        arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
-        constParameter:*src/targets/gpu/*.cpp
-        constParameter:*src/targets/gpu/*.hpp
-        # Suppress mlir_conv.cpp since this file will be deleted
-        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE

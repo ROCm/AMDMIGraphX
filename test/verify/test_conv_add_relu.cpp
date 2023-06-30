@@ -51,7 +51,7 @@ struct test_conv_add_relu : verify_program<test_conv_add_relu>
     }
 };
 
-struct test_conv_add_relu : verify_program<test_conv_add_relu>
+struct test_conv_add_relu_conv : verify_program<test_conv_add_relu_conv>
 {
     migraphx::program create_program() const
     {

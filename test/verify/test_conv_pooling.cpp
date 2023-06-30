@@ -42,6 +42,7 @@ struct test_conv_pooling : verify_program<test_conv_pooling>
         auto pooling = mm->add_instruction(
             migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), conv);
         mm->add_instruction(migraphx::make_op("relu"), pooling);
+        std::cout << p << std::endl;
         return p;
     }
 };

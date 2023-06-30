@@ -27,7 +27,6 @@
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
 
-
 void run_prog(migraphx::program p,
               const migraphx::target& t,
               migraphx::parameter_map& m_in,

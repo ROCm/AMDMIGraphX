@@ -187,12 +187,39 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(quant_dot_add)
+{
+    const std::string mlir_output = R"__migraphx__(
+module {
+  func.func @main(%arg0: tensor<1x5x4xi8>, %arg1: tensor<1x4x3xi8>, %arg2: tensor<1x5x3xi32>) -> tensor<1x5x3xi32> attributes {arch = "", kernel = "mixr"} {
+    %0 = migraphx.quant_dot(%arg0, %arg1) : (tensor<1x5x4xi8>, tensor<1x4x3xi8>) -> tensor<1x5x3xi32>
+    %1 = migraphx.add(%0, %arg2) : (tensor<1x5x3xi32>, tensor<1x5x3xi32>) -> tensor<1x5x3xi32>
+    return %1 : tensor<1x5x3xi32>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0 = m.add_parameter("arg0", {migraphx::shape::int8_type, {1, 5, 4}});
+    auto arg1 = m.add_parameter("arg1", {migraphx::shape::int8_type, {1, 4, 3}});
+    auto arg2 = m.add_parameter("arg2", {migraphx::shape::int32_type, {1, 5, 3}});
+    auto conv = m.add_instruction(migraphx::make_op("quant_dot"), arg0, arg1);
+    auto add  = m.add_instruction(migraphx::make_op("add"), conv, arg2);
+    m.add_return({add});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    CHECK(encode(s) == encode(mlir_output));
+    EXPECT(verify_mlir(m));
+}
+
 TEST_CASE(dot_add)
 {
     const std::string mlir_output = R"__migraphx__(
 module {
   func.func @mlir_dot(%arg0: tensor<1x5x4xf32>, %arg1: tensor<1x4x3xf32>, %arg2: tensor<1x5x3xf32>) -> tensor<1x5x3xf32> attributes {arch = "", kernel = "mixr"} {
-    %0 = migraphx.dot(%arg0, %arg1) : tensor<1x5x4xf32>, tensor<1x4x3xf32> -> tensor<1x5x3xf32>
+    %0 = migraphx.dot(%arg0, %arg1) : (tensor<1x5x4xf32>, tensor<1x4x3xf32>) -> tensor<1x5x3xf32>
     %1 = migraphx.add(%0, %arg2) : (tensor<1x5x3xf32>, tensor<1x5x3xf32>) -> tensor<1x5x3xf32>
     return %1 : tensor<1x5x3xf32>
   }
@@ -238,6 +265,59 @@ module {
     auto r       = m.add_instruction(migraphx::make_op("quantizelinear"), dequant, input2, input3);
 
     m.add_return({r});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    CHECK(encode(s) == encode(mlir_output));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(dot_convert)
+{
+    const std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot(%arg0: tensor<1x5x4xf32>, %arg1: tensor<1x4x3xf32>) -> tensor<1x5x3xf16> attributes {arch = "", kernel = "mixr"} {
+    %0 = migraphx.dot(%arg0, %arg1) : (tensor<1x5x4xf32>, tensor<1x4x3xf32>) -> tensor<1x5x3xf32>
+    %1 = migraphx.convert(%0) {target_type  =  1  :  i64} : (tensor<1x5x3xf32>) -> tensor<1x5x3xf16>
+    return %1 : tensor<1x5x3xf16>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0  = m.add_parameter("arg0", {migraphx::shape::float_type, {1, 5, 4}});
+    auto arg1  = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 4, 3}});
+    auto dot   = m.add_instruction(migraphx::make_op("dot"), arg0, arg1);
+    auto trunc = m.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), dot);
+    m.add_return({trunc});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    CHECK(encode(s) == encode(mlir_output));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(dot_where)
+{
+    const std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot(%arg0: tensor<1x5x4xf32>, %arg1: tensor<1x4x3xf32>, %arg2: tensor<1x5x3xi8>, %arg3: tensor<1x5x3xf32>) -> tensor<1x5x3xf32> attributes {arch = "", kernel = "mixr"} {
+    %0 = migraphx.dot(%arg0, %arg1) : (tensor<1x5x4xf32>, tensor<1x4x3xf32>) -> tensor<1x5x3xf32>
+    %1 = migraphx.where(%arg2, %0, %arg3) : (tensor<1x5x3xi8>, tensor<1x5x3xf32>, tensor<1x5x3xf32>) -> tensor<1x5x3xf32>
+    return %1 : tensor<1x5x3xf32>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto arg0  = m.add_parameter("arg0", {migraphx::shape::float_type, {1, 5, 4}});
+    auto arg1  = m.add_parameter("arg1", {migraphx::shape::float_type, {1, 4, 3}});
+    auto arg2  = m.add_parameter("arg2", {migraphx::shape::bool_type, {1, 5, 3}});
+    auto arg3  = m.add_parameter("arg3", {migraphx::shape::float_type, {1, 5, 3}});
+    auto dot   = m.add_instruction(migraphx::make_op("dot"), arg0, arg1);
+    auto where = m.add_instruction(migraphx::make_op("where"), arg2, dot, arg3);
+    m.add_return({where});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
     if(s.empty())

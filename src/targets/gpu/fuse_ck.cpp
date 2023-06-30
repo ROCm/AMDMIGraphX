@@ -87,13 +87,13 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     auto n = b.lens().back();
     auto k = a.lens().back();
     // Integer gemms must be divisible by 4 in ck
-    if (contains({shape::int8_type, shape::int32_type}, ins->get_shape().type()))
+    if(contains({shape::int8_type, shape::int32_type}, ins->get_shape().type()))
     {
-        if (m % 4 != 0)
+        if(m % 4 != 0)
             return false;
-        if (n % 4 != 0)
+        if(n % 4 != 0)
             return false;
-        if (k % 4 != 0)
+        if(k % 4 != 0)
             return false;
     }
     // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy

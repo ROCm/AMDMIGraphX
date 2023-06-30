@@ -113,39 +113,15 @@ struct pooling
             MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride");
         }
 
-        // TODO: Decide whether to implement this.  The rule below doesn't seem to match actual
-        // oneDNN behavior; for instance,
+        // TODO: When OneDNN can't execute pooling for a CPU, update lowering to run the reference code
+
+        // OneDNN has a limitation on padding size for pooling.  see
+        // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution
 
         // padding = {2}; stride = {1}; lengths = {3} succeeds in oneDNN but
         // padding = {2}; stride = {1}; lengths = {2} fails.
         // Also, the referenced documentation contains a max. dimension size of 14 for the kernel
         // ("weights tensor") that MIGraphX doesn't enforce.
-
-        // Check compliance with a OneDNN pooling requirement.  see
-        // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution
-        // bool too_much_pad = false;
-        // if(padding.size() == lengths.size())
-        // {
-        //     too_much_pad = std::mismatch(padding.begin(),
-        //                          padding.end(),
-        //                          lengths.begin(),
-        //                          lengths.end(),
-        //                          [&](auto i, auto j) {return (i < j/2); }) ==
-        //                          std::make_pair(padding.end(), lengths.end());
-        // }
-        // else{
-        //     size_t dims = lengths.size();
-        //     for(size_t i = 0; i < dims; i++)
-        //     {
-        //         too_much_pad = too_much_pad or padding[i] > lengths[i]/2 or padding[i + dims] >
-        //         lengths[i]/2;
-        //     }
-        // }
-        // if(too_much_pad)
-        // {
-        //     MIGRAPHX_THROW("POOLING: padding may not exceed 1/2 of kernel size in any
-        //     dimension");
-        // }
     }
 
     size_t kdims() const

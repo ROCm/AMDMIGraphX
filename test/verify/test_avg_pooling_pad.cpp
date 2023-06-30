@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,15 +27,16 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
-struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
+struct test_avg_pooling_pad : verify_program<test_avg_pooling_pad>
 {
     migraphx::program create_program() const
     {
+        // pooling test with nonzero padding
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
-        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::average, {0}, {1}, {3}};
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 7}});
+        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::average, {2}, {1}, {3}};
         mm->add_instruction(op, input);
         return p;
     }

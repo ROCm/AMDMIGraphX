@@ -21,49 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/op/mul.hpp"
 #include <iostream>
 #include <vector>
-#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/quantization.hpp>
-#include <migraphx/generate.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/onnx.hpp>
 #include <test.hpp>
-#include <migraphx/half.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(gpu_target_copy)
-{
-    migraphx::target gpu_t = migraphx::make_target("gpu");
-    migraphx::target ref_t = migraphx::make_target("ref");
-    migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
 
-    auto ref_arg_orig  = migraphx::generate_argument(s, 0x123456L);
-    auto gpu_arg       = gpu_t.copy_to(ref_arg_orig);
-    auto ref_arg_final = gpu_t.copy_from(gpu_arg);
-
-    std::vector<int8_t> val_orig;
-    ref_arg_orig.visit([&](auto v) { val_orig.assign(v.begin(), v.end()); });
-    std::vector<int8_t> val_final;
-    ref_arg_final.visit([&](auto v) { val_final.assign(v.begin(), v.end()); });
-
-    EXPECT(migraphx::verify_range(val_orig, val_final));
-}
-
-TEST_CASE(int8_quantization)
+// This test ensures that the codegen path doesn't round up literals,
+// otherwise there are accuracy differences compared to ref.
+// The values being passed in are 0.5 * (1/0.00787402),
+// and after rounding must equal 63, not 64. 
+TEST_CASE(mul_literal_round_test)
 {
     auto run_prog = [](migraphx::program p,
                        const migraphx::target& t,
                        migraphx::parameter_map& m_in,
                        std::vector<float>& res) {
-        std::vector<migraphx::parameter_map> cali_data;
-        cali_data.push_back(m_in);
-        migraphx::quantize_int8(p, t, cali_data);
         p.compile(t);
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
@@ -82,15 +62,17 @@ TEST_CASE(int8_quantization)
         result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
     };
 
-    auto create_program = [] {
+    auto create_program = [&] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sa{migraphx::shape::float_type, {5, 16}};
-        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
-        migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
-        auto pa = mm->add_parameter("a", sa);
-        auto pb = mm->add_parameter("b", sb);
-        mm->add_instruction(migraphx::op::dot{}, pa, pb);
+        migraphx::shape s0{migraphx::shape::float_type, {1}};
+        auto l0 = mm->add_parameter("a", s0);
+        auto l1 = mm->add_literal(1 / 0.00787402f);
+
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), l0, l1);
+        auto round = mm->add_instruction(migraphx::make_op("round"), mul);
+
+        mm->add_return({round});
 
         return p;
     };
@@ -98,11 +80,11 @@ TEST_CASE(int8_quantization)
     {
         auto p = create_program();
         migraphx::parameter_map m;
-        migraphx::shape sa{migraphx::shape::float_type, {5, 16}};
-        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
-        migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
-        m["a"] = migraphx::generate_argument(sa);
-        m["b"] = migraphx::generate_argument(sb);
+        migraphx::shape s0{migraphx::shape::float_type, {1}};
+
+        std::vector<float> a = {0.5f};
+
+        m["a"] = migraphx::argument{s0, a.data()};
         std::vector<float> ref_result;
         migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, m, ref_result);
@@ -111,17 +93,10 @@ TEST_CASE(int8_quantization)
         migraphx::target gpu_t = migraphx::make_target("gpu");
         run_prog(p, gpu_t, m, gpu_result);
 
-        // Note: the tolerance for mlir_enabled result is temporarily bumped
-        // higher because the lowering pipeline between mlir fallback and
-        // regular non-mlir pipeline diverged. MLIR fallback uses the
-        // rewrite_quantization at the very end of the pipeline, whereas
-        // the regular pipeline uses the rewrite_quantization in the much
-        // earlier stage.
-        if(migraphx::gpu::mlir_enabled())
-            EXPECT(migraphx::verify_range(ref_result, gpu_result, 1e5));
-        else
-            EXPECT(migraphx::verify_range(ref_result, gpu_result));
+        EXPECT(migraphx::verify_range(ref_result, gpu_result));
     }
 }
+
+
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -52,7 +52,7 @@ struct fused_reduce
     {
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
-        auto* sm = mods.front();
+        const auto* sm = mods.front();
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one output supported");
         auto names = sm->get_parameter_names();

@@ -224,7 +224,7 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     // Gather all the target roots
     std::unordered_multimap<std::size_t, module_ref> roots;
     auto mods = this->get_modules();
-    for(auto* mod : mods)
+    for(const auto* mod : mods)
     {
         for(const auto& ins : *mod)
         {

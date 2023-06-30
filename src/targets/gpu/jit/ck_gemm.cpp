@@ -299,6 +299,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto& b_shape = inputs[1];
         const auto& c_shape = inputs.back();
 
+        // cppcheck-suppress unreadVariable
         auto rank = a_shape.lens().size();
 
         auto batch_count = get_batch_count(c_shape);

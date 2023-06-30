@@ -161,7 +161,7 @@ int main(int argc, char** argv)
     auto num_results =
         std::accumulate(lengths.begin(), lengths.end(), 1, std::multiplies<size_t>());
     float* results = reinterpret_cast<float*>(outputs[0].data());
-    float* max     = std::max_element(results, results + num_results);
+    const float* max     = std::max_element(results, results + num_results);
     int answer     = max - results;
 
     std::cout << std::endl

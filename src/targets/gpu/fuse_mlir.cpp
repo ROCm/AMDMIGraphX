@@ -191,6 +191,68 @@ struct find_mlir_op
         return {new_gemm_based_op, top_inputs};
     }
 
+    // Whitelist supported fusion options, including imposing type constraints
+    // for cases where MLIR only supports an operation (usually a pointwise function)
+    // on particular types.
+    bool is_pointwise_op_supported_by_mlir(const instruction& i) const
+    {
+        using type_t                                      = shape::type_t;
+        const auto& name                                  = i.name();
+        const auto result_type                            = i.get_shape().type();
+        const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                             type_t::half_type,
+                                                             type_t::int8_type,
+                                                             type_t::int32_type,
+                                                             type_t::bool_type};
+        // Preliminary type check.
+        if(not contains(allowed_types, result_type))
+        {
+            return false;
+        }
+        const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
+        const std::initializer_list<std::string> no_bool_ops  = {"convolution",
+                                                                "quant_convolution",
+                                                                "dot",
+                                                                "quant_dot",
+                                                                "add",
+                                                                "clip",
+                                                                "sub",
+                                                                "mul",
+                                                                "div",
+                                                                "pow",
+                                                                "where",
+                                                                "quantizelinear",
+                                                                "dequantizelinear",
+                                                                "abs",
+                                                                "neg"};
+        const std::initializer_list<std::string> fp_only_ops  = {"ceil",
+                                                                "erf",
+                                                                "exp",
+                                                                "floor",
+                                                                "log",
+                                                                "recip",
+                                                                "rsqrt",
+                                                                "sigmoid"
+                                                                "softmax",
+                                                                "tanh"};
+        bool is_float = contains({type_t::float_type, type_t::half_type}, result_type);
+        if(contains(any_type_ops, name))
+            return true;
+        if(result_type != type_t::bool_type && contains(no_bool_ops, name))
+            return true;
+        if(is_float && contains(fp_only_ops, name))
+            return true;
+        // Only conversions between floating types are known to be unambigiously
+        // supported.
+        if(is_float && name == "convert")
+        {
+            return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
+                return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());
+            });
+        }
+        return false;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins           = r.result;
@@ -198,32 +260,12 @@ struct find_mlir_op
         auto x_ins         = r.instructions["x"]; // input after contiguous
         auto* pm           = ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
-        // Whitelist pointwise operators
-        if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
-               return not contains({"@literal",
-                                    "@param",
-                                    "@return",
-                                    "convolution",
-                                    "quant_convolution",
-                                    "dot",
-                                    "quant_dot",
-                                    "add",
-                                    "relu",
-                                    "dequantizelinear",
-                                    "quantizelinear",
-                                    "mul"},
-                                   i.name());
+        // Whitelist pointwise operators.
+        if(std::any_of(pm->begin(), pm->end(), [&](const auto& i) {
+               return not is_pointwise_op_supported_by_mlir(i);
            }))
             return;
-        // Only fuse with fp32/fp16/int8/int32
-        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-               return not contains({shape::type_t::float_type,
-                                    shape::type_t::half_type,
-                                    shape::type_t::int8_type,
-                                    shape::type_t::int32_type},
-                                   i->get_shape().type());
-           }))
-            return;
+
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();

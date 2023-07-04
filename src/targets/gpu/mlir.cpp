@@ -121,7 +121,10 @@ struct mlir_handle
 
 #define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
 
-using mlir_context           = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
+using mlir_context     = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
+using mlir_thread_pool = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirLlvmThreadPool, mlirLlvmThreadPoolDestroy);
+using mlir_dialect_registry  = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirDialectRegistry,
+                                                          mlirDialectRegistryDestroy);
 using mlir_module            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirModule, mlirModuleDestroy);
 using mlir_operation         = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOperation, mlirOperationDestroy);
 using mlir_op_printing_flags = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOpPrintingFlags,
@@ -173,16 +176,38 @@ bool has_xdlops(const std::string& target_arch)
 struct mlir_program
 {
     mlir_program()
-        : ctx(mlirContextCreate()),
+        : ctx(mlirContextCreateWithRegistry(get_dialect_registry().get(),
+                                            /*threadingEnable=*/false)),
           location(mlirLocationUnknownGet(ctx.get())),
           mmodule(mlirModuleCreateEmpty(location))
     {
-        MlirDialectRegistry registry = mlirDialectRegistryCreate();
-        mlirRegisterRocMLIRDialects(registry);
-        mlirContextAppendDialectRegistry(ctx.get(), registry);
+        mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
         mlirContextLoadAllAvailableDialects(ctx.get());
-        mlirDialectRegistryDestroy(registry);
-        mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
+    }
+
+    static mlir_dialect_registry& get_dialect_registry()
+    {
+        static std::once_flag init_guard;
+        static mlir_dialect_registry the_registry;
+        // The MLIR registration functions (for dialects and passes) are not
+        // necessarily thread-safe and need to be executed exactly once
+        // (especially since they eventually call non-thread-safe LLVM
+        // initilizations).
+        std::call_once(init_guard, [&]() {
+            the_registry = mlirDialectRegistryCreate();
+            mlirRegisterRocMLIRDialects(the_registry.get());
+            mlirRegisterRocMLIRPasses();
+        });
+        return the_registry;
+    }
+
+    static mlir_thread_pool& get_thread_pool()
+    {
+        // To save on overhead, we create one LLVM thread pool and reuse it
+        // across all MLIR contexts as recommended by MLIR upstream.
+        // Note that this is thread-safe as of C++11.
+        static mlir_thread_pool the_pool = mlirLlvmThreadPoolCreate();
+        return the_pool;
     }
 
     MlirType make_type(shape::type_t t) const

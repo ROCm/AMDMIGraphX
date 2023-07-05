@@ -34,19 +34,19 @@ namespace op {
 
 /**
  * Returns the dimensions of the input argument from starting axis to ending axis.
- * This should only be used for dynamic shapes as this can be simplified to a literal
- * for static shapes.
+ * Atleast `end` must be set to use this operator (set `end` to ndim for default ONNX behavior of `Shape` operator)
+ * This should only be used for dynamic shapes as this can be simplified to a literal for static shapes.
  */
 struct dimensions_of
 {
-    std::size_t start;
-    std::size_t end;
+    std::size_t start = 0;
+    std::size_t end = 0;
     
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.start),
-                    f(self.end));
+        return pack(f(self.start, "start"),
+                    f(self.end, "end"));
     }
 
     std::string name() const { return "dimensions_of"; }
@@ -66,7 +66,7 @@ struct dimensions_of
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
             auto input_lens = input.get_shape().lens();
-            std::copy(input_lens.cbegin(), input_lens.cend(), output.begin());
+            std::copy(input_lens.cbegin() + start, input_lens.cend() + end, output.begin());
         });
         return result;
     }

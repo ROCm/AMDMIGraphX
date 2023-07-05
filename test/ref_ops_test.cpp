@@ -2072,6 +2072,11 @@ TEST_CASE(dequantizelinear)
     }
 }
 
+TEST_CASE(dimensions_of_test0)
+{
+    
+}
+
 TEST_CASE(div_test)
 {
     migraphx::program p;

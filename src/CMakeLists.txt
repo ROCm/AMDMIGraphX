@@ -130,6 +130,7 @@ register_migraphx_ops(
     cos
     deconvolution
     dequantizelinear
+    dimensions_of
     div
     dot
     elu

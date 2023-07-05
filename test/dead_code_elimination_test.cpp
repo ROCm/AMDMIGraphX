@@ -232,7 +232,6 @@ TEST_CASE(reused_twice)
 
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    p.debug_print();
     EXPECT(std::distance(mm->begin(), mm->end()) != count);
     EXPECT(std::distance(mm->begin(), mm->end()) == 4);
 }
@@ -272,6 +271,19 @@ TEST_CASE(param_not_eliminated)
     auto p = create_program();
     run_pass(p);
     EXPECT(p == create_program());
+}
+
+TEST_CASE(tuple_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(tuple_op{}, one, two);
+    mm->add_return({one, two});
+    auto count = std::distance(mm->begin(), mm->end());
+    run_pass(p);
+    EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

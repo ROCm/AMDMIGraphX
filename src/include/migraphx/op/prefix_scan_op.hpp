@@ -60,8 +60,12 @@ struct prefix_scan_op : op_name<Derived>
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
+        check_shapes{inputs, *this, true}.has(1);
         auto s = inputs.front();
+        if(s.dynamic())
+        {
+            return {s.type(), s.max_lens()};
+        }
         if(s.broadcasted())
         {
             return {s.type(), s.lens()};
@@ -72,8 +76,9 @@ struct prefix_scan_op : op_name<Derived>
         }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
+        shape output_shape(dyn_out.computed_shape);
         argument result{output_shape};
         auto s = args[0].get_shape();
         if(s == output_shape)

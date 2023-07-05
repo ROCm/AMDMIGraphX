@@ -113,7 +113,8 @@ struct pooling
             MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride");
         }
 
-        // TODO: When OneDNN can't execute pooling for a CPU, update lowering to run the reference code
+        // TODO:  update lowering to run the reference
+        // code when OneDNN can't execute pooling for a CPU
 
         // OneDNN has a limitation on padding size for pooling.  see
         // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution

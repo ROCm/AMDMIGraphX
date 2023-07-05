@@ -326,6 +326,8 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 
     if(ins == std::prev(this->end()))
     {
+        // "rep" instruction could be used earlier in the program and moving it at the end
+        // may cause invalid program, therefore make an identity operation in this case.
         return replace_instruction(ins, make_op("identity"), rep);
     }
 

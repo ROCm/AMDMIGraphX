@@ -54,7 +54,11 @@ struct multinomial
             MIGRAPHX_THROW(
                 "Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
 
+<<<<<<< HEAD
         return inputs.front().normalize_standard();
+=======
+        return {dtype, {inputs.front().max_lens().front(), sample_size}};
+>>>>>>> da4fa01ff583c14d23b9e10c5fc178a4e3fe3bc2
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

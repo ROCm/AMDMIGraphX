@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,13 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ */
+
+/**
+ * Parent struct for prefix scan ops.  A prefix scan is a mathematical entity useful
+ * in parallelizing various computations.  Given a list of numbers, a prefix scan
+ * op returns an equal size list of running totals of the values.  Other operations
+ * besides addition can be supported by child ops.
  */
 #ifndef MIGRAPHX_GUARD_OPERATORS_SCAN_OP_HPP
 #define MIGRAPHX_GUARD_OPERATORS_SCAN_OP_HPP
@@ -64,9 +71,9 @@ struct prefix_scan_op : op_name<Derived>
         auto s = inputs.front();
         if(s.dynamic())
         {
-            return {s.type(), s.max_lens()};
+            return s;
         }
-        if(s.broadcasted())
+        else if(s.broadcasted())
         {
             return {s.type(), s.lens()};
         }
@@ -76,8 +83,9 @@ struct prefix_scan_op : op_name<Derived>
         }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
+        shape output_shape(dyn_out.computed_shape);
         argument result{output_shape};
         auto s = args[0].get_shape();
         if(s == output_shape)

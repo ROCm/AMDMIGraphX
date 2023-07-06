@@ -55,7 +55,7 @@ bool get_compute_fp32_flag()
 
 bool get_int8_x4_format(context& ctx)
 {
-    // int8x4 packed format is only availabe starting from rocblas-v2.38 and it is deprecated in
+    // int8x4 packed format is only available starting from rocblas-v2.38 and it is deprecated in
     // v3.0 and will be removed in v4.0
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MAJOR < 3 && ROCBLAS_VERSION_MINOR >= 38
     rocblas_gemm_flags flag;

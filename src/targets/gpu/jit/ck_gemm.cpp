@@ -66,7 +66,7 @@ ${preamble}
 
 extern "C" {
 
-__global__ void ${kernel}(${params})
+MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         ck_gemm<${solution}, ${blocks_per_batch}>(xs...);

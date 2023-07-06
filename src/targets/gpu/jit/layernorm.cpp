@@ -48,7 +48,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void ${kernel}(${params}) 
+MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto... xs) {
         ${layernorm}<${axis}>(${post}, ${eps}, xs...);

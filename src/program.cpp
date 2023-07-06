@@ -630,9 +630,9 @@ value program::to_value() const
     value result;
     result["version"]          = program_file_version;
     result["migraphx_version"] = get_migraphx_version();
-    result["target"]           = this->impl->target_name;
-    result["contexts"] = migraphx::to_value(this->impl->contexts);
-    value module_vals = value::object{};
+    result["targets"]          = migraphx::to_value(this->impl->targets);
+    result["contexts"]         = migraphx::to_value(this->impl->contexts);
+    value module_vals          = value::object{};
     std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : this->get_modules())
     {

@@ -129,7 +129,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
 }, mlir_debug: rocmnode('vega') { cmake_build ->
     stage('MLIR Debug') {
         withEnv(['MIGRAPHX_ENABLE_MLIR=1']) {
-            def sanitizers = "undefined"
+            def sanitizers = "undefined,thread"
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
             // This is, as best as I can tell, requirede to build LLVM with
             // both UBSAN and threads.

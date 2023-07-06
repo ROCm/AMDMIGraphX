@@ -32,7 +32,7 @@ namespace onnx {
 
 /**
  * If static shape input, creates a literal in migraphx.
- * If dynamic shape input, creates a shape operator in migraphx (runtime evaluation of shape).
+ * If dynamic shape input, creates a dimensions_of operator in migraphx (runtime evaluation of shape).
  */
 struct parse_shape : op_parser<parse_shape>
 {

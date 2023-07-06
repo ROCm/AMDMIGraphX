@@ -44,15 +44,15 @@ struct pooling
 {
     pooling_mode mode = {pooling_mode::average};
 
-    // Padding along each input dimension
-    // Can be ndim or 2*ndim values
+    // Padding along each spatial input dimension
+    // Can be ndim or 2*ndim values where ndim is size of lengths
     // ndim values means pad the same before and after each dimension
     // 2*ndim values contains n pre and then n post padding values
     std::vector<std::size_t> padding = {0, 0};
 
     // Size of stride to take from one placement of the pooling kernel to the next.
     // This is distinct from the strides used by the shape class.  Must be the same 
-    // size (rank) as lengths.
+    // ndim as lengths.
     std::vector<std::size_t> stride = {1, 1};
 
     // Spatial dimensions of the pooling kernel or window,

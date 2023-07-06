@@ -42,7 +42,7 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void scatternd_kernel(void* in_indices, void* in_updates, void* output) 
+MIGRAPHX_GLOBAL void scatternd_kernel(void* in_indices, void* in_updates, void* output) 
 {
     make_tensors()(in_indices, in_updates, output)([](auto&&... xs) { 
         scatternd(xs..., ${reduction}{}); 

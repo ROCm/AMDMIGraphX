@@ -21,6 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/quantize_fp16.hpp>
@@ -31,6 +34,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/make_op.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -74,9 +78,41 @@ static void quantize_module(module& m, const std::vector<std::string>& ins_names
         // Replace original instruction
         m.replace_instruction(ins, converted_ins);
     }
+    // m.debug_print();
+    // std::cout << "HERE" << std::endl;
+    
 }
 
-void quantize_fp16_pass::apply(module& m) const { quantize_module(m, ins_names); }
+static void quantize_params(module& m)
+{
+    std::vector<std::string> param_names = m.get_parameter_names();
+    std::unordered_set<std::string> processed_params;
+    for( auto param_name : param_names)
+    {
+        auto param = m.get_parameter(param_name);
+        // m.debug_print(param);
+        if( not contains(processed_params, param_name) and param->get_shape().type() == shape::float_type)
+        {
+            auto new_param = m.add_parameter(param_name, migraphx::shape{shape::half_type, param->get_shape().lens()});
+            // m.debug_print(new_param);
+            // m.debug_print();
+
+            // m.debug_print();
+            m.replace_instruction(param, new_param);
+            // std::cout << "HERE" << std::endl;
+
+        }
+        processed_params.insert(param_name);
+    }
+}
+
+void quantize_fp16_pass::apply(module_pass_manager& mpm) const { 
+    module m = mpm.get_module();
+    quantize_module(m, ins_names); 
+    // mpm.run_pass(dead_code_elimination{});
+    // m.debug_print();
+    // quantize_params(m);
+    }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

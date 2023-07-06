@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/simplify_qdq.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/ref/lowering.hpp>
 #include <migraphx/register_target.hpp>
@@ -44,6 +45,8 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
 {
     return {normalize_ops{},
             eliminate_pad{},
+            dead_code_elimination{},
+            simplify_qdq{},
             dead_code_elimination{},
             insert_pad{},
             dead_code_elimination{},

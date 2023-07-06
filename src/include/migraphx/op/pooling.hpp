@@ -44,13 +44,10 @@ struct pooling
 {
     pooling_mode mode = {pooling_mode::average};
 
-    // The amount each dimension is padded, both before and after.  Can be
-    // either the same size as lengths, or twice as long.  When padding
-    // is double the length of lengths, the first n values are read as
-    // pre-padding for each dimension and the last n values are post-padding.
-    // (The latter is necessary if the total padding desired is an odd number)
-    //
-    //
+    // Padding along each input dimension
+    // Can be ndim or 2*ndim values
+    // ndim values means pad the same before and after each dimension
+    // 2*ndim values contains n pre and then n post padding values
     std::vector<std::size_t> padding = {0, 0};
 
     // Size of stride to take from one placement of the pooling kernel to the next.

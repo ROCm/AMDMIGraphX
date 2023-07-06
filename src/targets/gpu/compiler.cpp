@@ -63,9 +63,10 @@ compile_op(const std::string& name, context& ctx, const std::vector<shape>& inpu
     return compiler_map().at(name).compile_op(ctx, inputs, v);
 }
 
-optional<tuning_config> get_tuning_config(context& ctx, instruction_ref ins, const operation& op)
+optional<tuning_config>
+get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive)
 {
-    return compiler_map().at(op.name()).get_tuning_config(ctx, ins, op);
+    return compiler_map().at(op.name()).get_tuning_config(ctx, ins, op, exhaustive);
 }
 
 } // namespace gpu

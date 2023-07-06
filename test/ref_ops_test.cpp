@@ -850,6 +850,31 @@ TEST_CASE(clip_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(clip_dyn_test)
+{
+    migraphx::program p;
+    auto* mm                                            = p.get_main_module();
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    migraphx::shape s{migraphx::shape::float_type, dds};
+    auto l       = mm->add_parameter("X", s);
+    auto min_val = mm->add_literal(0.0f);
+    auto max_val = mm->add_literal(6.0f);
+    min_val      = mm->add_instruction(migraphx::make_op("multibroadcast"), min_val, l);
+    max_val      = mm->add_instruction(migraphx::make_op("multibroadcast"), max_val, l);
+    mm->add_instruction(migraphx::make_op("clip"), l, min_val, max_val);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape static_shape{migraphx::shape::float_type, {3}};
+    migraphx::parameter_map params;
+    std::vector<float> data = {-1.0, 0.0, 10.0};
+    params["X"]             = migraphx::argument(static_shape, data.data());
+    auto result             = p.eval(params).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.0, 0.0, 6.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(concat_test)
 {
     {

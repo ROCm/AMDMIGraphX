@@ -187,6 +187,7 @@ struct raw_data : raw_data_base
     std::string to_string() const
     {
         std::stringstream ss;
+        ss.precision(std::numeric_limits<double>::max_digits10);
         ss << static_cast<const Derived&>(*this);
         return ss.str();
     }

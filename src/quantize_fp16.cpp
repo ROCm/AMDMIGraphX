@@ -85,12 +85,12 @@ static void quantize_params(module& m)
     std::vector<std::string> param_names = m.get_parameter_names();
     for(auto param_name : param_names)
     {
-        auto param = m.get_parameter(param_name);
+        auto param       = m.get_parameter(param_name);
         auto param_shape = param->get_shape();
         if(param_shape.type() == shape::float_type)
         {
-            auto new_param = m.add_parameter(
-                param_name, migraphx::shape{shape::half_type, param_shape.lens()});
+            auto new_param =
+                m.add_parameter(param_name, migraphx::shape{shape::half_type, param_shape.lens()});
             m.replace_instruction(param, new_param);
             m.remove_instruction(param);
         }

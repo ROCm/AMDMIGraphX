@@ -905,6 +905,31 @@ TEST_CASE(clip_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(clip_dyn_test)
+{
+    migraphx::program p;
+    auto* mm                                            = p.get_main_module();
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    migraphx::shape s{migraphx::shape::float_type, dds};
+    auto l       = mm->add_parameter("X", s);
+    auto min_val = mm->add_literal(0.0f);
+    auto max_val = mm->add_literal(6.0f);
+    min_val      = mm->add_instruction(migraphx::make_op("multibroadcast"), min_val, l);
+    max_val      = mm->add_instruction(migraphx::make_op("multibroadcast"), max_val, l);
+    mm->add_instruction(migraphx::make_op("clip"), l, min_val, max_val);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape static_shape{migraphx::shape::float_type, {3}};
+    migraphx::parameter_map params;
+    std::vector<float> data = {-1.0, 0.0, 10.0};
+    params["X"]             = migraphx::argument(static_shape, data.data());
+    auto result             = p.eval(params).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.0, 0.0, 6.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(concat_test)
 {
     {
@@ -1902,6 +1927,80 @@ TEST_CASE(cosh_dyn_test)
     std::transform(
         gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return coshf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convert_nan_upcast_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {2, 2}};
+    std::vector<migraphx::half> data(4, std::numeric_limits<migraphx::half>::quiet_NaN());
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4, -1);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(
+        results_vector.begin(), results_vector.end(), [](const auto& x) { return std::isnan(x); }));
+}
+
+TEST_CASE(convert_nan_downcast_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::double_type, {2, 2}};
+    std::vector<double> data(4, std::numeric_limits<double>::quiet_NaN());
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4, -1);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(
+        results_vector.begin(), results_vector.end(), [](const auto& x) { return std::isnan(x); }));
+}
+
+TEST_CASE(convert_nan_double_convert_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::double_type, {2, 2}};
+    std::vector<double> data(4, std::numeric_limits<double>::quiet_NaN());
+    auto l   = mm->add_literal(migraphx::literal{s, data});
+    auto f_l = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        f_l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<migraphx::half> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(
+        results_vector.begin(), results_vector.end(), [](const auto& x) { return std::isnan(x); }));
+}
+
+TEST_CASE(convert_nan_convert_updown_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data(4, std::numeric_limits<float>::quiet_NaN());
+    auto l   = mm->add_literal(migraphx::literal{s, data});
+    auto f_l = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l);
+    auto h_l = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), f_l);
+    mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), h_l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(
+        results_vector.begin(), results_vector.end(), [](const auto& x) { return std::isnan(x); }));
 }
 
 TEST_CASE(deconv_1d_test)
@@ -4860,6 +4959,39 @@ TEST_CASE(multibroadcast_2in_dyn_test)
     EXPECT(output(1, 1) == -3);
 }
 
+TEST_CASE(multibroadcast_3in_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::int32_type, {{2, 4}, {2, 2}}};
+    migraphx::shape b_shape{migraphx::shape::int32_type, {2}};
+    migraphx::shape c_shape{migraphx::shape::int32_type, {{1, 4, {2, 4}}, {2, 4}, {2, 2}}};
+    auto l1 = mm->add_parameter("a", a_shape);
+    std::vector<int32_t> b_data{-2, -3};
+    auto l2 = mm->add_literal(migraphx::literal{b_shape, b_data});
+    auto l3 = mm->add_parameter("c", c_shape);
+    mm->add_instruction(migraphx::make_op("multibroadcast"), l2, l1, l3);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int32_t> a_data(4, 0);
+    std::vector<int32_t> c_data(8, 0);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape_a{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape input_fixed_shape_c{migraphx::shape::float_type, {2, 2, 2}};
+    params["a"] = migraphx::argument(input_fixed_shape_a, a_data.data());
+    params["c"] = migraphx::argument(input_fixed_shape_c, c_data.data());
+    auto result = p.eval(params).back();
+    auto output = result.get<int32_t>();
+    EXPECT(output(0, 0, 0) == -2);
+    EXPECT(output(0, 0, 1) == -3);
+    EXPECT(output(0, 1, 0) == -2);
+    EXPECT(output(0, 1, 1) == -3);
+    EXPECT(output(1, 0, 0) == -2);
+    EXPECT(output(1, 0, 1) == -3);
+    EXPECT(output(1, 1, 0) == -2);
+    EXPECT(output(1, 1, 1) == -3);
+}
+
 TEST_CASE(multinomial_test)
 {
     migraphx::program p;
@@ -7506,7 +7638,7 @@ TEST_CASE(select_module_not_found_error)
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {5, 2, 2}};
     params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
-    EXPECT(test::throws([&] { p.eval(params).back(); }));
+    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
 TEST_CASE(scatternd_reduction_dyn_test)

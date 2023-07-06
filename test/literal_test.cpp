@@ -177,4 +177,10 @@ TEST_CASE(value_literal)
     EXPECT(l4 == l2);
 }
 
+TEST_CASE(literal_to_string_float_precision)
+{
+    migraphx::literal x{126.99993142003703f};
+    EXPECT(x.to_string() != "127");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

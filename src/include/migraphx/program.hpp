@@ -79,6 +79,9 @@ struct program
 
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
+
+    void finish() const;
+
     std::size_t size() const;
 
     std::vector<shape> get_output_shapes() const;
@@ -91,6 +94,9 @@ struct program
                                               assignment_options options = assignment_options{});
 
     void compile(const target& t, compile_options options = compile_options{});
+
+    void compile(const std::vector<target>& targets,
+                 std::vector<compile_options> compile_opts = {});
 
     bool is_compiled() const;
 

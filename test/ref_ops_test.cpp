@@ -7536,7 +7536,7 @@ TEST_CASE(select_module_not_found_error)
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {5, 2, 2}};
     params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
-    EXPECT(test::throws([&] { p.eval(params).back(); }));
+    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
 TEST_CASE(scatternd_reduction_dyn_test)

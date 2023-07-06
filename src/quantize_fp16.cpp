@@ -80,39 +80,40 @@ static void quantize_module(module& m, const std::vector<std::string>& ins_names
     }
     // m.debug_print();
     // std::cout << "HERE" << std::endl;
-    
 }
 
 static void quantize_params(module& m)
 {
     std::vector<std::string> param_names = m.get_parameter_names();
     std::unordered_set<std::string> processed_params;
-    for( auto param_name : param_names)
+    for(auto param_name : param_names)
     {
         auto param = m.get_parameter(param_name);
         // m.debug_print(param);
-        if( not contains(processed_params, param_name) and param->get_shape().type() == shape::float_type)
+        if(not contains(processed_params, param_name) and
+           param->get_shape().type() == shape::float_type)
         {
-            auto new_param = m.add_parameter(param_name, migraphx::shape{shape::half_type, param->get_shape().lens()});
+            auto new_param = m.add_parameter(
+                param_name, migraphx::shape{shape::half_type, param->get_shape().lens()});
             // m.debug_print(new_param);
             // m.debug_print();
 
             // m.debug_print();
             m.replace_instruction(param, new_param);
             // std::cout << "HERE" << std::endl;
-
         }
         processed_params.insert(param_name);
     }
 }
 
-void quantize_fp16_pass::apply(module_pass_manager& mpm) const { 
+void quantize_fp16_pass::apply(module_pass_manager& mpm) const
+{
     module m = mpm.get_module();
-    quantize_module(m, ins_names); 
+    quantize_module(m, ins_names);
     // mpm.run_pass(dead_code_elimination{});
     // m.debug_print();
     // quantize_params(m);
-    }
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

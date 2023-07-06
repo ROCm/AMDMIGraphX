@@ -44,7 +44,7 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void gather_kernel(void* in_data, void* in_indices, void* output) 
+MIGRAPHX_GLOBAL void gather_kernel(void* in_data, void* in_indices, void* output) 
 {
     make_tensors()(in_data, in_indices, output)([](auto&&... xs) { 
         gather<${axis}>(xs...); 

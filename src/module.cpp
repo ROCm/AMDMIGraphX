@@ -652,8 +652,9 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
-void module::finalize(context& ctx)
+void module::finalize(std::vector<context>& contexts)
 {
+    assert(not contexts.empty());
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {
@@ -662,10 +663,10 @@ void module::finalize(context& ctx)
             std::cout << "Finalize: ";
             this->debug_print(ins);
         }
-        ins->finalize(ctx);
+        ins->finalize(contexts[ins->get_target_id()]);
         for(const auto& smod : ins->module_inputs())
         {
-            smod->finalize(ctx);
+            smod->finalize(contexts);
         }
     }
 

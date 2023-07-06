@@ -45,7 +45,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void reduce_kernel(void* input_p, void* output_p) 
+MIGRAPHX_GLOBAL void reduce_kernel(void* input_p, void* output_p) 
 {
     
     transform_args(make_tensors(), ${transformers})(input_p, output_p)([](auto input, auto output) {

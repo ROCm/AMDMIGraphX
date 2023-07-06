@@ -51,6 +51,7 @@ struct parse_shape : op_parser<parse_shape>
         std::size_t start = 0;
         std::size_t end = input_shape.ndim();
         // Normalizing the start and end is handled here because of how the static shape version works
+        // TODO combine these two errors
         if(contains(info.attributes, "end"))
         {
             auto end_attr = info.attributes.at("end").i();
@@ -58,7 +59,7 @@ struct parse_shape : op_parser<parse_shape>
             {
                 MIGRAPHX_THROW("PARSE_SHAPE: end attribute is out of bounds, end: " + std::to_string(end_attr));
             }
-            end = (end_attr >= 0) ? end_attr : input_ndim - end_attr;
+            end = (end_attr >= 0) ? end_attr : input_ndim + end_attr;
         }
         if(contains(info.attributes, "start"))
         {
@@ -67,7 +68,7 @@ struct parse_shape : op_parser<parse_shape>
             {
                 MIGRAPHX_THROW("PARSE_SHAPE: start attribute is out of bounds, start: " + std::to_string(start_attr));
             }
-            start = (start_attr >= 0) ? start_attr : input_ndim - start_attr;
+            start = (start_attr >= 0) ? start_attr : input_ndim + start_attr;
         }
         if(end <= start)
         {

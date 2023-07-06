@@ -64,9 +64,9 @@ struct dimensions_of
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            auto input_lens = input.get_shape().lens();
-            std::copy(input_lens.cbegin() + start, input_lens.cend() + end, output.begin());
+        auto input_lens = args[0].get_shape().lens();
+        result.visit([&](auto output) {
+            std::copy(input_lens.cbegin() + start, input_lens.cbegin() + end, output.begin());
         });
         return result;
     }

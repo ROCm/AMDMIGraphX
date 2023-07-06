@@ -51,14 +51,12 @@ struct pooling
     std::vector<std::size_t> padding = {0, 0};
 
     // Size of stride to take from one placement of the pooling kernel to the next.
-    // This is distinct from the strides used by the shape class.  If set the same as lengths, the
-    // kernel tiles over the input with no gaps or overlaps. Must be the same size as lengths.
+    // This is distinct from the strides used by the shape class.  Must be the same 
+    // size (rank) as lengths.
     std::vector<std::size_t> stride = {1, 1};
 
-    // dimensions of the pooling kernel or window.  Must have size
-    // 2 smaller than the input tensor rank, since the first
-    // two dimensions are considered
-    // non-spatial: batch size and channel (NCHW layout)
+    // Spatial dimensions of the pooling kernel or window,
+    // 2 smaller than the input tensor rank (NCHW layout)
     std::vector<std::size_t> lengths = {1, 1};
 
     // Dilations are not supported at this time.

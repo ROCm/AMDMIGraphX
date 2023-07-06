@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,33 +22,26 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/promote_literals.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/module.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-void promote_literals::apply(module_pass_manager& mpm) const
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
+struct gemm_add_half : verify_program<gemm_add_half>
 {
-    module& m              = mpm.get_module();
-    module_ref root_module = mpm.get_root_module();
-    if(m == *root_module)
-        return;
-
-    for(auto ins : iterator_for(m))
+    migraphx::program create_program() const
     {
-        if(ins->name() == "@literal")
-        {
-            auto new_lit = root_module->add_literal(ins->get_literal());
-            for(auto out_ins : ins->outputs())
-            {
-                out_ins->replace_argument(out_ins, ins, new_lit);
-            }
-        }
-    }
-}
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 3, 4}};
+        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 2, 4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        return p;
+    }
+};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include <migraphx/promote_literals.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/target.hpp>
+#include <migraphx/register_target.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void promote_literals::apply(module_pass_manager& mpm) const
+void migraphx_to_value(value& v, const target& t) { v["name"] = t.name(); }
+void migraphx_from_value(const value& v, target& t)
 {
-    module& m              = mpm.get_module();
-    module_ref root_module = mpm.get_root_module();
-    if(m == *root_module)
-        return;
-
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "@literal")
-        {
-            auto new_lit = root_module->add_literal(ins->get_literal());
-            for(auto out_ins : ins->outputs())
-            {
-                out_ins->replace_argument(out_ins, ins, new_lit);
-            }
-        }
-    }
+    t = make_target(v.at("name").to<std::string>());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

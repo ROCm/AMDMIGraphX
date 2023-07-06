@@ -5543,19 +5543,15 @@ TEST_CASE(prefix_scan_sum_dyn_1d)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<migraphx::shape::dynamic_dimension> dd{{5, 6}};
+    std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}};
     migraphx::shape s{migraphx::shape::float_type, dd};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", false}}), input);
-
-
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> a = {1, 2, 3, 4, 5, 6};
-    migraphx::parameter_map params0;    
-
-    // auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6}};
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {6}};
+    migraphx::parameter_map params0;    
     params0["X"] = migraphx::argument(input_fixed_shape0, a.data());
 
     auto result = p.eval(params0).back();

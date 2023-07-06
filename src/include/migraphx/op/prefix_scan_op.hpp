@@ -64,9 +64,9 @@ struct prefix_scan_op : op_name<Derived>
         auto s = inputs.front();
         if(s.dynamic())
         {
-            return {s.type(), s.max_lens()};
-        }
-        if(s.broadcasted())
+            return s;
+        } 
+        else if(s.broadcasted())
         {
             return {s.type(), s.lens()};
         }

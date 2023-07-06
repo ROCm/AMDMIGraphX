@@ -2084,6 +2084,19 @@ TEST_CASE(prefix_scan_sum)
     }
 }
 
+TEST_CASE(prefix_scan_sum_dyn)
+{
+    {
+        std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}};
+        migraphx::shape s{migraphx::shape::float_type, dd};
+
+        expect_shape(
+            s,
+            migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", 0}, {"reverse", 0}}),
+            s);
+    }
+}
+
 TEST_CASE(quant_convolution_shape)
 {
     migraphx::shape output{migraphx::shape::int32_type, {4, 4, 1, 1}};

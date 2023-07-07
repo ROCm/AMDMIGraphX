@@ -89,13 +89,11 @@ struct find_reshaper
 {
     auto matcher() const
     {
-        auto reshaper = match::name(reshaper_names());
-        auto contiguous = match::name("contiguous");
+        auto reshaper          = match::name(reshaper_names());
+        auto contiguous        = match::name("contiguous");
         auto no_output_reshape = match::none_of[match::outputs()](reshaper);
-        auto input_reshape =
-            match::arg(0)(match::skip(contiguous)(reshaper));
-        auto input = match::skip(reshaper,
-                                 contiguous)(match::any().bind("x"));
+        auto input_reshape     = match::arg(0)(match::skip(contiguous)(reshaper));
+        auto input             = match::skip(reshaper, contiguous)(match::any().bind("x"));
         return reshaper(no_output_reshape, input_reshape, input);
     }
 

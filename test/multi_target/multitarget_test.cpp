@@ -209,30 +209,50 @@ TEST_CASE(multitarget_compile_cpu_gpu)
 TEST_CASE(single_target_multi_compile)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-
     migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    auto* mm         = p.get_main_module();
+    auto boxes_param = mm->add_parameter("boxes", boxes_s);
 
+    auto* gpu_mod        = p.create_module("gpu_mod");
+    auto boxes_param_gpu = gpu_mod->add_parameter("boxes_param_gpu", boxes_s);
     migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
     std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+    auto scores_l                 = gpu_mod->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l                = gpu_mod->add_literal(int64_t{4});
+    auto iou_threshold            = gpu_mod->add_literal(0.5f);
+    auto score_threshold          = gpu_mod->add_literal(0.0f);
+    auto r                        = gpu_mod->add_instruction(
+        migraphx::make_op("nonmaxsuppression",
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
+        boxes_param_gpu,
+        scores_l,
+        max_out_l,
+        iou_threshold,
+        score_threshold);
+    gpu_mod->add_return({r});
 
-    auto boxes_l         = mm->add_parameter("boxes", boxes_s);
-    auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
-    auto max_out_l       = mm->add_literal(int64_t{4});
-    auto iou_threshold   = mm->add_literal(0.5f);
-    auto score_threshold = mm->add_literal(0.0f);
+    auto run_on_gpu = mm->add_instruction(
+        migraphx::make_op("run_on_target", {{"target_id", 0}}), {boxes_param}, {gpu_mod});
+    auto run_on_gpu_0 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_on_gpu);
+    mm->add_return({run_on_gpu_0});
 
-    auto r = mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}),
-                                 boxes_l,
-                                 scores_l,
-                                 max_out_l,
-                                 iou_threshold,
-                                 score_threshold);
-    mm->add_return({r});
+    // compile using multi-target compilation path
     migraphx::compile_options gpu_opts;
     gpu_opts.offload_copy = true;
-    p.compile({migraphx::make_target("gpu")}, {gpu_opts});
-    EXPECT(is_compiled_gpu_module(*p.get_main_module()));
+    // need to add "ref" to avoid ambigious call to "compile()"
+    p.compile({migraphx::make_target("gpu"), migraphx::make_target("ref")}, {gpu_opts});
+    EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("ref")}));
+    // eval
+    migraphx::parameter_map params;
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    params["boxes"]              = migraphx::argument(boxes_s, boxes_vec.data());
+    auto output                  = p.eval(params).back();
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    EXPECT(migraphx::verify_range(result, gold));
 }
 
 TEST_CASE(multitarget_compile_if_then_else)

@@ -450,9 +450,7 @@ struct failure_error
 {
 };
 
-[[noreturn]] inline void fail() {
-    throw failure_error{};
-}
+[[noreturn]] inline void fail() { throw failure_error{}; }
 
 struct driver
 {
@@ -603,7 +601,8 @@ struct driver
             {
             }
         }
-        if (msg.empty() and failures() != 0) {
+        if(msg.empty() and failures() != 0)
+        {
             if(failures() == 1)
                 msg = "Test failure";
             else
@@ -699,9 +698,9 @@ inline void run(int argc, const char* argv[])
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
 // NOLINTNEXTLINE
-#define CHECK(...)                                                                                 \
-    test::failed(                                                                                  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, []{})
+#define CHECK(...) \
+    test::failed(  \
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] {})
 
 // NOLINTNEXTLINE
 #define EXPECT(...)                         \

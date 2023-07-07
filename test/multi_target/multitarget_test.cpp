@@ -180,14 +180,33 @@ TEST_CASE(multitarget_compile_cpu_gpu)
     auto z_param = mm->add_parameter("z", s);
     auto cpu_ins = mm->add_instruction(
         migraphx::make_op("run_on_target", {{"target_id", 1}}), {x_param, y_param}, {cpu_mod});
+    auto cpu_ins_0 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), cpu_ins);
     auto gpu_ins = mm->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 0}}), {cpu_ins, z_param}, {gpu_mod});
-    mm->add_return({gpu_ins});
-    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")});
+        migraphx::make_op("run_on_target", {{"target_id", 0}}), {cpu_ins_0, z_param}, {gpu_mod});
+    auto gpu_ins_0 =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), gpu_ins);
+
+    mm->add_return({gpu_ins_0});
+    migraphx::compile_options gpu_opts;
+    gpu_opts.offload_copy = true;
+    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
     EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("cpu")}));
+    migraphx::parameter_map params;
+    std::vector<float> x_data(s.elements(), 1);
+    std::vector<float> y_data(s.elements(), 2);
+    std::vector<float> z_data(s.elements(), 3);
+    params["x"] = migraphx::argument(s, x_data.data());
+    params["y"] = migraphx::argument(s, y_data.data());
+    params["z"] = migraphx::argument(s, z_data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold(s.elements(), 6);
+    EXPECT(migraphx::verify_range(gold, result_vector));
 }
 
-TEST_CASE(single_target_compile)
+TEST_CASE(single_target_multi_compile)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -210,7 +229,9 @@ TEST_CASE(single_target_compile)
                                  iou_threshold,
                                  score_threshold);
     mm->add_return({r});
-    p.compile(migraphx::make_target("gpu"));
+    migraphx::compile_options gpu_opts;
+    gpu_opts.offload_copy = true;
+    p.compile({migraphx::make_target("gpu")}, {gpu_opts});
     EXPECT(is_compiled_gpu_module(*p.get_main_module()));
 }
 
@@ -224,54 +245,69 @@ TEST_CASE(multitarget_compile_if_then_else)
     auto x = mm->add_parameter("x", ds);
     auto y = mm->add_parameter("y", ds);
 
-    auto* then_mod           = p.create_module("if_gpu_mod");
-    std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
-    auto l1                  = then_mod->add_literal(migraphx::literal(ds, data1));
-    auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    auto* then_mod = p.create_module("if_gpu_mod");
+    std::vector<float> data1(ds.elements(), 1);
+    auto l1    = then_mod->add_literal(migraphx::literal(ds, data1));
+    auto gpu_x = then_mod->add_parameter("gpu_x", ds);
+    auto a1    = then_mod->add_instruction(migraphx::make_op("add"), gpu_x, l1);
     then_mod->add_return({a1});
 
-    auto* else_mod           = p.create_module("else_cpu_mod");
-    std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
-    auto l2                  = else_mod->add_literal(migraphx::literal(ds, data2));
-    auto a2                  = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    auto* else_mod = p.create_module("else_cpu_mod");
+    std::vector<float> data2(ds.elements(), 2);
+    auto l2    = else_mod->add_literal(migraphx::literal(ds, data2));
+    auto cpu_y = else_mod->add_parameter("cpu_y", ds);
+    auto a2    = else_mod->add_instruction(migraphx::make_op("mul"), cpu_y, l2);
     else_mod->add_return({a2});
 
     auto* run_on_cpu_mod = p.create_module("run_on_cpu");
     auto run_cpu_ins     = run_on_cpu_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 1}}), {}, {else_mod});
-    run_on_cpu_mod->add_return({run_cpu_ins});
+        migraphx::make_op("run_on_target", {{"target_id", 1}}), {y}, {else_mod});
+    auto run_cpu_ins_0 = run_on_cpu_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_cpu_ins);
+    run_on_cpu_mod->add_return({run_cpu_ins_0});
 
     auto* run_on_gpu_mod = p.create_module("run_on_gpu");
     auto run_gpu_ins     = run_on_gpu_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 0}}), {}, {then_mod});
-    run_on_gpu_mod->add_return({run_gpu_ins});
+        migraphx::make_op("run_on_target", {{"target_id", 0}}), {x}, {then_mod});
+    auto run_gpu_ins_0 = run_on_gpu_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_gpu_ins);
+    run_on_gpu_mod->add_return({run_gpu_ins_0});
 
     auto ret =
         mm->add_instruction(migraphx::make_op("if"), {cond}, {run_on_gpu_mod, run_on_cpu_mod});
     auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
     // compile
-    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")});
+    migraphx::compile_options gpu_opts;
+    gpu_opts.offload_copy = true;
+    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
     EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("cpu")}));
+    migraphx::parameter_map params;
+    std::vector<float> x_data(ds.elements(), 2);
+    std::vector<float> y_data(ds.elements(), 3);
+    params["x"] = migraphx::argument(ds, x_data.data());
+    params["y"] = migraphx::argument(ds, y_data.data());
+    for(bool cond_val : {true, false})
+    {
+        params["cond"] = migraphx::argument(cond_s, &cond_val);
+        auto result    = p.eval(params).back();
+        std::vector<float> result_vector;
+        result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold(ds.elements(), (cond_val ? 3 : 6));
+        EXPECT(migraphx::verify_range(gold, result_vector));
+    }
 }
 
+// TODO : FPGA compilation is broken right now, below test mentions fpga but doesn't compile for it
 TEST_CASE(multitarget_compile_nested_if_then_else)
 {
-    float seed = 0.0f;
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    auto get_random_values = [&](size_t elements) {
-        std::vector<float> rand_samples(elements);
-        std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-        return rand_samples;
-    };
-
     std::unordered_map<std::size_t, std::size_t> counter_map = {{0, 0}, {1, 0}};
     migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape cond_s{migraphx::shape::bool_type};
-    auto cond               = mm->add_parameter("cond", cond_s);
+    auto cond_0             = mm->add_parameter("cond_0", cond_s);
+    auto cond_1             = mm->add_parameter("cond_1", cond_s);
     auto x                  = mm->add_parameter("x", ds);
     auto y                  = mm->add_parameter("y", ds);
     auto z                  = mm->add_parameter("z", ds);
@@ -280,20 +316,22 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
                                   std::size_t tid) {
         std::string mod_name =
             "target_" + std::to_string(tid) + "_" + std::to_string(counter_map[tid]++);
-        auto* test_mod          = prog.create_module(mod_name);
-        std::vector<float> data = get_random_values(ds.elements());
-        auto l1                 = test_mod->add_literal(migraphx::literal(ds, data));
-        auto test_mod_param     = test_mod->add_parameter(mod_name, ds);
-        // instruction with local literal and main_mod param as inputs
-        auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), x, l1);
-        // instructinon with local param and local ins as inputs
-        auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, test_mod_param);
-        // instruction with local ins and parent ins as inputs
-        auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, inputs.front());
+        auto* test_mod = prog.create_module(mod_name);
+        std::vector<float> data(ds.elements(), -1);
+        auto l1               = test_mod->add_literal(migraphx::literal(ds, data));
+        auto test_mod_param_0 = test_mod->add_parameter(mod_name + "_param_0", ds);
+        auto test_mod_param_1 = test_mod->add_parameter(mod_name + "_param_1", ds);
+        auto test_mod_param_2 = test_mod->add_parameter(mod_name + "_param_2", ds);
+        auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), test_mod_param_0, l1);
+        auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, test_mod_param_1);
+        auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, test_mod_param_2);
         test_mod->add_return({ins3});
         auto* run_on_target_mod = prog.create_module("run_on_" + mod_name);
-        run_on_target_mod->add_instruction(
-            migraphx::make_op("run_on_target", {{"target_id", tid}}), {inputs.front()}, {test_mod});
+        auto run_ins            = run_on_target_mod->add_instruction(
+            migraphx::make_op("run_on_target", {{"target_id", tid}}), inputs, {test_mod});
+        auto run_ins_0 = run_on_target_mod->add_instruction(
+            migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_ins);
+        run_on_target_mod->add_return({run_ins_0});
         return run_on_target_mod;
     };
 
@@ -307,15 +345,30 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
     ref_mod->add_return({ref_add});
 
     auto* then_mod        = p.create_module("then_mod");
-    auto then_mod_param   = then_mod->add_parameter("then_mod_param", ds);
-    auto then_mod_ref_ins = then_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 3}}), {then_mod_param, y}, {ref_mod});
+    auto then_mod_cond    = then_mod->add_parameter("then_mod_cond", cond_s);
+    auto then_mod_param_0 = then_mod->add_parameter("then_mod_param_0", ds);
+    auto then_mod_param_1 = then_mod->add_parameter("then_mod_param_1", ds);
+    auto then_mod_param_2 = then_mod->add_parameter("then_mod_param_2", ds);
+    auto then_mod_ref_ins =
+        then_mod->add_instruction(migraphx::make_op("run_on_target", {{"target_id", 3}}),
+                                  {then_mod_param_0, then_mod_param_1},
+                                  {ref_mod});
     auto then_mod_ref_ins_0 = then_mod->add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), then_mod_ref_ins);
-    then_mod->add_instruction(
+    auto then_mod_if = then_mod->add_instruction(
         migraphx::make_op("if"),
-        {cond},
-        {create_test_module(p, {z}, 1), create_test_module(p, {then_mod_ref_ins_0}, 0)});
+        {then_mod_cond,
+         then_mod_param_0,
+         then_mod_param_1,
+         then_mod_param_2,
+         then_mod_ref_ins_0,
+         then_mod_param_1,
+         then_mod_param_2},
+        {create_test_module(p, {then_mod_param_0, then_mod_param_1, then_mod_param_2}, 1),
+         create_test_module(p, {then_mod_ref_ins_0, then_mod_param_1, then_mod_param_2}, 0)});
+    auto then_mod_if_0 =
+        then_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), then_mod_if);
+    then_mod->add_return({then_mod_if_0});
 
     // create nested else_mod with multiple targets.
     // else_mod has one instruction that runs a module on "fpga" and another instruction that
@@ -326,53 +379,108 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
     auto fpga_add  = fpga_mod->add_instruction(migraphx::make_op("add"), fpga_x, fpga_y);
     fpga_mod->add_return({fpga_add});
 
-    auto* else_mod         = p.create_module("else_mod");
-    auto else_mod_param    = else_mod->add_parameter("else_mod_param", ds);
-    auto else_mod_fpga_ins = else_mod->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 2}}), {else_mod_param, y}, {fpga_mod});
+    auto* else_mod        = p.create_module("else_mod");
+    auto else_mod_cond    = else_mod->add_parameter("else_mod_cond", cond_s);
+    auto else_mod_param_0 = else_mod->add_parameter("else_mod_param_0", ds);
+    auto else_mod_param_1 = else_mod->add_parameter("else_mod_param_1", ds);
+    auto else_mod_param_2 = else_mod->add_parameter("else_mod_param_2", ds);
+    auto else_mod_fpga_ins =
+        else_mod->add_instruction(migraphx::make_op("run_on_target", {{"target_id", 2}}),
+                                  {else_mod_param_0, else_mod_param_2},
+                                  {fpga_mod});
     auto else_mod_fpga_ins_0 = else_mod->add_instruction(
         migraphx::make_op("get_tuple_elem", {{"index", 0}}), else_mod_fpga_ins);
 
-    else_mod->add_instruction(migraphx::make_op("if"),
-                              {cond},
-                              {create_test_module(p, {else_mod_fpga_ins_0}, 0),
-                               create_test_module(p, {else_mod_param}, 1)});
+    auto else_mod_if = else_mod->add_instruction(
+        migraphx::make_op("if"),
+        {else_mod_cond,
+         else_mod_fpga_ins_0,
+         else_mod_param_0,
+         else_mod_param_1,
+         else_mod_param_2,
+         else_mod_param_1,
+         else_mod_param_0},
+        {create_test_module(p, {else_mod_fpga_ins_0, else_mod_param_0, else_mod_param_1}, 0),
+         create_test_module(p, {else_mod_param_2, else_mod_param_1, else_mod_param_0}, 1)});
+    auto else_mod_if_0 =
+        else_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), else_mod_if);
+    else_mod->add_return({else_mod_if_0});
 
     // Create nested and multi-target main module using "If"
-    auto main_if_ins =
-        mm->add_instruction(migraphx::make_op("if"), {cond, x}, {then_mod, else_mod});
+    auto main_if_ins = mm->add_instruction(
+        migraphx::make_op("if"), {cond_0, cond_1, x, y, z, cond_1, x, y, z}, {then_mod, else_mod});
     auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), main_if_ins);
     mm->add_return({r});
 
     // compile
+    migraphx::compile_options gpu_opts;
+    gpu_opts.offload_copy = true;
+
     p.compile({migraphx::make_target("gpu"),
                migraphx::make_target("cpu"),
-               migraphx::make_target("fpga"),
-               migraphx::make_target("ref")});
+               migraphx::make_target("ref"),
+               migraphx::make_target("ref")},
+              {gpu_opts});
     EXPECT(check_compiled_program(p,
                                   {migraphx::make_target("gpu"),
                                    migraphx::make_target("cpu"),
-                                   migraphx::make_target("fpga"),
+                                   migraphx::make_target("ref"),
                                    migraphx::make_target("ref")}));
+    // do evaluation using different conditions
+    // TODO: make two conditional to cover all the paths
+    migraphx::parameter_map params;
+    int x_i = 2, y_i = 3, z_i = 4;
+    std::vector<float> x_data(ds.elements(), x_i);
+    std::vector<float> y_data(ds.elements(), y_i);
+    std::vector<float> z_data(ds.elements(), z_i);
+    params["x"] = migraphx::argument(ds, x_data.data());
+    params["y"] = migraphx::argument(ds, y_data.data());
+    params["z"] = migraphx::argument(ds, z_data.data());
+    // cover all paths with different combination of conditions
+    std::vector<std::pair<bool, bool>> test_conds = {
+        {true, true}, {true, false}, {false, true}, {false, false}};
+    for(auto [cond_val_0, cond_val_1] : test_conds)
+    {
+        params["cond_0"] = migraphx::argument(cond_s, &cond_val_0);
+        params["cond_1"] = migraphx::argument(cond_s, &cond_val_1);
+        auto result      = p.eval(params).back();
+        // main has one instruction that is : if_then_else
+        // then mod is doing : {tmp = x+y; (cond) ? (((x-1)*y)-z)  : (((tmp-1)*y)-z);}
+        // else mod is doing : {tmp = x+z; (cond) ? (((tmp-1)*x)-y) : (((z-1)*y)-x);}
+        int gold_i = -1;
+        if(cond_val_0)
+        {
+            int tmp_i = x_i + y_i;
+            gold_i    = (cond_val_1) ? (((x_i - 1) * y_i) - z_i) : (((tmp_i - 1) * y_i) - z_i);
+        }
+        else
+        {
+            int tmp_i = x_i + z_i;
+            gold_i    = (cond_val_1) ? (((tmp_i - 1) * x_i) - y_i) : (((z_i - 1) * y_i) - x_i);
+        }
+        std::vector<float> result_vector;
+        result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold(ds.elements(), gold_i);
+        EXPECT(migraphx::verify_range(gold, result_vector));
+    }
 }
 
+// TODO : FPGA compilation is broken right now, below test mentions fpga but doesn't compile for it
 TEST_CASE(multitarget_select_module)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
-
     // create batch submodules
     auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
         auto* submod = p.create_module(module_name);
         migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
         auto sm_input = submod->add_parameter("data", sm_shape);
+        migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+        auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6}});
         auto broadcast_lit =
             submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
         auto add_ins0 = submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
         auto add_ins1 = submod->add_instruction(migraphx::make_op("add"), add_ins0, broadcast_lit);
-        submod->add_return({add_ins0, add_ins1});
+        submod->add_return({add_ins1});
         return submod;
     };
     auto* batch1 = create_submodule(1, "batch_1");
@@ -380,36 +488,45 @@ TEST_CASE(multitarget_select_module)
     auto* batch3 = create_submodule(3, "batch_3");
     auto* batch4 = create_submodule(4, "batch_4");
 
-    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
-    auto input        = mm->add_parameter("data", s);
     auto* run_cpu_mod = p.create_module("cpu_mod");
-    auto cpu_param    = run_cpu_mod->add_parameter(
-        "cpu_data", migraphx::shape{migraphx::shape::float_type, {1, 4}});
+    auto cpu_param =
+        run_cpu_mod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {1, 4}});
     auto run_cpu_ins = run_cpu_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target_id", 1}}), {cpu_param}, {batch1});
-    run_cpu_mod->add_return({run_cpu_ins});
+    auto run_cpu_ins_0 = run_cpu_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_cpu_ins);
+    run_cpu_mod->add_return({run_cpu_ins_0});
 
     auto* run_gpu_mod = p.create_module("gpu_mod");
-    auto gpu_param    = run_gpu_mod->add_parameter(
-        "gpu_data", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+    auto gpu_param =
+        run_gpu_mod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 4}});
     auto run_gpu_ins = run_gpu_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target_id", 0}}), {gpu_param}, {batch2});
-    run_gpu_mod->add_return({run_gpu_ins});
+    auto run_gpu_ins_0 = run_gpu_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_gpu_ins);
+    run_gpu_mod->add_return({run_gpu_ins_0});
 
     auto* run_fpga_mod = p.create_module("fpga_mod");
-    auto fpga_param    = run_fpga_mod->add_parameter(
-        "fpga_data", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    auto fpga_param =
+        run_fpga_mod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 4}});
     auto run_fpga_ins = run_fpga_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target_id", 2}}), {fpga_param}, {batch3});
-    run_fpga_mod->add_return({run_fpga_ins});
+    auto run_fpga_ins_0 = run_fpga_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_fpga_ins);
+    run_fpga_mod->add_return({run_fpga_ins_0});
 
     auto* run_ref_mod = p.create_module("ref_mod");
-    auto ref_param    = run_fpga_mod->add_parameter(
-        "ref_data", migraphx::shape{migraphx::shape::float_type, {4, 4}});
+    auto ref_param =
+        run_ref_mod->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {4, 4}});
     auto run_ref_ins = run_ref_mod->add_instruction(
         migraphx::make_op("run_on_target", {{"target_id", 3}}), {ref_param}, {batch4});
-    run_ref_mod->add_return({run_ref_ins});
+    auto run_ref_ins_0 = run_ref_mod->add_instruction(
+        migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_ref_ins);
+    run_ref_mod->add_return({run_ref_ins_0});
 
+    auto* mm = p.get_main_module();
+    migraphx::shape dyn_s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+    auto input                              = mm->add_parameter("data", dyn_s);
     std::vector<migraphx::shape> sub_shapes = {};
     sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
     sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
@@ -419,18 +536,42 @@ TEST_CASE(multitarget_select_module)
         {input},
         {run_cpu_mod, run_gpu_mod, run_fpga_mod, run_ref_mod});
     auto ret0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
-    auto ret1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), sm_ins);
-    mm->add_return({ret0, ret1});
+    mm->add_return({ret0});
     // compile
+    migraphx::compile_options gpu_opts;
+    gpu_opts.offload_copy = true;
     p.compile({migraphx::make_target("gpu"),
                migraphx::make_target("cpu"),
-               migraphx::make_target("fpga"),
-               migraphx::make_target("ref")});
+               migraphx::make_target("ref"),
+               migraphx::make_target("ref")},
+              {gpu_opts});
     EXPECT(check_compiled_program(p,
                                   {migraphx::make_target("gpu"),
                                    migraphx::make_target("cpu"),
-                                   migraphx::make_target("fpga"),
+                                   migraphx::make_target("ref"),
                                    migraphx::make_target("ref")}));
+    // program does the 12+x where x has dynamic shape {{1, 4}, {4, 4}}
+    float seed = 0.0f;
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    auto get_random_values = [&](size_t elements) {
+        std::vector<float> rand_samples(elements);
+        std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+        return rand_samples;
+    };
+    for(const size_t bs : {1, 2, 3, 4})
+    {
+        migraphx::shape arg_shape{migraphx::shape::float_type, {bs, 4}};
+        std::vector<float> data = get_random_values(arg_shape.elements());
+        migraphx::parameter_map params;
+        params["data"] = migraphx::argument(arg_shape, data.data());
+        auto result    = p.eval(params).back();
+        std::vector<float> result_vec;
+        result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+        std::vector<float> gold = data;
+        std::transform(gold.begin(), gold.end(), gold.begin(), [&](auto i) { return i + 12; });
+        EXPECT(migraphx::verify_range(gold, result_vec));
+    }
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

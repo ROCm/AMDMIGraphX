@@ -49,7 +49,7 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
 {
     if(parallel)
     {
-        using result_type = typename std::result_of<Function()>::type;
+        using result_type = typename std::invoke_result<Function>::type;
         std::packaged_task<result_type()> task(std::forward<Function>(f));
         auto fut = task.get_future();
         std::thread(std::move(task)).detach();

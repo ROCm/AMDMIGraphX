@@ -157,7 +157,7 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
                 ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
         }
         std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
-            // uses previous multibroadcast to avoid recalculating the common shape from the
+            // uses previous input to avoid recalculating the common shape from the
             // full set of input shapes at runtime
             if(input->get_shape().dyn_dims() != c_dyn_dims)
             {

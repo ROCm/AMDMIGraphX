@@ -95,6 +95,7 @@ add_library(migraphx
     simplify_algebra.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    target.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp

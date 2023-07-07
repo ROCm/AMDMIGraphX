@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <atomic>
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
@@ -342,10 +343,10 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     return os;
 }
 
-inline int& failures()
+inline std::atomic<int>& failures()
 {
     // NOLINTNEXTLINE
-    static int f = 0;
+    static std::atomic<int> f = 0;
     return f;
 }
 

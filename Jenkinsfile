@@ -133,9 +133,9 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
             // This is, as best as I can tell, requirede to build LLVM with
             // both UBSAN and threads.
-            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-            def debug_flags_cxx = "${debug_flags} -fno-sanitize=vptr,function"
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
+            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+            // Temporarily swap the compiler to Clang to get tsan to behave maybe
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags} -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang'")
         }
     }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->

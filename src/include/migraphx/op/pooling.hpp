@@ -51,7 +51,7 @@ struct pooling
     std::vector<std::size_t> padding = {0, 0};
 
     // Size of stride to take from one placement of the pooling kernel to the next.
-    // This is distinct from the strides used by the shape class.  Must be the same 
+    // This is distinct from the strides used by the shape class.  Must be the same
     // ndim as lengths.
     std::vector<std::size_t> stride = {1, 1};
 

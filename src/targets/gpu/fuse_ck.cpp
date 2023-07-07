@@ -83,10 +83,23 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
+    auto m = a.lens()[a.lens().size() - 2];
+    auto n = b.lens().back();
+    auto k = a.lens().back();
+    // Integer gemms must be divisible by 4 in ck
+    if(contains({shape::int8_type, shape::int32_type}, ins->get_shape().type()))
+    {
+        if(m % 4 != 0)
+            return false;
+        if(n % 4 != 0)
+            return false;
+        if(k % 4 != 0)
+            return false;
+    }
     // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
     // to avoid poor-performing GEMM kernels from CK
     // To-do: Investigate a more precise strategy
-    return a.lens().back() <= 2048;
+    return k <= 2048;
 }
 
 struct find_ck_gemm_pointwise

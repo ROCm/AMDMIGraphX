@@ -170,7 +170,11 @@ struct compile_plan
         if(results.empty())
             MIGRAPHX_THROW("No configs to tune");
         if(results.size() == 1)
+        {
+            if(not results.front().has_value())
+                MIGRAPHX_THROW("No configs to tune");
             return *results.front();
+        }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config");
         std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
@@ -185,6 +189,7 @@ struct compile_plan
                     .first;
             });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
+        std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation.");

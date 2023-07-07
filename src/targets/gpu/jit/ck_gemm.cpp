@@ -66,7 +66,7 @@ ${preamble}
 
 extern "C" {
 
-__global__ void ${kernel}(${params})
+MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         ck_gemm<${solution}, ${blocks_per_batch}>(xs...);
@@ -266,7 +266,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         s       = shape{s.type(), {m1, m2}};
     }
 
-    std::vector<std::string> names() const { return {"gpu::ck_gemm"}; }
+    std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
 
     static bool standard_batch(const shape& s)
     {
@@ -419,9 +419,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     {
         auto shapes = to_shapes(ins->inputs());
         auto v      = create_settings(ins, op);
-        if(solution.is_null())
-            v["tuning_value"] = 4;
-        else
+        if(not solution.is_null())
             v["tuning_value"] = solution;
         return {compile_op(ctx, shapes, v),
                 [=](module& m, instruction_ref ins2, const operation& code_object) {

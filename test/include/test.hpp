@@ -342,11 +342,19 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     return os;
 }
 
+inline int& failures()
+{
+    // NOLINTNEXTLINE
+    static int f = 0;
+    return f;
+}
+
 template <class T, class F>
 void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
+        failures()++;
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
@@ -442,7 +450,9 @@ struct failure_error
 {
 };
 
-[[noreturn]] inline void fail() { throw failure_error{}; }
+[[noreturn]] inline void fail() {
+    throw failure_error{};
+}
 
 struct driver
 {
@@ -586,12 +596,18 @@ struct driver
         {
             try
             {
+                failures() = 0;
                 f();
             }
             catch(const failure_error&)
             {
-                msg = "Test failure";
             }
+        }
+        if (msg.empty() and failures() != 0) {
+            if(failures() == 1)
+                msg = "Test failure";
+            else
+                msg = std::to_string(failures()) + " test failures";
         }
         if(msg.empty())
         {
@@ -685,8 +701,8 @@ inline void run(int argc, const char* argv[])
 // NOLINTNEXTLINE
 #define CHECK(...)                                                                                 \
     test::failed(                                                                                  \
-        test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] { \
-        })
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, []{})
+
 // NOLINTNEXTLINE
 #define EXPECT(...)                         \
     test::failed(TEST_CAPTURE(__VA_ARGS__), \

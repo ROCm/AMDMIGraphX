@@ -138,6 +138,7 @@ struct MIGRAPHX_EXPORT instruction
     operation normalized_operator() const;
 
     std::size_t get_target_id() const;
+
     void set_target_id(std::size_t tid);
 
     void debug_print() const;

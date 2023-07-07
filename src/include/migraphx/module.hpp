@@ -189,7 +189,7 @@ struct MIGRAPHX_EXPORT module
     instruction_ref validate() const;
     instruction_ref find_dangling_reference() const;
 
-    void finalize(context& ctx);
+    void finalize(std::vector<context>& contexts);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

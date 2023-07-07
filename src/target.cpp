@@ -21,21 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/migraphx.h>
-#include <string.h>
+#include <migraphx/target.hpp>
+#include <migraphx/register_target.hpp>
 
-void expect_equal(const char* x, const char* y)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+void migraphx_to_value(value& v, const target& t) { v["name"] = t.name(); }
+void migraphx_from_value(const value& v, target& t)
 {
-    if(strcmp(x, y) != 0)
-        abort();
+    t = make_target(v.at("name").to<std::string>());
 }
 
-int main(void)
-{
-    char name[1024];
-    migraphx_operation_t op;
-    migraphx_operation_create(&op, "add", 0);
-    migraphx_operation_name(name, 1024, op);
-    migraphx_operation_destroy(op);
-    expect_equal(name, "add");
-}
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

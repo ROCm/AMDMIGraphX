@@ -44,7 +44,7 @@ static const char* const pointwise_kernel = R"__migraphx__(
 namespace migraphx {
 
 extern "C" {
-__global__ void pad_kernel(void* input_p, void* output_p) 
+MIGRAPHX_GLOBAL void pad_kernel(void* input_p, void* output_p) 
 {
     auto offsets = index_ints<${offsets}>{};
     auto idx     = make_index();

@@ -79,6 +79,9 @@ struct MIGRAPHX_EXPORT program
 
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
+
+    void finish() const;
+
     std::size_t size() const;
 
     std::vector<shape> get_output_shapes() const;

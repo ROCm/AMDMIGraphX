@@ -45,6 +45,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
+
 #ifdef DOXYGEN
 
 /// An interface for a compilation target
@@ -466,6 +468,9 @@ inline const ValueType& any_cast(const target& x)
 #endif
 
 #endif
+
+void migraphx_to_value(value& v, const target& t);
+void migraphx_from_value(const value& v, target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

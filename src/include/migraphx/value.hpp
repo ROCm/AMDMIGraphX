@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cassert>
 #include <memory>
+#include <cstdint>
 #include <sstream>
 #include <type_traits>
 #include <tuple>

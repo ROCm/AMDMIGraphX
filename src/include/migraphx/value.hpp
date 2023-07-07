@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cassert>
 #include <memory>
+#include <cstdint>
 #include <sstream>
 #include <type_traits>
 #include <tuple>
@@ -392,8 +393,8 @@ struct value
         return;                                          \
     }
             MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE_VALUE)
-            MIGRAPHX_VALUE_GENERATE_CASE(array, )
-            MIGRAPHX_VALUE_GENERATE_CASE(object, )
+            MIGRAPHX_VALUE_GENERATE_CASE_VALUE(array, )
+            MIGRAPHX_VALUE_GENERATE_CASE_VALUE(object, )
         }
         MIGRAPHX_THROW("Unknown type");
     }
@@ -461,6 +462,8 @@ struct value
 
     friend std::ostream& operator<<(std::ostream& os, const value& d);
 
+    std::size_t hash() const;
+
     void debug_print(bool show_type = false) const;
 
     type_t get_type() const;
@@ -480,5 +483,16 @@ struct value
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+namespace std {
+template <>
+struct hash<migraphx::value>
+{
+    using argument_type = migraphx::value;
+    using result_type   = std::size_t;
+    result_type operator()(const migraphx::value& x) const { return x.hash(); }
+};
+
+} // namespace std
 
 #endif

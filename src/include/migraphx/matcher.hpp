@@ -31,6 +31,7 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -135,14 +136,14 @@ template <class M>
 auto bind_match(M m, std::string name)
 {
     return make_function_matcher(
-        [=, name = std::move(name)](matcher_context& ctx,
-                                    instruction_ref ins) -> optional<instruction_ref> {
+        [=, m_name = std::move(name)](matcher_context& ctx,
+                                      instruction_ref ins) -> optional<instruction_ref> {
             auto result = m.match(ctx, ins);
             if(result)
             {
                 if(not ctx.has_instruction(ins))
                     return nullopt;
-                ctx.instructions[name] = ins;
+                ctx.instructions[m_name] = ins;
             }
             return result;
         });
@@ -370,31 +371,30 @@ match::matcher_result find_match(module& modl, M&& m)
 }
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 
-/// Find matches for an instruction in the module
+/// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
-void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
+void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
-    const
-#endif
-        int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
-#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
-    const
-#endif
-        bool validate = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    bool match        = false;
+    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    const bool trace_for    = not trace_filter.empty() and
+                           (contains(std::string{location.file_name()}, trace_filter) or
+                            contains(std::string{location.function_name()}, trace_filter));
+    bool match = false;
     each_args(
         [&](auto&& m) {
             if(match)
                 return;
-            if(trace > 1)
+            if(trace > 1 or trace_for)
                 std::cout << "Match: " << get_type_name(m) << std::endl;
             auto r = match_instruction(get_module(mod), ins, m.matcher());
             if(r.result == get_module(mod).end())
                 return;
-            if(trace > 0)
+            if(trace > 0 or trace_for)
             {
                 std::cout << "Matched by " << get_type_name(m) << std::endl;
                 get_module(mod).debug_print(ins);
@@ -420,13 +420,19 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
 
 /// Find matches in a module
 template <class Mod, class... Ms>
-void find_matches(Mod& mod, Ms&&... ms)
+struct find_matches
 {
-    for(auto ins : iterator_for(get_module(mod)))
+    find_matches(Mod& mod, Ms&&... ms, source_location location = source_location::current())
     {
-        find_matches(mod, ins, ms...);
+        for(auto ins : iterator_for(get_module(mod)))
+        {
+            find_matches_for(location, mod, ins, ms...);
+        }
     }
-}
+};
+
+template <class Mod, class... Ms>
+find_matches(Mod& mod, Ms&&... ms) -> find_matches<Mod, Ms...>;
 
 template <class M, class F>
 struct find_generic_match
@@ -655,9 +661,9 @@ auto skip_output(Ms... ms)
 inline auto var(std::string s)
 {
     return make_basic_fun_matcher(
-        [=, s = std::move(s)](const matcher_context& ctx,
-                              instruction_ref) -> optional<instruction_ref> {
-            auto it = ctx.instructions.find(s);
+        [=, m_s = std::move(s)](const matcher_context& ctx,
+                                instruction_ref) -> optional<instruction_ref> {
+            auto it = ctx.instructions.find(m_s);
             if(it == ctx.instructions.end())
                 return nullopt;
             return it->second;
@@ -667,7 +673,7 @@ inline auto var(std::string s)
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [=, s = std::move(s)](instruction_ref ins) { return ins->name() == s; });
+        [=, m_s = std::move(s)](instruction_ref ins) { return ins->name() == m_s; });
 }
 
 inline auto name_contains(const std::string& name)
@@ -678,8 +684,8 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([=, names = std::move(names)](instruction_ref ins) {
-        return names.count(ins->name()) > 0;
+    return make_basic_pred_matcher([=, m_names = std::move(names)](instruction_ref ins) {
+        return m_names.count(ins->name()) > 0;
     });
 }
 

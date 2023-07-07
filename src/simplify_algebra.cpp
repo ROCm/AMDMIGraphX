@@ -1095,7 +1095,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
         };
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
-    auto qdots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("quant_dot"));
+    auto qdots = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("quant_dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
     return (dots >= 2 or convs >= 2 or qdots >= 2);
 }

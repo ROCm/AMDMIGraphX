@@ -61,13 +61,16 @@ void apply_quantizelinear(module& m, instruction_ref ins)
         max_quant = qt.max();
         min_quant = qt.min();
     });
-    auto s = add_zero_point->get_shape();
+    auto s       = add_zero_point->get_shape();
     auto min_arg = m.add_literal(literal{shape{s.type()}, {min_quant}});
     auto max_arg = m.add_literal(literal{shape{s.type()}, {max_quant}});
-    auto min_mbcast = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
-    auto max_mbcast = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
+    auto min_mbcast =
+        m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
+    auto max_mbcast =
+        m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
 
-    auto saturate = m.insert_instruction(ins, make_op("clip"), add_zero_point, min_mbcast, max_mbcast);
+    auto saturate =
+        m.insert_instruction(ins, make_op("clip"), add_zero_point, min_mbcast, max_mbcast);
     m.replace_instruction(
         ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
 }

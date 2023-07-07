@@ -88,7 +88,8 @@ inline void compile_check(migraphx::program& p,
     auto num = shapes.size();
     for(std::size_t i = 0; i < num; ++i)
     {
-        if(p.get_output_shapes()[i].lens() != shapes[i].lens())
+        // Dimensions check only or strides also matter?
+        if(p.get_output_shapes()[i] != shapes[i])
         {
             std::cout << ss.str() << std::endl;
             throw std::runtime_error("Compiling program with " + name + " alters its shape");

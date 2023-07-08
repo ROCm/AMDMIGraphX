@@ -43,7 +43,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct value;
 struct shape_impl;
 
-struct shape
+struct MIGRAPHX_EXPORT shape
 {
 
 // Add new types here
@@ -85,7 +85,7 @@ struct shape
     {
     };
 
-    struct dynamic_dimension
+    struct MIGRAPHX_EXPORT dynamic_dimension
     {
         std::size_t min = 0;
         std::size_t max = 0;
@@ -100,22 +100,28 @@ struct shape
         bool is_fixed() const;
         bool has_optimal() const;
 
-        friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y);
-        friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y);
-        friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x);
+        MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x,
+                                               const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x,
+                                               const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os,
+                                                        const dynamic_dimension& x);
 
         // compare to fixed std::size_t dimension
-        friend bool operator==(const dynamic_dimension& x, const std::size_t& y);
-        friend bool operator==(const std::size_t& x, const dynamic_dimension& y);
-        friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
-        friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x, const std::size_t& y);
+        MIGRAPHX_EXPORT friend bool operator==(const std::size_t& x, const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
+        MIGRAPHX_EXPORT friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
 
         // add and subtract fixed std::size_t dimension
         dynamic_dimension& operator+=(const std::size_t& x);
         dynamic_dimension& operator-=(const std::size_t& x);
-        friend dynamic_dimension operator+(const dynamic_dimension& x, const std::size_t& y);
-        friend dynamic_dimension operator+(const std::size_t& x, const dynamic_dimension& y);
-        friend dynamic_dimension operator-(const dynamic_dimension& x, const std::size_t& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
+                                                           const std::size_t& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const std::size_t& x,
+                                                           const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator-(const dynamic_dimension& x,
+                                                           const std::size_t& y);
     };
 
     static const std::vector<type_t>& types();
@@ -183,7 +189,7 @@ struct shape
     const std::vector<std::size_t>& strides() const;
 
     /*!
-     * The number of dimensions in the shape.
+     * The number of dimensions in the shape, either static or dynamic.
      * Same as the number of indices required to get a data value.
      */
     std::size_t ndim() const;
@@ -286,9 +292,9 @@ struct shape
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
 
-    friend bool operator==(const shape& x, const shape& y);
-    friend bool operator!=(const shape& x, const shape& y);
-    friend std::ostream& operator<<(std::ostream& os, const shape& x);
+    MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
     template <class T>
     struct as
@@ -298,6 +304,8 @@ struct shape
         type max() const { return std::numeric_limits<type>::max(); }
 
         type min() const { return std::numeric_limits<type>::lowest(); }
+
+        type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
 
         template <class U>
         type operator()(U u) const
@@ -394,8 +402,8 @@ struct shape
     std::shared_ptr<const shape_impl> impl;
 };
 
-void migraphx_to_value(value& v, const shape& s);
-void migraphx_from_value(const value& v, shape& s);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

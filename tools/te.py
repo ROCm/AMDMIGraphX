@@ -28,6 +28,8 @@ trivial = [
     'bool', 'any_ptr'
 ]
 
+export_macro = 'MIGRAPHX_EXPORT'
+
 headers = '''
 #include <algorithm>
 #include <cassert>
@@ -41,7 +43,7 @@ form = string.Template('''
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct ${struct_name}
+struct ${export_macro} ${struct_name}
 {
 ${decl_members}
 };
@@ -395,7 +397,8 @@ def generate_form(name, members):
                            default_members=''.join(default_members),
                            decl_members=''.join(decl_members),
                            comment_members='\n'.join(comment_members),
-                           struct_name=name)
+                           struct_name=name,
+                           export_macro=export_macro)
 
 
 def virtual(name, returns=None, **kwargs):

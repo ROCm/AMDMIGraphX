@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct instruction;
 using instruction_ref = std::list<instruction>::iterator;
 
-migraphx::instruction* as_address(const instruction_ref& ins) noexcept;
+MIGRAPHX_EXPORT migraphx::instruction* as_address(const instruction_ref& ins) noexcept;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

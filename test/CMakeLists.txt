@@ -24,8 +24,6 @@
 
 cmake_policy(SET CMP0057 NEW)
 
-include(CTest)
-
 find_package(Threads REQUIRED)
 include(ProcessorCount)
 ProcessorCount(N)
@@ -230,7 +228,7 @@ function(test_headers PREFIX)
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        target_link_libraries(header_${TEST_NAME} migraphx_all_targets)
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
     endforeach()
 endfunction()
 

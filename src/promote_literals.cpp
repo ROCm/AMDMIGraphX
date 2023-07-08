@@ -34,7 +34,7 @@ void promote_literals::apply(module_pass_manager& mpm) const
 {
     module& m              = mpm.get_module();
     module_ref root_module = mpm.get_root_module();
-    if(m.name() == "main")
+    if(m == *root_module)
         return;
 
     for(auto ins : iterator_for(m))

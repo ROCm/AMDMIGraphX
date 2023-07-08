@@ -44,7 +44,7 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void gathernd_kernel(void* in_data, void* in_indices, void* output) 
+MIGRAPHX_GLOBAL void gathernd_kernel(void* in_data, void* in_indices, void* output) 
 {
     make_tensors()(in_data, in_indices, output)([](auto&&... xs) { 
         auto settings = make_gathernd_settings(MIGRAPHX_MAKE_CONSTANT(int64_t{BATCH_DIMS}));

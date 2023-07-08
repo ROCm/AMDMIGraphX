@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct dynamic_loader_impl;
 
-struct dynamic_loader
+struct MIGRAPHX_EXPORT dynamic_loader
 {
     template <class T>
     static fs::path path(T* address)

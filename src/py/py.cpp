@@ -26,7 +26,6 @@
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <pybind11/embed.h>
-#include <pybind11/eval.h>
 
 namespace py = pybind11;
 

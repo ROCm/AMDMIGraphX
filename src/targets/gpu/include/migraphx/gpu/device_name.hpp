@@ -27,9 +27,13 @@
 #include <migraphx/config.hpp>
 #include <string>
 
+struct hipDeviceProp_t;
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+std::string get_arch_name(const hipDeviceProp_t& props);
 
 std::string get_device_name();
 

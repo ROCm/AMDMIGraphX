@@ -45,7 +45,7 @@ static const char* const softmax_kernel = R"__migraphx__(
 namespace migraphx {
 
 extern "C" {
-__global__ void softmax_kernel(void* input_p, void* output_p) 
+MIGRAPHX_GLOBAL void softmax_kernel(void* input_p, void* output_p) 
 {
     transform_args(make_tensors(), ${transformers})(input_p, output_p)([](auto input, auto output) {
         softmax<${axis}>(input, output);

@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_DEVICE_PREFIX_SCAN_SUM_HPP
 
 #include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/device/config.hpp>
 #include <hip/hip_runtime_api.h>
 
 namespace migraphx {
@@ -33,12 +33,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void prefix_scan_sum(hipStream_t stream,
-                     const argument& result,
-                     const argument& arg,
-                     int32_t axis,
-                     bool exclusive,
-                     bool reverse);
+void MIGRAPHX_DEVICE_EXPORT prefix_scan_sum(hipStream_t stream,
+                                            const argument& result,
+                                            const argument& arg,
+                                            int32_t axis,
+                                            bool exclusive,
+                                            bool reverse);
 
 } // namespace device
 } // namespace gpu

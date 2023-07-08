@@ -21,27 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_ALGEBRA_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_ALGEBRA_HPP
-
-#include <string>
-#include <migraphx/config.hpp>
+#include <migraphx/target.hpp>
+#include <migraphx/register_target.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-
-/**
- * Simplify many algebraic instructions to more efficient versions.
- */
-struct MIGRAPHX_EXPORT simplify_algebra
+void migraphx_to_value(value& v, const target& t) { v["name"] = t.name(); }
+void migraphx_from_value(const value& v, target& t)
 {
-    std::string name() const { return "simplify_algebra"; }
-    void apply(module& m) const;
-};
+    t = make_target(v.at("name").to<std::string>());
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

@@ -67,6 +67,8 @@ target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
+target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
+migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
 add_library(kernel_file_check EXCLUDE_FROM_ALL)
 
@@ -132,6 +134,7 @@ add_library(migraphx_gpu
     ${JIT_GPU_SRCS}
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+migraphx_generate_export_header(migraphx_gpu)
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})

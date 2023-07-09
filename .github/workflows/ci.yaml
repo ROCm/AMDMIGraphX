@@ -191,6 +191,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -220,6 +221,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -259,6 +261,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - name : Install rbuild and lld
       run: |
@@ -375,6 +378,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - uses: actions/checkout@v3
     - name: Set up Python

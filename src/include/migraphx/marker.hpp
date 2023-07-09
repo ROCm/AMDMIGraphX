@@ -46,7 +46,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct marker
+struct MIGRAPHX_EXPORT marker
 {
     //
     void mark_start(instruction_ref ins_ref);

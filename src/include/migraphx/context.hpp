@@ -80,7 +80,7 @@ void finish_on_context(T&, any_ptr)
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct context
+struct MIGRAPHX_EXPORT context
 {
     // (optional)
     value to_value() const;

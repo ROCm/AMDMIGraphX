@@ -35,7 +35,7 @@ struct module_pass_manager;
 /**
  *  Replace `allocate` instructions with target allocations or output parameters.
  */
-struct replace_allocate
+struct MIGRAPHX_EXPORT replace_allocate
 {
     allocation_model model;
     bool offload_copy = false;

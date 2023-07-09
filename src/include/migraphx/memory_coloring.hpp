@@ -36,7 +36,7 @@ struct module;
  * Remove multiple memory allocations using graph coloring to find memory allocations that can be
  * reused.
  */
-struct memory_coloring
+struct MIGRAPHX_EXPORT memory_coloring
 {
     std::string allocation_op{};
     bool verify = false;

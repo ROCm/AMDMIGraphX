@@ -22,26 +22,22 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_library(migraphx_ref
-    target.cpp
-    lowering.cpp
-    gemm.cpp
-)
-set_target_properties(migraphx_ref PROPERTIES EXPORT_NAME ref)
-rocm_set_soversion(migraphx_ref ${MIGRAPHX_SO_VERSION})
+if(COMMAND migraphx_generate_export_header)
+    return()
+endif()
 
-find_path(BLAZE_INCLUDE blaze/Blaze.h)
+include(GenerateExportHeader)
 
-rocm_clang_tidy_check(migraphx_ref)
-target_link_libraries(migraphx_ref PUBLIC migraphx)
-target_include_directories(migraphx_ref PRIVATE ${BLAZE_INCLUDE})
-target_compile_definitions(migraphx_ref PRIVATE -DBLAZE_USE_CPP_THREADS)
-
-migraphx_generate_export_header(migraphx_ref)
-
-rocm_install_targets(
-  TARGETS migraphx_ref
-  INCLUDE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
+function(migraphx_generate_export_header TARGET)
+    cmake_parse_arguments(PARSE "" "DIRECTORY" "" ${ARGN})
+    if(PARSE_DIRECTORY)
+        set(__directory ${PARSE_DIRECTORY})
+    else()
+        string(REPLACE "_" "/" __directory ${TARGET})
+        string(TOLOWER ${__directory} __directory)
+    endif()
+    set(__file_name ${CMAKE_CURRENT_BINARY_DIR}/include/${__directory}/export.h)
+    generate_export_header(${TARGET} EXPORT_FILE_NAME ${__file_name})
+    target_include_directories(${TARGET} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+    rocm_install(FILES ${__file_name} DESTINATION include/${__directory})
+endfunction()

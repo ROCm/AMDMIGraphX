@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/version.h>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
@@ -610,16 +611,28 @@ void program::finish() const
         ctx.finish();
 }
 
+std::string get_migraphx_version()
+{
+    std::stringstream ss;
+    ss << std::to_string(MIGRAPHX_VERSION_MAJOR) << "." << std::to_string(MIGRAPHX_VERSION_MINOR)
+       << "." << std::to_string(MIGRAPHX_VERSION_PATCH);
+    return ss.str();
+}
+
+/*
+program file version is for the data structure or format of the MXR file. Version should be bumped
+if any changes occur to the format of the MXR file.
+*/
 const int program_file_version = 6;
 
 value program::to_value() const
 {
     value result;
-    result["version"]  = program_file_version;
-    result["targets"]  = migraphx::to_value(this->impl->targets);
-    result["contexts"] = migraphx::to_value(this->impl->contexts);
-
-    value module_vals = value::object{};
+    result["version"]          = program_file_version;
+    result["migraphx_version"] = get_migraphx_version();
+    result["targets"]          = migraphx::to_value(this->impl->targets);
+    result["contexts"]         = migraphx::to_value(this->impl->contexts);
+    value module_vals          = value::object{};
     std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : this->get_modules())
     {
@@ -743,7 +756,19 @@ void program::from_value(const value& v)
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
     {
-        MIGRAPHX_THROW("Warning: Program version mismatch");
+        MIGRAPHX_THROW(
+            "Error: Program version mismatch. MXR file was created using program file version: " +
+            std::to_string(version) + ", while installed MIGraphX is using program file version: " +
+            std::to_string(program_file_version) +
+            ", Try regenerating MXR file using installed MIGraphX and running again.");
+    }
+
+    auto migx_version = v.at("migraphx_version").to<std::string>();
+    if(migx_version != get_migraphx_version())
+    {
+        std::cout << "WARNING: MXR File was created using MIGraphX version: " << migx_version
+                  << ", while installed MIGraphX is at version: " << get_migraphx_version()
+                  << ", operators implementation could be mismatched.";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);

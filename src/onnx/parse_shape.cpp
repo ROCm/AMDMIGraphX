@@ -49,9 +49,9 @@ struct parse_shape : op_parser<parse_shape>
         int input_ndim = input_shape.ndim();
         auto is_ind_out_of_bounds = [&](auto ind){ return (ind > (input_ndim)) or (ind < (-1 * input_ndim)); };
         std::size_t start = 0;
-        std::size_t end = input_shape.ndim();
+        std::size_t end = input_ndim;
         // Normalizing the start and end is handled here because of how the static shape version works
-        auto normalize_ind = [&](std::string attr_name){
+        auto normalize_attr = [&](const std::string& attr_name){
             auto attr = info.attributes.at(attr_name).i();
             if(is_ind_out_of_bounds(attr))
             {
@@ -61,11 +61,11 @@ struct parse_shape : op_parser<parse_shape>
         };
         if(contains(info.attributes, "end"))
         {
-            end = normalize_ind("end");
+            end = normalize_attr("end");
         }
         if(contains(info.attributes, "start"))
         {
-            start = normalize_ind("start");
+            start = normalize_attr("start");
         }
         if(end <= start)
         {

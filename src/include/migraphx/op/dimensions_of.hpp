@@ -51,7 +51,7 @@ struct dimensions_of
 
     std::string name() const { return "dimensions_of"; }
     
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         if(start >= end)

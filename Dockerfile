@@ -111,7 +111,9 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
     /bin/sh /onnxruntime/dockerfiles/scripts/install_common_deps.sh
 
 
-ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
+ADD tools/build_and_install_onnxrt.sh /onnxruntime/build_and_install_onnxrt.sh
+ADD tools/test_onnxrt_unit_tests.sh /onnxruntime/test_onnxrt_unit_tests.sh
+ADD tools/test_onnxrt_parity_tests.sh /onnxruntime/test_onnxrt_parity_tests.sh
 
 RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@8d25af3b3721c159bb41cc6388e9453b1018c126 -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
 

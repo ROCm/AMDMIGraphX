@@ -164,13 +164,40 @@ def onnxnode(name, body) {
 }
 
 rocmtest onnx: onnxnode('anygpu') { cmake_build ->
-    stage("Onnx runtime") {
+    stage("Onnxruntime Build and Install") {
         sh '''
             apt install half
             #ls -lR
             md5sum ./build/*.deb
             dpkg -i ./build/*.deb
-            cd /onnxruntime && ./build_and_test_onnxrt.sh
+            cd /onnxruntime && ./build_and_install_onnxrt.sh 
         '''
+        stash includes:'/onnxruntime/build/Linux/Release/dist/*.whl', name:'onnxruntime-wheel'
+    },
+}
+
+def onnxtestnode(name, body) {
+    return { label ->
+        rocmtestnode(variant: label, node: rocmnodename(name), docker_args: '-u root', body: body, pre: {
+           sh ''' apt install half
+                  md5sum ./build/*.deb
+                  dpkg -i ./build/*.deb 
+                  pip3 install /onnxruntime/build/Linux/Release/dist/*.whl '''
+            unstash 'migraphx-package'
+            unstash 'onnxruntime-wheel'
+        })
     }
+}
+
+rocmtest onnxtest: onnxtestnode('anygpu') {cmake_build ->
+    stage("Onnxruntime Unit tests") {
+        sh '''
+            cd /onnxruntime && ./test_onnxrt_unit_tests.sh 
+        '''
+    },
+    stage("Onnxruntime Unit tests") {
+        sh '''
+            cd /onnxruntime && ./test_onnxrt_parity_tests.sh 
+        '''
+    },
 }

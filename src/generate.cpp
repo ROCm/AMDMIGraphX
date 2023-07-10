@@ -77,7 +77,7 @@ argument generate_argument(shape s, unsigned long seed)
             {
                 using type = typename decltype(as)::type;
                 auto v     = generate_tensor_data<type>(s, seed);
-                result = {s, v};
+                result     = {s, v};
             }
         });
     }

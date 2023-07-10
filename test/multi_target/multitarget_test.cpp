@@ -34,13 +34,13 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape.hpp>
-#include <migraphx/verify.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/generate.hpp>
 #include "test.hpp"
 
 // check if it is custom_op or run_on_module operator
@@ -193,17 +193,12 @@ TEST_CASE(multitarget_compile_cpu_gpu)
     p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
     EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("cpu")}));
     migraphx::parameter_map params;
-    std::vector<float> x_data(s.elements(), 1);
-    std::vector<float> y_data(s.elements(), 2);
-    std::vector<float> z_data(s.elements(), 3);
-    params["x"] = migraphx::argument(s, x_data.data());
-    params["y"] = migraphx::argument(s, y_data.data());
-    params["z"] = migraphx::argument(s, z_data.data());
+    params["x"] = migraphx::fill_argument(s, 1);
+    params["y"] = migraphx::fill_argument(s, 2);
+    params["z"] = migraphx::fill_argument(s, 3);
     auto result = p.eval(params).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold(s.elements(), 6);
-    EXPECT(migraphx::verify_range(gold, result_vector));
+    auto gold   = migraphx::fill_argument(s, 6);
+    EXPECT(gold == result);
 }
 
 TEST_CASE(single_target_multi_compile)
@@ -245,14 +240,14 @@ TEST_CASE(single_target_multi_compile)
     EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("ref")}));
     // eval
     migraphx::parameter_map params;
-    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+    std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
-    params["boxes"]              = migraphx::argument(boxes_s, boxes_vec.data());
-    auto output                  = p.eval(params).back();
-    std::vector<int64_t> result;
-    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify_range(result, gold));
+    params["boxes"]               = migraphx::argument(boxes_s, boxes_vec.data());
+    auto output                   = p.eval(params).back();
+    std::vector<int64_t> gold_vec = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    auto gold =
+        migraphx::argument(migraphx::shape{migraphx::shape::int64_type, {3, 3}}, gold_vec.data());
+    EXPECT(output == gold);
 }
 
 TEST_CASE(multitarget_compile_if_then_else)
@@ -303,18 +298,14 @@ TEST_CASE(multitarget_compile_if_then_else)
     p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
     EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("cpu")}));
     migraphx::parameter_map params;
-    std::vector<float> x_data(ds.elements(), 2);
-    std::vector<float> y_data(ds.elements(), 3);
-    params["x"] = migraphx::argument(ds, x_data.data());
-    params["y"] = migraphx::argument(ds, y_data.data());
+    params["x"] = migraphx::fill_argument(ds, 2);
+    params["y"] = migraphx::fill_argument(ds, 3);
     for(bool cond_val : {true, false})
     {
         params["cond"] = migraphx::argument(cond_s, &cond_val);
         auto result    = p.eval(params).back();
-        std::vector<float> result_vector;
-        result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold(ds.elements(), (cond_val ? 3 : 6));
-        EXPECT(migraphx::verify_range(gold, result_vector));
+        auto gold      = migraphx::fill_argument(ds, (cond_val ? 3 : 6));
+        EXPECT(gold == result);
     }
 }
 
@@ -449,13 +440,12 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
     // do evaluation using different conditions
     // TODO: make two conditional to cover all the paths
     migraphx::parameter_map params;
-    int x_i = 2, y_i = 3, z_i = 4;
-    std::vector<float> x_data(ds.elements(), x_i);
-    std::vector<float> y_data(ds.elements(), y_i);
-    std::vector<float> z_data(ds.elements(), z_i);
-    params["x"] = migraphx::argument(ds, x_data.data());
-    params["y"] = migraphx::argument(ds, y_data.data());
-    params["z"] = migraphx::argument(ds, z_data.data());
+    float x_i   = 2.0;
+    float y_i   = 3.0;
+    float z_i   = 4.0;
+    params["x"] = migraphx::fill_argument(ds, x_i);
+    params["y"] = migraphx::fill_argument(ds, y_i);
+    params["z"] = migraphx::fill_argument(ds, z_i);
     // cover all paths with different combination of conditions
     std::vector<std::pair<bool, bool>> test_conds = {
         {true, true}, {true, false}, {false, true}, {false, false}};
@@ -467,21 +457,19 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
         // main has one instruction that is : if_then_else
         // then mod is doing : {tmp = x+y; (cond) ? (((x-1)*y)-z)  : (((tmp-1)*y)-z);}
         // else mod is doing : {tmp = x+z; (cond) ? (((tmp-1)*x)-y) : (((z-1)*y)-x);}
-        int gold_i = -1;
+        float gold_i = -1.0;
         if(cond_val_0)
         {
-            int tmp_i = x_i + y_i;
-            gold_i    = (cond_val_1) ? (((x_i - 1) * y_i) - z_i) : (((tmp_i - 1) * y_i) - z_i);
+            float tmp_i = x_i + y_i;
+            gold_i      = (cond_val_1) ? (((x_i - 1) * y_i) - z_i) : (((tmp_i - 1) * y_i) - z_i);
         }
         else
         {
-            int tmp_i = x_i + z_i;
-            gold_i    = (cond_val_1) ? (((tmp_i - 1) * x_i) - y_i) : (((z_i - 1) * y_i) - x_i);
+            float tmp_i = x_i + z_i;
+            gold_i      = (cond_val_1) ? (((tmp_i - 1) * x_i) - y_i) : (((z_i - 1) * y_i) - x_i);
         }
-        std::vector<float> result_vector;
-        result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold(ds.elements(), gold_i);
-        EXPECT(migraphx::verify_range(gold, result_vector));
+        auto gold = migraphx::fill_argument(ds, gold_i);
+        EXPECT(gold == result);
     }
 }
 
@@ -571,26 +559,18 @@ TEST_CASE(multitarget_select_module)
                                    migraphx::make_target("ref"),
                                    migraphx::make_target("ref")}));
     // program does the 12+x where x has dynamic shape {{1, 4}, {4, 4}}
-    float seed = 0.0f;
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    auto get_random_values = [&](size_t elements) {
-        std::vector<float> rand_samples(elements);
-        std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-        return rand_samples;
-    };
     for(const size_t bs : {1, 2, 3, 4})
     {
         migraphx::shape arg_shape{migraphx::shape::float_type, {bs, 4}};
-        std::vector<float> data = get_random_values(arg_shape.elements());
         migraphx::parameter_map params;
-        params["data"] = migraphx::argument(arg_shape, data.data());
-        auto result    = p.eval(params).back();
-        std::vector<float> result_vec;
-        result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-        std::vector<float> gold = data;
-        std::transform(gold.begin(), gold.end(), gold.begin(), [&](auto i) { return i + 12; });
-        EXPECT(migraphx::verify_range(gold, result_vec));
+        params["data"] = migraphx::generate_argument(arg_shape, arg_shape.elements());
+        std::vector<float> input_data;
+        params["data"].visit([&](const auto& vec) { input_data.assign(vec.begin(), vec.end()); });
+        std::transform(input_data.begin(), input_data.end(), input_data.begin(), [](const auto& i) {
+            return i + 12.0;
+        });
+        auto result = p.eval(params).back();
+        EXPECT(migraphx::argument(arg_shape, input_data.data()) == result);
     }
 }
 

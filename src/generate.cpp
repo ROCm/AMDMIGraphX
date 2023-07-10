@@ -26,7 +26,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-argument fill_argument(shape s, unsigned long value)
+argument fill_argument(shape s, double value)
 {
     argument result;
     if(s.type() == shape::tuple_type)
@@ -77,7 +77,7 @@ argument generate_argument(shape s, unsigned long seed)
             {
                 using type = typename decltype(as)::type;
                 auto v     = generate_tensor_data<type>(s, seed);
-                result     = {s, v};
+                result = {s, v};
             }
         });
     }

@@ -21,27 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_ALGEBRA_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_ALGEBRA_HPP
 
-#include <string>
+#ifndef MIGRAPHX_GUARD_GPU_CONFIG_HPP
+#define MIGRAPHX_GUARD_GPU_CONFIG_HPP
+
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/export.h>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Simplify many algebraic instructions to more efficient versions.
- */
-struct MIGRAPHX_EXPORT simplify_algebra
-{
-    std::string name() const { return "simplify_algebra"; }
-    void apply(module& m) const;
-};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_GPU_CONFIG_HPP

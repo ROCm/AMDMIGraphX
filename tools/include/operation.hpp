@@ -675,8 +675,8 @@ bool has_finalize(const T& x)
     return detail::has_finalize_op(x);
 }
 
-void migraphx_to_value(value& v, const operation& op);
-void migraphx_from_value(const value& v, operation& op);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const operation& op);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, operation& op);
 
 #endif
 

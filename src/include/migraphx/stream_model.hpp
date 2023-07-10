@@ -62,7 +62,7 @@ struct stream_model
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct stream_model
+struct MIGRAPHX_EXPORT stream_model
 {
     //
     std::size_t get_nstream() const;

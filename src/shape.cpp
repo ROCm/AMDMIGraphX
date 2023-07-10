@@ -273,15 +273,17 @@ shape shape::from_permutation(type_t t,
 
 shape::type_t shape::type() const { return impl->m_type; }
 
-const std::vector<std::size_t>& shape::lens() const {
+const std::vector<std::size_t>& shape::lens() const
+{
     if(this->dynamic())
     {
-       MIGRAPHX_THROW("SHAPE: lens() called on a dynamic shape");
+        MIGRAPHX_THROW("SHAPE: lens() called on a dynamic shape");
     }
     return impl->m_lens;
 }
 
-const std::vector<std::size_t>& shape::strides() const {
+const std::vector<std::size_t>& shape::strides() const
+{
     if(this->dynamic())
     {
         MIGRAPHX_THROW("SHAPE: strides() called on a dynamic shape");
@@ -547,7 +549,8 @@ bool shape::any_of_dynamic() const
     });
 }
 
-const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const {
+const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
+{
     if(not this->dynamic())
     {
         MIGRAPHX_THROW("SHAPE: dyn_dims() called on a static shape");
@@ -697,8 +700,8 @@ const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
 void migraphx_to_value(value& v, const shape& s)
 {
     value result;
-    result["type"]               = migraphx::to_value(s.type_string());
-    result["sub_shapes"]         = migraphx::to_value(s.sub_shapes());
+    result["type"]       = migraphx::to_value(s.type_string());
+    result["sub_shapes"] = migraphx::to_value(s.sub_shapes());
     // avoid calling functions that will throw
     if(s.dynamic())
     {
@@ -712,7 +715,7 @@ void migraphx_to_value(value& v, const shape& s)
         result["strides"]            = migraphx::to_value(s.strides());
         result["dynamic_dimensions"] = {};
     }
-    v                            = result;
+    v = result;
 }
 
 void migraphx_from_value(const value& v, shape& s)

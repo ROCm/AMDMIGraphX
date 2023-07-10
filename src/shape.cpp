@@ -276,7 +276,6 @@ shape::type_t shape::type() const { return impl->m_type; }
 const std::vector<std::size_t>& shape::lens() const {
     if(this->dynamic())
     {
-        //std::cout << "SHAPE: lens() called on a dynamic shape\n";
        MIGRAPHX_THROW("SHAPE: lens() called on a dynamic shape");
     }
     return impl->m_lens;

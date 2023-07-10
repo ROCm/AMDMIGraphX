@@ -113,7 +113,7 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 # Temporary flags to try and get to the bottom of this threads situation
-RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@7c3bc32c69e63ef73fa2f5a9f6500f4b7ea95a03 -DBUILD_FAT_LIBROCKCOMPILER=On --debug -DLLVM_USE_SANITIZER=Thread -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang
+RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@9938b5b53a61a1c318da8606b5aa019ff72b8102 -DBUILD_FAT_LIBROCKCOMPILER=On --debug -DLLVM_USE_SANITIZER=Undefined
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

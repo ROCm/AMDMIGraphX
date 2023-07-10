@@ -341,9 +341,9 @@ TEST_CASE(averagepool_notset_test)
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
                                                      {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {2, 2, 2, 2}},
-                                                      {"stride", {2, 2}},
-                                                      {"lengths", {6, 6}}}),
+                                                        {"padding", {2, 2, 2, 2}},
+                                                        {"stride", {2, 2}},
+                                                        {"lengths", {6, 6}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {2, 2}}}), ins);
@@ -362,9 +362,9 @@ TEST_CASE(averagepool_nt_cip_test)
     auto ins_pad = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), input);
     auto ret     = mm->add_instruction(migraphx::make_op("pooling",
                                                      {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {0, 0, 0, 0}},
-                                                      {"stride", {2, 2}},
-                                                      {"lengths", {6, 6}}}),
+                                                          {"padding", {0, 0, 0, 0}},
+                                                          {"stride", {2, 2}},
+                                                          {"lengths", {6, 6}}}),
                                    ins_pad);
     mm->add_return({ret});
 
@@ -379,9 +379,9 @@ TEST_CASE(averagepool_same_lower_test)
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
                                                      {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {1, 1, 1, 1}},
-                                                      {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}}}),
+                                                        {"padding", {1, 1, 1, 1}},
+                                                        {"stride", {1, 1}},
+                                                        {"lengths", {2, 2}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {5, 5}}}), ins);
@@ -400,9 +400,9 @@ TEST_CASE(averagepool_sl_cip_test)
     auto ins_pad = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), input);
     auto ret     = mm->add_instruction(migraphx::make_op("pooling",
                                                      {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {0, 0, 0, 0}},
-                                                      {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}}}),
+                                                          {"padding", {0, 0, 0, 0}},
+                                                          {"stride", {1, 1}},
+                                                          {"lengths", {2, 2}}}),
                                    ins_pad);
     mm->add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_sl_cip_test.onnx");
@@ -417,9 +417,9 @@ TEST_CASE(averagepool_same_upper_test)
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
                                                      {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {1, 1, 1, 1}},
-                                                      {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}}}),
+                                                        {"padding", {1, 1, 1, 1}},
+                                                        {"stride", {1, 1}},
+                                                        {"lengths", {2, 2}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), ins);
@@ -6025,13 +6025,12 @@ TEST_CASE(shape_dyn_test0)
     migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
     auto p0 = mm->add_parameter("x", s);
     migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
-    auto ret = mm->add_instruction(
-        migraphx::make_op("dimensions_of", {{"end", 4}}), p0);
+    auto ret = mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 4}}), p0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    auto prog                     = parse_onnx("shape_dyn_test0.onnx", options);
+    auto prog                       = parse_onnx("shape_dyn_test0.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -6043,13 +6042,13 @@ TEST_CASE(shape_dyn_test1)
     migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
     auto p0 = mm->add_parameter("x", s);
     migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
-    auto ret = mm->add_instruction(
-        migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p0);
+    auto ret =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    auto prog                     = parse_onnx("shape_dyn_test1.onnx", options);
+    auto prog                       = parse_onnx("shape_dyn_test1.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -6061,13 +6060,13 @@ TEST_CASE(shape_dyn_test2)
     migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
     auto p0 = mm->add_parameter("x", s);
     migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
-    auto ret = mm->add_instruction(
-        migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p0);
+    auto ret =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    auto prog                     = parse_onnx("shape_dyn_test2.onnx", options);
+    auto prog                       = parse_onnx("shape_dyn_test2.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -6079,13 +6078,13 @@ TEST_CASE(shape_dyn_test3)
     migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
     auto p0 = mm->add_parameter("x", s);
     migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
-    auto ret = mm->add_instruction(
-        migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 2}}), p0);
+    auto ret =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 2}}), p0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    auto prog                     = parse_onnx("shape_dyn_test3.onnx", options);
+    auto prog                       = parse_onnx("shape_dyn_test3.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -6094,24 +6093,21 @@ TEST_CASE(shape_end_oob_error)
 {
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("shape_end_oob_error.onnx", options); }));
+    EXPECT(test::throws([&] { migraphx::parse_onnx("shape_end_oob_error.onnx", options); }));
 }
 
 TEST_CASE(shape_start_oob_error)
 {
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("shape_start_oob_error.onnx", options); }));
+    EXPECT(test::throws([&] { migraphx::parse_onnx("shape_start_oob_error.onnx", options); }));
 }
 
 TEST_CASE(shape_end_less_start_error)
 {
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("shape_end_less_start_error.onnx", options); }));
+    EXPECT(test::throws([&] { migraphx::parse_onnx("shape_end_less_start_error.onnx", options); }));
 }
 
 TEST_CASE(shape_gather_test)

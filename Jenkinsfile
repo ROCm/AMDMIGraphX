@@ -106,13 +106,13 @@ def rocmnode(name, body) {
 }
 
 rocmtest clang_debug: rocmnode('vega') { cmake_build ->
-    stage('Hip Clang Debug') {
+    stage('hipRTC Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true, hiprtc_workarounds: true)
     }
 }, clang_release: rocmnode('vega') { cmake_build ->
-    stage('Hip Release') {
+    stage('Hip Clang Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }

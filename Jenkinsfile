@@ -89,6 +89,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && vega";
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
+    } else if(name == "mi100+") {
+        node_name = "${rocmtest_name} && (gfx908 || gfx90a)";
     } else if(name == "anygpu") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega)";
     } else if(name == "nogpu") {
@@ -120,7 +122,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     }
 }, hiprtc_gpu_debug: rocmnode('vega') { cmake_build ->
     stage('HipRTC GPU Debug') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true, hiprtc_workarounds:  true)
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true, hiprtc_workarounds: true)
     }
 }, all_targets_debug : rocmnode('vega') { cmake_build ->
     stage('All targets Release') {
@@ -137,6 +139,12 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr -fno-sanitize-recover=${sanitizers}"
             // Temporarily swap the compiler to Clang to get tsan to behave maybe
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang")
+        }
+    }
+}, ck_release: rocmnode('mi100+') { cmake_build ->
+    stage('CK Release') {
+        withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1']) {
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         }
     }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->

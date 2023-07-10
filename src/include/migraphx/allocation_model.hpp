@@ -60,7 +60,7 @@ struct allocation_model
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct allocation_model
+struct MIGRAPHX_EXPORT allocation_model
 {
     //
     std::string name() const;

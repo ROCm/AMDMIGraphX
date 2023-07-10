@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cassert>
 #include <memory>
+#include <cstdint>
 #include <sstream>
 #include <type_traits>
 #include <tuple>
@@ -140,7 +141,7 @@ To try_convert_value(const From& x)
     return detail::try_convert_value_impl<To>(rank<3>{}, x);
 }
 
-struct value
+struct MIGRAPHX_EXPORT value
 {
 // clang-format off
 #define MIGRAPHX_VISIT_VALUE_TYPES(m) \
@@ -452,14 +453,14 @@ struct value
                    std::vector<literal_to_string<To>>{default_value.begin(), default_value.end()});
     }
 
-    friend bool operator==(const value& x, const value& y);
-    friend bool operator!=(const value& x, const value& y);
-    friend bool operator<(const value& x, const value& y);
-    friend bool operator<=(const value& x, const value& y);
-    friend bool operator>(const value& x, const value& y);
-    friend bool operator>=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator==(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator<(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator<=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator>(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator>=(const value& x, const value& y);
 
-    friend std::ostream& operator<<(std::ostream& os, const value& d);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const value& d);
 
     std::size_t hash() const;
 

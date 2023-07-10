@@ -37,11 +37,11 @@ struct test_convolution_backwards_2d_alt : verify_program<test_convolution_backw
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 10, 10}});
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        mm->add_instruction(migraphx::make_op(
-                    "convolution_backwards",
-                    {{"padding", {2, 2}}, {"stride", {2, 2}}, {"dilation", {2, 2}}}),
-                input,
-                weights);
+        mm->add_instruction(
+            migraphx::make_op("convolution_backwards",
+                              {{"padding", {2, 2}}, {"stride", {2, 2}}, {"dilation", {2, 2}}}),
+            input,
+            weights);
         return p;
     }
 };

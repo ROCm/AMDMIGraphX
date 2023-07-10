@@ -2015,7 +2015,7 @@ TEST_CASE(convolution_backwards_3d)
                             4.6707,  2.9332,  -3.7001, -2.6808, -1.2476, 3.2475,  -0.4578, 4.0263,
                             -1.8267, 0.2243,  -2.3299, -0.1411, -0.4991};
     // clang-format on
-    
+
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_literal(migraphx::literal{s_1, x_data});
@@ -2196,19 +2196,14 @@ TEST_CASE(convolution_backwards_dyn_batch2)
     auto result = p.eval(params).back();
 
     //clang-format off
-    std::vector<float> gold{
-        12.,   0.,  21.,   0.,  27.,   0.,  33.,   0.,  24.,
-        0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,
-        33.,   0.,  54.,   0.,  63.,   0.,  72.,   0.,  51.,
-        0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,
-        63.,   0.,  99.,   0., 108.,   0., 117.,   0.,  81.,
-        0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,
-        93.,   0., 144.,   0., 153.,   0., 162.,   0., 111.,
-        0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,
-        72.,   0., 111.,   0., 117.,   0., 123.,   0.,  84.
-    };
+    std::vector<float> gold{12.,  0., 21.,  0., 27.,  0., 33.,  0., 24.,  0., 0.,  0., 0.,   0.,
+                            0.,   0., 0.,   0., 33.,  0., 54.,  0., 63.,  0., 72., 0., 51.,  0.,
+                            0.,   0., 0.,   0., 0.,   0., 0.,   0., 63.,  0., 99., 0., 108., 0.,
+                            117., 0., 81.,  0., 0.,   0., 0.,   0., 0.,   0., 0.,  0., 93.,  0.,
+                            144., 0., 153., 0., 162., 0., 111., 0., 0.,   0., 0.,  0., 0.,   0.,
+                            0.,   0., 72.,  0., 111., 0., 117., 0., 123., 0., 84.};
     //clang-format on
-    
+
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, gold));

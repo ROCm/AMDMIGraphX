@@ -34,29 +34,30 @@ namespace op {
 
 /**
  * Returns the dimensions of the input argument from starting axis to ending axis.
- * Atleast `end` must be set to use this operator (set `end` to ndim for default ONNX behavior of `Shape` operator)
- * This should only be used for dynamic shapes as this can be simplified to a literal for static shapes.
+ * Atleast `end` must be set to use this operator (set `end` to ndim for default ONNX behavior of
+ * `Shape` operator) This should only be used for dynamic shapes as this can be simplified to a
+ * literal for static shapes.
  */
 struct dimensions_of
 {
     std::size_t start = 0;
-    std::size_t end = 0;
-    
+    std::size_t end   = 0;
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.start, "start"),
-                    f(self.end, "end"));
+        return pack(f(self.start, "start"), f(self.end, "end"));
     }
 
     std::string name() const { return "dimensions_of"; }
-    
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         if(start >= end)
         {
-            MIGRAPHX_THROW("DIMENSIONS_OF: start >= end. start = " + std::to_string(start) + ", end = " + std::to_string(end));
+            MIGRAPHX_THROW("DIMENSIONS_OF: start >= end. start = " + std::to_string(start) +
+                           ", end = " + std::to_string(end));
         }
         return shape{shape::int64_type, {end - start}};
     }

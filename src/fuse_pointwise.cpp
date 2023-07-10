@@ -196,14 +196,17 @@ struct find_pointwise_reshape_pointwise
 {
     auto matcher() const
     {
-        auto reshape_pointwise = match::name("reshape", "squeeze", "unsqueeze")(match::skip(match::name("contiguous"))(match::name("pointwise").bind("x"))).bind("reshape");
+        auto reshape_pointwise =
+            match::name("reshape", "squeeze", "unsqueeze")(
+                match::skip(match::name("contiguous"))(match::name("pointwise").bind("x")))
+                .bind("reshape");
         return match::name("pointwise")(match::any_of[match::inputs()](reshape_pointwise));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto x_ins = r.instructions["x"];
+        auto ins         = r.result;
+        auto x_ins       = r.instructions["x"];
         auto reshape_ins = r.instructions["reshape"];
 
         auto cd = common_dims::compute(ins->get_shape().lens(), x_ins->get_shape().lens());
@@ -211,7 +214,8 @@ struct find_pointwise_reshape_pointwise
         auto reshape_input = [&](const auto& ins_to_insert) {
             return [&](auto input) {
                 auto c = m.insert_instruction(ins_to_insert, make_op("contiguous"), input);
-                return m.insert_instruction(ins_to_insert, make_op("reshape", {{"dims", {cd.dims}}}), c);
+                return m.insert_instruction(
+                    ins_to_insert, make_op("reshape", {{"dims", {cd.dims}}}), c);
             };
         };
         auto x_inputs = x_ins->inputs();

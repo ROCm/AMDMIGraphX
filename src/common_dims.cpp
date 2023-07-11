@@ -73,7 +73,7 @@ struct common_dim_state
     }
 };
 
-static bool commpute_common_dim(std::vector<std::size_t>& cd_dims,
+static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
                                 common_dim_state& state1,
                                 common_dim_state& state2)
 {

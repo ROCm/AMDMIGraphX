@@ -24,6 +24,7 @@
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -197,8 +198,8 @@ struct find_pointwise_reshape_pointwise
     auto matcher() const
     {
         auto reshape_pointwise =
-            match::name("reshape", "squeeze", "unsqueeze")(
-                match::skip(match::name("contiguous"))(match::name("pointwise").bind("x")))
+            match::name("reshape", "squeeze", "unsqueeze")(match::arg(0)(
+                match::skip(match::name("contiguous"))(match::name("pointwise").bind("x"))))
                 .bind("reshape");
         return match::name("pointwise")(match::any_of[match::inputs()](reshape_pointwise));
     }
@@ -215,12 +216,12 @@ struct find_pointwise_reshape_pointwise
             return [&](auto input) {
                 auto c = m.insert_instruction(ins_to_insert, make_op("contiguous"), input);
                 return m.insert_instruction(
-                    ins_to_insert, make_op("reshape", {{"dims", {cd.dims}}}), c);
+                    ins_to_insert, make_op("reshape", {{"dims", cd.dims}}), c);
             };
         };
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), reshape_input(x_ins));
-        auto new_x_ins = m.insert_instruction(x_ins, x_ins->get_operator(), x_inputs);
+        auto new_x_ins = m.insert_instruction(x_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
 
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
@@ -228,7 +229,7 @@ struct find_pointwise_reshape_pointwise
                 return new_x_ins;
             return reshape_input(ins)(input);
         });
-        m.replace_instruction(ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
     }
 };
 
@@ -243,7 +244,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     for(int i = 0; i < 8; i++)
     {
         match::find_matches(mpm.get_module(), find_pointwise_reshape_pointwise{});
-        mpm.run_pass(dead_code_elimination{});
+        mpm.run_pass(simplify_reshapes{1});
         if(not find_pointwise_modules(mpm.get_module()))
             break;
         mpm.run_pass(dead_code_elimination{});

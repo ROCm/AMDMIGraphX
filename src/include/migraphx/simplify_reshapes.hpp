@@ -38,6 +38,7 @@ struct module;
  */
 struct simplify_reshapes
 {
+    int depth = 4;
     std::string name() const { return "simplify_reshapes"; }
     void apply(module& m) const;
 };

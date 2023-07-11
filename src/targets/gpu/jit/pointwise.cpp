@@ -44,7 +44,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void ${kernel}(${params}) 
+MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     auto idx = make_index();
     pointwise(idx, ${transformers})(${lambda}, ${args});

@@ -27,9 +27,15 @@ TEST_CASE(common2)
     EXPECT(cd.axes_map2 == axes_map{{0}, {1}, {2, 3, 4}});
 }
 
-TEST_CASE(common_error)
+TEST_CASE(common_error1)
 {
     auto cd = migraphx::common_dims::compute({6, 35}, {3, 7, 2, 5});
+    EXPECT(cd.dims.empty());
+}
+
+TEST_CASE(common_error2)
+{
+    auto cd = migraphx::common_dims::compute({3, 7, 2, 5}, {6, 35});
     EXPECT(cd.dims.empty());
 }
 

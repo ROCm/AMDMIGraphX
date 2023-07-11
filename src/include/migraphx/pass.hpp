@@ -57,7 +57,7 @@ struct pass
 
 #else
 
-module& get_module(module_pass_manager& mpm);
+MIGRAPHX_EXPORT module& get_module(module_pass_manager& mpm);
 
 namespace detail {
 
@@ -84,7 +84,7 @@ void module_pass_manager_apply(const T& x, module_pass_manager& mpm)
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct pass
+struct MIGRAPHX_EXPORT pass
 {
     //
     std::string name() const;

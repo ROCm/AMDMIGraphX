@@ -363,8 +363,9 @@ TEST_CASE(no_input)
 
 TEST_CASE(add_reshape_add)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {3, 4}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 2, 2}};
+    migraphx::shape s1{migraphx::shape::float_type, {3, 10, 16}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 40, 2, 2}};
+    migraphx::shape s3{migraphx::shape::float_type, {3, 10, 4, 2, 2}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -384,14 +385,16 @@ TEST_CASE(add_reshape_add)
         auto x   = mm->add_parameter("x", s1);
         auto y   = mm->add_parameter("y", s1);
         auto z   = mm->add_parameter("z", s2);
-        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
-        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), y);
+        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
+        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
+        auto z2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), z);
         auto fadd =
-            add_pointwise(p2, "main:pointwise0", {x2, y2, z}, [=](auto* pm, const auto& inputs) {
+            add_pointwise(p2, "main:pointwise0", {x2, y2, z2}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
             });
-        mm->add_return({fadd});
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), fadd);
+        mm->add_return({reshape});
     }
     EXPECT(p1.sort() == p2.sort());
 }

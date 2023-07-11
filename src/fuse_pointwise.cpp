@@ -192,7 +192,7 @@ static bool find_pointwise_modules(module& m)
     }
     return changed;
 }
-
+namespace {
 struct find_pointwise_reshape_pointwise
 {
     auto matcher() const
@@ -230,9 +230,11 @@ struct find_pointwise_reshape_pointwise
                 return new_x_ins;
             return reshape_input(ins)(input);
         });
-        m.replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        auto pw = m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), pw);
     }
 };
+}
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {

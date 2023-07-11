@@ -84,7 +84,7 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
     auto naxes = distance(dims);
     // If not divisible then we can't compute a common dim
     if((d2 % n) != 0)
-        return true;
+        return false;
     auto rem = d2 / n;
     state1.add_multi_axes(naxes, cd_dims.size());
     state2.add_axes(rem != 1 ? naxes + 1 : naxes, cd_dims.size());
@@ -97,7 +97,7 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
         cd_dims.push_back(state1.rem);
     state1.next(distance(dims));
     state2.next();
-    return false;
+    return true;
 }
 
 common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
@@ -113,12 +113,12 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
         auto d2 = state2.get();
         if(d1 <= d2)
         {
-            if(compute_common_dim(cd.dims, state1, state2))
+            if(not compute_common_dim(cd.dims, state1, state2))
                 return {};
         }
         else // if(d1 > d2)
         {
-            if(compute_common_dim(cd.dims, state2, state1))
+            if(not compute_common_dim(cd.dims, state2, state1))
                 return {};
         }
     }

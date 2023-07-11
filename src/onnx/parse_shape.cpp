@@ -46,31 +46,30 @@ struct parse_shape : op_parser<parse_shape>
     {
         if(args.size() != 1)
             MIGRAPHX_THROW("Shape: operator should have 1 operand");
-        auto input_shape          = args[0]->get_shape();
-        int input_ndim            = input_shape.ndim();
-        auto is_ind_out_of_bounds = [&](auto ind) {
-            return (ind > (input_ndim)) or (ind < (-1 * input_ndim));
-        };
+        auto input_shape  = args[0]->get_shape();
+        int input_ndim    = input_shape.ndim();
         std::size_t start = 0;
         std::size_t end   = input_ndim;
         // Normalizing the start and end is handled here because of how the static shape version
-        // works
-        auto normalize_attr = [&](const std::string& attr_name) {
-            auto attr = info.attributes.at(attr_name).i();
-            if(is_ind_out_of_bounds(attr))
+        // works. Clamping to [-r, r], where r is ndim of input and then making positive.
+        auto normalize_ind = [&](int64_t ind) {
+            if(ind < (-1 * input_ndim))
             {
-                MIGRAPHX_THROW("PARSE_SHAPE: " + attr_name +
-                               " attribute is out of bounds, value: " + std::to_string(attr));
+                ind = -1 * input_ndim;
             }
-            return (attr >= 0) ? attr : input_ndim + attr;
+            if(ind > input_ndim)
+            {
+                ind = input_ndim;
+            }
+            return (ind >= 0) ? ind : input_ndim + ind;
         };
         if(contains(info.attributes, "end"))
         {
-            end = normalize_attr("end");
+            end = normalize_ind(info.attributes.at("end").i());
         }
         if(contains(info.attributes, "start"))
         {
-            start = normalize_attr("start");
+            start = normalize_ind(info.attributes.at("start").i());
         }
         if(end <= start)
         {

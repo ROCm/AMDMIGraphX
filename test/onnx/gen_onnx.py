@@ -3368,20 +3368,6 @@ def instance_norm_type_mismatch_test():
 
     return ([node], [x, scale, bias], [y])
 
-@onnx_test()
-def instance_norm_dyn_batch_test():
-    # the batch size is a dynamic dimension
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 3, 3])
-    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
-    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
-    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [None, 2, 3, 3])
-
-    node = onnx.helper.make_node('InstanceNormalization',
-                                 inputs=['0', '1', '2'],
-                                 outputs=['3'])
-
-    return ([node], [x, scale, bias], [y])
-
 
 @onnx_test()
 def instance_norm_dyn_batch_test():
@@ -3395,7 +3381,6 @@ def instance_norm_dyn_batch_test():
                                  inputs=['0', '1', '2'],
                                  outputs=['3'])
 
-    return ([node], [x, scale, bias], [y])
     return ([node], [x, scale, bias], [y])
 
 

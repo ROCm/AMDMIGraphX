@@ -50,6 +50,9 @@ struct pooling
     //  Members mode, ceil_mode, padding_mode are all separate concepts with similar names.
     pooling_mode mode = {pooling_mode::average};
 
+    // If the input has rank other than 4 then padding, stride, lengths must all be specified
+    // since the defaults have 2-dimensions. 
+
     // Padding along each spatial input dimension
     // Can be ndim or 2*ndim values where ndim is size of lengths
     // ndim values means pad the same before and after each dimension
@@ -204,29 +207,21 @@ struct pooling
             {
                 const size_t num_spatial_dims = inputs[0].ndim() - 2;
                 const shape& x_shape          = inputs[0];
-                // this is convolution::dynamic_compute_shape()
+                // same as convolution::dynamic_compute_shape()
 
                 for(std::size_t i = 0; i < num_spatial_dims; ++i)
                 {
                     auto ceil_div = [](std::size_t x, std::size_t y) { return (x + y - 1) / y; };
                     auto s        = stride[i];
-                    if(x_shape.dynamic()) // redundant check here
-                    {
-                        auto x = x_shape.dyn_dims()[i + 2];
-                        std::set<std::size_t> optimals{};
-                        std::transform(x.optimals.begin(),
-                                       x.optimals.end(),
-                                       std::inserter(optimals, optimals.begin()),
-                                       [&](auto o) { return ceil_div(o, s); });
-                        output_dyn_dims.push_back(shape::dynamic_dimension{
-                            ceil_div(x.min, s), ceil_div(x.max, s), optimals});
-                    }
-                    else
-                    {
-                        // should never happen
-                        auto od = ceil_div(x_shape.lens()[i + 2], s);
-                        output_dyn_dims.push_back(shape::dynamic_dimension{od, od});
-                    }
+
+                    auto x = x_shape.dyn_dims()[i + 2];
+                    std::set<std::size_t> optimals{};
+                    std::transform(x.optimals.begin(),
+                                   x.optimals.end(),
+                                   std::inserter(optimals, optimals.begin()),
+                                   [&](auto o) { return ceil_div(o, s); });
+                    output_dyn_dims.push_back(
+                        shape::dynamic_dimension{ceil_div(x.min, s), ceil_div(x.max, s), optimals});
                 }
                 return {input.type(), output_dyn_dims};
             }

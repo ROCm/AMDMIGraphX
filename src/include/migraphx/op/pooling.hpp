@@ -42,11 +42,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 // The Pooling operator mostly follows the specifications for the Onnx pooling op.
-// It assumes an NCHW layout where dimensions are <batch index, channels, spatial dimensions...>
+// It assumes an NCHW layout, extended to support any number of spatial dimensions
+// from 1 on up; dimensions are <batch index, channels, spatial dimensions...>
 //
-//  Members mode, ceil_mode, padding_mode are all separate concepts with similar names.
 struct pooling
 {
+    //  Members mode, ceil_mode, padding_mode are all separate concepts with similar names.
     pooling_mode mode = {pooling_mode::average};
 
     // Padding along each spatial input dimension
@@ -104,7 +105,8 @@ struct pooling
     {
         if(dyn_global)
             return;
-        if((padding_mode == default_ and padding.size() != stride.size() and (padding.size()) != stride.size() * 2) or
+        if((padding_mode == default_ and padding.size() != stride.size() and
+            (padding.size()) != stride.size() * 2) or
            stride.size() != lengths.size())
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
@@ -221,7 +223,7 @@ struct pooling
                     }
                     else
                     {
-                        MIGRAPHX_THROW("debug: how did this happen?");
+                        // should never happen
                         auto od = ceil_div(x_shape.lens()[i + 2], s);
                         output_dyn_dims.push_back(shape::dynamic_dimension{od, od});
                     }
@@ -334,9 +336,9 @@ struct pooling
             // For each spatial dimension, find starting and ending index of pooling kernel
             for(std::size_t dim = 2; dim < n_dim; ++dim)
             {
-                auto d_2 = dim - 2;
-                int start =
-                    static_cast<int>(idx_o[dim] * stride[d_2]) - static_cast<int>(padding_vals[d_2]);
+                auto d_2  = dim - 2;
+                int start = static_cast<int>(idx_o[dim] * stride[d_2]) -
+                            static_cast<int>(padding_vals[d_2]);
                 int end;
                 // NOLINT
                 if(count_include_pad and ceil_mode and (mode != pooling_mode::max))

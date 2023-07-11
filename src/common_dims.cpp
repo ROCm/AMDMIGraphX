@@ -82,6 +82,8 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
     auto dims  = state1.dims_for(d2);
     auto n     = elements(dims);
     auto naxes = distance(dims);
+    if (naxes == 0)
+        return false;
     // If not divisible then we can't compute a common dim
     if((d2 % n) != 0)
         return false;

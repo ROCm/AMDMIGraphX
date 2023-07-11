@@ -6146,7 +6146,7 @@ def shape_dyn_test3():
 
 
 @onnx_test()
-def shape_end_oob_error():
+def shape_end_oob_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
                                       [None, 4, None, None])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
@@ -6157,7 +6157,7 @@ def shape_end_oob_error():
 
 
 @onnx_test()
-def shape_start_oob_error():
+def shape_start_oob_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
                                       [None, 4, None, None])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])

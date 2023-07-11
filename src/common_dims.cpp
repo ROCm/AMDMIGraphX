@@ -113,12 +113,12 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
         auto d2 = state2.get();
         if(d1 <= d2)
         {
-            if(commpute_common_dim(cd.dims, state1, state2))
+            if(compute_common_dim(cd.dims, state1, state2))
                 return {};
         }
         else // if(d1 > d2)
         {
-            if(commpute_common_dim(cd.dims, state2, state1))
+            if(compute_common_dim(cd.dims, state2, state1))
                 return {};
         }
     }

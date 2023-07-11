@@ -81,17 +81,13 @@ void transform_convolutions(module& m, bool skip_elim_contiguous)
         auto args = ins->inputs();
         if(skip_elim_contiguous)
         {
-            // std::cout << "HERE" << std::endl;
             for(auto i = 0; i < args.size(); i++)
             {
 
-                // std::cout << args[i]->name() << std::endl;
                 if(args[i]->name() != "layout" and args[i]->get_shape().standard())
                 {
-                    // std::cout << "HERE2" << std::endl;
                     args[i] = m.insert_instruction(
                         ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), args[i]);
-                    // m.debug_print(args);
                 }
             }
         }
@@ -101,11 +97,28 @@ void transform_convolutions(module& m, bool skip_elim_contiguous)
                     ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
             });
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
-        auto c    = conv;
-        if(not skip_elim_contiguous)
-            c = m.insert_instruction(ins, make_op("contiguous"), conv);
-        m.replace_instruction(ins, c);
+        // m.debug_print(conv);
+        // auto c    = conv;
+        // auto nchw = m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 1, 2, 3}}}), conv);
+        // m.debug_print();
+        // if(not skip_elim_contiguous)
+        //     c = m.insert_instruction(ins, make_op("contiguous"), conv);
+        m.replace_instruction(ins, conv);
     }
+}
+
+void insert_contiguous(module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "reshape" and ins->name() != "pooling")
+            continue;
+        auto c = m.insert_instruction(ins, make_op("contiguous"), ins->inputs().front());
+        auto reshape = m.insert_instruction(ins, ins->get_operator(), c);
+        m.replace_instruction(ins, reshape);
+    }
+    std::cout << "after" << std::endl;
+    // m.debug_print();
 }
 
 // void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
@@ -126,6 +139,9 @@ void layout_nhwc::apply(module_pass_manager& mpm) const
 {
     // std::unordered_set<instruction_ref> output_layouts =
     // preserve_output_layout(mpm.get_module());
+    insert_contiguous(mpm.get_module());
+    mpm.run_pass(dead_code_elimination{});
+    mpm.get_module().debug_print();
     transform_convolutions(mpm.get_module(), this->skip_elim_contiguous);
     mpm.run_pass(dead_code_elimination{});
     if(not this->skip_elim_contiguous)

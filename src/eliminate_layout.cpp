@@ -21,6 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/instruction_ref.hpp"
+#include <cstdio>
 #include <migraphx/eliminate_layout.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
@@ -32,6 +34,8 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <unordered_set>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -81,38 +85,114 @@ std::unordered_set<instruction_ref> preserve_output_layout(module& m)
     return result;
 }
 
-void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
+void remove_layout(module& m)
 {
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "gpu::precompile_op")
+        if(ins->name() != "layout")
             continue;
-
-        auto precompile_op = ins->get_operator();
-        auto val           = precompile_op.to_value();
-
-        if(val["op"].at("name").to<std::string>() != "layout")
-        {
-            // std::cout << val["op"].at("name").to<std::string>() << std::endl;
-            continue;
-        }
-        m.debug_print(ins);
-        if(ins->get_shape() != ins->inputs().front()->get_shape())
-        {
-            std::cout << ins->get_shape() << " " << ins->inputs().front()->get_shape() << std::endl;
-            continue;
-        }
-        if(contains(output_layouts, ins))
-            continue;
-
-        m.replace_instruction(ins, ins->inputs().front());
+        auto in_shape = ins->inputs().front()->get_shape();
+        if(in_shape == ins->get_shape())
+            m.replace_instruction(ins, ins->inputs().front());
     }
 }
 
+// std::vector<instruction_ref> find_convs(const module& m)
+// {
+//     std::vector<instruction_ref> convs;
+//     for(auto ins : iterator_for(m))
+//     {
+//         if(ins->name() == "gpu::miopen_op")
+//             convs.push_back(ins);
+//     }
+//     return convs;
+// }
+
+// void remove_layout(module& m, const std::vector<instruction_ref>& convs)
+// {
+//     if(convs.size() < 2) return;
+//     m.debug_print();
+
+//     for(auto i = 0; i < convs.size() - 1; i++)
+//     {
+//         bool reached_start = false;
+//         for(auto ins : iterator_for(m))
+//         {
+//             if(ins == convs[i])
+//                 reached_start = true;
+//             if(reached_start)
+//             {
+//                 if(ins->name() == "gpu::pooling")
+//                     break;
+//                 if(ins == convs[i + 1])
+//                 {
+
+//                     m.debug_print(convs[i]->outputs().front());
+//                     m.debug_print(convs[i]->outputs().front()->outputs().front());
+//                     m.replace_instruction(convs[i]->outputs().front(), convs[i]->outputs().front()->outputs().front());
+//                     std::cout << "HERE" << std::endl;
+//                     m.debug_print(convs[i]->outputs().front());
+
+//                     // m.debug_print(convs[i]->outputs().front());
+//                     // m.debug_print(convs[i]->outputs().front()->outputs().front());
+
+//                     std::cout << std::endl;
+//                     m.debug_print(convs[i]->inputs());
+//                     std::cout << std::endl;
+//                     m.debug_print(convs[i + 1]->inputs());
+
+//                     for(auto j = 0; j < convs[i + 1]->inputs().size(); j++)
+//                     {
+//                         if(convs[i]->inputs()[j] == convs[i + 1]->inputs()[j])
+//                         {
+//                             std::cout << "HERE2" << std::endl;
+//                             continue;
+//                         }
+//                         m.replace_instruction(convs[i + 1]->inputs()[j], convs[i + 1]->inputs()[j]->inputs().front());
+//                         m.debug_print(convs[i+1]);
+//                     }
+//                     break;
+//                 }
+//             }
+            
+//         }
+//     }
+// }
+
+
+// void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
+// {
+//     for(auto ins : iterator_for(m))
+//     {
+//         if(ins->name() != "gpu::precompile_op")
+//             continue;
+
+//         auto precompile_op = ins->get_operator();
+//         auto val           = precompile_op.to_value();
+
+//         if(val["op"].at("name").to<std::string>() != "layout")
+//         {
+//             // std::cout << val["op"].at("name").to<std::string>() << std::endl;
+//             continue;
+//         }
+//         m.debug_print(ins);
+//         if(ins->get_shape() != ins->inputs().front()->get_shape())
+//         {
+//             std::cout << ins->get_shape() << " " << ins->inputs().front()->get_shape() << std::endl;
+//             continue;
+//         }
+//         if(contains(output_layouts, ins))
+//             continue;
+
+//         m.replace_instruction(ins, ins->inputs().front());
+//     }
+// }
+
 void eliminate_layout::apply(module_pass_manager& mpm) const
 {
-    std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
-    remove_layout(mpm.get_module(), output_layouts);
+    // std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
+    // remove_layout(mpm.get_module(), find_convs(mpm.get_module()));
+    remove_layout(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
 }
 

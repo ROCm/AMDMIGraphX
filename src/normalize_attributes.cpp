@@ -168,8 +168,8 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
-        auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
-        auto padding_size  = padding.size();
+        auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
+        auto padding_size = padding.size();
         bool use_auto_padding =
             (val.contains("padding_mode") &&
              (val.at("padding_mode").to<int>() != migraphx::op::padding_mode_t::default_));

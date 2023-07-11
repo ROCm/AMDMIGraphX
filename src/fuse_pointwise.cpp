@@ -197,7 +197,7 @@ struct find_pointwise_reshape_pointwise
 {
     auto matcher() const
     {
-        auto reshape = match::name("reshape", "squeeze", "unsqueeze")(match::used_once());
+        auto reshape = match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
         auto skip_contiguous =
             match::arg(0)(match::skip(match::name("contiguous")(match::used_once())));
         auto pointwise         = match::name("pointwise")(match::used_once());

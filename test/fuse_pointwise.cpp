@@ -419,16 +419,14 @@ TEST_CASE(add_reshape_add_error)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm = p2.get_main_module();
-        auto x   = mm->add_parameter("x", s1);
-        auto y   = mm->add_parameter("y", s1);
-        auto z   = mm->add_parameter("z", s2);
-        auto fadd1 =
-            add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s1);
+        auto y     = mm->add_parameter("y", s1);
+        auto z     = mm->add_parameter("z", s2);
+        auto fadd1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
         auto reshape =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), fadd1);
-        auto fadd2 =
-            add_pointwise(p2, "main:pointwise1", {reshape, z}, single_pointwise("add"));
+        auto fadd2 = add_pointwise(p2, "main:pointwise1", {reshape, z}, single_pointwise("add"));
         mm->add_return({fadd2});
     }
     EXPECT(p1.sort() == p2.sort());

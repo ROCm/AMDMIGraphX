@@ -212,7 +212,7 @@ struct find_pointwise_reshape_pointwise
         auto reshape_ins = r.instructions["reshape"];
 
         auto cd = common_dims::compute(ins->get_shape().lens(), x_ins->get_shape().lens());
-        if (cd.dims.empty())
+        if(cd.dims.empty())
             return;
 
         auto reshape_input = [&](const auto& ins_to_insert) {

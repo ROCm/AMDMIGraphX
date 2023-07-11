@@ -36,8 +36,8 @@ namespace op {
 // Specifies where to add the "extra" cell of padding.
 // Padding mode is default_ for fixed shape padding.
 // same_lower and same_upper used for dynamic padding.  The calculated padding
-// is split evenly between beginning and end of each data dimension, but if the 
-// result is an odd number, the odd cell goes at the beginning of the dimension 
+// is split evenly between beginning and end of each data dimension, but if the
+// result is an odd number, the odd cell goes at the beginning of the dimension
 // (same_lower) or end (same_upper)
 enum padding_mode_t
 {

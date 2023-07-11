@@ -55,8 +55,8 @@ void calculate_padding(int64_t idx,
 /**
  * Given the input array dimensions; kernel (wei_lens); strides; and dilations,
  * calculate the padding value in each dimension.
- * 
-*/
+ *
+ */
 std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input_lens,
                                            const std::vector<std::size_t>& wei_lens,
                                            const std::vector<std::size_t>& strides,
@@ -75,7 +75,7 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input
         std::ptrdiff_t weight_dim     = wei_lens[i + 2];
         std::ptrdiff_t dilation       = dilations[i];
         std::ptrdiff_t output_dim     = (input_dim + stride - 1) / stride; // round up result
-        std::ptrdiff_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1); 
+        std::ptrdiff_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
         std::size_t pad               = std::max(static_cast<std::ptrdiff_t>(0),
                                    (output_dim - 1) * stride + new_weight_dim - input_dim);
         auto pad_ndims                = padding.size() / 2;
@@ -95,10 +95,10 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input
 }
 
 /**
- *   Calculate the correct output shape for a convolution with 
+ *   Calculate the correct output shape for a convolution with
  *   a given input size and other parameters.
- * 
-*/
+ *
+ */
 shape compute_padded_shape(const shape& input,
                            const shape& weights,
                            const std::vector<std::size_t>& padding,
@@ -123,17 +123,17 @@ shape compute_padded_shape(const shape& input,
 }
 
 /**
- *   Calculate the correct output shape for a pooling with 
+ *   Calculate the correct output shape for a pooling with
  *   a given input size and other parameters.  This uses
- *   the same formula for pooling that compute_padded_shape() uses 
+ *   the same formula for pooling that compute_padded_shape() uses
  *   for convolutions, but takes slightly different inputs.
- * 
-*/
+ *
+ */
 shape compute_padded_pool_shape(const shape& input,
-                           const shape& kernel,
-                           const std::vector<std::size_t>& padding,
-                           const std::vector<std::size_t>& stride,
-                           const std::vector<std::size_t>& dilation)
+                                const shape& kernel,
+                                const std::vector<std::size_t>& padding,
+                                const std::vector<std::size_t>& stride,
+                                const std::vector<std::size_t>& dilation)
 {
     const size_t num_spatial_dims = input.lens().size() - 2;
 
@@ -144,8 +144,7 @@ shape compute_padded_pool_shape(const shape& input,
         auto padding_factor = padding[i] + padding[i + num_spatial_dims];
         output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
             1,
-            (input.lens()[i + 2] - (1 + dilation[i] * (kernel.lens()[i] - 1)) +
-             padding_factor) /
+            (input.lens()[i + 2] - (1 + dilation[i] * (kernel.lens()[i] - 1)) + padding_factor) /
                     stride[i] +
                 1)));
     }

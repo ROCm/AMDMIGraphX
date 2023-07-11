@@ -65,10 +65,10 @@ shape compute_padded_shape(const shape& input,
 // Used for dynamic auto padding of pooling operators where padding needs to be computed at
 // evaulation time.
 shape compute_padded_pool_shape(const shape& input,
-                           const shape& kernel,
-                           const std::vector<std::size_t>& padding,
-                           const std::vector<std::size_t>& stride,
-                           const std::vector<std::size_t>& dilation);
+                                const shape& kernel,
+                                const std::vector<std::size_t>& padding,
+                                const std::vector<std::size_t>& stride,
+                                const std::vector<std::size_t>& dilation);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

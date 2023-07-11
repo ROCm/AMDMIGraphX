@@ -129,9 +129,9 @@ void remove_layout(module& m)
 
 //                     m.debug_print(convs[i]->outputs().front());
 //                     m.debug_print(convs[i]->outputs().front()->outputs().front());
-//                     m.replace_instruction(convs[i]->outputs().front(), convs[i]->outputs().front()->outputs().front());
-//                     std::cout << "HERE" << std::endl;
-//                     m.debug_print(convs[i]->outputs().front());
+//                     m.replace_instruction(convs[i]->outputs().front(),
+//                     convs[i]->outputs().front()->outputs().front()); std::cout << "HERE" <<
+//                     std::endl; m.debug_print(convs[i]->outputs().front());
 
 //                     // m.debug_print(convs[i]->outputs().front());
 //                     // m.debug_print(convs[i]->outputs().front()->outputs().front());
@@ -148,17 +148,16 @@ void remove_layout(module& m)
 //                             std::cout << "HERE2" << std::endl;
 //                             continue;
 //                         }
-//                         m.replace_instruction(convs[i + 1]->inputs()[j], convs[i + 1]->inputs()[j]->inputs().front());
-//                         m.debug_print(convs[i+1]);
+//                         m.replace_instruction(convs[i + 1]->inputs()[j], convs[i +
+//                         1]->inputs()[j]->inputs().front()); m.debug_print(convs[i+1]);
 //                     }
 //                     break;
 //                 }
 //             }
-            
+
 //         }
 //     }
 // }
-
 
 // void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
 // {
@@ -178,8 +177,8 @@ void remove_layout(module& m)
 //         m.debug_print(ins);
 //         if(ins->get_shape() != ins->inputs().front()->get_shape())
 //         {
-//             std::cout << ins->get_shape() << " " << ins->inputs().front()->get_shape() << std::endl;
-//             continue;
+//             std::cout << ins->get_shape() << " " << ins->inputs().front()->get_shape() <<
+//             std::endl; continue;
 //         }
 //         if(contains(output_layouts, ins))
 //             continue;
@@ -190,8 +189,9 @@ void remove_layout(module& m)
 
 void eliminate_layout::apply(module_pass_manager& mpm) const
 {
-    // std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
-    // remove_layout(mpm.get_module(), find_convs(mpm.get_module()));
+    // std::unordered_set<instruction_ref> output_layouts =
+    // preserve_output_layout(mpm.get_module()); remove_layout(mpm.get_module(),
+    // find_convs(mpm.get_module()));
     remove_layout(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
 }

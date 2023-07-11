@@ -99,9 +99,8 @@ void transform_convolutions(module& m, bool skip_elim_contiguous)
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
         // m.debug_print(conv);
         // auto c    = conv;
-        // auto nchw = m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 1, 2, 3}}}), conv);
-        // m.debug_print();
-        // if(not skip_elim_contiguous)
+        // auto nchw = m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 1, 2, 3}}}),
+        // conv); m.debug_print(); if(not skip_elim_contiguous)
         //     c = m.insert_instruction(ins, make_op("contiguous"), conv);
         m.replace_instruction(ins, conv);
     }
@@ -113,7 +112,7 @@ void insert_contiguous(module& m)
     {
         if(ins->name() != "reshape" and ins->name() != "pooling")
             continue;
-        auto c = m.insert_instruction(ins, make_op("contiguous"), ins->inputs().front());
+        auto c       = m.insert_instruction(ins, make_op("contiguous"), ins->inputs().front());
         auto reshape = m.insert_instruction(ins, ins->get_operator(), c);
         m.replace_instruction(ins, reshape);
     }

@@ -361,29 +361,26 @@ std::size_t shape::index(std::size_t i) const
     }
 }
 
-std::vector<std::size_t> shape::multi(std::size_t i) const
+std::vector<std::size_t> shape::multi(std::size_t idx) const
 {
-    assert(this->standard());
-
+    assert(idx < elements());
     std::vector<std::size_t> indices(lens().size());
-    multi_copy(i, indices.data(), indices.data() + lens().size());
-
+    multi_copy(idx, indices.data(), indices.data() + lens().size());
     return indices;
 }
 
-void shape::multi_copy(std::size_t i, std::size_t* start, const std::size_t* end) const
+void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const
 {
-    assert(this->standard());
+    size_t tidx = idx;
     (void)end;
+    assert(idx < elements());
     assert(lens().size() <= (end - start));
-    std::transform(strides().begin(),
-                   strides().end(),
-                   lens().begin(),
-                   start,
-                   [&](std::size_t stride, std::size_t len) {
-                       assert(len > 0 and stride > 0);
-                       return (i / stride) % len;
-                   });
+    for(size_t ii = lens().size() - 1; ii > 0; ii--)
+    {
+        *(start + ii) = tidx % lens()[ii];
+        tidx          = tidx / lens()[ii];
+    }
+    *start = tidx;
 }
 
 bool shape::packed() const
@@ -709,14 +706,10 @@ void migraphx_from_value(const value& v, shape& s)
         {
             auto v_dd = v.at("dynamic_dimensions");
             std::vector<shape::dynamic_dimension> dyn_dims(v.at("dynamic_dimensions").size());
-            std::transform(v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](migraphx::value x) {
-                auto x_min      = x.at("min").template to<size_t>();
-                auto x_max      = x.at("max").template to<size_t>();
-                auto v_optimals = x.at("optimals");
-                std::set<size_t> set_x_optimals =
-                    from_value<std::set<std::size_t>>(x.at("optimals"));
-                return shape::dynamic_dimension{x_min, x_max, set_x_optimals};
-            });
+            std::transform(
+                v_dd.begin(), v_dd.end(), dyn_dims.begin(), [](const migraphx::value& x) {
+                    return from_value<shape::dynamic_dimension>(x);
+                });
 
             s = shape{shape::parse_type(t), dyn_dims};
         }

@@ -41,45 +41,49 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+// The Pooling operator mostly follows the specifications for the Onnx pooling op.
+// It assumes an NCHW layout where dimensions are <batch index, channels, spatial dimensions...>
+//
+//  Members mode, ceil_mode, padding_mode are all separate concepts with similar names.
 struct pooling
 {
-    /**
-     * The Pooling operator mostly follows the specifications for the Onnx pooling op.
-     * Inputs are assumed to have 3 or more dimensions, of which the first 2 are
-     * considered "non-spatial," and pooling only takes place over the other dimensions
-     * Dimension 0 is assumed to be batch size and dimension 1 is channel count.  Thus
-     * for a set of standard RGB images the input would have 4 dimensions:
-     *
-     * dimension 0 - image # in batch
-     * dimension 1 - color channel r, g, or b
-     * dimension 2 - row
-     * dimension 3 - column
-     *
-     * Pooling attributes padding, stride, lengths are vectors matching the spatial dimensions,
-     * i.e. 2 dimensions smaller than the input.
-     *
-     * TODO:  dilation is not implemented at the time of writing.
-     */
     pooling_mode mode = {pooling_mode::average};
 
-    // Amount of zero-padding to add before and after each (spatial) dimension to
-    // make pooling window fit in the data area.  padding can also have size
-    // double the number of dimensions, in which case padding[i] and padding[i+lengths.size()]
-    // are the padding before and after the i'th dimension.
+    // Padding along each spatial input dimension
+    // Can be ndim or 2*ndim values where ndim is size of lengths
+    // ndim values means pad the same before and after each dimension
+    // 2*ndim values contains n pre and then n post padding values
     std::vector<std::size_t> padding = {0, 0};
-    // Number of elements to step, in each dimension, from one pooling window to the next.
-    // If stride is smaller than lengths, pooling windows will overlap.
+
+    // Size of stride to take from one placement of the pooling kernel to the next.
+    // This is distinct from the strides used by the shape class.  Must be the same
+    // ndim as lengths.
     std::vector<std::size_t> stride = {1, 1};
-    // dimensions of the pooling window, or kernel_shape.
+
+    // Spatial dimensions of the pooling kernel or window,
+    // 2 smaller than the input tensor rank (NCHW layout)
     std::vector<std::size_t> lengths = {1, 1};
-    bool ceil_mode                   = false;
-    int lp_order                     = 2;
+
+    // Dilations are not supported at this time.
+
+    // ceiling mode is a flag affecting output size
+    // or equivalently, placements of the pooling kernel.
+    // When true, round the size upwards.  When false, round down so that all
+    // kernel placements fit but some input values may be dropped.
+    bool ceil_mode = false;
+    int lp_order   = 2;
 
     // Mode for auto padding.  default_ indicates no auto padding.
     padding_mode_t padding_mode = padding_mode_t::default_;
 
     // Global pooling with dynamic shape input
     bool dyn_global = false;
+
+    // an attribute of the Onnx pooling operator, not currently enabled here because MIOpen can't
+    // support it. We currently implement padding for average pooling by inserting a Padding
+    // operator during Onnx parsing. But to support dynamic shape inputs and count_include_pad
+    // together, it would be necessary to do this calculation at runtime in MIOpen.
+    bool count_include_pad = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -98,12 +102,29 @@ struct pooling
 
     void check_attribute_size() const
     {
-        if((padding_mode == default_ and padding.size() != stride.size() and
-            (padding.size()) != stride.size() * 2) or
-           (not dyn_global and stride.size() != lengths.size()))
+        if(dyn_global)
+            return;
+        if((padding_mode == default_ and padding.size() != stride.size() and (padding.size()) != stride.size() * 2) or
+           stride.size() != lengths.size())
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
+        if(std::any_of(lengths.begin(), lengths.end(), [&](auto i) { return (i == 0); }) or
+           std::any_of(stride.begin(), stride.end(), [&](auto i) { return (i == 0); }))
+        {
+            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride");
+        }
+
+        // TODO:  update lowering to run the reference
+        // code when OneDNN can't execute pooling for a CPU
+
+        // OneDNN has a limitation on padding size for pooling.  see
+        // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution
+
+        // padding = {2}; stride = {1}; lengths = {3} succeeds in oneDNN but
+        // padding = {2}; stride = {1}; lengths = {2} fails.
+        // Also, the referenced documentation contains a max. dimension size of 14 for the kernel
+        // ("weights tensor") that MIGraphX doesn't enforce.
     }
 
     size_t kdims() const
@@ -155,7 +176,11 @@ struct pooling
         const shape& input = inputs.at(0);
         auto padding_size  = padding.size();
         size_t kdims       = input.ndim() - 2;
-        if(input.ndim() != padding_size / 2 + 2 and input.ndim() != padding_size + 2)
+        if(input.ndim() < 3)
+        {
+            MIGRAPHX_THROW("POOLING: input must have 3 or more dimensions and be nonempty");
+        }
+        if(input.ndim() * 2 != padding_size + 4 and input.ndim() != padding_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
@@ -205,7 +230,7 @@ struct pooling
             }
             else
             {
-                // does not compute for optimals
+                // does not compute optimals
                 auto min_spatial_dims = calc_spatial_dim_out(input.min_lens(), kdims);
                 auto max_spatial_dims = calc_spatial_dim_out(input.max_lens(), kdims);
                 for(size_t i = 0; i < kdims; ++i)
@@ -214,7 +239,6 @@ struct pooling
                         shape::dynamic_dimension{min_spatial_dims[i], max_spatial_dims[i], {}});
                 }
                 shape out_shape(input.type(), output_dyn_dims);
-                // out_shape.debug_print();
                 return {input.type(), output_dyn_dims};
             }
         }
@@ -224,7 +248,7 @@ struct pooling
 
             std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
             // Used for when normalize_compute_shape() is called again at model eval time
-            // for an originally dynamic shape. Since kernel shape is not used with dyn_global.
+            // for an originally dynamic shape. Kernel shape is not used with dyn_global.
             if(dyn_global)
             {
                 for(size_t i = 0; i < kdims; ++i)
@@ -259,7 +283,7 @@ struct pooling
 
         double operator()(double x, double y) const { return x + std::pow(std::abs(y), p); }
 
-        double final(double x, std::size_t) const { return std::pow(x, 1. / p); }
+        double final(double x, std::size_t) const { return (p == 0) ? 1 : std::pow(x, 1. / p); }
     };
 
     struct avg_pool
@@ -298,27 +322,47 @@ struct pooling
     {
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
+
+        // For each element of output; i.e., for each placement of pooling kernel...
         par_for(output_shape.elements(), [&](auto i) {
             auto idx_o = output_shape.multi(i);
             auto n_dim = idx_o.size();
-            std::vector<std::size_t> win_start;
+            // starting offset of the pooling window
+            std::vector<int> win_start;
             std::vector<std::size_t> win_size;
+
+            // For each spatial dimension, find starting and ending index of pooling kernel
             for(std::size_t dim = 2; dim < n_dim; ++dim)
             {
                 auto d_2 = dim - 2;
+                int start =
+                    static_cast<int>(idx_o[dim] * stride[d_2]) - static_cast<int>(padding_vals[d_2]);
+                int end;
+                // NOLINT
+                if(count_include_pad and ceil_mode and (mode != pooling_mode::max))
+                {
+                    // TODO: this block can't execute until we enable count_include_pad
+                    // Even when using padding, if in ceil_mode a window
+                    // could extend beyond the end of both input and
+                    // padding.  Clip out-of-bounds indexes but not padding.
 
-                // TODO:  This lambda pads the pooling window with zeroes, but by dynamically sizing
-                // win_shape it ignores them when doing the calculation.  It avoids giving index
-                // out-of-bounds errors but gives incorrect results for edge windows that include
-                // padding.  For example, a 2x2 window at a corner value that contains a 1 and three
-                // padded 0's should give a value of 0.25 for average pooling, but instead
-                // returns 1.
-
-                int start = static_cast<int>(idx_o[dim] * stride[d_2]) -
-                            static_cast<int>(padding_vals[d_2]);
-                int end = std::min(start + kernel_dims[d_2], in_lens[dim]);
-                start   = std::max(start, 0);
+                    // Check if this kernel extends beyond the padding at end of dimension
+                    end = std::min(start + kernel_dims[d_2],
+                                   in_lens[dim] + static_cast<int>(padding_vals[d_2]));
+                }
+                else
+                {
+                    // In non-ceiling mode, when
+                    // count_include_pad is false, or for max pooling, clip off padding.
+                    end   = std::min(start + kernel_dims[d_2], in_lens[dim]);
+                    start = std::max(start, 0);
+                }
                 win_start.push_back(start);
+                if(end < start)
+                {
+                    // This error can be caused by misc. bad input combinations
+                    MIGRAPHX_THROW("POOLING:  invalid attributes");
+                }
                 win_size.push_back(end - start);
             }
 
@@ -326,17 +370,34 @@ struct pooling
 
             auto pool_size    = win_shape.elements();
             double output_val = op.template init<Type>();
+
+            // for each element in the window...
             shape_for_each(win_shape, [&](auto idx_w) {
+                // the coordinates of this element
                 auto idx = idx_o;
+
+                // Add the kernel location idx_w and the offset win_start, for each dimension.
+                // Negative results are cast to very large unsigned integers.
                 std::transform(idx_w.begin(),
                                idx_w.end(),
                                win_start.begin(),
                                idx.begin() + 2,
                                [](auto ii, auto jj) { return ii + jj; });
-                if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                   idx < in_lens)
+                // Check if any of coordinates are out of input tensor's range
+                if(std::mismatch(idx.begin() + 2,
+                                 idx.end(),
+                                 in_lens.begin() + 2,
+                                 in_lens.end(),
+                                 std::less<>{}) == std::make_pair(idx.end(), in_lens.end()))
                 {
                     output_val = op(output_val, input[in_s.index(idx)]);
+                }
+                else
+                {
+                    // this is a padding element.  Padding locations
+                    // don't contribute to average or max pooling total but can play in
+                    // lpnorm pooling.
+                    output_val = op(output_val, 0);
                 }
             });
             output[i] = Type(op.final(output_val, pool_size));

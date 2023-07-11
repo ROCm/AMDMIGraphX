@@ -21,23 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/operation.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
+struct gemm_add_half : verify_program<gemm_add_half>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 3, 4}};
+        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 2, 4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
-
-std::pair<double, double>
-time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
-
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        return p;
+    }
+};

@@ -56,6 +56,7 @@ struct parse_where : op_parser<parse_where>
             auto lens =
                 compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
             lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
+
             if(args[0]->get_shape().lens() != lens)
             {
                 args[0] =

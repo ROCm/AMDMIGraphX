@@ -18,13 +18,8 @@ jobs:
         with:
           access_token: ${{ github.token }}
   tidy:
-    runs-on: ubuntu-20.04
-
-    steps:
-    - name: Free space
-      run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
-
+    runs-on: ROCM-Ubuntu
+    steps: 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -48,7 +43,8 @@ jobs:
         restore-keys: tidy-cache-
         
     - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+      run: |
+        docker build . --file hip-clang.docker --tag migraphx
 
     - name: Clang tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
@@ -64,7 +60,7 @@ jobs:
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
           ..
-        make -j2 -k onnx-proto tf-proto tidy
+        make -j$(nproc) -k onnx-proto tf-proto tidy
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
@@ -86,11 +82,8 @@ jobs:
 
 
   cppcheck:
-    runs-on: ubuntu-20.04
-
+    runs-on: ROCM-Ubuntu
     steps:
-    - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -126,7 +119,7 @@ jobs:
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
-        make -j2 cppcheck
+        make -j$(nproc) cppcheck
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear cppcheck cache before saving
@@ -148,11 +141,8 @@ jobs:
 
 
   format:
-    runs-on: ubuntu-20.04
-
+    runs-on: ROCM-Ubuntu
     steps:
-    - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -193,7 +183,16 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+        docker-images: true
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -205,7 +204,7 @@ jobs:
     - name: Run pyflakes
       run: |
         pyflakes --version
-        pyflakes examples/ tools/ src/ test/ doc/
+        pyflakes examples/ tools/ src/ test/ docs/
         mypy --version
         mypy tools/api.py
 
@@ -214,7 +213,16 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+        docker-images: true
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -244,9 +252,19 @@ jobs:
           - codecov
 
     steps:
-    - name: Free space and install rbuild, lld
+    - name: Free space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+        docker-images: true
+
+    - name : Install rbuild and lld
       run: |
-        sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws*  /usr/local/lib/heroku
         sudo apt-get install -y lld
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
@@ -352,7 +370,16 @@ jobs:
 
     steps:
     - name: Free space
-      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android /usr/local/graalvm /usr/local/aws* /usr/local/lib/heroku
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+        docker-images: true
+
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4

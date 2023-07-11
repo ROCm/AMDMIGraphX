@@ -838,6 +838,47 @@ TEST_CASE(clip_test_args_type_mismatch)
     EXPECT(p == prog);
 }
 
+TEST_CASE(clip_dyn_min_max_test)
+{
+    migraphx::program p;
+    auto* mm                                            = p.get_main_module();
+    auto min_val                                        = mm->add_literal(0.0f);
+    auto max_val                                        = mm->add_literal(6.0f);
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, dds});
+    min_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, l0);
+    max_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), max_val, l0);
+    auto ret = mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 8, {3}};
+    auto prog                     = parse_onnx("clip_dyn_min_max_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(clip_dyn_min_only_test)
+{
+    migraphx::program p;
+    auto* mm                                            = p.get_main_module();
+    auto min_val                                        = mm->add_literal(0.0f);
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, dds});
+    min_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, l0);
+    auto ret = mm->add_instruction(migraphx::make_op("max"), l0, min_val);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 8, {3}};
+    auto prog                     = parse_onnx("clip_dyn_min_only_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;
@@ -3189,11 +3230,11 @@ TEST_CASE(instance_norm_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+    auto l1   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
 
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
 
-    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
@@ -3217,7 +3258,7 @@ TEST_CASE(instance_norm_test)
 
 TEST_CASE(instance_norm_dyn_batch_test)
 {
-    // instancenorm with dynamic input
+    // instancenorm with dynamic input in the 0'th (batch) dimension
     migraphx::shape s1{migraphx::shape::float_type, {{1, 2, {2}}, {2, 2}, {3, 3}, {3, 3}}};
     migraphx::shape s2{migraphx::shape::float_type, {2}};
 
@@ -3227,12 +3268,10 @@ TEST_CASE(instance_norm_dyn_batch_test)
     auto scale = mm->add_parameter("1", s2);
     auto bias  = mm->add_parameter("2", s2);
 
-    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
-
+    auto mean     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+    auto l1       = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l0       = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
-
-    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
@@ -3260,35 +3299,92 @@ TEST_CASE(instance_norm_half_test)
     migraphx::shape s2{migraphx::shape::half_type, {2}};
 
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("0", s1);
-    auto scale = mm->add_parameter("1", s2);
-    auto bias  = mm->add_parameter("2", s2);
+    auto* mm        = p.get_main_module();
+    auto x_fp16     = mm->add_parameter("0", s1);
+    auto scale_fp16 = mm->add_parameter("1", s2);
+    auto bias_fp16  = mm->add_parameter("2", s2);
+
+    // conversion of half type to float is enabled by default
+    auto x = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x_fp16);
+    auto scale = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_fp16);
+    auto bias = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bias_fp16);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto l0   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l1   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
 
-    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
-
-    auto l1 = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l1);
+    // type of epsilon_literal is same as 0'th input; convert instruction will be added by
+    // add_common_op
     auto epsilon_literal =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {1e-5}});
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
     auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
 
     auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
-    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l0, l3});
 
     auto scale_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
-    auto l5  = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
-    auto ret = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    auto l5                 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto instance_norm_fp32 = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        instance_norm_fp32);
+    auto prog = optimize_onnx("instance_norm_half_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(instance_norm_dyn_batch_half_test)
+{
+    // instancenorm with half type, dynamic input in the 0'th (batch) dimension
+    migraphx::shape s1{migraphx::shape::half_type, {{1, 2, {2}}, {2, 2}, {3, 3}, {3, 3}}};
+    migraphx::shape s2{migraphx::shape::half_type, {2}};
+
+    migraphx::program p;
+    auto* mm        = p.get_main_module();
+    auto x_fp16     = mm->add_parameter("0", s1);
+    auto scale_fp16 = mm->add_parameter("1", s2);
+    auto bias_fp16  = mm->add_parameter("2", s2);
+
+    // conversion of half type to float is enabled by default
+    auto x = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x_fp16);
+    auto scale = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_fp16);
+    auto bias = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bias_fp16);
+
+    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+    auto l0   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l1   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+
+    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l1);
+    // type of epsilon_literal is same as 0'th input; convert instruction will be added by
+    // add_common_op
+    auto epsilon_literal =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
+    auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
+
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l0, l3});
+
+    auto scale_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
+    auto bias_bcast  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
+    auto l5          = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto instance_norm_fp32 = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    auto ret                = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+        instance_norm_fp32);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    auto prog = migraphx::parse_onnx("instance_norm_half_test.onnx", options);
-
+    options.default_dyn_dim_value = {1, 2, {2}};
+    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_half_test.onnx", options);
     EXPECT(p == prog);
 }
 

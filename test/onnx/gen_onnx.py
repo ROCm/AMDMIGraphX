@@ -745,6 +745,33 @@ def clip_test_args_type_mismatch():
 
 
 @onnx_test()
+def clip_dyn_min_max_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
+    max_val = helper.make_tensor('max', TensorProto.FLOAT, [], [6.0])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', 'min', 'max'],
+                                 outputs=['1'])
+
+    return ([node], [x], [y], [min_val, max_val])
+
+
+@onnx_test()
+def clip_dyn_min_only_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
+
+    node = onnx.helper.make_node('Clip', inputs=['0', 'min'], outputs=['1'])
+
+    return ([node], [x], [y], [min_val])
+
+
+@onnx_test()
 def concat_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 4, 3])
@@ -2613,7 +2640,7 @@ def if_else_test_inlined():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([0]).astype(np.bool)
+    cond = np.array([0]).astype(bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
@@ -2683,7 +2710,7 @@ def if_then_else_multi_output_shapes_inlined_test():
     else_body = onnx.helper.make_graph([else_mul_node, else_sub_node],
                                        'else_body', [], [else_out, else_out2])
 
-    cond = np.array([1]).astype(np.bool)
+    cond = np.array([1]).astype(bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
@@ -3118,7 +3145,7 @@ def if_then_test_inlined():
     else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
                                        [else_out])
 
-    cond = np.array([1]).astype(np.bool)
+    cond = np.array([1]).astype(bool)
     cond_tensor = helper.make_tensor(name="cond",
                                      data_type=TensorProto.BOOL,
                                      dims=cond.shape,
@@ -3348,6 +3375,39 @@ def instance_norm_dyn_batch_test():
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
     bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
     y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [None, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
+def instance_norm_dyn_batch_test():
+    # the batch size is a dynamic dimension
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [None, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
+def instance_norm_dyn_batch_half_test():
+    # the batch size is a dynamic dimension
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
+                                      [None, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT16,
+                                      [None, 2, 3, 3])
 
     node = onnx.helper.make_node('InstanceNormalization',
                                  inputs=['0', '1', '2'],
@@ -6917,7 +6977,7 @@ def sum_type_test():
     t_bool = helper.make_tensor(name="bool",
                                 data_type=TensorProto.BOOL,
                                 dims=valb.shape,
-                                vals=valb.astype(np.bool))
+                                vals=valb.astype(bool))
 
     val = np.array([1, 1])
     t_int8 = helper.make_tensor(name="int8",

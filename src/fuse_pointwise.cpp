@@ -234,7 +234,7 @@ struct find_pointwise_reshape_pointwise
         m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), pw);
     }
 };
-}
+} // namespace
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {

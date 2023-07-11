@@ -393,7 +393,8 @@ TEST_CASE(add_reshape_add)
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
                 return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
             });
-        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), fadd);
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), fadd);
         mm->add_return({reshape});
     }
     EXPECT(p1.sort() == p2.sort());

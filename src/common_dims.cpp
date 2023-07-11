@@ -74,8 +74,8 @@ struct common_dim_state
 };
 
 static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
-                                common_dim_state& state1,
-                                common_dim_state& state2)
+                               common_dim_state& state1,
+                               common_dim_state& state2)
 {
     assert(state1.get() <= state2.get());
     auto d2    = state2.get();

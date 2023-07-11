@@ -133,6 +133,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
+        dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},
         dead_code_elimination{},

@@ -143,8 +143,8 @@ void layout_nhwc::apply(module_pass_manager& mpm) const
     mpm.get_module().debug_print();
     transform_convolutions(mpm.get_module(), this->skip_elim_contiguous);
     mpm.run_pass(dead_code_elimination{});
-    if(not this->skip_elim_contiguous)
-        mpm.run_pass(eliminate_contiguous{"contiguous"});
+    // if(not this->skip_elim_contiguous)
+    //     mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});
     // remove_layout(mpm.get_module(), output_layouts);
     // mpm.run_pass(dead_code_elimination{});

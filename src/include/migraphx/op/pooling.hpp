@@ -51,7 +51,7 @@ struct pooling
     pooling_mode mode = {pooling_mode::average};
 
     // If the input has rank other than 4 then padding, stride, lengths must all be specified
-    // since the defaults have 2-dimensions. 
+    // since the defaults have 2-dimensions.
 
     // Padding along each spatial input dimension
     // Can be ndim or 2*ndim values where ndim is size of lengths

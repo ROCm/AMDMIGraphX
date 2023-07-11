@@ -79,7 +79,6 @@ struct multibroadcast
             return bcast_strides;
         };
 
-        // One input shape or two?
         if(inputs.size() == 1)
         {
             if(s0.dynamic())

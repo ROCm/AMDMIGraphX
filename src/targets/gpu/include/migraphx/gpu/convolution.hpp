@@ -183,10 +183,6 @@ struct miopen_convolution
             x_shape = pack_int8_shape(x_shape);
             w_shape = pack_int8_shape(w_shape);
         }
-        auto x         = to_gpu(generate_argument(x_shape));
-        auto w         = to_gpu(generate_argument(w_shape));
-        auto y         = allocate_gpu(output_shape);
-        auto workspace = allocate_gpu(workspace_shape);
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {
@@ -195,6 +191,17 @@ struct miopen_convolution
 
             set_tensor_descriptor(miopenTensorConvolutionX, x_desc, conv_problem);
             set_tensor_descriptor(miopenTensorConvolutionW, w_desc, conv_problem);
+            bool preallocate = false;
+#if MIGRAPHX_MIOPEN_VERSION_MAJOR >= 2 and MIGRAPHX_MIOPEN_VERSION_MINOR >= 20
+            // MIOpen has APIs to pass pre-allocated buffers starting from rocm-5.6
+            preallocate = true;
+#endif
+            auto x = preallocate ? to_gpu(generate_argument(x_shape)) : inputs[0];
+            auto w = preallocate ? to_gpu(generate_argument(w_shape)) : inputs[1];
+            auto y = preallocate ? allocate_gpu(output_shape) : inputs[2];
+            auto workspace =
+                preallocate ? allocate_gpu(workspace_shape) : migraphx::argument(workspace_shape);
+
             set_tensor_descriptor(miopenTensorConvolutionY, y_desc, conv_problem);
 
             const miopenTensorArgument_t tensor_args[3] = {
@@ -230,6 +237,10 @@ struct miopen_convolution
             return shape{shape::int8_type, {workspace_size}};
         }
 #else
+        auto x         = to_gpu(generate_argument(x_shape));
+        auto w         = to_gpu(generate_argument(w_shape));
+        auto y         = allocate_gpu(output_shape);
+        auto workspace = allocate_gpu(workspace_shape);
         int algo_count = 1;
         miopenConvAlgoPerf_t perf;
         status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
@@ -348,7 +359,7 @@ struct miopen_convolution
 
         return {s.type(), lens, strides};
     }
-};
+}; // namespace gpu
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

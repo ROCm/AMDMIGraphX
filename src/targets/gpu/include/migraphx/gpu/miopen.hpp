@@ -31,6 +31,7 @@
 #include <migraphx/op/lrn.hpp>
 #include <miopen/miopen.h>
 #include <migraphx/config.hpp>
+#include <migraphx/version.h>
 
 #include <sstream>
 
@@ -90,6 +91,7 @@ inline miopen_solution find_solution(miopenHandle_t handle,
     {
         miopenSetFindOptionTuning(fo.get(), 1);
     }
+#if MIGRAPHX_MIOPEN_VERSION_MAJOR >= 2 and MIGRAPHX_MIOPEN_VERSION_MINOR >= 20
     for(auto i : range(num_inputs))
     {
         auto status = miopenSetFindOptionPreallocatedTensor(
@@ -100,7 +102,13 @@ inline miopen_solution find_solution(miopenHandle_t handle,
     auto status = miopenSetFindOptionPreallocatedWorkspace(fo.get(), workspace, workspace_size);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen: failed to preallocate workspace for the find process");
-
+#else
+    miopenStatus_t status;
+    (void)(num_inputs);
+    (void)(tensor_args);
+    (void)(workspace_size);
+    (void)(workspace);
+#endif
     status      = miopenFindSolutions(handle, problem, fo.get(), &solution, &found, 1);
     auto result = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)

@@ -25,6 +25,8 @@
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 find_package(miopen)
 
+configure_file(${CMAKE_SOURCE_DIR}/src/version.h.in ${CMAKE_BINARY_DIR}/src/include/migraphx/version.h)
+
 # rocblas
 find_package(rocblas REQUIRED PATHS /opt/rocm)
 message(STATUS "Build with rocblas")

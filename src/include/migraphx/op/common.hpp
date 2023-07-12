@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 // Specifies where to add the "extra" cell of padding if the
-// calculated padding is an odd number.  The odd cell goes at 
+// calculated padding is an odd number.  The odd cell goes at
 // the beginning of the dimension (same_lower) or end (same_upper)
 enum padding_mode_t
 {

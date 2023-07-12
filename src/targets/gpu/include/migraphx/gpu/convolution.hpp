@@ -204,10 +204,12 @@ struct miopen_convolution
             };
           
             solution_ptr = find_solution(miopen_stream_handle,
+                                         3,
                                          tensor_args,
                                          workspace.implicit(),
                                          workspace_size,
-                                         conv_problem.get());
+                                         conv_problem.get(),
+                                         ctx.get_exhaustive_tune_flag());
             
             status       = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)

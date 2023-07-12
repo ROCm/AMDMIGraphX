@@ -565,6 +565,12 @@ struct verify : command<verify>
     }
 };
 
+struct ort_sha : command<ort_sha>
+{
+    void parse(const argument_parser&) {}
+    void run() const { std::cout << MIGRAPHX_ORT_SHA1 << std::endl; }
+};
+
 struct version : command<version>
 {
     void parse(const argument_parser&) {}

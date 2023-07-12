@@ -28,6 +28,13 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
+ 
+function(ReadSHA InputFile VAR)
+    file(STRINGS "${InputFile}" String_output)
+    add_compile_definitions(${VAR}="${String_output}")
+endfunction()
+
+ReadSHA("../test/onnx/.onnxrt-commit" MIGRAPHX_ORT_SHA1)
 
 add_library(migraphx 
     adjust_allocation.cpp

@@ -716,6 +716,11 @@ struct mlir_program
     bool get_module_tuned() const
     {
         static mlir_tuning_table tuning_table = create_tuning_table();
+        // The tuning table as currently implemented is currently not
+        // thread safe. This will be fixed in the future. For now,
+        // stick a mutex around all tuning table interaction.
+        static std::mutex lock;
+        std::lock_guard guard(lock);
         if(!mlirRockTuningSetFromTable(tuning_table.get(), mmodule.get()))
         {
             const char* prob_config = mlirRockTuningGetKey(tuning_table.get(), mmodule.get());

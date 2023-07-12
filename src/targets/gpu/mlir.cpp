@@ -720,7 +720,7 @@ struct mlir_program
         // thread safe. This will be fixed in the future. For now,
         // stick a mutex around all tuning table interaction.
         static std::mutex lock;
-        std::lock_guard guard(lock);
+        std::lock_guard<std::mutex> guard(lock);
         if(!mlirRockTuningSetFromTable(tuning_table.get(), mmodule.get()))
         {
             const char* prob_config = mlirRockTuningGetKey(tuning_table.get(), mmodule.get());

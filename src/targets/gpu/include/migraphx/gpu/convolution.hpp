@@ -359,7 +359,8 @@ struct miopen_convolution
 
         return {s.type(), lens, strides};
     }
-}; // namespace gpu
+};
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

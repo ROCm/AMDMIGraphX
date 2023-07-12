@@ -163,7 +163,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('anygpu') { cmake_build ->
+rocmtest onnxbuild onnxnode('anygpu') { cmake_build ->
     stage("Onnxruntime Build and Install") {
         sh '''
             apt install half
@@ -173,7 +173,7 @@ rocmtest onnx: onnxnode('anygpu') { cmake_build ->
             cd /onnxruntime && ./build_and_install_onnxrt.sh 
         '''
         stash includes:'/onnxruntime/build/Linux/Release/dist/*.whl', name:'onnxruntime-wheel'
-    },
+    }
 }
 
 def onnxtestnode(name, body) {
@@ -189,15 +189,15 @@ def onnxtestnode(name, body) {
     }
 }
 
-rocmtest onnxtest: onnxtestnode('anygpu') {cmake_build ->
+rocmtest onnxtests onnxtestnode('anygpu') {cmake_build ->
     stage("Onnxruntime Unit tests") {
         sh '''
             cd /onnxruntime && ./test_onnxrt_unit_tests.sh 
         '''
-    },
-    stage("Onnxruntime Unit tests") {
+    }
+    stage("Onnxruntime Parity tests") {
         sh '''
             cd /onnxruntime && ./test_onnxrt_parity_tests.sh 
         '''
-    },
+    }
 }

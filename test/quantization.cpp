@@ -27,7 +27,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/quantization.hpp>
@@ -82,13 +82,17 @@ TEST_CASE(param_add)
         auto hp1 = mm->add_instruction(migraphx::make_op("convert"), p1);
         auto hp2 = mm->add_instruction(migraphx::make_op("convert"), p2);
         auto hs  = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
-        auto res = mm->add_instruction(
+        auto fs  = mm->add_instruction(
             migraphx::make_op("convert",
                               {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hs);
         if(add_return)
         {
-            mm->add_return({res});
+            mm->add_return({fs});
+        }
+        else
+        {
+            mm->add_instruction(migraphx::make_op("identity"), {fs});
         }
 
         return p;
@@ -159,10 +163,10 @@ TEST_CASE(param_add_sub)
         auto diff  = mm->add_instruction(migraphx::make_op("sub"), sum, p2);
         auto hdiff = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), diff);
-        auto res = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
-        auto r   = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), res);
-        mm->add_return({r});
+        auto hadd = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
+        auto fadd = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hadd);
+        mm->add_return({fadd});
 
         return p;
     };
@@ -258,7 +262,8 @@ TEST_CASE(param_add_sub)
         };
 
         auto p0 = create_program_float();
-        migraphx::run_passes(p0, {migraphx::quantize_fp16_pass{{"all"}}});
+        migraphx::run_passes(
+            p0, {migraphx::quantize_fp16_pass{{"all"}}, migraphx::dead_code_elimination{}});
         EXPECT(p0 == create_program_fp16());
 
         auto p1 = create_program_float();
@@ -278,7 +283,6 @@ TEST_CASE(literal_add)
         auto l1 = mm->add_literal(migraphx::literal(s, data));
         auto l2 = mm->add_literal(migraphx::literal(s, data));
         mm->add_instruction(migraphx::make_op("add"), l1, l2);
-
         return p;
     };
 
@@ -291,11 +295,11 @@ TEST_CASE(literal_add)
         auto l1 = mm->add_literal(migraphx::literal(s, data));
         auto l2 = mm->add_literal(migraphx::literal(s, data));
         auto hs = mm->add_instruction(migraphx::make_op("add"), l1, l2);
-        mm->add_instruction(
+        auto fs = mm->add_instruction(
             migraphx::make_op("convert",
                               {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hs);
-
+        mm->add_instruction(migraphx::make_op("identity"), fs);
         return p;
     };
 
@@ -487,7 +491,7 @@ TEST_CASE(op_capture)
     {
         auto p                  = create_program_float();
         auto op_capture_p       = create_program_op();
-        migraphx::target t      = migraphx::ref::target{};
+        migraphx::target t      = migraphx::make_target("ref");
         std::size_t param_index = 0;
         migraphx::run_passes(
             p, {migraphx::capture_arguments_pass{{"dot", "convolution"}, {}, &param_index}});
@@ -562,7 +566,7 @@ TEST_CASE(op_capture_subgraph)
     {
         auto p                  = create_program();
         auto op_capture_p       = create_program_op();
-        migraphx::target t      = migraphx::ref::target{};
+        migraphx::target t      = migraphx::make_target("ref");
         std::size_t param_index = 0;
         migraphx::run_passes(
             p, {migraphx::capture_arguments_pass{{"dot", "convolution"}, {}, &param_index}});
@@ -1010,7 +1014,7 @@ TEST_CASE(target_copy)
         migraphx::shape s{migraphx::shape::float_type, {3, 3}};
         m["x"] = migraphx::generate_argument(s);
         std::vector<float> ref_result;
-        migraphx::target ref_t = migraphx::ref::target{};
+        migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, m, ref_result);
 
         std::vector<float> orig_result;
@@ -1074,7 +1078,7 @@ TEST_CASE(int8_quantization_dot)
         m["a"] = migraphx::generate_argument(sa, get_hash(std::string("a")));
         m["b"] = migraphx::generate_argument(sb, get_hash(std::string("b")));
         std::vector<float> quant_result;
-        migraphx::target ref_t = migraphx::ref::target{};
+        migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, m, quant_result, true);
 
         std::vector<float> no_quant_result;
@@ -1119,7 +1123,7 @@ TEST_CASE(int8_quantization_conv)
     {
         auto p = create_program();
         std::vector<float> quant_result;
-        migraphx::target ref_t = migraphx::ref::target{};
+        migraphx::target ref_t = migraphx::make_target("ref");
         run_prog(p, ref_t, quant_result, true);
 
         std::vector<float> no_quant_result;
@@ -1261,13 +1265,13 @@ TEST_CASE(test_op_capture)
     auto calc = [](std::size_t, const std::vector<migraphx::argument>&) {};
 
     migraphx::program capture_p = p;
-    migraphx::target t          = migraphx::ref::target{};
+    migraphx::target t          = migraphx::make_target("ref");
     std::size_t param_index     = 0;
     migraphx::run_passes(capture_p,
                          {migraphx::capture_arguments_pass{{"dot"}, calc, &param_index}});
 
-    p.compile(migraphx::ref::target{});
-    capture_p.compile(migraphx::ref::target{});
+    p.compile(migraphx::make_target("ref"));
+    capture_p.compile(migraphx::make_target("ref"));
 
     auto cap_res = capture_p.eval({}).back();
     auto res     = p.eval({}).back();

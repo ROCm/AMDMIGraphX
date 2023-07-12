@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cassert>
 #include <memory>
+#include <cstdint>
 #include <sstream>
 #include <type_traits>
 #include <tuple>
@@ -140,7 +141,7 @@ To try_convert_value(const From& x)
     return detail::try_convert_value_impl<To>(rank<3>{}, x);
 }
 
-struct value
+struct MIGRAPHX_EXPORT value
 {
 // clang-format off
 #define MIGRAPHX_VISIT_VALUE_TYPES(m) \
@@ -392,8 +393,8 @@ struct value
         return;                                          \
     }
             MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE_VALUE)
-            MIGRAPHX_VALUE_GENERATE_CASE(array, )
-            MIGRAPHX_VALUE_GENERATE_CASE(object, )
+            MIGRAPHX_VALUE_GENERATE_CASE_VALUE(array, )
+            MIGRAPHX_VALUE_GENERATE_CASE_VALUE(object, )
         }
         MIGRAPHX_THROW("Unknown type");
     }
@@ -452,14 +453,16 @@ struct value
                    std::vector<literal_to_string<To>>{default_value.begin(), default_value.end()});
     }
 
-    friend bool operator==(const value& x, const value& y);
-    friend bool operator!=(const value& x, const value& y);
-    friend bool operator<(const value& x, const value& y);
-    friend bool operator<=(const value& x, const value& y);
-    friend bool operator>(const value& x, const value& y);
-    friend bool operator>=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator==(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator<(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator<=(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator>(const value& x, const value& y);
+    MIGRAPHX_EXPORT friend bool operator>=(const value& x, const value& y);
 
-    friend std::ostream& operator<<(std::ostream& os, const value& d);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const value& d);
+
+    std::size_t hash() const;
 
     void debug_print(bool show_type = false) const;
 
@@ -480,5 +483,16 @@ struct value
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+namespace std {
+template <>
+struct hash<migraphx::value>
+{
+    using argument_type = migraphx::value;
+    using result_type   = std::size_t;
+    result_type operator()(const migraphx::value& x) const { return x.hash(); }
+};
+
+} // namespace std
 
 #endif

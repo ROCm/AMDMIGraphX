@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,17 +56,42 @@ struct flatten
     std::string name() const { return "flatten"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
-        auto&& lens = inputs.front().lens();
-        auto x =
-            std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
-        auto y =
-            std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
-        return {inputs.at(0).type(), {x, y}};
+        check_shapes{inputs, *this, true}.has(1);
+        auto s = inputs[0];
+        if(s.dynamic())
+        {
+            // Doesn't handle optimals
+            auto min_lens = s.min_lens();
+            auto max_lens = s.max_lens();
+            // If any of the opt values is 0, output opt will be 0
+            shape::dynamic_dimension x = {
+                std::accumulate(
+                    min_lens.begin(), min_lens.begin() + axis, std::size_t{1}, std::multiplies<>{}),
+                std::accumulate(
+                    max_lens.begin(), max_lens.begin() + axis, std::size_t{1}, std::multiplies<>{}),
+                {}};
+            shape::dynamic_dimension y = {
+                std::accumulate(
+                    min_lens.begin() + axis, min_lens.end(), std::size_t{1}, std::multiplies<>{}),
+                std::accumulate(
+                    max_lens.begin() + axis, max_lens.end(), std::size_t{1}, std::multiplies<>{}),
+                {}};
+            return {s.type(), {x, y}};
+        }
+        else
+        {
+            check_shapes{inputs, *this}.standard();
+            auto&& lens = s.lens();
+            auto x      = std::accumulate(
+                lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
+            auto y = std::accumulate(
+                lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+            return {s.type(), {x, y}};
+        }
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(output_shape);
+        return args[0].reshape(dyn_out.computed_shape);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

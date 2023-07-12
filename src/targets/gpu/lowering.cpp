@@ -22,12 +22,19 @@
  * THE SOFTWARE.
  */
 #include <iterator>
-#include <migraphx/gpu/lowering.hpp>
+#include <utility>
+#include <functional>
+#include <algorithm>
+#include <map>
+
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/program.hpp>
 
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
@@ -35,17 +42,12 @@
 #include <migraphx/op/quant_dot.hpp>
 
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/compiler.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/program.hpp>
-#include <utility>
-#include <functional>
-#include <algorithm>
-#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,8 +55,9 @@ namespace gpu {
 
 struct miopen_apply
 {
-    module* mod          = nullptr;
-    const lowering* pass = nullptr;
+    module* mod              = nullptr;
+    module_pass_manager* mpm = nullptr;
+    const lowering* pass     = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
     bool offload_copy   = false;
@@ -83,14 +86,12 @@ struct miopen_apply
         auto& ctx      = get_context();
         int8_x4_format = get_int8_x4_format(ctx);
         compute_fp32   = get_compute_fp32_flag();
-
-        offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
+        offload_copy   = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
 
         add_extend_op("argmax");
         add_extend_op("argmin");
-        add_extend_op("gather");
         add_extend_op("logsoftmax");
         add_extend_op("lrn");
         add_extend_op("multinomial");
@@ -113,6 +114,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_nms_op();
+        add_select_module_op();
     }
 
     void copy_params() const
@@ -360,9 +362,26 @@ struct miopen_apply
             return mod->replace_instruction(ins, gpu_out);
         });
     }
+
+    /**
+     * Adds dynamic allocation for submodule output parameter.
+     */
+    void add_select_module_op()
+    {
+        apply_map.emplace("select_module", [=](instruction_ref ins) {
+            auto s                              = ins->get_shape();
+            auto output                         = insert_allocation(ins, s);
+            std::vector<instruction_ref> inputs = ins->inputs();
+            inputs.push_back(output);
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        });
+    }
 };
 
-void lowering::apply(module& m) const { miopen_apply{&m, this}.apply(); }
+void lowering::apply(module_pass_manager& mpm) const
+{
+    miopen_apply{&mpm.get_module(), &mpm, this}.apply();
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

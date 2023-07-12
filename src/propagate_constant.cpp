@@ -27,10 +27,13 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/env.hpp>
 #include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
 bool skip_propogate(instruction_ref ins)
 {
@@ -44,7 +47,7 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-bool is_const(instruction_ref ins) { return ins->can_eval() and not skip_propogate(ins); }
+bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propogate(ins); }
 
 void propagate_constant::apply(module& m) const
 {
@@ -54,14 +57,23 @@ void propagate_constant::apply(module& m) const
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {
-        if(is_const(i) and i != last)
+        const bool is_const = is_const_ins(i);
+        if(is_const and i != last)
             continue;
 
-        std::copy_if(
-            i->inputs().begin(),
-            i->inputs().end(),
-            std::inserter(const_instrs, const_instrs.begin()),
-            [&](const instruction_ref ins) { return is_const(ins) and ins->name() != "@literal"; });
+        if(i == last and is_const)
+        {
+            const_instrs.insert(i);
+        }
+        else
+        {
+            std::copy_if(i->inputs().begin(),
+                         i->inputs().end(),
+                         std::inserter(const_instrs, const_instrs.begin()),
+                         [&](const instruction_ref ins) {
+                             return is_const_ins(ins) and ins->name() != "@literal";
+                         });
+        }
     }
 
     // Compute literals in parallel
@@ -76,6 +88,19 @@ void propagate_constant::apply(module& m) const
     {
         if(not literals[i].empty())
         {
+            if(enabled(MIGRAPHX_TRACE_PROPAGATE_CONSTANT{}))
+            {
+                std::cout << "Constant replace: " << std::endl;
+                std::vector<instruction_ref> inss;
+                fix([&](auto self, auto ins) {
+                    if(contains(inss, ins))
+                        return;
+                    for(auto input : ins->inputs())
+                        self(input);
+                    inss.push_back(ins);
+                })(const_instrs_vec[i]);
+                m.debug_print(inss);
+            }
             assert(literals[i].get_shape() == const_instrs_vec[i]->get_shape());
             auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
             m.replace_instruction(const_instrs_vec[i], l);

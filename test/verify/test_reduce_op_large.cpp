@@ -76,3 +76,29 @@ struct test_reduce_mean_2 : verify_program<test_reduce_mean_2>
         return p;
     };
 };
+
+struct test_large_reduce_mean1 : verify_program<test_large_reduce_mean1>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 256 * 256 * 16}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::op::reduce_mean{{1}}, x);
+        return p;
+    };
+};
+
+struct test_large_reduce_mean2 : verify_program<test_large_reduce_mean2>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 32, 262144}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::op::reduce_mean{{2}}, x);
+        return p;
+    };
+};

@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
@@ -84,10 +85,11 @@ void insert_submod_allocations(instruction_ref ins, module& mod, const allocatio
     mod.replace_instruction(ins, ins->get_operator(), inputs, mod_args);
 }
 
-void replace_allocate::apply(module& m) const
+void replace_allocate::apply(module_pass_manager& mpm) const
 {
+    module& m              = mpm.get_module();
     auto mod_output_names  = create_output_names(m);
-    bool main_offload_copy = m.name() == "main" ? this->offload_copy : false;
+    bool root_offload_copy = (*mpm.get_root_module() == m) ? this->offload_copy : false;
     for(auto ins : iterator_for(m))
     {
         auto op      = ins->get_operator();
@@ -104,19 +106,16 @@ void replace_allocate::apply(module& m) const
             continue;
 
         auto s = ins->get_shape();
-
-        if(not main_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
+        if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
-
             auto out_param = m.add_parameter(mod_output_names[ins], s);
             m.replace_instruction(ins, out_param);
-            continue;
         }
-
-        m.replace_instruction(
-            ins,
-            m.insert_instruction(ins,
-                                 make_op(model.name(), migraphx::value{{"shape", to_value(s)}})));
+        else
+        {
+            m.replace_instruction(ins,
+                                  make_op(model.name(), migraphx::value{{"shape", to_value(s)}}));
+        }
     }
 }
 

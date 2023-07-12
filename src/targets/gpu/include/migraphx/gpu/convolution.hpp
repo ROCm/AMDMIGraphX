@@ -21,13 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_CONVOLUTION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_CONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/operation.hpp>
-#include <migraphx/register_op.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -203,12 +202,13 @@ struct miopen_convolution
                 {miopenTensorConvolutionW, nullptr, w.implicit()},
                 {miopenTensorConvolutionY, nullptr, y.implicit()},
             };
-
+          
             solution_ptr = find_solution(miopen_stream_handle,
                                          tensor_args,
                                          workspace.implicit(),
                                          workspace_size,
                                          conv_problem.get());
+            
             status       = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
@@ -243,7 +243,7 @@ struct miopen_convolution
                                                        &perf,
                                                        workspace.implicit(),
                                                        workspace_size,
-                                                       false);
+                                                       ctx.get_exhaustive_tune_flag());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen " + op.name() + " : find convolution failed");
         algo = perf.fwd_algo;

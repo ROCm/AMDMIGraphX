@@ -49,12 +49,12 @@ struct parse_reshape : op_parser<parse_reshape>
         if(args.size() == 2)
         {
             auto s = args[1]->eval();
-            check_arg_empty(s, "Reshape: dynamic shape is not supported");
+            check_arg_empty(s, "Reshape: non-constant shape input is not supported");
             s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
         }
 
-        return info.add_instruction(make_op("reshape", {{"dims", dims}}),
-                                    info.make_contiguous(args[0]));
+        auto cont = info.add_instruction(make_op("contiguous"), args[0]);
+        return info.add_instruction(make_op("reshape", {{"dims", dims}}), cont);
     }
 };
 

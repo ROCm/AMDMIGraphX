@@ -49,10 +49,12 @@ void dead_code_elimination::apply(module& m) const
         if(i == last)
             break;
         // Skip instruction with empty shape as output unless its [dynamic, builtin, undefined,
-        // identity, allocate]
-        if((not i->get_shape().dynamic() and i->get_shape().elements() == 0) and
-           i->name().front() != '@' and
-           not contains({"undefined", "identity", "allocate"}, i->name()))
+        // identity, allocate or tuple_type]
+        if((not i->get_shape().dynamic() and
+            (i->get_shape().elements() == 0 and
+             i->get_shape().type() != migraphx::shape::tuple_type)) and
+           not(i->name().front() == '@') and not contains({"identity", "allocate"}, i->name()) and
+           not i->is_undefined())
             continue;
         assert(std::distance(m.begin(), i) <= std::distance(m.begin(), last));
         std::unordered_set<instruction_ref> visited;

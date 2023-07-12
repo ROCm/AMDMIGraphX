@@ -26,6 +26,8 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,17 +53,20 @@ struct layernorm_base
         }
         check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs + N);
         auto s = inputs.at(0);
+        auto t = s.type();
+        if(not mods.empty())
+            t = mods.front()->get_output_shapes().front().type();
         if(s.scalar())
         {
             return s;
         }
         else if(s.broadcasted())
         {
-            return {s.type(), s.lens()};
+            return {t, s.lens()};
         }
         else
         {
-            return s.with_lens(s.lens());
+            return s.with_lens(t, s.lens());
         }
     }
 };
@@ -87,7 +92,9 @@ struct find_layernorm
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        auto eps   = r.instructions["eps"]->eval().at<float>();
+        float eps  = 0;
+        if(contains(r.instructions, "eps"))
+            eps = r.instructions["eps"]->eval().at<float>();
 
         m.replace_instruction(ins, layernorm{eps}, x_ins);
     }
@@ -97,23 +104,26 @@ struct find_add_layernorm
 {
     auto matcher() const
     {
-        return match::layernorm()(match::var("x")(match::name("add").bind("add")));
+        return match::name("gpu::prelayernorm")(
+            match::args(match::name("add")(match::used_once()).bind("add")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
         auto add_ins = r.instructions["add"];
-        auto eps     = r.instructions["eps"]->eval().at<float>();
+        auto op      = any_cast<layernorm>(ins->get_operator());
 
-        m.replace_instruction(ins, add_layernorm{eps}, add_ins->inputs());
+        m.replace_instruction(ins, add_layernorm{op.epsilon}, add_ins->inputs());
     }
 };
 } // namespace
 
-void prefuse_ops::apply(module& m) const
+void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(m, find_add_layernorm{}, find_layernorm{});
+    match::find_matches(mpm.get_module(), find_layernorm{});
+    mpm.run_pass(dead_code_elimination{});
+    match::find_matches(mpm.get_module(), find_add_layernorm{});
 }
 
 } // namespace gpu

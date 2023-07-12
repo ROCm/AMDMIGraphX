@@ -45,7 +45,7 @@ static const char* const softmax_kernel = R"__migraphx__(
 namespace migraphx {
 
 extern "C" {
-__global__ void softmax_kernel(void* input_p, void* output_p) 
+MIGRAPHX_GLOBAL void softmax_kernel(void* input_p, void* output_p) 
 {
     transform_args(make_tensors(), ${transformers})(input_p, output_p)([](auto input, auto output) {
         softmax<${axis}>(input, output);
@@ -95,7 +95,7 @@ struct softmax_compiler : compiler<softmax_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
     }
 };
 

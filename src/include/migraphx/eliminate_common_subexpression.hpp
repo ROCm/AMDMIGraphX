@@ -36,7 +36,7 @@ struct module;
 /**
  * Remove identical instructions.
  */
-struct eliminate_common_subexpression
+struct MIGRAPHX_EXPORT eliminate_common_subexpression
 {
     std::string name() const { return "eliminate_common_subexpression"; }
     void apply(module& m) const;

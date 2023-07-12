@@ -80,6 +80,7 @@ struct literal : raw_data<literal>
         fill(start, end);
     }
 
+    // Directly copies buffer of x
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
     literal(const shape& s, T* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
@@ -107,25 +108,15 @@ struct literal : raw_data<literal>
     std::shared_ptr<char> buffer;
     shape m_shape;
 
+    // Keeps the same data ordering as the given container
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
         assert(std::distance(start, end) == m_shape.elements());
-        if(m_shape.standard())
-        {
-            m_shape.visit_type([&](auto as) { std::copy(start, end, as.from(buffer.get())); });
-        }
-        else
-        {
-            auto it = start;
-            m_shape.visit_type([&](auto as) {
-                auto output = make_view(m_shape, as.from(buffer.get()));
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) = *it; // NOLINT(bugprone-signed-char-misuse)
-                    it++;
-                });
-            });
-        }
+        m_shape.visit_type([&](auto as) {
+            auto output = make_view(m_shape, as.from(buffer.get()));
+            std::copy(start, end, output.begin());
+        });
     }
 };
 
@@ -156,8 +147,8 @@ literal transform(literal l1, literal l2, F f)
     return result;
 }
 
-void migraphx_to_value(value& v, const literal& l);
-void migraphx_from_value(const value& v, literal& l);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const literal& l);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, literal& l);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -24,6 +24,8 @@
 #include "perf.hpp"
 
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -39,32 +41,21 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-parameter_map fill_param_map(parameter_map& m, const program& p, const target& t, bool offload)
+parameter_map fill_param_map(parameter_map& m,
+                             const std::unordered_map<std::string, shape>& param_shapes,
+                             const target& t,
+                             bool offload)
 {
-    for(auto&& x : p.get_parameter_shapes())
+    for(auto&& x : param_shapes)
     {
         argument& arg = m[x.first];
         if(arg.empty())
+        {
+            assert(not x.second.dynamic());
             arg = generate_argument(x.second, get_hash(x.first));
+        }
         if(not offload)
             arg = t.copy_to(arg);
-    }
-    return m;
-}
-
-parameter_map fill_param_map(parameter_map& m, const program& p, bool gpu)
-{
-    for(auto&& x : p.get_parameter_shapes())
-    {
-        argument& arg = m[x.first];
-        if(arg.empty())
-            arg = generate_argument(x.second, get_hash(x.first));
-#ifdef HAVE_GPU
-        if(gpu)
-            arg = gpu::to_gpu(arg);
-#else
-        (void)gpu;
-#endif
     }
     return m;
 }
@@ -108,7 +99,37 @@ target get_target(bool gpu)
         return make_target("cpu");
 }
 
-void compile_program(program& p, bool gpu) { p.compile(get_target(gpu)); }
+bool is_offload_copy_set(const program& p)
+{
+    assert(p.is_compiled());
+    const module* mm                     = p.get_main_module();
+    std::vector<std::string> param_names = mm->get_parameter_names();
+    std::unordered_set<instruction_ref> param_ins;
+    std::transform(param_names.begin(),
+                   param_names.end(),
+                   std::inserter(param_ins, param_ins.begin()),
+                   [&](const auto& i) { return mm->get_parameter(i); });
+    for(const auto& i : *mm)
+    {
+        if(i.name() == "hip::copy_to_gpu")
+        {
+            auto copy_arg = instruction::get_output_alias(i.inputs().front(), true);
+            param_ins.erase(copy_arg);
+        }
+        else if(i.name() == "@return")
+        {
+            auto return_args = i.inputs();
+            for(const auto& j : return_args)
+            {
+                auto alias_ins = instruction::get_output_alias(j, true);
+                if((alias_ins->name() == "@param" && param_ins.erase(alias_ins) == 0) or
+                   (alias_ins->name() != "hip::copy_from_gpu"))
+                    return false;
+            }
+        }
+    }
+    return param_ins.empty();
+}
 
 } // namespace  MIGRAPHX_INLINE_NS
 } // namespace driver

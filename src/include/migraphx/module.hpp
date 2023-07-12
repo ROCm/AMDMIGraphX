@@ -52,7 +52,7 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
 /**
  * @brief Stores the instruction stream
  */
-struct module
+struct MIGRAPHX_EXPORT module
 {
     module(const std::string& name = "");
 
@@ -178,6 +178,8 @@ struct module
 
     bool has_instruction(instruction_ref ins) const;
 
+    std::vector<instruction_ref> get_returns() const;
+
     std::size_t size() const;
     instruction_ref begin() const;
     instruction_ref end() const;
@@ -187,7 +189,7 @@ struct module
     instruction_ref validate() const;
     instruction_ref find_dangling_reference() const;
 
-    void finalize(context& ctx);
+    void finalize(std::vector<context>& contexts);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -205,6 +207,12 @@ struct module
 
     void print_graph(std::ostream& os, bool brief = false) const;
 
+    void print_py(std::ostream& os) const;
+    std::unordered_map<instruction_ref, std::string>
+    print_py(std::ostream& os,
+             const std::string& mname,
+             std::unordered_map<instruction_ref, std::string> names) const;
+
     void print_cpp(std::ostream& os) const;
     std::unordered_map<instruction_ref, std::string>
     print_cpp(std::ostream& os,
@@ -217,8 +225,8 @@ struct module
     module& sort();
     ins_dep_map calc_implicit_deps() const;
 
-    friend std::ostream& operator<<(std::ostream& os, const module& m);
-    friend bool operator==(const module& x, const module& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
+    MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     private:

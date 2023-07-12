@@ -29,7 +29,6 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
-#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -80,6 +79,7 @@ std::string generate_args_hpp(const std::vector<shape>& inputs)
 
 #include <migraphx/kernels/args.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
 
@@ -135,10 +135,15 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
-        std::size_t groups     = (n + local - 1) / local;
-        std::size_t max_blocks = max_global / local;
-        std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
-        return std::min(nglobal, n);
+        std::size_t num_elements = n;
+        std::size_t groups       = (num_elements + local - 1) / local;
+        std::size_t max_blocks   = max_global / local;
+        std::size_t nglobal      = std::min(max_blocks * over, groups) * local;
+#ifdef MIGRAPHX_USE_HIPRTC
+        if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
+            num_elements = ((num_elements + local - 1) / local) * local;
+#endif
+        return std::min(nglobal, num_elements);
     };
 }
 
@@ -156,7 +161,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     assert(not options.inputs.empty());
     assert(options.inputs.size() == options.virtual_inputs.size() or
            options.virtual_inputs.empty());
-    std::vector<src_file> srcs;
+    std::vector<src_file> srcs = options.additional_src_files;
     std::transform(migraphx_kernels().begin(),
                    migraphx_kernels().end(),
                    std::back_inserter(srcs),

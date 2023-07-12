@@ -27,6 +27,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,9 +36,34 @@ struct module;
 
 namespace gpu {
 
-#ifdef MIGRAPHX_MLIR
-struct mlir_conv
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR);
+
+bool mlir_enabled()
 {
+#ifdef MIGRAPHX_MLIR
+    const bool mlir_enabled = enabled(MIGRAPHX_ENABLE_MLIR{});
+    if(mlir_enabled)
+    {
+        return true;
+    }
+    else
+    {
+
+        std::cerr << "WARNING: MIGraphX built with MLIR but it is not enabled. Please set the env "
+                     "var MIGRAPHX_ENABLE_MLIR to use MLIR kernel generator."
+                  << std::endl;
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
+#ifdef MIGRAPHX_MLIR
+
+struct mlir_op
+{
+    std::string name() const { return "gpu::mlir_op"; }
     operation op = make_op("convolution");
 
     template <class Self, class F>
@@ -46,7 +72,6 @@ struct mlir_conv
         return pack(f(self.op, "op"));
     }
 
-    std::string name() const { return "gpu::mlir_conv"; }
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
         check_shapes{inputs, *this}.packed_or_broadcasted();
@@ -54,17 +79,50 @@ struct mlir_conv
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
-        auto n = inputs.size();
-        return op.compute_shape({inputs[n - 2], inputs[n - 1]});
+
+        module_ref mod = mods[0];
+        auto type      = mod->get_output_shapes().front().type();
+        std::unordered_map<instruction_ref, shape> ins_shapes;
+        size_t param_cnt               = 0;
+        std::vector<std::string> names = mod->get_parameter_names();
+        std::sort(names.begin(), names.end());
+        for(std::string param_name : names)
+        {
+            ins_shapes[mod->get_parameter(param_name)] = inputs[param_cnt++];
+        }
+        for(auto ins : iterator_for(*mod))
+        {
+            if(ins->name() == "@param")
+            {
+                continue;
+            }
+            if(ins->name() == "@literal")
+            {
+                ins_shapes[ins] = ins->get_shape();
+                continue;
+            }
+            if(ins->name() == "@return")
+            {
+                return ins_shapes[ins->inputs().at(0)].with_type(type);
+            }
+            std::vector<shape> input_shapes;
+            input_shapes.resize(ins->inputs().size());
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           input_shapes.begin(),
+                           [&](auto in) { return ins_shapes[in]; });
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+        }
+        MIGRAPHX_THROW("No return found in the submodule");
     }
 };
-MIGRAPHX_REGISTER_OP(mlir_conv);
+MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
 
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
-    if(ins->name() != "convolution")
+    if(ins->name() != "convolution" and ins->name() != "quant_convolution")
         return false;
     value v    = ins->get_operator().to_value();
     auto group = v.at("group").to<int>();
@@ -76,51 +134,151 @@ MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
     return true;
 }
 
-struct find_conv_pointwise
+struct find_mlir_op
 {
-    // Find a convolution followed by a pointwise operation.
     auto matcher() const
     {
-        auto convolution =
-            match::skip(match::name("contiguous"))(is_mlir_conv().bind("convolution"));
-        return match::name("pointwise")(match::any_of[match::inputs()](convolution.bind("x")));
+        auto dot_or_conv = match::skip(match::name("contiguous"))(
+            match::any_of(match::name("dot"), match::name("quant_dot"), is_mlir_conv())
+                .bind("gemm_based_op"));
+        return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
+    }
+
+    std::unordered_map<instruction_ref, instruction_ref>
+    create_param_map_with_literals(module_ref mm, const module* pm, const shape& shape) const
+    {
+        std::unordered_map<instruction_ref, instruction_ref> ins_map;
+        for(auto ins : iterator_for(*pm))
+        {
+            if(ins->name() != "@literal")
+            {
+                continue;
+            }
+            literal r               = ins->get_literal();
+            instruction_ref literal = mm->add_literal(r);
+            instruction_ref mbcast  = mm->add_instruction(
+                make_op("multibroadcast", {{"out_lens", shape.lens()}}), literal);
+            ins_map[ins] = mbcast;
+        }
+        return ins_map;
+    }
+
+    std::tuple<instruction_ref, std::vector<instruction_ref>>
+    fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op) const
+    {
+        std::vector<instruction_ref> top_inputs;
+        std::vector<instruction_ref> imm_inputs;
+        size_t input_cnt = 0;
+        for(instruction_ref input : gemm_based_op->inputs())
+        {
+            std::vector<operation> op_stream;
+            while(contains({"slice", "transpose", "contiguous", "reshape"}, input->name()))
+            {
+                op_stream.push_back(input->get_operator());
+                input = input->inputs().at(0);
+            }
+            top_inputs.push_back(input);
+            instruction_ref prev_input =
+                mm->add_parameter("y" + std::to_string(input_cnt++), input->get_shape());
+            for(const auto& op : reverse(op_stream))
+            {
+                prev_input = mm->add_instruction(op, {prev_input});
+            }
+            imm_inputs.push_back(prev_input);
+        }
+        instruction_ref new_gemm_based_op =
+            mm->add_instruction(gemm_based_op->get_operator(), imm_inputs);
+        return {new_gemm_based_op, top_inputs};
+    }
+
+    // Whitelist supported fusion options, including imposing type constraints
+    // for cases where MLIR only supports an operation (usually a pointwise function)
+    // on particular types.
+    bool is_pointwise_op_supported_by_mlir(const instruction& i) const
+    {
+        using type_t                                      = shape::type_t;
+        const auto& name                                  = i.name();
+        const auto result_type                            = i.get_shape().type();
+        const std::initializer_list<type_t> allowed_types = {type_t::float_type,
+                                                             type_t::half_type,
+                                                             type_t::int8_type,
+                                                             type_t::int32_type,
+                                                             type_t::bool_type};
+        // Preliminary type check.
+        if(not contains(allowed_types, result_type))
+        {
+            return false;
+        }
+        const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
+        const std::initializer_list<std::string> no_bool_ops  = {"convolution",
+                                                                "quant_convolution",
+                                                                "dot",
+                                                                "quant_dot",
+                                                                "add",
+                                                                "clip",
+                                                                "sub",
+                                                                "mul",
+                                                                "div",
+                                                                "pow",
+                                                                "where",
+                                                                "quantizelinear",
+                                                                "dequantizelinear",
+                                                                "abs",
+                                                                "neg"};
+        const std::initializer_list<std::string> fp_only_ops  = {"ceil",
+                                                                "erf",
+                                                                "exp",
+                                                                "floor",
+                                                                "log",
+                                                                "recip",
+                                                                "rsqrt",
+                                                                "sigmoid"
+                                                                "softmax",
+                                                                "tanh"};
+        bool is_float = contains({type_t::float_type, type_t::half_type}, result_type);
+        if(contains(any_type_ops, name))
+            return true;
+        if(result_type != type_t::bool_type && contains(no_bool_ops, name))
+            return true;
+        if(is_float && contains(fp_only_ops, name))
+            return true;
+        // Only conversions between floating types are known to be unambigiously
+        // supported.
+        if(is_float && name == "convert")
+        {
+            return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
+                return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());
+            });
+        }
+        return false;
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins      = r.result;
-        auto conv_ins = r.instructions["convolution"];
-        auto x_ins    = r.instructions["x"]; // input after contiguous
-        auto* pm      = ins->module_inputs().front();
-        auto names    = pm->get_parameter_names();
-        // Whitelist pointwise operators
-        if(std::any_of(pm->begin(), pm->end(), [](const auto& i) {
-               return not contains({"@literal", "@param", "@return", "convolution", "add", "relu"},
-                                   i.name());
+        auto ins           = r.result;
+        auto gemm_based_op = r.instructions["gemm_based_op"];
+        auto x_ins         = r.instructions["x"]; // input after contiguous
+        auto* pm           = ins->module_inputs().front();
+        auto names         = pm->get_parameter_names();
+        // Whitelist pointwise operators.
+        if(std::any_of(pm->begin(), pm->end(), [&](const auto& i) {
+               return not is_pointwise_op_supported_by_mlir(i);
            }))
             return;
-        // Only fuse with fp32/fp16
-        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
-               return not contains({shape::type_t::float_type, shape::type_t::half_type},
-                                   i->get_shape().type());
-           }))
-            return;
+
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        std::unordered_map<instruction_ref, instruction_ref> param_map;
-        auto x    = mm->add_parameter("x" + std::to_string(names.size()),
-                                   conv_ins->inputs().at(0)->get_shape());
-        auto w    = mm->add_parameter("x" + std::to_string(names.size() + 1),
-                                   conv_ins->inputs().at(1)->get_shape());
-        auto conv = mm->add_instruction(conv_ins->get_operator(), {x, w});
+        std::unordered_map<instruction_ref, instruction_ref> param_map =
+            create_param_map_with_literals(mm, pm, gemm_based_op->get_shape());
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm_based_op);
         std::transform(names.begin(),
                        names.end(),
                        ins->inputs().begin(),
                        std::inserter(param_map, param_map.end()),
-                       [&](auto name, auto input) {
+                       [&, &anchor_op = anchor_op](auto name, auto input) {
                            if(input == x_ins)
-                               return std::make_pair(pm->get_parameter(name), conv);
+                               return std::make_pair(pm->get_parameter(name), anchor_op);
                            return std::make_pair(pm->get_parameter(name),
                                                  mm->add_parameter(name, input->get_shape()));
                        });
@@ -130,12 +288,13 @@ struct find_conv_pointwise
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != conv_ins; });
-        inputs.insert(inputs.end(), conv_ins->inputs().begin(), conv_ins->inputs().end());
+                     [&](auto input) { return input != gemm_based_op; });
+        inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
-            ins, mlir_conv{conv_ins->get_operator()}, inputs, {mm});
+            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 };
+
 } // namespace
 
 #endif
@@ -143,7 +302,7 @@ struct find_conv_pointwise
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    match::find_matches(mpm, find_conv_pointwise{});
+    match::find_matches(mpm, find_mlir_op{});
 #else
     (void)mpm;
 #endif

@@ -105,7 +105,7 @@ constexpr auto array_for_each(T& x, Ts&... xs)
             }
             else
             {
-                using vec_type = std::remove_reference_t<decltype(array2vec(x))>;
+                using vec_type = remove_reference_t<decltype(array2vec(x))>;
                 f(array2vec(x), __builtin_convertvector(array2vec(xs), vec_type)...);
             }
         }
@@ -271,6 +271,18 @@ struct integral_const_array : array<T, sizeof...(Xs)>
     using base_array = array<T, sizeof...(Xs)>;
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
 };
+
+template <class T, class... Ts>
+constexpr auto make_const_array(T x, Ts... xs)
+{
+    return integral_const_array<typename T::value_type, x, xs...>{};
+}
+
+template <class T, T... Xs, class F>
+constexpr auto unpack(integral_const_array<T, Xs...>, F f)
+{
+    return f(_c<Xs>...);
+}
 
 template <class T, T... Xs, class F>
 constexpr auto transform(integral_const_array<T, Xs...>, F f)

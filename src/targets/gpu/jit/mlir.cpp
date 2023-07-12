@@ -24,7 +24,6 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
-
 #include <migraphx/gpu/mlir.hpp>
 
 namespace migraphx {
@@ -33,7 +32,7 @@ namespace gpu {
 
 struct mlir_compiler : compiler<mlir_compiler>
 {
-    std::vector<std::string> names() const { return {"gpu::mlir_conv"}; }
+    std::vector<std::string> names() const { return {"gpu::mlir_op"}; }
 
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
@@ -46,10 +45,10 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     compiler_replace insert(code_object_op co) const
     {
-        return [co = std::move(co)](module& m, instruction_ref ins) {
-            auto mlir = insert_mlir(m, ins, co, ins->inputs());
-            m.replace_instruction(ins, mlir);
-        };
+        return {std::move(co), [](module& m, instruction_ref ins, const operation& op) {
+                    auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(op), ins->inputs());
+                    m.replace_instruction(ins, mlir);
+                }};
     }
 };
 

@@ -29,6 +29,7 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/functional.hpp>
 
 namespace migraphx {
 
@@ -129,51 +130,123 @@ struct index
         return blockDim.x;
     }
 #endif
+
+    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
     template <class N, class Stride>
     static constexpr auto max_stride_iterations(N n, Stride stride)
     {
         return (n - _c<1>) / stride + _c<1>;
     }
 
+    template <class N>
+    constexpr auto max_global_stride_iterations(N n) const
+    {
+        return max_stride_iterations(n, nglobal());
+    }
+
+    template <class N>
+    constexpr auto max_local_stride_iterations(N n) const
+    {
+        return max_stride_iterations(n, nlocal());
+    }
+
+    template <class F, class I, class D>
+    static constexpr auto invoke_loop(F f, I i, D d) -> decltype(f(i, d))
+    {
+        return f(i, d);
+    }
+
+    template <class F, class I, class D>
+    static constexpr auto invoke_loop(F f, I i, D) -> decltype(f(i))
+    {
+        return f(i);
+    }
+
     template <class F, class N, class Stride>
+    static constexpr void for_stride_loop_unroll(index_int start, N n, Stride stride, F f)
+    {
+        sequence(max_stride_iterations(n, stride), [&](auto... ks) {
+            fold([&](auto d, auto k) {
+                auto i = start + stride * k;
+                if(i < n)
+                    invoke_loop(f, i, d);
+                return d + _c<1>;
+            })(_c<0>, ks...);
+        });
+    }
+
+    template <class F, class N, class Stride>
+    static constexpr void for_stride_loop(index_int start, N n, Stride stride, F f)
+    {
+        index_int k = 0;
+        for(index_int i = start; i < n; i += stride)
+        {
+            invoke_loop(f, i, k);
+            k++;
+        }
+    }
+
+    template <bool Unroll, class F, class N, class Stride>
     static constexpr void for_stride(index_int start, N n, Stride stride, F f)
     {
         MIGRAPHX_ASSERT(start < stride);
-        if constexpr(not is_integral<N>{} and not is_integral<Stride>{} and
-                     max_stride_iterations(n, stride) == 1)
+        if constexpr(not is_integral<N>{} and not is_integral<Stride>{})
         {
-            if constexpr(stride > n)
+            if constexpr(max_stride_iterations(n, stride) == 1)
             {
-                if(start < n)
-                    f(start);
+                if constexpr(stride > n)
+                {
+                    if(start < n)
+                        invoke_loop(f, start, _c<0>);
+                }
+                else
+                {
+                    invoke_loop(f, start, _c<0>);
+                }
+            }
+            else if constexpr(Unroll)
+            {
+                MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
+                {
+                    for_stride_loop_unroll(start, n, stride, f);
+                }
             }
             else
             {
-                f(start);
+                for_stride_loop(start, n, stride, f);
             }
         }
         else
         {
-            for(index_int i = start; i < n; i += stride)
-            {
-                f(i);
-            }
+            for_stride_loop(start, n, stride, f);
         }
     }
 
     template <class F, class N>
     __device__ void global_stride(N n, F f) const
     {
-        for_stride(global, n, nglobal(), f);
+        for_stride<false>(global, n, nglobal(), f);
     }
 
     template <class F, class N>
     __device__ void local_stride(N n, F f) const
     {
-        for_stride(local, n, nlocal(), f);
+        for_stride<true>(local, n, nlocal(), f);
+    }
+
+    template <class F, class N>
+    __device__ void group_stride(N n, F f) const
+    {
+        for_stride<false>(group, n, ngroup(), f);
     }
 };
 
+#ifdef MIGRAPHX_NLOCAL
+#define MIGRAPHX_GLOBAL \
+    __global__ __attribute__((amdgpu_flat_work_group_size(MIGRAPHX_NLOCAL, MIGRAPHX_NLOCAL)))
+#else
+#define MIGRAPHX_GLOBAL __global__
+#endif
 inline __device__ __attribute__((const)) index make_index()
 {
     return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT

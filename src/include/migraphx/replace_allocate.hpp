@@ -30,14 +30,17 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
-struct replace_allocate
+/**
+ *  Replace `allocate` instructions with target allocations or output parameters.
+ */
+struct MIGRAPHX_EXPORT replace_allocate
 {
     allocation_model model;
     bool offload_copy = false;
     std::string name() const { return "replace_allocate"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

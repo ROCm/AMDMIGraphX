@@ -24,16 +24,20 @@
 #ifndef MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
 #define MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <string>
+
+struct hipDeviceProp_t;
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-std::string get_device_name();
+MIGRAPHX_GPU_EXPORT std::string get_arch_name(const hipDeviceProp_t& props);
 
-int get_device_id();
+MIGRAPHX_GPU_EXPORT std::string get_device_name();
+
+MIGRAPHX_GPU_EXPORT int get_device_id();
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

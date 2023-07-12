@@ -33,7 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 
-struct inline_module
+struct MIGRAPHX_EXPORT inline_module
 {
     std::string name() const { return "inline_module"; }
     void apply(module& m) const;

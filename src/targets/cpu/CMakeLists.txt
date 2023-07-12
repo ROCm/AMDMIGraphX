@@ -78,6 +78,8 @@ else()
 endif()
 target_link_libraries(migraphx_cpu PRIVATE migraphx)
 
+migraphx_generate_export_header(migraphx_cpu)
+
 find_package(OpenMP)
 target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)
 # Add library path to rpath to workaround issues with our broken packages

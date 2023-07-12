@@ -38,13 +38,13 @@ inline namespace MIGRAPHX_INLINE_NS {
         static const char* value() { return #x; } \
     }; // NOLINT
 
-bool enabled(const char* name);
-bool disabled(const char* name);
-std::vector<std::string> env(const char* name);
+MIGRAPHX_EXPORT bool enabled(const char* name);
+MIGRAPHX_EXPORT bool disabled(const char* name);
+MIGRAPHX_EXPORT std::vector<std::string> env(const char* name);
 
-std::size_t value_of(const char* name, std::size_t fallback = 0);
+MIGRAPHX_EXPORT std::size_t value_of(const char* name, std::size_t fallback = 0);
 
-std::string string_value_of(const char* name, std::string fallback = "");
+MIGRAPHX_EXPORT std::string string_value_of(const char* name, std::string fallback = "");
 
 template <class T>
 bool enabled(T)

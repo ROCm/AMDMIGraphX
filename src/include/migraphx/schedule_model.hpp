@@ -63,7 +63,7 @@ struct schedule_model
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct schedule_model
+struct MIGRAPHX_EXPORT schedule_model
 {
     //
     std::size_t concurrency() const;

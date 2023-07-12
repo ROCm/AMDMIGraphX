@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_ALGEBRA_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_ALGEBRA_HPP
 
-#include <string>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/pooling.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Simplify many algebraic instructions to more efficient versions.
- */
-struct MIGRAPHX_EXPORT simplify_algebra
+struct test_avg_pooling_pad : verify_program<test_avg_pooling_pad>
 {
-    std::string name() const { return "simplify_algebra"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        // pooling test with nonzero padding
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 7}});
+        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::average, {2}, {1}, {3}};
+        mm->add_instruction(op, input);
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

@@ -39,7 +39,7 @@ struct module;
 /**
  * capture inputs of operators to be quantized to int8
  */
-struct capture_arguments_pass
+struct MIGRAPHX_EXPORT capture_arguments_pass
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
     std::function<void(std::size_t, std::vector<argument>)> f{};
@@ -51,7 +51,7 @@ struct capture_arguments_pass
 /**
  * quantize a program to int8
  */
-struct quantize_int8_pass
+struct MIGRAPHX_EXPORT quantize_int8_pass
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
     std::vector<std::pair<float, float>> quant_params;

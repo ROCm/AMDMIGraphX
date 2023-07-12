@@ -75,8 +75,13 @@ using miopen_find_options = MIGRAPHX_MANAGE_PTR(miopenFindOptions_t, miopenDestr
 using miopen_problem      = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
 using miopen_solution     = MIGRAPHX_MANAGE_PTR(miopenSolution_t, miopenDestroySolution);
 
-inline miopen_solution
-find_solution(miopenHandle_t handle, size_t num_inputs, const miopenTensorArgument_t* tensor_args, void* workspace, size_t workspace_size, miopenProblem_t problem, bool tune = false)
+inline miopen_solution find_solution(miopenHandle_t handle,
+                                     size_t num_inputs,
+                                     const miopenTensorArgument_t* tensor_args,
+                                     void* workspace,
+                                     size_t workspace_size,
+                                     miopenProblem_t problem,
+                                     bool tune = false)
 {
     miopenSolution_t solution;
     size_t found           = 0;
@@ -85,16 +90,18 @@ find_solution(miopenHandle_t handle, size_t num_inputs, const miopenTensorArgume
     {
         miopenSetFindOptionTuning(fo.get(), 1);
     }
-    for(auto i : range(num_inputs)) {
-        auto status = miopenSetFindOptionPreallocatedTensor(fo.get(), tensor_args[i].id, tensor_args[i].buffer);
-        if(status != miopenStatusSuccess) 
+    for(auto i : range(num_inputs))
+    {
+        auto status = miopenSetFindOptionPreallocatedTensor(
+            fo.get(), tensor_args[i].id, tensor_args[i].buffer);
+        if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen: failed to preallocate tensors for the find process");
     }
-    auto status = miopenSetFindOptionPreallocatedWorkspace(fo.get(), workspace,workspace_size);
-    if(status != miopenStatusSuccess) 
+    auto status = miopenSetFindOptionPreallocatedWorkspace(fo.get(), workspace, workspace_size);
+    if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen: failed to preallocate workspace for the find process");
-        
-    status = miopenFindSolutions(handle, problem, fo.get(), &solution, &found, 1);
+
+    status      = miopenFindSolutions(handle, problem, fo.get(), &solution, &found, 1);
     auto result = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)
         MIGRAPHX_THROW("MIOpen: miopenFindSolutions failed");

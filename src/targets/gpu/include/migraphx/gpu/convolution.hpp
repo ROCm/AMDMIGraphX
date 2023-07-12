@@ -202,7 +202,7 @@ struct miopen_convolution
                 {miopenTensorConvolutionW, nullptr, w.implicit()},
                 {miopenTensorConvolutionY, nullptr, y.implicit()},
             };
-          
+
             solution_ptr = find_solution(miopen_stream_handle,
                                          3,
                                          tensor_args,
@@ -210,8 +210,8 @@ struct miopen_convolution
                                          workspace_size,
                                          conv_problem.get(),
                                          ctx.get_exhaustive_tune_flag());
-            
-            status       = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+
+            status = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
 

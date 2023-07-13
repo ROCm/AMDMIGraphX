@@ -48,17 +48,11 @@ struct multinomial
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2).only_dims(2);
-        size_t sample_size = inputs.back().max_lens().back();
-
         if(not contains({shape::int32_type, shape::int64_type}, dtype))
             MIGRAPHX_THROW(
                 "Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
 
-<<<<<<< HEAD
         return inputs.front().normalize_standard();
-=======
-        return {dtype, {inputs.front().max_lens().front(), sample_size}};
->>>>>>> da4fa01ff583c14d23b9e10c5fc178a4e3fe3bc2
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

@@ -1,9 +1,9 @@
-deconv_output_padding_3d_test:Ë
+%conv_transpose_output_padding_3d_test:Ó
 G
 x
 wy"ConvTranspose*
 output_padding@@@ *
-strides@@@ deconv_output_padding_3d_testZ
+strides@@@ %conv_transpose_output_padding_3d_testZ
 x
 
 
@@ -25,4 +25,4 @@ G
 
 
 
-B
+B

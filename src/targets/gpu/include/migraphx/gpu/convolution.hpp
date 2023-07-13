@@ -193,7 +193,7 @@ struct miopen_convolution
             set_tensor_descriptor(miopenTensorConvolutionX, x_desc, conv_problem);
             set_tensor_descriptor(miopenTensorConvolutionW, w_desc, conv_problem);
             bool preallocate = false;
-#if MIGRAPHX_MIOPEN_VERSION_MAJOR >= 2 and MIGRAPHX_MIOPEN_VERSION_MINOR >= 20
+#ifdef MIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS
             // MIOpen has APIs to pass pre-allocated buffers starting from rocm-5.6
             preallocate = true;
 #endif

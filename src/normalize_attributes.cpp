@@ -66,14 +66,18 @@ auto tune_attribute(const std::vector<int64_t>& vec,
                 const auto& dd = input_shape.dyn_dims().at(i);
                 if(not dd.is_fixed())
                 {
-                    MIGRAPHX_THROW("NORMALIZE_ATTR: 'use_lens' on a non-fixed dynamic dimension, axis=" + std::to_string(i));
+                    MIGRAPHX_THROW(
+                        "NORMALIZE_ATTR: 'use_lens' on a non-fixed dynamic dimension, axis=" +
+                        std::to_string(i));
                 }
                 return dd.max;
             });
         }
         else
         {
-            std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) { return input_shape.lens().at(i); });
+            std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
+                return input_shape.lens().at(i);
+            });
         }
     }
 

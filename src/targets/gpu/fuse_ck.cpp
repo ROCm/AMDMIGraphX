@@ -29,6 +29,10 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_LARGE_K);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_CK_FUSION);
+
 struct module;
 
 namespace gpu {
@@ -72,7 +76,7 @@ namespace {
 
 bool is_ck_supported_type(shape::type_t t)
 {
-    return contains({shape::half_type, shape::int8_type}, t);
+    return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
 }
 
 MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
@@ -89,7 +93,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     // Integer gemms must be divisible by 4 in ck
     if(contains({shape::int8_type, shape::int32_type}, ins->get_shape().type()))
     {
-        if(m % 4 != 0)
+        if(m != 1 and m % 4 != 0)
             return false;
         if(n % 4 != 0)
             return false;
@@ -99,7 +103,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
     // to avoid poor-performing GEMM kernels from CK
     // To-do: Investigate a more precise strategy
-    return k <= 2048;
+    return k <= 2048 or enabled(MIGRAPHX_USE_LARGE_K{});
 }
 
 struct find_ck_gemm_pointwise
@@ -130,6 +134,10 @@ struct find_ck_gemm_pointwise
                return not is_ck_supported_type(input->get_shape().type());
            }))
             return;
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
+               return not input->inputs().empty() and input->inputs().front()->name() == "capture";
+           }))
+            return;
         assert(gemm_it != inputs.end());
         if(gemm_idx != 0)
         {
@@ -152,7 +160,7 @@ struct find_ck_gemm_pointwise
 
 struct find_ck_gemm
 {
-    auto matcher() const { return match::name("dot")(is_ck_gemm().bind("gemm")); }
+    auto matcher() const { return match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm")); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -165,7 +173,8 @@ struct find_ck_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm, find_ck_gemm_pointwise{});
+    if (not enabled(MIGRAPHX_DISABLE_CK_FUSION{}))
+        match::find_matches(mpm, find_ck_gemm_pointwise{});
     match::find_matches(mpm, find_ck_gemm{});
 }
 

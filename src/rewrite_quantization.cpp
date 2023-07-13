@@ -32,6 +32,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BROADCAST_Q);
+
 void apply_quantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "quantizelinear");
@@ -61,15 +63,33 @@ void apply_quantizelinear(module& m, instruction_ref ins)
         max_quant = qt.max();
         min_quant = qt.min();
     });
-    auto s = add_zero_point->get_shape();
-    std::vector<int> min_data(s.elements(), min_quant);
-    std::vector<int> max_data(s.elements(), max_quant);
-    auto min_arg = m.add_literal(literal(s, min_data));
-    auto max_arg = m.add_literal(literal(s, max_data));
+    if (enabled(MIGRAPHX_BROADCAST_Q{}))
+    {
+        auto s       = add_zero_point->get_shape();
+        auto min_arg = m.add_literal(literal{shape{s.type()}, {min_quant}});
+        auto max_arg = m.add_literal(literal{shape{s.type()}, {max_quant}});
+        auto min_mbcast =
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
+        auto max_mbcast =
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
+        
+        auto saturate =
+            m.insert_instruction(ins, make_op("clip"), add_zero_point, min_mbcast, max_mbcast);
+        m.replace_instruction(
+            ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
+    }
+    else 
+    {
+        auto s = add_zero_point->get_shape();
+        std::vector<int> min_data(s.elements(), min_quant);
+        std::vector<int> max_data(s.elements(), max_quant);
+        auto min_arg = m.add_literal(literal(s, min_data));
+        auto max_arg = m.add_literal(literal(s, max_data));
 
-    auto saturate = m.insert_instruction(ins, make_op("clip"), add_zero_point, min_arg, max_arg);
-    m.replace_instruction(
-        ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
+        auto saturate = m.insert_instruction(ins, make_op("clip"), add_zero_point, min_arg, max_arg);
+        m.replace_instruction(
+            ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
+    }
 }
 
 void apply_dequantizelinear(module& m, instruction_ref ins)

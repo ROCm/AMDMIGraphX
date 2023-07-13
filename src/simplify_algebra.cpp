@@ -1095,8 +1095,9 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
         };
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
+    auto qdots = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("quant_dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return (dots >= 2 or convs >= 2);
+    return (dots >= 2 or convs >= 2 or qdots >= 2);
 }
 
 struct find_conv_dot_horiz_fusion
@@ -1110,7 +1111,7 @@ struct find_conv_dot_horiz_fusion
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
                 return false;
-            if(not contains({"dot", "convolution"}, i->name()))
+            if(not contains({"quant_dot", "dot", "convolution"}, i->name()))
                 return true;
             auto x = i->inputs()[1]->get_shape().lens();
             auto y = j->inputs()[1]->get_shape().lens();
@@ -1118,7 +1119,7 @@ struct find_conv_dot_horiz_fusion
                 return false;
             // Check that non-axes match
             int axis = 1;
-            if(i->name() == "dot")
+            if(i->name() == "dot" or i->name() == "quant_dot")
             {
                 axis = x.size() - 1;
             }
@@ -1129,7 +1130,7 @@ struct find_conv_dot_horiz_fusion
             if(std::distance(start, last) < 2)
                 return;
             auto&& name = (*start)->name();
-            if(not contains({"dot", "convolution"}, name))
+            if(not contains({"quant_dot", "dot", "convolution"}, name))
                 return;
             auto op   = (*start)->get_operator();
             int group = 1;
@@ -1144,7 +1145,7 @@ struct find_conv_dot_horiz_fusion
                 start, last, std::back_inserter(args), [&](auto x) { return x->inputs().at(1); });
             int axis        = 1;
             int concat_axis = 0;
-            if(name == "dot")
+            if(name == "dot" or name == "quant_dot")
             {
                 axis        = int(args.front()->get_shape().lens().size() - 1);
                 concat_axis = axis;

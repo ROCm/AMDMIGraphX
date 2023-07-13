@@ -34,7 +34,7 @@ struct test_add_nhwc : verify_program<test_add_nhwc>
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto s   = migraphx::shape::from_permutation(
-            migraphx::version_1::shape::float_type, {4, 3, 8, 8}, {0, 2, 3, 1});
+            migraphx::shape::float_type, {4, 3, 8, 8}, {0, 2, 3, 1});
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto add = mm->add_instruction(migraphx::make_op("add"), x, y);

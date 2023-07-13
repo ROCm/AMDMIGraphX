@@ -16,6 +16,8 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+                std::cout << ss.str() << std::endl;
+                throw std::runtime_error("Compiling program with " + name + " alters its static dimensions");
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
@@ -35,8 +37,9 @@ inline namespace MIGRAPHX_INLINE_NS {
  * vec: the vector attribute to normalize
  * axes: the operator's axes attribute if it exists, empty otherwise
  * val: the normalize_axes key and options. Ex: normalize["axes"] =
- * value::array{normalize_attribute::include_min}; lens: shape dimensions passed when calling
- * normalize_attributes(op&, lens)
+ * value::array{normalize_attribute::include_min};
+ * input_shape: input shape passed when calling
+ * normalize_attributes(op&, input_shape)
  *
  * See normalize_attribute.hpp for explaining the options.
  */
@@ -44,11 +47,11 @@ template <class Message>
 auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<int64_t>& axes,
                     const value& val,
-                    const std::vector<std::size_t>& lens,
+                    const shape& input_shape,
                     Message m)
 {
     std::vector<int64_t> result(vec);
-    int64_t n_rank                                 = lens.size();
+    int64_t n_rank                                 = input_shape.ndim();
     std::vector<op::normalize_attribute> vec_attrs = val.to_vector<op::normalize_attribute>();
     if(contains(vec_attrs, op::normalize_attribute::use_output))
     {
@@ -56,9 +59,24 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     }
 
     std::vector<int64_t> max_vals(vec.size(), n_rank);
+
     if(contains(vec_attrs, op::normalize_attribute::use_len))
     {
-        std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) { return lens[i]; });
+        if(input_shape.dynamic())
+        {
+            std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
+                const auto& dd = input_shape.dyn_dims().at(i);
+                if(not dd.is_fixed())
+                {
+                    MIGRAPHX_THROW("NORMALIZE_ATTR: 'use_lens' on a non-fixed dynamic dimension, axis=" + std::to_string(i));
+                }
+                return dd.max;
+            });
+        }
+        else
+        {
+            std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) { return input_shape.lens().at(i); });
+        }
     }
 
     if(contains(vec_attrs, op::normalize_attribute::clip_max))
@@ -159,9 +177,8 @@ auto tune_pad_attribute(const value& val)
 /**
  * Assumptions:
  *  Dimensions to pad start from the third dimension (index 2).
- *  Called by compute_shape_op() with the `lens` of the first input.
  */
-bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
+bool normalize_attributes(operation& op, const shape& input_shape)
 {
     bool tuned = false;
     auto attrs = op.attributes();
@@ -172,9 +189,9 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
         auto padding_size  = padding.size();
         auto padding_start = 2;
 
-        if(padding_size == 2 * (lens.size() - padding_start))
+        if(padding_size == 2 * (input_shape.ndim() - padding_start))
             tuned = true;
-        else if(padding_size != (lens.size() - padding_start))
+        else if(padding_size != (input_shape.ndim() - padding_start))
             MIGRAPHX_THROW("inconsistent padding size");
         else
         {
@@ -205,7 +222,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
                     axes = val.at("axes").without_key().to_vector<int64_t>();
                 }
                 auto vec    = vv.to_vector<int64_t>();
-                auto result = tune_attribute(vec, axes, rv.without_key(), lens, message);
+                auto result = tune_attribute(vec, axes, rv.without_key(), input_shape, message);
                 val[key]    = result;
                 op.from_value(val);
                 val   = op.to_value();
@@ -214,7 +231,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             else
             {
                 auto num    = vv.to<int64_t>();
-                auto result = tune_attribute({num}, {num}, rv.without_key(), lens, message);
+                auto result = tune_attribute({num}, {num}, rv.without_key(), input_shape, message);
                 val[key]    = result.front();
                 op.from_value(val);
                 val   = op.to_value();

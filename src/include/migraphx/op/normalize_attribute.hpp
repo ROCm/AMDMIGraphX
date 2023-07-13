@@ -38,6 +38,8 @@ namespace op {
  *  Affects the rank of the attribute.
  *  `use_input -> lens.size()`, `use_output -> lens.size() + vec.size()`.
  * 2. use_rank (default) vs use_len:
+                std::cout << ss.str() << std::endl;
+                throw std::runtime_error("Compiling program with " + name + " alters its static dimensions");
  *  `use_rank` sets the max value/index of the attribute as the rank of lens.
  *  `use_lens` sets the max value/index as the corresponding value in lens at the axes index.
  * 3. `clip_min` vs. `not_clip_min` (default):

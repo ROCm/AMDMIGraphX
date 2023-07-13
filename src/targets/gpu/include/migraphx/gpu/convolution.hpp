@@ -31,7 +31,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/convolution_backwards.hpp>
 #include <unordered_map>
 #include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -146,7 +146,8 @@ struct miopen_convolution
 
     void set_conv_descriptor()
     {
-        cd = (op.name() == "deconvolution") ? make_deconv(op) : make_conv(op);
+        cd =
+            (op.name() == "convolution_backwards") ? make_convolution_backwards(op) : make_conv(op);
     }
 
     value compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input)

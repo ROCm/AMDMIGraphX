@@ -193,7 +193,7 @@ inline convolution_descriptor make_conv(const T& op)
 }
 
 template <class T>
-inline convolution_descriptor make_deconv(const T& op)
+inline convolution_descriptor make_convolution_backwards(const T& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenTranspose;

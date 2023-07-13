@@ -607,12 +607,12 @@ struct mlir_program
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
-        mlirPassManagerRun(pm_front.get(), mmodule.get());
+        mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()));
 
         // 2nd pipeline to call
         get_module_tuned();
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
-        mlirPassManagerRun(pm_back.get(), mmodule.get());
+        mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()));
 
         code_object_op op{};
         op.symbol_name                = sym_name;

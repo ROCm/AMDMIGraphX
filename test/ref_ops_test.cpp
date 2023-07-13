@@ -2053,7 +2053,7 @@ TEST_CASE(convolution_backwards_2d)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(convolution_backwards_3d)
@@ -2143,7 +2143,7 @@ TEST_CASE(convolution_backwards_padding2)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(convolution_backwards_2stride)
@@ -2170,7 +2170,7 @@ TEST_CASE(convolution_backwards_2stride)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(convolution_backwards_2dilation)
@@ -2197,7 +2197,7 @@ TEST_CASE(convolution_backwards_2dilation)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(convolution_backwards_dyn_batch1)
@@ -2225,7 +2225,7 @@ TEST_CASE(convolution_backwards_dyn_batch1)
                             27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(convolution_backwards_dyn_batch2)
@@ -2266,7 +2266,7 @@ TEST_CASE(convolution_backwards_dyn_batch2)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(dequantizelinear)

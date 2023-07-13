@@ -45,6 +45,7 @@
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/convolution_backwards.hpp>
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>
 #include <migraphx/op/deconvolution.hpp>

@@ -129,9 +129,9 @@ register_migraphx_ops(
     contiguous
     convert
     convolution
+    convolution_backwards
     cosh
     cos
-    deconvolution
     dequantizelinear
     dimensions_of
     div

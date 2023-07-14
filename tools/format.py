@@ -3,6 +3,7 @@ import sys, os, shutil, argparse, subprocess
 CLANG_FORMAT_PATH='/opt/rocm/llvm/bin'
 
 def run(cmd, **kwargs):
+    print(cmd)
     subprocess.run(cmd, shell=True, check=True, **kwargs)
 
 def eval(cmd, **kwargs):
@@ -55,8 +56,10 @@ def main():
         clang_format(args.against, apply=args.in_place)
         yapf_format(args.against, apply=args.in_place)
     except subprocess.CalledProcessError as ex:
-        print(ex.stdout.decode('utf-8'))
-        print(ex.stderr.decode('utf-8'))
+        if ex.stdout:
+            print(ex.stdout.decode('utf-8'))
+        if ex.stderr:
+            print(ex.stderr.decode('utf-8'))
         print(f"Command '{ex.cmd}' returned {ex.returncode}")
         raise
         # sys.exit(ex.returncode)

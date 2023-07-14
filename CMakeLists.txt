@@ -43,6 +43,8 @@ else()
     endif()
 endif()
 
+set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
 
 project(migraphx LANGUAGES C CXX)

@@ -53,8 +53,10 @@ struct mlir_compiler : compiler<mlir_compiler>
     }
 
     optional<tuning_config>
-    get_tuning_config(context&, instruction_ref ins, const operation&, bool) const
+    get_tuning_config(context&, instruction_ref ins, const operation&, bool exhaustive) const
     {
+        if (not exhaustive)
+            return nullopt;
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
         return get_tuning_config_mlir(*smod, shapes);

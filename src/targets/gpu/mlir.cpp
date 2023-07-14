@@ -167,12 +167,6 @@ std::string mlir_print(F f, T x)
     return ss.str();
 }
 
-bool has_xdlops(const std::string& target_arch)
-{
-    const auto device_name = trim(split_string(target_arch, ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
-}
-
 struct mlir_program
 {
     mlir_program()
@@ -507,7 +501,8 @@ struct mlir_program
         ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
-                            {"arch", target_arch}});
+                            {"arch", target_arch},
+                            {"num_cu", num_cu}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -597,9 +592,6 @@ struct mlir_program
             {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
-                // check if HW supports xdlops
-                if(has_xdlops(target_arch))
-                    ops.add_attributes({{"xdlopsV2", true}});
             }
 
             std::vector<MlirValue> inputs;
@@ -636,7 +628,11 @@ struct mlir_program
         return op;
     }
 
-    void find_target() { target_arch = get_device_name(); }
+    void get_gpu_properties()
+    {
+        target_arch = get_device_name();
+        num_cu      = get_cu_count();
+    }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
     {
@@ -650,7 +646,7 @@ struct mlir_program
 
     value::binary get_binary() const
     {
-        int size = 0;
+        size_t size = 0;
         mlirGetBinary(mmodule.get(), &size, nullptr);
         value::binary result(size);
         if(mlirGetBinary(mmodule.get(), &size, reinterpret_cast<char*>(result.data())))
@@ -682,50 +678,60 @@ struct mlir_program
         }
     }
 
-    static mlir_tuning_table create_tuning_table()
+    static std::pair<mlir_tuning_table, bool> load_tuning_table()
     {
         mlir_tuning_table tuning_table{mlirRockTuningTableCreate()};
+        bool found_table           = false;
         std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
         if(!tuning_db_path.empty())
         {
             std::ifstream tuning_db_tsv(tuning_db_path);
             if(tuning_db_tsv)
             {
+                found_table = true;
                 std::string line;
                 while(std::getline(tuning_db_tsv, line))
                 {
                     std::vector<std::string> tokens = split_string(line, '\t');
                     std::string arch                = tokens[0];
-                    std::string prob                = tokens[1];
-                    std::string perf                = tokens[2];
-                    std::string key                 = arch.append("\t").append(prob);
+                    std::string numCU               = tokens[1];
+                    std::string prob                = tokens[2];
+                    std::string perf                = tokens[3];
+                    std::string key = arch.append("\t").append(numCU).append("\t").append(prob);
                     mlirRockTuningUpdateTable(tuning_table.get(), key.c_str(), perf.c_str(), 1.0);
                 }
             }
         }
         else
         {
+            found_table = false;
             std::cerr
                 << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
                    "optimal performance."
                 << std::endl;
         }
-        return tuning_table;
+        return std::make_pair(std::move(tuning_table), found_table);
     }
 
     bool get_module_tuned() const
     {
-        static mlir_tuning_table tuning_table = create_tuning_table();
-        // The tuning table as currently implemented is currently not
-        // thread safe. This will be fixed in the future. For now,
-        // stick a mutex around all tuning table interaction.
-        static std::mutex lock;
-        std::lock_guard<std::mutex> guard(lock);
-        if(!mlirRockTuningSetFromTable(tuning_table.get(), mmodule.get()))
+        static std::pair<mlir_tuning_table, bool> tuning_table = load_tuning_table();
+        if(!mlirRockTuningSetFromTable(tuning_table.first.get(), mmodule.get()))
         {
-            const char* prob_config = mlirRockTuningGetKey(tuning_table.get(), mmodule.get());
-            std::stringstream key(prob_config);
-            std::cerr << "fails to set param on" << prob_config << std::endl;
+            char prob_config[ROCMLIR_TUNING_KEY_BUFSZ];
+            size_t wantedBytes =
+                mlirRockTuningGetKey(mmodule.get(), prob_config, ROCMLIR_TUNING_KEY_BUFSZ);
+            if(wantedBytes >= ROCMLIR_TUNING_KEY_BUFSZ)
+            {
+                std::cerr << "MLIR tuning key overflowed buffer, needed " << wantedBytes << " bytes"
+                          << std::endl;
+                return false;
+            }
+            if(tuning_table.second)
+            {
+                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config
+                          << std::endl;
+            }
             dump_tuning_cfg(prob_config);
             return false;
         }
@@ -738,6 +744,7 @@ struct mlir_program
     problem_params pp;
     std::deque<std::string> strings{};
     std::string target_arch;
+    std::size_t num_cu;
     std::string sym_name;
 };
 
@@ -803,7 +810,7 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
         std::cout << m << std::endl;
 
     mlir_program mp;
-    mp.find_target();
+    mp.get_gpu_properties();
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)

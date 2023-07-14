@@ -839,6 +839,7 @@ code_object_op compile_mlir(const context&,
     if(trace)
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     auto co   = mp.compile(solution);
+    co.expected_inputs = to_shapes(inputs);
     co.output = m.get_output_shapes().front();
     return co;
 }

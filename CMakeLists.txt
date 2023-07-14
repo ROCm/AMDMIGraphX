@@ -113,7 +113,8 @@ rocm_enable_clang_tidy(
         hicpp-signed-bitwise
         llvm-namespace-comment
         misc-*
-	-misc-confusable-identifiers
+	    -misc-confusable-identifiers
+        -misc-use-anonymous-namespace
         modernize-*
         performance-*
         readability-*

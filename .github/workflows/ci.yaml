@@ -144,7 +144,8 @@ jobs:
     runs-on: ROCM-Ubuntu
     steps:
     - uses: actions/checkout@v3
-      fetch-depth: 0
+      with:
+        fetch-depth: 0
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.

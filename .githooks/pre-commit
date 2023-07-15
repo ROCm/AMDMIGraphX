@@ -7,4 +7,4 @@
 # Do everything from top - level
 cd $(git rev-parse --show-toplevel)
 
-python3 tools/format.py -i HEAD
+python3 tools/format.py -q -i HEAD

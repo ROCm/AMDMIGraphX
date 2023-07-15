@@ -79,7 +79,7 @@ def yapf_format(against, apply=False):
     diff_flag = "--in-place" if apply else "--diff"
     files = ' '.join(get_files_changed(against))
     if files:
-        run(f"yapf -r {diff_flag} -p {files}")
+        run(f"yapf {diff_flag} -p {files}")
     else:
         print("No modified python files to format")
 

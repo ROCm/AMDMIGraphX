@@ -1,23 +1,33 @@
 import sys, os, shutil, argparse, subprocess
 
-CLANG_FORMAT_PATH='/opt/rocm/llvm/bin'
+CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
+
 
 def run(cmd, **kwargs):
     print(cmd)
     subprocess.run(cmd, shell=True, check=True, **kwargs)
 
+
 def eval(cmd, **kwargs):
-    return subprocess.run(cmd, capture_output=True, shell=True, check=True, **kwargs).stdout.decode('utf-8').strip()
+    return subprocess.run(cmd,
+                          capture_output=True,
+                          shell=True,
+                          check=True,
+                          **kwargs).stdout.decode('utf-8').strip()
+
 
 def get_top():
     return eval("git rev-parse --show-toplevel")
 
+
 def get_head():
     return eval("git rev-parse --abbrev-ref HEAD")
+
 
 def get_merge_base(branch):
     head = get_head()
     return eval(f"git merge-base {branch} {head}")
+
 
 def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
     base = get_merge_base(against)
@@ -32,9 +42,12 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
     diff_flag = "" if apply else "--diff"
     run(f"{git_clang_format} --binary {clang_format} {diff_flag} {base}")
 
+
 def get_files_changed(against, ext=('py')):
-    files = eval(f"git diff-index --cached --name-only {against}", cwd=get_top()).splitlines()
+    files = eval(f"git diff-index --cached --name-only {against}",
+                 cwd=get_top()).splitlines()
     return (f for f in files if f.endswith(ext))
+
 
 def yapf_format(against, apply=False):
     if not shutil.which('yapf'):
@@ -46,6 +59,7 @@ def yapf_format(against, apply=False):
         run(f"yapf -r {diff_flag} -p {files}")
     else:
         print("No modified python files to format")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -66,5 +80,5 @@ def main():
             raise
             # sys.exit(ex.returncode)
 
-main()
 
+main()

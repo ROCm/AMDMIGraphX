@@ -103,5 +103,5 @@ def main():
             raise
             # sys.exit(ex.returncode)
 
-
-main()
+if __name__ == "__main__":
+    main()

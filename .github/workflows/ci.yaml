@@ -162,9 +162,6 @@ jobs:
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
 
-    # - name: Setup tmate session
-    #   uses: mxschmitt/action-tmate@v3
-
     - name: Check formatting
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |

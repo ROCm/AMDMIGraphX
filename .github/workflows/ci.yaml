@@ -164,7 +164,9 @@ jobs:
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
         set -e
+        apt install -y tmate
         git config --global --add safe.directory /data
+        tmate
         python3 tools/format.py ${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
   pyflakes:

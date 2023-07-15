@@ -1,4 +1,4 @@
-import sys, os, shutil, argparse, subprocess
+import os, shutil, argparse, subprocess
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 

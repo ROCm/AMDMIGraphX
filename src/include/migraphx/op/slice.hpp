@@ -35,6 +35,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Slice operator that only supports constant axes, starts, and ends for a
+ * given input.
+ */
 struct slice
 {
     std::vector<int64_t> axes;

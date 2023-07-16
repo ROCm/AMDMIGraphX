@@ -362,11 +362,15 @@ TEST_CASE(nested_reshape)
     auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4, 5, 6, 7}};
     migraphx::module m1;
     {
-        auto x     = m1.add_parameter("x", s);
-        auto rshp1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4, 5, 42}}}), x);
-        auto rshp2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 12, 5, 42}}}), rshp1);
-        auto rshp3 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12, 5, 42}}}), rshp2);
-        auto rshp4 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 60, 42}}}), rshp3);
+        auto x = m1.add_parameter("x", s);
+        auto rshp1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4, 5, 42}}}), x);
+        auto rshp2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 12, 5, 42}}}), rshp1);
+        auto rshp3 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12, 5, 42}}}), rshp2);
+        auto rshp4 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 60, 42}}}), rshp3);
         auto rshp5 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {120, 42}}}), rshp4);
         auto rshp6 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {5040}}}), rshp5);
         m1.add_return({rshp6});
@@ -386,12 +390,15 @@ TEST_CASE(nested_reshape_contiguous)
     auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4, 5, 6, 7}};
     migraphx::module m1;
     {
-        auto x     = m1.add_parameter("x", s);
-        auto rshp1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4, 5, 42}}}), x);
-        auto c1    = m1.add_instruction(migraphx::make_op("contiguous"), rshp1);
-        auto rshp2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 12, 5, 42}}}), c1);
-        auto c2    = m1.add_instruction(migraphx::make_op("contiguous"), rshp2);
-        auto rshp3 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12, 5, 42}}}), c2);
+        auto x = m1.add_parameter("x", s);
+        auto rshp1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4, 5, 42}}}), x);
+        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), rshp1);
+        auto rshp2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 12, 5, 42}}}), c1);
+        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), rshp2);
+        auto rshp3 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12, 5, 42}}}), c2);
         auto c3    = m1.add_instruction(migraphx::make_op("contiguous"), rshp3);
         auto rshp4 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 60, 42}}}), c3);
         auto c4    = m1.add_instruction(migraphx::make_op("contiguous"), rshp4);

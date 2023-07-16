@@ -881,7 +881,8 @@ void use(T&)
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&, const value&)
+code_object_op
+compile_mlir(const context&, module, const std::vector<instruction_ref>&, const value&)
 {
     return {};
 }

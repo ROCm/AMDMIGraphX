@@ -1,9 +1,9 @@
-deconv_input_pads_test:®
+&conv_transpose_input_pads_strides_test:¾
 =
 x
 wy"ConvTranspose*
 pads@@@@ *
-strides@@ deconv_input_pads_testZ
+strides@@ &conv_transpose_input_pads_strides_testZ
 x
 
 
@@ -21,4 +21,4 @@
 
 
 
-B
+B

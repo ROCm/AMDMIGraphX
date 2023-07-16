@@ -886,7 +886,6 @@ compile_mlir(const context&, module, const std::vector<instruction_ref>&, const 
 {
     return {};
 }
-// NOLINTEND(performance-unnecessary-value-param)
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent
@@ -895,6 +894,12 @@ insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<ins
     use(co);
     return m.end();
 }
+
+tuning_config get_tuning_config_mlir(module, const std::vector<shape>&)
+{
+    return {};
+}
+// NOLINTEND(performance-unnecessary-value-param)
 
 #endif
 

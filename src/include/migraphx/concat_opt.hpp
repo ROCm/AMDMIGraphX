@@ -56,7 +56,7 @@ struct concat_optimization
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct concat_optimization
+struct MIGRAPHX_EXPORT concat_optimization
 {
     //
     std::string name() const;

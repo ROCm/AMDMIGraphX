@@ -39,7 +39,7 @@ struct module;
 /**
  * Rewrite rnn to gemm and add.
  */
-struct rewrite_rnn
+struct MIGRAPHX_EXPORT rewrite_rnn
 {
     std::string name() const { return "rewrite_rnn"; }
     void apply(module& m) const;

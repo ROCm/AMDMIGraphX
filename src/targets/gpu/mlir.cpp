@@ -610,14 +610,14 @@ struct mlir_program
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
-        mlirPassManagerRun(pm_front.get(), mmodule.get());
+        mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()));
     }
 
     void run_backend_pipeline() MIGRAPHX_TIDY_CONST
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
-        mlirPassManagerRun(pm_back.get(), mmodule.get());
+        mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()));
     }
 
     code_object_op compile(const value& solution) MIGRAPHX_TIDY_CONST
@@ -881,7 +881,7 @@ void use(T&)
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&)
+code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&, const value&)
 {
     return {};
 }

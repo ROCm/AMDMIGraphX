@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #####################################################################################
 
+include(ExportHeader)
+
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
@@ -127,9 +129,9 @@ register_migraphx_ops(
     contiguous
     convert
     convolution
+    convolution_backwards
     cosh
     cos
-    deconvolution
     dequantizelinear
     div
     dot
@@ -251,6 +253,7 @@ target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
+migraphx_generate_export_header(migraphx)
 
 find_package(PkgConfig)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)

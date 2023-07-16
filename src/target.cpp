@@ -21,23 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/target.hpp>
+#include <migraphx/register_target.hpp>
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-struct test_deconv : verify_program<test_deconv>
+void migraphx_to_value(value& v, const target& t) { v["name"] = t.name(); }
+void migraphx_from_value(const value& v, target& t)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        mm->add_instruction(migraphx::make_op("deconvolution"), input, weights);
-        return p;
-    }
-};
+    t = make_target(v.at("name").to<std::string>());
+}
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

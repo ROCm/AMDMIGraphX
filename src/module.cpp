@@ -326,6 +326,8 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 
     if(ins == std::prev(this->end()))
     {
+        // "rep" instruction could be used earlier in the program and moving it at the end
+        // may cause invalid program, therefore make an identity operation in this case.
         return replace_instruction(ins, make_op("identity"), rep);
     }
 
@@ -650,8 +652,9 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
-void module::finalize(context& ctx)
+void module::finalize(std::vector<context>& contexts)
 {
+    assert(not contexts.empty());
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {
@@ -660,10 +663,10 @@ void module::finalize(context& ctx)
             std::cout << "Finalize: ";
             this->debug_print(ins);
         }
-        ins->finalize(ctx);
+        ins->finalize(contexts[ins->get_target_id()]);
         for(const auto& smod : ins->module_inputs())
         {
-            smod->finalize(ctx);
+            smod->finalize(contexts);
         }
     }
 

@@ -111,9 +111,27 @@ struct compile_plan
     context* ctx;
     operation preop;
     instruction_ref ins;
-    optional<tuning_config> config       = nullopt;
-    std::vector<compiled_result> results = {};
-    void update_config() { config = get_tuning_config(*ctx, ins, preop); }
+    optional<tuning_config> config                 = nullopt;
+    std::vector<optional<compiled_result>> results = {};
+    void update_config(bool exhaustive)
+    {
+        config = get_tuning_config(*ctx, ins, preop, exhaustive);
+    }
+    template <class Vector>
+    void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
+    {
+        compiles.emplace_back([=] {
+            try
+            {
+                results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
+            }
+            catch(...)
+            {
+                results[i] = nullopt;
+            }
+        });
+    }
+
     template <class Vector>
     void add_compiles(Vector& compiles, problem_cache& pc)
     {
@@ -127,9 +145,7 @@ struct compile_plan
                 if(solution.is_null())
                     return;
                 results.resize(1);
-                compiles.emplace_back([=] {
-                    results[0] = compiled_result{compile(*ctx, ins, preop, solution), ins};
-                });
+                insert_compiles(compiles, solution, 0);
             }
             else
             {
@@ -139,18 +155,14 @@ struct compile_plan
                 for(auto i : range(solutions.size()))
                 {
                     auto solution = solutions[i];
-                    compiles.emplace_back([=] {
-                        results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
-                    });
+                    insert_compiles(compiles, solution, i);
                 }
             }
         }
         else
         {
             results.resize(1);
-            compiles.emplace_back([=] {
-                results[0] = compiled_result{compile(*ctx, ins, preop, value{}), ins};
-            });
+            insert_compiles(compiles, value{}, 0);
         }
     }
     const compiled_result& benchmark(problem_cache& pc) const
@@ -158,7 +170,11 @@ struct compile_plan
         if(results.empty())
             MIGRAPHX_THROW("No configs to tune");
         if(results.size() == 1)
-            return results.front();
+        {
+            if(not results.front().has_value())
+                MIGRAPHX_THROW("No configs to tune");
+            return *results.front();
+        }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config");
         std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
@@ -167,11 +183,17 @@ struct compile_plan
         times.reserve(results.size());
         std::transform(
             results.begin(), results.end(), std::back_inserter(times), [&](const auto& cr) {
-                return time_op(*ctx, cr.replace.code_object, to_shapes(cr.ins->inputs()), 20).first;
+                if(not cr.has_value())
+                    return std::numeric_limits<double>::max();
+                return time_op(*ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20)
+                    .first;
             });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
+        std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
-        return results[i];
+        if(not results[i].has_value())
+            MIGRAPHX_THROW("No valid tuned compilation.");
+        return *results[i];
     }
     void replace(module& m, problem_cache& pc) const
     {
@@ -185,7 +207,10 @@ void par_compile(std::size_t n, F f)
 {
     if(n == 0)
         return;
-    par_for(n, n / value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, n), f);
+    auto d = value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{});
+    if(d == 0)
+        d = n;
+    par_for(n, n / d, f);
 }
 
 struct compile_manager
@@ -202,9 +227,7 @@ struct compile_manager
 
     void update_configs()
     {
-        if(not exhaustive)
-            return;
-        par_compile(cps.size(), [&](auto i) { cps[i].update_config(); });
+        par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
     void compile(module& m)

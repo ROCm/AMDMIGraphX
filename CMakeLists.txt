@@ -21,29 +21,26 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "The binary and source directroy cannot be the same")
 endif()
 
+get_property(_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
-if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
-    set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
-endif()
-
-# Setup valid strings for build type
-if (NOT CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Configs")
-endif()
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
-
-# Default installation path
-if(WIN32)
-    set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
+if(_GENERATOR_IS_MULTI_CONFIG)
+    if (NOT CMAKE_CONFIGURATION_TYPES)
+        set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING
+            "Available build types (configurations) on multi-config generators")
+    endif()
 else()
-    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+    if(NOT CMAKE_BUILD_TYPE)
+        set(CMAKE_BUILD_TYPE Release CACHE STRING
+            "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+    endif()
 endif()
 
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
@@ -94,12 +91,6 @@ set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 
-if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
-    set(CONFIGURE_DEPENDS)
-else()
-    set(CONFIGURE_DEPENDS CONFIGURE_DEPENDS)
-endif()
-
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
@@ -130,6 +121,7 @@ rocm_enable_clang_tidy(
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
         -bugprone-signed-char-misuse
+        -bugprone-unchecked-optional-access
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp

@@ -26,23 +26,22 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-
-struct test_deconv_3d : verify_program<test_deconv_3d>
+#include <migraphx/apply_alpha_beta.hpp>
+struct gemm_add_half : verify_program<gemm_add_half>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
-        mm->add_instruction(
-            migraphx::make_op(
-                "deconvolution",
-                {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
-            input,
-            weights);
+        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 3, 4}};
+        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 2, 4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
+
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3);
         return p;
     }
 };

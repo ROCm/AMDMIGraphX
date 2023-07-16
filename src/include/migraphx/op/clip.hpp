@@ -25,12 +25,13 @@
 #define MIGRAPHX_GUARD_OPERATORS_CLIP_HPP
 
 #include <array>
+#include <cmath>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <cmath>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,15 +49,15 @@ struct clip
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3).same_type().same_dims();
+        check_shapes{inputs, *this, true}.has(3).same_type().same_dims();
         return inputs.front();
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         visit_all(result, args[0], args[1], args[2])([&](auto output, auto x, auto min, auto max) {
-            par_for(output_shape.elements(),
+            par_for(dyn_out.computed_shape.elements(),
                     [&](auto i) { output[i] = std::min(std::max(min[i], x[i]), max[i]); });
         });
 

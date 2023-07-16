@@ -52,7 +52,7 @@ __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
                                              ck::make_tuple(to_ck_tensor<Ds>()...),
                                              to_ck_tensor<E>());
 
-    static_assert(desc.is_valid, "Invalid ck gemm.");
+    static_assert(desc.IsValid(), "Invalid ck gemm.");
 
     G::Run(desc,
            to_ck_const_pointer(a.data()),

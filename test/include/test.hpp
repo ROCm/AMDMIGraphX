@@ -598,6 +598,7 @@ struct driver
                 failures() = 0;
                 f();
             }
+            // cppcheck-suppress EmptyCatchStatement
             catch(const failure_error&)
             {
             }

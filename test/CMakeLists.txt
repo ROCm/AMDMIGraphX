@@ -112,7 +112,7 @@ function(add_test_executable TEST_NAME)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
-file(GLOB TESTS ${CONFIGURE_DEPENDS} *.cpp)
+file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -122,7 +122,7 @@ endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
-    file(GLOB GPU_TESTS ${CONFIGURE_DEPENDS} gpu/*.cpp)
+    file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)
 
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -141,7 +141,7 @@ endif()
 
 if(MIGRAPHX_ENABLE_FPGA)
     # fpga tests
-    file(GLOB FPGA_TESTS ${CONFIGURE_DEPENDS} fpga/*.cpp)
+    file(GLOB FPGA_TESTS CONFIGURE_DEPENDS fpga/*.cpp)
 
     foreach(TEST ${FPGA_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -191,7 +191,7 @@ endif()
 # multitarget test
 if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
     set(TEST_MULTI_TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/multi_target)
-    file(GLOB MULTI_TARGET_TESTS ${CONFIGURE_DEPENDS} ${TEST_MULTI_TARGET_DIR}/*.cpp)
+    file(GLOB MULTI_TARGET_TESTS CONFIGURE_DEPENDS ${TEST_MULTI_TARGET_DIR}/*.cpp)
 
     foreach(MULTI_TARGET_TEST ${MULTI_TARGET_TESTS})
         get_filename_component(BASE_NAME ${MULTI_TARGET_TEST} NAME_WE)
@@ -221,14 +221,14 @@ function(test_header NAME HEADER)
 endfunction()
 
 function(test_headers PREFIX)
-    file(GLOB HEADERS ${CONFIGURE_DEPENDS} ${ARGN})
+    file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})
 
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        target_link_libraries(header_${TEST_NAME} migraphx_all_targets)
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
     endforeach()
 endfunction()
 

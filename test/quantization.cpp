@@ -1020,7 +1020,7 @@ TEST_CASE(target_copy)
         std::vector<float> orig_result;
         run_prog(p, ref_t, m, orig_result);
 
-        EXPECT(migraphx::verify_range(ref_result, orig_result));
+        EXPECT(migraphx::verify::verify_range(ref_result, orig_result));
     }
 }
 
@@ -1084,7 +1084,7 @@ TEST_CASE(int8_quantization_dot)
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, m, no_quant_result);
 
-        EXPECT(migraphx::verify_range(quant_result, no_quant_result, 30000));
+        EXPECT(migraphx::verify::verify_range(quant_result, no_quant_result, 30000));
     }
 }
 
@@ -1129,7 +1129,7 @@ TEST_CASE(int8_quantization_conv)
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, no_quant_result);
 
-        EXPECT(migraphx::verify_range(quant_result, no_quant_result));
+        EXPECT(migraphx::verify::verify_range(quant_result, no_quant_result));
     }
 }
 
@@ -1281,7 +1281,7 @@ TEST_CASE(test_op_capture)
     cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
     res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify_range(vec, cap_vec));
+    EXPECT(migraphx::verify::verify_range(vec, cap_vec));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

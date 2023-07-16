@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "The binary and source directroy cannot be the same")
@@ -90,12 +90,6 @@ set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
-
-if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
-    set(CONFIGURE_DEPENDS)
-else()
-    set(CONFIGURE_DEPENDS CONFIGURE_DEPENDS)
-endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)

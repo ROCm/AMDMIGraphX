@@ -895,10 +895,7 @@ insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<ins
     return m.end();
 }
 
-tuning_config get_tuning_config_mlir(module, const std::vector<shape>&)
-{
-    return {};
-}
+tuning_config get_tuning_config_mlir(module, const std::vector<shape>&) { return {}; }
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_LOWERING_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MIOPEN_LOWERING_HPP
 
-#include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
@@ -40,7 +39,7 @@ namespace gpu {
  * * Maps instructions to their GPU-specific counterparts.
  * * Inserts `allocate` instructions before GPU operators.
  */
-struct lowering
+struct MIGRAPHX_GPU_EXPORT lowering
 {
     context* ctx;
     bool offload_copy;

@@ -36,7 +36,7 @@ struct module;
 /**
  * Eliminate redundant reshapes.
  */
-struct simplify_reshapes
+struct MIGRAPHX_EXPORT simplify_reshapes
 {
     int depth = 4;
     std::string name() const { return "simplify_reshapes"; }

@@ -39,7 +39,7 @@ struct module;
  * Process negative axis attributes of ops
  */
 
-struct normalize_ops
+struct MIGRAPHX_EXPORT normalize_ops
 {
     std::string name() const { return "normalize_ops"; }
     void apply(module& m) const;

@@ -43,7 +43,7 @@ inline Vector reorder_dims(const Vector& dims, const std::vector<int64_t>& permu
     return result;
 }
 
-shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation);
+MIGRAPHX_EXPORT shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation);
 
 template <class Vector, class Op>
 inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)
@@ -58,13 +58,13 @@ inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)
 /*!
  * Returns the inverse permutation that could be applied to undo the inputted permutation
  */
-std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation);
+MIGRAPHX_EXPORT std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation);
 
 /*!
  * Finds the permutation that would make the shape not transposed (refering to shape.transposed())
  */
-std::vector<int64_t> find_permutation(const shape& s);
-std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT std::vector<int64_t> find_permutation(const shape& s);
+MIGRAPHX_EXPORT std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

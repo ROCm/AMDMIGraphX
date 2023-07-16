@@ -34,7 +34,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 // unregister all ops for specified target, useful when unloading dynamically plugged-in target lib
-void unregister_op(const std::string& op_name);
+MIGRAPHX_EXPORT void unregister_op(const std::string& op_name);
 
 namespace detail {
 struct op_handler
@@ -47,15 +47,15 @@ struct op_handler
 
 } // namespace detail
 
-void register_op_init();
+MIGRAPHX_EXPORT void register_op_init();
 
-void register_op(const operation& op);
+MIGRAPHX_EXPORT void register_op(const operation& op);
 
-operation load_op(const std::string& name);
+MIGRAPHX_EXPORT operation load_op(const std::string& name);
 
-bool has_op(const std::string& name);
+MIGRAPHX_EXPORT bool has_op(const std::string& name);
 
-std::vector<std::string> get_operators();
+MIGRAPHX_EXPORT std::vector<std::string> get_operators();
 
 template <class T>
 void register_op()

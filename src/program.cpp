@@ -547,7 +547,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
         ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
-            auto& ctx = contexts[ins->get_target_id()];
+            const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();
             std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             timer t{};

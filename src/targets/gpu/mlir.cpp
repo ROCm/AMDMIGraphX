@@ -628,10 +628,11 @@ struct mlir_program
         return op;
     }
 
-    void get_gpu_properties()
+    void set_gpu_properties(const context& migraphx_ctx)
     {
-        target_arch = get_device_name();
-        num_cu      = get_cu_count();
+        auto& device = migraphx_ctx.get_current_device();
+        target_arch  = device.get_device_name();
+        num_cu       = device.get_cu_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -801,7 +802,8 @@ void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
     }
 }
 
-code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs)
+code_object_op
+compile_mlir(const context& migraphx_ctx, module m, const std::vector<instruction_ref>& inputs)
 {
     adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
@@ -810,7 +812,7 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
         std::cout << m << std::endl;
 
     mlir_program mp;
-    mp.get_gpu_properties();
+    mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)

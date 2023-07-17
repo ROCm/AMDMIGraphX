@@ -63,15 +63,6 @@ std::string get_device_name()
     return get_arch_name(props);
 }
 
-size_t get_cu_count()
-{
-    hipDeviceProp_t props{};
-    auto status = hipGetDeviceProperties(&props, get_device_id());
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed to get device properties");
-    return props.multiProcessorCount;
-}
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -116,6 +116,7 @@ rocm_enable_clang_tidy(
         llvm-namespace-comment
         misc-*
 	-misc-confusable-identifiers
+        -misc-use-anonymous-namespace
         modernize-*
         performance-*
         readability-*

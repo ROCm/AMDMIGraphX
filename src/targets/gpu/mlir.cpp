@@ -717,7 +717,7 @@ struct mlir_program
     bool get_module_tuned() const
     {
         static std::pair<mlir_tuning_table, bool> tuning_table = load_tuning_table();
-        if(!mlirRockTuningSetFromTable(tuning_table.first.get(), mmodule.get()))
+        if(not mlirRockTuningSetFromTable(tuning_table.first.get(), mmodule.get()))
         {
             char prob_config[ROCMLIR_TUNING_KEY_BUFSZ];
             size_t wantedBytes =

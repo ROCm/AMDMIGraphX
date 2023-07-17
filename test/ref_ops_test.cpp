@@ -4905,9 +4905,10 @@ TEST_CASE(multinomial_test)
     auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
 
     migraphx::shape s{migraphx::shape::float_type, {1, 5}};
-    std::vector<int> dist{15, 25, 15, 25, 20};
+    std::vector<int> dist{85, 25, 15, 25, 20};
     std::vector<float> data(5);
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
+printf("data="); for(auto aa:data)printf(", %f", aa);printf("\n");
     auto input = mm->add_literal(migraphx::literal(s, data));
 
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
@@ -4921,13 +4922,23 @@ TEST_CASE(multinomial_test)
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
+    // result_vec is a list of indices, or category labels, for each slot
     std::vector<int32_t> result_vec(sample_size);
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
+    // res_dist is a count, or histogram, of the number of samples in each category.  This is the sampled
+    // distribution.
     std::vector<int> res_dist(5, 0);
     for(const auto& r : result_vec)
         res_dist[r]++;
+
+    // To check the result, normalize the original probability distribution dist
+    // and the sampling result res_dist; they should be close
+
+    // Total the unnormalized probabilities
     auto dist_sum     = std::accumulate(dist.begin(), dist.end(), 0);
+
+    // Total the number of values returned
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
     std::vector<float> norm(5);
     std::vector<float> res_norm(5);
@@ -4937,6 +4948,7 @@ TEST_CASE(multinomial_test)
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
+printf("cumulative distribution of result ="); for(auto aa:res_norm)printf(", %f", aa);printf("\n");
     EXPECT(migraphx::verify_range(norm, res_norm, 100000));
 }
 

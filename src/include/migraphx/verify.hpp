@@ -35,6 +35,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace verify {
 
 // Compute the value of a range
 template <class R>
@@ -196,6 +197,7 @@ bool verify_range(const R1& r1, const R2& r2, double tolerance = 80, double* out
     return error <= threshold;
 }
 
+} // namespace verify
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

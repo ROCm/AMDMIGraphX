@@ -383,7 +383,7 @@ struct mlir_program
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
         {
             auto attributes = prog->name_attributes(named_attrs);
-            if(!attributes.empty())
+            if(not attributes.empty())
             {
                 mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
             }
@@ -393,7 +393,7 @@ struct mlir_program
         mlir_operation_state& add_attribute_value(const value& v)
         {
             auto attributes = prog->name_attributes(v);
-            if(!attributes.empty())
+            if(not attributes.empty())
             {
                 mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
             }
@@ -419,7 +419,7 @@ struct mlir_program
                 return shape{r.type(), r.lens()};
             });
             auto x = prog->make_tensors(reshaped);
-            if(!x.empty())
+            if(not x.empty())
             {
                 mlirOperationStateAddResults(&op_state, x.size(), x.data());
             }
@@ -428,7 +428,7 @@ struct mlir_program
 
         mlir_operation_state& add_operands(const std::vector<MlirValue>& inputs)
         {
-            if(!inputs.empty())
+            if(not inputs.empty())
             {
                 mlirOperationStateAddOperands(&op_state, inputs.size(), inputs.data());
             }
@@ -441,7 +441,7 @@ struct mlir_program
             std::transform(regions.begin(), regions.end(), mregions.begin(), [](const auto& r) {
                 return r.get();
             });
-            if(!mregions.empty())
+            if(not mregions.empty())
             {
                 mlirOperationStateAddOwnedRegions(&op_state, mregions.size(), mregions.data());
             }

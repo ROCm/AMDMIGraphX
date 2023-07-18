@@ -1118,7 +1118,7 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto x_sub_mean = mm->add_instruction(migraphx::make_op("sub"), l5, mb_mean);
     auto mb_eps =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), eps);
-    auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
+    auto var_eps  = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
     auto rsqrt    = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
     auto mb_rsqrt = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), rsqrt);

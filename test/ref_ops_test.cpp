@@ -636,6 +636,76 @@ TEST_CASE(avgpool_dyn_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(avgpool_dyn_pad_test)
+{
+    // pooling with dynamic input and padding, ceiling mode for output size
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1, 3}, {2, 4}, {2, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"lengths", {2, 2}},
+                                           {"padding", {1, 0}},
+                                           {"ceil_mode", true},
+                                           {"stride", {2, 2}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4, 5, 6};
+
+    //      *  *  *
+    //      1  2  3        padding will look like this
+    //      4  5  6        The * are used when tiling the kernel
+    //      *  *  *        but are ignored in averaging
+
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 3}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.5, 3.0, 4.5, 6.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_dyn_pad_ceil_test)
+{
+    // pooling with dynamic input and padding
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1, 3}, {2, 4}, {2, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"lengths", {2, 3}},
+                                           {"padding", {1, 2}},
+                                           {"ceil_mode", true},
+                                           {"stride", {1, 1}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4};
+
+    //  * *  *  * * *
+    //  * *  1  2 * *      padded input will look like this
+    //  * *  3  4 * *      but the * are ignored in averaging
+    //  * *  *  * * *
+
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector(12);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    // clang-format off
+    std::vector<float> gold{1.0, 1.5, 1.5, 2.0, 
+                            2.0, 2.5, 2.5, 3.0, 
+                            3.0, 3.5, 3.5, 4.0};
+    // clang-format on
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(avgpool_rank3_stride2_test)
 {
     // 1D case 2, stride 2
@@ -647,40 +717,25 @@ TEST_CASE(avgpool_rank3_stride2_test)
     op.padding = {1};
     op.stride  = {2};
 
-    std::vector<float> data{1.6321,
-                            -2.4186,
-                            0.2239,
-                            -1.4232,
-                            0.8158,
-                            0.4103,
-                            -0.3149,
-                            -0.1361,
-                            -0.3442,
-                            2.007,
-                            0.4331,
-                            1.5295,
-                            0.9965,
-                            0.4766,
-                            1.0942,
-                            -0.2915};
+    // clang-format off
+    std::vector<float> data{1.6321, -2.4186, 0.2239, -1.4232, 
+                            0.8158, 0.4103, -0.3149, -0.1361,
+                            -0.3442, 2.007, 0.4331, 1.5295,
+                            0.9965, 0.4766, 1.0942, -0.2915};
+    // clang-format on
     auto l0 = mm->add_literal(migraphx::literal{s, data});
     mm->add_instruction(op, l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.6321,
-                            -1.0974,
-                            -1.4232,
-                            0.8158,
-                            0.0477,
-                            -0.1361,
-                            -0.3442,
-                            1.22005,
-                            1.5295,
-                            0.9965,
-                            0.7854,
-                            -0.2915};
+
+    // clang-format off
+    std::vector<float> gold{1.6321, -1.09735, -1.4232,
+                            0.8158, 0.0477, -0.1361, 
+                            -0.3442, 1.22005, 1.5295,
+                            0.9965, 0.7854, -0.2915};
+    // clang-format on
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1948,7 +2003,7 @@ TEST_CASE(convert_nan_convert_updown_test)
         results_vector.begin(), results_vector.end(), [](const auto& x) { return std::isnan(x); }));
 }
 
-TEST_CASE(deconv_1d_test)
+TEST_CASE(convolution_backwards_1d)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3}};
     std::vector<float> x_data{0, 0.5, 1};
@@ -1961,10 +2016,10 @@ TEST_CASE(deconv_1d_test)
     auto x   = mm->add_literal(migraphx::literal{s, x_data});
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
-    mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        x,
-        w);
+    mm->add_instruction(migraphx::make_op("convolution_backwards",
+                                          {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+                        x,
+                        w);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
@@ -1973,56 +2028,7 @@ TEST_CASE(deconv_1d_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(deconv_3d_test)
-{
-    migraphx::shape s_1{migraphx::shape::float_type, {1, 1, 1, 2, 3}};
-    migraphx::shape s_2{migraphx::shape::float_type, {1, 1, 3, 2, 3}};
-    std::vector<float> x_data{0.8471, -0.4195, -2.2749, 1.2491, 0.1722, 0.3246};
-    std::vector<float> w_data{0.6478,
-                              -0.1985,
-                              0.0633,
-                              -0.3479,
-                              2.7056,
-                              -0.1440,
-                              -1.1229,
-                              -0.7507,
-                              -1.3151,
-                              0.8884,
-                              -0.1859,
-                              -0.3407,
-                              -1.1544,
-                              -1.5893,
-                              1.6265,
-                              -1.4624,
-                              0.3812,
-                              -1.5378};
-
-    std::vector<float> gold{0.5488,  -0.4399, -1.3369, 0.4251,  -0.1439, 0.5145,  2.3015,  -0.2104,
-                            -6.1482, 0.3482,  -0.4346, 3.3197,  0.1731,  0.8533,  -0.0467, -0.9512,
-                            -0.1649, 1.7553,  2.2594,  2.9917,  -0.6500, -1.6612, -4.3680, 0.0957,
-                            0.3482,  1.1097,  -0.0792, -0.1692, -0.1190, -0.1106, -0.9779, -0.8621,
-                            4.6707,  2.9332,  -3.7001, -2.6808, -1.2476, 3.2475,  -0.4578, 4.0263,
-                            -1.8267, 0.2243,  -2.3299, -0.1411, -0.4991};
-
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto x   = mm->add_literal(migraphx::literal{s_1, x_data});
-    auto w   = mm->add_literal(migraphx::literal{s_2, w_data});
-
-    mm->add_instruction(
-        migraphx::make_op("deconvolution",
-                          {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
-        x,
-        w);
-    p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(deconv_test)
+TEST_CASE(convolution_backwards_2d)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
@@ -2036,9 +2042,222 @@ TEST_CASE(deconv_test)
     auto x   = mm->add_literal(migraphx::literal{s, x_data});
     auto w   = mm->add_literal(migraphx::literal{s, w_data});
 
-    mm->add_instruction(migraphx::make_op("deconvolution"), x, w);
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), x, w);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_3d)
+{
+    migraphx::shape s_1{migraphx::shape::float_type, {1, 1, 1, 2, 3}};
+    migraphx::shape s_2{migraphx::shape::float_type, {1, 1, 3, 2, 3}};
+
+    // clang-format off
+    std::vector<float> x_data{0.8471, -0.4195, -2.2749, 1.2491, 0.1722, 0.3246};
+    std::vector<float> w_data{
+        0.6478, -0.1985, 0.0633, -0.3479, 2.7056, -0.1440,
+        -1.1229, -0.7507, -1.3151, 0.8884, -0.1859, -0.3407,
+        -1.1544, -1.5893, 1.6265, -1.4624, 0.3812, -1.5378
+    };
+    std::vector<float> gold{0.5488,  -0.4399, -1.3369, 0.4251,  -0.1439, 0.5145,  2.3015,  -0.2104,
+                            -6.1482, 0.3482,  -0.4346, 3.3197,  0.1731,  0.8533,  -0.0467, -0.9512,
+                            -0.1649, 1.7553,  2.2594,  2.9917,  -0.6500, -1.6612, -4.3680, 0.0957,
+                            0.3482,  1.1097,  -0.0792, -0.1692, -0.1190, -0.1106, -0.9779, -0.8621,
+                            4.6707,  2.9332,  -3.7001, -2.6808, -1.2476, 3.2475,  -0.4578, 4.0263,
+                            -1.8267, 0.2243,  -2.3299, -0.1411, -0.4991};
+    // clang-format on
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{s_1, x_data});
+    auto w   = mm->add_literal(migraphx::literal{s_2, w_data});
+
+    mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
+        x,
+        w);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_padding1)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+    std::vector<float> gold{8, 15, 12, 21, 36, 27, 20, 33, 24};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{s, x_data});
+    auto w   = mm->add_literal(migraphx::literal{s, w_data});
+
+    mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_padding2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+    std::vector<float> gold{3., 8., 15., 12., 7., 9., 21., 36., 27., 15., 9., 20., 33., 24., 13.};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{s, x_data});
+    auto w   = mm->add_literal(migraphx::literal{s, w_data});
+
+    mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {1, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_2stride)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> gold{0.,  0., 1., 1., 3.,  2.,  2.,  0.,  0.,  1., 1., 3.,  2.,
+                            2.,  3., 3., 8., 5.,  12., 7.,  7.,  3.,  3., 7., 4.,  9.,
+                            5.,  5., 9., 9., 20., 11., 24., 13., 13., 6., 6., 13., 7.,
+                            15., 8., 8., 6., 6.,  13., 7.,  15., 8.,  8.};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{s, x_data});
+    auto w   = mm->add_literal(migraphx::literal{s, w_data});
+
+    mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        x,
+        w);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_2dilation)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> gold{0., 1., 2., 1.,  2.,  1.,  2.,  3.,  4.,  8., 4., 8., 4.,
+                            5., 6., 8., 16., 8.,  16., 8.,  10., 3.,  4., 8., 4., 8.,
+                            4., 5., 6., 8.,  16., 8.,  16., 8.,  10., 3., 4., 8., 4.,
+                            8., 4., 5., 6.,  7.,  14., 7.,  14., 7.,  8.};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(migraphx::literal{s, x_data});
+    auto w   = mm->add_literal(migraphx::literal{s, w_data});
+
+    mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {2, 2}}}),
+        x,
+        w);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_dyn_batch1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // clang-format off
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {1, 1}, {3, 3}, {3, 3}}};
+    // clang-format on
+    auto x = mm->add_parameter("x", s);
+    auto w = mm->add_parameter("w", s);
+
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), x, w);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 3, 3}};
+    params["x"] = migraphx::argument(input_fixed_shape, x_data.data());
+    params["w"] = migraphx::argument(input_fixed_shape, w_data.data());
+    auto result = p.eval(params).back();
+
+    std::vector<float> gold{0,  1,  3, 3,  2,  3,  8,  15, 12, 7,  9,  21, 36,
+                            27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(convolution_backwards_dyn_batch2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // clang-format off
+    migraphx::shape x_shape{migraphx::shape::float_type,
+                      {{1, 4}, {1, 1}, {5, 5}, {5, 5}}};
+    // clang-format on
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape w_shape{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> w_data(9, 1.);
+    auto w = mm->add_literal(migraphx::literal{w_shape, w_data});
+
+    mm->add_instruction(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {2, 2}}, {"stride", {2, 2}}, {"dilation", {2, 2}}}),
+        x,
+        w);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x_data(25);
+    std::iota(x_data.begin(), x_data.end(), 0.);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 5, 5}};
+    params["x"] = migraphx::argument(input_fixed_shape, x_data.data());
+    auto result = p.eval(params).back();
+
+    //clang-format off
+    std::vector<float> gold{12.,  0., 21.,  0., 27.,  0., 33.,  0., 24.,  0., 0.,  0., 0.,   0.,
+                            0.,   0., 0.,   0., 33.,  0., 54.,  0., 63.,  0., 72., 0., 51.,  0.,
+                            0.,   0., 0.,   0., 0.,   0., 0.,   0., 63.,  0., 99., 0., 108., 0.,
+                            117., 0., 81.,  0., 0.,   0., 0.,   0., 0.,   0., 0.,  0., 93.,  0.,
+                            144., 0., 153., 0., 162., 0., 111., 0., 0.,   0., 0.,  0., 0.,   0.,
+                            0.,   0., 72.,  0., 111., 0., 117., 0., 123., 0., 84.};
+    //clang-format on
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -4238,6 +4457,27 @@ TEST_CASE(lppool_l1_norm_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+// TODO: this tests compliance with a oneDNN rule and a feature that's commented out
+// in pooling.hpp
+// TEST_CASE(lppool_l1_norm_err_test)
+// {
+//     // padding too large for kernel size
+//     migraphx::program p;
+//     auto* mm    = p.get_main_module();
+//     auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 5}};
+//     auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+//     op.lengths  = {3};
+//     op.padding  = {2};
+//     op.stride   = {1};
+//     op.lp_order = 1;
+
+//     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7};
+//     auto l0 = mm->add_literal(migraphx::literal{s, data});
+//     EXPECT(test::throws([&] {
+//             mm->add_instruction(op, l0);
+//         }));
+// }
+
 TEST_CASE(lppool_l2_norm_test)
 {
     // L2 norm test
@@ -4422,6 +4662,35 @@ TEST_CASE(maxpool_test)
     EXPECT(migraphx::verify_range(results_vector, c));
 }
 
+TEST_CASE(maxpool_pad_test)
+{
+    migraphx::program p;
+    auto* mm             = p.get_main_module();
+    std::vector<float> a = {-6, -5, -4, -3, -5, -1, 0, 1, 2, 3, 4, 5};
+    std::vector<float> c = {-4, -3, -4, -1, 2, 3, 4, 5};
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 3, 2}};
+    auto al = mm->add_literal(migraphx::literal{a_shape, a});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {1, 1}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {3, 2}}}),
+                        al);
+
+    //   * *  *  *                                           * *  *  *
+    //   * -6 -5 *                                           * 0  1  *
+    //   * -4 -3 *      padding will look like this          * 2  3  *
+    //   * -5 -1 *                  and this                 * 4  5  *
+    //   * *  *  *      The * values are actually -INF       * *  *  *
+
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(8);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    EXPECT(migraphx::verify_range(results_vector, c));
+}
+
 TEST_CASE(maxpool_rank3_test0)
 {
     // 1D case 1, input is 3D
@@ -4482,9 +4751,12 @@ TEST_CASE(maxpool_rank3_ceil_test)
     op.stride    = {2};
     op.ceil_mode = true;
 
-    std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, -0.6186, -0.9618,
-                            0.6022, -0.1912, 1.1925,  0.5493,  0.1692,  -0.8039, -1.0281,
-                            0.9907, 0.477,   1.5001,  -1.1603, -1.361,  1.2556};
+    // clang-format off
+    std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, 
+                        -0.6186, -0.9618, 0.6022, -0.1912, 1.1925,
+                        0.5493,  0.1692,  -0.8039, -1.0281, 0.9907, 
+                        0.477,   1.5001,  -1.1603, -1.361,  1.2556};
+    // clang-format on
     auto l0 = mm->add_literal(migraphx::literal{s, data});
     mm->add_instruction(op, l0);
     p.compile(migraphx::make_target("ref"));
@@ -4492,18 +4764,12 @@ TEST_CASE(maxpool_rank3_ceil_test)
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{0.4975,
-                            -0.0405,
-                            -0.1227,
-                            -0.6186,
-                            0.6022,
-                            1.1925,
-                            0.5493,
-                            -0.8039,
-                            0.9907,
-                            1.5001,
-                            -1.1603,
-                            1.2556};
+
+    // clang-format off
+    std::vector<float> gold{0.4975, -0.0405, -0.1227, -0.6186,
+                            0.6022, 1.1925, 0.5493, -0.8039,
+                            0.9907, 1.5001, -1.1603, 1.2556};
+    // clang-format on
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

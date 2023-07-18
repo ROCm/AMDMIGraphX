@@ -27,17 +27,18 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_deconv : verify_program<test_deconv>
+struct test_add_nhwc : verify_program<test_add_nhwc>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        mm->add_instruction(migraphx::make_op("deconvolution"), input, weights);
+        auto s   = migraphx::shape::from_permutation(
+            migraphx::shape::float_type, {4, 3, 8, 8}, {0, 2, 3, 1});
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_return({add});
         return p;
     }
 };

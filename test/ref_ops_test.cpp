@@ -1939,7 +1939,7 @@ TEST_CASE(convert_downcast_overflow_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    std::vector<float> data(4, std::numeric_limits<migraphx::half>::max() + 1);
+    std::vector<float> data(4, 2 * std::numeric_limits<migraphx::half>::max());
     auto l = mm->add_literal(migraphx::literal{s, data});
     mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
                         l);
@@ -1957,7 +1957,7 @@ TEST_CASE(convert_downcast_underflow_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    std::vector<float> data(4, std::numeric_limits<migraphx::half>::lowest() - 1);
+    std::vector<float> data(4, 2 * std::numeric_limits<migraphx::half>::lowest());
     auto l = mm->add_literal(migraphx::literal{s, data});
     mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
                         l);

@@ -143,7 +143,7 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
     if(inputs.empty())
         MIGRAPHX_THROW("At least one input is required for " + x.name());
     dependent_type<operation, T> y = x;
-    normalize_attributes(y, inputs[0].max_lens());
+    normalize_attributes(y, inputs[0]);
     return any_cast<T>(y).normalize_compute_shape(inputs);
 }
 
@@ -499,7 +499,7 @@ lifetime get_lifetime_op(const T&)
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct operation
+struct MIGRAPHX_EXPORT operation
 {
     //
     std::string name() const;
@@ -1390,8 +1390,8 @@ bool has_finalize(const T& x)
     return detail::has_finalize_op(x);
 }
 
-void migraphx_to_value(value& v, const operation& op);
-void migraphx_from_value(const value& v, operation& op);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const operation& op);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, operation& op);
 
 #endif
 

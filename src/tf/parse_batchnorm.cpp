@@ -66,8 +66,8 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         auto x_sub_mean = info.add_broadcastable_binary_op("sub", args[0], mean_unsqueeze);
         auto var_eps    = info.add_broadcastable_binary_op("add", var_unsqueeze, eps);
         auto rsqrt      = info.add_instruction(make_op("rsqrt"), var_eps);
-        auto div0       = info.add_broadcastable_binary_op("mul", x_sub_mean, rsqrt);
-        auto r0         = info.add_broadcastable_binary_op("mul", div0, scale_unsqueeze);
+        auto mul0       = info.add_broadcastable_binary_op("mul", scale_unsqueeze, rsqrt);
+        auto r0         = info.add_broadcastable_binary_op("mul", x_sub_mean, mul0);
         return info.add_broadcastable_binary_op("add", r0, bias_unsqueeze);
     }
 };

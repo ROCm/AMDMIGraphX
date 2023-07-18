@@ -206,9 +206,8 @@ TEST_CASE(batchnorm_test)
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
     auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
     auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
-    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
-
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_tf("batchnorm_test.pb", true);
@@ -237,8 +236,8 @@ TEST_CASE(batchnorm_half_test)
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
     auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
     auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
-    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_tf("batchnorm_half_test.pb", true);
@@ -267,8 +266,8 @@ TEST_CASE(batchnormv3_test)
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
     auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
     auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
-    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_tf("batchnormv3_test.pb", true);

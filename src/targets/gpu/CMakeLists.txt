@@ -176,7 +176,7 @@ register_op(migraphx_gpu
     OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
     INCLUDES migraphx/gpu/context.hpp)
 register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
-    OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::deconvolution> gpu::miopen_convolution<op::quant_convolution>
+    OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>
     INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
@@ -188,7 +188,9 @@ if(MIGRAPHX_ENABLE_MLIR)
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    target_link_libraries(migraphx_gpu PUBLIC rocMLIR::rockCompiler)
+    # Make this private to avoid multiple inclusions of LLVM symbols.
+    # TODO: Fix rocMLIR's library to hide LLVM internals.
+    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)

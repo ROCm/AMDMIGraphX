@@ -196,7 +196,6 @@ TEST_CASE(batchnorm_test)
 
     std::vector<float> scale_data(32, 1.0);
     auto scale = mm->add_literal(migraphx::shape{migraphx::shape::float_type, {32}}, scale_data);
-    auto rt    = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-4f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
@@ -204,11 +203,12 @@ TEST_CASE(batchnorm_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_tf("batchnorm_test.pb", true);
@@ -227,7 +227,6 @@ TEST_CASE(batchnorm_half_test)
 
     std::vector<float> scale_data(32, 1.0);
     auto scale = mm->add_literal(migraphx::shape{migraphx::shape::float_type, {32}}, scale_data);
-    auto rt    = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {0.5}});
     auto eps   = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-4f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
@@ -235,11 +234,11 @@ TEST_CASE(batchnorm_half_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_tf("batchnorm_half_test.pb", true);
@@ -258,7 +257,6 @@ TEST_CASE(batchnormv3_test)
 
     std::vector<float> scale_data(32, 1.0);
     auto scale = mm->add_literal(migraphx::shape{migraphx::shape::float_type, {32}}, scale_data);
-    auto rt    = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
@@ -266,11 +264,11 @@ TEST_CASE(batchnormv3_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_tf("batchnormv3_test.pb", true);

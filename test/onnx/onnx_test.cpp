@@ -440,14 +440,13 @@ TEST_CASE(batch_norm_flat_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {1}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {1}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
     add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
 
     auto prog = optimize_onnx("batch_norm_flat_test.onnx");
@@ -465,14 +464,13 @@ TEST_CASE(batch_norm_rank_2_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {5}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {5}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
     add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
 
     auto prog = optimize_onnx("batch_norm_rank_2_test.onnx");
@@ -490,7 +488,6 @@ TEST_CASE(batch_norm_1d_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-5f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), scale);
@@ -498,11 +495,11 @@ TEST_CASE(batch_norm_1d_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_onnx("batch_norm_1d_test.onnx");
@@ -520,7 +517,6 @@ TEST_CASE(batch_norm_2d_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
@@ -530,8 +526,8 @@ TEST_CASE(batch_norm_2d_test)
 
     auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
+    auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto div0    = add_common_op(*mm, migraphx::make_op("mul"), {numer, rsqrt});
     auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
@@ -550,7 +546,6 @@ TEST_CASE(batch_norm_3d_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::half_type, {2}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::half_type, {2}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-6f}});
 
     auto usq_scale =
@@ -561,11 +556,11 @@ TEST_CASE(batch_norm_3d_test)
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), mean);
     auto usq_var = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto div0       = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
     auto prog = optimize_onnx("batch_norm_3d_test.onnx");
 
@@ -908,7 +903,6 @@ TEST_CASE(constant_test)
 
 TEST_CASE(constant_fill_test)
 {
-
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -1105,7 +1099,6 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto p5 = mm->add_parameter("5", {migraphx::shape::float_type, {1}});
     auto p6 = mm->add_parameter("6", {migraphx::shape::float_type, {1}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
 
     uint64_t axis = 1;
@@ -1122,19 +1115,17 @@ TEST_CASE(conv_bn_relu_maxpool_test)
 
     auto mb_mean = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_mean);
-    auto numer = mm->add_instruction(migraphx::make_op("sub"), l5, mb_mean);
+    auto x_sub_mean = mm->add_instruction(migraphx::make_op("sub"), l5, mb_mean);
     auto mb_eps =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), eps);
     auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
-    auto mb_rt =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), rt);
-    auto denom    = mm->add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
-    auto mb_denom = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), denom);
-    auto div0     = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
+    auto rsqrt    = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto mb_rsqrt = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), rsqrt);
+    auto mul0     = mm->add_instruction(migraphx::make_op("mul"), x_sub_mean, mb_rsqrt);
     auto mb_scale = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_scale);
-    auto r0      = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
+    auto r0      = mm->add_instruction(migraphx::make_op("mul"), mul0, mb_scale);
     auto mb_bias = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_bias);
 
@@ -7150,7 +7141,8 @@ TEST_CASE(variable_batch_user_input_test6)
 
 TEST_CASE(variable_batch_user_input_test7)
 {
-    // if entry in map_dyn_input_dims is all fixed dynamic_dimensions, convert it to a static shape
+    // if entry in map_dyn_input_dims is all fixed dynamic_dimensions, convert it to a static
+    // shape
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 16, 16}});

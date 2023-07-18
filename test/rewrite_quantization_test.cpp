@@ -37,7 +37,10 @@
 
 bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
 bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
-bool is_scalar(migraphx::instruction& ins) { return ins.name() == "@literal" and ins.get_shape().scalar(); }
+bool is_scalar(migraphx::instruction& ins)
+{
+    return ins.name() == "@literal" and ins.get_shape().scalar();
+}
 
 void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::rewrite_quantization{}}); }
 

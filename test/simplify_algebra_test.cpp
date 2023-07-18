@@ -2218,18 +2218,12 @@ void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_type)
         auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
         m2.add_instruction(pass_op{}, sum);
     }
-    EXPECT(m1.sort() == m2.sort());    
+    EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(simplify_dot_horiz)
-{
-    test_dot_horiz(migraphx::shape::int32_type, "dot");
-}
+TEST_CASE(simplify_dot_horiz) { test_dot_horiz(migraphx::shape::int32_type, "dot"); }
 
-TEST_CASE(simplify_quant_dot_horiz)
-{
-    test_dot_horiz(migraphx::shape::int8_type, "quant_dot");
-}
+TEST_CASE(simplify_quant_dot_horiz) { test_dot_horiz(migraphx::shape::int8_type, "quant_dot"); }
 
 TEST_CASE(simplify_dot_horiz_same_constant)
 {

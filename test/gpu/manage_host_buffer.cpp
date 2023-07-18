@@ -64,7 +64,7 @@ TEST_CASE(host_same_buffer_copy)
     auto result = p.eval(pp).back();
     std::vector<float> results_vector(ss.elements(), -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(c_vec, results_vector));
+    EXPECT(migraphx::verify::verify_range(c_vec, results_vector));
 }
 
 TEST_CASE(arguments_lifetime)

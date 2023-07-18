@@ -116,7 +116,6 @@ void insert_contiguous(module& m)
         auto reshape = m.insert_instruction(ins, ins->get_operator(), c);
         m.replace_instruction(ins, reshape);
     }
-    std::cout << "after" << std::endl;
     // m.debug_print();
 }
 
@@ -140,7 +139,7 @@ void layout_nhwc::apply(module_pass_manager& mpm) const
     // preserve_output_layout(mpm.get_module());
     insert_contiguous(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
-    mpm.get_module().debug_print();
+    // mpm.get_module().debug_print();
     transform_convolutions(mpm.get_module(), this->skip_elim_contiguous);
     mpm.run_pass(dead_code_elimination{});
     // if(not this->skip_elim_contiguous)

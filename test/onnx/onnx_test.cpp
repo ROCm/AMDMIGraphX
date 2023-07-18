@@ -4731,16 +4731,16 @@ TEST_CASE(quantizelinear_test)
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
-    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
+    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s       = round->get_shape();
     auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {0}});
     auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {255}});
     auto min_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
     auto max_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -4762,16 +4762,16 @@ TEST_CASE(quantizelinear_int32_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
-    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
+    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s       = round->get_shape();
     auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {0}});
     auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {255}});
     auto min_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
     auto max_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -4798,15 +4798,15 @@ TEST_CASE(quantizelinear_zero_point_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_mbcast);
-    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
-    auto s   = round->get_shape();
+    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
+    auto s       = round->get_shape();
     auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {-128}});
     auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {127}});
     auto min_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
     auto max_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
@@ -4837,15 +4837,15 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_bcast);
-    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
-    auto s   = round->get_shape();
+    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
+    auto s       = round->get_shape();
     auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {-128}});
     auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {127}});
     auto min_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
     auto max_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),

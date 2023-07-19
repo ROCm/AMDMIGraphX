@@ -93,6 +93,16 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     /// Return the ith element
     argument element(std::size_t i) const;
 
+    // Keeps the same data ordering as the given container
+    template <class Iterator>
+    void fill(Iterator start, Iterator end)
+    {
+        assert(std::distance(start, end) <= m_shape.elements());
+        this->visit([&](auto output) {
+            std::copy(start, end, output.begin());
+        });
+    }
+
     private:
     void assign_buffer(std::function<char*()> d);
     struct data_t

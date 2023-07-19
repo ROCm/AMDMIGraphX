@@ -106,7 +106,7 @@ struct miopen_apply
         add_extend_op("topk");
 
         add_convolution_op("convolution");
-        add_convolution_op("deconvolution");
+        add_convolution_op("convolution_backwards");
         add_convolution_op("quant_convolution");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");

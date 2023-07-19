@@ -438,7 +438,6 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
                                    migraphx::make_target("ref"),
                                    migraphx::make_target("ref")}));
     // do evaluation using different conditions
-    // TODO: make two conditional to cover all the paths
     migraphx::parameter_map params;
     float x_i   = 2.0;
     float y_i   = 3.0;

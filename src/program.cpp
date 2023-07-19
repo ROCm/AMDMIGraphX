@@ -172,6 +172,13 @@ instruction_ref program::validate() const
     return mm->validate();
 }
 
+/*
+Assigns each instruction inside program to a target.
+It does it by first finding subgraphs supported on a given target based on assignment options.
+It is possible that instructions have multiple target assignments and part of multiple subgraphs.
+Current logic is simple and assigns entire subgraph containing supported instruction to a particular
+target on first seen basis and doesn't find the "best" target assignment.
+*/
 target_assignments program::get_target_assignments(const std::vector<target>& targets,
                                                    assignment_options options)
 {

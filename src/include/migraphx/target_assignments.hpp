@@ -34,13 +34,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct target_assignments
 {
-    using iterator   = std::unordered_map<instruction_ref, std::string>::const_iterator;
-    using value_type = std::pair<instruction_ref, std::string>;
+    using iterator   = std::unordered_map<instruction_ref, std::size_t>::const_iterator;
+    using value_type = std::pair<instruction_ref, std::size_t>;
 
     auto size() const { return assignments.size(); }
     auto& at(instruction_ref ins) const { return assignments.at(ins); }
 
-    auto insert(iterator it, const std::pair<instruction_ref, std::string>& assignment)
+    auto insert(iterator it, const std::pair<instruction_ref, std::size_t>& assignment)
     {
         return assignments.insert(it, assignment);
     }
@@ -50,7 +50,7 @@ struct target_assignments
     auto end() const { return assignments.end(); }
 
     private:
-    std::unordered_map<instruction_ref, std::string> assignments;
+    std::unordered_map<instruction_ref, std::size_t> assignments;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

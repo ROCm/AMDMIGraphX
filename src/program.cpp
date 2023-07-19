@@ -178,6 +178,7 @@ It does it by first finding subgraphs supported on a given target based on assig
 It is possible that instructions have multiple target assignments and part of multiple subgraphs.
 Current logic is simple and assigns entire subgraph containing supported instruction to a particular
 target on first seen basis and doesn't find the "best" target assignment.
+Assumes that all instructions will have target_assignment after this.
 */
 target_assignments program::get_target_assignments(const std::vector<target>& targets,
                                                    assignment_options options)
@@ -187,13 +188,12 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     target_assignments p;
 
     const auto* mod = get_main_module();
-    std::vector<std::pair<target, supported_segments>> target_subgraphs;
+    std::vector<std::pair<std::size_t, supported_segments>> target_subgraphs;
     target_subgraphs.reserve(targets.size());
-    std::transform(targets.begin(),
-                   targets.end(),
-                   std::back_inserter(target_subgraphs),
-                   [&](const auto& t) { return std::make_pair(t, t.find_supported(mod, m)); });
-
+    for(auto tid : range(targets.size()))
+    {
+        target_subgraphs.push_back(std::make_pair(tid, targets[tid].find_supported(mod, m)));
+    }
     for(const auto ins : iterator_for(*mod))
     {
         if(contains(p, ins))
@@ -201,24 +201,24 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
             continue;
         }
 
-        for(const auto& [target, subgraph] : target_subgraphs)
+        for(const auto& [tid, subgraph] : target_subgraphs)
         {
             // can't pass a structured binding into lambda in C++17 so create a variable for it
-            const auto& t = target;
+            const auto& t = tid;
             for(const auto& segment : subgraph)
             {
                 const auto& instructions = segment.instructions;
-                if(not contains(instructions, ins))
+                if(contains(instructions, ins))
                 {
-                    continue;
+                    std::transform(instructions.begin(),
+                                   instructions.end(),
+                                   std::inserter(p, p.end()),
+                                   [&](auto instr) { return std::make_pair(instr, t); });
                 }
-                std::transform(instructions.begin(),
-                               instructions.end(),
-                               std::inserter(p, p.end()),
-                               [&](auto instr) { return std::make_pair(instr, t.name()); });
             }
         }
     }
+
     return p;
 }
 

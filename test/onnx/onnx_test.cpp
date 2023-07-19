@@ -1114,23 +1114,12 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p5);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p6);
 
-    auto mb_mean = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_mean);
-    auto x_sub_mean = mm->add_instruction(migraphx::make_op("sub"), l5, mb_mean);
-    auto mb_eps =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), eps);
-    auto var_eps  = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
-    auto rsqrt    = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
-    auto mb_rsqrt = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), rsqrt);
-    auto mul0     = mm->add_instruction(migraphx::make_op("mul"), x_sub_mean, mb_rsqrt);
-    auto mb_scale = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_scale);
-    auto r0      = mm->add_instruction(migraphx::make_op("mul"), mul0, mb_scale);
-    auto mb_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_bias);
-
-    auto l6 = mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {l5, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
+    auto l6 = add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto l7 = mm->add_instruction(migraphx::make_op("relu"), l6);
     mm->add_instruction(migraphx::make_op("pooling",

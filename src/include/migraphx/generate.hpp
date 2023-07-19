@@ -117,14 +117,14 @@ auto generate_tensor_data(const migraphx::shape& s, unsigned long seed = 0)
 }
 
 template <class T>
-auto fill_tensor_data(const migraphx::shape& s, unsigned long value = 0)
+auto fill_tensor_data(const migraphx::shape& s, double value = 0)
 {
     auto result = make_shared_array<T>(s.element_space());
     std::generate(result.get(), result.get() + s.element_space(), [=] { return value; });
     return result;
 }
 
-MIGRAPHX_EXPORT argument fill_argument(shape s, unsigned long value = 0);
+MIGRAPHX_EXPORT argument fill_argument(shape s, double value = 0);
 
 MIGRAPHX_EXPORT argument generate_argument(shape s, unsigned long seed = 0);
 

@@ -1119,7 +1119,7 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
     auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
     auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
-    auto l6 = add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
+    auto l6         = add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto l7 = mm->add_instruction(migraphx::make_op("relu"), l6);
     mm->add_instruction(migraphx::make_op("pooling",

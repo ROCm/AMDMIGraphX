@@ -662,7 +662,7 @@ TEST_CASE(avgpool_dyn_pad_test)
 
     std::vector<float> gold{
         0.3, 0.25, 0.3, 0.25, 0.1, 0.8, 0.65, 0.7, 0.5, 0.1, 0.1, 0.4, 0.4, 0.35, 0.6};
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_auto_pad_test)
@@ -698,7 +698,7 @@ TEST_CASE(avgpool_dyn_auto_pad_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{2.5, 2.5, 3.5, 3.5};
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_auto_pad_1d_test)
@@ -732,7 +732,7 @@ TEST_CASE(avgpool_dyn_auto_pad_1d_test)
                             0.8, 0.65, 0.7, 0.5, 
                             0.1, 0.4,  0.4, 0.35};
     // clang-format on
-    EXPECT(migraphx::verify_range(results_vector, gold)
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_pad_ceil_test)

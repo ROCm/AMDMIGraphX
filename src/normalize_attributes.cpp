@@ -196,9 +196,9 @@ bool normalize_attributes(operation& op, const shape& input_shape)
             auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
             auto padding_size  = padding.size();
             auto padding_start = 2;
-            if(padding_size == 2 * (lens.size() - padding_start))
+            if(padding_size == 2 * (input_shape.ndim() - padding_start))
                 tuned = true;
-            else if(padding_size != (lens.size() - padding_start))
+            else if(padding_size != (input_shape.ndim() - padding_start))
             {
                 MIGRAPHX_THROW("normalize_attributes: inconsistent padding vector size ");
             }

@@ -182,22 +182,15 @@ struct parse_pooling : op_parser<parse_pooling>
             // values["padding"].clear();
             if(in_shape.dynamic())
             {
-                // return paddings could be empty, then setting to 0 for no padding
-                // dilations (argument 4) not supported; default to all 1's
-                cal_auto_padding_size(info,
-                                      values,
-                                      values["lengths"].to_vector<std::size_t>(),
-                                      std::vector<size_t>(in_shape.ndim() - 2, 1),
-                                      in_shape.max_lens(),
-                                      paddings);
-
+                // set padding_mode to trigger auto padding at runtime
                 bool is_same_upper     = (auto_pad.find("SAME_UPPER") != std::string::npos);
                 values["padding_mode"] = is_same_upper ? to_value(op::padding_mode_t::same_upper)
                                                        : to_value(op::padding_mode_t::same_lower);
             }
             else
             {
-                // return paddings could be empty, then setting to 0 for no padding
+                // Calculate auto padding
+                // dilations (argument 4) not supported; default to all 1's
                 cal_auto_padding_size(info,
                                       values,
                                       values["lengths"].to_vector<std::size_t>(),
@@ -205,7 +198,7 @@ struct parse_pooling : op_parser<parse_pooling>
                                       in_shape.lens(),
                                       paddings);
                 values["padding"] = paddings;
-                // default padding mode indicates that padding sizes are not calculated dynamically
+                // default padding_mode indicates that padding sizes are not calculated dynamically
                 values["padding_mode"] = migraphx::op::padding_mode_t::default_;
             }
         }

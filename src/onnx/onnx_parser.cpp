@@ -36,8 +36,6 @@
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/env.hpp>
 
-#include <string>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {

@@ -47,11 +47,13 @@ namespace op {
 //
 struct pooling
 {
-    //  Members mode, ceil_mode, padding_mode are all separate concepts with similar names.
+    //  Class members mode, ceil_mode, padding_mode have similar names but refer to separate
+    //  concepts.
     pooling_mode mode = {pooling_mode::average};
 
     // If the input has rank other than 4 then padding, stride, lengths must all be specified
-    // since the defaults have 2-dimensions.
+    // since the defaults have 2-dimensions.  Exception: padding not required if
+    // padding_mode != default_
 
     // Padding along each spatial input dimension
     // Can be ndim or 2*ndim values where ndim is size of lengths
@@ -108,7 +110,7 @@ struct pooling
     {
         if(dyn_global)
             return;
-        if((padding_mode == default_ and padding.size() != stride.size() and
+        if((padding_mode != default_ and padding.size() != stride.size() and
             (padding.size()) != stride.size() * 2) or
            stride.size() != lengths.size())
         {
@@ -153,10 +155,9 @@ struct pooling
             if(input_lens[i + 2] + padding_factor < lengths[i])
             {
                 if(padding_mode == default_)
-                    MIGRAPHX_THROW(
-                        "POOLING: not enough padding for the given kernel size");
+                    MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size");
                 // lengths can be legitimately larger only if we're doing auto padding
-                // with a dynamic shape, in which case given padding is ignored.  Set a dummy value;
+                // with a dynamic shape, in which case given padding is ignored.  Set a dummy value.
                 dim_size = 2;
             }
             else
@@ -175,17 +176,13 @@ struct pooling
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
+        check_shapes{inputs, *this, true}.has(1).min_ndims(3);
         check_attribute_size();
 
         const shape& input = inputs.at(0);
-        auto padding_size  = padding.size();
+        auto stride_size   = stride.size();
         size_t kdims       = input.ndim() - 2;
-        if(input.ndim() < 3)
-        {
-            MIGRAPHX_THROW("POOLING: input must have 3 or more dimensions and be nonempty");
-        }
-        if(input.ndim() * 2 != padding_size + 4 and input.ndim() != padding_size + 2)
+        if(input.ndim() != stride_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
@@ -235,7 +232,6 @@ struct pooling
                     output_dyn_dims.push_back(
                         shape::dynamic_dimension{min_spatial_dims[i], max_spatial_dims[i], {}});
                 }
-                shape out_shape(input.type(), output_dyn_dims);
                 return {input.type(), output_dyn_dims};
             }
         }
@@ -403,7 +399,7 @@ struct pooling
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{dyn_out.computed_shape};
+        argument result;
         auto input_lens = args[0].get_shape().lens();
         std::vector<std::size_t> kernel_dims;
         shape output_shape;
@@ -415,23 +411,24 @@ struct pooling
             // for dynamic GlobalPooling, there's no padding
             kernel_dims.insert(kernel_dims.end(), input_lens.begin() + 2, input_lens.end());
             output_shape = dyn_out.computed_shape;
+            result       = dyn_out.computed_shape;
         }
         else if((padding_mode != op::padding_mode_t::default_))
         {
             // if padding_mode is set, input was a dynamic size.  Calculate padded size now.
 
-            // wei_lens is the same as kernel_dims, but prepended with the 2 non-
+            // kernel_lens is the same as kernel_dims, but prepended with the 2 non-
             // spatial dimensions.  For size computations, it's used like the weights
             // tensor for convolutions.
-            std::vector<std::size_t> wei_lens;
-            wei_lens.insert(wei_lens.end(), input_lens.begin(), input_lens.begin() + 2);
-            wei_lens.insert(wei_lens.end(), lengths.begin(), lengths.end());
+            std::vector<std::size_t> kernel_lens;
+            kernel_lens.insert(kernel_lens.end(), input_lens.begin(), input_lens.begin() + 2);
+            kernel_lens.insert(kernel_lens.end(), lengths.begin(), lengths.end());
             kernel_dims = this->lengths;
 
             auto type = args[0].get_shape().type();
             // dilation not currently supported for pooling, so default to all 1's
             temp_padding = calc_dyn_auto_pad(
-                input_lens, wei_lens, stride, {1, 1}, bool(padding_mode == op::same_upper));
+                input_lens, kernel_lens, stride, {1, 1}, bool(padding_mode == op::same_upper));
 
             output_shape = compute_padded_pool_shape(
                 args[0].get_shape(), shape(type, kernel_dims), temp_padding, stride, {1, 1});
@@ -442,6 +439,7 @@ struct pooling
         {
             kernel_dims  = this->lengths;
             output_shape = dyn_out.computed_shape;
+            result       = dyn_out.computed_shape;
         }
 
         // Perform the computation and populate result

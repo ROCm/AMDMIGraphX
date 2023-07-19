@@ -178,8 +178,6 @@ void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
 {
-    if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{std::cout};
     run_passes(prog, prog.get_main_module(), passes, trace);
 }
 

@@ -154,7 +154,7 @@ struct pooling
             {
                 if(padding_mode == default_)
                     MIGRAPHX_THROW(
-                        "POOLING: given padding too little for these padding window lengths");
+                        "POOLING: not enough padding for the given kernel size");
                 // lengths can be legitimately larger only if we're doing auto padding
                 // with a dynamic shape, in which case given padding is ignored.  Set a dummy value;
                 dim_size = 2;

@@ -135,14 +135,11 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
-        std::size_t num_elements = n;
+        // hip require global workitems multiple of local workitems
+        std::size_t num_elements = ((n + local - 1) / local) * local;
         std::size_t groups       = (num_elements + local - 1) / local;
         std::size_t max_blocks   = max_global / local;
         std::size_t nglobal      = std::min(max_blocks * over, groups) * local;
-#ifdef MIGRAPHX_USE_HIPRTC
-        if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
-            num_elements = ((num_elements + local - 1) / local) * local;
-#endif
         return std::min(nglobal, num_elements);
     };
 }

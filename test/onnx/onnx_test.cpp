@@ -304,9 +304,7 @@ TEST_CASE(averagepool_dyn_test)
                 {"mode", migraphx::op::pooling_mode::average},
                 {"stride", {2, 2, 2}},
                 {"lengths", {3, 3, 3}},
-                // TODO: explicit padding is not used in auto padding scenario, but it won't
-                // default to the value the parser adds (all 0's vs all 1's).  Is this a problem?
-                {"padding", {1, 1, 1, 1, 1, 1}},
+                {"padding", {0, 0, 0, 0, 0, 0}},
                 {"padding_mode", 2},
             }),
         l0);

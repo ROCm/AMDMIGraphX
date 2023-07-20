@@ -102,8 +102,8 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         {
             if(x->get_shape().dynamic())
             {
-                MIGRAPHX_THROW("PARSE_INSTANCENORM: half type and not convert_fp16 does not "
-                               "support dynamic shape input");
+                MIGRAPHX_THROW("PARSE_INSTANCENORM: half type not supported with dynamic shape "
+                               "unless convert_fp16 is TRUE");
             }
             auto dims = x->get_shape().lens();
             double n =

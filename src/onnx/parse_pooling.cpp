@@ -173,6 +173,19 @@ struct parse_pooling : op_parser<parse_pooling>
         std::vector<int64_t> orig_padding = paddings;
 
         // TODO:  add parsing for dilations
+for(onnx_parser::attribute_map::iterator iter = info.attributes.begin(); iter != info.attributes.end(); ++iter) 
+{
+auto yy = iter->first;
+auto zz = iter->second;
+
+for(auto mm : zz.ints()) std::cout << mm << ",  ";  std::cout << "\n";
+
+
+std::cout  << yy << "-->" << zz.SerializeAsString() << "   "  << "\n";
+
+}
+       auto aaa = contains(info.attributes, "auto_pad");
+        auto bbb =  to_upper(info.attributes["auto_pad"].s()); 
 
         if(contains(info.attributes, "auto_pad") and
            to_upper(info.attributes["auto_pad"].s()) != "NOTSET")

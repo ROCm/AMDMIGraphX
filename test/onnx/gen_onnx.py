@@ -272,7 +272,25 @@ def averagepool_dyn_test():
                                  outputs=['1'],
                                  kernel_shape=[3, 3, 3],
                                  strides=[2, 2, 2],
-                                 auto_pad='SAME_UPPER')
+                                 pads=[1, 1, 1, 1, 1, 1])
+    return ([node], [x], [out])
+
+
+@onnx_test()
+def averagepool_dyn_autopad_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 5, 5, 5])
+    out = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                        [None, 3, 3, 3, 3])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 kernel_shape=[3, 3, 3],
+                                 strides=[2, 2, 2],
+                                                  pads=[3, 3, 3, 3, 3, 3],
+                                 auto_pad='SAME_UPPER',
+                                 count_include_pad=1)
     return ([node], [x], [out])
 
 

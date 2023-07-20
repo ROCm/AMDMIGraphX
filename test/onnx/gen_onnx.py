@@ -1376,7 +1376,7 @@ def cosh_test():
 
 
 @onnx_test()
-def deconv_test():
+def conv_transpose_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
@@ -1390,7 +1390,7 @@ def deconv_test():
 
 
 @onnx_test()
-def deconv_bias_test():
+def conv_transpose_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
     b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
@@ -1405,7 +1405,7 @@ def deconv_bias_test():
 
 
 @onnx_test()
-def deconv_input_pads_strides_test():
+def conv_transpose_input_pads_strides_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 7, 5])
@@ -1420,7 +1420,7 @@ def deconv_input_pads_strides_test():
 
 
 @onnx_test()
-def deconv_input_pads_asymm_test():
+def conv_transpose_input_pads_asymm_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 8, 6])
@@ -1435,7 +1435,7 @@ def deconv_input_pads_asymm_test():
 
 
 @onnx_test()
-def deconv_input_pads_asymm_1d_test():
+def conv_transpose_input_pads_asymm_1d_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 6])
@@ -1451,7 +1451,7 @@ def deconv_input_pads_asymm_1d_test():
 
 
 @onnx_test()
-def deconv_output_padding_test():
+def conv_transpose_output_padding_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 10, 8])
@@ -1466,7 +1466,7 @@ def deconv_output_padding_test():
 
 
 @onnx_test()
-def deconv_output_padding_3d_test():
+def conv_transpose_output_padding_3d_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 10, 8, 8])
@@ -1481,7 +1481,7 @@ def deconv_output_padding_3d_test():
 
 
 @onnx_test()
-def deconv_output_shape_test():
+def conv_transpose_output_shape_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 10, 8])
@@ -1496,7 +1496,7 @@ def deconv_output_shape_test():
 
 
 @onnx_test()
-def deconv_output_shape_3d_test():
+def conv_transpose_output_shape_3d_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 10, 8, 8])
@@ -1511,7 +1511,7 @@ def deconv_output_shape_3d_test():
 
 
 @onnx_test()
-def deconv_stride_test():
+def conv_transpose_stride_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 7, 3])
@@ -1520,6 +1520,81 @@ def deconv_stride_test():
                                  inputs=['x', 'w'],
                                  outputs=['y'],
                                  strides=[3, 2])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_auto_pad_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 3, 3])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 name='conv1',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 auto_pad='SAME_UPPER')
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_dyn_asym_padding_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 8, 6])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 strides=[3, 2],
+                                 pads=[0, 0, 1, 1])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_dyn_output_shape_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 2, 10, 8])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 strides=[3, 2],
+                                 output_shape=[10, 8])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_dyn_batch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 5, 5])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 name='conv1',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'])
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test()
+def conv_transpose_dyn_img_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [1, 1, None, None])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT,
+                                      [1, 1, None, None])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 name='conv1',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'])
 
     return ([node], [x, w], [y])
 

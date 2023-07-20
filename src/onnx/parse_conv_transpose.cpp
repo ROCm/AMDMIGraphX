@@ -42,7 +42,7 @@ std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
     return output_vector;
 }
 
-struct parse_deconvolution : op_parser<parse_deconvolution>
+struct parse_conv_transpose : op_parser<parse_conv_transpose>
 {
     std::vector<op_desc> operators() const { return {{"ConvTranspose"}}; }
 
@@ -51,17 +51,15 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        operation op = make_op("deconvolution");
+        operation op = make_op("convolution_backwards");
         value values = op.to_value();
-        // op::deconvolution op;
-        auto l0 = args[0];
+        auto l0      = args[0];
         std::vector<std::int64_t> padding;
         bool asym_padding = false;
-        auto in_lens      = l0->get_shape().lens();
-        assert(in_lens.size() > 2);
-        auto kdims = in_lens.size() - 2;
+        assert(l0->get_shape().ndim() > 2);
+        auto kdims = l0->get_shape().ndim() - 2;
 
-        // ensure pads availabe only when auto_pad is "NOT_SET"
+        // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, "CONV_TRANSPOSE");
 
         if(contains(info.attributes, "pads"))
@@ -70,9 +68,9 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
 
             asym_padding = is_asym_padding(padding);
 
+            size_t pad_ndims = padding.size() / 2;
             if(not asym_padding)
             {
-                size_t pad_ndims = padding.size() / 2;
                 check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
                 values["padding"].clear();
                 std::transform(padding.begin(),
@@ -80,7 +78,19 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
                                std::back_inserter(values["padding"]),
                                [](auto pad_val) { return pad_val; });
             }
+            else if(l0->get_shape().dynamic())
+            {
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: asymmetric padding (padding_L != padding_R) "
+                               "not supported with dynamic shapes");
+            }
+            else
+            {
+                // set padding to 0s, asym_padding handled by parser with slice
+                // TODO changing parser and op to do asym padding in op
+                values["padding"] = std::vector<std::size_t>(pad_ndims, 0);
+            }
         }
+
         if(contains(info.attributes, "strides"))
         {
             values["stride"].clear();
@@ -88,6 +98,7 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
             check_attr_sizes(
                 kdims, values["stride"].size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
         }
+
         if(contains(info.attributes, "dilations"))
         {
             values["dilation"].clear();
@@ -97,21 +108,10 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
         }
 
         // TODO: auto padding needs to be implemented for this parser and operator
-        if(contains(info.attributes, "auto_pad"))
+        if(contains(info.attributes, "auto_pad") and
+           to_upper(info.attributes.at("auto_pad").s()) != "NOTSET")
         {
-            auto s = info.attributes["auto_pad"].s();
-            if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
-            {
-                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
-                               "simultaneously");
-            }
-
-            if(s.find("SAME") != std::string::npos)
-            {
-                bool is_same_upper     = (s.find("SAME_UPPER") != std::string::npos);
-                values["padding_mode"] = is_same_upper ? to_value(op::padding_mode_t::same_upper)
-                                                       : to_value(op::padding_mode_t::same_lower);
-            }
+            MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto padding not supported");
         }
 
         if(contains(info.attributes, "group"))
@@ -122,11 +122,11 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
         recalc_conv_attributes(values, kdims);
 
         op.from_value(values);
-        auto l1                   = info.add_instruction(op, l0, args[1]);
-        std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
-        std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
+        auto l1 = info.add_instruction(op, l0, args[1]);
         if(asym_padding)
         {
+            std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
+            std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
             std::vector<int64_t> axes(kdims);
             std::iota(axes.begin(), axes.end(), 2); // ignore first 2 dims
 
@@ -144,9 +144,11 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), l1);
         }
 
-        if(contains(info.attributes, "output_padding"))
+        // TODO, should check output_padding < (strides or dilations)
+        if(contains(info.attributes, "output_padding") and
+           not contains(info.attributes, "output_shape"))
         {
-            size_t non_kdims = dims.size() * 2 - kdims;
+            size_t non_kdims = l1->get_shape().ndim() * 2 - kdims;
             std::vector<int64_t> output_padding(non_kdims, 0);
             copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
             check_attr_sizes(kdims,
@@ -155,14 +157,21 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
             l1 = info.add_instruction(make_op("pad", {{"pads", output_padding}}), l1);
         }
 
+        // TODO, doing unnecessary calcuations with this. Could instead
+        // calculate the padding to conv_transpose that would give the output_shape.
         if(contains(info.attributes, "output_shape"))
         {
+            if(l1->get_shape().dynamic())
+            {
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: output_shape attribute and dynamic shapes "
+                               "not supported");
+            }
+            std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
+            std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
             std::vector<int64_t> output_shape;
             copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
             check_attr_sizes(
                 kdims, output_shape.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
-            dims = to_int64_vector(l1->get_shape().lens());
-            copy(dims.begin() + 2, dims.end(), curr_shape.begin());
             if(curr_shape != output_shape)
             {
                 std::vector<int64_t> target_padding(dims.size() * 2 - kdims, 0);

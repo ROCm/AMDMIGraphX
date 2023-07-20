@@ -2338,7 +2338,7 @@ TEST_CASE(dimensions_of_test0)
     std::vector<int64_t> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int64_t> gold = {2, 3, 4};
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(dimensions_of_test1)
@@ -2358,7 +2358,7 @@ TEST_CASE(dimensions_of_test1)
     std::vector<int64_t> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int64_t> gold = {4, 4};
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(div_test)

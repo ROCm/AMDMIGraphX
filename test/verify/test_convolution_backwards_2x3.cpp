@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_deconv_2x3 : verify_program<test_deconv_2x3>
+struct test_convolution_backwards_2x3 : verify_program<test_convolution_backwards_2x3>
 {
     migraphx::program create_program() const
     {
@@ -38,7 +38,7 @@ struct test_deconv_2x3 : verify_program<test_deconv_2x3>
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {3, 4, 3, 3}});
         mm->add_instruction(
-            migraphx::make_op("deconvolution",
+            migraphx::make_op("convolution_backwards",
                               {{"padding", {1, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}}),
             input,
             weights);

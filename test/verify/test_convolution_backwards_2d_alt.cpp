@@ -21,34 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_CONTIGUOUS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_CONTIGUOUS_HPP
 
-#include <migraphx/shape.hpp>
-#include <migraphx/op/contiguous.hpp>
-#include <migraphx/gpu/oper.hpp>
-#include <migraphx/gpu/device/contiguous.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct miopen_contiguous : unary_device<miopen_contiguous, &device::contiguous>
+struct test_convolution_backwards_2d_alt : verify_program<test_convolution_backwards_2d_alt>
 {
-    std::string name() const { return "gpu::contiguous"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
+    migraphx::program create_program() const
     {
-        check_shapes{inputs, *this}.has(2);
-        auto lens = inputs.at(0).lens();
-        auto t    = inputs.at(0).type();
-        return {t, lens};
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 10, 10}});
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+        mm->add_instruction(
+            migraphx::make_op("convolution_backwards",
+                              {{"padding", {2, 2}}, {"stride", {2, 2}}, {"dilation", {2, 2}}}),
+            input,
+            weights);
+        return p;
     }
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

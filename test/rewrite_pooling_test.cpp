@@ -198,8 +198,8 @@ TEST_CASE(literal_rewrite_pooling_test)
         p2.compile(migraphx::make_target("ref"));
         auto result1 = p1.eval({}).back();
         auto result2 = p2.eval({}).back();
-        visit_all(result1,
-                  result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
+        visit_all(result1, result2)(
+            [&](auto r1, auto r2) { EXPECT(migraphx::verify::verify_range(r1, r2)); });
     };
 
     test_rewrite_pooling(migraphx::op::pooling_mode::max,

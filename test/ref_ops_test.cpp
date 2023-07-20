@@ -34,6 +34,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
 #include <migraphx/serialize.hpp>
 
@@ -4959,30 +4960,47 @@ TEST_CASE(multinomial_dyn_test)
 
     size_t sample_size = 100000;
     float seed         = 0.0f;
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<float> rand_samples(sample_size);
-    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-    migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
 
+    //    Randomization steps will now be performed by a runtime operation
+    // std::mt19937 gen(seed);
+    // std::uniform_real_distribution<> dis(0.0, 1.0);
+    // std::vector<float> rand_samples(sample_size);
+    // std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+    
+    //      The only thing we take from the input shape is the batch size
+    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {123, sample_size + 1}}};
+    auto input = mm->add_parameter("Input", rs);
+    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform", {{"sample_size", sample_size}}), input);
+
+    // the probability distribution, which also defines the number of categories
     migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {5, 6}}};
     std::vector<int> dist{15, 25, 15, 25, 20};
     std::vector<float> data(5);
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
-    auto input = mm->add_literal(migraphx::literal(s, data));
+    // auto input = mm->add_literal(migraphx::literal(s, data));
+    auto input2 = mm->add_parameter("Input_2", s);
 
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input2);
     auto mb_maxes =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 5}}}), maxes);
-    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
+        mm->add_instruction(migraphx::make_op("multibroadcast"), maxes, input2);
+    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input2, mb_maxes);
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
+//TODO:  I want a dynamic input to the multinomial op
+
+std::vector<float> dummy(999);
+    mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
+
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 999}};
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, 5}};
+    migraphx::parameter_map params0;
+    params0["Input"] =  migraphx::argument(input_fixed_shape0, dummy.data());
+    params0["Input_2"] = migraphx::argument(input_fixed_shape1, data.data());
+    auto result  = p.eval(params0).back();
+
     std::vector<int32_t> result_vec(sample_size);
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 

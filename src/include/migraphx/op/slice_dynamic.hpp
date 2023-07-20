@@ -98,10 +98,22 @@ struct slice_dynamic
 	 * Checks that the input_axes are valid.
 	 */
 	template <class Index>
-	auto normalize_input_starts_ends(const std::vector<Index>& starts,
-									 const std::vector<Index>& ends,
-									 optional<std::reference_wrapper<std::vector<Index>>> input_axes) const
+	auto normalize_inputs(const std::vector<Index>& starts,
+						  const std::vector<Index>& ends,
+						  optional<std::reference_wrapper<std::vector<Index>>> input_axes) const
 	{
+		if(input_axes)
+		{
+			auto out_axes = input_axes;
+			std::transform(input_axes.cbegin(),
+						   input_axes.cend(),
+						   out_axes.begin(),
+						   [](
+		}
+		else
+		{
+
+		}
 	}
 
 	/**
@@ -110,14 +122,12 @@ struct slice_dynamic
 	 *
 	 * \param s static input shape
 	 * \param starts starting indices of slice
-	 * \param ends ending indices of slice
 	 * \param input_axes optional axes to slice on, if not present will use the axes attribute.
 	 */
-	template <class Index>
+	template <class IndView>
     auto compute_offset(const shape& s,
-						const std::vector<Index>& starts,
-						const std::vector<Index>& ends,
-						optional<std::reference_wrapper<std::vector<Index>>> input_axes) const
+						IndView starts,
+						optional<IndView> input_axes) const
     {
 		auto calc_offset = [&](const auto& ax_vec) {
 			auto ret = 0;
@@ -137,11 +147,15 @@ struct slice_dynamic
 		shape output_shape;
 		if(args.size() == 3)
 		{
-			visit_all(args[1], args[2])([&](const auto& starts, const auto& ends
+			visit_all(args[1], args[2])([&](auto starts, auto ends){
+				
+			});
 		}
 		else
 		{
-			visit_all(args[1], args[2], args[3])
+			visit_all(args[1], args[2], args[3])([&](auto starts, auto ends, auto input_axes){
+
+			});
 		}
 
 		// then do the offset calculation and aliasing

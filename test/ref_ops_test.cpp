@@ -4906,7 +4906,7 @@ TEST_CASE(multinomial_test)
     auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
 
     migraphx::shape s{migraphx::shape::float_type, {1, 5}};
-    std::vector<int> dist{85, 25, 15, 25, 20};
+    std::vector<int> dist{15, 25, 15, 25, 20};
     std::vector<float> data(5);
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
 printf("data="); for(auto aa:data)printf(", %f", aa);printf("\n");
@@ -4958,26 +4958,21 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    size_t sample_size = 100000;
+    size_t sample_size = 1000000;
     float seed         = 0.0f;
-
-    //    Randomization steps will now be performed by a runtime operation
-    // std::mt19937 gen(seed);
-    // std::uniform_real_distribution<> dis(0.0, 1.0);
-    // std::vector<float> rand_samples(sample_size);
-    // std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
     
-    //      The only thing we take from the input shape is the batch size
-    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {123, sample_size + 1}}};
-    auto input = mm->add_parameter("Input", rs);
-    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform", {{"sample_size", sample_size}}), input);
+    //      Shape of the random data
+    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {23, sample_size + 1}}};
+    auto input = mm->add_parameter("Input_1", rs);
 
     // the probability distribution, which also defines the number of categories
     migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {5, 6}}};
     std::vector<int> dist{15, 25, 15, 25, 20};
     std::vector<float> data(5);
+
+    // todo:  make this an instruction too
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
-    // auto input = mm->add_literal(migraphx::literal(s, data));
+
     auto input2 = mm->add_parameter("Input_2", s);
 
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input2);
@@ -4988,20 +4983,20 @@ TEST_CASE(multinomial_dyn_test)
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-//TODO:  I want a dynamic input to the multinomial op
-
-std::vector<float> dummy(999);
+    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), input);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 999}};
-    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, 5}};
+    // Create a dummy input in the shape we want for the random data
+    std::vector<float> dummy(sample_size, 0);
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, sample_size}};
+    migraphx::shape input_fixed_shape2{migraphx::shape::float_type, {1, 5}};
     migraphx::parameter_map params0;
-    params0["Input"] =  migraphx::argument(input_fixed_shape0, dummy.data());
-    params0["Input_2"] = migraphx::argument(input_fixed_shape1, data.data());
+    params0["Input_1"] =  migraphx::argument(input_fixed_shape1, dummy.data());
+    params0["Input_2"] = migraphx::argument(input_fixed_shape2, data.data());
     auto result  = p.eval(params0).back();
 
-    std::vector<int32_t> result_vec(sample_size);
+    std::vector<int32_t> result_vec(input_fixed_shape2.elements());
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
     std::vector<int> res_dist(5, 0);
@@ -5017,6 +5012,9 @@ std::vector<float> dummy(999);
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
+printf("cumulative distribution of input ="); for(auto aa:norm)printf(", %f", aa);printf("\n");
+printf("cumulative distribution of result ="); for(auto aa:res_norm)printf(", %f", aa);printf("\n");
+
     EXPECT(migraphx::verify_range(norm, res_norm, 100000));
 }
 

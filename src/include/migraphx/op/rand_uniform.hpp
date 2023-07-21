@@ -65,28 +65,30 @@ struct rand_uniform
     std::string name() const { return "rand_uniform"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1).only_dims(2);
-        if(inputs.front().dynamic())
+        check_shapes{inputs, *this, true}.has(1);
+        auto s = inputs.front();
+        if(s.dynamic())
         {
-            auto batch = inputs.front().dyn_dims().front();
-            return {dtype, {batch, {sample_size, sample_size}}};
+            return s;
+        }
+        else if(s.broadcasted())
+        {
+            return {s.type(), s.lens()};
         }
         else
         {
-            auto batch = inputs.front().lens().front();
-            return {dtype, {batch, sample_size}};
+            return s.with_lens(s.lens());
         }
     }
 
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        auto asdf = dyn_out.computed_shape;
         argument result{dyn_out.computed_shape};
-        // size_t batch
 
         std::mt19937 gen(seed);
         std::uniform_real_distribution<> dis(0.0, 1.0);
+        size_t index(dyn_out.computed_shape.elements());
         // Use of our visitor and par_for replaces a call like 
         //   std::vector<float> rand_samples(sample_size);
         //   std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
@@ -96,11 +98,8 @@ struct rand_uniform
             {
                     output[i] = dis(gen);
                     // output[i] = rand_samples[i];
-
             });
         });
-
-
         return result;
     }
 };

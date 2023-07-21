@@ -21,9 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/env.hpp"
 #include <cstddef>
 #include <limits>
+#include <iterator>
+#include <unordered_set>
+
+#include <migraphx/env.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/partitioner.hpp>
@@ -34,8 +37,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
-#include <iterator>
-#include <unordered_set>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_PARTITIONER)
 namespace migraphx {

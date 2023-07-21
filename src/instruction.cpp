@@ -124,7 +124,7 @@ bool instruction::valid() const
     }
     else if(op.name() == "@return")
     {
-        computed = {};
+        computed = get_shape();
     }
     else
     {

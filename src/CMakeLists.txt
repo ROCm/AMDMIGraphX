@@ -34,7 +34,7 @@ function(ReadSHA InputFile VAR)
     add_compile_definitions(${VAR}="${String_output}")
 endfunction()
 
-ReadSHA("../test/onnx/.onnxrt-commit" MIGRAPHX_ORT_SHA1)
+ReadSHA("${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" MIGRAPHX_ORT_SHA1)
 
 add_library(migraphx 
     adjust_allocation.cpp

@@ -41,6 +41,8 @@
 #include <migraphx/compile_options.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
+#include "migraphx/partitioner.hpp"
+#include "migraphx/target_assignments.hpp"
 #include "test.hpp"
 
 // check if it is custom_op or run_on_module operator
@@ -156,6 +158,37 @@ bool check_compiled_program(const migraphx::program& p,
         }
     }
     return check_compiled;
+}
+
+TEST_CASE(multitarget_partition_compile)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {8}};
+    auto x_param = mm->add_parameter("x", s);
+    auto y_param = mm->add_parameter("y", s);
+    auto z_param = mm->add_parameter("z", s);
+    auto cpu_ins = mm->add_instruction(migraphx::make_op("add"), x_param, y_param);
+    auto gpu_ins = mm->add_instruction(migraphx::make_op("add"), cpu_ins, z_param);
+    mm->add_return({gpu_ins});
+    p.debug_print();
+    migraphx::target_assignments tass;
+    tass.insert(tass.begin(), std::make_pair(cpu_ins, 1));
+    tass.insert(tass.begin(), std::make_pair(gpu_ins, 0));
+    migraphx::partition(p, tass);
+    p.debug_print();
+    migraphx::compile_options gpu_opts;
+    gpu_opts.offload_copy = true;
+    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
+    p.debug_print();
+    EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("cpu")}));
+    migraphx::parameter_map params;
+    params["x"] = migraphx::fill_argument(s, 1);
+    params["y"] = migraphx::fill_argument(s, 2);
+    params["z"] = migraphx::fill_argument(s, 3);
+    auto result = p.eval(params).back();
+    auto gold   = migraphx::fill_argument(s, 6);
+    EXPECT(gold == result);
 }
 
 TEST_CASE(multitarget_compile_cpu_gpu)

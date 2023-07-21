@@ -32,7 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /*
 given target_assignments, paritions the migraphx program into separate root modules.
 */
-void partition(migraphx::program& p, migraphx::target_assignments tass);
+void partition(migraphx::program& p, const migraphx::target_assignments& tass);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

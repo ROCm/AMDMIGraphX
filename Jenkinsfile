@@ -15,13 +15,11 @@ def rocmtestnode(Map conf) {
         def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
         def flags = bconf.get("flags", "")
         def gpu_debug = bconf.get("gpu_debug", "0")
-        def hiprtc_workarounds = bconf.get("hiprtc_workarounds", "0")
         def cmd = """
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
-            export MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=${hiprtc_workarounds}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
             env
@@ -109,7 +107,7 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
     stage('hipRTC Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true, hiprtc_workarounds: true)
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true)
     }
 }, clang_release: rocmnode('cdna') { cmake_build ->
     stage('Hip Clang Release') {

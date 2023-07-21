@@ -314,6 +314,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        set +x
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
@@ -430,6 +431,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        set +x
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
       continue-on-error: true

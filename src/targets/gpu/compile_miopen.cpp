@@ -79,7 +79,7 @@ void compile_miopen::apply(module& m) const
         std::size_t ws = 0;
         try
         {
-            // for the regular convolution and deconvolution, this try would always succeed
+            // for the regular convolution and convolution_backwards, this try would always succeed
             ws = compile(op, ins, int8_x4_format);
         }
         catch(migraphx::exception&)

@@ -55,6 +55,9 @@ include(CTest)
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)
 
+# By default build shared libraries
+option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+
 if(WIN32)
     add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS>)
     add_subdirectory(extern)

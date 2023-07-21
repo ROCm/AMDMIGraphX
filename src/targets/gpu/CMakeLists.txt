@@ -44,11 +44,18 @@ else()
     set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
 endif()
 
-include(Embed)
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
-message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
+
+if(WIN32)
+    # TODO: re-enable when CK is ported to Windows
+    list(REMOVE_ITEM KERNEL_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
+endif()
+
+include(Embed)
+add_embed_library(migraphx_kernels ${KERNEL_FILES} BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})

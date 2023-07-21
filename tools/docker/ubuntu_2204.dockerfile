@@ -125,3 +125,7 @@ ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
 
+#install dependancies used for onnxrt parity checks
+RUN pip3 install psutil==5.9.5 onnx==1.10.2 coloredlogs==15.0.1 packaging==23.1 transformers==4.29.2 sympy==1.12
+RUN pip3 install -U numpy==1.21.6
+

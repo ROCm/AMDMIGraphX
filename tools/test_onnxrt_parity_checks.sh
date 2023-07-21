@@ -23,10 +23,6 @@
 #####################################################################################
 set -e
 
-#install dependancies used for parity checks
-pip3 install psutil onnx coloredlogs packaging transformers==4.29.2 sympy
-pip3 install -U numpy==1.21.6
-
 #Go to folder with parity checks
 cd /workspace/onnxruntime/onnxruntime/test/python/transformers/
 

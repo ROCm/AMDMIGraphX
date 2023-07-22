@@ -317,35 +317,27 @@ TEST_CASE(averagepool_dyn_test)
 
 TEST_CASE(averagepool_dyn_autopad_test)
 {
-    // Pooling with dynamic input and auto padding. Given padding is overridden.
+    // Pooling with dynamic input and auto padding. Default padding values will be overridden.
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter(
         "0", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}, {5, 5}}});
-    auto ret =
-        mm->add_instruction(migraphx::make_op("pooling",
-                                              {
-                                                  {"mode", migraphx::op::pooling_mode::average},
-                                                  {"stride", {2, 2, 2}},
-                                                  {"lengths", {3, 3, 3}},
-                                                  {"padding", {1, 1, 1, 1, 1, 1}},
-                                                  {"padding_mode", 2},
-                                              }),
-                            l0);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("pooling",
+                          {
+                              {"mode", migraphx::op::pooling_mode::average},
+                              {"stride", {2, 2, 2}},
+                              {"lengths", {3, 3, 3}},
+                              {"padding", {0, 0, 0, 0, 0, 0}},
+                              {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                          }),
+        l0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto prog                     = migraphx::parse_onnx("averagepool_dyn_test.onnx", options);
+    auto prog = migraphx::parse_onnx("averagepool_dyn_autopad_test.onnx", options);
     EXPECT(p == prog);
-}
-TEST_CASE(averagepool_dyn_autopad_error_test)
-{
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    migraphx::parse_onnx("averagepool_dyn_autopad_error_test.onnx", options);
-    // EXPECT(test::throws(
-    //     [&] { migraphx::parse_onnx("averagepool_dyn_autopad_error_test.onnx", options); }));
 }
 
 TEST_CASE(averagepool_dyn_asym_padding_error_test)

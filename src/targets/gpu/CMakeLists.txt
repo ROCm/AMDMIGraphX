@@ -188,7 +188,9 @@ if(MIGRAPHX_ENABLE_MLIR)
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    target_link_libraries(migraphx_gpu PUBLIC rocMLIR::rockCompiler)
+    # Make this private to avoid multiple inclusions of LLVM symbols.
+    # TODO: Fix rocMLIR's library to hide LLVM internals.
+    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -234,7 +236,12 @@ check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
 if(MIGRAPHX_USE_FIND_2_API)
-    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
+    check_library_exists(MIOpen "miopenSetFindOptionPreallocatedTensor" "${MIOPEN_LOCATION}" HAS_PREALLOCATION_API)
+    if(HAS_PREALLOCATION_API)
+        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API -DMIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS)
+    else()
+        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
+    endif()
     message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
 else()
     message(STATUS "MIGraphx is using legacy Find API in MIOpen")

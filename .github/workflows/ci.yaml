@@ -144,6 +144,8 @@ jobs:
     runs-on: ROCM-Ubuntu
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
@@ -164,19 +166,8 @@ jobs:
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
         set -e
-        find . -iname '*.h' \
-              -o -iname '*.hpp' \
-              -o -iname '*.cpp' \
-              -o -iname '*.h.in' \
-              -o -iname '*.hpp.in' \
-              -o -iname '*.cpp.in' \
-              -o -iname '*.cl' \
-              -o -iname '*.c' \
-          | grep -v 'build/' \
-          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
-          find . -iname '*.py' \
-          | grep -v 'build/'  \
-          | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
+        git config --global --add safe.directory /data
+        python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
   pyflakes:
     runs-on: ubuntu-20.04
@@ -323,6 +314,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        set +x
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
@@ -439,6 +431,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        set +x
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
       continue-on-error: true

@@ -460,7 +460,7 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    auto instr_shape = args[0]->get_shape();
+    shape instr_shape = args.empty() ? shape{} : args[0]->get_shape();
     impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);

@@ -557,6 +557,39 @@ TEST_CASE(convolution_backwards_dyn_kernel_2d)
     expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
 }
 
+TEST_CASE(dimensions_of0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 2, 1}};
+    migraphx::shape output{migraphx::shape::int64_type, {4}};
+    expect_shape(output, migraphx::make_op("dimensions_of", {{"end", 4}}), input);
+}
+
+TEST_CASE(dimensions_of1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 2, 1}};
+    migraphx::shape output{migraphx::shape::int64_type, {2}};
+    expect_shape(output, migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 3}}), input);
+}
+
+TEST_CASE(dimensions_of2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, {2}}, {2, 4}, {2, 4}, {1, 6, {2}}}};
+    migraphx::shape output{migraphx::shape::int64_type, {2}};
+    expect_shape(output, migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 3}}), input);
+}
+
+TEST_CASE(dimensions_of_error0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, {2}}, {2, 4}}};
+    throws_shape(migraphx::make_op("dimensions_of", {{"start", 3}, {"end", 3}}), input);
+}
+
+TEST_CASE(dimensions_of_error1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, {2}}, {2, 4}}};
+    throws_shape(migraphx::make_op("dimensions_of", {{"start", 3}, {"end", 0}}), input);
+}
+
 TEST_CASE(dot_ndim_error0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {5}};

@@ -1934,6 +1934,42 @@ TEST_CASE(cosh_dyn_test)
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
+TEST_CASE(convert_downcast_overflow_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data(4, 2 * std::numeric_limits<migraphx::half>::max());
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<migraphx::half> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {
+        return x == std::numeric_limits<migraphx::half>::max();
+    }));
+}
+
+TEST_CASE(convert_downcast_underflow_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data(4, 2 * std::numeric_limits<migraphx::half>::lowest());
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<migraphx::half> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {
+        return x == std::numeric_limits<migraphx::half>::lowest();
+    }));
+}
+
 TEST_CASE(convert_nan_upcast_test)
 {
     migraphx::program p;

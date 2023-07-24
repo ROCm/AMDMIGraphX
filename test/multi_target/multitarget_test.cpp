@@ -203,7 +203,7 @@ TEST_CASE(single_target_multi_compile)
     auto score_threshold          = mm->add_literal(0.0f);
     auto r                        = mm->add_instruction(
         migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
+                                                 {{"center_point_box", true}, {"use_dyn_output", true}}),
         boxes_param,
         scores_l,
         max_out_l,

@@ -160,7 +160,7 @@ bool check_compiled_program(const migraphx::program& p,
     return check_compiled;
 }
 
-TEST_CASE(multitarget_partition_compile)
+TEST_CASE(multitarget_compile_cpu_gpu)
 {
     migraphx::program p;
     auto* mm     = p.get_main_module();
@@ -171,56 +171,10 @@ TEST_CASE(multitarget_partition_compile)
     auto cpu_ins = mm->add_instruction(migraphx::make_op("add"), x_param, y_param);
     auto gpu_ins = mm->add_instruction(migraphx::make_op("add"), cpu_ins, z_param);
     mm->add_return({gpu_ins});
-    p.debug_print();
     migraphx::target_assignments tass;
     tass.insert(tass.begin(), std::make_pair(cpu_ins, 1));
     tass.insert(tass.begin(), std::make_pair(gpu_ins, 0));
     migraphx::partition(p, tass);
-    p.debug_print();
-    migraphx::compile_options gpu_opts;
-    gpu_opts.offload_copy = true;
-    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
-    p.debug_print();
-    EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("cpu")}));
-    migraphx::parameter_map params;
-    params["x"] = migraphx::fill_argument(s, 1);
-    params["y"] = migraphx::fill_argument(s, 2);
-    params["z"] = migraphx::fill_argument(s, 3);
-    auto result = p.eval(params).back();
-    auto gold   = migraphx::fill_argument(s, 6);
-    EXPECT(gold == result);
-}
-
-TEST_CASE(multitarget_compile_cpu_gpu)
-{
-    migraphx::program p;
-    auto* mm      = p.get_main_module();
-    auto* cpu_mod = p.create_module("cpu_mod");
-    auto s        = migraphx::shape{migraphx::shape::float_type, {8}};
-    auto x_cpu    = cpu_mod->add_parameter("cpu_x", s);
-    auto y_cpu    = cpu_mod->add_parameter("cpu_y", s);
-    auto cpu_add  = cpu_mod->add_instruction(migraphx::make_op("add"), x_cpu, y_cpu);
-    cpu_mod->add_return({cpu_add});
-
-    auto* gpu_mod = p.create_module("gpu_mod");
-    auto x_gpu    = gpu_mod->add_parameter("gpu_x", s);
-    auto y_gpu    = gpu_mod->add_parameter("gpu_y", s);
-    auto gpu_add  = gpu_mod->add_instruction(migraphx::make_op("add"), x_gpu, y_gpu);
-    gpu_mod->add_return({gpu_add});
-
-    auto x_param = mm->add_parameter("x", s);
-    auto y_param = mm->add_parameter("y", s);
-    auto z_param = mm->add_parameter("z", s);
-    auto cpu_ins = mm->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 1}}), {x_param, y_param}, {cpu_mod});
-    auto cpu_ins_0 =
-        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), cpu_ins);
-    auto gpu_ins = mm->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 0}}), {cpu_ins_0, z_param}, {gpu_mod});
-    auto gpu_ins_0 =
-        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), gpu_ins);
-
-    mm->add_return({gpu_ins_0});
     migraphx::compile_options gpu_opts;
     gpu_opts.offload_copy = true;
     p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
@@ -241,30 +195,25 @@ TEST_CASE(single_target_multi_compile)
     auto* mm         = p.get_main_module();
     auto boxes_param = mm->add_parameter("boxes", boxes_s);
 
-    auto* gpu_mod        = p.create_module("gpu_mod");
-    auto boxes_param_gpu = gpu_mod->add_parameter("boxes_param_gpu", boxes_s);
     migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
     std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
-    auto scores_l                 = gpu_mod->add_literal(migraphx::literal(scores_s, scores_vec));
-    auto max_out_l                = gpu_mod->add_literal(int64_t{4});
-    auto iou_threshold            = gpu_mod->add_literal(0.5f);
-    auto score_threshold          = gpu_mod->add_literal(0.0f);
-    auto r                        = gpu_mod->add_instruction(
+    auto scores_l                 = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l                = mm->add_literal(int64_t{4});
+    auto iou_threshold            = mm->add_literal(0.5f);
+    auto score_threshold          = mm->add_literal(0.0f);
+    auto r                        = mm->add_instruction(
         migraphx::make_op("nonmaxsuppression",
                           {{"center_point_box", true}, {"use_dyn_output", true}}),
-        boxes_param_gpu,
+        boxes_param,
         scores_l,
         max_out_l,
         iou_threshold,
         score_threshold);
-    gpu_mod->add_return({r});
-
-    auto run_on_gpu = mm->add_instruction(
-        migraphx::make_op("run_on_target", {{"target_id", 0}}), {boxes_param}, {gpu_mod});
-    auto run_on_gpu_0 =
-        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_on_gpu);
-    mm->add_return({run_on_gpu_0});
-
+    mm->add_return({r});
+    // do partition
+    migraphx::target_assignments tass;
+    tass.insert(tass.begin(), std::make_pair(r, 0));
+    migraphx::partition(p, tass);
     // compile using multi-target compilation path
     migraphx::compile_options gpu_opts;
     gpu_opts.offload_copy = true;
@@ -281,6 +230,72 @@ TEST_CASE(single_target_multi_compile)
     auto gold =
         migraphx::argument(migraphx::shape{migraphx::shape::int64_type, {3, 3}}, gold_vec.data());
     EXPECT(output == gold);
+}
+
+TEST_CASE(multitarget_compile_if_then_else_partition)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    auto cond = mm->add_parameter("cond", cond_s);
+    migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
+    auto x = mm->add_parameter("x", ds);
+    auto y = mm->add_parameter("y", ds);
+
+    auto* then_mod = p.create_module("if_gpu_mod");
+    std::vector<float> data1(ds.elements(), 1);
+    auto l1 = then_mod->add_literal(migraphx::literal(ds, data1));
+    // auto gpu_x = then_mod->add_parameter("gpu_x", ds);
+    auto a1 = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({a1});
+
+    auto* else_mod = p.create_module("else_cpu_mod");
+    std::vector<float> data2(ds.elements(), 2);
+    auto l2 = else_mod->add_literal(migraphx::literal(ds, data2));
+    // auto cpu_y = else_mod->add_parameter("cpu_y", ds);
+    auto a2 = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({a2});
+
+    // auto* run_on_cpu_mod = p.create_module("run_on_cpu");
+    // auto run_cpu_ins     = run_on_cpu_mod->add_instruction(
+    //     migraphx::make_op("run_on_target", {{"target_id", 1}}), {y}, {else_mod});
+    // auto run_cpu_ins_0 = run_on_cpu_mod->add_instruction(
+    //     migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_cpu_ins);
+    // run_on_cpu_mod->add_return({run_cpu_ins_0});
+
+    // auto* run_on_gpu_mod = p.create_module("run_on_gpu");
+    // auto run_gpu_ins     = run_on_gpu_mod->add_instruction(
+    //     migraphx::make_op("run_on_target", {{"target_id", 0}}), {x}, {then_mod});
+    // auto run_gpu_ins_0 = run_on_gpu_mod->add_instruction(
+    //     migraphx::make_op("get_tuple_elem", {{"index", 0}}), run_gpu_ins);
+    // run_on_gpu_mod->add_return({run_gpu_ins_0});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
+    p.debug_print();
+    migraphx::target_assignments tass;
+    tass.insert(tass.begin(), std::make_pair(l1, 0));
+    tass.insert(tass.begin(), std::make_pair(a1, 0));
+    tass.insert(tass.begin(), std::make_pair(l2, 1));
+    tass.insert(tass.begin(), std::make_pair(a2, 1));
+    migraphx::partition(p, tass);
+    p.debug_print();
+    // compile
+    migraphx::compile_options gpu_opts;
+    gpu_opts.offload_copy = true;
+    p.compile({migraphx::make_target("gpu"), migraphx::make_target("cpu")}, {gpu_opts});
+    EXPECT(check_compiled_program(p, {migraphx::make_target("gpu"), migraphx::make_target("cpu")}));
+    migraphx::parameter_map params;
+    params["x"] = migraphx::fill_argument(ds, 2);
+    params["y"] = migraphx::fill_argument(ds, 3);
+    for(bool cond_val : {true, false})
+    {
+        params["cond"] = migraphx::argument(cond_s, &cond_val);
+        auto result    = p.eval(params).back();
+        auto gold      = migraphx::fill_argument(ds, (cond_val ? 3 : 6));
+        EXPECT(gold == result);
+    }
 }
 
 TEST_CASE(multitarget_compile_if_then_else)

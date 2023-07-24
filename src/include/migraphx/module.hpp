@@ -222,8 +222,7 @@ struct MIGRAPHX_EXPORT module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
-    // sorts the module in reverse-post order DFS order, this is not considering any implicit deps
-    // [TODO] right now, this is not considering any implicit deps right now
+    // sorts the module in reverse-post order DFS order
     module& sort();
     // if the instruction has the module arguments then all the parameters/instructions used by that
     // module from the main/parent module must be calculated before the instruction can be executed.

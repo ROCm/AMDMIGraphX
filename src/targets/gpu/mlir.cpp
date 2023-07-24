@@ -33,6 +33,7 @@
 #include <mlir-c/Dialect/Rock.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Pass.h>
+#include <mlir-c/Support.h>
 #include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
@@ -167,6 +168,51 @@ std::string mlir_print(F f, T x)
     return ss.str();
 }
 
+struct mlir_logger
+{
+    std::string diagnostics;
+    std::stringstream ss;
+
+    mlir_context& ctx;
+    MlirDiagnosticHandlerID id;
+
+    mlir_logger(mlir_context& ctx);
+    ~mlir_logger();
+
+    MlirLogicalResult handle(MlirDiagnostic diag);
+};
+
+MlirLogicalResult mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger)
+{
+    return reinterpret_cast<mlir_logger*>(logger)->handle(diag);
+}
+
+mlir_logger::mlir_logger(mlir_context& _ctx) : ss(diagnostics), ctx(_ctx)
+{
+    id = mlirContextAttachDiagnosticHandler(ctx.get(), mlir_diagnostic_print_cb, this, nullptr);
+}
+
+mlir_logger::~mlir_logger() { mlirContextDetachDiagnosticHandler(ctx.get(), id); }
+
+MlirLogicalResult mlir_logger::handle(MlirDiagnostic diag)
+{
+    MlirDiagnosticSeverity sev = mlirDiagnosticGetSeverity(diag);
+    switch(sev)
+    {
+    case MlirDiagnosticSeverity::MlirDiagnosticError: ss << "Error: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticWarning: ss << "Warning: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticNote: ss << "Note: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticRemark: ss << "Remark: "; break;
+    }
+    mlir_print(mlirDiagnosticPrint, diag, [&](auto s) { ss << s; });
+    ss << std::endl;
+    for(intptr_t i = 0, e = mlirDiagnosticGetNumNotes(diag); i < e; ++i)
+    {
+        (void)handle(mlirDiagnosticGetNote(diag, i));
+    }
+    return mlirLogicalResultSuccess();
+}
+
 bool has_xdlops(const std::string& target_arch)
 {
     const auto device_name = trim(split_string(target_arch, ':').front());
@@ -179,7 +225,8 @@ struct mlir_program
         : ctx(mlirContextCreateWithRegistry(get_dialect_registry().get(),
                                             /*threadingEnable=*/false)),
           location(mlirLocationUnknownGet(ctx.get())),
-          mmodule(mlirModuleCreateEmpty(location))
+          mmodule(mlirModuleCreateEmpty(location)),
+          logger(ctx)
     {
         mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
         mlirContextLoadAllAvailableDialects(ctx.get());
@@ -622,12 +669,21 @@ struct mlir_program
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
-        mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()));
+        if(mlirLogicalResultIsFailure(
+               mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
+        {
+            std::string error = "Invalid MLIR created: " + logger.diagnostics;
+            MIGRAPHX_THROW(error);
+        }
 
         // 2nd pipeline to call
         get_module_tuned();
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
-        mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()));
+        if(mlirLogicalResultIsFailure(
+               mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()))))
+        {
+            std::cerr << "MLIR backend compilation failed" << std::endl;
+        }
 
         code_object_op op{};
         op.symbol_name                = sym_name;
@@ -735,6 +791,7 @@ struct mlir_program
     mlir_context ctx;
     MlirLocation location;
     mlir_module mmodule;
+    mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
     std::string target_arch;

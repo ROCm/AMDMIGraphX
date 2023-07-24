@@ -122,12 +122,14 @@ struct source_location_capture
 {
     T x;
     source_location loc;
-    template <class U, class = decltype(T(U{}))>
+    // declval is a workaround since default constructor for "U" is not working with rocm-5.6
+    template <class U>
+    static U&& declval();
+    template <class U, class = decltype(T(declval<U>()))>
     constexpr source_location_capture(U px, source_location ploc = source_location{})
         : x(px), loc(ploc)
     {
     }
-
     constexpr operator source_location() const { return loc; }
 
     constexpr operator T() const { return x; }

@@ -37,14 +37,15 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
-shape compute_shape(const operation& op,
-                    const std::vector<instruction_ref>& args,
-                    const std::vector<module_ref>& mods);
-std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
-std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs);
+MIGRAPHX_EXPORT shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
+MIGRAPHX_EXPORT shape compute_shape(const operation& op,
+                                    const std::vector<instruction_ref>& args,
+                                    const std::vector<module_ref>& mods);
+MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
+MIGRAPHX_EXPORT std::vector<shape> try_compute_shape(const operation& op,
+                                                     const std::vector<shape>& inputs);
 
-struct instruction
+struct MIGRAPHX_EXPORT instruction
 {
     instruction() {}
 
@@ -137,6 +138,7 @@ struct instruction
     operation normalized_operator() const;
 
     std::size_t get_target_id() const;
+
     void set_target_id(std::size_t tid);
 
     void debug_print() const;

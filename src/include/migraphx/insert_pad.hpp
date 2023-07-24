@@ -38,7 +38,7 @@ struct module;
 /**
  * insert pads if attribute of padding is asymmetrical
  */
-struct insert_pad
+struct MIGRAPHX_EXPORT insert_pad
 {
     std::string name() const { return "insert_pad"; }
 

@@ -27,6 +27,8 @@
  *         each category, or bucket.  This does not require the standard multinomial
  *         distribution but instead takes a probability distribution as an input.
  *
+ *          In the large number limit, the fractional counts approach the multinomial distribution.
+ *
  *      Inputs:   args[0] - a vector of probabilities for each category.  Values are running totals
  as provided by op prefix_scan_sum.
  *                          Values are log normalized (i.e. start with any set of numbers > 0, then
@@ -87,7 +89,7 @@ struct multinomial
         // return a static shape
         if((not inputs.front().dynamic()) or (inputs.front().dyn_dims().front().is_fixed()))
         {
-            if((not inputs.back().dynamic()) or (inputs.back().dyn_dims().front().is_fixed()))
+            if((not inputs.back().dynamic()) or (inputs.back().dyn_dims().back().is_fixed()))
             {
                 size_t batch = {inputs.front().max_lens().front()};
                 size_t sample_size{inputs.back().max_lens().back()};
@@ -96,7 +98,7 @@ struct multinomial
         }
         return {dtype,
                 {inputs.front().to_dynamic().dyn_dims().front(),
-                 inputs.back().to_dynamic().dyn_dims().front()}};
+                 inputs.back().to_dynamic().dyn_dims().back()}};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

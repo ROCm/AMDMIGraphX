@@ -47,20 +47,17 @@ namespace op {
 struct rand_uniform
 {
     uint32_t sample_size = {20};
-    uint32_t seed = {0};
-    shape::type_t dtype = shape::type_t::float_type;
+    uint32_t seed        = {0};
+    shape::type_t dtype  = shape::type_t::float_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dtype, "dtype"), f(self.sample_size, "sample_size"), f(self.seed, "seed"));
+        return pack(
+            f(self.dtype, "dtype"), f(self.sample_size, "sample_size"), f(self.seed, "seed"));
     }
 
-    value attributes() const
-    {
-        return {{"sample_size", sample_size}, {"seed", seed}};
-    }
-
+    value attributes() const { return {{"sample_size", sample_size}, {"seed", seed}}; }
 
     std::string name() const { return "rand_uniform"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
@@ -81,23 +78,22 @@ struct rand_uniform
         }
     }
 
-
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
+        (void)args; // suppress compiler warning
         argument result{dyn_out.computed_shape};
 
         std::mt19937 gen(seed);
         std::uniform_real_distribution<> dis(0.0, 1.0);
-        size_t index(dyn_out.computed_shape.elements());
-        // Use of our visitor and par_for replaces a call like 
+        size_t elts(dyn_out.computed_shape.elements());
+        // Use of our visitor and par_for replaces a call like
         //   std::vector<float> rand_samples(sample_size);
         //   std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
 
         result.visit([&](auto output) {
-            par_for(sample_size, [&](auto i)
-            {
-                    output[i] = dis(gen);
-                    // output[i] = rand_samples[i];
+            par_for(elts, [&](auto i) {
+                output[i] = dis(gen);
+                // output[i] = rand_samples[i];
             });
         });
         return result;

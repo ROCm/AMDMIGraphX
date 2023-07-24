@@ -4909,7 +4909,6 @@ TEST_CASE(multinomial_test)
     std::vector<int> dist{15, 25, 15, 25, 20};
     std::vector<float> data(5);
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
-printf("data="); for(auto aa:data)printf(", %f", aa);printf("\n");
     auto input = mm->add_literal(migraphx::literal(s, data));
 
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
@@ -4927,8 +4926,8 @@ printf("data="); for(auto aa:data)printf(", %f", aa);printf("\n");
     std::vector<int32_t> result_vec(sample_size);
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    // res_dist is a count, or histogram, of the number of samples in each category.  This is the sampled
-    // distribution.
+    // res_dist is a count, or histogram, of the number of samples in each category.  This is the
+    // sampled distribution.
     std::vector<int> res_dist(5, 0);
     for(const auto& r : result_vec)
         res_dist[r]++;
@@ -4937,7 +4936,7 @@ printf("data="); for(auto aa:data)printf(", %f", aa);printf("\n");
     // and the sampling result res_dist; they should be close
 
     // Total the unnormalized probabilities
-    auto dist_sum     = std::accumulate(dist.begin(), dist.end(), 0);
+    auto dist_sum = std::accumulate(dist.begin(), dist.end(), 0);
 
     // Total the number of values returned
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
@@ -4949,7 +4948,7 @@ printf("data="); for(auto aa:data)printf(", %f", aa);printf("\n");
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
-printf("cumulative distribution of result ="); for(auto aa:res_norm)printf(", %f", aa);printf("\n");
+
     EXPECT(migraphx::verify_range(norm, res_norm, 100000));
 }
 
@@ -4960,31 +4959,35 @@ TEST_CASE(multinomial_dyn_test)
 
     size_t sample_size = 1000000;
     float seed         = 0.0f;
-    
+
     //      Shape of the random data
-    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {23, sample_size + 1}}};
+    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {2, sample_size + 1}}};
     auto input = mm->add_parameter("Input_1", rs);
 
-    // the probability distribution, which also defines the number of categories
-    migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {5, 6}}};
+    // Shape of the probability distribution, which also defines the number of categories
+    migraphx::shape s{migraphx::shape::float_type, {{1, 1}, {5, 6}}};
     std::vector<int> dist{15, 25, 15, 25, 20};
     std::vector<float> data(5);
 
-    // todo:  make this an instruction too
-    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
+    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
 
     auto input2 = mm->add_parameter("Input_2", s);
 
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input2);
-    auto mb_maxes =
-        mm->add_instruction(migraphx::make_op("multibroadcast"), maxes, input2);
-    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input2, mb_maxes);
-    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf      = mm->add_instruction(
+    // The next several instructions log-normalize the probability distribution,
+    // as required by the multinomial operation
+    auto logs = mm->add_instruction(migraphx::make_op("log"), input2);
+
+    auto maxes    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), logs);
+    auto mb_maxes = mm->add_instruction(migraphx::make_op("multibroadcast"), maxes, input2);
+    auto cdf      = mm->add_instruction(migraphx::make_op("sub"), logs, mb_maxes);
+
+    cdf = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
     auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), input);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
+
     p.compile(migraphx::make_target("ref"));
 
     // Create a dummy input in the shape we want for the random data
@@ -4992,16 +4995,20 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, sample_size}};
     migraphx::shape input_fixed_shape2{migraphx::shape::float_type, {1, 5}};
     migraphx::parameter_map params0;
-    params0["Input_1"] =  migraphx::argument(input_fixed_shape1, dummy.data());
+    params0["Input_1"] = migraphx::argument(input_fixed_shape1, dummy.data());
     params0["Input_2"] = migraphx::argument(input_fixed_shape2, data.data());
-    auto result  = p.eval(params0).back();
+    auto result        = p.eval(params0).back();
 
-    std::vector<int32_t> result_vec(input_fixed_shape2.elements());
+    std::vector<float> result_vec(input_fixed_shape2.elements());
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
+    // Make a categorical histogram of output
     std::vector<int> res_dist(5, 0);
     for(const auto& r : result_vec)
         res_dist[r]++;
+
+    // Rescale or normalize both the input probability distribution and the output
+    // histogram, and compare.  Should be close but not identical.
     auto dist_sum     = std::accumulate(dist.begin(), dist.end(), 0);
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
     std::vector<float> norm(5);
@@ -5012,8 +5019,6 @@ TEST_CASE(multinomial_dyn_test)
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
-printf("cumulative distribution of input ="); for(auto aa:norm)printf(", %f", aa);printf("\n");
-printf("cumulative distribution of result ="); for(auto aa:res_norm)printf(", %f", aa);printf("\n");
 
     EXPECT(migraphx::verify_range(norm, res_norm, 100000));
 }

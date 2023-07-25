@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <exception>
 #include <migraphx/version.h>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/program.hpp>
@@ -41,6 +40,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+
 #include <iostream>
 #include <queue>
 #include <sstream>
@@ -48,7 +48,6 @@
 #include <set>
 #include <unordered_map>
 #include <utility>
-
 #include <unordered_set>
 #include <map>
 #include <cassert>

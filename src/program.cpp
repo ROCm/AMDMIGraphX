@@ -41,12 +41,12 @@
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
 #include <iostream>
+#include <queue>
 #include <sstream>
 #include <algorithm>
 #include <set>
 #include <unordered_map>
 #include <utility>
-
 #include <unordered_set>
 #include <map>
 #include <cassert>
@@ -1198,11 +1198,19 @@ void program::remove_unused_modules()
 
 program& program::sort()
 {
-    for(auto& pp : this->impl->modules)
+    std::queue<migraphx::module_ref> mqueue;
+    mqueue.push(get_main_module());
+    while(!mqueue.empty())
     {
-        pp.second.sort();
+        module_ref current_mod = mqueue.front();
+        current_mod->sort();
+        mqueue.pop();
+        auto child_mods = current_mod->get_sub_modules(true);
+        for(auto& sub_mod : child_mods)
+        {
+            mqueue.push(sub_mod);
+        }
     }
-
     return *this;
 }
 

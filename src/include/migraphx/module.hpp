@@ -222,7 +222,10 @@ struct MIGRAPHX_EXPORT module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
-    // sorts the module in topological order aka reverse-post order (RPO) DFS order
+    /* sorts the module in topological order aka reverse-post order (RPO) DFS order
+       it takes last instruction or @return as the root and walks back the graph and moves inputs
+       of the each instruction such that it appears before the instruction itself.
+    */
     module& sort();
     // if the instruction has the module arguments then all the parameters/instructions used by that
     // module from the main/parent module must be calculated before the instruction can be executed.

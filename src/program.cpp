@@ -1194,7 +1194,7 @@ program& program::sort()
 {
     std::queue<migraphx::module_ref> mqueue;
     mqueue.push(get_main_module());
-    while(!mqueue.empty())
+    while(not mqueue.empty())
     {
         module_ref current_mod = mqueue.front();
         current_mod->sort();

@@ -227,10 +227,12 @@ struct MIGRAPHX_EXPORT module
        of the each instruction such that it appears before the instruction itself.
     */
     module& sort();
-    // if the instruction has the module arguments then all the parameters/instructions used by that
-    // module from the main/parent module must be calculated before the instruction can be executed.
-    // therefore, apart from the input instructions, those other instructions are implicit
-    // dependencies
+    /* Any instruction "X" can have module arguments and those modules inside them can use any other
+     * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
+     * module args are not listed as input instructions to "X". But those instructions "Y" must be
+     * evaluted before the instruction "X" can. Therefore such "Y" instructions are considered
+     * implicit dependency to "X".
+     */
     ins_dep_map calc_implicit_deps() const;
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);

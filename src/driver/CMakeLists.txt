@@ -45,6 +45,9 @@ rocm_clang_tidy_check(driver)
 
 target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
 
-rocm_install_targets(
-  TARGETS driver
-)
+# For ASAN Enabled Build no need to package binaries
+if( NOT ENABLE_ASAN_PACKAGING ) 
+  rocm_install_targets(
+    TARGETS driver
+  )
+endif()

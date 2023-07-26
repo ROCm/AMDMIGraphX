@@ -134,6 +134,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    dimensions_of
     div
     dot
     elu

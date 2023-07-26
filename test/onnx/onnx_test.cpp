@@ -4162,15 +4162,17 @@ TEST_CASE(multinomial_dyn_test)
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<float> rand_samples(sample_size);
-    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+    // std::mt19937 gen(seed);
+    // std::uniform_real_distribution<> dis(0.0, 1.0);
+    // std::vector<float> rand_samples(sample_size);
+    // std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
-
-    auto ret = mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
-    mm->add_return({ret});
+    // auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
+    std::vector<float> data(rs.elements(), 0.3f);
+    auto dummy              = mm->add_literal(migraphx::literal(rs, data));
+    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), dummy);
+    auto ret = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
+    // mm->add_return({ret});
 
     // auto prog = optimize_onnx("multinomial_dyn_test.onnx");
     migraphx::onnx_options options;

@@ -49,6 +49,8 @@ struct parse_multinomial : op_parser<parse_multinomial>
         size_t sample_size = 1;
         if(contains(info.attributes, "sample_size"))
             sample_size = info.attributes.at("sample_size").i();
+        else
+            MIGRAPHX_THROW("PARSE_MULTINOMIAL: sample_size not given");
 
         // Subtract the per-batch maximum log-probability, making the per-batch max 0
         auto maxes =
@@ -60,21 +62,57 @@ struct parse_multinomial : op_parser<parse_multinomial>
         cdf = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-        // Pre-compute random distribution
-        std::mt19937 gen(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+
+        // Make a shape that's the size of the sample set
+        shape s0 = args[0]->get_shape();
+        migraphx::shape dist_shape;
+
+        instruction_ref rand_dummy;
+        if(s0.dynamic())
+        {
+            dist_shape = {output_type, {s0.dyn_dims().front(), shape::dynamic_dimension({sample_size, sample_size})}};
+            auto temp = info.add_instruction(make_op("dimensions_of", {{"start", 0}, {"end", s0.ndim() - 1}}), args[0]);
+
+            auto asdf = temp->get_shape();
+
+            rand_dummy = info.add_instruction(migraphx::make_op("multibroadcast", 
+                {{"out_dyn_dims", migraphx::to_value(dist_shape)}}), args[0], temp);
+
+            auto zap = rand_dummy->get_shape();
+            printf("hello %d\n", zap.ndim());
+        }
+        else
+        {
+            // use literal
+            size_t batch_size = s0.lens().front();
+            dist_shape = {output_type, {batch_size, sample_size}};
+            rand_dummy = info.add_literal(migraphx::literal{dist_shape, {batch_size, sample_size}});
+
+
+
+            // mul_random = info.add_instruction(migraphx::make_op("multibroadcast", 
+            //     {{"out_lens", migraphx::to_value(dist_shape)}}), args[0]);
+            // migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};
+        }
+
+
+
+        // auto mul_random = info.add_instruction(migraphx::make_op("multibroadcast"
+        // ,{{"out_dyn_dims", migraphx::to_value(b)}}
+        // ), s0, dist_shape);
+
+        uint32_t seed(0);
         if(contains(info.attributes, "seed"))
-            gen.seed(info.attributes.at("seed").f());
+            seed = info.attributes.at("seed").i();
 
-        std::uniform_real_distribution<> dis(0.0, 1.0);
-        size_t batch_size = args[0]->get_shape().max_lens().front();
-        migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};
-
-        std::vector<float> random_dist(batch_size * sample_size);
-        std::generate(random_dist.begin(), random_dist.end(), [&]() { return dis(gen); });
-        auto dist_lit = info.add_literal(migraphx::literal{dist_shape, random_dist});
+// how to populate data when dist_shape is dynamic?  Answer: just send dist_shape`
+    // std::vector<float> data(dist_shape.elements(), 0.f);
+    // auto dummy              = info.add_literal(migraphx::literal(dist_shape, data));
+    auto randoms = info.add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), rand_dummy);
+       
 
         return info.add_instruction(
-            migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, dist_lit);
+            migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);
     }
 };
 

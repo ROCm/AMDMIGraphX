@@ -44,6 +44,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Parent struct for prefix scan operations.  A prefix scan is equivalent to the C++
+ * std::exclusive_scan or std::inclusive_scan.  Given a list of numbers, a prefix scan
+ * sum op returns an equal size list of running totals of the values.  Other operations
+ * besides addition can be supported by their own child ops.
+ */
 template <class Derived>
 struct prefix_scan_op : op_name<Derived>
 {

@@ -18,19 +18,8 @@ jobs:
         with:
           access_token: ${{ github.token }}
   tidy:
-    runs-on: ubuntu-20.04
-
-    steps:
-    - name: Free space
-      uses: jlumbroso/free-disk-space@main
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        swap-storage: true
-
+    runs-on: ROCM-Ubuntu
+    steps: 
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -71,7 +60,7 @@ jobs:
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
           ..
-        make -j2 -k onnx-proto tf-proto tidy
+        make -j$(nproc) -k onnx-proto tf-proto tidy
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
@@ -93,20 +82,8 @@ jobs:
 
 
   cppcheck:
-    runs-on: ubuntu-20.04
-
+    runs-on: ROCM-Ubuntu
     steps:
-    - name: Free space
-      uses: jlumbroso/free-disk-space@main
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        swap-storage: true
-
-
     - uses: actions/checkout@v3
 
     # In this step, this action saves a list of existing images,
@@ -142,7 +119,7 @@ jobs:
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
-        make -j2 cppcheck
+        make -j$(nproc) cppcheck
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear cppcheck cache before saving
@@ -164,19 +141,11 @@ jobs:
 
 
   format:
-    runs-on: ubuntu-20.04
-
+    runs-on: ROCM-Ubuntu
     steps:
-    - name: Free space
-      uses: jlumbroso/free-disk-space@main
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        swap-storage: true
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
@@ -197,19 +166,8 @@ jobs:
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
         set -e
-        find . -iname '*.h' \
-              -o -iname '*.hpp' \
-              -o -iname '*.cpp' \
-              -o -iname '*.h.in' \
-              -o -iname '*.hpp.in' \
-              -o -iname '*.cpp.in' \
-              -o -iname '*.cl' \
-              -o -iname '*.c' \
-          | grep -v 'build/' \
-          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
-          find . -iname '*.py' \
-          | grep -v 'build/'  \
-          | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
+        git config --global --add safe.directory /data
+        python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
 
   pyflakes:
     runs-on: ubuntu-20.04
@@ -224,6 +182,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -253,6 +212,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -292,6 +252,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - name : Install rbuild and lld
       run: |
@@ -353,6 +314,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        set +x
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
@@ -408,6 +370,7 @@ jobs:
         haskell: true
         large-packages: true
         swap-storage: true
+        docker-images: true
 
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -468,6 +431,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        set +x
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
       continue-on-error: true

@@ -56,7 +56,7 @@ struct concat_optimization
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct concat_optimization
+struct MIGRAPHX_EXPORT concat_optimization
 {
     //
     std::string name() const;
@@ -88,7 +88,7 @@ struct concat_optimization
     {
         using std::swap;
         auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.unique())
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
         }
@@ -233,7 +233,7 @@ struct concat_optimization
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
         assert(private_detail_te_handle_mem_var != nullptr);
-        if(not private_detail_te_handle_mem_var.unique())
+        if(private_detail_te_handle_mem_var.use_count() > 1)
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }

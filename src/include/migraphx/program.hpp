@@ -54,7 +54,7 @@ struct marker;
 /**
  * @brief Stores the instruction stream
  */
-struct program
+struct MIGRAPHX_EXPORT program
 {
     program();
 
@@ -79,6 +79,9 @@ struct program
 
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
+
+    void finish() const;
+
     std::size_t size() const;
 
     std::vector<shape> get_output_shapes() const;
@@ -127,8 +130,8 @@ struct program
 
     program& sort();
 
-    friend std::ostream& operator<<(std::ostream& os, const program& p);
-    friend bool operator==(const program& x, const program& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const program& p);
+    MIGRAPHX_EXPORT friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return not(x == y); }
 
     // module related api

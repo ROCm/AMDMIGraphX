@@ -7,10 +7,10 @@ RUN dpkg --add-architecture i386
 
 # Install rocm key
 RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - 
+    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.5/ focal main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.6/ focal main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
@@ -19,7 +19,6 @@ RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
-    clang-format-10 \
     cmake \
     curl \
     doxygen \
@@ -97,7 +96,8 @@ RUN /download_models.sh && rm /download_models.sh
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
+RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
+
 
 COPY ./test/onnx/.onnxrt-commit /
 
@@ -113,7 +113,8 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
-RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@8d25af3b3721c159bb41cc6388e9453b1018c126 -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
+# Use the /opt/cmake install because LLVM/MLIR need cmake >= 3.20
+RUN env PATH=/opt/cmake/bin:$PATH cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@1ad9d6df32acc6d29d58e8ed6710e36746d0a4d6 -DBUILD_FAT_LIBROCKCOMPILER=On
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

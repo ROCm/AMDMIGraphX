@@ -45,6 +45,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
+
 #ifdef DOXYGEN
 
 /// An interface for a compilation target
@@ -125,7 +127,7 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct target
+struct MIGRAPHX_EXPORT target
 {
     //
     std::string name() const;
@@ -165,7 +167,7 @@ struct target
     {
         using std::swap;
         auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.unique())
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
         }
@@ -426,7 +428,7 @@ struct target
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
         assert(private_detail_te_handle_mem_var != nullptr);
-        if(not private_detail_te_handle_mem_var.unique())
+        if(private_detail_te_handle_mem_var.use_count() > 1)
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }
@@ -466,6 +468,9 @@ inline const ValueType& any_cast(const target& x)
 #endif
 
 #endif
+
+void migraphx_to_value(value& v, const target& t);
+void migraphx_from_value(const value& v, target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

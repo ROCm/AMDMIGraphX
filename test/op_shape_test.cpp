@@ -453,35 +453,141 @@ TEST_CASE(contiguous_shape_singleton_dim)
     expect_shape(output, migraphx::make_op("contiguous"), input);
 }
 
-TEST_CASE(deconvolution_shape)
+TEST_CASE(convolution_backwards_1d)
+{
+    migraphx::shape input_1d{migraphx::shape::float_type, {4, 4, 1}};
+    migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape output_1d{migraphx::shape::float_type, {4, 3, 3}};
+    expect_shape(output_1d,
+                 migraphx::make_op("convolution_backwards",
+                                   {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+                 input_1d,
+                 weights_1d);
+}
+
+TEST_CASE(convolution_backwards_2d)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
-    migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
-    expect_shape(output, migraphx::make_op("deconvolution"), input, weights);
-    throws_shape(migraphx::make_op("deconvolution"), input);
-    throws_shape(
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        input);
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};
+    expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+    throws_shape(migraphx::make_op("convolution_backwards"), input);
+    throws_shape(migraphx::make_op("convolution_backwards",
+                                   {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+                 input);
+}
 
-    migraphx::shape input_1d{migraphx::shape::float_type, {4, 4, 1}};
-    migraphx::shape output_1d{migraphx::shape::float_type, {4, 3, 3}};
-    migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
-    expect_shape(
-        output_1d,
-        migraphx::make_op("deconvolution", {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
-        input_1d,
-        weights_1d);
+TEST_CASE(convolution_backwards_1padding)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};
+    expect_shape(output,
+                 migraphx::make_op("convolution_backwards",
+                                   {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
 
+TEST_CASE(convolution_backwards_2stride)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 9, 9}};
+    expect_shape(output,
+                 migraphx::make_op("convolution_backwards",
+                                   {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(convolution_backwards_2dilation)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 4, 4}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 8, 8}};
+    expect_shape(output,
+                 migraphx::make_op("convolution_backwards",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {2, 2}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(convolution_backwards_3d)
+{
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
     migraphx::shape weights_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
     expect_shape(
         output_3d,
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
         input_3d,
         weights_3d);
+}
+
+TEST_CASE(convolution_backwards_channel_mismatch)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape weights{migraphx::shape::float_type, {3, 3, 3, 3}};
+    throws_shape(migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+TEST_CASE(convolution_backwards_dyn_batch_2d)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {1, 1}, {1, 1}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}, {3, 3}}};
+    expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+TEST_CASE(convolution_backwards_dyn_img_2d)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 1}, {4, 4}, {1, 5}, {1, 5}}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {3, 7}, {3, 7}}};
+    expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+TEST_CASE(convolution_backwards_dyn_kernel_2d)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 1, 1}};
+    migraphx::shape weights{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 6}, {2, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 6}, {2, 6}}};
+    expect_shape(output, migraphx::make_op("convolution_backwards"), input, weights);
+}
+
+TEST_CASE(dimensions_of0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 2, 1}};
+    migraphx::shape output{migraphx::shape::int64_type, {4}};
+    expect_shape(output, migraphx::make_op("dimensions_of", {{"end", 4}}), input);
+}
+
+TEST_CASE(dimensions_of1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 2, 1}};
+    migraphx::shape output{migraphx::shape::int64_type, {2}};
+    expect_shape(output, migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 3}}), input);
+}
+
+TEST_CASE(dimensions_of2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, {2}}, {2, 4}, {2, 4}, {1, 6, {2}}}};
+    migraphx::shape output{migraphx::shape::int64_type, {2}};
+    expect_shape(output, migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 3}}), input);
+}
+
+TEST_CASE(dimensions_of_error0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, {2}}, {2, 4}}};
+    throws_shape(migraphx::make_op("dimensions_of", {{"start", 3}, {"end", 3}}), input);
+}
+
+TEST_CASE(dimensions_of_error1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4, {2}}, {2, 4}}};
+    throws_shape(migraphx::make_op("dimensions_of", {{"start", 3}, {"end", 0}}), input);
 }
 
 TEST_CASE(dot_ndim_error0)
@@ -1134,7 +1240,7 @@ TEST_CASE(inconsistent_attr_shape)
                                    {{"padding", {1, 1}}, {"stride", {2}}, {"dilation", {3, 3, 3}}}),
                  input,
                  weights);
-    throws_shape(migraphx::make_op("deconvolution",
+    throws_shape(migraphx::make_op("convolution_backwards",
                                    {{"padding", {1, 1}}, {"stride", {2}}, {"dilation", {3, 3, 3}}}),
                  input,
                  weights);
@@ -2100,6 +2206,19 @@ TEST_CASE(prefix_scan_sum_dyn)
         expect_shape(
             s,
             migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", 0}, {"reverse", 0}}),
+            s);
+    }
+}
+
+TEST_CASE(prefix_scan_sum_dyn_2d)
+{
+    {
+        std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}, {3, 7}};
+        migraphx::shape s{migraphx::shape::float_type, dd};
+
+        expect_shape(
+            s,
+            migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
             s);
     }
 }

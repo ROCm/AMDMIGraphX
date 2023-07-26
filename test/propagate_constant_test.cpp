@@ -40,12 +40,12 @@ TEST_CASE(const_add)
     auto one = m1.add_literal(1);
     auto two = m1.add_literal(2);
     auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
-    m1.add_instruction(pass_op{}, sum);
+    m1.add_instruction(non_const_pass_op{}, sum);
     run_pass(m1);
 
     migraphx::module m2;
     auto total = m2.add_literal(3);
-    m2.add_instruction(pass_op{}, total);
+    m2.add_instruction(non_const_pass_op{}, total);
     EXPECT(m1 == m2);
 }
 
@@ -55,12 +55,12 @@ TEST_CASE(const_add_parameter)
     auto one = m1.add_parameter("one", {migraphx::shape::int32_type, {1}});
     auto two = m1.add_literal(2);
     auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
-    m1.add_instruction(pass_op{}, sum);
+    m1.add_instruction(non_const_pass_op{}, sum);
     run_pass(m1);
 
     migraphx::module m2;
     auto total = m2.add_literal(3);
-    m2.add_instruction(pass_op{}, total);
+    m2.add_instruction(non_const_pass_op{}, total);
     EXPECT(m1 != m2);
 }
 
@@ -71,12 +71,12 @@ TEST_CASE(const_multiadd)
     auto two  = m1.add_literal(2);
     auto sum1 = m1.add_instruction(migraphx::make_op("add"), one, two);
     auto sum2 = m1.add_instruction(migraphx::make_op("add"), sum1, two);
-    m1.add_instruction(pass_op{}, sum2);
+    m1.add_instruction(non_const_pass_op{}, sum2);
     run_pass(m1);
 
     migraphx::module m2;
     auto total = m2.add_literal(5);
-    m2.add_instruction(pass_op{}, total);
+    m2.add_instruction(non_const_pass_op{}, total);
     EXPECT(m1 == m2);
 }
 
@@ -88,12 +88,12 @@ TEST_CASE(const_add_mul)
     auto mul  = m1.add_instruction(migraphx::make_op("mul"), two, two);
     auto sum1 = m1.add_instruction(migraphx::make_op("add"), one, mul);
     auto sum2 = m1.add_instruction(migraphx::make_op("add"), sum1, two);
-    m1.add_instruction(pass_op{}, sum2);
+    m1.add_instruction(non_const_pass_op{}, sum2);
     run_pass(m1);
 
     migraphx::module m2;
     auto total = m2.add_literal(7);
-    m2.add_instruction(pass_op{}, total);
+    m2.add_instruction(non_const_pass_op{}, total);
     EXPECT(m1 == m2);
 }
 
@@ -105,13 +105,13 @@ TEST_CASE(const_add_scalar)
     auto two = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
                                   m1.add_literal(2));
     auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
-    m1.add_instruction(pass_op{}, sum);
+    m1.add_instruction(non_const_pass_op{}, sum);
     run_pass(m1);
 
     migraphx::module m2;
     auto total =
         m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 2}}, {3, 3, 3, 3}});
-    m2.add_instruction(pass_op{}, total);
+    m2.add_instruction(non_const_pass_op{}, total);
     EXPECT(m1 == m2);
 }
 
@@ -121,7 +121,7 @@ TEST_CASE(const_scalar)
     {
         auto one = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
                                       m1.add_literal(1));
-        m1.add_instruction(pass_op{}, one);
+        m1.add_instruction(non_const_pass_op{}, one);
     }
     run_pass(m1);
 
@@ -129,7 +129,7 @@ TEST_CASE(const_scalar)
     {
         auto one = m2.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
                                       m2.add_literal(1));
-        m2.add_instruction(pass_op{}, one);
+        m2.add_instruction(non_const_pass_op{}, one);
     }
     EXPECT(m1 == m2);
 }

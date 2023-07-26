@@ -699,7 +699,10 @@ struct mlir_program
                     std::string prob                = tokens[2];
                     std::string perf                = tokens[3];
                     std::string key = arch.append("\t").append(numCU).append("\t").append(prob);
-                    mlirRockTuningUpdateTable(tuning_table.get(), key.c_str(), perf.c_str(), 1.0);
+                    mlirRockTuningUpdateTable(tuning_table.get(),
+                                              make_mlir_string_ref(key),
+                                              make_mlir_string_ref(perf),
+                                              1.0);
                 }
             }
         }

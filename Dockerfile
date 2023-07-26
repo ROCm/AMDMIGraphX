@@ -114,7 +114,7 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
 # Use the /opt/cmake install because LLVM/MLIR need cmake >= 3.20
-RUN env PATH=/opt/cmake/bin:$PATH cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@257d669484ec425ba28098427f476a5899b2d849 -DBUILD_FAT_LIBROCKCOMPILER=On
+RUN env PATH=/opt/cmake/bin:$PATH cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@e6492b4a0367fe611d17a28670f2b95e75143661 -DBUILD_FAT_LIBROCKCOMPILER=On
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

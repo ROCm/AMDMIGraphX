@@ -460,12 +460,11 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    shape instr_shape = args.empty() ? shape{} : args[0]->get_shape();
+    shape instr_shape = compute_shape(builtin::returns{}, args);
     impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
-
     return result;
 }
 

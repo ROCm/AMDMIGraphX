@@ -4161,26 +4161,25 @@ TEST_CASE(multinomial_test)
 {
     migraphx::program p;
     auto* mm           = p.get_main_module();
-    size_t sample_size = 10;
+    size_t sample_size = 13;
+    size_t batch_size  = 3;
     float seed         = 0.0f;
 
-    auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
-    auto mb_maxes =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 10}}}), maxes);
+    auto input =
+        mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {batch_size, 10}});
+    auto maxes    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto mb_maxes = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 10}}}), maxes);
     auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<float> rand_samples(sample_size);
-    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-    migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
-
-    mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
+    auto rand_dummy =
+        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto randoms =
+        mm->add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), rand_dummy);
+    mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
 
     auto prog = optimize_onnx("multinomial_test.onnx");
 
@@ -4191,44 +4190,40 @@ TEST_CASE(multinomial_dyn_test)
 {
     migraphx::program p;
     auto* mm           = p.get_main_module();
-    size_t sample_size = 10;
+    size_t sample_size = 13;
     float seed         = 0.0f;
 
-    auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {{1, 10}, {10, 10}}});
+    auto input = mm->add_parameter(
+        "input", migraphx::shape{migraphx::shape::float_type, {{1, 10}, {10, 10}}});
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
-    // auto mb_maxes =
-    //     mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 10}}}), maxes);
-    // auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
-    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes}); 
+
+    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    // std::mt19937 gen(seed);
-    // std::uniform_real_distribution<> dis(0.0, 1.0);
-    // std::vector<float> rand_samples(sample_size);
-    // std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    // auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
     std::vector<float> data(rs.elements(), 0.3f);
-    auto dummy              = mm->add_literal(migraphx::literal(rs, data));
-    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), dummy);
+
+    auto randoms = mm->add_instruction(
+        migraphx::make_op("rand_uniform", {{"seed", seed}, {"sample_size", sample_size}}), input);
     auto ret = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
-    // mm->add_return({ret});
+    mm->add_return({ret});
 
     // auto prog = optimize_onnx("multinomial_dyn_test.onnx");
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 10};
+    options.default_dyn_dim_value  = {1, 10};
     options.print_program_on_error = true;
-    auto prog                     = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
+    auto prog                      = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
+
 TEST_CASE(multinomial_dtype_error_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("multinomial_dtype_error_test.onnx"); }));
 }
 
-TEST_CASE(multinomial_generated_seed_test)
+TEST_CASE(multinomial_generated_seed_test) // this should be for rand_uniform now
 {
     auto p1 = optimize_onnx("multinomial_generated_seed_test.onnx");
     auto p2 = optimize_onnx("multinomial_generated_seed_test.onnx");

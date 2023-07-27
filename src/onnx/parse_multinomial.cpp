@@ -46,6 +46,10 @@ struct parse_multinomial : op_parser<parse_multinomial>
             dtype = info.attributes.at("dtype").i();
         shape::type_t output_type = get_type(dtype);
 
+        size_t batch_size = 1;
+        if(contains(info.attributes, "batch_size"))
+            batch_size = info.attributes.at("batch_size").i();
+
         size_t sample_size = 1;
         if(contains(info.attributes, "sample_size"))
             sample_size = info.attributes.at("sample_size").i();
@@ -55,61 +59,50 @@ struct parse_multinomial : op_parser<parse_multinomial>
         // Subtract the per-batch maximum log-probability, making the per-batch max 0
         auto maxes =
             info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
-        auto cdf = info.add_common_op("sub", args[0], maxes);        
+        auto cdf = info.add_common_op("sub", args[0], maxes);
         // Take the element-wise exponent to get probabilities in the range (0, 1]
         cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
         // Compute the cumulative density function
         cdf = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-
-        // Make a shape that's the size of the sample set
-        shape s0 = args[0]->get_shape();
-        migraphx::shape dist_shape;
-
-        instruction_ref rand_dummy;
-        if(s0.dynamic())
-        {
-            dist_shape = {output_type, {s0.dyn_dims().front(), shape::dynamic_dimension({sample_size, sample_size})}};
-            auto temp = info.add_instruction(make_op("dimensions_of", {{"start", 0}, {"end", s0.ndim() - 1}}), args[0]);
-
-            auto asdf = temp->get_shape();
-
-            rand_dummy = info.add_instruction(migraphx::make_op("multibroadcast", 
-                {{"out_dyn_dims", migraphx::to_value(dist_shape)}}), args[0], temp);
-
-            auto zap = rand_dummy->get_shape();
-            printf("hello %d\n", zap.ndim());
-        }
-        else
-        {
-            // use literal
-            size_t batch_size = s0.lens().front();
-            dist_shape = {output_type, {batch_size, sample_size}};
-            rand_dummy = info.add_literal(migraphx::literal{dist_shape, {batch_size, sample_size}});
-
-
-
-            // mul_random = info.add_instruction(migraphx::make_op("multibroadcast", 
-            //     {{"out_lens", migraphx::to_value(dist_shape)}}), args[0]);
-            // migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};
-        }
-
-
-
-        // auto mul_random = info.add_instruction(migraphx::make_op("multibroadcast"
-        // ,{{"out_dyn_dims", migraphx::to_value(b)}}
-        // ), s0, dist_shape);
-
         uint32_t seed(0);
         if(contains(info.attributes, "seed"))
             seed = info.attributes.at("seed").i();
+        instruction_ref randoms;
 
-// how to populate data when dist_shape is dynamic?  Answer: just send dist_shape`
-    // std::vector<float> data(dist_shape.elements(), 0.f);
-    // auto dummy              = info.add_literal(migraphx::literal(dist_shape, data));
-    auto randoms = info.add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), rand_dummy);
-       
+        if(args.size() > 0)
+        {
+            shape s0 = args[0]->get_shape();
+            // TODO: Use literal if batch size is fixed
+            if(s0.dynamic())
+            {
+                //  Dynamic batch_size will be taken from args[0].  Other contents of input are
+                //  ignored here.
+                randoms = info.add_instruction(
+                    migraphx::make_op("rand_uniform",
+                                      {{"seed", seed}, {"sample_size", sample_size}}),
+                    args[0]);
+            }
+            else
+            {
+                // use literal.  It may be quite large.
+                batch_size      = s0.lens().front();
+                auto rand_dummy = info.add_literal(
+                    migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+
+                randoms = info.add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}),
+                                               rand_dummy);
+            }
+        }
+        else
+        {
+            // use literal.  It may be quite large.
+            auto rand_dummy = info.add_literal(
+                migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+            randoms = info.add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}),
+                                           rand_dummy);
+        }
 
         return info.add_instruction(
             migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);

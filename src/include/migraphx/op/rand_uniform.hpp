@@ -46,7 +46,7 @@ namespace op {
 
 struct rand_uniform
 {
-    uint32_t sample_size = {20};
+    uint32_t sample_size = {23};
     uint32_t seed        = {0};
     shape::type_t dtype  = shape::type_t::float_type;
 
@@ -62,20 +62,29 @@ struct rand_uniform
     std::string name() const { return "rand_uniform"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
-        auto s = inputs.front();
-        if(s.dynamic())
+        if(inputs.size() > 0)
         {
-            return s;
+            check_shapes{inputs, *this, true}.has(1);
+            auto s = inputs.front();
+            if(s.dynamic())
+            {
+                // return s;
+                return {dtype, {s.dyn_dims()[0], {sample_size, sample_size}}};
+            }
+            else if(s.broadcasted())
+            {
+                return {s.type(), s.lens()};
+            }
+            else
+            {
+                // For static input, return the input shape.  Assume the batch_size and sample_size
+                // have already been factored in.  This saves us from reallocating a shape at
+                // runtime when the input is a literal.
+                return s.with_lens(s.lens());
+            }
         }
-        else if(s.broadcasted())
-        {
-            return {s.type(), s.lens()};
-        }
-        else
-        {
-            return s.with_lens(s.lens());
-        }
+        // No input instruction is required.  1-dimensional static output.
+        return shape{dtype, {sample_size}};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
@@ -87,15 +96,15 @@ struct rand_uniform
         std::uniform_real_distribution<> dis(0.0, 1.0);
         size_t elts(dyn_out.computed_shape.elements());
         // Use of our visitor and par_for replaces a call like
-        //   std::vector<float> rand_samples(sample_size);
-        //   std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+        std::vector<float> rand_samples(sample_size);
+        std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
 
-        result.visit([&](auto output) {
-            par_for(elts, [&](auto i) {
-                output[i] = dis(gen);
-                // output[i] = rand_samples[i];
-            });
-        });
+        // result.visit([&](auto output) {
+        //     par_for(elts, [&](auto i) {
+        //         output[i] = dis(gen);
+        //         // output[i] = rand_samples[i];
+        //     });
+        // });
         return result;
     }
 };

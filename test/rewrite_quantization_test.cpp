@@ -37,9 +37,16 @@
 
 bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
 bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
-bool is_scalar(migraphx::instruction& ins)
+bool is_clip_scalar(migraphx::instruction& ins)
 {
-    return ins.name() == "@literal" and ins.get_shape().scalar();
+    if(ins.name() == "clip")
+    {
+        assert(ins.inputs().size() > 1);
+        return (std::all_of(ins.inputs().begin() + 1, ins.inputs().end(), [](auto input) {
+            return input->get_shape().scalar();
+        }));
+    }
+    return false;
 }
 
 void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::rewrite_quantization{}}); }
@@ -75,7 +82,7 @@ TEST_CASE(quantizelinear)
     EXPECT(any_of(*p1.get_main_module(), &is_quantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_quantizelinear));
     // ensure clip literals created in quantized program are scalar
-    EXPECT(any_of(*p2.get_main_module(), &is_scalar));
+    EXPECT(any_of(*p2.get_main_module(), &is_clip_scalar));
 }
 
 TEST_CASE(dequantizelinear)

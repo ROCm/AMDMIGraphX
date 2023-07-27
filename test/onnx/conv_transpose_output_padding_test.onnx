@@ -1,9 +1,9 @@
-deconv_output_padding_test:¸
+"conv_transpose_output_padding_test:À
 C
 x
 wy"ConvTranspose*
 output_padding@@ *
-strides@@ deconv_output_padding_testZ
+strides@@ "conv_transpose_output_padding_testZ
 x
 
 
@@ -22,4 +22,4 @@ C
 
 
 
-B
+B

@@ -33,10 +33,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-operation make_op(const std::string& name);
-operation make_op(const std::string& name,
-                  const std::initializer_list<std::pair<std::string, value>>& v);
-operation make_op_from_value(const std::string& name, const value& v);
+MIGRAPHX_EXPORT operation make_op(const std::string& name);
+MIGRAPHX_EXPORT operation make_op(const std::string& name,
+                                  const std::initializer_list<std::pair<std::string, value>>& v);
+MIGRAPHX_EXPORT operation make_op_from_value(const std::string& name, const value& v);
 
 // A template overload is added for migraphx::value so the initializer_list
 // cannot be passed in directly. This is to enforce at compile-time that all
@@ -48,7 +48,7 @@ operation make_op(const std::string& name, const Value& v)
     return make_op_from_value(name, v);
 }
 
-operation make_json_op(const std::string& name, const std::string& s);
+MIGRAPHX_EXPORT operation make_json_op(const std::string& name, const std::string& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,8 +1,8 @@
-deconv_bias_test:ž
+conv_transpose_bias_test:¦
 "
 x
 w
-byconv1"ConvTransposedeconv_bias_testZ
+byconv1"ConvTransposeconv_transpose_bias_testZ
 x
 
 
@@ -24,4 +24,4 @@
 
 
 
-B
+B

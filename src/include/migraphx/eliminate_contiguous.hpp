@@ -36,7 +36,7 @@ struct module;
 /**
  * Remove contiguous instructions by checking if the operator can use non-standard shapes.
  */
-struct eliminate_contiguous
+struct MIGRAPHX_EXPORT eliminate_contiguous
 {
     std::string op_name;
     std::string name() const { return "eliminate_contiguous"; }

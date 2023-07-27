@@ -216,6 +216,7 @@ struct find_mlir_op
                                                                 "quant_dot",
                                                                 "add",
                                                                 "clip",
+                                                                "relu",
                                                                 "sub",
                                                                 "mul",
                                                                 "div",

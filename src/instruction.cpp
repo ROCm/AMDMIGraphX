@@ -120,10 +120,6 @@ bool instruction::valid() const
     {
         computed = result;
     }
-    else if(op.name() == "@return")
-    {
-        computed = get_shape();
-    }
     else
     {
         try

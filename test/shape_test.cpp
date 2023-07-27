@@ -746,6 +746,13 @@ TEST_CASE(return_shape_tuple)
     EXPECT(op.compute_shape(s).type() == shape::tuple_type);
 }
 
+TEST_CASE(return_shape_half)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    std::vector<shape> s{{shape::half_type}};
+    EXPECT(op.compute_shape(s).type() == shape::half_type);
+}
 
 TEST_CASE(tuple_copy)
 {

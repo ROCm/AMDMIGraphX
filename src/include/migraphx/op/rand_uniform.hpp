@@ -87,7 +87,7 @@ struct rand_uniform
         return shape{dtype, {sample_size}};
     }
 
-    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+       argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         (void)args; // suppress compiler warning
         argument result{dyn_out.computed_shape};
@@ -96,15 +96,15 @@ struct rand_uniform
         std::uniform_real_distribution<> dis(0.0, 1.0);
         size_t elts(dyn_out.computed_shape.elements());
         // Use of our visitor and par_for replaces a call like
-        std::vector<float> rand_samples(sample_size);
-        std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+        //   std::vector<float> rand_samples(sample_size);
+        //   std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
 
-        // result.visit([&](auto output) {
-        //     par_for(elts, [&](auto i) {
-        //         output[i] = dis(gen);
-        //         // output[i] = rand_samples[i];
-        //     });
-        // });
+        result.visit([&](auto output) {
+            par_for(elts, [&](auto i) {
+                output[i] = dis(gen);
+                // output[i] = rand_samples[i];
+            });
+        });
         return result;
     }
 };

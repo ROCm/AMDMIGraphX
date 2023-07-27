@@ -55,7 +55,7 @@ struct slice
     }
 
     /**
-     * Ensure that attribute vectors axes, starts, and ends are all the same size and values are in
+     * Ensure that attribute vectors axes, starts, and ends are all the same size and values are within
      * limits.
      */
     value attributes() const
@@ -78,12 +78,13 @@ struct slice
     std::string name() const { return "slice"; }
 
     /**
-     * Computes the slice output shape dimensions for given starts, ends, and optionally axes.
+     * Computes the slice output shape dimensions for given starts, ends,and axes.
      * Templated to also handle tensor views.
+     * Possibily different type between in_starts, in_ends and in_axes if in_axes is this object's axes attribute.
      * Assumes in_starts and in_ends are normalized; in_axes are valid.
      */
-	template <class Inds>
-    std::vector<std::size_t> lens_calc(std::vector<std::size_t> lengths, Inds in_starts, Inds in_ends, optional<Inds> in_axes)
+	template <class A, class B>
+    std::vector<std::size_t> lens_calc(const std::vector<std::size_t>& lengths, A in_starts, A in_ends, B in_axes) const
     {
         auto new_lens = lengths;
         for(std::size_t i = 0; i < in_axes.size(); ++i)
@@ -98,30 +99,15 @@ struct slice
     {
         check_shapes{inputs, *this, true}.has(1, 3, 4);
         auto input_shape = inputs[0];
-        if(inputs.size == 1)
+        if(inputs.size() == 1)
         {
             auto t           = input_shape.type();
-            // TODO:  When support for dynamic shapes is added to normalize_attributes,
-            //  remove this restriction.
             if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
                    return not input_shape.dyn_dims()[axis].is_fixed();
                }))
             {
                 MIGRAPHX_THROW("SLICE: slicing is not allowed on non-fixed dynamic input axis ");
             }
-
-            // Doesn't handle optimals
-            if(input_shape.dynamic())
-            {
-                old_lens = input_shape.max_lens();
-                new_mins = input_shape.min_lens();
-            }
-            else
-            {
-                old_lens = input_shape.lens();
-                old_strides = input_shape.strides();
-            }
-
             if(input_shape.dynamic())
             {
                 return shape{t,
@@ -138,8 +124,8 @@ struct slice
         }
         else
         {
-            // check that starts, ends, and optionally input_axes have the same dimension and are static
-            check_shapes{inputs.cbegin() + 1, inputs.cend(), "SLICE: inputs (starts, ends, and input_axes)", false}.only_dims(1).same_dims();
+            // check that starts, ends, and optionally input_axes are all 1D, have the same dimension, and are static
+            check_shapes{inputs.at(1), inputs.cend(), "SLICE: inputs (starts, ends, and input_axes)", false}.only_dims(1).same_dims();
             auto dds = input_shape.to_dynamic().dyn_dims();
             if(inputs.size() == 3)
             {
@@ -160,7 +146,7 @@ struct slice
                     dds.begin(),
                     dds.end(),
                     dds.begin(),
-                    [](auto dd) { return {0, dd.max}; }
+                    [](auto dd) { return shape::dynamic_dimension{0, dd.max}; }
                 );
             }
             return shape{input_shape.type(), dds};
@@ -197,129 +183,162 @@ struct slice
     }
 
     /**
+     * Helper function for the compute_offset functions
+     */
+	template <class IndView, class Axes>
+    auto calc_offset(const shape& s, const IndView& input_starts, const Axes& ax_vec) const
+    {
+        auto ret = 0;
+        for(std::size_t i = 0; i < ax_vec.size(); ++i)
+        {
+            auto axis = ax_vec[i];
+            ret += input_starts[i] * s.strides().at(axis);
+        }
+        return ret;
+    }
+
+    /**
 	 * Calculates the starting offset for the sliced tensor.
-	 * Used in compute when starts and optionally input_axes are variable.
      *
 	 * \param s static input shape
 	 * \param input_starts starting indices of slice
-	 * \param input_axes optional axes to slice on, if not present will use the axes attribute.
 	 */
 	template <class IndView>
     auto compute_offset(const shape& s,
-						IndView input_starts,
-						optional<IndView> input_axes) const
+						const IndView& input_starts) const
     {
-		auto calc_offset = [&](const auto& ax_vec) {
-			auto ret = 0;
-            for(std::size_t i = 0; i < ax_vec.size(); ++i)
-            {
-                auto axis = ax_vec[i];
-                offset += input_starts[i] * s.strides[axis];
-            }
-			return ret;
-		};
-		return input_axes ? calc_offset(input_axes.value()) : calc_offset(axes);
+		return calc_offset(s, input_starts, this->axes);
     }
 
-	/**
-	 * Clamps the input_starts and input_ends to the input tensor dimensions and makes them positive indicies.
-	 * Checks that the input_axes are valid.
+    /**
+	 * Calculates the starting offset for the sliced tensor.
+     *
+	 * \param s static input shape
+	 * \param input_starts starting indices of slice
+	 * \param input_axes axes to slice on
 	 */
+	template <class IndView>
+    auto compute_offset(const shape& s,
+						const IndView& input_starts,
+						const IndView& input_axes) const
+    {
+		return calc_offset(s, input_starts, input_axes);
+    }
+
+    /**
+     * Used on the input_starts and input_ends to make them positive and within bounds.
+     */
+    template<class Inds, class Axes>
+    Inds normalize_indices(shape input_shape, Inds indices, Axes in_axes) const
+    {
+        std::transform(
+            in_axes.begin(),
+            in_axes.end(),
+            indices.begin(),
+            indices.begin(),
+            [&](auto axis, auto index){
+                auto dim = input_shape.lens().at(axis);
+                if(index < 0)
+                {
+                    index += dim;
+                }
+                if(index < 0)
+                {
+                    index = 0;
+                }
+                else if(index > dim)
+                {
+                    index = dim;
+                }
+                return index;
+        });
+        return indices;
+    }
+
 	template <class Inds>
-	std::unordered_map<Inds> normalize_inputs(
+	std::unordered_map<std::string, Inds> normalize_inputs(
+            shape input_shape,
+            Inds input_starts,
+            Inds input_ends) const
+	{
+        return {
+            {"input_starts", normalize_indices(input_shape, input_starts, this->axes)},
+            {"input_ends", normalize_indices(input_shape, input_ends, this->axes)}
+        };
+	}
+
+    /**
+     * Three input version of the normalize_inputs.
+     * This one also checks that the input_axes are valid.
+     */
+	template <class Inds>
+	std::unordered_map<std::string, Inds> normalize_inputs(
             shape input_shape,
             Inds input_starts,
             Inds input_ends,
-            optional<Inds> input_axes) const
+            Inds input_axes) const
 	{
-        auto normalize_index = [&](auto indices, auto in_axes){
-            std::transform(
-                in_axes.begin(),
-                in_axes.end(),
-                indices.begin(),
-                indices.end(),
-                indices.begin(),
-                [](auto axis, auto index){
-                    auto dim = input_shape.lens().at(axis);
-                    if(index < 0)
-                    {
-                        index += dim;
-                    }
-                    if(index < 0)
-                    {
-                        index = 0;
-                    }
-                    else if(index > dim)
-                    {
-                        index = dim;
-                    }
-                    return index;
-            });
-            return indices;
+        // normalize the axes
+        auto shape_ndim = input_shape.ndim();
+        std::transform(input_axes.begin(), input_axes.end(), input_axes.begin(), [&](auto axis){
+            if(axis < 0)
+            {
+                axis += shape_ndim;
+            }
+            if(axis < 0 or axis >= shape_ndim)
+            {
+                MIGRAPHX_THROW("SLICE: entry of input_axes out of bounds");
+            }
+            return axis;
+        });
+        return {
+            {"input_starts", normalize_indices(input_shape, input_starts, input_axes)},
+            {"input_ends", normalize_indices(input_shape, input_ends, input_axes)},
+            {"input_axes", input_axes}
         };
-		if(not input_axes)
-		{
-            return {
-                "input_starts":normalize_index(input_starts, input_axes),
-                "input_ends":normalize_index(input_ends, input_axes)
-            };
-		}
-		else
-		{
-            // normalize axes
-            auto shape_ndim = shape.ndim();
-            std::transform(axes.begin(), axes.end(), axes.begin(), [&](auto axis){
-                if(axis < 0)
-                {
-                    axis += shape_ndim;
-                }
-                if(axis < 0 or axis >= shape_ndim)
-                {
-                    MIGRAPHX_THROW("SLICE: entry of input_axes out of bounds");
-                }
-                return axis;
-            });
-            return {
-                "input_starts":normalize_index(input_starts),
-                "input_ends":normalize_index(input_ends),
-                "input_axes":axes
-            };
-        }
-	}
+    }
 
     argument compute(const shape&, std::vector<argument> args) const
     {
+        auto input = args[0];
         auto input_shape = args[0].get_shape();
-        
         std::size_t offset;
         switch(args.size())
         {
             case 1:
-                offset = compute_offset(input_shape) * output_shape.type_size();
+            {
+                offset = compute_offset(input_shape) * input_shape.type_size();
                 return {normalize_compute_shape({input_shape}), [=] { return input.data() + offset; }};
+            }
             case 3:
+            {
                 shape output_shape;
                 visit_all(args[1], args[2])([&](auto input_starts, auto input_ends){
                     auto norm_inputs = normalize_inputs(input_shape, input_starts, input_ends);
                     offset = compute_offset(input_shape, norm_inputs.at("input_starts"));
                     output_shape = {
+                        input_shape.type(),
                         lens_calc(
                             input_shape.lens(),
                             norm_inputs.at("input_starts"),
-                            norm_inputs.at("input_ends")
+                            norm_inputs.at("input_ends"),
+                            this->axes
                         ),
                         input_shape.strides()
                     };
                 });
                 return {output_shape, [=] { return input.data() + offset; }};
+            }
             case 4:
+            {
                 shape output_shape;
-                visit_all(args[1], args[2], args[3])([&](auto input_starts, auto input_ends, auto axes){
-                    auto norm_inputs = normalize_inputs(input_shape, input_starts, input_ends);
+                visit_all(args[1], args[2], args[3])([&](auto input_starts, auto input_ends, auto input_axes){
+                    auto norm_inputs = normalize_inputs(input_shape, input_starts, input_ends, input_axes);
                     offset = compute_offset(input_shape, norm_inputs.at("input_starts"), norm_inputs.at("input_axes"));
-                    output_shape = {
+                    output_shape = shape{
+                        input_shape.type(),
                         lens_calc(
-                            input_shape,
+                            input_shape.lens(),
                             norm_inputs.at("input_starts"),
                             norm_inputs.at("input_ends"),
                             norm_inputs.at("input_axes")
@@ -328,8 +347,12 @@ struct slice
                     };
                 });
                 return {output_shape, [=] { return input.data() + offset; }};
+            }
             default:
+            {
+                // Should never get here; covering in case some code change occurs
                 MIGRAPHX_THROW("SLICE: invalid number of inputs");
+            }
         }
     }
 

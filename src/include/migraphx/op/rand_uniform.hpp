@@ -46,7 +46,7 @@ namespace op {
 
 struct rand_uniform
 {
-    uint32_t sample_size = {23};
+    uint32_t sample_size = {20};
     uint32_t seed        = {0};
     shape::type_t dtype  = shape::type_t::float_type;
 
@@ -62,32 +62,23 @@ struct rand_uniform
     std::string name() const { return "rand_uniform"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.size() > 0)
+        check_shapes{inputs, *this, true}.has(1);
+        auto s = inputs.front();
+        if(s.dynamic())
         {
-            check_shapes{inputs, *this, true}.has(1);
-            auto s = inputs.front();
-            if(s.dynamic())
-            {
-                // return s;
-                return {dtype, {s.dyn_dims()[0], {sample_size, sample_size}}};
-            }
-            else if(s.broadcasted())
-            {
-                return {s.type(), s.lens()};
-            }
-            else
-            {
-                // For static input, return the input shape.  Assume the batch_size and sample_size
-                // have already been factored in.  This saves us from reallocating a shape at
-                // runtime when the input is a literal.
-                return s.with_lens(s.lens());
-            }
+            return s;
         }
-        // No input instruction is required.  1-dimensional static output.
-        return shape{dtype, {sample_size}};
+        else if(s.broadcasted())
+        {
+            return {s.type(), s.lens()};
+        }
+        else
+        {
+            return s.with_lens(s.lens());
+        }
     }
 
-       argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         (void)args; // suppress compiler warning
         argument result{dyn_out.computed_shape};

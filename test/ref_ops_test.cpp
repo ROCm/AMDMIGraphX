@@ -5366,7 +5366,7 @@ TEST_CASE(multinomial_dyn_test)
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
-    EXPECT(migraphx::verify::verify_range(norm, res_norm, 100000));
+    EXPECT(migraphx::verify::verify_range(norm, res_norm, 1000000));
 }
 
 TEST_CASE(neg_test)

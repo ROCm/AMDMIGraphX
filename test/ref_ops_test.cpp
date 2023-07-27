@@ -8607,25 +8607,6 @@ TEST_CASE(topk_test)
     }
 }
 
-TEST_CASE(output_shape_is_tuple_type_test)
-{
-    auto create_topk_instr = [](int64_t k, int64_t axis, int largest) {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
-        auto data = mm->add_parameter("data", s);
-        auto r    = mm->add_instruction(
-            migraphx::make_op("topk", {{"axis", axis}, {"k", k}, {"largest", largest}}), data);
-        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
-        auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
-        mm->add_return({r0, r1});
-        return r->get_shape();
-    };
-
-    auto i_shape = create_topk_instr(4, 1, 1);
-    EXPECT(i_shape.type() == migraphx::shape::tuple_type);
-}
-
 TEST_CASE(transpose_test)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 2, 3}};

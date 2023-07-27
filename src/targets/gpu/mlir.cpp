@@ -389,14 +389,20 @@ struct mlir_program
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
         {
             auto attributes = prog->name_attributes(named_attrs);
-            mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            if(not attributes.empty())
+            {
+                mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            }
             return *this;
         }
 
         mlir_operation_state& add_attribute_value(const value& v)
         {
             auto attributes = prog->name_attributes(v);
-            mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            if(not attributes.empty())
+            {
+                mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            }
             return *this;
         }
 
@@ -419,13 +425,19 @@ struct mlir_program
                 return shape{r.type(), r.lens()};
             });
             auto x = prog->make_tensors(reshaped);
-            mlirOperationStateAddResults(&op_state, x.size(), x.data());
+            if(not x.empty())
+            {
+                mlirOperationStateAddResults(&op_state, x.size(), x.data());
+            }
             return *this;
         }
 
         mlir_operation_state& add_operands(const std::vector<MlirValue>& inputs)
         {
-            mlirOperationStateAddOperands(&op_state, inputs.size(), inputs.data());
+            if(not inputs.empty())
+            {
+                mlirOperationStateAddOperands(&op_state, inputs.size(), inputs.data());
+            }
             return *this;
         }
 
@@ -435,7 +447,10 @@ struct mlir_program
             std::transform(regions.begin(), regions.end(), mregions.begin(), [](const auto& r) {
                 return r.get();
             });
-            mlirOperationStateAddOwnedRegions(&op_state, mregions.size(), mregions.data());
+            if(not mregions.empty())
+            {
+                mlirOperationStateAddOwnedRegions(&op_state, mregions.size(), mregions.data());
+            }
             mlir_operation op(mlirOperationCreate(&op_state));
             // Release memory since mlir_operation owns it
             for(auto& r : regions)
@@ -701,6 +716,11 @@ struct mlir_program
     bool get_module_tuned() const
     {
         static mlir_tuning_table tuning_table = create_tuning_table();
+        // The tuning table as currently implemented is currently not
+        // thread safe. This will be fixed in the future. For now,
+        // stick a mutex around all tuning table interaction.
+        static std::mutex lock;
+        std::lock_guard<std::mutex> guard(lock);
         if(!mlirRockTuningSetFromTable(tuning_table.get(), mmodule.get()))
         {
             const char* prob_config = mlirRockTuningGetKey(tuning_table.get(), mmodule.get());
@@ -778,9 +798,6 @@ code_object_op compile_mlir(const context&, module m, const std::vector<instruct
 {
     adjust_param_shapes(m, inputs);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
-    // set mutex while llvm thread support is disabled.
-    static std::mutex g_mlirc_mutex; // NOLINT
-    const std::lock_guard<std::mutex> lock(g_mlirc_mutex);
 
     if(trace)
         std::cout << m << std::endl;

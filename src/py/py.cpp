@@ -32,7 +32,15 @@ namespace py = pybind11;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+#endif
+// extern "C" is used to disable name mangling, but the function will still be called from C++
 extern "C" program migraphx_load_py(const std::string& filename);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 const std::string& python_path()
 {

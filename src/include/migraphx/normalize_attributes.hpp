@@ -43,7 +43,7 @@ template <class T, class... Ts>
 using dependent_type = typename select_dependent_type<T, Ts...>::type;
 
 MIGRAPHX_EXPORT
-bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens);
+bool normalize_attributes(operation& op, const shape& input_shape);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

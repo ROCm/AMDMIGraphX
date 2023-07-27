@@ -8622,7 +8622,7 @@ TEST_CASE(output_shape_is_tuple_type_test)
         return r->get_shape();
     };
 
-    auto i_shape = create_program(4, 1, 1);
+    auto i_shape = create_topk_instr(4, 1, 1);
     EXPECT(i_shape.type() == migraphx::shape::tuple_type);
 }
 

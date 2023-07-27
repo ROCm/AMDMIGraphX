@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/make_op.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/ranges.hpp>
@@ -736,6 +737,15 @@ TEST_CASE(tuple)
     EXPECT(s.sub_shapes()[1].elements() == 1);
     EXPECT(test::throws([&] { s.visit_type([](auto) {}); }));
 }
+
+TEST_CASE(return_shape_tuple)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    std::vector<shape> s{{shape::float_type}, {shape::float_type}};
+    EXPECT(op.compute_shape(s).type() == shape::tuple_type);
+}
+
 
 TEST_CASE(tuple_copy)
 {

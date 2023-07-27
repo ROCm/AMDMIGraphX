@@ -70,5 +70,13 @@ docs/_images
 docs/_static
 docs/_templates
 docs/.doxygen/docBin
+docs/.doxygen/DoxygenWarningLog.txt
 docs/_doxygen
+docs/html
 /_readthedocs
+
+# JetBrains config directories (ignoring symlinks)
+.idea/
+cmake-build*/
+build*/
+

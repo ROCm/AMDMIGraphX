@@ -1858,7 +1858,8 @@ TEST_CASE(multinomial_dyn)
 {
     migraphx::shape s{migraphx::shape::int32_type, {{2, 3}, {5, 6}}};
 
-    expect_shape(s, migraphx::make_op("multinomial", {{"dtype", migraphx::shape::int32_type}}), s, s);
+    expect_shape(
+        s, migraphx::make_op("multinomial", {{"dtype", migraphx::shape::int32_type}}), s, s);
 }
 
 TEST_CASE(nms_shape)

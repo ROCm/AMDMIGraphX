@@ -82,9 +82,9 @@ TEST_CASE(generate_module)
 
     auto f = compile_module<float(float, float)>(m);
 
-    EXPECT(test::near(f(2, 2), 2));
-    EXPECT(test::near(f(10, 6), 4));
-    EXPECT(test::near(f(1, 2), std::sqrt(3)));
+    EXPECT(test::within_abs(f(2, 2), 2));
+    EXPECT(test::within_abs(f(10, 6), 4));
+    EXPECT(test::within_abs(f(1, 2), std::sqrt(3)));
 }
 
 TEST_CASE(generate_module_with_literals)
@@ -99,9 +99,9 @@ TEST_CASE(generate_module_with_literals)
 
     auto f = compile_module<float(float, float)>(m);
 
-    EXPECT(test::near(f(1, 2), 2));
-    EXPECT(test::near(f(9, 6), 4));
-    EXPECT(test::near(f(0, 2), std::sqrt(3)));
+    EXPECT(test::within_abs(f(1, 2), 2));
+    EXPECT(test::within_abs(f(9, 6), 4));
+    EXPECT(test::within_abs(f(0, 2), std::sqrt(3)));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

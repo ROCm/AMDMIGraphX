@@ -588,6 +588,8 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                               const std::vector<std::size_t>& input_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
+    if(input_dims.empty())
+        return {shape_type};
     return {shape_type, input_dims};
 }
 

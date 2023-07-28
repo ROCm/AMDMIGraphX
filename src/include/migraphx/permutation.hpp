@@ -66,6 +66,10 @@ MIGRAPHX_EXPORT std::vector<int64_t> invert_permutation(const std::vector<int64_
 MIGRAPHX_EXPORT std::vector<int64_t> find_permutation(const shape& s);
 MIGRAPHX_EXPORT std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);
 
+/// Normalize the shapes so the order of dimensions will be in the order it is
+/// in memory as much as possible.
+MIGRAPHX_EXPORT std::vector<shape> normalize_permutation(const std::vector<shape>& shapes);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

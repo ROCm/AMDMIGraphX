@@ -72,7 +72,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(inputs);
+        options.virtual_inputs = reduce_dims(normalize_permutation(inputs));
         options.params         = "-Wno-float-equal";
         auto axis              = find_fast_axis(options.virtual_inputs);
         auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);

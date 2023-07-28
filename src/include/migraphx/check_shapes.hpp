@@ -42,7 +42,7 @@ struct check_shapes
     std::string name;
     bool dynamic_allowed;
 
-    //TODO: either clean up the begin(&*b) or change check_shapes to use iterators
+    // TODO: either clean up the begin(&*b) or change check_shapes to use iterators
     template <class Iter>
     check_shapes(Iter b, const Iter e, const std::string& n, const bool d = false)
         : begin(b), end(e), name(n), dynamic_allowed(d)

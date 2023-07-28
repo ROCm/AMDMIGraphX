@@ -250,7 +250,6 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         MIGRAPHX_MLIR=1
-        MLIR_MIGRAPHX_DIALECT_API_VERSION=3
         CPPCHECK=1
         __device__=
         __host__=

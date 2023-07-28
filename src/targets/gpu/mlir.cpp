@@ -36,7 +36,10 @@
 #include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
+// Only undefine when not using cppcheck
+#ifndef CPPCHECK
 #undef MIGRAPHX_MLIR
+#endif
 #else
 #include <mlir-c/RegisterRocMLIR.h>
 #endif

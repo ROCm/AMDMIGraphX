@@ -45,7 +45,7 @@ if(NOT WIN32)
 endif()
 rocm_clang_tidy_check(driver)
 
-target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf migraphx_py)
 
 rocm_install_targets(
   TARGETS driver

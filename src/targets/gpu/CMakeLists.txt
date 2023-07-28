@@ -89,7 +89,7 @@ rocm_clang_tidy_check(kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
-if(NOT WIN32)
+if(WIN32)
     # TODO: re-enable when CK is ported to Windows
     list(REMOVE_ITEM JIT_GPU_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp)
 endif()

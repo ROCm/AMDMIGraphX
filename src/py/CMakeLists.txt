@@ -23,14 +23,24 @@
 #####################################################################################
 
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+add_library(migraphx_py py_loader.cpp)
+target_include_directories(migraphx_py PRIVATE include)
+target_link_libraries(migraphx_py PUBLIC migraphx)
+rocm_install_targets(TARGETS migraphx_py INCLUDE include)
 if(MIGRAPHX_ENABLE_PYTHON)
     include(PythonModules)
 
-    add_custom_target(migraphx_py)
 
     foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
-        py_add_module(migraphx_py_${PYTHON_VERSION} migraphx_py.cpp PYTHON_VERSION ${PYTHON_VERSION} PYTHON_MODULE migraphx)
-        target_link_libraries(migraphx_py_${PYTHON_VERSION} PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_all_targets)
+        py_add_module(migraphx_pybind_${PYTHON_VERSION} migraphx_py.cpp PYTHON_VERSION ${PYTHON_VERSION} PYTHON_MODULE migraphx)
+        target_link_libraries(migraphx_pybind_${PYTHON_VERSION} PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_all_targets)
+        rocm_install_targets(TARGETS migraphx_pybind_${PYTHON_VERSION})
+        add_dependencies(migraphx_py migraphx_pybind_${PYTHON_VERSION})
+        
+        add_library(migraphx_py_${PYTHON_VERSION} py.cpp)
+        target_include_directories(migraphx_py_${PYTHON_VERSION} PRIVATE include)
+        target_link_libraries(migraphx_py_${PYTHON_VERSION} PUBLIC migraphx)
+        target_link_libraries(migraphx_py_${PYTHON_VERSION} PRIVATE pybind11::pybind11 python${PYTHON_VERSION}::runtime)
         rocm_install_targets(TARGETS migraphx_py_${PYTHON_VERSION})
         add_dependencies(migraphx_py migraphx_py_${PYTHON_VERSION})
     endforeach()

@@ -82,6 +82,7 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     const shape& get_shape() const;
 
     argument reshape(const shape& s) const;
+    argument reshape_lazy(const shape& s) const;
 
     argument copy() const;
 

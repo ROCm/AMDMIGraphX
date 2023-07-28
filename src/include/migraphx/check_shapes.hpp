@@ -42,10 +42,15 @@ struct check_shapes
     std::string name;
     bool dynamic_allowed;
 
-    // TODO: either clean up the begin(&*b) or change check_shapes to use iterators
-    template <class Iter>
-    check_shapes(Iter b, const Iter e, const std::string& n, const bool d = false)
+    check_shapes(T b, T e, const std::string& n, const bool d = false)
         : begin(b), end(e), name(n), dynamic_allowed(d)
+    {
+        check_dynamic();
+    }
+
+    template <class Op>
+    check_shapes(T b, T e, const Op& op, const bool d = false)
+        : begin(b), end(e), name(op.name()), dynamic_allowed(d)
     {
         check_dynamic();
     }
@@ -373,6 +378,11 @@ struct check_shapes
         return true;
     }
 };
+
+// Deduction guide for std::vector constructor
+template <class Op>
+check_shapes(const std::vector<shape>&, const Op&, const bool d = false)
+    -> check_shapes<std::vector<shape>::const_iterator>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

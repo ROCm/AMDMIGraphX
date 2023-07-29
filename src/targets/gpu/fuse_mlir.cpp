@@ -239,13 +239,13 @@ struct find_mlir_op
         bool is_float = contains({type_t::float_type, type_t::half_type}, result_type);
         if(contains(any_type_ops, name))
             return true;
-        if(result_type != type_t::bool_type && contains(no_bool_ops, name))
+        if(result_type != type_t::bool_type and contains(no_bool_ops, name))
             return true;
-        if(is_float && contains(fp_only_ops, name))
+        if(is_float and contains(fp_only_ops, name))
             return true;
         // Only conversions between floating types are known to be unambigiously
         // supported.
-        if(is_float && name == "convert")
+        if(is_float and name == "convert")
         {
             return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
                 return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());

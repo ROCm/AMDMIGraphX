@@ -5305,7 +5305,7 @@ TEST_CASE(multinomial_dyn_test)
     auto* mm = p.get_main_module();
 
     size_t sample_size = 1000000;
-    float seed         = 0.0f;
+    uint32_t seed      = 4;
 
     //      Shape of the random data
     migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {2, sample_size + 1}}};
@@ -5332,7 +5332,18 @@ TEST_CASE(multinomial_dyn_test)
     cdf = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), input);
+    // To seed the rand_uniform, we can provide a value by literal or input,
+    // or we can pass it a 0-size shape in which case it will auto-seed.
+    migraphx::shape seed_shape{migraphx::shape::uint32_type, {0}};
+    std::vector<int32_t> seed_data = {};
+    auto seed_input                = mm->add_literal(migraphx::literal(seed_shape, seed_data));
+
+    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform",
+                                                         {
+                                                             {"seed", seed},
+                                                         }),
+                                       input,
+                                       seed_input); // <==some_seed is something user-supplied
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
 
     p.compile(migraphx::make_target("ref"));
@@ -5366,7 +5377,7 @@ TEST_CASE(multinomial_dyn_test)
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
-    EXPECT(migraphx::verify::verify_range(norm, res_norm, 1000000));
+    EXPECT(migraphx::verify::verify_range(norm, res_norm, 100000));
 }
 
 TEST_CASE(neg_test)

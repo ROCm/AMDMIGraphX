@@ -25,7 +25,9 @@
 /**
  * Random Uniform distribution operator.  Given a shape, populate it with random values.
  *
- *      Inputs:   any tensor shape.
+ *      Inputs:   (1) the shape of the set to be populated.
+ *                (2) randomization seed.  Optional--if not given, a seed will be generated
+ *                    automatically, for nonrepeatable random results.
  *      Attributes:  TBD
  *
         Output:   Same shape.
@@ -47,8 +49,23 @@ namespace op {
 struct rand_uniform
 {
     uint32_t sample_size = {20};
-    uint32_t seed        = {0};
-    shape::type_t dtype  = shape::type_t::float_type;
+    uint32_t seed        = {3};
+    float range_min      = 0.0f;
+    float range_max      = 1.0f;
+
+    // From Onnx RandomUniform:
+    // dtype : int (default is 1)
+    // The data type for the elements of the output tensor. If not specified, default is
+    // TensorProto::FLOAT. high : float (default is 1.0) Upper boundary of the output values. low :
+    // float (default is 0.0) Lower boundary of the output values. seed : float (Optional) Seed to
+    // the random generator, if not specified we will auto generate one. shape : list of ints
+    // (required) The shape of the output tensor.
+
+    // TODO:  consider removing this and simply using the type of the passed argument.
+    //  The only bar to doing this currently is that we can't create random integers within the
+    // current bounds of (0, 1).
+    shape::type_t dtype = shape::type_t::float_type;
+    // std::vector<size_t> output_lens    = {1};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -62,19 +79,18 @@ struct rand_uniform
     std::string name() const { return "rand_uniform"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
+        check_shapes{inputs, *this, true}.has(1, 2);
+        if(inputs.size() > 1 and inputs.at(1).element_space() > 0 and
+           inputs.at(1).type() != shape::type_t::uint32_type)
+            MIGRAPHX_THROW("RAND_UNIFORM:  Input 2 (seed) must have type unsigned int");
         auto s = inputs.front();
         if(s.dynamic())
         {
-            return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {s.type(), s.lens()};
+            return s.with_type(dtype);
         }
         else
         {
-            return s.with_lens(s.lens());
+            return s.with_lens(s.lens()).with_type(dtype);
         }
     }
 
@@ -83,18 +99,24 @@ struct rand_uniform
         (void)args; // suppress compiler warning
         argument result{dyn_out.computed_shape};
 
-        std::mt19937 gen(seed);
-        std::uniform_real_distribution<> dis(0.0, 1.0);
-        size_t elts(dyn_out.computed_shape.elements());
-        // Use of our visitor and par_for replaces a call like
-        //   std::vector<float> rand_samples(sample_size);
-        //   std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+        auto local_seed(seed);
+        if(args.size() > 1)
+        {
+            if(args.at(1).get_shape().element_space() > 0)
+            {
+                visit_all(args[1])([&](auto data) { local_seed = data[0]; });
+                local_seed++;
+            }
+            else // obtain a seed from the system clock:
+                local_seed = std::chrono::system_clock::now().time_since_epoch().count();
+        }
+        // If a seed argument was not defined, use the value from the seed attribute,
+        // or the default.
 
+        std::mt19937 gen(local_seed);
+        std::uniform_real_distribution<> dis(range_min, range_max);
         result.visit([&](auto output) {
-            par_for(elts, [&](auto i) {
-                output[i] = dis(gen);
-                // output[i] = rand_samples[i];
-            });
+            std::generate(output.begin(), output.end(), [&]() { return dis(gen); });
         });
         return result;
     }

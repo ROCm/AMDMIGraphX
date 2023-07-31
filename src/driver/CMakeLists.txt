@@ -46,7 +46,11 @@ endif()
 target_compile_options(driver PRIVATE -Wno-ignored-attributes -Wno-unused-parameter)
 rocm_clang_tidy_check(driver)
 
-target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf migraphx_py)
+target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+
+if(MIGRAPHX_ENABLE_PYTHON)
+    target_link_libraries(driver migraphx_py)
+endif()
 
 rocm_install_targets(
   TARGETS driver

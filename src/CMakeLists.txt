@@ -274,6 +274,9 @@ target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 
+include(CMakeDependentOption)
+cmake_dependent_option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON "WIN32" OFF)
+
 set(PACKAGE_DEPENDS)
 
 add_subdirectory(api)

@@ -105,7 +105,6 @@ struct rand_uniform
             if(args.at(1).get_shape().element_space() > 0)
             {
                 visit_all(args[1])([&](auto data) { local_seed = data[0]; });
-                local_seed++;
             }
             else // obtain a seed from the system clock:
                 local_seed = std::chrono::system_clock::now().time_since_epoch().count();

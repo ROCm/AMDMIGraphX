@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -273,9 +273,23 @@ shape shape::from_permutation(type_t t,
 
 shape::type_t shape::type() const { return impl->m_type; }
 
-const std::vector<std::size_t>& shape::lens() const { return impl->m_lens; }
+const std::vector<std::size_t>& shape::lens() const
+{
+    if(this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: lens() called on a dynamic shape");
+    }
+    return impl->m_lens;
+}
 
-const std::vector<std::size_t>& shape::strides() const { return impl->m_strides; }
+const std::vector<std::size_t>& shape::strides() const
+{
+    if(this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: strides() called on a dynamic shape");
+    }
+    return impl->m_strides;
+}
 
 std::size_t shape::ndim() const
 {
@@ -535,7 +549,14 @@ bool shape::any_of_dynamic() const
     });
 }
 
-const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const { return impl->m_dyn_dims; }
+const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
+{
+    if(not this->dynamic())
+    {
+        MIGRAPHX_THROW("SHAPE: dyn_dims() called on a static shape");
+    }
+    return impl->m_dyn_dims;
+}
 
 std::vector<std::size_t> shape::min_lens() const
 {
@@ -679,12 +700,22 @@ const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
 void migraphx_to_value(value& v, const shape& s)
 {
     value result;
-    result["type"]               = migraphx::to_value(s.type_string());
-    result["lens"]               = migraphx::to_value(s.lens());
-    result["strides"]            = migraphx::to_value(s.strides());
-    result["sub_shapes"]         = migraphx::to_value(s.sub_shapes());
-    result["dynamic_dimensions"] = migraphx::to_value(s.dyn_dims());
-    v                            = result;
+    result["type"]       = migraphx::to_value(s.type_string());
+    result["sub_shapes"] = migraphx::to_value(s.sub_shapes());
+    // avoid calling functions that will throw
+    if(s.dynamic())
+    {
+        result["lens"]               = {};
+        result["strides"]            = {};
+        result["dynamic_dimensions"] = migraphx::to_value(s.dyn_dims());
+    }
+    else
+    {
+        result["lens"]               = migraphx::to_value(s.lens());
+        result["strides"]            = migraphx::to_value(s.strides());
+        result["dynamic_dimensions"] = {};
+    }
+    v = result;
 }
 
 void migraphx_from_value(const value& v, shape& s)

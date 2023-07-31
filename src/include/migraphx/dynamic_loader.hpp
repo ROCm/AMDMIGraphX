@@ -47,7 +47,9 @@ struct MIGRAPHX_EXPORT dynamic_loader
     static fs::path path(void* address);
 #endif
 
+#ifdef MIGRAPHX_ENABLE_PYTHON
     static optional<dynamic_loader> try_load(const fs::path& p);
+#endif
 
     dynamic_loader() = default;
 

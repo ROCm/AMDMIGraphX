@@ -75,6 +75,8 @@ struct parse_multinomial : op_parser<parse_multinomial>
         {
             shape s0 = args[0]->get_shape();
             // TODO: Use literal if batch size is fixed
+            // TODO: Add second argument for seed (an Migraphx rule, not Onnx) if Onnx seed not given
+            //   It will be a literal with a shape of 0 size
             if(s0.dynamic())
             {
                 //  Dynamic batch_size will be taken from args[0].  Other contents of input are

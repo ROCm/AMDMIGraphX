@@ -99,7 +99,7 @@ TEST_CASE(run_sigmoid_custom_op)
     EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
 }
 
-extern "C" void migraphx_test_private_disable_exception_catch(bool b);
+extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool);
 
 TEST_CASE(run_sigmoid_with_incorrect_shape)
 {

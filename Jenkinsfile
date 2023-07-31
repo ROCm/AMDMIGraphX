@@ -116,7 +116,7 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
     }
 }, hidden_symbols: rocmnode('cdna') { cmake_build ->
     stage('Hidden symbols') {
-        cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
+        cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
     }
 }, all_targets_debug : rocmnode('cdna') { cmake_build ->
     stage('All targets Release') {

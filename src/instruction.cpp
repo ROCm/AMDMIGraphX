@@ -64,8 +64,7 @@ void instruction::replace(const shape& r)
         result = r;
         for(auto&& ins : output)
         {
-            if(ins->name() != "@return")
-                assert(ins->name().front() != '@');
+            assert(ins->name() == "@return" or ins->name().front() != '@');
             ins->recompute_shape();
         }
     }

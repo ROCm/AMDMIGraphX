@@ -26,6 +26,7 @@ add_library(migraphx_c
     api.cpp
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
+migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
 
 # migraphx_c is stable API interface library. SO version of this should be 
 # bumped when binary compatibility is broken. 

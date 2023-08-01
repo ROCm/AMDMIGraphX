@@ -2597,6 +2597,36 @@ TEST_CASE(reshape_non_fixed_not_matching_error)
     throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
+TEST_CASE(return_shape_tuple)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    shape s0{shape::bool_type, {1, 1}};
+    shape s1{shape::float_type, {2, 3}};
+
+    std::vector<shape> s{s0, s1};
+    auto s_out = op.compute_shape(s);
+    EXPECT(s_out.type() == shape::tuple_type);
+    EXPECT(s0 == s_out.sub_shapes()[0]);
+    EXPECT(s1 == s_out.sub_shapes()[1]);
+}
+
+TEST_CASE(return_shape_half)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    std::vector<shape> s{{shape::half_type}};
+    EXPECT(op.compute_shape(s) == shape{shape::half_type});
+}
+
+TEST_CASE(return_shape_empty)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    std::vector<shape> s;
+    EXPECT(op.compute_shape(s) == shape{});
+}
+
 TEST_CASE(rnn)
 {
     {

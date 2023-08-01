@@ -21,38 +21,54 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
-
-#include <string>
-#include <vector>
-#include <migraphx/gpu/config.hpp>
-#include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/gpu/tuning_config.hpp>
+#include <migraphx/py.hpp>
+#include <migraphx/dynamic_loader.hpp>
+#include <migraphx/process.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct module;
-namespace gpu {
 
-MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
-MIGRAPHX_GPU_EXPORT code_object_op compile_mlir(const context& ctx,
-                                                module m,
-                                                const std::vector<instruction_ref>& inputs,
-                                                const value& solution);
+static std::vector<fs::path> find_available_python_versions()
+{
+    std::vector<fs::path> result;
+    auto path = dynamic_loader::path(&load_py).parent_path();
+    for(const auto& entry : fs::directory_iterator{path})
+    {
+        if(not entry.is_regular_file())
+            continue;
+        auto p = entry.path();
+        if(not contains(p.stem().string(), "migraphx_py_"))
+            continue;
+        result.push_back(p);
+    }
+    std::sort(result.begin(), result.end(), std::greater<>{});
+    return result;
+}
 
-MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
-                                                instruction_ref ins,
-                                                code_object_op co,
-                                                const std::vector<instruction_ref>& inputs);
+static dynamic_loader load_py_lib()
+{
+    auto libs = find_available_python_versions();
+    for(const auto& lib : libs)
+    {
+        auto result = dynamic_loader::try_load(lib);
+        if(result.has_value())
+            return *result;
+    }
+    MIGRAPHX_THROW("Cant find a viable version of python");
+}
 
-MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
-                                                         module m,
-                                                         const std::vector<shape>& inputs);
+static dynamic_loader py_lib()
+{
+    static dynamic_loader lib = load_py_lib();
+    return lib;
+}
 
-} // namespace gpu
+program load_py(const std::string& filename)
+{
+    static auto f = py_lib().get_function<program(const std::string&)>("migraphx_load_py");
+    return f(filename);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

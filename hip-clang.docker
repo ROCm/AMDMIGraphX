@@ -39,6 +39,9 @@ RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
 RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
 
+# Workaround broken miopen cmake files
+RUN sed 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
+
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 

@@ -590,6 +590,12 @@ struct argument_parser
                 v(*this, inputs);
             return arg.action(*this, inputs);
         }
+        catch(const std::runtime_error& e)
+        {
+            msg = e.what();
+            std::cerr << "error: " << msg << std::endl;
+            return false;
+        }
         catch(const std::exception& e)
         {
             msg = e.what();

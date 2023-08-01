@@ -358,7 +358,7 @@ struct check_shapes
         return std::any_of(begin, end, p);
     }
 
-    const shape* get(long i) const
+    Iterator get(long i) const
     {
         if(i >= size())
             MIGRAPHX_THROW(prefix() + "Accessing shape out of bounds");

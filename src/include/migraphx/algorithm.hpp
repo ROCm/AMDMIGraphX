@@ -90,6 +90,27 @@ levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterat
     return std::ptrdiff_t{1} + std::min({x1, x2, x3});
 }
 
+inline size_t levenshtein_distance(const std::string& s1, const std::string& s2)
+{
+    const size_t L1 = s1.length();
+    const size_t L2 = s2.length();
+
+    std::vector<std::vector<size_t>> D(L1 + 1, std::vector<size_t>(L2 + 1));
+
+    for(size_t i = 1; i <= L1; i++)
+        D[i][0] = i;
+    for(size_t j = 1; j <= L2; j++)
+        D[0][j] = j;
+
+    for(size_t i = 1; i <= L1; i++)
+        for(size_t j = 1; j <= L2; j++)
+            D[i][j] = std::min({D[i - 1][j] + 1,
+                                D[i][j - 1] + 1,
+                                D[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1)});
+
+    return D[L1][L2];
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -342,7 +342,19 @@ struct argument_parser
             if(params.empty())
                 throw std::runtime_error("No argument passed.");
             if(not fs::exists(params.back()))
-                throw std::runtime_error("Path does not exists: " + params.back());
+                throw std::runtime_error("Path does not exist: " + params.back());
+        });
+    }
+
+    MIGRAPHX_DRIVER_STATIC auto matches(const std::unordered_set<std::string>& names)
+    {
+        return validate([&](auto&, auto&, auto& params) {
+            for(const auto& p : params)
+            {
+                if(names.count(p) == 0)
+                    throw std::runtime_error("Invalid argument: " + p + ". Valid arguments are {" +
+                                             to_string_range(names) + "}");
+            }
         });
     }
 
@@ -570,8 +582,7 @@ struct argument_parser
                         continue;
                     if(flag[0] != '-')
                         continue;
-                    auto d =
-                        levenshtein_distance(flag.begin(), flag.end(), input.begin(), input.end());
+                    std::ptrdiff_t d = levenshtein_distance(flag, input);
                     if(d < result.distance)
                         result = result_t{&arg, flag, input, d};
                 }
@@ -589,12 +600,6 @@ struct argument_parser
             for(const auto& v : arg.validations)
                 v(*this, inputs);
             return arg.action(*this, inputs);
-        }
-        catch(const std::runtime_error& e)
-        {
-            msg = e.what();
-            std::cerr << "error: " << msg << std::endl;
-            return false;
         }
         catch(const std::exception& e)
         {

@@ -33,7 +33,10 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
+if(NOT WIN32)
+    # TODO: re-enable when CK is ported to Windows
+    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+endif()
 
 if(BUILD_DEV)
     set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
@@ -45,7 +48,7 @@ include(Embed)
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-add_embed_library(migraphx_kernels ${KERNEL_FILES})
+add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
@@ -85,6 +88,12 @@ target_link_libraries(kernel_file_check compile_for_gpu)
 rocm_clang_tidy_check(kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
+
+if(WIN32)
+    # TODO: re-enable when CK is ported to Windows
+    list(REMOVE_ITEM JIT_GPU_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp)
+endif()
+
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -133,6 +142,7 @@ add_library(migraphx_gpu
     write_literals.cpp
     ${JIT_GPU_SRCS}
 )
+
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 
@@ -236,7 +246,12 @@ check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
 if(MIGRAPHX_USE_FIND_2_API)
-    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
+    check_library_exists(MIOpen "miopenSetFindOptionPreallocatedTensor" "${MIOPEN_LOCATION}" HAS_PREALLOCATION_API)
+    if(HAS_PREALLOCATION_API)
+        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API -DMIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS)
+    else()
+        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
+    endif()
     message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
 else()
     message(STATUS "MIGraphx is using legacy Find API in MIOpen")
@@ -250,7 +265,11 @@ else()
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+if(NOT WIN32)
+    # TODO: re-enable when CK is ported to Windows
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+endif()
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)

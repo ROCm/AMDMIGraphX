@@ -24,11 +24,7 @@
 find_program(EMBED_LD ld)
 find_program(EMBED_OBJCOPY objcopy)
 
-if(LINUX)
-    option(EMBED_USE_LD "Use ld to embed data files" ON)
-else()
-    option(EMBED_USE_LD "Use ld to embed data files" OFF)
-endif()
+option(EMBED_USE_LD "Use ld to embed data files" OFF)
 
 function(wrap_string)
     set(options)
@@ -196,7 +192,7 @@ function(add_embed_library EMBED_NAME)
     
     add_library(${EMBED_NAME} INTERFACE)
     if(EMBED_USE_LD)
-        target_sources(${EMBED_NAME} PRIVATE ${OUTPUT_FILES})
+        target_sources(${EMBED_NAME} INTERFACE ${OUTPUT_FILES})
     else()
         target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()

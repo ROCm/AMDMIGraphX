@@ -196,7 +196,7 @@ function(add_embed_library EMBED_NAME)
     
     add_library(${EMBED_NAME} INTERFACE)
     if(EMBED_USE_LD)
-        target_sources(${EMBED_NAME} INTERFACE ${OUTPUT_FILES})
+        target_sources(${EMBED_NAME} PRIVATE ${OUTPUT_FILES})
     else()
         target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()

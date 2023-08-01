@@ -34,9 +34,23 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Check that deduced type is incrementable, dereferencable, and comparable
+// Should limit valid types to iterators or pointers
+template<typename, typename = void>
+struct is_pointer_or_iterator{};
+ 
+template<typename T>
+struct is_pointer_or_iterator<
+    T,
+    std::void_t<decltype(++std::declval<T&>()),
+                decltype(*std::declval<T&>()),
+                decltype(std::declval<T&>() == std::declval<T&>())
+    >> : std::true_type {};
+
 template <class T>
 struct check_shapes
 {
+    static_assert(is_pointer_or_iterator<T>::value, "CHECK_SHAPES: Must be a pointer or iterator");
     T begin;
     T end;
     std::string name;

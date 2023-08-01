@@ -399,7 +399,7 @@ struct check_shapes
 
 // Deduction guide for std::vector constructor
 template <class Op>
-check_shapes(const std::vector<shape>&, const Op&, const bool d = false)
+check_shapes(const std::vector<shape>&, const Op&, bool d = false)
     -> check_shapes<std::vector<shape>::const_iterator>;
 
 } // namespace MIGRAPHX_INLINE_NS

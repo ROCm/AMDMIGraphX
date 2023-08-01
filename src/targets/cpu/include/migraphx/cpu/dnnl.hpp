@@ -400,7 +400,10 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
     }
 
     // dnnl has some issues with non-packed inputs
-    void required(const check_shapes& cs) const { cs.packed_or_broadcasted(); }
+    void required(const check_shapes<std::vector<shape>::const_iterator>& cs) const
+    {
+        cs.packed_or_broadcasted();
+    }
 
     std::string name() const { return "dnnl::" + op.name(); }
     shape compute_shape(std::vector<shape> inputs) const

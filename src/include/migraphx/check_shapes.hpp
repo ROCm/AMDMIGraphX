@@ -36,21 +36,25 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 // Check that deduced type is incrementable, dereferencable, and comparable
 // Should limit valid types to iterators or pointers
-template<class, class = void>
-struct is_pointer_or_iterator{};
- 
-template<class T>
-struct is_pointer_or_iterator<
-    T,
-    std::void_t<decltype(++std::declval<T&>()),
-                decltype(*std::declval<T&>()),
-                decltype(std::declval<T&>() == std::declval<T&>())
-    >> : std::true_type {};
+template <class, class = void>
+struct is_pointer_or_iterator
+{
+};
+
+template <class T>
+struct is_pointer_or_iterator<T,
+                              std::void_t<decltype(++std::declval<T&>()),
+                                          decltype(*std::declval<T&>()),
+                                          decltype(std::declval<T&>() == std::declval<T&>())>>
+    : std::true_type
+{
+};
 
 template <class Iterator>
 struct check_shapes
 {
-    static_assert(is_pointer_or_iterator<Iterator>::value, "CHECK_SHAPES: Must be a pointer or iterator");
+    static_assert(is_pointer_or_iterator<Iterator>::value,
+                  "CHECK_SHAPES: Must be a pointer or iterator");
     Iterator begin;
     Iterator end;
     std::string name;
@@ -68,7 +72,7 @@ struct check_shapes
     {
         check_dynamic();
     }
-    
+
     template <class Op>
     check_shapes(const std::vector<shape>& s, const Op& op, const bool d = false)
         : begin(s.begin()), end(s.end()), name(op.name()), dynamic_allowed(d)
@@ -395,7 +399,8 @@ struct check_shapes
 
 // Deduction guide for std::vector constructor
 template <class Op>
-check_shapes(const std::vector<shape>&, const Op&, const bool d = false) -> check_shapes<std::vector<shape>::const_iterator>;
+check_shapes(const std::vector<shape>&, const Op&, const bool d = false)
+    -> check_shapes<std::vector<shape>::const_iterator>;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

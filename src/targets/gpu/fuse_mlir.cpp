@@ -179,7 +179,7 @@ struct find_mlir_op
             }
             top_inputs.push_back(input);
             instruction_ref prev_input =
-                mm->add_parameter("y" + std::to_string(input_cnt++), input->get_shape());
+                mm->add_parameter("y" + std::to_string(input_cnt++), {input->get_shape().type(), input->get_shape().lens()});
             for(const auto& op : reverse(op_stream))
             {
                 prev_input = mm->add_instruction(op, {prev_input});

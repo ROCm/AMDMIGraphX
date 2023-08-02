@@ -95,20 +95,24 @@ inline size_t levenshtein_distance(const std::string& s1, const std::string& s2)
     const size_t l1 = s1.length();
     const size_t l2 = s2.length();
 
-    std::vector<std::vector<size_t>> d(l1 + 1, std::vector<size_t>(l2 + 1));
+    std::vector<size_t> d0(l2 + 1), d1(l2 + 1);
 
-    for(size_t i = 1; i <= l1; i++)
-        d[i][0] = i;
     for(size_t j = 1; j <= l2; j++)
-        d[0][j] = j;
+        d0[j] = j;
 
     for(size_t i = 1; i <= l1; i++)
+    {
+        d1[0] = i;
         for(size_t j = 1; j <= l2; j++)
-            d[i][j] = std::min({d[i - 1][j] + 1,
-                                d[i][j - 1] + 1,
-                                d[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1)});
+        {
+            size_t cost_insert_or_delete = std::min(d1[j - 1] + 1, d0[j] + 1);
+            size_t cost_substitute       = d0[j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1);
+            d1[j]                        = std::min(cost_substitute, cost_insert_or_delete);
+        }
+        std::swap(d0, d1);
+    }
 
-    return d[l1][l2];
+    return d0[l2];
 }
 
 } // namespace MIGRAPHX_INLINE_NS

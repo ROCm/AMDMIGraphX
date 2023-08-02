@@ -801,8 +801,8 @@ struct mlir_program
     mlir_module mmodule;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_arch;
-    std::size_t num_cu;
+    std::string target_arch = "";
+    std::size_t num_cu = 0;
     std::string sym_name;
 };
 

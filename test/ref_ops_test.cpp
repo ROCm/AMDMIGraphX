@@ -8153,6 +8153,113 @@ TEST_CASE(slice_test)
     }
 }
 
+TEST_CASE(slice_var_inputs_static0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int32_t> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data});
+    migraphx::shape s1{migraphx::shape::int32_type, {1}};
+    auto starts = mm->add_parameter("starts", s1);
+    auto ends   = mm->add_parameter("ends", s1);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), l0, starts, ends);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    std::vector<int32_t> start_data = {1};
+    std::vector<int32_t> end_data   = {3};
+    params["starts"]                = migraphx::argument(s1, start_data.data());
+    params["ends"]                  = migraphx::argument(s1, end_data.data());
+    auto result                     = p.eval(params).back();
+    std::vector<int32_t> gold       = {1, 2, 4, 5, 7, 8, 10, 11};
+    std::vector<int32_t> results_vector(2 * 2 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(slice_var_inputs_static1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int32_t> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data});
+    migraphx::shape s1{migraphx::shape::int32_type, {1}};
+    auto starts = mm->add_parameter("starts", s1);
+    auto ends   = mm->add_parameter("ends", s1);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), l0, starts, ends);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    std::vector<int32_t> start_data = {-2};
+    std::vector<int32_t> end_data   = {2831};
+    params["starts"]                = migraphx::argument(s1, start_data.data());
+    params["ends"]                  = migraphx::argument(s1, end_data.data());
+    auto result                     = p.eval(params).back();
+    std::vector<int32_t> gold       = {1, 2, 4, 5, 7, 8, 10, 11};
+    std::vector<int32_t> results_vector(2 * 2 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(slice_var_inputs_static2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int32_t> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data});
+    migraphx::shape s1{migraphx::shape::int64_type, {3}};
+    auto starts = mm->add_parameter("starts", s1);
+    auto ends   = mm->add_parameter("ends", s1);
+    auto axes   = mm->add_parameter("axes", s1);
+    mm->add_instruction(migraphx::make_op("slice"), l0, starts, ends, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    std::vector<int64_t> start_data = {0, 0, 0};
+    std::vector<int64_t> end_data   = {2, 2, 2};
+    std::vector<int64_t> axes_data  = {0, 1, 2};
+    params["starts"]                = migraphx::argument(s1, start_data.data());
+    params["ends"]                  = migraphx::argument(s1, end_data.data());
+    params["axes"]                  = migraphx::argument(s1, axes_data.data());
+    auto result                     = p.eval(params).back();
+    std::vector<int64_t> gold       = {0, 1, 3, 4, 6, 7, 9, 10};
+    std::vector<int64_t> results_vector(2 * 2 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(slice_var_inputs_dyn0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data});
+    migraphx::shape s1{migraphx::shape::int32_type, {1}};
+    auto starts = mm->add_parameter("starts", s1);
+    auto ends   = mm->add_parameter("ends", s1);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}}), l0, starts, ends);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    std::vector<int> start_data = {1};
+    std::vector<int> end_data   = {3};
+    params["starts"]            = migraphx::argument(s1, start_data.data());
+    params["ends"]              = migraphx::argument(s1, end_data.data());
+    auto result                 = p.eval(params).back();
+    std::vector<int> gold       = {1, 2, 4, 5, 7, 8, 10, 11};
+    std::vector<int> results_vector(2 * 2 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
 TEST_CASE(slice_dyn_test0)
 {
     // Slice a single dynamic dimension. ax1 slice limits are smaller than min; ax2 "ends" is
@@ -8167,7 +8274,7 @@ TEST_CASE(slice_dyn_test0)
     EXPECT(p.get_output_shapes().back() == s2);
     p.compile(migraphx::make_target("ref"));
 
-    //  the strides of sresult are those of the original shape, not
+    //  the strides of result are those of the original shape, not
     // reduced to sliced size.
     migraphx::shape sresult{migraphx::shape::int32_type, {2, 1, 2}, {6, 3, 1}};
     migraphx::shape input_fixed_shape{migraphx::shape::int32_type, {2, 2, 3}};

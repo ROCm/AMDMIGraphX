@@ -2819,7 +2819,7 @@ TEST_CASE(slice_var_inputs_static_shape0)
                  migraphx::make_op("slice", {{"axes", {1, 2}}}),
                  input,
                  starts,
-                 ends;);
+                 ends);
 }
 
 TEST_CASE(slice_var_inputs_static_shape1)
@@ -2854,7 +2854,7 @@ TEST_CASE(slice_var_inputs_dyn_shape0)
                  migraphx::make_op("slice", {{"axes", {1, 2}}}),
                  input,
                  starts,
-                 ends;);
+                 ends);
 }
 
 TEST_CASE(slice_var_inputs_dyn_shape1)

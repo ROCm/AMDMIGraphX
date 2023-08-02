@@ -35,18 +35,24 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Slice operator that accepts varible axes, starts and ends.
- * Input arguments:
+ * Slice operator that accepts variable axes, starts and ends.
+ *
+ * Attributes:
+ * axes: constant axes to slice over (optional)
+ * starts: constant slice starting indices (optional)
+ * ends: constant slice ending indices (optional)
+ *
+ * Parameters:
  * data: the input tensor to slice (dynamic or static shape)
- * starts: starting indicies of slice (optional, static shape)
- * ends: ending indicies of slice (optional, static shape)
+ * input_starts: starting indicies of slice (optional, static shape)
+ * input_ends: ending indicies of slice (optional, static shape)
  * input_axes: axes to slice over (optional, static shape)
  */
 struct slice
 {
-    std::vector<int64_t> axes;
-    std::vector<int64_t> starts;
-    std::vector<int64_t> ends;
+    std::vector<int64_t> axes{};
+    std::vector<int64_t> starts{};
+    std::vector<int64_t> ends{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -127,8 +133,10 @@ struct slice
         {
             // check that starts, ends, and optionally input_axes are all 1D, have the same
             // dimension, and are static
-            check_shapes{
-                inputs.at(1), inputs.cend(), "SLICE: inputs (starts, ends, and input_axes)", false}
+            check_shapes{inputs.begin() + 1,
+                         inputs.end(),
+                         std::string("SLICE: inputs (starts, ends, and input_axes)"),
+                         false}
                 .only_dims(1)
                 .same_dims();
             auto dds = input_shape.to_dynamic().dyn_dims();
@@ -185,10 +193,15 @@ struct slice
     }
 
     /**
-     * Helper function for the compute_offset functions
+     * Calculates the starting offset for the sliced tensor (for aliasing).
+     * Used when the starts and/or the axes are inputs.
+     *
+     * \param s static input shape
+     * \param input_starts starting indices of slice
+     * \param ax_vec axes to slice on
      */
     template <class IndView, class Axes>
-    auto calc_offset(const shape& s, const IndView& input_starts, const Axes& ax_vec) const
+    auto compute_offset(const shape& s, const IndView& input_starts, const Axes& ax_vec) const
     {
         auto ret = 0;
         for(std::size_t i = 0; i < ax_vec.size(); ++i)
@@ -196,33 +209,7 @@ struct slice
             auto axis = ax_vec[i];
             ret += input_starts[i] * s.strides().at(axis);
         }
-        return ret;
-    }
-
-    /**
-     * Calculates the starting offset for the sliced tensor.
-     *
-     * \param s static input shape
-     * \param input_starts starting indices of slice
-     */
-    template <class IndView>
-    auto compute_offset(const shape& s, const IndView& input_starts) const
-    {
-        return calc_offset(s, input_starts, this->axes);
-    }
-
-    /**
-     * Calculates the starting offset for the sliced tensor.
-     *
-     * \param s static input shape
-     * \param input_starts starting indices of slice
-     * \param input_axes axes to slice on
-     */
-    template <class IndView>
-    auto
-    compute_offset(const shape& s, const IndView& input_starts, const IndView& input_axes) const
-    {
-        return calc_offset(s, input_starts, input_axes);
+        return ret * s.type_size();
     }
 
     /**
@@ -291,25 +278,25 @@ struct slice
     argument compute(const shape&, std::vector<argument> args) const
     {
         auto input       = args[0];
-        auto input_shape = args[0].get_shape();
+        auto input_shape = input.get_shape();
         std::size_t offset;
         switch(args.size())
         {
         case 1: {
-            offset = compute_offset(input_shape) * input_shape.type_size();
+            offset = compute_offset(input_shape);
             return {normalize_compute_shape({input_shape}), [=] { return input.data() + offset; }};
         }
         case 3: {
             shape output_shape;
             visit_all(args[1], args[2])([&](auto input_starts, auto input_ends) {
                 auto norm_inputs = normalize_inputs(input_shape, input_starts, input_ends);
-                offset           = compute_offset(input_shape, norm_inputs.at("input_starts"));
-                output_shape     = {input_shape.type(),
-                                    lens_calc(input_shape.lens(),
+                offset = compute_offset(input_shape, norm_inputs.at("input_starts"), this->axes);
+                output_shape = {input_shape.type(),
+                                lens_calc(input_shape.lens(),
                                           norm_inputs.at("input_starts"),
                                           norm_inputs.at("input_ends"),
                                           this->axes),
-                                    input_shape.strides()};
+                                input_shape.strides()};
             });
             return {output_shape, [=] { return input.data() + offset; }};
         }
@@ -319,7 +306,8 @@ struct slice
                 [&](auto input_starts, auto input_ends, auto input_axes) {
                     auto norm_inputs =
                         normalize_inputs(input_shape, input_starts, input_ends, input_axes);
-                    offset = compute_offset(input_shape, norm_inputs.at("input_starts"), norm_inputs.at("input_axes"));
+                    offset = compute_offset(
+                        input_shape, norm_inputs.at("input_starts"), norm_inputs.at("input_axes"));
                     output_shape = shape{input_shape.type(),
                                          lens_calc(input_shape.lens(),
                                                    norm_inputs.at("input_starts"),

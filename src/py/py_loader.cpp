@@ -36,7 +36,7 @@ static std::vector<fs::path> find_available_python_versions()
     for(const auto& entry : fs::directory_iterator{path})
     {
         auto p = entry.path();
-        if(not is_regular_file(p))
+        if(not fs::is_regular_file(p))
             continue;
         if(not contains(p.stem().string(), "migraphx_py_"))
             continue;

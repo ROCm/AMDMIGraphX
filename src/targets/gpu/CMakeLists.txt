@@ -227,6 +227,21 @@ else()
     endif()
 endif()
 
+if(NOT WIN32)
+    include(MigxLocalTarget)
+    rocm_local_targets_migx(MIGXGPU_TARGET)
+
+    if(MIGXGPU_TARGET)
+        message(STATUS "Compiling for gfx arch: ${MIGXGPU_TARGET}")
+
+        foreach(agent IN LISTS MIGXGPU_TARGET)
+            list(APPEND offload_arch_flags "--offload-arch=${agent}")
+        endforeach()
+
+        target_compile_options(migraphx_device PRIVATE ${offload_arch_flags})
+    endif()
+endif()
+
 # Check miopen find mode api
 include(CheckLibraryExists)
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)

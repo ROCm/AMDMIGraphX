@@ -560,7 +560,7 @@ struct mlir_program
 
     static std::string get_symbol_name(const module& m)
     {
-        return "mlir_" + generate_name_from_ops(m);
+        return "mlir_" + gen::generate_name_from_ops(m);
     }
 
     void parse(const module& m)

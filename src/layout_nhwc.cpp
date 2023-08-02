@@ -104,7 +104,7 @@ void transform_convolutions(module& m, bool skip_elim_contiguous)
         // auto c    = conv;
         // auto nchw = m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 1, 2, 3}}}),
         // conv); m.debug_print(); if(not skip_elim_contiguous)
-        auto    c = m.insert_instruction(ins, make_op("contiguous"), conv);
+        auto c = m.insert_instruction(ins, make_op("contiguous"), conv);
         m.replace_instruction(ins, c);
     }
 }
@@ -144,12 +144,12 @@ void layout_nhwc::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
     // mpm.get_module().debug_print();
     transform_convolutions(mpm.get_module(), this->skip_elim_contiguous);
-    
+
     mpm.run_pass(dead_code_elimination{});
     // std::cout << "after layout" << std::endl;
     // mpm.get_module().debug_print();
     // if(not this->skip_elim_contiguous)
-        mpm.run_pass(eliminate_contiguous{"contiguous"});
+    mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});
     mpm.run_pass(auto_contiguous{});
     mpm.run_pass(dead_code_elimination{});

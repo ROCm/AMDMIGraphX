@@ -35,9 +35,9 @@ static std::vector<fs::path> find_available_python_versions()
     auto path = dynamic_loader::path(&load_py).parent_path();
     for(const auto& entry : fs::directory_iterator{path})
     {
-        if(not entry.is_regular_file())
-            continue;
         auto p = entry.path();
+        if(not is_regular_file(p))
+            continue;
         if(not contains(p.stem().string(), "migraphx_py_"))
             continue;
         result.push_back(p);

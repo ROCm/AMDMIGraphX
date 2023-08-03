@@ -95,25 +95,36 @@ inline size_t levenshtein_distance(const std::string& s1, const std::string& s2)
     const size_t l1 = s1.length();
     const size_t l2 = s2.length();
 
-    std::vector<size_t> d0(l2 + 1);
-    std::vector<size_t> d1(l2 + 1);
+    if(l1 < l2)
+        levenshtein_distance(s2, s1);
+
+    std::vector<size_t> d(l2 + 1);
 
     for(size_t j = 1; j <= l2; j++)
-        d0[j] = j;
+        d[j] = j;
 
     for(size_t i = 1; i <= l1; i++)
     {
-        d1[0] = i;
+        size_t prev_cost = d[0];
+        d[0]             = i;
+
         for(size_t j = 1; j <= l2; j++)
         {
-            size_t cost_insert_or_delete = std::min(d1[j - 1] + 1, d0[j] + 1);
-            size_t cost_substitute       = d0[j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1);
-            d1[j]                        = std::min(cost_substitute, cost_insert_or_delete);
+            if(s1[i - 1] == s2[j - 1])
+            {
+                d[j] = prev_cost;
+            }
+            else
+            {
+                size_t cost_insert_or_delete = std::min(d[j - 1], d[j]);
+                size_t cost_substitute       = prev_cost;
+                prev_cost                    = d[j];
+                d[j]                         = std::min(cost_substitute, cost_insert_or_delete) + 1;
+            }
         }
-        std::swap(d0, d1);
     }
 
-    return d0[l2];
+    return d[l2];
 }
 
 } // namespace MIGRAPHX_INLINE_NS

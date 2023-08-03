@@ -3925,6 +3925,36 @@ def matmul_bmbm_test():
 
 
 @onnx_test()
+def matmul_half():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1, 1, 1])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [1, 1, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 1])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmul_int8():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 1, 1])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [1, 1, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 1, 1])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
 def matmul_bmv_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])

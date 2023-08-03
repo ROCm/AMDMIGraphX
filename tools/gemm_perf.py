@@ -6,14 +6,16 @@ import matplotlib.pyplot as plt
 from pylab import *
 import random
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="GEMM performance tools")
     parser.add_argument('--bert',
                         action='store_true',
                         help='Run GEMM performance comparisons on BERT model')
-    parser.add_argument('--gemm',
-                        action='store_true',
-                        help='Run performance comparison on a range of GEMM problem sizes')
+    parser.add_argument(
+        '--gemm',
+        action='store_true',
+        help='Run performance comparison on a range of GEMM problem sizes')
     args = parser.parse_args()
 
     return args
@@ -171,6 +173,7 @@ def run_bert_perf():
     cf.write_row(["rocBLAS"] + run_perf(model, batch_size, quantize))
     cf.write_row()
 
+
 def gemm_perf(b, m, n, k, fp16):
     print(f"{b}, {m}, {n}, {k}:", end=" ")
     model = "../test/onnx/matmul_half.onnx" if fp16 else "../test/onnx/matmul_int8.onnx"
@@ -185,7 +188,11 @@ def gemm_perf(b, m, n, k, fp16):
 
     cmd = f"../build/bin/driver perf {model} --input-dim @1 {b} {m} {k} @2 {b} {k} {n} --exhaustive-tune"
     try:
-        out = subprocess.run(cmd.split(), capture_output=True, check=True, timeout=300, env=dict(os.environ, MIGRAPHX_ENABLE_CK="1"))
+        out = subprocess.run(cmd.split(),
+                             capture_output=True,
+                             check=True,
+                             timeout=300,
+                             env=dict(os.environ, MIGRAPHX_ENABLE_CK="1"))
     except:
         print("-69.0")
         return -69.0
@@ -196,18 +203,21 @@ def gemm_perf(b, m, n, k, fp16):
     total_time = total_time.replace("Total time: ", "")
     ck_time = total_time
 
-    diff = float(ck_time)-float(rb_time)
+    diff = float(ck_time) - float(rb_time)
     print(f"{diff}")
     return diff
+
 
 def run_gemm_perf():
     batches = [1]
     sizes = [64, 256, 384, 768, 1024, 2048, 2304, 3072]
-    results = [(b, m, n, k, gemm_perf(b, m, n, k, False)) for b in batches for m in sizes for n in sizes for k in sizes]
+    results = [(b, m, n, k, gemm_perf(b, m, n, k, False)) for b in batches
+               for m in sizes for n in sizes for k in sizes]
     print(results)
     with open("gemm_results.txt", "w+") as f:
         for r in results:
             f.write(f"{r[0]}, {r[1]}, {r[2]}, {r[3]}, {r[4]}\n")
+
 
 if __name__ == "__main__":
     args = parse_args()

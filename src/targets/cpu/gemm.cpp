@@ -43,7 +43,8 @@ struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
                 MIGRAPHX_DNNL_PREFIX(ARG_BIAS)};
     }
 
-    void required(const check_shapes<std::vector<shape>::const_iterator>& cs) const
+    template <class T>
+    void required(const check_shapes<T>& cs) const
     {
         cs.not_broadcasted();
     }

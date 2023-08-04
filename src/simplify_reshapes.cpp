@@ -587,6 +587,40 @@ struct find_reshape_cont
     }
 };
 
+// Remove the contiguous op performing the appropriate copy if we can instead alias the correct
+// memory layout This removes a contiguous op as part of the pass
+struct find_reshape_alias
+{
+    auto matcher() const
+    {
+        return match::pointwise(
+            match::nargs(2),
+            match::either_arg(0, 1)(
+                match::name("contiguous")(match::args(match::name("reshape").bind("rsp")))
+                    .bind("cont"),
+                match::any()));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins      = r.result;
+        auto ins_cont = r.instructions["cont"];
+        auto in_ins   = r.instructions["rsp"];
+
+        auto out_lens = in_ins->get_shape().lens();
+        std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
+
+        // Contiguous is needed if output is non standard output from reshape occurs
+        if(std::all_of(ins_cont->inputs().begin(), ins_cont->inputs().end(), [](auto i) {
+               return i->get_shape().standard();
+           }))
+        {
+            m.replace_instruction(
+                ins, make_op("reshape_lazy", {{"dims", out_dims}}), ins->inputs());
+        }
+    }
+};
+
 // match sequence of transpose --> contiguous --> reshaper_op
 auto match_transpose_contiguous_reshaper()
 {
@@ -789,6 +823,8 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
+                            find_reshape_alias{},
+                            find_reshape_cont{},
                             find_nop_reshapes{},
                             find_reshaper{},
                             find_reshape_cont{},

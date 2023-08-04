@@ -34,22 +34,37 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Check that deduced type is incrementable, dereferencable, and comparable
+template <class, class = void>
+struct is_iterator
+{
+};
+
 template <class T>
+struct is_iterator<T,
+                   std::void_t<decltype(++std::declval<T&>()),
+                               decltype(*std::declval<T&>()),
+                               decltype(std::declval<T&>() == std::declval<T&>())>> : std::true_type
+{
+};
+
+template <class Iterator>
 struct check_shapes
 {
-    T begin;
-    T end;
+    static_assert(is_iterator<Iterator>{}, "CHECK_SHAPES: Deduced type must be an iterator");
+    Iterator begin;
+    Iterator end;
     std::string name;
     bool dynamic_allowed;
 
-    check_shapes(T b, T e, const std::string& n, const bool d = false)
+    check_shapes(Iterator b, Iterator e, const std::string& n, const bool d = false)
         : begin(b), end(e), name(n), dynamic_allowed(d)
     {
         check_dynamic();
     }
 
     template <class Op>
-    check_shapes(T b, T e, const Op& op, const bool d = false)
+    check_shapes(Iterator b, Iterator e, const Op& op, const bool d = false)
         : begin(b), end(e), name(op.name()), dynamic_allowed(d)
     {
         check_dynamic();
@@ -343,7 +358,7 @@ struct check_shapes
         return std::any_of(begin, end, p);
     }
 
-    const shape* get(long i) const
+    Iterator get(long i) const
     {
         if(i >= size())
             MIGRAPHX_THROW(prefix() + "Accessing shape out of bounds");
@@ -381,7 +396,7 @@ struct check_shapes
 
 // Deduction guide for std::vector constructor
 template <class Op>
-check_shapes(const std::vector<shape>&, const Op&, const bool d = false)
+check_shapes(const std::vector<shape>&, const Op&, bool d = false)
     -> check_shapes<std::vector<shape>::const_iterator>;
 
 } // namespace MIGRAPHX_INLINE_NS

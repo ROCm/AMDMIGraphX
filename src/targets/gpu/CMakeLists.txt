@@ -26,9 +26,11 @@ list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 if(NOT WIN32)
     include(MigxLocalTarget)
     rocm_local_targets_migx(MIGXGPU_TARGETS)
-    set(GPU_TARGETS ${MIGXGPU_TARGETS} CACHE STRING "GPU targets to compile for")
-    set(AMDGPU_TARGETS ${MIGXGPU_TARGETS} CACHE STRING "AMDGPU targets to compile for")
-    message(STATUS "Compiling for GPU targets : ${GPU_TARGETS}")
+    if(MIGXGPU_TARGETS)
+        set(GPU_TARGETS ${MIGXGPU_TARGETS} CACHE STRING "GPU targets to compile for")
+        set(AMDGPU_TARGETS ${MIGXGPU_TARGETS} CACHE STRING "AMDGPU targets to compile for")
+        message(STATUS "Compiling for GPU targets : ${GPU_TARGETS}")
+    endif()
 endif()
 
 find_package(miopen)
@@ -77,8 +79,6 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
-
-
 
 add_library(kernel_file_check EXCLUDE_FROM_ALL)
 

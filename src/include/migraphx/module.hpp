@@ -222,7 +222,17 @@ struct MIGRAPHX_EXPORT module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
+    /* sorts the module in topological order aka reverse-post order (RPO) DFS order
+       it takes last instruction or @return as the root and walks back the graph and moves inputs
+       of the each instruction such that it appears before the instruction itself.
+    */
     module& sort();
+    /* Any instruction "X" can have module arguments and those modules inside them can use any other
+     * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
+     * module args are not listed as input instructions to "X". But those instructions "Y" must be
+     * evaluted before the instruction "X" can. Therefore such "Y" instructions are considered
+     * implicit dependency to "X".
+     */
     ins_dep_map calc_implicit_deps() const;
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);

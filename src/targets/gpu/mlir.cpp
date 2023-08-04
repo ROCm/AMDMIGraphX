@@ -674,38 +674,39 @@ struct mlir_program
 
     void set_tuning(const value& v)
     {
-        auto str = v.to<std::string_view>();
-        if(not mlirRockTuningSetFromStr(mmodule.get(), make_mlir_string_ref(str)))
-            MIGRAPHX_THROW("Failed setting tuning key: " + std::string(str));
+        auto* str = v.if_string();
+        if(not str)
+            MIGRAPHX_THROW("mlir tuning solutions must be strings");
+        if(not mlirRockTuningSetFromStr(mmodule.get(), make_mlir_string_ref(*str)))
+            MIGRAPHX_THROW("Failed setting tuning key: " + *str);
     }
 
     tuning_config get_tuning_config() MIGRAPHX_TIDY_CONST
     {
         tuning_config tc;
         run_high_level_pipeline();
-        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get())};
-        for(auto i : range(mlirRockTuningGetNumParamsFull(params.get())))
+        mlir_tuning_space params{
+            mlirRockTuningSpaceCreate(mmodule.get(), RocmlirTuningParamSetKindFull)};
+        for(auto i : range(mlirRockTuningGetNumParams(params.get())))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};
-            if(not mlirRockTuningParamGetFull(params.get(), i, param.get()))
+            if(not mlirRockTuningParamGet(params.get(), i, param.get()))
                 MIGRAPHX_THROW("Incorrect mlir tuning parameter: " + std::to_string(i));
-            std::string perfKey;
-            perfKey.resize(ROCMLIR_TUNING_PARAM_STRING_BUFSZ);
-            size_t perfKeyBytes =
-                mlirRockTuningParamToString(param.get(), perfKey.data(), perfKey.length());
-            if(perfKeyBytes > perfKey.length())
-                MIGRAPHX_THROW("Tuning perf key was " + std::to_string(perfKeyBytes) +
+            std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> perf_key;
+            size_t perf_key_bytes =
+                mlirRockTuningParamToString(param.get(), perf_key.data(), perf_key.size());
+            if(perf_key_bytes > perf_key.size())
+                MIGRAPHX_THROW("Tuning perf key was " + std::to_string(perf_key_bytes) +
                                " bytes and thus too long");
-            tc.solutions.push_back(std::move(perfKey));
+            tc.solutions.emplace_back(perf_key.begin(), perf_key.begin() + perf_key_bytes);
         }
-        std::string tuningKey;
-        tuningKey.resize(ROCMLIR_TUNING_KEY_BUFSZ);
-        size_t tuningKeyBytes =
-            mlirRockTuningGetKey(mmodule.get(), tuningKey.data(), tuningKey.length());
-        if(tuningKeyBytes > tuningKey.length())
-            MIGRAPHX_THROW("Tuning table key was " + std::to_string(tuningKeyBytes) +
+        std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> tuning_key;
+        size_t tuning_key_bytes =
+            mlirRockTuningGetKey(mmodule.get(), tuning_key.data(), tuning_key.size());
+        if(tuning_key_bytes > tuning_key.size())
+            MIGRAPHX_THROW("Tuning table key was " + std::to_string(tuning_key_bytes) +
                            " bytes and thus too long");
-        tc.problem = std::move(tuningKey);
+        tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
         return tc;
     }
 
@@ -713,7 +714,7 @@ struct mlir_program
 
     // This function appends to tuning cfg file that could be
     // used with rocMLIR tuning scripts.
-    void dump_tuning_cfg(const char* prob_config) const
+    void dump_tuning_cfg(std::string& prob_config) const
     {
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(!tuning_cfg_path.empty())
@@ -776,21 +777,23 @@ struct mlir_program
         static std::pair<mlir_tuning_table, bool> tuning_table = load_tuning_table();
         if(not mlirRockTuningSetFromTable(tuning_table.first.get(), mmodule.get()))
         {
-            char prob_config[ROCMLIR_TUNING_KEY_BUFSZ];
-            size_t wantedBytes =
-                mlirRockTuningGetKey(mmodule.get(), prob_config, ROCMLIR_TUNING_KEY_BUFSZ);
-            if(wantedBytes >= ROCMLIR_TUNING_KEY_BUFSZ)
+            std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> prob_config;
+            size_t prob_config_bytes =
+                mlirRockTuningGetKey(mmodule.get(), prob_config.data(), prob_config.size());
+            if(prob_config_bytes >= prob_config.size())
             {
-                std::cerr << "MLIR tuning key overflowed buffer, needed " << wantedBytes << " bytes"
-                          << std::endl;
+                std::cerr << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
+                          << " bytes" << std::endl;
                 return false;
             }
+            std::string prob_config_str(prob_config.begin(),
+                                        prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config
+                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config_str
                           << std::endl;
             }
-            dump_tuning_cfg(prob_config);
+            dump_tuning_cfg(prob_config_str);
             return false;
         }
         return true;

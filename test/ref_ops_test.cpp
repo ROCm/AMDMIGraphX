@@ -8276,7 +8276,7 @@ TEST_CASE(slice_dyn_test0)
     EXPECT(p.get_output_shapes().back() == s2);
     p.compile(migraphx::make_target("ref"));
 
-    //  the strides of result are those of the original shape, not
+    //  the strides of sresult are those of the original shape, not
     // reduced to sliced size.
     migraphx::shape sresult{migraphx::shape::int32_type, {2, 1, 2}, {6, 3, 1}};
     migraphx::shape input_fixed_shape{migraphx::shape::int32_type, {2, 2, 3}};

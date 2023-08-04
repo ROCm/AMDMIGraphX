@@ -277,6 +277,8 @@ jobs:
         key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
         restore-keys: ${{ matrix.os }}-cget-4-
 
+    - name: Show gcc version
+      run: gcc --version
     - name: Install dependencies
       if: steps.deps_cache.outputs.cache-hit != 'true'
       run: rbuild prepare -d cget -s gh

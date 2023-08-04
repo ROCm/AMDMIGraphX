@@ -64,7 +64,7 @@ void auto_contiguous::apply(module& m) const
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;
-        auto args = ins->inputs();
+        auto args     = ins->inputs();
         auto new_args = args;
         std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
             if(in->name() == "contiguous" or in->name() == "layout")

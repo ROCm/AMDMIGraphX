@@ -190,7 +190,7 @@ struct slice
                 offset += starts[axis] * strides[axis];
             }
         }
-        return offset;
+        return offset * s.type_size();
     }
 
     /**

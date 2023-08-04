@@ -21,8 +21,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 # ####################################################################################
-
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
+
+if(NOT WIN32)
+    include(MigxLocalTarget)
+    rocm_local_targets_migx(MIGXGPU_TARGETS)
+    set(GPU_TARGETS ${MIGXGPU_TARGETS} CACHE STRING "GPU targets to compile for")
+    set(AMDGPU_TARGETS ${MIGXGPU_TARGETS} CACHE STRING "AMDGPU targets to compile for")
+    message(STATUS "Compiling for GPU targets : ${GPU_TARGETS}")
+endif()
+
 find_package(miopen)
 
 # rocblas
@@ -69,6 +77,8 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
+
+
 
 add_library(kernel_file_check EXCLUDE_FROM_ALL)
 
@@ -224,21 +234,6 @@ else()
         execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
         string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
         target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_HIP_COMPILER_LAUNCHER=${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
-    endif()
-endif()
-
-if(NOT WIN32)
-    include(MigxLocalTarget)
-    rocm_local_targets_migx(MIGXGPU_TARGET)
-
-    if(MIGXGPU_TARGET)
-        message(STATUS "Compiling for gfx arch: ${MIGXGPU_TARGET}")
-
-        foreach(agent IN LISTS MIGXGPU_TARGET)
-            list(APPEND offload_arch_flags "--offload-arch=${agent}")
-        endforeach()
-
-        target_compile_options(migraphx_device PRIVATE ${offload_arch_flags})
     endif()
 endif()
 

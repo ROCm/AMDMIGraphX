@@ -281,7 +281,7 @@ jobs:
       run: gcc --version
     - name: Install dependencies
       if: steps.deps_cache.outputs.cache-hit != 'true'
-      run: VERBOSE=1 rbuild prepare -d cget -s gh
+      run: VERBOSE=1 rbuild prepare -d cget -s gh -DCMAKE_VERBOSE_MAKEFILE=On
 
     - name: Restore cache files for ccache
       uses: actions/cache/restore@v3 

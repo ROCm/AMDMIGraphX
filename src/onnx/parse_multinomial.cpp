@@ -75,15 +75,15 @@ struct parse_multinomial : op_parser<parse_multinomial>
         {
             shape s0 = args[0]->get_shape();
             // TODO: Use literal if batch size is fixed
-            // TODO: Add second argument for seed (an Migraphx rule, not Onnx) if Onnx seed not given
-            //   It will be a literal with a shape of 0 size
             if(s0.dynamic())
             {
                 //  Dynamic batch_size will be taken from args[0].  Other contents of input are
                 //  ignored here.
                 randoms = info.add_instruction(
                     migraphx::make_op("rand_uniform",
-                                      {{"seed", seed}, {"sample_size", sample_size}}),
+                                      {{"seed", seed},
+                                       //   {"sample_size", sample_size},
+                                       {"use_auto_seed", not contains(info.attributes, "seed")}}),
                     args[0]);
             }
             else
@@ -93,8 +93,11 @@ struct parse_multinomial : op_parser<parse_multinomial>
                 auto rand_dummy = info.add_literal(
                     migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
 
-                randoms = info.add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}),
-                                               rand_dummy);
+                randoms = info.add_instruction(
+                    migraphx::make_op(
+                        "rand_uniform",
+                        {{"seed", seed}, {"use_auto_seed", not contains(info.attributes, "seed")}}),
+                    rand_dummy);
             }
         }
         else

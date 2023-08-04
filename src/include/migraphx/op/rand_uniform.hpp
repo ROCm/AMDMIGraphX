@@ -48,38 +48,43 @@ namespace op {
 
 struct rand_uniform
 {
-    uint32_t sample_size = {20};
-    uint32_t seed        = {3};
-    float range_min      = 0.0f;
-    float range_max      = 1.0f;
+    // uint32_t sample_size = {20};
+    uint32_t seed      = {0};
+    bool use_auto_seed = false;
+    float range_min    = 0.0f;
+    float range_max    = 1.0f;
 
     // From Onnx RandomUniform:
-    // dtype : int (default is 1)
-    // The data type for the elements of the output tensor. If not specified, default is
-    // TensorProto::FLOAT. high : float (default is 1.0) Upper boundary of the output values. low :
-    // float (default is 0.0) Lower boundary of the output values. seed : float (Optional) Seed to
-    // the random generator, if not specified we will auto generate one. shape : list of ints
-    // (required) The shape of the output tensor.
+    // dtype : int (default is 1) The data type for the elements of the output tensor. currently
+    // float only. high : float (default is 1.0) Upper boundary of the output values. low : float
+    // (default is 0.0) Lower boundary of the output values. seed : float (Optional) Seed to the
+    // random generator, if not specified we will auto generate one. shape : list of ints (required)
+    // The shape of the output tensor.
+
+    // In Onnx, the size of array to fill is given by
 
     // TODO:  consider removing this and simply using the type of the passed argument.
     //  The only bar to doing this currently is that we can't create random integers within the
     // current bounds of (0, 1).
-    shape::type_t dtype = shape::type_t::float_type;
-    // std::vector<size_t> output_lens    = {1};
+    shape::type_t dtype             = shape::type_t::float_type;
+    std::vector<size_t> output_lens = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.dtype, "dtype"), f(self.sample_size, "sample_size"), f(self.seed, "seed"));
+        return pack(f(self.dtype, "dtype"),
+                    f(self.output_lens, "output_lens"),
+                    f(self.seed, "seed"),
+                    f(self.use_auto_seed, "use_auto_seed"));
     }
 
-    value attributes() const { return {{"sample_size", sample_size}, {"seed", seed}}; }
+    // value attributes() const { return {{"sample_size", sample_size}, {"seed", seed}}; }
 
     std::string name() const { return "rand_uniform"; }
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
+
         if(inputs.size() > 1 and inputs.at(1).element_space() > 0 and
            inputs.at(1).type() != shape::type_t::uint32_type)
             MIGRAPHX_THROW("RAND_UNIFORM:  Input 2 (seed) must have type unsigned int");
@@ -100,14 +105,21 @@ struct rand_uniform
         argument result{dyn_out.computed_shape};
 
         auto local_seed(seed);
-        if(args.size() > 1)
+        if(use_auto_seed)
+            local_seed = std::chrono::system_clock::now().time_since_epoch().count();
+        else
         {
-            if(args.at(1).get_shape().element_space() > 0)
+            if(args.size() > 1)
             {
-                visit_all(args[1])([&](auto data) { local_seed = data[0]; });
+                if(args.at(1).get_shape().element_space() > 0)
+                {
+                    visit_all(args[1])([&](auto data) { local_seed = data[0]; });
+                }
+                else // This is a bit of an Easter Egg.
+                     // If a seed argument was given but it has a 0-size shape at
+                     // inference time, also obtain a seed from the system clock:
+                    local_seed = std::chrono::system_clock::now().time_since_epoch().count();
             }
-            else // obtain a seed from the system clock:
-                local_seed = std::chrono::system_clock::now().time_since_epoch().count();
         }
         // If a seed argument was not defined, use the value from the seed attribute,
         // or the default.

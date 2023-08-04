@@ -4447,6 +4447,22 @@ def multinomial_dyn_test():
 
 
 @onnx_test()
+def multinomial_autoseed_dyn_test():
+    # If seed attribute is not given, device should auto generate one at runtime
+    sample_size = 12
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [None, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [None, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test()
 def multinomial_generated_seed_test():
     sample_size = 10
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])

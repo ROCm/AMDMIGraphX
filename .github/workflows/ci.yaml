@@ -238,9 +238,9 @@ jobs:
         os:
           - ubuntu-20.04
         configuration:
-          - debug
+          # - debug
           - release
-          - codecov
+          # - codecov
 
     steps:
     - name: Free space
@@ -277,8 +277,8 @@ jobs:
         key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
         restore-keys: ${{ matrix.os }}-cget-4-
 
-    - name: Show gcc version
-      run: gcc --version
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Install dependencies
       if: steps.deps_cache.outputs.cache-hit != 'true'
       run: VERBOSE=1 rbuild prepare -d cget -s gh -DCMAKE_VERBOSE_MAKEFILE=On

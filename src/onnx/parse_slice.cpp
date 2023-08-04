@@ -42,7 +42,7 @@ struct parse_slice : op_parser<parse_slice>
                           std::vector<instruction_ref> args) const
     {
         op::slice op;
-
+        std::vector<instruction_ref> op_args;
         std::vector<int64_t> steps;
 
         // slice can have up to 5 inputs, we first check the 5th one
@@ -57,8 +57,18 @@ struct parse_slice : op_parser<parse_slice>
         if(args.size() >= 4)
         {
             migraphx::argument axes_arg = args.at(3)->eval();
-            check_arg_empty(axes_arg, "PARSE_SLICE: cannot handle variable axes for slice");
-            axes_arg.visit([&](auto s) { op.axes.assign(s.begin(), s.end()); });
+            if(axes_arg.empty())
+            {
+                if(not steps.empty())
+                {
+                    MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
+                }
+                op_args.insert(op_args.begin(), args.at(3));
+            }
+            else
+            {
+                axes_arg.visit([&](auto s) { op.axes.assign(s.begin(), s.end()); });
+            }
         }
         else if(contains(info.attributes, "axes"))
         {
@@ -69,8 +79,19 @@ struct parse_slice : op_parser<parse_slice>
         if(args.size() >= 3)
         {
             migraphx::argument end_arg = args.at(2)->eval();
-            check_arg_empty(end_arg, "PARSE_SLICE: cannot handle variable ends for slice");
-            end_arg.visit([&](auto s) { op.ends.assign(s.begin(), s.end()); });
+            if(end_arg.empty())
+            {
+                op_args.insert(op_args.begin(), args.at(2));
+                if(not steps.empty())
+                {
+                    MIGRAPHX_THROW(
+                        "PARSE_SLICE: steps and variable starts and ends is not supported");
+                }
+            }
+            else
+            {
+                end_arg.visit([&](auto s) { op.ends.assign(s.begin(), s.end()); });
+            }
         }
         else if(contains(info.attributes, "ends"))
         {
@@ -81,8 +102,14 @@ struct parse_slice : op_parser<parse_slice>
         if(args.size() >= 2)
         {
             migraphx::argument start_arg = args.at(1)->eval();
-            check_arg_empty(start_arg, "PARSE_SLICE: cannot handle variable starts for slice");
-            start_arg.visit([&](auto s) { op.starts.assign(s.begin(), s.end()); });
+            if(start_arg.empty())
+            {
+                op_args.insert(op_args.begin(), args.at(1));
+            }
+            else
+            {
+                start_arg.visit([&](auto s) { op.starts.assign(s.begin(), s.end()); });
+            }
         }
         else if(contains(info.attributes, "starts"))
         {
@@ -90,20 +117,19 @@ struct parse_slice : op_parser<parse_slice>
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
         }
 
+        // data input argument
+        op_args.insert(op_args.begin(), args.at(0));
+
         // If axes arg is not given, the default is all of them.
-        if(op.axes.empty())
+        if(op.axes.empty() and op_args.size() < 3)
         {
             std::vector<int64_t> axes(args[0]->get_shape().ndim());
             std::iota(axes.begin(), axes.end(), int64_t{0});
             op.axes = axes;
         }
 
-        std::vector<int64_t> raxes;
-
         assert(steps.empty() or steps.size() == op.axes.size());
-        assert(op.axes.size() == op.starts.size());
-        assert(op.axes.size() == op.ends.size());
-
+        std::vector<int64_t> raxes;
         // If any axes have negative step, prepare to add a "reverse" op
         for(auto i : range(steps.size()))
         {
@@ -117,7 +143,7 @@ struct parse_slice : op_parser<parse_slice>
             std::swap(op.starts[i], op.ends[i]);
         }
 
-        auto ins = info.add_instruction(op, args[0]);
+        auto ins = info.add_instruction(op, op_args);
         if(not raxes.empty())
         {
             ins = info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);

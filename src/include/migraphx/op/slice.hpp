@@ -144,7 +144,8 @@ struct slice
             {
                 if(inputs[1].lens().at(0) != axes.size())
                 {
-                    MIGRAPHX_THROW("SLICE: inputs starts and ends do not have the same dimension as the axes attribute");
+                    MIGRAPHX_THROW("SLICE: inputs starts and ends do not have the same dimension "
+                                   "as the axes attribute");
                 }
                 std::for_each(
                     axes.cbegin(),

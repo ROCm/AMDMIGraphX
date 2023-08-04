@@ -8228,7 +8228,7 @@ TEST_CASE(slice_var_inputs_static2)
     params["ends"]                  = migraphx::argument(s1, end_data.data());
     params["axes"]                  = migraphx::argument(s1, axes_data.data());
     auto result                     = p.eval(params).back();
-    std::vector<float> gold       = {0, 1, 3, 4, 6, 7, 9, 10};
+    std::vector<float> gold         = {0, 1, 3, 4, 6, 7, 9, 10};
     std::vector<float> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_range(results_vector, gold));

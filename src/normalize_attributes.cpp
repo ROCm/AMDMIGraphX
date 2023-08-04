@@ -53,7 +53,6 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         return result;
     };
-
     int64_t n_rank                                 = input_shape.ndim();
     std::vector<op::normalize_attribute> vec_attrs = val.to_vector<op::normalize_attribute>();
     if(contains(vec_attrs, op::normalize_attribute::use_output))

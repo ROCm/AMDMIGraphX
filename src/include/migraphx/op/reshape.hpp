@@ -97,24 +97,6 @@ struct reshape
         return {s0.type(), output_dyn_dims};
     }
 
-    template <class DimIterator, class StrideIterator>
-    static auto can_strides_merge(DimIterator dim_start,
-                                  DimIterator dim_last,
-                                  StrideIterator stride_start,
-                                  StrideIterator stride_last)
-    {
-        assert(std::distance(dim_start, dim_last) == std::distance(stride_start, stride_last));
-        auto cstride = *std::prev(stride_last);
-        return std::equal(std::make_reverse_iterator(dim_last),
-                          std::make_reverse_iterator(dim_start + 1),
-                          std::make_reverse_iterator(stride_last - 1),
-                          std::make_reverse_iterator(stride_start),
-                          [&](auto dim, auto stride) {
-                              cstride *= dim;
-                              return stride == cstride;
-                          });
-    }
-
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
     {
         check_shapes{inputs, *this}.has(1);

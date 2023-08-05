@@ -277,11 +277,13 @@ jobs:
         key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
         restore-keys: ${{ matrix.os }}-cget-4-
 
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
     - name: Install dependencies
       if: steps.deps_cache.outputs.cache-hit != 'true'
-      run: VERBOSE=1 rbuild prepare -d cget -s gh -DCMAKE_VERBOSE_MAKEFILE=On
+      run: |
+        env
+        rbuild prepare -d cget -s gh
 
     - name: Restore cache files for ccache
       uses: actions/cache/restore@v3 

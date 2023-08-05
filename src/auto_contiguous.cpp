@@ -68,9 +68,9 @@ void auto_contiguous::apply(module& m) const
         auto new_args = args;
         std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
             if(in->name() == "contiguous" or in->name() == "layout")
-            {
                 return in;
-            }
+            if(in->name() == "@literal" and in->get_shape().standard())
+                return in;
             return m.insert_instruction(ins, make_op("contiguous"), in);
         });
 

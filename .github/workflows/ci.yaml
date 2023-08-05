@@ -238,9 +238,9 @@ jobs:
         os:
           - ubuntu-20.04
         configuration:
-          # - debug
+          - debug
           - release
-          # - codecov
+          - codecov
 
     steps:
     - name: Free space

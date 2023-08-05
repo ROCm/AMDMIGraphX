@@ -83,7 +83,7 @@ TEST_CASE(calc_implict_deps)
     auto* else_mod = p.create_module("If_5_else");
     auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
     auto a2 = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
-    auto a3 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), a2);
+    auto a3 = else_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), a2);
     else_mod->add_return({a3, l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -95,6 +95,15 @@ TEST_CASE(calc_implict_deps)
     EXPECT(migraphx::contains(implicit_deps.at(ret), x1));
     EXPECT(migraphx::contains(implicit_deps.at(ret), x2));
     EXPECT(migraphx::contains(implicit_deps.at(ret), y2));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), lx));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), ly));
+    // test for sorting
+    p.sort();
+    auto ret_inputs = ret->inputs();
+    ret_inputs.insert(ret_inputs.end(), implicit_deps.at(ret).begin(), implicit_deps.at(ret).end());
+    EXPECT(std::all_of(ret_inputs.begin(), ret_inputs.end(), [&](const auto i) {
+        return std::distance(mm->begin(), i) < std::distance(mm->begin(), ret);
+    }));
 }
 
 TEST_CASE(module_annotate)

@@ -113,7 +113,7 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_install_onnxrt.sh /onnxruntime/build_and_install_onnxrt.sh
 ADD tools/test_onnxrt_unit_tests.sh /onnxruntime/test_onnxrt_unit_tests.sh
-ADD tools/test_onnxrt_parity_tests.sh /onnxruntime/test_onnxrt_parity_tests.sh
+ADD tools/test_onnxrt_parity_checks.sh /onnxruntime/test_onnxrt_parity_checks.sh
 
 # Use the /opt/cmake install because LLVM/MLIR need cmake >= 3.20
 RUN env PATH=/opt/cmake/bin:$PATH cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@1ad9d6df32acc6d29d58e8ed6710e36746d0a4d6 -DBUILD_FAT_LIBROCKCOMPILER=On

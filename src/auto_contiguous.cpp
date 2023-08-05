@@ -76,7 +76,10 @@ void auto_contiguous::apply(module& m) const
 
         if(new_args != args)
         {
-            m.replace_instruction(ins, ins->get_operator(), new_args);
+            if(not ins->module_inputs().empty())
+                m.replace_instruction(ins, ins->get_operator(), new_args, ins->module_inputs());
+            else
+                m.replace_instruction(ins, ins->get_operator(), new_args);
         }
         // shape s = ins->get_shape();
         // if(not s.dynamic() and not s.standard() and s.elements() != 0)

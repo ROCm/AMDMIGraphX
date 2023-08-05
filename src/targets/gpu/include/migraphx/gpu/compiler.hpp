@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_GPU_COMPILER_HPP
 #define MIGRAPHX_GUARD_GPU_COMPILER_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <migraphx/auto_register.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/value.hpp>
@@ -32,6 +32,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/gpu/tuning_config.hpp>
 #include <functional>
 
 namespace migraphx {
@@ -68,12 +69,6 @@ struct compiler_replace
     }
 };
 
-struct tuning_config
-{
-    value problem;
-    std::vector<value> solutions;
-};
-
 using compiler_compile =
     std::function<compiler_replace(context&, instruction_ref, operation, const value&)>;
 using compiler_compile_op =
@@ -81,17 +76,21 @@ using compiler_compile_op =
 using compiler_tuning_config =
     std::function<optional<tuning_config>(context&, instruction_ref, const operation&, bool)>;
 
-void register_compiler(const std::string& name,
-                       compiler_compile c,
-                       compiler_compile_op cop,
-                       compiler_tuning_config ctg);
+MIGRAPHX_GPU_EXPORT void register_compiler(const std::string& name,
+                                           compiler_compile c,
+                                           compiler_compile_op cop,
+                                           compiler_tuning_config ctg);
 
-bool has_compiler_for(const std::string& name);
-compiler_replace
-compile(context& ctx, instruction_ref ins, const operation& op, const value& solution);
-operation
-compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v);
-optional<tuning_config>
+MIGRAPHX_GPU_EXPORT bool has_compiler_for(const std::string& name);
+MIGRAPHX_GPU_EXPORT compiler_replace compile(context& ctx,
+                                             instruction_ref ins,
+                                             const operation& op,
+                                             const value& solution);
+MIGRAPHX_GPU_EXPORT operation compile_op(const std::string& name,
+                                         context& ctx,
+                                         const std::vector<shape>& inputs,
+                                         const value& v);
+MIGRAPHX_GPU_EXPORT optional<tuning_config>
 get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive);
 
 template <class T>

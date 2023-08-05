@@ -460,11 +460,11 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    impl->push_back({builtin::returns{}, {}, std::move(args)});
+    shape instr_shape = compute_shape(builtin::returns{}, args);
+    impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
-
     return result;
 }
 
@@ -1011,9 +1011,17 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
+    auto implicit_deps = calc_implicit_deps();
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
-        for(auto child : ins->inputs())
+        auto ins_inputs = ins->inputs();
+        if(implicit_deps.find(ins) != implicit_deps.end())
+        {
+            auto ins_implict_inputs = implicit_deps.at(ins);
+            ins_inputs.insert(
+                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+        }
+        for(auto child : ins_inputs)
         {
             if(not contains(this->impl->instructions, child))
             {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -228,6 +228,15 @@ TEST_CASE(test_shape_dynamic_errors)
     EXPECT(test::throws([&] { s.index(std::vector<std::size_t>{0, 1}); }));
     EXPECT(test::throws([&] { s.with_lens({3, 5}); }));
     EXPECT(test::throws([&] { s.with_lens(shape::float_type, {3, 5}); }));
+    EXPECT(test::throws([&] { s.lens(); }));
+    EXPECT(test::throws([&] { s.strides(); }));
+}
+
+TEST_CASE(test_shape_static_dyn_dim_error)
+{
+    using migraphx::shape;
+    migraphx::shape s{shape::float_type, {2, 3, 4}};
+    EXPECT(test::throws([&] { s.dyn_dims(); }));
 }
 
 TEST_CASE(test_shape_dynamic_serialize)
@@ -947,13 +956,13 @@ TEST_CASE(test_with_type)
 TEST_CASE(test_multi_index)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4, 6}};
-    EXPECT(migraphx::verify_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
-    EXPECT(migraphx::verify_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
-    EXPECT(migraphx::verify_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
-    EXPECT(migraphx::verify_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
-    EXPECT(migraphx::verify_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
-    EXPECT(migraphx::verify_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
-    EXPECT(migraphx::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
+    EXPECT(migraphx::verify::verify_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
+    EXPECT(migraphx::verify::verify_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
+    EXPECT(migraphx::verify::verify_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
 }
 
 TEST_CASE(find_permutation_2d_standard)

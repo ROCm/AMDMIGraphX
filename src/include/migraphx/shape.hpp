@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,7 +43,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct value;
 struct shape_impl;
 
-struct shape
+struct MIGRAPHX_EXPORT shape
 {
 
 // Add new types here
@@ -85,7 +85,7 @@ struct shape
     {
     };
 
-    struct dynamic_dimension
+    struct MIGRAPHX_EXPORT dynamic_dimension
     {
         std::size_t min = 0;
         std::size_t max = 0;
@@ -100,22 +100,28 @@ struct shape
         bool is_fixed() const;
         bool has_optimal() const;
 
-        friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y);
-        friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y);
-        friend std::ostream& operator<<(std::ostream& os, const dynamic_dimension& x);
+        MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x,
+                                               const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x,
+                                               const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os,
+                                                        const dynamic_dimension& x);
 
         // compare to fixed std::size_t dimension
-        friend bool operator==(const dynamic_dimension& x, const std::size_t& y);
-        friend bool operator==(const std::size_t& x, const dynamic_dimension& y);
-        friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
-        friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x, const std::size_t& y);
+        MIGRAPHX_EXPORT friend bool operator==(const std::size_t& x, const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
+        MIGRAPHX_EXPORT friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
 
         // add and subtract fixed std::size_t dimension
         dynamic_dimension& operator+=(const std::size_t& x);
         dynamic_dimension& operator-=(const std::size_t& x);
-        friend dynamic_dimension operator+(const dynamic_dimension& x, const std::size_t& y);
-        friend dynamic_dimension operator+(const std::size_t& x, const dynamic_dimension& y);
-        friend dynamic_dimension operator-(const dynamic_dimension& x, const std::size_t& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
+                                                           const std::size_t& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const std::size_t& x,
+                                                           const dynamic_dimension& y);
+        MIGRAPHX_EXPORT friend dynamic_dimension operator-(const dynamic_dimension& x,
+                                                           const std::size_t& y);
     };
 
     static const std::vector<type_t>& types();
@@ -234,6 +240,10 @@ struct shape
     template <class Iterator>
     std::size_t index(Iterator start, Iterator last) const
     {
+        if(this->dynamic())
+        {
+            MIGRAPHX_THROW("SHAPE: index() called on dynamic shape");
+        }
         assert(std::distance(start, last) <= this->lens().size());
         assert(this->lens().size() == this->strides().size());
         return std::inner_product(start, last, this->strides().begin(), std::size_t{0}); // NOLINT
@@ -286,9 +296,9 @@ struct shape
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
 
-    friend bool operator==(const shape& x, const shape& y);
-    friend bool operator!=(const shape& x, const shape& y);
-    friend std::ostream& operator<<(std::ostream& os, const shape& x);
+    MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
+    MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
     template <class T>
     struct as
@@ -396,8 +406,8 @@ struct shape
     std::shared_ptr<const shape_impl> impl;
 };
 
-void migraphx_to_value(value& v, const shape& s);
-void migraphx_from_value(const value& v, shape& s);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

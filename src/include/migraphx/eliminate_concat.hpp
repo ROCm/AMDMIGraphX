@@ -37,7 +37,7 @@ struct module;
 /**
  * Remove concat operators by having each operator can write to different chunk of memory.
  */
-struct eliminate_concat
+struct MIGRAPHX_EXPORT eliminate_concat
 {
     concat_optimization concat_opt;
     std::string name() const { return "eliminate_concat"; }

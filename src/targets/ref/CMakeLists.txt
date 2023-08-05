@@ -37,6 +37,8 @@ target_link_libraries(migraphx_ref PUBLIC migraphx)
 target_include_directories(migraphx_ref PRIVATE ${BLAZE_INCLUDE})
 target_compile_definitions(migraphx_ref PRIVATE -DBLAZE_USE_CPP_THREADS)
 
+migraphx_generate_export_header(migraphx_ref)
+
 rocm_install_targets(
   TARGETS migraphx_ref
   INCLUDE

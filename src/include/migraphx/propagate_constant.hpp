@@ -35,7 +35,7 @@ struct module;
 /**
  * Replace instructions which take all literals with a literal of the computation.
  */
-struct propagate_constant
+struct MIGRAPHX_EXPORT propagate_constant
 {
     std::string name() const { return "propagate_constant"; }
     void apply(module& m) const;

@@ -48,7 +48,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void ${kernel}(${params}) 
+MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto... xs) {
         ${layernorm}<${axis}>(${post}, ${eps}, xs...);
@@ -122,7 +122,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
             v["kernel"] =
                 v["layernorm"].to<std::string>() + "_" + generate_name_from_ops(*pm) + "_kernel";
         }
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

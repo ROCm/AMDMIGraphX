@@ -46,7 +46,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct marker
+struct MIGRAPHX_EXPORT marker
 {
     //
     void mark_start(instruction_ref ins_ref);
@@ -80,7 +80,7 @@ struct marker
     {
         using std::swap;
         auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.unique())
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
         }
@@ -233,7 +233,7 @@ struct marker
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
         assert(private_detail_te_handle_mem_var != nullptr);
-        if(not private_detail_te_handle_mem_var.unique())
+        if(private_detail_te_handle_mem_var.use_count() > 1)
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }

@@ -138,7 +138,7 @@ MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, floor, ::hfloor)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, isnan, ::__hisnan)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, log, ::hlog)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, rsqrt, ::hrsqrt)
-// MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
+MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sin, ::hsin)
 MIGRAPHX_DEVICE_MATH_FOR(migraphx::half, sqrt, ::hsqrt)
 
 // Use float to compute half overload
@@ -161,8 +161,7 @@ MIGRAPHX_DEVICE_MATH_HALF(fmod, ::fmod)
 // Map math functions to hip half2 functions
 // The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
 // packed into a 32-bit number.  See include/hip/amd_detail/hip_fp16_math_fwd.h for the HIP names
-// Most but not all of these math ops have operators of the same names.  Ones not yet implemented
-// at this time are: exp2, exp10, log2, log10, isinf
+// Most but not all of these math ops have operators of the same names.
 MIGRAPHX_DEVICE_MATH_HALF2(abs, ::__habs2)
 MIGRAPHX_DEVICE_MATH_HALF2(ceil, ::h2ceil)
 MIGRAPHX_DEVICE_MATH_HALF2(cos, ::h2cos)
@@ -176,7 +175,7 @@ MIGRAPHX_DEVICE_MATH_HALF2(log, ::h2log)
 MIGRAPHX_DEVICE_MATH_HALF2(log10, ::h2log10)
 MIGRAPHX_DEVICE_MATH_HALF2(log2, ::h2log2)
 MIGRAPHX_DEVICE_MATH_HALF2(rsqrt, ::h2rsqrt)
-// MIGRAPHX_DEVICE_MATH_HALF2(sin, ::h2sin)
+MIGRAPHX_DEVICE_MATH_HALF2(sin, ::h2sin)
 MIGRAPHX_DEVICE_MATH_HALF2(sqrt, ::h2sqrt)
 
 template <class T, class U>
@@ -189,9 +188,8 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::min)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
-// Add overloads for half that calls the float version
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::fmaxf)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::fminf)
+MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
+MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)
@@ -215,14 +213,6 @@ template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any
 constexpr auto min(const T& a, const U& b)
 {
     return min<common_type_t<T, U>>(a, b);
-}
-
-// Sin for half is broken on hip, so use cos instead
-template <class T, MIGRAPHX_REQUIRES(is_same<vec_type<T>, half>{})>
-constexpr T sin(T x)
-{
-    constexpr const T shift = HIP_PIO2_F;
-    return migraphx::cos(shift - x);
 }
 
 MIGRAPHX_DEVICE_MATH_VEC(abs)

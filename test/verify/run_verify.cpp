@@ -49,7 +49,7 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
 {
     if(parallel)
     {
-        using result_type = typename std::result_of<Function()>::type;
+        using result_type = typename std::invoke_result<Function>::type;
         std::packaged_task<result_type()> task(std::forward<Function>(f));
         auto fut = task.get_future();
         std::thread(std::move(task)).detach();
@@ -88,10 +88,31 @@ inline void compile_check(migraphx::program& p,
     auto num = shapes.size();
     for(std::size_t i = 0; i < num; ++i)
     {
-        if(p.get_output_shapes()[i].lens() != shapes[i].lens())
+        auto output_shape = p.get_output_shapes()[i];
+        if(output_shape.dynamic() and shapes[i].dynamic())
+        {
+            if(output_shape.dyn_dims() != shapes[i].dyn_dims())
+            {
+                std::cout << ss.str() << std::endl;
+                throw std::runtime_error("Compiling program with " + name +
+                                         " alters its dynamic output dimensions");
+            }
+        }
+        else if(not(output_shape.dynamic() or shapes[i].dynamic()))
+        {
+            if(output_shape.lens() != shapes[i].lens())
+            {
+                std::cout << ss.str() << std::endl;
+                throw std::runtime_error("Compiling program with " + name +
+                                         " alters its static output dimensions");
+            }
+        }
+        else
         {
             std::cout << ss.str() << std::endl;
-            throw std::runtime_error("Compiling program with " + name + " alters its shape");
+            throw std::runtime_error(
+                "Compiling program with " + name +
+                " alters its output dimensions (static shape vs dynamic shape)");
         }
     }
     if(t.name() != "ref")

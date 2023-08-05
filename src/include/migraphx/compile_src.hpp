@@ -41,7 +41,7 @@ struct src_file
     std::size_t len() const { return content.second - content.first; }
 };
 
-struct src_compiler
+struct MIGRAPHX_EXPORT src_compiler
 {
     std::string compiler                      = "c++";
     std::string flags                         = "";

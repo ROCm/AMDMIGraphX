@@ -37,6 +37,15 @@ namespace op {
 
 struct dequantizelinear
 {
+
+    value attributes() const
+    {
+        // Note: point_op attribute is not used in this op. Instead, in
+        // gpu compilation pipeline, rewrite_quantization will be invoked
+        // from generate_pointwise() to rewrite this op.
+        return {{"pointwise", true}};
+    }
+
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

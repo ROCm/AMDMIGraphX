@@ -24,8 +24,9 @@
 #ifndef MIGRAPHX_GUARD_GPU_COMPILE_HIP_CODE_OBJECT_HPP
 #define MIGRAPHX_GUARD_GPU_COMPILE_HIP_CODE_OBJECT_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/compile_src.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,9 +40,10 @@ struct hip_compile_options
     std::size_t local;
     std::vector<shape> inputs;
     shape output;
-    std::string kernel_name           = "kernel";
-    std::string params                = "";
-    std::vector<shape> virtual_inputs = {};
+    std::string kernel_name                    = "kernel";
+    std::string params                         = "";
+    std::vector<shape> virtual_inputs          = {};
+    std::vector<src_file> additional_src_files = {};
 
     /**
      * @brief Set the launch parameters but allow v to override the values
@@ -64,14 +66,16 @@ struct hip_compile_options
 };
 
 /// Compute global for n elements, but max out on target-specific upper limit
-std::function<std::size_t(std::size_t local)>
+MIGRAPHX_GPU_EXPORT std::function<std::size_t(std::size_t local)>
 compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
 
-operation compile_hip_code_object(const std::string& content, hip_compile_options options);
+MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(const std::string& content,
+                                                      hip_compile_options options);
 
-std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024);
+MIGRAPHX_GPU_EXPORT std::size_t compute_block_size(std::size_t n,
+                                                   std::size_t max_block_size = 1024);
 
-std::string generate_make_shape(const shape& s);
+MIGRAPHX_GPU_EXPORT std::string generate_make_shape(const shape& s);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

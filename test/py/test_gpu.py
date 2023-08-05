@@ -33,8 +33,8 @@ def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)
     print("Compiling ...")
-    # set offload_copy, fast_match and exhaustive_tune to true
-    p.compile(migraphx.get_target("gpu"), True, True, True)
+    # set offload_copy, fast_match to true
+    p.compile(migraphx.get_target("gpu"), True, True)
     print(p)
     params = {}
 
@@ -86,8 +86,8 @@ def test_nonzero():
     params = {}
 
     shapes = p.get_parameter_shapes()
-    params["data"] = np.array([1, 1, 0, 1]).reshape(
-        shapes["data"].lens()).astype(np.bool)
+    params["data"] = np.array([1, 1, 0,
+                               1]).reshape(shapes["data"].lens()).astype(bool)
 
     r = p.run(params)
     print(r)
@@ -127,10 +127,48 @@ def test_if_pl():
     params["x"] = np.ones(6).reshape(shapes["x"].lens()).astype(np.float32)
     params["y"] = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0
                             ]).reshape(shapes["y"].lens()).astype(np.float32)
-    params["cond"] = np.array([1]).reshape(()).astype(np.bool)
+    params["cond"] = np.array([1]).reshape(()).astype(bool)
 
     r = p.run(params)[-1]
     print(r)
+
+
+def test_dyn_batch():
+    a = migraphx.shape.dynamic_dimension(1, 4, {2, 4})
+    b = migraphx.shape.dynamic_dimension(3, 3)
+    c = migraphx.shape.dynamic_dimension(32, 32)
+    dd_map = {"0": [a, b, c, c]}
+    p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx",
+                            map_dyn_input_dims=dd_map)
+    print(p)
+    print("Compiling ...")
+    p.compile(migraphx.get_target("gpu"))
+    print(p)
+
+    def run_prog(batch_size):
+        params = {}
+        for key, value in p.get_parameter_shapes().items():
+            # convert to a static shape
+            if value.dynamic():
+                dds = value.dyn_dims()
+                new_lens = []
+                for dd in dds:
+                    if dd.is_fixed():
+                        new_lens.append(dd.min)
+                    else:
+                        new_lens.append(batch_size)
+                s = migraphx.shape(type=value.type_string(), lens=new_lens)
+            else:
+                s = value
+            print("Parameter {} -> {}".format(key, s))
+            params[key] = migraphx.generate_argument(s)
+        r = p.run(params)
+        print(r)
+
+    run_prog(1)
+    run_prog(2)
+    run_prog(3)
+    run_prog(4)
 
 
 test_conv_relu()
@@ -139,3 +177,4 @@ test_neg_int64()
 test_fp16_imagescaler()
 test_if_pl()
 test_nonzero()
+test_dyn_batch()

@@ -24,8 +24,6 @@
 
 cmake_policy(SET CMP0057 NEW)
 
-include(CTest)
-
 find_package(Threads REQUIRED)
 include(ProcessorCount)
 ProcessorCount(N)
@@ -114,7 +112,7 @@ function(add_test_executable TEST_NAME)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
-file(GLOB TESTS ${CONFIGURE_DEPENDS} *.cpp)
+file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -124,7 +122,7 @@ endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
-    file(GLOB GPU_TESTS ${CONFIGURE_DEPENDS} gpu/*.cpp)
+    file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)
 
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -134,13 +132,16 @@ if(MIGRAPHX_ENABLE_GPU)
             COST 10
             RESOURCE_LOCK gpu
         )
+        if(MIGRAPHX_USE_HIPRTC)
+        target_compile_definitions(test_gpu_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_HIPRTC)
+        endif()
         target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels)
     endforeach()
 endif()
 
 if(MIGRAPHX_ENABLE_FPGA)
     # fpga tests
-    file(GLOB FPGA_TESTS ${CONFIGURE_DEPENDS} fpga/*.cpp)
+    file(GLOB FPGA_TESTS CONFIGURE_DEPENDS fpga/*.cpp)
 
     foreach(TEST ${FPGA_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -187,6 +188,25 @@ if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)
 endif()
 
+# multitarget test
+if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
+    set(TEST_MULTI_TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/multi_target)
+    file(GLOB MULTI_TARGET_TESTS CONFIGURE_DEPENDS ${TEST_MULTI_TARGET_DIR}/*.cpp)
+
+    foreach(MULTI_TARGET_TEST ${MULTI_TARGET_TESTS})
+        get_filename_component(BASE_NAME ${MULTI_TARGET_TEST} NAME_WE)
+        set(TEST_NAME test_${BASE_NAME})
+        add_executable(${TEST_NAME} ${MULTI_TARGET_TEST})
+        rocm_clang_tidy_check(${TEST_NAME})
+        target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
+        target_include_directories(${TEST_NAME} PUBLIC include)
+        add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_MULTI_TARGET_DIR})
+        add_dependencies(tests ${TEST_NAME})
+        add_dependencies(check ${TEST_NAME})
+    endforeach()
+endif()
+
+
 function(test_header NAME HEADER)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
         "#include <${HEADER}>\nint main() {}\n"
@@ -201,14 +221,14 @@ function(test_header NAME HEADER)
 endfunction()
 
 function(test_headers PREFIX)
-    file(GLOB HEADERS ${CONFIGURE_DEPENDS} ${ARGN})
+    file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})
 
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        target_link_libraries(header_${TEST_NAME} migraphx_all_targets)
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
     endforeach()
 endfunction()
 
@@ -224,4 +244,5 @@ endif()
 if(MIGRAPHX_ENABLE_FPGA)
     test_headers(migraphx/fpga ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp)
 endif()
+
 

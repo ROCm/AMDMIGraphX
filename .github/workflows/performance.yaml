@@ -12,7 +12,7 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '5.4.2'
+        default: '5.6'
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
@@ -33,21 +33,28 @@ on:
         description: If model in performance test script passes this threshold, it will be skipped
         required: true
         default: '30m'
+      performance_backup_repo:
+        description: Repository for backup
+        required: true
+        default: migraphx-benchmark/performance-backup
       flags:
         description: -m for Max value; -s for Std dev; -r for Threshold file
         required: true
         default: '-r'
 
-concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+concurrency: 
+  group: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+  cancel-in-progress: true
 
 jobs:
   release:
     uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release || '5.4.2' }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.6' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}
       flags: ${{ github.event.inputs.flags || '-r' }}
       performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }}
+      performance_backup_repo: ${{ github.event.inputs.performance_backup_repo || 'migraphx-benchmark/performance-backup' }}
       benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
       organization: ${{ github.event.inputs.organization || 'AMD' }}
       model_timeout: ${{ github.event.inputs.model_timeout || '30m' }}

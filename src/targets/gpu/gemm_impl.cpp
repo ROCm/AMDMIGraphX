@@ -140,12 +140,10 @@ void gemm_impl(context& ctx,
             compute_type = rocblas_datatype_f32_r;
     }
 
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    rocblas_gemm_flags flag =
-        int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
-#else
-    (void)int8_x4_format;
-    int flag = 0;
+    rocblas_gemm_flags flag = rocblas_gemm_flags_none;
+#if ROCBLAS_VERSION_MAJOR < 3
+    if(int8_x4_format)
+        flag = rocblas_gemm_flags_pack_int8x4;
 #endif
 
     auto a_lens = args[0].get_shape().lens();

@@ -25,7 +25,6 @@
 #include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
-
 #include <migraphx/manage_ptr.hpp>
 #include "test.hpp"
 
@@ -35,7 +34,6 @@ TEST_CASE(load_and_run)
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options options;
     options.set_offload_copy();
-    options.set_exhaustive_tune_flag();
     p.compile(migraphx::target("gpu"), options);
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
@@ -70,6 +68,105 @@ hip_ptr get_hip_buffer(size_t size)
     auto err = hipMalloc(&ptr, size);
     EXPECT(err == hipSuccess);
     return hip_ptr{ptr};
+}
+
+// TODO: placeholder until we have a way to copy tuple arguments to/from device through c++ api
+// TEST_CASE(dynamic_batch_load_and_run)
+//{
+//    migraphx::onnx_options o_options;
+//    migraphx::dynamic_dimensions dyn_dims = {{1, 4, {2, 4}}, {3, 3}, {4, 4}, {4, 4}};
+//    o_options.set_dyn_input_parameter_shape("0", dyn_dims);
+//    dyn_dims = {{2, 2}, {3, 3}, {3, 3}, {3, 3}};
+//    o_options.set_dyn_input_parameter_shape("1", dyn_dims);
+//    auto p = migraphx::parse_onnx("conv_dynamic_batch_test.onnx", o_options);
+//    migraphx::compile_options c_options;
+//    c_options.set_split_single_dyn_dim();
+//    p.compile(migraphx::target("gpu"), c_options);
+//    auto out_shapes = p.get_output_shapes();
+//    CHECK(out_shapes.size() == 1);
+//    EXPECT(out_shapes[0].dynamic());
+//
+//    std::vector<float> a(0.12, 2*3*4*4);
+//    std::vector<float> c(0.75, 2*3*3*3);
+//
+//    auto param_shapes = p.get_parameter_shapes();
+//    int batch_size    = 2;
+//    std::unordered_map<std::string, migraphx::argument> arg_map;
+//
+//    arg_map["0"] = migraphx::argument(param_shapes["0"].to_static(batch_size), a.data());
+//    arg_map["1"] = migraphx::argument(param_shapes["1"].to_static(batch_size), c.data());
+//
+//    migraphx::program_parameters pp;
+//    std::vector<hip_ptr> buffs;
+//    std::vector<migraphx::argument> args;
+//
+//    // copy to GPU and create parameter map
+//    for(auto&& name : param_shapes.names())
+//    {
+//        if(arg_map.find(name) != arg_map.end())
+//        {
+//            args.push_back(arg_map.at(name));
+//        }
+//        else
+//        {
+//            migraphx::shape static_shape = param_shapes[name].to_static(batch_size);
+//            auto output_arg              = migraphx::argument(static_shape);
+//            args.push_back(output_arg);
+//        }
+//        buffs.push_back(get_hip_buffer(args.rbegin()->get_shape().bytes()));
+//        auto err = hipMemcpy(buffs.rbegin()->get(),
+//                             args.rbegin()->data(),
+//                             args.rbegin()->get_shape().bytes(),
+//                             hipMemcpyHostToDevice);
+//        EXPECT(err == hipSuccess);
+//        pp.add(name, migraphx::argument(args.rbegin()->get_shape(), buffs.rbegin()->get()));
+//    }
+//
+//    auto output = p.eval(pp)[0];
+//
+//    // copy output back to host
+//    auto host_arg = migraphx::argument(output.get_shape());
+//    auto err      = hipMemcpy(
+//        host_arg.data(), output.data(), output.get_shape().bytes(), hipMemcpyDeviceToHost);
+//    EXPECT(err == hipSuccess);
+//}
+
+TEST_CASE(dynamic_batch_load_and_run_offload)
+{
+    migraphx::onnx_options o_options;
+    migraphx::dynamic_dimensions dyn_dims = {migraphx::dynamic_dimension{1, 4, {2, 4}},
+                                             migraphx::dynamic_dimension{3, 3},
+                                             migraphx::dynamic_dimension{4, 4},
+                                             migraphx::dynamic_dimension{4, 4}};
+    o_options.set_dyn_input_parameter_shape("0", dyn_dims);
+    dyn_dims = {migraphx::dynamic_dimension{2, 2},
+                migraphx::dynamic_dimension{3, 3},
+                migraphx::dynamic_dimension{3, 3},
+                migraphx::dynamic_dimension{3, 3}};
+    o_options.set_dyn_input_parameter_shape("1", dyn_dims);
+    auto p             = migraphx::parse_onnx("conv_dynamic_batch_test.onnx", o_options);
+    auto shapes_before = p.get_output_shapes();
+    migraphx::compile_options c_options;
+    c_options.set_offload_copy();
+    p.compile(migraphx::target("gpu"), c_options);
+    auto out_shapes = p.get_output_shapes();
+    EXPECT(out_shapes.size() == 1);
+    EXPECT(out_shapes[0].dynamic());
+
+    // batch size = 2
+    std::vector<float> a(2 * 3 * 4 * 4, 0.12);
+    std::vector<float> c(2 * 3 * 3 * 3, 0.75);
+    migraphx::program_parameters pp;
+    auto param_shapes = p.get_parameter_shapes();
+    pp.add("0",
+           migraphx::argument(migraphx::shape(migraphx_shape_float_type, {2, 3, 4, 4}), a.data()));
+    pp.add("1",
+           migraphx::argument(migraphx::shape(migraphx_shape_float_type, {2, 3, 3, 3}), c.data()));
+    auto outputs = p.eval(pp);
+
+    EXPECT(shapes_before.size() == outputs.size());
+    EXPECT(bool{outputs.front().get_shape() ==
+                migraphx::shape(migraphx_shape_float_type, {2, 2, 2, 2})});
 }
 
 TEST_CASE(load_and_run_async)

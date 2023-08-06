@@ -26,6 +26,9 @@ set -e
 #Go to folder with parity checks
 cd /workspace/onnxruntime/onnxruntime/test/python/transformers/
 
+#Install latest stable torch version
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.4.2
+
 #Parity checks asked by microsoft. Ensure these are running and work with MIGraphX changes
 python test_parity_gelu.py --no_optimize 
 

@@ -21,8 +21,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 # ####################################################################################
-
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
+
+if(NOT WIN32)
+    include(MigxLocalTarget)
+    rocm_local_targets_migx(MIGXGPU_TARGETS)
+    if(MIGXGPU_TARGETS)
+        set(GPU_TARGETS ${MIGXGPU_TARGETS} CACHE STRING "GPU targets to compile for")
+        message(STATUS "Compiling for GPU targets : ${GPU_TARGETS}")
+    endif()
+endif()
+
 find_package(miopen)
 
 # rocblas

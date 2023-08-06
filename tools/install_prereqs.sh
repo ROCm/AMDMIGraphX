@@ -31,9 +31,30 @@ set -e
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
+source /etc/os-release
 
-# Need pip3 and Python headers to build dependencies
-apt update && apt install -y python3-pip python3-dev cmake rocm-cmake rocblas miopen-hip openmp-extras
+if [[ ("${ID}" == "sles") ]]; then
+  zypper -n --gpg-auto-import-keys install -y \
+    cmake \
+    miopen-hip-devel \
+    openmp-extras-devel \
+    python3-devel \
+    python3-pip \
+    rocblas-devel \
+    rocm-cmake
+else
+  # Need pip3 and Python headers to build dependencies
+  apt update && apt install -y \
+    cmake \
+    libnuma-dev \
+    miopen-hip-dev \
+    openmp-extras \
+    python3-dev \
+    python3-pip \
+    rocblas-dev \
+    rocm-cmake
+fi
+
 
 # Needed for cmake to build various pip packages
 pip3 install setuptools wheel

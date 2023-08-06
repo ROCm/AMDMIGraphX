@@ -156,7 +156,7 @@ def onnxnode(name, body) {
 }
 
 
-rocmtest onnxbuild onnxnode('anygpu') { cmake_build ->
+rocmtest onnxbuild: onnxnode('anygpu') { cmake_build ->
     stage("Onnxruntime Build and Install") {
         sh '''
             apt install half
@@ -182,15 +182,17 @@ def onnxtestnode(name, body) {
     }
 }
 
-rocmtest onnxtests onnxtestnode('anygpu') {cmake_build ->
+rocmtest onnxtests: onnxtestnode('anygpu') {cmake_build ->
     stage("Onnxruntime Unit tests") {
         sh '''
             cd /onnxruntime && ./test_onnxrt_unit_tests.sh 
         '''
     }
-    stage("Onnxruntime Parity tests") {
+}, onnx_parity: onnxtestnode('anygpu') {cmake_build ->
+    stage("Parity tests Stable Pytorch") {
         sh '''
             cd /onnxruntime && ./test_onnxrt_parity_tests.sh 
         '''
     }
 }
+

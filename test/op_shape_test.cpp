@@ -2216,6 +2216,28 @@ TEST_CASE(prefix_scan_sum_dyn_2d)
     }
 }
 
+TEST_CASE(rand_uniform)
+{
+    std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}, {3, 7}};
+    migraphx::shape s1{migraphx::shape::float_type, dd};
+    expect_shape(
+        s1,
+        migraphx::make_op("rand_uniform", {{"seed", 1}}),
+        s1);
+}
+
+TEST_CASE(rand_uniform_2args)
+{
+    std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}, {3, 7}};
+    migraphx::shape s1{migraphx::shape::float_type, dd};
+    migraphx::shape s2{migraphx::shape::uint32_type, dd};
+
+    expect_shape(
+        s1,
+        migraphx::make_op("rand_uniform", {{"seed", 1}}),
+        s1, s2);
+}
+
 TEST_CASE(quant_convolution_shape)
 {
     migraphx::shape output{migraphx::shape::int32_type, {4, 4, 1, 1}};

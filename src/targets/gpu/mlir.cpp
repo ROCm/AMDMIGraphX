@@ -53,6 +53,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/perfdb.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
@@ -562,14 +563,7 @@ struct mlir_program
 
     static std::string get_symbol_name(const module& m)
     {
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name() == "convolution" or ins->name() == "dot")
-            {
-                return "mlir_" + ins->name();
-            }
-        }
-        return "main";
+        return "mlir_" + gen::generate_name_from_ops(m);
     }
 
     void parse(const module& m)

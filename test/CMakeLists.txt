@@ -202,11 +202,16 @@ endif()
 
 
 function(test_header NAME HEADER)
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
-        "#include <${HEADER}>\nint main() {}\n"
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp "
+#include <${HEADER}>
+int main() {}\n"
     )
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
-        "#include <${HEADER}>\n"
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp "
+#include <${HEADER}>
+#if defined(min) || defined(max) || defined(near) || defined(far)
+#error \"Do not include windows.h in header files\"
+#endif
+\n"
     )
     add_test_executable(${NAME}
         ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp

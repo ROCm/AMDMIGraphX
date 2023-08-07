@@ -196,14 +196,18 @@ jobs:
       id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-sles-${{ github.ref }}
-        restore-keys: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-sles-
+        key: ccache-sles-${{ github.ref }}
+        restore-keys: ccache-sles-
 
     - name: Build migraphx
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx-sles bash < {0}"
       run: |
         set -e
+        export CCACHE_COMPRESSLEVEL=10
         export CCACHE_DIR=/data/ccache
+        export CCACHE_NOHASHDIR=true
+        export CCACHE_BASEDIR=/data
+        export CCACHE_MAXSIZE=1
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
@@ -228,7 +232,7 @@ jobs:
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
-        key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-sles-${{ github.ref }}
+        key: ccache-sles-${{ github.ref }}
 
   pyflakes:
     runs-on: ubuntu-20.04

@@ -50,6 +50,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/perfdb.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
@@ -554,14 +555,7 @@ struct mlir_program
 
     static std::string get_symbol_name(const module& m)
     {
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name() == "convolution" or ins->name() == "dot")
-            {
-                return "mlir_" + ins->name();
-            }
-        }
-        return "main";
+        return "mlir_" + gen::generate_name_from_ops(m);
     }
 
     void parse(const module& m)
@@ -714,7 +708,7 @@ struct mlir_program
 
     // This function appends to tuning cfg file that could be
     // used with rocMLIR tuning scripts.
-    void dump_tuning_cfg(std::string& prob_config) const
+    void dump_tuning_cfg(const std::string& prob_config) const
     {
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(!tuning_cfg_path.empty())

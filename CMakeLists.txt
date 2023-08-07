@@ -51,6 +51,7 @@ project(migraphx LANGUAGES C CXX)
 include(CTest)
 
 find_package(ROCM REQUIRED)
+find_package(Threads REQUIRED)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)

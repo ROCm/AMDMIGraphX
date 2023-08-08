@@ -1,0 +1,9 @@
+name: Docker config
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+
+jobs:
+  set-env:
+    uses: IgorMirosavljevicHTEC/testing/new/main/.github/workflows/docker_config.yml@main

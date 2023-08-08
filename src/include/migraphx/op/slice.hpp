@@ -276,47 +276,55 @@ struct slice
                 {"input_axes", input_axes}};
     }
 
-    argument compute(const shape&, std::vector<argument> args) const
+    argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto input       = args[0];
         auto input_shape = input.get_shape();
-        std::size_t offset;
+        std::size_t offset = 0;
         switch(args.size())
         {
         case 1: {
             offset = compute_offset(input_shape);
-            return {normalize_compute_shape({input_shape}), [=] { return input.data() + offset; }};
+            if(output_shape.dynamic())
+            {
+                return {normalize_compute_shape({input_shape}),
+                        [=] { return input.data() + offset; }};
+            }
+            else
+            {
+                return {output_shape, [=] { return input.data() + offset; }};
+            }
         }
         case 3: {
-            shape output_shape;
+            shape calc_shape;
             visit_all(args[1], args[2])([&](auto input_starts, auto input_ends) {
                 auto norm_inputs = normalize_inputs(input_shape, input_starts, input_ends);
                 offset = compute_offset(input_shape, norm_inputs.at("input_starts"), this->axes);
-                output_shape = {input_shape.type(),
-                                lens_calc(input_shape.lens(),
-                                          norm_inputs.at("input_starts"),
-                                          norm_inputs.at("input_ends"),
-                                          this->axes),
-                                input_shape.strides()};
+                calc_shape = {input_shape.type(),
+                              lens_calc(input_shape.lens(),
+                                        norm_inputs.at("input_starts"),
+                                        norm_inputs.at("input_ends"),
+                                        this->axes),
+                              input_shape.strides()};
             });
-            return {output_shape, [=] { return input.data() + offset; }};
+            return {calc_shape, [=] { return input.data() + offset; }};
         }
         case 4: {
-            shape output_shape;
+            shape calc_shape;
             visit_all(args[1], args[2], args[3])(
                 [&](auto input_starts, auto input_ends, auto input_axes) {
                     auto norm_inputs =
                         normalize_inputs(input_shape, input_starts, input_ends, input_axes);
                     offset = compute_offset(
                         input_shape, norm_inputs.at("input_starts"), norm_inputs.at("input_axes"));
-                    output_shape = shape{input_shape.type(),
-                                         lens_calc(input_shape.lens(),
-                                                   norm_inputs.at("input_starts"),
-                                                   norm_inputs.at("input_ends"),
-                                                   norm_inputs.at("input_axes")),
-                                         input_shape.strides()};
+                    calc_shape = shape{input_shape.type(),
+                                       lens_calc(input_shape.lens(),
+                                                 norm_inputs.at("input_starts"),
+                                                 norm_inputs.at("input_ends"),
+                                                 norm_inputs.at("input_axes")),
+                                       input_shape.strides()};
                 });
-            return {output_shape, [=] { return input.data() + offset; }};
+            return {calc_shape, [=] { return input.data() + offset; }};
         }
         default: {
             // Should never get here; covering in case some code change occurs

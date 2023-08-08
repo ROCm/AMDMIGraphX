@@ -36,7 +36,10 @@
 #include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
+// Only undefine when not using cppcheck
+#ifndef CPPCHECK
 #undef MIGRAPHX_MLIR
+#endif
 #else
 #include <mlir-c/RegisterRocMLIR.h>
 #endif
@@ -50,6 +53,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/perfdb.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
@@ -559,14 +563,7 @@ struct mlir_program
 
     static std::string get_symbol_name(const module& m)
     {
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name() == "convolution" or ins->name() == "dot")
-            {
-                return "mlir_" + ins->name();
-            }
-        }
-        return "main";
+        return "mlir_" + gen::generate_name_from_ops(m);
     }
 
     void parse(const module& m)
@@ -709,7 +706,7 @@ struct mlir_program
     void dump_tuning_cfg(const char* prob_config) const
     {
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
-        if(!tuning_cfg_path.empty())
+        if(not tuning_cfg_path.empty())
         {
             std::vector<std::string> tokens = split_string(prob_config, '\t');
             std::string prob                = tokens[1];
@@ -730,7 +727,7 @@ struct mlir_program
     {
         mlir_tuning_table tuning_table{mlirRockTuningTableCreate()};
         std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
-        if(!tuning_db_path.empty())
+        if(not tuning_db_path.empty())
         {
             std::ifstream tuning_db_tsv(tuning_db_path);
             if(tuning_db_tsv)
@@ -765,7 +762,7 @@ struct mlir_program
         // stick a mutex around all tuning table interaction.
         static std::mutex lock;
         std::lock_guard<std::mutex> guard(lock);
-        if(!mlirRockTuningSetFromTable(tuning_table.get(), mmodule.get()))
+        if(not mlirRockTuningSetFromTable(tuning_table.get(), mmodule.get()))
         {
             const char* prob_config = mlirRockTuningGetKey(tuning_table.get(), mmodule.get());
             std::stringstream key(prob_config);
@@ -909,6 +906,7 @@ instruction_ref
 insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
 {
     use(co);
+    use(m);
     return m.end();
 }
 

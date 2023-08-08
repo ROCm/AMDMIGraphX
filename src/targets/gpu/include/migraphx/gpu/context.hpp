@@ -46,11 +46,7 @@ using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
 {
-    hip_device()
-    : device_props{}
-    {
-        add_stream();
-    }
+    hip_device() : device_props{} { add_stream(); }
 
     hip_device(std::size_t id, std::size_t n) : device_id(id)
     {

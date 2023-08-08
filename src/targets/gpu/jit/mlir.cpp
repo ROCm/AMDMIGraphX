@@ -52,8 +52,10 @@ struct mlir_compiler : compiler<mlir_compiler>
                 }};
     }
 
-    optional<tuning_config>
-    get_tuning_config(context& ctx, instruction_ref ins, const operation&, bool exhaustive) const
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation&,
+                                              bool exhaustive) const
     {
         if(not exhaustive)
             return nullopt;

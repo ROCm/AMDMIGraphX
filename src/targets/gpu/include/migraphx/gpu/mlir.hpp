@@ -37,7 +37,7 @@ struct module;
 namespace gpu {
 
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
-MIGRAPHX_GPU_EXPORT code_object_op compile_mlir(const context& ctx,
+MIGRAPHX_GPU_EXPORT code_object_op compile_mlir(const context& migraphx_ctx,
                                                 module m,
                                                 const std::vector<instruction_ref>& inputs,
                                                 const value& solution);

@@ -21,42 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/config.hpp>
-#include <migraphx/register_op.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/context.hpp>
-#include <migraphx/cpu/context.hpp>
-#include <migraphx/cpu/dnnl.hpp>
-#include <migraphx/op/dot.hpp>
-#include <migraphx/op/quant_dot.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace cpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
+struct test_reduce_mean_nhwc : verify_program<test_reduce_mean_nhwc>
 {
-    std::vector<int> arg_map(int) const
+    migraphx::program create_program() const
     {
-        return {MIGRAPHX_DNNL_PREFIX(ARG_SRC),
-                MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS),
-                MIGRAPHX_DNNL_PREFIX(ARG_BIAS)};
-    }
-
-    template <class T>
-    void required(const check_shapes<T>& cs) const
-    {
-        cs.not_broadcasted();
-    }
-
-    dnnl::matmul::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
-    {
-        return {m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)),
-                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST))};
-    }
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto s   = migraphx::shape::from_permutation(
+            migraphx::shape::float_type, {4, 256, 2, 2}, {0, 2, 3, 1});
+        auto x      = mm->add_parameter("x", s);
+        auto reduce = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
+        auto abs    = mm->add_instruction(migraphx::make_op("abs"), reduce);
+        auto sqrt   = mm->add_instruction(migraphx::make_op("sqrt"), abs);
+        mm->add_return({sqrt});
+        return p;
+    };
 };
-
-} // namespace cpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

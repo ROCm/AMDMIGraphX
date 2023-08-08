@@ -41,9 +41,41 @@ struct parse_slice : op_parser<parse_slice>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
+        auto op_tuple = construct_slice_op(parser, info, args);
         op::slice op;
         std::vector<instruction_ref> op_args;
         std::vector<int64_t> steps;
+        std::vector<int64_t> raxes;
+        std::tie(op, op_args, steps, raxes) = op_tuple;
+
+        auto ins = info.add_instruction(op, op_args);
+        if(not raxes.empty())
+        {
+            ins = info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
+        }
+        // If any steps are other than default 1, add a "steps" op
+        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return std::abs(s) != 1; }))
+        {
+            std::vector<int64_t> nsteps;
+            std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
+                return std::abs(s);
+            });
+            return ins = info.add_instruction(
+                       make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
+        }
+        else
+            return ins;
+    }
+
+    std::tuple<op::slice, std::vector<instruction_ref>, std::vector<int64_t>, std::vector<int64_t>>
+    construct_slice_op(const onnx_parser& parser,
+                       onnx_parser::node_info info,
+                       std::vector<instruction_ref> args) const
+    {
+        op::slice op;
+        std::vector<instruction_ref> op_args;
+        std::vector<int64_t> steps;
+        std::vector<int64_t> raxes;
 
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice.
@@ -129,7 +161,7 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         assert(steps.empty() or steps.size() == op.axes.size());
-        std::vector<int64_t> raxes;
+
         // If any axes have negative step, prepare to add a "reverse" op
         for(auto i : range(steps.size()))
         {
@@ -142,24 +174,7 @@ struct parse_slice : op_parser<parse_slice>
             raxes.push_back(op.axes[i]);
             std::swap(op.starts[i], op.ends[i]);
         }
-
-        auto ins = info.add_instruction(op, op_args);
-        if(not raxes.empty())
-        {
-            ins = info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
-        }
-        // If any steps are other than default 1, add a "steps" op
-        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return std::abs(s) != 1; }))
-        {
-            std::vector<int64_t> nsteps;
-            std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
-                return std::abs(s);
-            });
-            return ins = info.add_instruction(
-                       make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
-        }
-        else
-            return ins;
+        return std::make_tuple(op, op_args, steps, raxes);
     }
 };
 

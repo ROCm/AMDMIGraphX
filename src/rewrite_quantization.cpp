@@ -28,6 +28,7 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,13 +62,10 @@ void apply_quantizelinear(module& m, instruction_ref ins)
         max_quant = qt.max();
         min_quant = qt.min();
     });
-    auto s = add_zero_point->get_shape();
-    std::vector<int> min_data(s.elements(), min_quant);
-    std::vector<int> max_data(s.elements(), max_quant);
-    auto min_arg = m.add_literal(literal(s, min_data));
-    auto max_arg = m.add_literal(literal(s, max_data));
-
-    auto saturate = m.insert_instruction(ins, make_op("clip"), add_zero_point, min_arg, max_arg);
+    auto s        = add_zero_point->get_shape();
+    auto min_arg  = m.add_literal(literal{shape{s.type()}, {min_quant}});
+    auto max_arg  = m.add_literal(literal{shape{s.type()}, {max_quant}});
+    auto saturate = insert_common_op(m, ins, make_op("clip"), {add_zero_point, min_arg, max_arg});
     m.replace_instruction(
         ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
 }

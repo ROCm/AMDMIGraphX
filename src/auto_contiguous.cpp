@@ -25,6 +25,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 
 #include <migraphx/iterator_for.hpp>
 
@@ -33,60 +34,50 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void auto_contiguous::apply(module& m) const
 {
-    // std::string key = "require_std_shape";
-    // for(auto ins : reverse_iterator_for(m))
-    // {
-    //     auto&& attr = ins->get_operator().attributes();
-    //     if((attr.get(key, false)))
-    //     {
-    //         auto args     = ins->inputs();
-    //         auto new_args = args;
-    //         std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
-    //             if(in->name() == "contiguous")
-    //             {
-    //                 return in;
-    //             }
-    //             return m.insert_instruction(ins, make_op("contiguous"), in);
-    //         });
+    std::string key = "require_std_shape";
+    for(auto ins : reverse_iterator_for(m))
+    {
+        auto&& attr = ins->get_operator().attributes();
+        if((attr.get(key, false)))
+        {
+            auto args     = ins->inputs();
+            auto new_args = args;
+            std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
+                if(in->name() == "contiguous")
+                {
+                    return in;
+                }
+                return m.insert_instruction(ins, make_op("contiguous"), in);
+            });
 
-    //         if(new_args != args)
-    //         {
-    //             m.replace_instruction(ins, ins->get_operator(), new_args);
-    //         }
-    //     }
-    // }
+            if(new_args != args)
+            {
+                m.replace_instruction(ins, ins->get_operator(), new_args);
+            }
+        }
+    }
 
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() == "layout" or ins->name() == "contiguous")
+        if(contains({"layout", "contiguous", "@return", "@param"}, ins->name()))
             continue;
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;
-        auto args     = ins->inputs();
-        auto new_args = args;
-        std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
-            if(in->name() == "contiguous" or in->name() == "layout")
-                return in;
-            if(in->name() == "@literal" and in->get_shape().standard())
-                return in;
-            return m.insert_instruction(ins, make_op("contiguous"), in);
-        });
-
-        if(new_args != args)
+        shape s = ins->get_shape();
+        if(s.dynamic())
+            continue;
+        if(s.type() == shape::tuple_type)
+            continue;
+        if(s.standard() and ins->name() == "@literal")
+            continue;
+        if(s.scalar() and not contains(ins->name(), "broadcast"))
         {
-            if(not ins->module_inputs().empty())
-                m.replace_instruction(ins, ins->get_operator(), new_args, ins->module_inputs());
-            else
-                m.replace_instruction(ins, ins->get_operator(), new_args);
+            continue;
         }
-        // shape s = ins->get_shape();
-        // if(not s.dynamic() and not s.standard() and s.elements() != 0)
-        // {
-        //     auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
-        //     m.replace_instruction(ins, c);
-        // }
+        auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
+        m.replace_instruction(ins, c);
     }
 }
 

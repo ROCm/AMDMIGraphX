@@ -160,9 +160,9 @@ int main(int argc, char** argv)
     auto lengths = shape.lengths();
     auto num_results =
         std::accumulate(lengths.begin(), lengths.end(), 1, std::multiplies<size_t>());
-    float* results = reinterpret_cast<float*>(outputs[0].data());
-    float* max     = std::max_element(results, results + num_results);
-    int answer     = max - results;
+    float* results   = reinterpret_cast<float*>(outputs[0].data());
+    const float* max = std::max_element(results, results + num_results);
+    int answer       = max - results;
 
     std::cout << std::endl
               << "Randomly chosen digit: " << rand_digit << std::endl
@@ -192,12 +192,12 @@ void read_nth_digit(const int n, std::vector<float>& digit)
         for(int i = 0; i < HEIGHT * WIDTH; ++i)
         {
             unsigned char temp = 0;
-            file.read((char*)&temp, sizeof(temp));
+            file.read(reinterpret_cast<char*>(&temp), sizeof(temp));
             if(d == n)
             {
                 float data = temp / 255.0;
                 digit.push_back(data);
-                std::cout << SYMBOLS[(int)(data * 10) % 11];
+                std::cout << SYMBOLS[static_cast<int>(data * 10) % 11];
                 if((i + 1) % WIDTH == 0)
                     std::cout << std::endl;
             }

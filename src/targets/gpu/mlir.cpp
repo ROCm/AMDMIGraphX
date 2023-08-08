@@ -36,7 +36,10 @@
 #include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
+// Only undefine when not using cppcheck
+#ifndef CPPCHECK
 #undef MIGRAPHX_MLIR
+#endif
 #else
 #include <mlir-c/RegisterRocMLIR.h>
 #endif
@@ -711,7 +714,7 @@ struct mlir_program
     void dump_tuning_cfg(const std::string& prob_config) const
     {
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
-        if(!tuning_cfg_path.empty())
+        if(not tuning_cfg_path.empty())
         {
             std::vector<std::string> tokens = split_string(prob_config, '\t');
             std::string prob                = tokens[1];
@@ -733,7 +736,7 @@ struct mlir_program
         mlir_tuning_table tuning_table{mlirRockTuningTableCreate()};
         bool found_table           = false;
         std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
-        if(!tuning_db_path.empty())
+        if(not tuning_db_path.empty())
         {
             std::ifstream tuning_db_tsv(tuning_db_path);
             if(tuning_db_tsv)
@@ -928,6 +931,7 @@ instruction_ref
 insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
 {
     use(co);
+    use(m);
     return m.end();
 }
 

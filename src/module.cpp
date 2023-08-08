@@ -873,12 +873,11 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                bool use_abs = false;
-                ins->get_literal().visit([&](auto v) {
-                    use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                });
+                const bool use_abs = false;
                 // Disable abs for now
-                use_abs = false;
+                // ins->get_literal().visit([&](auto v) {
+                //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                // });
                 if(use_abs)
                     os << "migraphx.abs_literal(";
                 os << "migraphx.generate_argument(";

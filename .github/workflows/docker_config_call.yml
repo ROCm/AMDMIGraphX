@@ -6,4 +6,4 @@ on:
 
 jobs:
   set-env:
-    uses: IgorMirosavljevicHTEC/testing/new/main/.github/workflows/docker_config.yml@main
+    uses: IgorMirosavljevicHTEC/testing/.github/workflows/docker_config.yml@main

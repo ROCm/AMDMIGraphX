@@ -142,22 +142,32 @@ interpolate_string(const std::string& input, F f, std::string start = "${", std:
     std::string result = "";
     result.reserve(input.size());
     auto it = input.begin();
-    while(it != input.end())
+    while(it != input.end()) 
     {
-        auto next_start = std::search(it, input.end(), start.begin(), start.end());
-        auto next_end   = std::search(next_start, input.end(), end.begin(), end.end());
+        auto next_start = std::search(it, input.end(), start.begin(), start.end()); 
+        auto next_end   = std::search(next_start, input.end(), end.begin(), end.end()); 
+
+        
         result.append(it, next_start);
-        if(next_start == input.end())
+        if(next_start == input.end()) 
             break;
+
+        if(next_end == input.end())
+        {
+          throw std::runtime_error("Unbalanced brackets");
+        }
         auto r = f(next_start + start.size(), next_end);
         result.append(r.begin(), r.end());
+       
         it = next_end + end.size();
+        
     }
     return result;
 }
+
 inline std::string interpolate_string(const std::string& input,
-                                      const std::unordered_map<std::string, std::string>& vars,
-                                      std::string start = "${",
+                                        const std::unordered_map<std::string, std::string>& vars,
+                                        std::string start = "${",
                                       std::string end   = "}")
 {
     return interpolate_string(

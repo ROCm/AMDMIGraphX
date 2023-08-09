@@ -86,7 +86,7 @@ struct mlir_op
         size_t param_cnt               = 0;
         std::vector<std::string> names = mod->get_parameter_names();
         std::sort(names.begin(), names.end());
-        for(std::string param_name : names)
+        for(const std::string& param_name : names)
         {
             ins_shapes[mod->get_parameter(param_name)] = inputs[param_cnt++];
         }
@@ -233,7 +233,7 @@ struct find_mlir_op
                                                                 "log",
                                                                 "recip",
                                                                 "rsqrt",
-                                                                "sigmoid"
+                                                                "sigmoid",
                                                                 "softmax",
                                                                 "tanh"};
         bool is_float = contains({type_t::float_type, type_t::half_type}, result_type);

@@ -323,7 +323,7 @@ TEST_CASE(conv_dyn_batch)
 TEST_CASE(conv_dyn_img)
 {
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                        {{1, 1}, {3, 3}, {5, 20}, {5, 20}}};
+                                       {{1, 1}, {3, 3}, {5, 20}, {5, 20}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 1}, {1, 1}, {3, 18}, {3, 18}}};
@@ -376,7 +376,7 @@ TEST_CASE(conv_autopad_dyn_batch)
 {
     // auto_pad dynamic batch
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                        {{1, 10}, {3, 3}, {5, 5}, {5, 5}}};
+                                       {{1, 10}, {3, 3}, {5, 5}, {5, 5}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 10}, {1, 1}, {5, 5}, {5, 5}}};
@@ -393,7 +393,7 @@ TEST_CASE(conv_autopad_dyn_img)
 {
     // auto_pad dynamic img
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                        {{1, 1}, {3, 3}, {5, 10}, {5, 10}}};
+                                       {{1, 1}, {3, 3}, {5, 10}, {5, 10}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 1}, {1, 1}, {5, 10}, {5, 10}}};
@@ -2220,10 +2220,7 @@ TEST_CASE(rand_uniform)
 {
     std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}, {3, 7}};
     migraphx::shape s1{migraphx::shape::float_type, dd};
-    expect_shape(
-        s1,
-        migraphx::make_op("rand_uniform", {{"seed", 1}}),
-        s1);
+    expect_shape(s1, migraphx::make_op("rand_uniform", {{"seed", 1}}), s1);
 }
 
 TEST_CASE(rand_uniform_2args)
@@ -2232,10 +2229,7 @@ TEST_CASE(rand_uniform_2args)
     migraphx::shape s1{migraphx::shape::float_type, dd};
     migraphx::shape s2{migraphx::shape::uint32_type, dd};
 
-    expect_shape(
-        s1,
-        migraphx::make_op("rand_uniform", {{"seed", 1}}),
-        s1, s2);
+    expect_shape(s1, migraphx::make_op("rand_uniform", {{"seed", 1}}), s1, s2);
 }
 
 TEST_CASE(quant_convolution_shape)

@@ -34,7 +34,7 @@ namespace gpu {
 std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsigned long seed = 0)
 {
     std::vector<argument> args;
-    std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](auto& s) {
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](const auto& s) {
         return to_gpu(generate_argument(s, seed++));
     });
     return args;

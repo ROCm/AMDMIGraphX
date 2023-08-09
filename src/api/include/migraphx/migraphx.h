@@ -209,7 +209,7 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_dynamic_dimensions_assign_to(
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions,
-                                   const_migraphx_dynamic_dimension_t* ptr,
+                                   const const_migraphx_dynamic_dimension_t* ptr,
                                    size_t size);
 
 MIGRAPHX_C_EXPORT migraphx_status
@@ -377,7 +377,7 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_instructions_assign_to(
     migraphx_instructions_t output, const_migraphx_instructions_t input);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_instructions_create(
-    migraphx_instructions_t* instructions, const_migraphx_instruction_t* ptr, size_t size);
+    migraphx_instructions_t* instructions, const const_migraphx_instruction_t* ptr, size_t size);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_modules_destroy(migraphx_modules_t modules);
 

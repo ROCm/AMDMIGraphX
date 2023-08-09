@@ -48,6 +48,7 @@ struct sqlite_impl
     template <class F>
     void exec(const char* sql, F f)
     {
+        // cppcheck-suppress constParameterPointer
         auto callback = [](void* obj, auto... xs) -> int {
             try
             {

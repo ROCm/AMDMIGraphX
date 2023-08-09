@@ -23,22 +23,20 @@
  */
 
 /**
- * Random Uniform distribution operator.  Given a shape, populate it with random 
- * values.  Calls to rand_uniform using the same randomization seed will 
- * always generate the same pseudo-random sequence.  Seed can 
+ * Random Uniform distribution operator.  Given a shape, populate it with random
+ * values.  Calls to rand_uniform using the same randomization seed will
+ * always generate the same pseudo-random sequence.  Seed can
  * be given as a runtime argument containing a single value, or a compile-time
  * attribute.
  *
  *      Inputs:   (1) the shape of the set to be populated.
- *                (2) randomization seed (uint32).  If not given at inference time, the attribute value,
- *                    or auto seeding, will be used.
- *      Attributes:  
- *                  use_auto_seed bool       Have hardware generate random seed at runtime, overriding the attribute seed
- *                  seed          uint32     Randomization seed
+ *                (2) randomization seed (uint32).  If not given at inference time, the attribute
+ * value, or auto seeding, will be used. Attributes: use_auto_seed bool       Have hardware generate
+ * random seed at runtime, overriding the attribute seed seed          uint32     Randomization seed
  *
  *      Output:   Same shape.
  *
-*/
+ */
 #ifndef MIGRAPHX_GUARD_OPERATORS_MULTINOMIAL_HPP
 #define MIGRAPHX_GUARD_OPERATORS_MULTINOMIAL_HPP
 
@@ -58,18 +56,17 @@ struct rand_uniform
     bool use_auto_seed = false;
 
     // todo:  not currently settable
-    float range_min    = 0.0f;
-    float range_max    = 1.0f;
+    float range_min = 0.0f;
+    float range_max = 1.0f;
 
     // todo:  integer data type(s) not yet supported
-    shape::type_t dtype             = shape::type_t::float_type;
+    shape::type_t dtype = shape::type_t::float_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dtype, "dtype"),
-                    f(self.seed, "seed"),
-                    f(self.use_auto_seed, "use_auto_seed"));
+        return pack(
+            f(self.dtype, "dtype"), f(self.seed, "seed"), f(self.use_auto_seed, "use_auto_seed"));
     }
 
     std::string name() const { return "rand_uniform"; }

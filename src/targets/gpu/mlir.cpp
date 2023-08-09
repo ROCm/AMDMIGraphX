@@ -672,7 +672,7 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    void set_tuning(const value& v)
+    void set_tuning(const value& v) MIGRAPHX_TIDY_CONST
     {
         auto str = v.to<std::string>();
         // We need to make a copy of the buffer since mlirRockTuningSetFromStr may modify the string

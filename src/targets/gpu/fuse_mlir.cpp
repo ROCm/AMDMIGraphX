@@ -225,7 +225,7 @@ struct find_mlir_op
                                                                 "quantizelinear",
                                                                 "dequantizelinear",
                                                                 "abs",
-                                                                "neg"};
+                                                                "neg",};
         const std::initializer_list<std::string> fp_only_ops  = {"ceil",
                                                                 "erf",
                                                                 "exp",
@@ -235,7 +235,7 @@ struct find_mlir_op
                                                                 "rsqrt",
                                                                 "sigmoid",
                                                                 "softmax",
-                                                                "tanh"};
+                                                                "tanh",};
         bool is_float = contains({type_t::float_type, type_t::half_type}, result_type);
         if(contains(any_type_ops, name))
             return true;

@@ -23,44 +23,45 @@
  */
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/functional.hpp>
 #include <msgpack.hpp>
 #include <variant>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+// namespace migraphx {
+// inline namespace MIGRAPHX_INLINE_NS {
 
-struct msgpack_chunk
-{
-    std::vector<value> chunks;
+// struct msgpack_chunk
+// {
+//     std::vector<value> chunks;
 
-    value as_value() const
-    {
-        if(chunks.empty())
-            return {};
-        const value& v = chunks.front();
-        if(v.is_array() or v.is_object())
-        {
-            std::vector<value> values = v.is_array() ? v.get_array() : v.get_object();
-            std::for_each(chunks.begin() + 1, chunks.end(), [&](const auto& chunk) {
-                values.insert(values.end(), chunk.begin(), chunk.end());
-            });
-            return values;
-        }
-        else if(v.is_binary())
-        {
-            value::binary data = v.get_binary();
-            std::for_each(chunks.begin() + 1, chunks.end(), [&](const auto& chunk) {
-                const value::binary& b = chunk.get_binary();
-                data.insert(data.end(), b.begin(), b.end());
-            });
-            return data;
-        }
-        MIGRAPHX_THROW("Incorrect chunking");
-    }
-};
+//     value as_value() const
+//     {
+//         if(chunks.empty())
+//             return {};
+//         const value& v = chunks.front();
+//         if(v.is_array() or v.is_object())
+//         {
+//             std::vector<value> values = v.is_array() ? v.get_array() : v.get_object();
+//             std::for_each(chunks.begin() + 1, chunks.end(), [&](const auto& chunk) {
+//                 values.insert(values.end(), chunk.begin(), chunk.end());
+//             });
+//             return values;
+//         }
+//         else if(v.is_binary())
+//         {
+//             value::binary data = v.get_binary();
+//             std::for_each(chunks.begin() + 1, chunks.end(), [&](const auto& chunk) {
+//                 const value::binary& b = chunk.get_binary();
+//                 data.insert(data.end(), b.begin(), b.end());
+//             });
+//             return data;
+//         }
+//         MIGRAPHX_THROW("Incorrect chunking");
+//     }
+// };
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+// } // namespace MIGRAPHX_INLINE_NS
+// } // namespace migraphx
 
 namespace msgpack {
 MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
@@ -125,13 +126,12 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 }
                 default: MIGRAPHX_THROW("Incorrect chunking");
                 }
-            }
                 std::for_each(
                     o.via.array.ptr,
                     o.via.array.ptr + o.via.array.size,
                     [&](const msgpack::object& sa) {
                         std::visit(
-                            overload(
+                            migraphx::overload(
                                 [&](migraphx::value::binary& bin) {
                                     bin.insert(
                                         bin.end(), o.via.bin.ptr, o.via.bin.ptr + o.via.bin.size);
@@ -164,9 +164,9 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             case msgpack::type::EXT: {
                 MIGRAPHX_THROW("msgpack EXT type not supported.");
             }
-            }
             return o;
         }
+    }
     };
 
     template <>

@@ -624,7 +624,7 @@ std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 6;
+const int program_file_version = 7;
 
 value program::to_value() const
 {

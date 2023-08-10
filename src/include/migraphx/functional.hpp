@@ -98,6 +98,9 @@ constexpr auto sequence_c_impl(F&& f, seq<Ns...>)
     return f(std::integral_constant<std::size_t, Ns>{}...);
 }
 
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
 } // namespace detail
 
 template <std::size_t N, class F>
@@ -133,6 +136,12 @@ template <class F, class T>
 auto unpack(F f, T&& x)
 {
     return sequence(tuple_size(x), [&](auto... is) { f(std::get<is>(static_cast<T&&>(x))...); });
+}
+
+template<class... Ts>
+detail::overloaded<Ts...> overload(Ts... xs)
+{
+    return {xs...};
 }
 
 /// Implements a fix-point combinator

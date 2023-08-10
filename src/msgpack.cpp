@@ -36,7 +36,7 @@ constexpr std::size_t msgpack_size_limit = std::numeric_limits<uint32_t>::max() 
 template <class Range>
 std::size_t msgpack_chunk_size(const Range& r)
 {
-    return r.size() / msgpack_size_limit;
+    return 1 + r.size() / msgpack_size_limit;
 }
 
 template <class Iterator, class F>
@@ -125,7 +125,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                             migraphx::overload(
                                 [&](migraphx::value::binary& bin) {
                                     bin.insert(
-                                        bin.end(), o.via.bin.ptr, o.via.bin.ptr + o.via.bin.size);
+                                        bin.end(), sa.via.bin.ptr, sa.via.bin.ptr + sa.via.bin.size);
                                 },
                                 [&](migraphx::value::array& arr) {
                                     std::for_each(sa.via.array.ptr,

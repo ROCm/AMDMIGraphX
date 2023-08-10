@@ -28,6 +28,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
 
@@ -260,7 +261,7 @@ struct slice
                 {"input_axes", norm_axes}};
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         auto input       = args[0];
         auto input_shape = input.get_shape();
@@ -268,15 +269,7 @@ struct slice
         {
         case 1: {
             std::size_t offset = compute_offset(input_shape);
-            if(output_shape.dynamic())
-            {
-                return {normalize_compute_shape({input_shape}),
-                        [=] { return input.data() + offset; }};
-            }
-            else
-            {
-                return {output_shape, [=] { return input.data() + offset; }};
-            }
+            return {dyn_out.computed_shape, [=] { return input.data() + offset; }};
         }
         case 3: {
             shape calc_shape;

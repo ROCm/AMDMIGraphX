@@ -77,7 +77,7 @@ void migraphx_from_value(const value& v, literal& l)
         auto v_data = v.at("data");
         assert(v_data.is_array());
         size_t array_size = 1 + ((binary_size - 1) / partition_length);
-        assert(array_size == v.size());
+        assert(array_size == v_data.size());
         std::vector<uint8_t> binary_array(binary_size);
         size_t read_size = 0;
         for(size_t i = 0; i < array_size; ++i)

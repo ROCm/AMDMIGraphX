@@ -52,7 +52,7 @@ struct fused_reduce
     {
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
-        auto* sm = mods.front();
+        const auto* sm = mods.front();
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one output supported");
         auto names = sm->get_parameter_names();
@@ -143,7 +143,7 @@ insert_module_in_submodule(module_ref sm,
 }
 
 static std::vector<instruction_ref>
-find_inputs(module_ref sm,
+find_inputs(const_module_ref sm,
             const module& parent,
             const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {

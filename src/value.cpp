@@ -285,7 +285,7 @@ bool value::contains(const std::string& pkey) const
 }
 std::size_t value::size() const
 {
-    auto* a = if_array_impl(x);
+    const auto* a = if_array_impl(x);
     if(a == nullptr)
         return 0;
     return a->size();

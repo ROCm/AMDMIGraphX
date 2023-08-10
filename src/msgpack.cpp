@@ -27,41 +27,32 @@
 #include <msgpack.hpp>
 #include <variant>
 
-// namespace migraphx {
-// inline namespace MIGRAPHX_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-// struct msgpack_chunk
-// {
-//     std::vector<value> chunks;
+// Leave an extra byte for error checking
+constexpr std::size_t msgpack_size_limit = std::numeric_limits<uint32_t>::max() - 1;
 
-//     value as_value() const
-//     {
-//         if(chunks.empty())
-//             return {};
-//         const value& v = chunks.front();
-//         if(v.is_array() or v.is_object())
-//         {
-//             std::vector<value> values = v.is_array() ? v.get_array() : v.get_object();
-//             std::for_each(chunks.begin() + 1, chunks.end(), [&](const auto& chunk) {
-//                 values.insert(values.end(), chunk.begin(), chunk.end());
-//             });
-//             return values;
-//         }
-//         else if(v.is_binary())
-//         {
-//             value::binary data = v.get_binary();
-//             std::for_each(chunks.begin() + 1, chunks.end(), [&](const auto& chunk) {
-//                 const value::binary& b = chunk.get_binary();
-//                 data.insert(data.end(), b.begin(), b.end());
-//             });
-//             return data;
-//         }
-//         MIGRAPHX_THROW("Incorrect chunking");
-//     }
-// };
+template<class Range>
+std::size_t msgpack_chunk_size(const Range& r)
+{
+    return r.size() / msgpack_size_limit;
+}
 
-// } // namespace MIGRAPHX_INLINE_NS
-// } // namespace migraphx
+template<class Iterator, class F>
+void msgpack_chunk_for_each(Iterator start, Iterator last, F f)
+{
+    while(std::distance(start, last) > msgpack_size_limit)
+    {
+        auto next = std::next(start, msgpack_size_limit);
+        f(start, next);
+        start = next;
+    }
+    f(start, last);
+}
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 namespace msgpack {
 MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
@@ -173,8 +164,11 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
         {
             const auto* data = reinterpret_cast<const char*>(x.data());
             auto size        = x.size();
-            o.pack_bin(size);
-            o.pack_bin_body(data, size);
+            o.pack_array(migraphx::msgpack_chunk_size(x));
+            migraphx::msgpack_chunk_for_each(data, data+size, [&](const char* start, const char* last) {
+                o.pack_bin(last-start);
+                o.pack_bin_body(data, last-start);
+            });
             return o;
         }
     };
@@ -200,22 +194,26 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 o.pack_array(0);
                 return;
             }
+            o.pack_array(migraphx::msgpack_chunk_size(v));
+
             if(not v.front().get_key().empty())
             {
-                o.pack_map(v.size());
-                for(auto&& x : v)
-                {
-                    o.pack(x.get_key());
-                    o.pack(x.without_key());
-                }
+                migraphx::msgpack_chunk_for_each(v.begin(), v.end(), [&](auto start, auto last) {
+                    o.pack_map(last-start);
+                    std::for_each(start, last, [&](auto&& x) {
+                        o.pack(x.get_key());
+                        o.pack(x.without_key());
+                    });
+                });
             }
             else
             {
-                o.pack_array(v.size());
-                for(auto&& x : v)
-                {
-                    o.pack(x);
-                }
+                migraphx::msgpack_chunk_for_each(v.begin(), v.end(), [&](auto start, auto last) {
+                    o.pack_array(last-start);
+                    std::for_each(start, last, [&](auto&& x) {
+                        o.pack(x);
+                    });
+                });
             }
         }
         template <class Stream>

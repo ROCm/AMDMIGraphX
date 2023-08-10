@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <string>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

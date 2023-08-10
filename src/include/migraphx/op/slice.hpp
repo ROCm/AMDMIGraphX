@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/normalize_attributes.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -213,78 +214,60 @@ struct slice
         return ret * s.type_size();
     }
 
-    /**
-     * Used on the input_starts and input_ends to make them positive and within bounds.
-     */
-    template <class Inds, class Axes>
-    Inds normalize_indices(shape input_shape, Inds indices, Axes in_axes) const
+    std::unordered_map<std::string, std::vector<int64_t>> normalize_inputs(
+        shape input_shape, std::vector<int64_t> input_starts, std::vector<int64_t> input_ends) const
     {
-        std::transform(in_axes.begin(),
-                       in_axes.end(),
-                       indices.begin(),
-                       indices.begin(),
-                       [&](auto axis, auto index) {
-                           auto dim = input_shape.lens().at(axis);
-                           if(index < 0)
-                           {
-                               index += dim;
-                           }
-                           if(index < 0)
-                           {
-                               index = 0;
-                           }
-                           else if(index > dim)
-                           {
-                               index = dim;
-                           }
-                           return index;
-                       });
-        return indices;
-    }
-
-    template <class Inds>
-    std::unordered_map<std::string, Inds>
-    normalize_inputs(shape input_shape, Inds input_starts, Inds input_ends) const
-    {
-        return {{"input_starts", normalize_indices(input_shape, input_starts, this->axes)},
-                {"input_ends", normalize_indices(input_shape, input_ends, this->axes)}};
+        auto attrs = this->attributes().at("normalize_axes");
+        return {{"input_starts",
+                 normalize_indices(input_starts,
+                                   this->axes,
+                                   input_shape,
+                                   attrs.at("starts"),
+                                   "Slice variable input_starts")},
+                {"input_ends",
+                 normalize_indices(input_ends,
+                                   this->axes,
+                                   input_shape,
+                                   attrs.at("ends"),
+                                   "Slice variable input_ends")}};
     }
 
     /**
      * Three input version of the normalize_inputs.
      * This one also checks that the input_axes are valid.
      */
-    template <class Inds>
-    std::unordered_map<std::string, Inds>
-    normalize_inputs(shape input_shape, Inds input_starts, Inds input_ends, Inds input_axes) const
+    std::unordered_map<std::string, std::vector<int64_t>>
+    normalize_inputs(shape input_shape,
+                     std::vector<int64_t> input_starts,
+                     std::vector<int64_t> input_ends,
+                     std::vector<int64_t> input_axes) const
     {
-        // normalize the axes
-        auto shape_ndim = input_shape.ndim();
-        std::transform(input_axes.begin(), input_axes.end(), input_axes.begin(), [&](auto axis) {
-            if(axis < 0)
-            {
-                axis += shape_ndim;
-            }
-            if(axis < 0 or axis >= shape_ndim)
-            {
-                MIGRAPHX_THROW("SLICE: entry of input_axes out of bounds");
-            }
-            return axis;
-        });
-        return {{"input_starts", normalize_indices(input_shape, input_starts, input_axes)},
-                {"input_ends", normalize_indices(input_shape, input_ends, input_axes)},
-                {"input_axes", input_axes}};
+        auto attrs = this->attributes().at("normalize_axes");
+        auto norm_axes =
+            normalize_axes(input_axes, input_shape, attrs.at("axes"), "Slice variable input_axes");
+        return {{"input_starts",
+                 normalize_indices(input_starts,
+                                   norm_axes,
+                                   input_shape,
+                                   attrs.at("starts"),
+                                   "Slice variable input_starts")},
+                {"input_ends",
+                 normalize_indices(input_ends,
+                                   norm_axes,
+                                   input_shape,
+                                   attrs.at("ends"),
+                                   "Slice variable input ends")},
+                {"input_axes", norm_axes}};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto input       = args[0];
         auto input_shape = input.get_shape();
-        std::size_t offset = 0;
         switch(args.size())
         {
         case 1: {
-            offset = compute_offset(input_shape);
+            std::size_t offset = compute_offset(input_shape);
             if(output_shape.dynamic())
             {
                 return {normalize_compute_shape({input_shape}),
@@ -297,8 +280,11 @@ struct slice
         }
         case 3: {
             shape calc_shape;
+            std::size_t offset = 0;
             visit_all(args[1], args[2])([&](auto input_starts, auto input_ends) {
-                auto norm_inputs = normalize_inputs(input_shape, input_starts, input_ends);
+                auto norm_inputs = normalize_inputs(input_shape,
+                                                    input_starts.template to_vector<int64_t>(),
+                                                    input_ends.template to_vector<int64_t>());
                 offset = compute_offset(input_shape, norm_inputs.at("input_starts"), this->axes);
                 calc_shape = {input_shape.type(),
                               lens_calc(input_shape.lens(),
@@ -311,11 +297,14 @@ struct slice
         }
         case 4: {
             shape calc_shape;
+            std::size_t offset = 0;
             visit_all(args[1], args[2], args[3])(
                 [&](auto input_starts, auto input_ends, auto input_axes) {
-                    auto norm_inputs =
-                        normalize_inputs(input_shape, input_starts, input_ends, input_axes);
-                    offset = compute_offset(
+                    auto norm_inputs = normalize_inputs(input_shape,
+                                                        input_starts.template to_vector<int64_t>(),
+                                                        input_ends.template to_vector<int64_t>(),
+                                                        input_axes.template to_vector<int64_t>());
+                    offset           = compute_offset(
                         input_shape, norm_inputs.at("input_starts"), norm_inputs.at("input_axes"));
                     calc_shape = shape{input_shape.type(),
                                        lens_calc(input_shape.lens(),

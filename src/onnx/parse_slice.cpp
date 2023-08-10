@@ -34,48 +34,63 @@ namespace onnx {
 
 struct parse_slice : op_parser<parse_slice>
 {
+
     std::vector<op_desc> operators() const { return {{"Slice"}}; }
+
+    struct slice_desc
+    {
+        op::slice op;
+        std::vector<instruction_ref> op_args;
+        std::vector<int64_t> steps;
+        std::vector<int64_t> raxes;
+
+        std::vector<int64_t> insert(instruction_ref arg)
+        {
+            std::vector<int64_t> result;
+            migraphx::argument arg_value = arg->eval();
+            if(arg_value.empty())
+            {
+                op_args.insert(op_args.begin(), arg);
+            }
+            else
+            {
+                arg_value.visit([&](auto s) { result.assign(s.begin(), s.end()); });
+            }
+            return result;
+        }
+    };
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto op_tuple = construct_slice_op(parser, info, args);
-        op::slice op;
-        std::vector<instruction_ref> op_args;
-        std::vector<int64_t> steps;
-        std::vector<int64_t> raxes;
-        std::tie(op, op_args, steps, raxes) = op_tuple;
-
-        auto ins = info.add_instruction(op, op_args);
-        if(not raxes.empty())
+        auto sd  = construct_slice_desc(parser, info, args);
+        auto ins = info.add_instruction(sd.op, sd.op_args);
+        if(not sd.raxes.empty())
         {
-            ins = info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
+            ins = info.add_instruction(make_op("reverse", {{"axes", sd.raxes}}), ins);
         }
         // If any steps are other than default 1, add a "steps" op
-        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return std::abs(s) != 1; }))
+        if(std::any_of(sd.steps.begin(), sd.steps.end(), [](auto s) { return std::abs(s) != 1; }))
         {
             std::vector<int64_t> nsteps;
-            std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
-                return std::abs(s);
-            });
+            std::transform(sd.steps.begin(),
+                           sd.steps.end(),
+                           std::back_inserter(nsteps),
+                           [](auto s) { return std::abs(s); });
             return ins = info.add_instruction(
-                       make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
+                       make_op("step", {{"axes", sd.op.axes}, {"steps", nsteps}}), ins);
         }
         else
             return ins;
     }
 
-    std::tuple<op::slice, std::vector<instruction_ref>, std::vector<int64_t>, std::vector<int64_t>>
-    construct_slice_op(const onnx_parser& parser,
-                       onnx_parser::node_info info,
-                       std::vector<instruction_ref> args) const
+    slice_desc construct_slice_desc(const onnx_parser& parser,
+                                    onnx_parser::node_info info,
+                                    std::vector<instruction_ref> args) const
     {
-        op::slice op;
-        std::vector<instruction_ref> op_args;
-        std::vector<int64_t> steps;
-        std::vector<int64_t> raxes;
+        slice_desc sd;
 
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice.
@@ -83,98 +98,73 @@ struct parse_slice : op_parser<parse_slice>
         {
             migraphx::argument step_arg = args.back()->eval();
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
-            step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
+            step_arg.visit([&](auto s) { sd.steps.assign(s.begin(), s.end()); });
         }
 
         if(args.size() >= 4)
         {
-            migraphx::argument axes_arg = args.at(3)->eval();
-            if(axes_arg.empty())
-            {
-                if(not steps.empty())
-                {
-                    MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
-                }
-                op_args.insert(op_args.begin(), args.at(3));
-            }
-            else
-            {
-                axes_arg.visit([&](auto s) { op.axes.assign(s.begin(), s.end()); });
-            }
+            sd.op.axes = sd.insert(args.at(3));
         }
         else if(contains(info.attributes, "axes"))
         {
             literal s = parser.parse_value(info.attributes.at("axes"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
+            s.visit([&](auto v) { copy(v, std::back_inserter(sd.op.axes)); });
         }
 
         if(args.size() >= 3)
         {
-            migraphx::argument end_arg = args.at(2)->eval();
-            if(end_arg.empty())
-            {
-                op_args.insert(op_args.begin(), args.at(2));
-                if(not steps.empty())
-                {
-                    MIGRAPHX_THROW(
-                        "PARSE_SLICE: steps and variable starts and ends is not supported");
-                }
-            }
-            else
-            {
-                end_arg.visit([&](auto s) { op.ends.assign(s.begin(), s.end()); });
-            }
+            sd.op.ends = sd.insert(args.at(2));
         }
         else if(contains(info.attributes, "ends"))
         {
             literal s = parser.parse_value(info.attributes.at("ends"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
+            s.visit([&](auto v) { copy(v, std::back_inserter(sd.op.ends)); });
         }
 
         if(args.size() >= 2)
         {
-            migraphx::argument start_arg = args.at(1)->eval();
-            if(start_arg.empty())
-            {
-                op_args.insert(op_args.begin(), args.at(1));
-            }
-            else
-            {
-                start_arg.visit([&](auto s) { op.starts.assign(s.begin(), s.end()); });
-            }
+            sd.op.starts = sd.insert(args.at(1));
         }
         else if(contains(info.attributes, "starts"))
         {
             literal s = parser.parse_value(info.attributes.at("starts"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
+            s.visit([&](auto v) { copy(v, std::back_inserter(sd.op.starts)); });
         }
 
         // data input argument
-        op_args.insert(op_args.begin(), args.at(0));
+        sd.insert(args.at(0));
 
         // If axes arg is not given, the default is all of them.
-        if(op.axes.empty() and op_args.size() < 3)
+        if(sd.op.axes.empty() and sd.op_args.size() < 3)
         {
             std::vector<int64_t> axes(args[0]->get_shape().ndim());
             std::iota(axes.begin(), axes.end(), int64_t{0});
-            op.axes = axes;
+            sd.op.axes = axes;
         }
 
-        assert(steps.empty() or steps.size() == op.axes.size());
+        if(not sd.steps.empty())
+        {
+            if(sd.op.starts.empty() or sd.op.ends.empty())
+                MIGRAPHX_THROW("PARSE_SLICE: steps and variable starts and ends is not supported");
+            if(sd.op.axes.empty())
+                MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
+        }
+
+        assert(sd.steps.empty() or sd.steps.size() == sd.op.axes.size());
 
         // If any axes have negative step, prepare to add a "reverse" op
-        for(auto i : range(steps.size()))
+        for(auto i : range(sd.steps.size()))
         {
-            if(steps[i] >= 0)
+            if(sd.steps[i] >= 0)
                 continue;
-            op.starts[i] += 1;
-            if(op.starts[i] == 0)
-                op.starts[i] = INT_MAX;
-            op.ends[i] += 1;
-            raxes.push_back(op.axes[i]);
-            std::swap(op.starts[i], op.ends[i]);
+            sd.op.starts[i] += 1;
+            if(sd.op.starts[i] == 0)
+                sd.op.starts[i] = INT_MAX;
+            sd.op.ends[i] += 1;
+            sd.raxes.push_back(sd.op.axes[i]);
+            std::swap(sd.op.starts[i], sd.op.ends[i]);
         }
-        return std::make_tuple(op, op_args, steps, raxes);
+        return sd;
     }
 };
 

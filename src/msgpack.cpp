@@ -164,9 +164,9 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             case msgpack::type::EXT: {
                 MIGRAPHX_THROW("msgpack EXT type not supported.");
             }
-            return o;
+                return o;
         }
-    }
+        }
     };
 
     template <>

@@ -33,13 +33,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 // Leave an extra byte for error checking
 constexpr std::size_t msgpack_size_limit = std::numeric_limits<uint32_t>::max() - 1;
 
-template<class Range>
+template <class Range>
 std::size_t msgpack_chunk_size(const Range& r)
 {
     return r.size() / msgpack_size_limit;
 }
 
-template<class Iterator, class F>
+template <class Iterator, class F>
 void msgpack_chunk_for_each(Iterator start, Iterator last, F f)
 {
     while(std::distance(start, last) > msgpack_size_limit)
@@ -165,10 +165,11 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             const auto* data = reinterpret_cast<const char*>(x.data());
             auto size        = x.size();
             o.pack_array(migraphx::msgpack_chunk_size(x));
-            migraphx::msgpack_chunk_for_each(data, data+size, [&](const char* start, const char* last) {
-                o.pack_bin(last-start);
-                o.pack_bin_body(data, last-start);
-            });
+            migraphx::msgpack_chunk_for_each(
+                data, data + size, [&](const char* start, const char* last) {
+                    o.pack_bin(last - start);
+                    o.pack_bin_body(data, last - start);
+                });
             return o;
         }
     };
@@ -199,7 +200,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             if(not v.front().get_key().empty())
             {
                 migraphx::msgpack_chunk_for_each(v.begin(), v.end(), [&](auto start, auto last) {
-                    o.pack_map(last-start);
+                    o.pack_map(last - start);
                     std::for_each(start, last, [&](auto&& x) {
                         o.pack(x.get_key());
                         o.pack(x.without_key());
@@ -209,10 +210,8 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             else
             {
                 migraphx::msgpack_chunk_for_each(v.begin(), v.end(), [&](auto start, auto last) {
-                    o.pack_array(last-start);
-                    std::for_each(start, last, [&](auto&& x) {
-                        o.pack(x);
-                    });
+                    o.pack_array(last - start);
+                    std::for_each(start, last, [&](auto&& x) { o.pack(x); });
                 });
             }
         }

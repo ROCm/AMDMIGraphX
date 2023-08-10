@@ -24,6 +24,7 @@
 
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 add_library(migraphx_py py_loader.cpp)
+migraphx_generate_export_header(migraphx_py)
 target_include_directories(migraphx_py PRIVATE include)
 target_link_libraries(migraphx_py PUBLIC migraphx)
 rocm_install_targets(TARGETS migraphx_py INCLUDE include)

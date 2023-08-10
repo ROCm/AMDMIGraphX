@@ -75,9 +75,11 @@ void migraphx_from_value(const value& v, literal& l)
     else
     {
         auto v_data = v.at("data");
-        assert(v_data.is_array());
+        if(not v_data.is_array())
+        {
+            MIGRAPHX_THROW("Literal is larger than 4GB but it is not stored as binary array");
+        }
         size_t array_size = 1 + ((binary_size - 1) / partition_length);
-        assert(array_size == v_data.size());
         std::vector<uint8_t> binary_array(binary_size);
         size_t read_size = 0;
         for(size_t i = 0; i < array_size; ++i)
@@ -88,7 +90,10 @@ void migraphx_from_value(const value& v, literal& l)
                                     v_data.at(i).get_binary().size());
             read_size += v_data.at(i).get_binary().size();
         }
-        assert(read_size == binary_size);
+        if(read_size != binary_size or array_size != v_data.size())
+        {
+            MIGRAPHX_THROW("Literal deserialization failed. File is corrupted");
+        };
         l = literal(s, binary_array.data());
     }
 }

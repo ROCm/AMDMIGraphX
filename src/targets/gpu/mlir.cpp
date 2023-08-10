@@ -644,7 +644,7 @@ struct mlir_program
 
     void set_gpu_properties(const context& migraphx_ctx)
     {
-        auto& device = migraphx_ctx.get_current_device();
+        const auto& device = migraphx_ctx.get_current_device();
         target_arch  = device.get_device_name();
         num_cu       = device.get_cu_count();
     }
@@ -671,8 +671,8 @@ struct mlir_program
 
     void set_tuning(const value& v) MIGRAPHX_TIDY_CONST
     {
-        auto* str = v.if_string();
-        if(not str)
+        const auto* str = v.if_string();
+        if(str == nullptr)
             MIGRAPHX_THROW("mlir tuning solutions must be strings");
         if(not mlirRockTuningSetFromStr(mmodule.get(), make_mlir_string_ref(*str)))
             MIGRAPHX_THROW("Failed setting tuning key: " + *str);
@@ -747,7 +747,7 @@ struct mlir_program
                 {
                     std::vector<std::string> tokens = split_string(line, '\t');
                     std::string arch                = tokens[0];
-                    std::string numCU               = tokens[1];
+                    std::string num_cu              = tokens[1];
                     std::string prob                = tokens[2];
                     std::string perf                = tokens[3];
                     std::string key = arch.append("\t").append(numCU).append("\t").append(prob);

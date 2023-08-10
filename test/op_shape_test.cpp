@@ -323,7 +323,7 @@ TEST_CASE(conv_dyn_batch)
 TEST_CASE(conv_dyn_img)
 {
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                       {{1, 1}, {3, 3}, {5, 20}, {5, 20}}};
+                                        {{1, 1}, {3, 3}, {5, 20}, {5, 20}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 1}, {1, 1}, {3, 18}, {3, 18}}};
@@ -376,7 +376,7 @@ TEST_CASE(conv_autopad_dyn_batch)
 {
     // auto_pad dynamic batch
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                       {{1, 10}, {3, 3}, {5, 5}, {5, 5}}};
+                                        {{1, 10}, {3, 3}, {5, 5}, {5, 5}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 10}, {1, 1}, {5, 5}, {5, 5}}};
@@ -393,7 +393,7 @@ TEST_CASE(conv_autopad_dyn_img)
 {
     // auto_pad dynamic img
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                       {{1, 1}, {3, 3}, {5, 10}, {5, 10}}};
+                                        {{1, 1}, {3, 3}, {5, 10}, {5, 10}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 1}, {1, 1}, {5, 10}, {5, 10}}};
@@ -2595,6 +2595,36 @@ TEST_CASE(reshape_non_fixed_not_matching_error)
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     std::vector<int64_t> new_shape = {2, 1, 1, 24};
     throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(return_shape_tuple)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    shape s0{shape::bool_type, {1, 1}};
+    shape s1{shape::float_type, {2, 3}};
+
+    std::vector<shape> s{s0, s1};
+    auto s_out = op.compute_shape(s);
+    EXPECT(s_out.type() == shape::tuple_type);
+    EXPECT(s0 == s_out.sub_shapes()[0]);
+    EXPECT(s1 == s_out.sub_shapes()[1]);
+}
+
+TEST_CASE(return_shape_half)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    std::vector<shape> s{{shape::half_type}};
+    EXPECT(op.compute_shape(s) == shape{shape::half_type});
+}
+
+TEST_CASE(return_shape_empty)
+{
+    using migraphx::shape;
+    auto op = migraphx::make_op("@return");
+    std::vector<shape> s;
+    EXPECT(op.compute_shape(s) == shape{});
 }
 
 TEST_CASE(rnn)

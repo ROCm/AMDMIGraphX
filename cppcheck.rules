@@ -109,6 +109,24 @@
 </rule>
 <rule>
     <tokenlist>raw</tokenlist>
+    <pattern><![CDATA[ [^\(,;{}:]+ \w+ && (\w+|\(|\+|\-|\*)]]></pattern>
+    <message>
+        <id>UseNamedLogicOperator</id>
+        <severity>style</severity>
+        <summary>Use 'and' instead of &&</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>raw</tokenlist>
+    <pattern><![CDATA[ (if|while) \([^\)&]+&& ]]></pattern>
+    <message>
+        <id>UseNamedLogicOperator</id>
+        <severity>style</severity>
+        <summary>Use 'and' instead of &&</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>raw</tokenlist>
     <pattern><![CDATA[ \|\| ]]></pattern>
     <message>
         <id>UseNamedLogicOperator</id>

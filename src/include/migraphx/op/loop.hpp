@@ -59,9 +59,9 @@ struct loop
             MIGRAPHX_THROW("LOOP: operator should have one submodule.");
         }
 
-        const auto& mod     = mods.front();
-        auto mod_out_shapes = mod->get_output_shapes();
-        auto dep_param_num  = inputs.size() - 2;
+        const_module_ref mod = mods.front();
+        auto mod_out_shapes  = mod->get_output_shapes();
+        auto dep_param_num   = inputs.size() - 2;
 
         // first item of the mod output shapes is condition used in loop,
         // which is not needed to compute output shape

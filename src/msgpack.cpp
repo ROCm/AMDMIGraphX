@@ -124,11 +124,13 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                         std::visit(
                             migraphx::overload(
                                 [&](migraphx::value::binary& bin) {
+                                    assert(sa.type == msgpack::type::BIN);
                                     bin.insert(bin.end(),
                                                sa.via.bin.ptr,
                                                sa.via.bin.ptr + sa.via.bin.size);
                                 },
                                 [&](migraphx::value::array& arr) {
+                                    assert(sa.type == msgpack::type::ARRAY);
                                     std::for_each(sa.via.array.ptr,
                                                   sa.via.array.ptr + sa.via.array.size,
                                                   [&](const msgpack::object& so) {
@@ -136,6 +138,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                                                   });
                                 },
                                 [&](migraphx::value::object& obj) {
+                                    assert(sa.type == msgpack::type::MAP);
                                     std::for_each(sa.via.map.ptr,
                                                   sa.via.map.ptr + sa.via.map.size,
                                                   [&](const msgpack::object_kv& p) {

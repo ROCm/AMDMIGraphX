@@ -98,7 +98,7 @@ struct slice
         auto new_lens = lengths;
         for(std::size_t i = 0; i < in_axes.size(); ++i)
         {
-            auto axis = in_axes[i];
+            auto axis      = in_axes[i];
             new_lens[axis] = in_ends[i] - in_starts[i];
         }
         return new_lens;
@@ -120,15 +120,14 @@ struct slice
             if(input_shape.dynamic())
             {
                 return shape{t,
-                            lens_calc(input_shape.min_lens(), starts, ends, axes),
-                            lens_calc(input_shape.max_lens(), starts, ends, axes),
-                            {}};
+                             lens_calc(input_shape.min_lens(), starts, ends, axes),
+                             lens_calc(input_shape.max_lens(), starts, ends, axes),
+                             {}};
             }
             else
             {
-                return shape{t,
-                            lens_calc(input_shape.lens(), starts, ends, axes),
-                            input_shape.strides()};
+                return shape{
+                    t, lens_calc(input_shape.lens(), starts, ends, axes), input_shape.strides()};
             }
         }
         else
@@ -149,11 +148,9 @@ struct slice
                     MIGRAPHX_THROW("SLICE: inputs starts and ends do not have the same dimension "
                                    "as the axes attribute");
                 }
-                std::for_each(
-                    axes.cbegin(),
-                    axes.cend(),
-                    [&](const auto& axis) { dds.at(axis) = {0, dds.at(axis).max}; }
-                );
+                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
+                    dds.at(axis) = {0, dds.at(axis).max};
+                });
             }
             else
             {
@@ -163,15 +160,15 @@ struct slice
                 });
             }
             return shape{input_shape.type(), dds};
-        } 
+        }
     }
 
     /**
-	 * Calculates the starting offset for the sliced tensor.
+     * Calculates the starting offset for the sliced tensor.
      * Used in compute when only data input and all other information are in the attributes.
-	 *
-	 * \param s static input shape
-	 */
+     *
+     * \param s static input shape
+     */
     auto compute_offset(const shape& s) const
     {
         const std::vector<std::size_t>& lens    = s.lens();

@@ -124,8 +124,9 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                         std::visit(
                             migraphx::overload(
                                 [&](migraphx::value::binary& bin) {
-                                    bin.insert(
-                                        bin.end(), sa.via.bin.ptr, sa.via.bin.ptr + sa.via.bin.size);
+                                    bin.insert(bin.end(),
+                                               sa.via.bin.ptr,
+                                               sa.via.bin.ptr + sa.via.bin.size);
                                 },
                                 [&](migraphx::value::array& arr) {
                                     std::for_each(sa.via.array.ptr,

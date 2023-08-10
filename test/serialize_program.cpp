@@ -24,6 +24,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/generate.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
 
@@ -83,6 +84,16 @@ TEST_CASE(compiled)
 {
     migraphx::program p1 = create_program();
     p1.compile(migraphx::make_target("ref"));
+    std::vector<char> buffer = migraphx::save_buffer(p1);
+    migraphx::program p2     = migraphx::load_buffer(buffer);
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(large_literal)
+{
+    migraphx::program p1;
+    auto* mm = p1.get_main_module();
+    mm->add_literal(migraphx::generate_literal({migraphx::shape::half_type, {39664984, 64}}));
     std::vector<char> buffer = migraphx::save_buffer(p1);
     migraphx::program p2     = migraphx::load_buffer(buffer);
     EXPECT(p1.sort() == p2.sort());

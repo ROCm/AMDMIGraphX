@@ -157,15 +157,12 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 break;
             }
         case msgpack::type::MAP:
-        case msgpack::type::BIN: {
+        case msgpack::type::BIN:
             MIGRAPHX_THROW("Unexpected msgpack type");
-            break;
-        }
-            case msgpack::type::EXT: {
+            case msgpack::type::EXT:
                 MIGRAPHX_THROW("msgpack EXT type not supported.");
             }
-                return o;
-        }
+            return o;
         }
     };
 

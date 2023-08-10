@@ -37,8 +37,8 @@
  *      Output:   Same shape.
  *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MULTINOMIAL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MULTINOMIAL_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_RAND_UNIFORM_HPP
+#define MIGRAPHX_GUARD_OPERATORS_RAND_UNIFORM_HPP
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>

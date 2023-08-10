@@ -52,6 +52,7 @@ class Template(string.Template):
 
 
 class Type:
+
     def __init__(self, name: str) -> None:
         self.name = name.strip()
 
@@ -146,6 +147,7 @@ extern "C" ${error_type} ${name}(${params})
 
 
 class CFunction:
+
     def __init__(self, name: str) -> None:
         self.name = name
         self.params: List[str] = []
@@ -190,12 +192,14 @@ class CFunction:
 
 
 class BadParam:
+
     def __init__(self, cond: str, msg: str) -> None:
         self.cond = cond
         self.msg = msg
 
 
 class Parameter:
+
     def __init__(self,
                  name: str,
                  type: str,
@@ -252,7 +256,8 @@ class Parameter:
                                            size=self.size_name,
                                            result=result or '')
 
-    def add_param(self, t: Union[str, Type],
+    def add_param(self,
+                  t: Union[str, Type],
                   name: Optional[str] = None) -> None:
         if not isinstance(t, str):
             t = t.str()
@@ -411,6 +416,7 @@ def to_template_vars(params: List[Union[Any, Parameter]]) -> str:
 
 
 class Function:
+
     def __init__(self,
                  name: str,
                  params: Optional[List[Parameter]] = None,
@@ -547,6 +553,7 @@ cpp_class_constructor_template = Template('''
 
 
 class CPPMember:
+
     def __init__(self,
                  name: str,
                  function: Function,
@@ -623,6 +630,7 @@ class CPPMember:
 
 
 class CPPClass:
+
     def __init__(self, name: str, ctype: str) -> None:
         self.name = name
         self.ctype = ctype
@@ -679,6 +687,7 @@ def add_function(name: str, *args, **kwargs) -> Function:
 
 
 def once(f: Callable) -> Any:
+
     @wraps(f)
     def decorated(*args, **kwargs):
         if not decorated.has_run:
@@ -724,6 +733,7 @@ c_type_map: Dict[str, Type] = {}
 
 
 def cwrap(name: str, c_type: Optional[str] = None) -> Callable:
+
     def with_cwrap(f):
         type_map[name] = f
         if c_type:
@@ -1017,6 +1027,7 @@ def string_c_wrap(p: Parameter) -> None:
 
 
 class Handle:
+
     def __init__(self, name: str, ctype: str, cpptype: str, **kwargs) -> None:
         self.name = name
         self.ctype = ctype
@@ -1142,6 +1153,7 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
 
 
 class Interface(Handle):
+
     def __init__(self, name: str, ctype: str, cpptype: str) -> None:
         super().__init__(name, ctype, cpptype, skip_def=True)
         self.ifunctions: List[Function] = []
@@ -1236,6 +1248,7 @@ def handle(ctype: str,
            cpptype: str,
            name: Optional[str] = None,
            ref: Optional[bool] = None) -> Callable:
+
     def with_handle(f):
         n = name or f.__name__
         h = Handle(n, ctype, cpptype, ref=ref)
@@ -1251,8 +1264,10 @@ def handle(ctype: str,
     return with_handle
 
 
-def interface(ctype: str, cpptype: str,
+def interface(ctype: str,
+              cpptype: str,
               name: Optional[str] = None) -> Callable:
+
     def with_interface(f):
         n = name or f.__name__
         h = Interface(n, ctype, cpptype)

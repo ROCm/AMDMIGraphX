@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -6746,7 +6748,6 @@ def slice_max_end_test():
     return ([node], [x], [y])
 
 
-
 @onnx_test()
 def slice_var_input_static0():
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 2])
@@ -6825,9 +6826,10 @@ def slice_var_input_steps_error():
     axes = helper.make_tensor_value_info('axes', TensorProto.FLOAT, [2])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
 
-    node = onnx.helper.make_node('Slice',
-                                 inputs=['data', 'starts', 'ends', 'axes', 'arg_step'],
-                                 outputs=['output'])
+    node = onnx.helper.make_node(
+        'Slice',
+        inputs=['data', 'starts', 'ends', 'axes', 'arg_step'],
+        outputs=['output'])
 
     return ([arg_step, node], [data, starts, ends, axes], [output])
 

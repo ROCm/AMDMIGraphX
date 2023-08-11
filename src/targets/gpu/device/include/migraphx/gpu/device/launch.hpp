@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
 
 #include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device/types.hpp>
 
@@ -80,11 +81,11 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         dim3 nblocks(global / local);
         dim3 nthreads(local);
         // cppcheck-suppress UseDeviceLaunch
-        auto status = hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
-        if(status != hipSuccess)
-        {
-            MIGRAPHX_THROW("MIGraphX Device kernel launch failed with : ", status);
-        }
+        hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
+		hipError_t kernel_launch_status = hipGetLastError();
+		if(kernel_launch_status !=  hipSuccess) {
+			MIGRAPHX_THROW("MIGraphX device kernel failed to launch with error: ", hipGetErrorString(kernel_launch_status));
+		}
     };
 }
 

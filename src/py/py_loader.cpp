@@ -64,7 +64,7 @@ static dynamic_loader py_lib()
     return lib;
 }
 
-program load_py(const std::string& filename)
+MIGRAPHX_PY_EXPORT program load_py(const std::string& filename)
 {
     static auto f = py_lib().get_function<program(const std::string&)>("migraphx_load_py");
     return f(filename);

@@ -24,6 +24,7 @@
 #include <migraphx/msgpack.hpp>
 #include <migraphx/value.hpp>
 #include <msgpack.hpp>
+#include <algorithm>
 #include <map>
 #include "test.hpp"
 
@@ -37,11 +38,25 @@ auto msgpack_type(migraphx::rank<0>, T src)
 }
 
 template <class T>
-auto msgpack_type(migraphx::rank<1>, const T& src) -> decltype(src.empty(), std::vector<T>{})
+auto msgpack_type(migraphx::rank<1>, const T& src) -> decltype(src.empty(), std::vector<T>{src})
 {
     if(src.empty())
         return {};
     return {src};
+}
+
+template <class T>
+auto msgpack_type(migraphx::rank<2>, const std::vector<T>& src)
+{
+    using type = decltype(msgpack_type(migraphx::rank<2>{}, src.front()));
+    using result_type = std::vector<std::vector<type>>;
+    if (src.empty())
+        return result_type{};
+    std::vector<type> result;
+    std::transform(src.begin(), src.end(), std::back_inserter(result), [](const auto& x) {
+        return msgpack_type(migraphx::rank<2>{}, x);
+    });
+    return result_type{result};
 }
 
 template <class T>

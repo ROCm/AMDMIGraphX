@@ -191,11 +191,7 @@ register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-if(BUILD_DEV)
-    set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
-else()
-    set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
-endif()
+set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
     # Find package rocMLIR

@@ -59,3 +59,7 @@ RUN pip3 install cmake==3.22.1
 
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+
+# Install MLIR
+ADD mlir-requirements.txt /mlir-requirements.txt
+RUN cget -p /usr/local install -f /mlir-requirements.txt

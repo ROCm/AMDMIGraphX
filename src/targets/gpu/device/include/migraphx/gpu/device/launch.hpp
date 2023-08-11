@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
 
 #include <hip/hip_runtime.h>
-#include <hip/hip_runtime_api.h>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device/types.hpp>
 

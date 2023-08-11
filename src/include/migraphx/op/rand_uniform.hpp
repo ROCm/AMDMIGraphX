@@ -31,8 +31,9 @@
  *
  *      Inputs:   (1) the shape of the set to be populated.
  *                (2) randomization seed (uint32).  If not given at inference time, the attribute
- * value, or auto seeding, will be used. Attributes: use_auto_seed bool       Have hardware generate
- * random seed at runtime, overriding the attribute seed seed          uint32     Randomization seed
+ * value, or auto seeding, will be used. 
+ * 
+ *       Attributes:  seed          uint32     Randomization seed
  *
  *      Output:   Same shape.
  *
@@ -53,7 +54,6 @@ namespace op {
 struct rand_uniform
 {
     uint32_t seed      = {0};
-    bool use_auto_seed = false;
 
     // todo:  not currently settable
     float range_min = 0.0f;
@@ -66,7 +66,7 @@ struct rand_uniform
     static auto reflect(Self& self, F f)
     {
         return pack(
-            f(self.dtype, "dtype"), f(self.seed, "seed"), f(self.use_auto_seed, "use_auto_seed"));
+            f(self.dtype, "dtype"), f(self.seed, "seed"));
     }
 
     std::string name() const { return "rand_uniform"; }

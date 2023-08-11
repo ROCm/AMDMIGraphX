@@ -6542,7 +6542,6 @@ TEST_CASE(rand_uniform_dyn_test)
     EXPECT(migraphx::verify::verify_range(result_vec, rand_samples, 100000));
 }
 
-
 TEST_CASE(rand_uniform_and_seed_test)
 {
     migraphx::program p;
@@ -6556,9 +6555,7 @@ TEST_CASE(rand_uniform_and_seed_test)
 
     // Runtime randomization seed
     auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));
-    mm->add_instruction(migraphx::make_op("rand_uniform"),
-                        input,
-                        seed_input);
+    mm->add_instruction(migraphx::make_op("rand_uniform"), input, seed_input);
     p.compile(migraphx::make_target("ref"));
 
     // Create a dummy input to hold the random data
@@ -6566,7 +6563,7 @@ TEST_CASE(rand_uniform_and_seed_test)
 
     migraphx::parameter_map params0;
     params0["Input_1"] = migraphx::argument(input_fixed_shape1);
-    auto result                     = p.eval(params0).back();
+    auto result        = p.eval(params0).back();
 
     std::vector<float> result_vec(sample_size);
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });

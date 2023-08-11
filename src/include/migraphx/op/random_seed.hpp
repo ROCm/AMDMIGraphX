@@ -36,11 +36,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- *    Generates a random seed for the use of random number generators.  Generating the seed 
+ *    Generates a random seed for the use of random number generators.  Generating the seed
  * at runtime guarantees there will be a different random sequence on every execution.
- * This operation has no inputs or attributes, and outputs an unsigned integer tensor with 
+ * This operation has no inputs or attributes, and outputs an unsigned integer tensor with
  * a single value.
-*/
+ */
 struct random_seed
 {
     shape::type_t dtype = shape::type_t::uint32_type;
@@ -48,27 +48,27 @@ struct random_seed
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.dtype, "dtype"));
+        return pack(f(self.dtype, "dtype"));
     }
 
     std::string name() const { return "random_seed"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-            (void) inputs;
-            return migraphx::shape(dtype, {1});
+        (void)inputs;
+        return migraphx::shape(dtype, {1});
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        (void) args;
+        (void)args;
         argument result(output_shape);
 
         result.visit([&](auto output) {
-            std::generate(output.begin(), output.end(), [&]() { return uint32_t(std::chrono::system_clock::now().time_since_epoch().count()); });
+            std::generate(output.begin(), output.end(), [&]() {
+                return uint32_t(std::chrono::system_clock::now().time_since_epoch().count());
+            });
         });
         return result;
-
     }
 };
 

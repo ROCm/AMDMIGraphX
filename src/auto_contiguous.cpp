@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/instruction_ref.hpp"
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -65,24 +64,12 @@ void auto_contiguous::apply(module& m) const
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;
-        if(ins->name() == "pooling" or ins->name() == "dot")
+        shape s = ins->get_shape();
+        if(not s.dynamic() and not s.standard() and s.elements() != 0)
         {
-            // auto c = m.insert_instruction(ins, make_op("contiguous"), ins);
-            std::vector<instruction_ref> new_args;
-            for(auto args : ins->inputs())
-            {
-                new_args.push_back(m.insert_instruction(ins, make_op("contiguous"), args));
-            }
-            auto op = m.insert_instruction(ins, ins->get_operator(), new_args);
-            m.replace_instruction(ins, op);
+            auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
+            m.replace_instruction(ins, c);
         }
-        // shape s = ins->get_shape();
-        // if(not s.dynamic() and
-        //    not s.standard() and s.elements() != 0)
-        // {
-        //     auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
-        //     m.replace_instruction(ins, c);
-        // }
     }
 }
 

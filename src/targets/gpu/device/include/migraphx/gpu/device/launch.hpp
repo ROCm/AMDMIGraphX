@@ -80,7 +80,11 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         dim3 nblocks(global / local);
         dim3 nthreads(local);
         // cppcheck-suppress UseDeviceLaunch
-        hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
+        auto status = hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
+        if(status != hipSuccess)
+        {
+            MIGRAPHX_THROW("MIGraphX Device kernel launch failed with : ", status);
+        }
     };
 }
 

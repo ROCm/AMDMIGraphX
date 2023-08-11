@@ -339,11 +339,10 @@ jobs:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
-        key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+        key: ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
         restore-keys: ${{ matrix.os }}-cget-4-
 
     - name: Install dependencies
-      if: steps.deps_cache.outputs.cache-hit != 'true'
       run: rbuild prepare -d cget -s gh
 
     - name: Restore cache files for ccache

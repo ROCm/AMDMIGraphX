@@ -102,8 +102,7 @@ inline size_t levenshtein_distance(const std::string& s1, const std::string& s2)
 
     std::vector<size_t> d(l2 + 1);
 
-    for(size_t j = 1; j <= l2; j++)
-        d[j] = j;
+    std::iota(d.begin(), d.end(), 0);
 
     for(size_t i = 1; i <= l1; i++)
     {

@@ -149,8 +149,8 @@ TEST_CASE(two_transpose_gather)
         auto ctd = m2.add_instruction(migraphx::make_op("contiguous"), td);
         auto sd  = m2.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), ctd);
         auto csd = m2.add_instruction(migraphx::make_op("contiguous"), sd);
-        auto bd =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), csd);
+        auto bd  = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), csd);
         auto cbd = m2.add_instruction(migraphx::make_op("contiguous"), bd);
         auto r   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), cbd, ind);
         auto cr  = m2.add_instruction(migraphx::make_op("contiguous"), r);
@@ -177,9 +177,9 @@ TEST_CASE(standard_reshape)
         auto add  = m2.add_instruction(migraphx::make_op("add"), data, data);
         auto ca   = m2.add_instruction(migraphx::make_op("contiguous"), add);
         // extra contiguous coming from reshape logic which has "requires_std_shape" attribute
-        auto cb   = m2.add_instruction(migraphx::make_op("contiguous"), ca);
-        auto r    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), cb);
-        auto cr   = m2.add_instruction(migraphx::make_op("contiguous"), r);
+        auto cb = m2.add_instruction(migraphx::make_op("contiguous"), ca);
+        auto r  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), cb);
+        auto cr = m2.add_instruction(migraphx::make_op("contiguous"), r);
         m2.add_return({cr});
     }
 

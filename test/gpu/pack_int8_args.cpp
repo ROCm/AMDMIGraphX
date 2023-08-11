@@ -108,7 +108,7 @@ TEST_CASE(quant_dot)
             migraphx::make_op("multibroadcast", {{"out_lens", m3_shape.lens()}}), beta);
         auto mul_alloc = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m3_shape)}}));
-        auto m3_beta = m.add_instruction(make_precompile_op("mul"), l3, beta_broadcast, mul_alloc);
+        auto m3_beta  = m.add_instruction(make_precompile_op("mul"), l3, beta_broadcast, mul_alloc);
         auto gemm_add = m.add_instruction(make_precompile_op("add"), gemm, m3_beta, output);
         m.add_return({gemm_add});
 
@@ -179,8 +179,8 @@ TEST_CASE(quant_dot_trans)
         auto tl1_alpha_int32 =
             m.add_instruction(make_precompile_op("mul"), alpha_broadcast, tl1_convert, mul_alloc);
         // convert mul_res to int8
-        auto tl1_alpha_int8_alloc = m.add_instruction(migraphx::make_op(
-            "hip::allocate", {{"shape", migraphx::to_value(ts1)}}));
+        auto tl1_alpha_int8_alloc = m.add_instruction(
+            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts1)}}));
         auto tl1_alpha_int8 =
             m.add_instruction(make_precompile_op(migraphx::make_op(
                                   "convert", {{"target_type", tl1->get_shape().type()}})),
@@ -291,7 +291,7 @@ TEST_CASE(quant_dot_pad)
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), beta);
         auto mul_alloc = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s3)}}));
-        auto m3_beta = m.add_instruction(make_precompile_op("mul"), l3, beta_broadcast, mul_alloc);
+        auto m3_beta  = m.add_instruction(make_precompile_op("mul"), l3, beta_broadcast, mul_alloc);
         auto gemm_add = m.add_instruction(make_precompile_op("add"), gemm, m3_beta, output);
         m.add_return({gemm_add});
         return m;
@@ -345,14 +345,14 @@ TEST_CASE(quant_dot_trans_pad)
         auto tl2 =
             m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
         migraphx::shape ts2{migraphx::shape::int8_type, {3, 2, 9, 7}};
-        
+
         migraphx::instruction_ref ptb{};
         if(int8_x4)
         {
             ptb = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
         }
-        auto pb    = tl2;
+        auto pb = tl2;
         if(int8_x4)
         {
             pb = m.add_instruction(
@@ -381,8 +381,8 @@ TEST_CASE(quant_dot_trans_pad)
         auto tl1_alpha_int32 =
             m.add_instruction(make_precompile_op("mul"), alpha_broadcast, tl1_convert, mul_alloc);
         // convert mul_res to int8
-        auto tl1_alpha_int8_alloc = m.add_instruction(migraphx::make_op(
-            "hip::allocate", {{"shape", migraphx::to_value(ts1)}}));
+        auto tl1_alpha_int8_alloc = m.add_instruction(
+            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts1)}}));
 
         migraphx::instruction_ref pta{};
         if(int8_x4)
@@ -391,11 +391,10 @@ TEST_CASE(quant_dot_trans_pad)
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps1)}}));
         }
 
-        auto tl1_alpha_int8 =
-            m.add_instruction(make_precompile_op(migraphx::make_op(
-                                  "convert", {{"target_type", ts1.type()}})),
-                              tl1_alpha_int32,
-                              tl1_alpha_int8_alloc);
+        auto tl1_alpha_int8 = m.add_instruction(
+            make_precompile_op(migraphx::make_op("convert", {{"target_type", ts1.type()}})),
+            tl1_alpha_int32,
+            tl1_alpha_int8_alloc);
 
         auto pa = tl1_alpha_int8;
         if(int8_x4)

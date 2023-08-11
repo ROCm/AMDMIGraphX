@@ -166,7 +166,7 @@ static void remove_contiguous_noops(const std::string& op_name, module& m)
 {
     for(auto ins : iterator_for(m))
     {
-        if (ins->name() != op_name)
+        if(ins->name() != op_name)
             continue;
         if(ins->inputs().front()->get_shape() != ins->get_shape())
             continue;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,40 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct instruction;
+#if defined(_WIN32) && !defined(NDEBUG)
+class instruction_ref : public std::list<instruction>::iterator
+{
+public:
+    instruction_ref() = default;
+    instruction_ref(const std::list<instruction>::iterator& other)
+    {
+        _Ptr = other._Ptr;
+        _Adopt(other._Getcont());
+    }
+
+    bool operator==(const instruction_ref& other) const
+    {
+        return this->_Unwrapped()._Ptr == other._Unwrapped()._Ptr;
+    }
+
+    bool operator==(const std::list<instruction>::iterator& other) const
+    {
+        return this->_Unwrapped()._Ptr == other._Unwrapped()._Ptr;
+    }
+
+    bool operator==(const std::list<instruction>::const_iterator& other) const
+    {
+        return this->_Unwrapped()._Ptr == other._Unwrapped()._Ptr;
+    }
+
+    bool operator!=(const instruction_ref& other) const
+    {
+        return !(*this == other);
+    }
+};
+#else
 using instruction_ref = std::list<instruction>::iterator;
+#endif
 
 MIGRAPHX_EXPORT migraphx::instruction* as_address(const instruction_ref& ins) noexcept;
 

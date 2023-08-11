@@ -27,11 +27,28 @@
 #include <map>
 #include "test.hpp"
 
+template<class T>
+auto msgpack_type(migraphx::rank<0>, T src)
+{
+    if constexpr(std::is_class<T>{})
+        return std::vector<T>{src};
+    else
+        return src;
+}
+
+template<class T>
+auto msgpack_type(migraphx::rank<1>, const T& src) -> decltype(src.empty(), std::vector<T>{})
+{
+    if(src.empty())
+        return {};
+    return {src};
+}
+
 template <class T>
 std::vector<char> msgpack_buffer(const T& src)
 {
     std::stringstream buffer;
-    msgpack::pack(buffer, src);
+    msgpack::pack(buffer, msgpack_type(migraphx::rank<2>{}, src));
     buffer.seekg(0);
     std::string str = buffer.str();
     return std::vector<char>(str.data(), str.data() + str.size()); // NOLINT

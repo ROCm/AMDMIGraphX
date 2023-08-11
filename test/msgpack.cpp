@@ -48,9 +48,9 @@ auto msgpack_type(migraphx::rank<1>, const T& src) -> decltype(src.empty(), std:
 template <class T>
 auto msgpack_type(migraphx::rank<2>, const std::vector<T>& src)
 {
-    using type = decltype(msgpack_type(migraphx::rank<2>{}, src.front()));
+    using type        = decltype(msgpack_type(migraphx::rank<2>{}, src.front()));
     using result_type = std::vector<std::vector<type>>;
-    if (src.empty())
+    if(src.empty())
         return result_type{};
     std::vector<type> result;
     std::transform(src.begin(), src.end(), std::back_inserter(result), [](const auto& x) {

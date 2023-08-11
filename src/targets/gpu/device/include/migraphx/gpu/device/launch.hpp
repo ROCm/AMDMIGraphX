@@ -42,7 +42,7 @@ struct index
 
     __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 
-    __device__ index_int nlocal() const { return blockDim.x; } // NOLINT
+    __device__ index_int nlocal() const { return blockDim.x; }              // NOLINT
 
     template <class F>
     __device__ void global_stride(index_int n, F f) const
@@ -82,10 +82,12 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         dim3 nthreads(local);
         // cppcheck-suppress UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
-		hipError_t kernel_launch_status = hipGetLastError();
-		if(kernel_launch_status !=  hipSuccess) {
-			MIGRAPHX_THROW("MIGraphX device kernel failed to launch with error: ", hipGetErrorString(kernel_launch_status));
-		}
+        hipError_t kernel_launch_status = hipGetLastError();
+        if(kernel_launch_status != hipSuccess)
+        {
+            MIGRAPHX_THROW("MIGraphX device kernel failed to launch with error: " +
+                           std::string(hipGetErrorString(kernel_launch_status)));
+        }
     };
 }
 

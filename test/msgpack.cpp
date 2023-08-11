@@ -27,7 +27,7 @@
 #include <map>
 #include "test.hpp"
 
-template<class T>
+template <class T>
 auto msgpack_type(migraphx::rank<0>, T src)
 {
     if constexpr(std::is_class<T>{})
@@ -36,7 +36,7 @@ auto msgpack_type(migraphx::rank<0>, T src)
         return src;
 }
 
-template<class T>
+template <class T>
 auto msgpack_type(migraphx::rank<1>, const T& src) -> decltype(src.empty(), std::vector<T>{})
 {
     if(src.empty())

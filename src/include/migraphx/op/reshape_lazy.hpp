@@ -233,6 +233,8 @@ struct reshape_lazy
             }
         }
 
+        std::cout << rdims.size() << std::endl;
+
         auto s = reshape_lazy_dims(inputs.front(), rdims);
         if(not s.has_value())
             MIGRAPHX_THROW("reshape_lazy on axis that is not packed.");

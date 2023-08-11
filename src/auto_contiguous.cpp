@@ -86,10 +86,10 @@ void auto_contiguous::apply(module& m) const
 
         // perform a pass to insert contiguous for every reshape (without reshaper) before
         // determining if aliasing can be performed
-        if(ins->name() == "reshape" and not is_reshaper_op(std::next(ins)))
-        {
-            m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
-        }
+        //if(ins->name() == "reshape" and not is_reshaper_op(std::next(ins)))
+        //{
+        //    m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
+        //}
 
         shape s = ins->get_shape();
         if(not s.dynamic() and not s.standard() and s.elements() != 0)

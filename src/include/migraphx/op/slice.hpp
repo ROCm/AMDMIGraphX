@@ -212,8 +212,10 @@ struct slice
         return ret * s.type_size();
     }
 
-    std::unordered_map<std::string, std::vector<int64_t>> normalize_inputs(
-        shape input_shape, std::vector<int64_t> input_starts, std::vector<int64_t> input_ends) const
+    std::unordered_map<std::string, std::vector<int64_t>>
+    normalize_inputs(const shape& input_shape,
+                     const std::vector<int64_t>& input_starts,
+                     const std::vector<int64_t>& input_ends) const
     {
         auto attrs = this->attributes().at("normalize_axes");
         return {{"input_starts",

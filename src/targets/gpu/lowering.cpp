@@ -40,6 +40,7 @@
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/reshape_lazy.hpp>
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -89,7 +90,7 @@ struct miopen_apply
         offload_copy   = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
-
+        add_generic_op("reshape_lazy");
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("logsoftmax");
@@ -115,6 +116,7 @@ struct miopen_apply
         add_neg_op();
         add_nms_op();
         add_select_module_op();
+        add_reshape_lazy_op();
     }
 
     void copy_params() const
@@ -374,6 +376,31 @@ struct miopen_apply
             std::vector<instruction_ref> inputs = ins->inputs();
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        });
+    }
+
+    /**
+    *  Adds reshape lazy to reshape ops that can be aliased instead of copied
+    */
+    void add_reshape_lazy_op()
+    {
+        apply_map.emplace("reshape", [=](instruction_ref ins) {
+                ins->debug_print();
+                /* Attempt lazy reshape to allow for aliasing. Potentially throws in get_shape if unable to alias */
+                return mod->replace_instruction(ins, make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value()}}}), ins->inputs(), ins->module_inputs());
+            try 
+            {   
+
+            }
+            catch (...)
+            {
+                //std::cout << "catch reshape_lazy_fail" << std::endl;
+                /* can't alias so require an allocate for output and a contiguous */
+                auto s                              = ins->get_shape();
+                std::vector<instruction_ref> inputs = ins->inputs();
+                auto output                         = insert_allocation(ins, s);
+                return mod->insert_instruction(std::next(ins), make_op("gpu::contiguous"), ins, output);
+            }
         });
     }
 };

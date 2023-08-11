@@ -6542,6 +6542,60 @@ TEST_CASE(rand_uniform_dyn_test)
     EXPECT(migraphx::verify::verify_range(result_vec, rand_samples, 100000));
 }
 
+
+TEST_CASE(rand_uniform_and_seed_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    size_t sample_size(20000);
+
+    //      Shape of the random data
+    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {2, sample_size + 1}}};
+    auto input = mm->add_parameter("Input_1", rs);
+
+    // Runtime randomization seed
+    auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));
+    mm->add_instruction(migraphx::make_op("rand_uniform"),
+                        input,
+                        seed_input);
+    p.compile(migraphx::make_target("ref"));
+
+    // Create a dummy input to hold the random data
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {sample_size}};
+
+    migraphx::parameter_map params0;
+    params0["Input_1"] = migraphx::argument(input_fixed_shape1);
+    auto result                     = p.eval(params0).back();
+
+    std::vector<float> result_vec(sample_size);
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+
+    // Compare result with the STL's mt19937 generator.  Expected verify_range error ~0.4
+    std::mt19937 gen(0);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::vector<float> rand_samples(sample_size);
+    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+    EXPECT(migraphx::verify::verify_range(result_vec, rand_samples, 1.e8));
+}
+
+TEST_CASE(random_seed_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_instruction(migraphx::make_op("random_seed"));
+
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<uint32_t> result_vec1(1);
+    result.visit([&](auto output) { result_vec1.assign(output.begin(), output.end()); });
+    std::vector<uint64_t> result_vec2(1);
+
+    result = p.eval({}).back();
+    result.visit([&](auto output) { result_vec2.assign(output.begin(), output.end()); });
+    EXPECT(result_vec1[0] != result_vec2[0]);
+}
+
 TEST_CASE(recip_test)
 {
     migraphx::program p;

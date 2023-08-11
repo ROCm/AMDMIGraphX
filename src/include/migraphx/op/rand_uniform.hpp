@@ -92,17 +92,9 @@ struct rand_uniform
         argument result{dyn_out.computed_shape};
 
         auto local_seed(seed);
-        if(use_auto_seed)
-            local_seed = std::chrono::system_clock::now().time_since_epoch().count();
-        else
+        if(args.size() > 1)
         {
-            if(args.size() > 1)
-            {
-                if(args.at(1).get_shape().element_space() > 0)
-                {
-                    visit_all(args[1])([&](auto data) { local_seed = data[0]; });
-                }
-            }
+            local_seed = args[1].at<uint32_t>(0);
         }
         // If a seed argument was not defined, use the value from the seed attribute,
         // or the default.

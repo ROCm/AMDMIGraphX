@@ -2232,6 +2232,12 @@ TEST_CASE(rand_uniform_2args)
     expect_shape(s1, migraphx::make_op("rand_uniform", {{"seed", 1}}), s1, s2);
 }
 
+TEST_CASE(random_seed)
+{
+    migraphx::shape s{migraphx::shape::uint32_type, {1}};
+    expect_shape(s, migraphx::make_op("random_seed"));
+}
+
 TEST_CASE(quant_convolution_shape)
 {
     migraphx::shape output{migraphx::shape::int32_type, {4, 4, 1, 1}};

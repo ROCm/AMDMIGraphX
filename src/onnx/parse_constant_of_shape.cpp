@@ -55,9 +55,6 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
             l_val = literal({shape::float_type, {1}, {0}}, {0.0f});
         }
 
-        // input is empty, output is a scalar
-        auto type = l_val.get_shape().type();
-
         if(args.empty())
         {
             MIGRAPHX_THROW("ConstantOfShape : must have 1 input!");
@@ -65,6 +62,8 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
         else
         {
             migraphx::shape s;
+            // input is empty, output is a scalar
+            auto type = l_val.get_shape().type();
             // empty input tensor, output is a scalar
             if(args[0]->get_shape().elements() == 0)
             {

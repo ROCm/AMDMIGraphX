@@ -99,14 +99,13 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 {
                     auto bin = migraphx::value::binary{};
                     std::for_each(
-                    o.via.array.ptr,
-                    o.via.array.ptr + o.via.array.size,
-                    [&](const msgpack::object& so) {
-                        bin.insert(bin.end(),
-                            so.via.bin.ptr,
-                            so.via.bin.ptr + so.via.bin.size); });
+                        o.via.array.ptr,
+                        o.via.array.ptr + o.via.array.size,
+                        [&](const msgpack::object& so) {
+                            bin.insert(bin.end(), so.via.bin.ptr, so.via.bin.ptr + so.via.bin.size);
+                        });
                     v = bin;
-                } 
+                }
                 else
                 {
                     migraphx::value r = migraphx::value::array{};

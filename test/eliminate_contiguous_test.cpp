@@ -209,16 +209,17 @@ TEST_CASE(contiguous_pointwise)
 
 TEST_CASE(contiguous_nhwc_pointwise)
 {
-    auto s = migraphx::shape::from_permutation(migraphx::version_1::shape::float_type, {2, 3, 8, 8}, {0, 2, 3, 1});
+    auto s = migraphx::shape::from_permutation(
+        migraphx::version_1::shape::float_type, {2, 3, 8, 8}, {0, 2, 3, 1});
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto x  = mm->add_parameter("x", s);
-        auto y  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
-        auto yb = mm->add_instruction(
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto yb  = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 8, 8}}}), y);
-        auto yc  = mm->add_instruction(migraphx::make_op("contiguous"), yb);
-        auto add = add_pointwise(p1, "main:pointwise0", {x, yc}, single_pointwise("add"));
+        auto yc   = mm->add_instruction(migraphx::make_op("contiguous"), yb);
+        auto add  = add_pointwise(p1, "main:pointwise0", {x, yc}, single_pointwise("add"));
         auto cadd = mm->add_instruction(migraphx::make_op("contiguous"), add);
         mm->add_instruction(pass_op{}, cadd);
     }
@@ -226,11 +227,11 @@ TEST_CASE(contiguous_nhwc_pointwise)
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
-        auto x  = mm->add_parameter("x", s);
-        auto y  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
-        auto yb = mm->add_instruction(
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto yb  = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 8, 8}}}), y);
-        auto add = add_pointwise(p2, "main:pointwise0", {x, yb}, single_pointwise("add"));
+        auto add  = add_pointwise(p2, "main:pointwise0", {x, yb}, single_pointwise("add"));
         auto cadd = mm->add_instruction(migraphx::make_op("contiguous"), add);
         mm->add_instruction(pass_op{}, cadd);
     }

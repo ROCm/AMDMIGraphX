@@ -357,10 +357,9 @@ parse_inputs(const onnx_parser& parser,
             }
 
             shape s;
-            std::vector<std::size_t> dims;
             if(parser.map_input_dims.count(name) > 0)
             {
-                dims = parser.map_input_dims.at(name);
+                std::vector<std::size_t> dims = parser.map_input_dims.at(name);
                 s    = parser.parse_type(input.type(), dims);
             }
             else if(parser.map_dyn_input_dims.count(name) > 0)
@@ -370,7 +369,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type(), dims);
+                s = parser.parse_type(input.type());
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -553,14 +552,9 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     }
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::vector<std::size_t>& input_dims) const
+shape onnx_parser::parse_type(const onnx::TypeProto& t) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
-    if(not input_dims.empty())
-    {
-        return {shape_type, input_dims};
-    }
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
@@ -588,6 +582,15 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
         return {shape_type};
     }
     return shape_from_dyn_dims(shape_type, dynamic_dims);
+}
+
+shape onnx_parser::parse_type(const onnx::TypeProto& t,
+                              const std::vector<std::size_t>& input_dims) const
+{
+    shape::type_t shape_type = get_type(t.tensor_type().elem_type());
+    if(input_dims.empty())
+        return {shape_type};
+    return {shape_type, input_dims};
 }
 
 shape::type_t get_type(int dtype)

@@ -52,13 +52,13 @@ struct random_seed
     }
 
     std::string name() const { return "random_seed"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         (void)inputs;
         return migraphx::shape(dtype, {1});
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
         (void)args;
         argument result(output_shape);

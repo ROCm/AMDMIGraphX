@@ -64,10 +64,7 @@ void instruction::replace(const shape& r)
         result = r;
         for(auto&& ins : output)
         {
-            if(ins->name() == "@return")
-                continue;
-
-            assert(ins->name().front() != '@');
+            assert(ins->name() == "@return" or ins->name().front() != '@');
             ins->recompute_shape();
         }
     }
@@ -122,10 +119,6 @@ bool instruction::valid() const
     {
         computed = result;
     }
-    else if(op.name() == "@return")
-    {
-        computed = {};
-    }
     else
     {
         try
@@ -145,6 +138,7 @@ bool instruction::valid() const
 }
 
 shape instruction::get_shape() const { return result; }
+
 const literal& instruction::get_literal() const
 {
     assert(op.name() == "@literal");

@@ -76,7 +76,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
-#ifdef _WIN32
+#ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 
@@ -134,23 +134,22 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), eliminate_layout{}),
         prefuse_ops{},
         dead_code_elimination{},
-        auto_contiguous{},
-        dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
         dead_code_elimination{},
-#ifdef _WIN32
+#ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
+        auto_contiguous{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
-        // enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), eliminate_layout{}),
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), eliminate_layout{}),
         // dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},

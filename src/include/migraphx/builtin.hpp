@@ -90,7 +90,17 @@ struct param
 struct returns
 {
     std::string name() const { return "@return"; }
-    shape compute_shape(const std::vector<shape>&) const { return {}; }
+
+    shape compute_shape(const std::vector<shape>& arg) const
+    {
+        if(arg.empty())
+            return {};
+        else if(arg.size() == 1)
+            return arg[0];
+        else
+            return arg;
+    }
+
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPHX_THROW("builtin");

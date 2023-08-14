@@ -32,6 +32,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/gpu/tuning_config.hpp>
 #include <functional>
 
 namespace migraphx {
@@ -66,12 +67,6 @@ struct compiler_replace
         else
             m.replace_instruction(ins, code_object, ins->inputs());
     }
-};
-
-struct tuning_config
-{
-    value problem;
-    std::vector<value> solutions;
 };
 
 using compiler_compile =

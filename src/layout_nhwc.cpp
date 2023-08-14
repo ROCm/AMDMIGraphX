@@ -149,10 +149,10 @@ void layout_nhwc::apply(module_pass_manager& mpm) const
     // std::cout << "after layout" << std::endl;
     // mpm.get_module().debug_print();
     // if(not this->skip_elim_contiguous)
-    mpm.run_pass(eliminate_contiguous{"contiguous"});
-    mpm.run_pass(dead_code_elimination{});
-    mpm.run_pass(auto_contiguous{});
-    mpm.run_pass(dead_code_elimination{});
+    // mpm.run_pass(eliminate_contiguous{"contiguous"});
+    // mpm.run_pass(dead_code_elimination{});
+    // mpm.run_pass(auto_contiguous{});
+    // mpm.run_pass(dead_code_elimination{});
     // remove_layout(mpm.get_module(), output_layouts);
     // mpm.run_pass(dead_code_elimination{});
 }

@@ -108,91 +108,42 @@ void remove_layout(module& m)
 //     return convs;
 // }
 
-// void remove_layout(module& m, const std::vector<instruction_ref>& convs)
-// {
-//     if(convs.size() < 2) return;
-//     m.debug_print();
+void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "gpu::precompile_op")
+            continue;
 
-//     for(auto i = 0; i < convs.size() - 1; i++)
-//     {
-//         bool reached_start = false;
-//         for(auto ins : iterator_for(m))
-//         {
-//             if(ins == convs[i])
-//                 reached_start = true;
-//             if(reached_start)
-//             {
-//                 if(ins->name() == "gpu::pooling")
-//                     break;
-//                 if(ins == convs[i + 1])
-//                 {
+        auto precompile_op = ins->get_operator();
+        auto val           = precompile_op.to_value();
 
-//                     m.debug_print(convs[i]->outputs().front());
-//                     m.debug_print(convs[i]->outputs().front()->outputs().front());
-//                     m.replace_instruction(convs[i]->outputs().front(),
-//                     convs[i]->outputs().front()->outputs().front()); std::cout << "HERE" <<
-//                     std::endl; m.debug_print(convs[i]->outputs().front());
+        if(val["op"].at("name").to<std::string>() != "layout")
+        {
+            // std::cout << val["op"].at("name").to<std::string>() << std::endl;
+            continue;
+        }
+        // m.debug_print(ins);
+        if(ins->get_shape() != ins->inputs().front()->get_shape())
+        {
+            // std::cout << ins->get_shape() << " " << ins->inputs().front()->get_shape() <<
+            // std::endl;
+            continue;
+        }
+        if(contains(output_layouts, ins))
+            continue;
 
-//                     // m.debug_print(convs[i]->outputs().front());
-//                     // m.debug_print(convs[i]->outputs().front()->outputs().front());
-
-//                     std::cout << std::endl;
-//                     m.debug_print(convs[i]->inputs());
-//                     std::cout << std::endl;
-//                     m.debug_print(convs[i + 1]->inputs());
-
-//                     for(auto j = 0; j < convs[i + 1]->inputs().size(); j++)
-//                     {
-//                         if(convs[i]->inputs()[j] == convs[i + 1]->inputs()[j])
-//                         {
-//                             std::cout << "HERE2" << std::endl;
-//                             continue;
-//                         }
-//                         m.replace_instruction(convs[i + 1]->inputs()[j], convs[i +
-//                         1]->inputs()[j]->inputs().front()); m.debug_print(convs[i+1]);
-//                     }
-//                     break;
-//                 }
-//             }
-
-//         }
-//     }
-// }
-
-// void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
-// {
-//     for(auto ins : iterator_for(m))
-//     {
-//         if(ins->name() != "gpu::precompile_op")
-//             continue;
-
-//         auto precompile_op = ins->get_operator();
-//         auto val           = precompile_op.to_value();
-
-//         if(val["op"].at("name").to<std::string>() != "layout")
-//         {
-//             // std::cout << val["op"].at("name").to<std::string>() << std::endl;
-//             continue;
-//         }
-//         m.debug_print(ins);
-//         if(ins->get_shape() != ins->inputs().front()->get_shape())
-//         {
-//             std::cout << ins->get_shape() << " " << ins->inputs().front()->get_shape() <<
-//             std::endl; continue;
-//         }
-//         if(contains(output_layouts, ins))
-//             continue;
-
-//         m.replace_instruction(ins, ins->inputs().front());
-//     }
-// }
+        m.replace_instruction(ins, ins->inputs().front());
+    }
+}
 
 void eliminate_layout::apply(module_pass_manager& mpm) const
 {
-    // std::unordered_set<instruction_ref> output_layouts =
-    // preserve_output_layout(mpm.get_module()); remove_layout(mpm.get_module(),
+    std::unordered_set<instruction_ref> output_layouts =
+    preserve_output_layout(mpm.get_module()); 
+    remove_layout(mpm.get_module(), output_layouts);
     // find_convs(mpm.get_module()));
-    remove_layout(mpm.get_module());
+    // remove_layout(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
 }
 

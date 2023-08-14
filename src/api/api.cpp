@@ -44,7 +44,7 @@ namespace migraphx {
 
 static thread_local bool disable_exception_catch = false; // NOLINT
 
-extern "C" void migraphx_test_private_disable_exception_catch(bool b)
+extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool b)
 {
     disable_exception_catch = b;
 }

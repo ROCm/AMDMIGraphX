@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 char* getCmdOption(char** begin, char** end, const std::string& option)
 {
     char** itr = std::find(begin, end, option);
-    if(itr != end && ++itr != end)
+    if(itr != end and ++itr != end)
     {
         return *itr;
     }

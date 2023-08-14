@@ -51,6 +51,7 @@ project(migraphx LANGUAGES C CXX)
 include(CTest)
 
 find_package(ROCM REQUIRED)
+find_package(Threads REQUIRED)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
@@ -227,14 +228,12 @@ rocm_enable_cppcheck(
         shadowVar
         shadowVariable
         unsafeClassDivZero
+        # Disable because of too many FPs
+        arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
-        constParameter:*src/targets/gpu/*.cpp
-        constParameter:*src/targets/gpu/*.hpp
-        # Suppress mlir_conv.cpp since this file will be deleted
-        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -251,10 +250,13 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
+        MIGRAPHX_MLIR=1
         CPPCHECK=1
         __device__=
         __host__=
         __global__=
+    UNDEFINE
+        MIGRAPHX_USE_CLANG_TIDY
 )
 
 enable_testing()

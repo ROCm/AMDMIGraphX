@@ -139,8 +139,7 @@ void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_
 
 void eliminate_layout::apply(module_pass_manager& mpm) const
 {
-    std::unordered_set<instruction_ref> output_layouts =
-    preserve_output_layout(mpm.get_module()); 
+    std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
     remove_layout(mpm.get_module(), output_layouts);
     // find_convs(mpm.get_module()));
     // remove_layout(mpm.get_module());

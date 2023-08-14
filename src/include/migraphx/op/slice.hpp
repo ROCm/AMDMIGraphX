@@ -238,9 +238,9 @@ struct slice
      */
     std::unordered_map<std::string, std::vector<int64_t>>
     normalize_inputs(shape input_shape,
-                     std::vector<int64_t> input_starts,
-                     std::vector<int64_t> input_ends,
-                     std::vector<int64_t> input_axes) const
+                     const std::vector<int64_t>& input_starts,
+                     const std::vector<int64_t>& input_ends,
+                     const std::vector<int64_t>& input_axes) const
     {
         auto attrs = this->attributes().at("normalize_axes");
         auto norm_axes =

@@ -6508,12 +6508,7 @@ TEST_CASE(rand_uniform_dyn_test)
     migraphx::shape seed_shape{migraphx::shape::uint32_type, {1}};
     auto seed_input = mm->add_parameter("Seed", seed_shape);
 
-    mm->add_instruction(migraphx::make_op("rand_uniform",
-                                          {
-                                              {"seed", seed + 1},
-                                          }),
-                        input,
-                        seed_input);
+    mm->add_instruction(migraphx::make_op("rand_uniform", {}), seed_input, input);
     p.compile(migraphx::make_target("ref"));
 
     // Create a dummy input to hold the random data
@@ -6550,7 +6545,7 @@ TEST_CASE(rand_uniform_and_seed_test)
 
     // Runtime randomization seed
     auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));
-    mm->add_instruction(migraphx::make_op("rand_uniform"), input, seed_input);
+    mm->add_instruction(migraphx::make_op("rand_uniform"), seed_input, input);
     p.compile(migraphx::make_target("ref"));
 
     // Create a dummy input to hold the random data

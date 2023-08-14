@@ -76,8 +76,6 @@ void auto_contiguous::apply(module& m) const
         {
             continue;
         }
-        if(ins->name() == "pointwise")
-            std::cout << "HERE" << std::endl;
         auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
         m.replace_instruction(ins, c);
     }

@@ -201,7 +201,6 @@ TEST_CASE(contiguous_pointwise)
     }
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(*mm);
-    mm->debug_print();
     EXPECT(std::distance(mm->begin(), mm->end()) == (count - 2));
     EXPECT(std::none_of(
         mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "contiguous"; }));

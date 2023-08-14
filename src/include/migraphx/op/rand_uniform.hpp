@@ -29,11 +29,11 @@
  * be given as a runtime argument containing a single value, or a compile-time
  * attribute.
  *
- *      Inputs:   (1) the shape of the set to be populated.
- *                (2) randomization seed (uint32).  If not given at inference time, the attribute
- * value, or auto seeding, will be used.
+ *      Inputs:   (1) randomization seed (uint32)
+ *                (2) the shape of the set to be populated.
+ *             
  *
- *       Attributes:  seed          uint32     Randomization seed
+ *      Attributes:  none
  *
  *      Output:   Same shape.
  *
@@ -53,7 +53,8 @@ namespace op {
 
 struct rand_uniform
 {
-    uint32_t seed = {0};
+    // The rand_uniform operation does not contain a random number generator seed
+    // as a member, and expects it to be passed as a runtime input.
 
     // todo:  not currently settable
     float range_min = 0.0f;
@@ -65,17 +66,21 @@ struct rand_uniform
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dtype, "dtype"), f(self.seed, "seed"));
+        return pack(f(self.dtype, "dtype"));
     }
 
+    /**
+     *   Input 1:  seed
+     *   Input 2:  output shape
+     */
     std::string name() const { return "rand_uniform"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1, 2);
+        check_shapes{inputs, *this, true}.has(2);
 
-        if(inputs.size() > 1 and inputs.at(1).type() != shape::type_t::uint32_type)
+        if(inputs.front().type() != shape::type_t::uint32_type)
             MIGRAPHX_THROW("RAND_UNIFORM:  Input 2 (seed) must have type unsigned int");
-        auto s = inputs.front();
+        auto s = inputs.at(1);
         if(s.dynamic())
         {
             return s.with_type(dtype);
@@ -86,25 +91,22 @@ struct rand_uniform
         }
     }
 
-    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    argument compute(const shape& output, std::vector<argument>& args) const
     {
-        argument result{dyn_out.computed_shape};
+        (void)output;
+        argument& result{args[1]};
 
-        auto local_seed(seed);
-        if(args.size() > 1)
-        {
-            local_seed = args[1].at<uint32_t>(0);
-        }
-        // If a seed argument was not defined, use the value from the seed attribute,
-        // or the default.
+        uint32_t local_seed = args[0].at<uint32_t>(0);
 
         std::mt19937 gen(local_seed);
         std::uniform_real_distribution<> dis(range_min, range_max);
-        result.visit([&](auto output) {
-            std::generate(output.begin(), output.end(), [&]() { return dis(gen); });
+        result.visit([&](auto output_shape) {
+            std::generate(output_shape.begin(), output_shape.end(), [&]() { return dis(gen); });
         });
         return result;
     }
+    
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
 };
 
 } // namespace op

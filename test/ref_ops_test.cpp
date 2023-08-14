@@ -6477,12 +6477,7 @@ TEST_CASE(rand_uniform_test)
     std::vector<uint32_t> seed_data{seed};
     auto seed_input = mm->add_literal(migraphx::literal(seed_shape, seed_data));
 
-    mm->add_instruction(migraphx::make_op("rand_uniform",
-                                          {
-                                              {"seed", seed},
-                                          }),
-                        input,
-                        seed_input);
+    mm->add_instruction(migraphx::make_op("rand_uniform"), seed_input, input);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params0;

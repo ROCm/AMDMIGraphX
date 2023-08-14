@@ -2189,16 +2189,16 @@ TEST_CASE(simplify_split_between_add)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(simplify_dot_horiz)
+void test_dot_horiz(migraphx::shape::type_t type, const std::string& dot_type)
 {
-    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 2}};
+    auto s = migraphx::shape{type, {3, 2, 2}};
     migraphx::module m1;
     {
         auto input = m1.add_parameter("input", s);
         auto a     = m1.add_literal(migraphx::generate_literal(s, 0));
         auto b     = m1.add_literal(migraphx::generate_literal(s, 1));
-        auto x     = m1.add_instruction(migraphx::make_op("dot"), input, a);
-        auto y     = m1.add_instruction(migraphx::make_op("dot"), input, b);
+        auto x     = m1.add_instruction(migraphx::make_op(dot_type), input, a);
+        auto y     = m1.add_instruction(migraphx::make_op(dot_type), input, b);
         auto sum   = m1.add_instruction(migraphx::make_op("add"), x, y);
         m1.add_instruction(pass_op{}, sum);
     }
@@ -2210,7 +2210,7 @@ TEST_CASE(simplify_dot_horiz)
         auto a      = m2.add_literal(migraphx::generate_literal(s, 0));
         auto b      = m2.add_literal(migraphx::generate_literal(s, 1));
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, b);
-        auto dot    = m2.add_instruction(migraphx::make_op("dot"), input, concat);
+        auto dot    = m2.add_instruction(migraphx::make_op(dot_type), input, concat);
         auto x      = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), dot);
         auto y = m2.add_instruction(
@@ -2220,6 +2220,10 @@ TEST_CASE(simplify_dot_horiz)
     }
     EXPECT(m1.sort() == m2.sort());
 }
+
+TEST_CASE(simplify_dot_horiz) { test_dot_horiz(migraphx::shape::int32_type, "dot"); }
+
+TEST_CASE(simplify_quant_dot_horiz) { test_dot_horiz(migraphx::shape::int8_type, "quant_dot"); }
 
 TEST_CASE(simplify_dot_horiz_same_constant)
 {

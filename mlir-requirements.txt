@@ -1,5 +1,3 @@
-#!/bin/bash
-
 #####################################################################################
 # The MIT License (MIT)
 #
@@ -23,65 +21,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-#
-# Build MIGraphX prerequisites for docker container
-
-set -e
-
-export LC_ALL=C.UTF-8
-export LANG=C.UTF-8
-
-source /etc/os-release
-
-if [[ ("${ID}" == "sles") ]]; then
-  zypper -n --gpg-auto-import-keys install -y \
-    cmake \
-    miopen-hip-devel \
-    openmp-extras-devel \
-    python3-devel \
-    python3-pip \
-    rocblas-devel \
-    rocm-cmake
-else
-  # Need pip3 and Python headers to build dependencies
-  apt update && apt install -y \
-    cmake \
-    libnuma-dev \
-    miopen-hip-dev \
-    openmp-extras \
-    python3-dev \
-    python3-pip \
-    rocblas-dev \
-    rocm-cmake
-fi
-
-
-# Needed for cmake to build various pip packages
-pip3 install setuptools wheel
-
-# install rbuild to build dependencies
-pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
-
-
-PREFIX=/usr/local
-REQ_FILE_DIR=""
-if [ "$#" -ge 2 ]; then
-  PREFIX=$1
-  cd $2
-elif [ "$#" -eq 1 ]; then
-  PREFIX=$1
-fi
-
-echo "Dependencies are installed at $PREFIX"
-
-# Install deps with rbuild
-rbuild prepare -d $PREFIX -s develop
-
-if [[ ("${ID}" != "sles") ]]; then
-export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
-
-pip3 install onnx==1.10.2 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
-
-# pin version of protobuf in Python for onnx runtime unit tests between dist versions
-pip3 install protobuf==3.20.0
-fi
+ROCmSoftwarePlatform/rocMLIR@ea15b3597ce55b9088621818228595dd48fb6ec0 -DBUILD_FAT_LIBROCKCOMPILER=On

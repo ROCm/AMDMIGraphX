@@ -338,7 +338,7 @@ struct argument_parser
 
     MIGRAPHX_DRIVER_STATIC auto file_exist()
     {
-        return validate([](auto&, auto&, auto& params) {
+        return validate([](auto&, auto&, const auto& params) {
             if(params.empty())
                 throw std::runtime_error("No argument passed.");
             if(not fs::exists(params.back()))
@@ -348,13 +348,12 @@ struct argument_parser
 
     MIGRAPHX_DRIVER_STATIC auto matches(const std::unordered_set<std::string>& names)
     {
-        return validate([=](auto&, auto&, auto& params) {
-            for(const auto& p : params)
-            {
-                if(names.count(p) == 0)
-                    throw std::runtime_error("Invalid argument: " + p + ". Valid arguments are {" +
-                                             to_string_range(names) + "}");
-            }
+        return validate([=](auto&, auto&, const auto& params) {
+            auto invalid_param = std::find_if(
+                params.begin(), params.end(), [&](const auto& p) { return names.count(p) == 0; });
+            if(invalid_param != params.end())
+                throw std::runtime_error("Invalid argument: " + *invalid_param +
+                                         ". Valid arguments are {" + to_string_range(names) + "}");
         });
     }
 

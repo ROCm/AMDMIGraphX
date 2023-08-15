@@ -87,10 +87,12 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         if(kernel_launch_status != hipSuccess)
         {
             std::string message = hipGetErrorString(kernel_launch_status);
-            if (not contains(get_targets(), get_device_name()))
+            if(not contains(get_targets(), get_device_name()))
             {
-                message += ". Trying to run a kernel for " + get_device_name() + 
-                    " but MIGraphX was built for targets " + get_targets_as_string() + ". Please rebuild MIGraphX with -DGPU_TARGETS='" + get_device_name() + "'.";
+                message += ". Trying to run a kernel for " + get_device_name() +
+                           " but MIGraphX was built for targets " + get_targets_as_string() +
+                           ". Please rebuild MIGraphX with -DGPU_TARGETS='" + get_device_name() +
+                           "'.";
             }
             MIGRAPHX_THROW("MIGraphX device kernel failed to launch with error: " + message);
         }

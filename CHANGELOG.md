@@ -5,11 +5,11 @@ Full documentation for MIGraphX is available at [MIGraphX Documentation](https:/
 ## MIGraphX 2.7 for ROCm 5.7.0
 
 ### Added
-- Enabled hipRTC allowing the ROCm install to not be required in /opt/rocm specifically 
+- Enabled hipRTC to not require dev packages for migraphx runtime and allow the ROCm install to be in a different directory than it was during build time
 - Add support for multi-target execution
 - Added Dynamic Batch support with C++/Python APIs
-- Enabled native int32 type support
 - Add migraphx.create_argument to python API
+- Added dockerfile example for Ubuntu 22.04
 - Add TensorFlow supported ops in driver similar to exist onnx operator list
 - Add a MIGRAPHX_TRACE_MATCHES_FOR env variable to filter the matcher trace
 - Improved debugging by printing max,min,mean and stddev values for TRACE_EVAL = 2
@@ -40,10 +40,8 @@ Full documentation for MIGraphX is available at [MIGraphX Documentation](https:/
 
 ### Changed
 - Bumped version of half library to 5.6.0
-- Use clang-format to format
 - Bumped CI to support rocm 5.6
 - Make building tests optional
-- Update install prereqs python fix
 - replace np.bool with bool as per numpy request
 
 ### Removed

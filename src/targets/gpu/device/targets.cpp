@@ -9,10 +9,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-static std::vector<std::string> parse_targets()
-{
-    return split_string(MIGRAPHX_GPU_TARGETS, ';');
-}
+static std::vector<std::string> parse_targets() { return split_string(MIGRAPHX_GPU_TARGETS, ';'); }
 
 const std::vector<std::string>& get_targets()
 {
@@ -20,10 +17,7 @@ const std::vector<std::string>& get_targets()
     return result;
 }
 
-std::string get_targets_as_string()
-{
-    return join_strings(get_targets(), ", ");
-}
+std::string get_targets_as_string() { return join_strings(get_targets(), ", "); }
 
 static int get_device_id()
 {
@@ -47,4 +41,3 @@ std::string get_device_name()
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

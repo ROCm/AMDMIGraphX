@@ -54,8 +54,7 @@ struct parse_reshape : op_parser<parse_reshape>
         }
 
         auto cont = info.add_instruction(make_op("contiguous"), args[0]);
-        auto resh = info.add_instruction(make_op("reshape", {{"dims", dims}}), cont);
-        return info.add_instruction(make_op("contiguous"), resh);
+        return info.add_instruction(make_op("reshape", {{"dims", dims}}), cont);
     }
 };
 

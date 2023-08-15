@@ -233,7 +233,7 @@ struct reshape_lazy
             }
         }
 
-        std::cout << rdims.size() << std::endl;
+        //std::cout << rdims.size() << std::endl;
 
         auto s = reshape_lazy_dims(inputs.front(), rdims);
         if(not s.has_value())

@@ -127,7 +127,7 @@ struct reshape
             }
         }
 
-        return shape{inputs.front().type(), rdims};
+        return {inputs.front().type(), rdims};
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -152,9 +152,9 @@ struct reshape
         assert(dyn_out.computed_shape.standard());
         argument result{dyn_out.computed_shape};
 
-        auto resh = args[0].reshape_lazy(dyn_out.computed_shape);
+        //auto resh = args[0](dyn_out.computed_shape);
 
-        visit_all(result, resh)([&](auto output, auto input) {
+        visit_all(result, args[0])([&](auto output, auto input) {
             shape_for_each(output.get_shape(), [&](const auto& idx) {
                 output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
             });

@@ -208,8 +208,8 @@ TEST_CASE(contiguous_pointwise)
 
 TEST_CASE(contiguous_nhwc_pointwise)
 {
-    auto s = migraphx::shape::from_permutation(
-        migraphx::shape::float_type, {2, 3, 8, 8}, {0, 2, 3, 1});
+    auto s =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 3, 8, 8}, {0, 2, 3, 1});
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();

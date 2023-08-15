@@ -101,6 +101,9 @@ RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cma
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
 
+# Install MLIR
+ADD mlir-requirements.txt /mlir-requirements.txt
+RUN cget -p /usr/local install -f /mlir-requirements.txt
 
 COPY ./test/onnx/.onnxrt-commit /
 

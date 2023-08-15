@@ -46,7 +46,6 @@ def shape_type_wrap(p):
 
 
 def auto_handle(*args, **kwargs):
-
     def with_handle(f):
         return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__,
                           *args, **kwargs)(f)

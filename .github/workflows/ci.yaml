@@ -55,6 +55,7 @@ jobs:
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
           -DMIGRAPHX_ENABLE_FPGA=On \
+          -DMIGRAPHX_ENABLE_MLIR=On \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
@@ -168,6 +169,71 @@ jobs:
         set -e
         git config --global --add safe.directory /data
         python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
+
+  sles:
+    runs-on: ROCM-Ubuntu
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    # In this step, this action saves a list of existing images,
+    # the cache is created without them in the post run.
+    # It also restores the cache if it exists.
+    - name: Docker layer cache
+      uses: jpribyl/action-docker-layer-caching@v0.1.1
+      with:
+        key: docker-layer-caching-migraphx-sles-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+        restore-keys:
+          docker-layer-caching-migraphx-sles-
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+
+    - name: Build the Docker image
+      run: docker build . --file tools/docker/sles.docker --tag migraphx-sles
+
+    - name: Restore cache files for ccache
+      uses: actions/cache/restore@v3 
+      id: ccache_restore
+      with:
+        path: ${{ github.workspace }}/ccache
+        key: ccache-sles-${{ github.ref }}
+        restore-keys: ccache-sles-
+
+    - name: Build migraphx
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx-sles bash < {0}"
+      run: |
+        set -e
+        export CCACHE_COMPRESSLEVEL=10
+        export CCACHE_DIR=/data/ccache
+        export CCACHE_NOHASHDIR=true
+        export CCACHE_BASEDIR=/data
+        export CCACHE_MAXSIZE=1
+        mkdir build
+        cd build
+        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
+          -DBUILD_DEV=On \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+          -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+          ..
+        make -j$(nproc) tests driver
+
+    - name: Clear ccache cache before saving
+      if: ${{ steps.ccache_restore.outputs.cache-hit }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set +x
+        gh extension install actions/gh-actions-cache --pin v1.0.1
+        gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
+
+    - name: Save cache files for ccache
+      uses: actions/cache/save@v3 
+      if: always()
+      with:
+        path: ${{ github.workspace }}/ccache
+        key: ccache-sles-${{ github.ref }}
 
   pyflakes:
     runs-on: ubuntu-20.04

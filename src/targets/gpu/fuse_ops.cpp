@@ -852,7 +852,7 @@ void fuse_ops::apply(module& m) const
                         // find_concat_pointwise{},
                         find_gemm_pointwise{},
                         find_contiguous_tranpose_gemm{},
-                        find_commutative_broadcast{});   
+                        find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});
 }
 

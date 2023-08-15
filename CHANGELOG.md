@@ -27,7 +27,7 @@ Full documentation for MIGraphX is available at [MIGraphX Documentation](https:/
 - Handle broadcasts across dot and concat
 - Add verify namespace for better symbol resolution
 ### Fixed
-- Resolved accuracy issues with resnet50
+- Resolved accuracy issues with FP16 resnet50
 - Update cpp generator to handle inf from  float
 - Fix assertion error during verify and make DCE work with tuples
 - Fix convert operation for NaNs

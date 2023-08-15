@@ -1,0 +1,25 @@
+#ifndef MIGRAPHX_GUARD_DEVICE_TARGETS_CPP
+#define MIGRAPHX_GUARD_DEVICE_TARGETS_CPP
+
+#include <migraphx/config.hpp>
+#include <string>
+#include <vector>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+namespace device {
+#define MIGRAPHX_GPU_TARGETS "@GPU_TARGETS@"
+
+const std::vector<std::string>& get_targets();
+std::string get_targets_as_string();
+
+std::string get_device_name();
+
+} // namespace device
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_DEVICE_TARGETS_CPP
+
+

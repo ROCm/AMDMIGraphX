@@ -27,27 +27,17 @@ RUN dnf groupinstall -y "Development Tools" --setopt=group_package_types=mandato
 
 RUN dnf --enablerepo=powertools install -y --nobest \
     yum-utils \
-    #build-essential \
-    #clang-format-10 \
     git-clang-format \
-    #cmake \
     doxygen \
-    #g++-7 \
-    #gdb \
-    #git \
     lcov \
-    #locales replaced by glib-langpack\
     glibc-all-langpacks \
     libffi-devel \
     xz-devel \
     bzip2-devel \
-    #pkg-config \
     python38 \
     python38-devel \
-    #software-properties-common \ # irrelevant to YUM
     rocm-device-libs \
     hip-base \
-    #libnuma-devel \
     numactl \
     miopen-hip \
     miopen-hip-devel \
@@ -66,10 +56,7 @@ RUN dnf --enablerepo=powertools install -y --nobest \
     hipblas  \
     hipify-clang \
     half \
-    #libssl-devel \
     openssl-devel
-    #zlib1g-devel && \
-    #zlib-devel && \
 
 
 RUN alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 60 && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 50 && update-alternatives --auto python3

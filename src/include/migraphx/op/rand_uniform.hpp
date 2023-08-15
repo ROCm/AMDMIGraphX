@@ -94,7 +94,7 @@ struct rand_uniform
     argument compute(const shape& output, std::vector<argument> args) const
     {
         // Output goes into the passed buffer, not the shape output
-        (void) output;
+        (void)output;
         argument result{args[1].get_shape()};
 
         uint32_t local_seed = args[0].at<uint32_t>(0);

@@ -6537,7 +6537,7 @@ TEST_CASE(rand_uniform_and_seed_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    float control_seed         = 0.0f;
+    float control_seed = 0.0f;
     size_t sample_size(20000);
 
     //      Shape of the random data

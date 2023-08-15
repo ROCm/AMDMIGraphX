@@ -782,6 +782,8 @@ struct find_contiguous_pointwise
         auto args   = pw->inputs();
         args.back() = alloc;
 
+        if(ins->get_shape() != pw->get_shape())
+            return;
         m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
     }
 };
@@ -835,24 +837,23 @@ struct find_concat_pointwise
 
         auto op = concat->get_operator();
         op.from_value({{"additional_args", ins->inputs().size() - 1}, {"ignore_modules", true}});
-
         m.replace_instruction(ins, op, inputs, {pm});
     }
 };
 
 void fuse_ops::apply(module& m) const
 {
-    // match::find_matches(m, find_contiguous_pointwise{});
+    match::find_matches(m, find_contiguous_pointwise{});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
                         find_layernorm_pointwise{},
-                        find_concat_pointwise{},
+                        // find_concat_pointwise{},
                         find_gemm_pointwise{},
                         find_contiguous_tranpose_gemm{},
-                        find_commutative_broadcast{});
-    // match::find_matches(m, find_contiguous{});
+                        find_commutative_broadcast{});   
+    match::find_matches(m, find_contiguous{});
 }
 
 } // namespace gpu

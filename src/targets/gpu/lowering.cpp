@@ -116,7 +116,7 @@ struct miopen_apply
         add_neg_op();
         add_nms_op();
         add_select_module_op();
-        add_reshape_lazy_op();
+        //add_reshape_lazy_op();
     }
 
     void copy_params() const
@@ -380,29 +380,28 @@ struct miopen_apply
     }
 
     /**
-    *  Adds reshape lazy to reshape ops that can be aliased instead of copied
-    */
-    void add_reshape_lazy_op()
+     *  Adds reshape lazy to reshape ops that can be aliased instead of copied
+     */
+    /*void add_reshape_lazy_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
-                ins->debug_print();
-                /* Attempt lazy reshape to allow for aliasing. Potentially throws in get_shape if unable to alias */
-                return mod->replace_instruction(ins, make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value()}}}), ins->inputs(), ins->module_inputs());
-            try 
-            {   
-
-            }
-            catch (...)
+            /* Attempt lazy reshape to allow for aliasing. Potentially throws in get_shape if unable
+             * to alias 
+            try
             {
-                //std::cout << "catch reshape_lazy_fail" << std::endl;
-                /* can't alias so require an allocate for output and a contiguous */
-                auto s                              = ins->get_shape();
-                std::vector<instruction_ref> inputs = ins->inputs();
-                auto output                         = insert_allocation(ins, s);
-                return mod->insert_instruction(std::next(ins), make_op("gpu::contiguous"), ins, output);
+                auto lazy_ins =  mod->replace_instruction(
+                ins,
+                    make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+                    ins->inputs(),
+                    ins->module_inputs());
+                    return lazy_ins;
+            }
+            catch(...)
+            {
+                return ins;
             }
         });
-    }
+    }*/
 };
 
 void lowering::apply(module_pass_manager& mpm) const

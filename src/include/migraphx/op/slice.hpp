@@ -88,8 +88,8 @@ struct slice
     /**
      * Computes the slice output shape dimensions for given starts, ends,and axes.
      * Templated to also handle tensor views.
-     * Possibily different type between in_starts, in_ends and in_axes if in_axes is this object's
-     * axes attribute. Assumes in_starts and in_ends are normalized; in_axes are valid.
+     * Possibily different type between [in_starts, in_ends] and [in_axes] if in_axes is this
+     * object's axes attribute. Assumes in_starts and in_ends are normalized; in_axes are valid.
      */
     template <class A, class B>
     std::vector<std::size_t>

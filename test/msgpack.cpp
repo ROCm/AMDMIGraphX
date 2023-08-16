@@ -25,6 +25,7 @@
 #include <migraphx/value.hpp>
 #include <msgpack.hpp>
 #include <map>
+#include <numeric>
 #include "test.hpp"
 
 template <class T>
@@ -172,10 +173,11 @@ TEST_CASE(test_msgpack_array_class)
 
 TEST_CASE(test_msgpack_binary)
 {
-    migraphx::value v = migraphx::value::binary{64};
-    auto buffer       = migraphx::to_msgpack(v);
-    EXPECT(buffer == msgpack_buffer(std::vector<char>(64)));
-    EXPECT(migraphx::from_msgpack(buffer) == v);
+    migraphx::value::binary bin{64};
+    std::iota(bin.begin(), bin.end(), 1);
+    auto buffer       = migraphx::to_msgpack(bin);
+    EXPECT(buffer == msgpack_buffer(std::vector<char>(bin.begin(), bin.end())));
+    EXPECT(migraphx::from_msgpack(buffer) == bin);
 }
 
 #ifndef MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS

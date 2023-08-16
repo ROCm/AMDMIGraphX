@@ -190,16 +190,20 @@ TEST_CASE(test_msgpack_large_binary)
         std::vector<char> buffer;
         {
             migraphx::value::binary bin{n};
-            std::fill(bin.begin(), bin.begin() + n/2, fill_value);
-            std::fill(bin.begin() + n/2, bin.end(), fill_value+1);
+            std::fill(bin.begin(), bin.begin() + n / 2, fill_value);
+            std::fill(bin.begin() + n / 2, bin.end(), fill_value + 1);
             buffer = migraphx::to_msgpack(std::move(bin));
         }
         v = migraphx::from_msgpack(buffer);
     }
     EXPECT(v.is_binary());
     EXPECT(v.get_binary().size() == n);
-    EXPECT(std::all_of(v.get_binary().begin(), v.get_binary().begin() + n/2, [](auto c) { return c == fill_value; }));
-    EXPECT(std::all_of(v.get_binary().begin() + n/2, v.get_binary().end(), [](auto c) { return c == fill_value + 1; }));
+    EXPECT(std::all_of(v.get_binary().begin(), v.get_binary().begin() + n / 2, [](auto c) {
+        return c == fill_value;
+    }));
+    EXPECT(std::all_of(v.get_binary().begin() + n / 2, v.get_binary().end(), [](auto c) {
+        return c == fill_value + 1;
+    }));
 }
 #endif
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

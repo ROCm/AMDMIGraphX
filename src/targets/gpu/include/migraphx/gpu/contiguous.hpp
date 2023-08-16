@@ -41,8 +41,6 @@ struct miopen_contiguous : unary_device<miopen_contiguous, &device::contiguous>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        if(inputs.front().standard())
-            return inputs.front();
         auto lens = inputs.at(0).lens();
         auto t    = inputs.at(0).type();
         return {t, lens};

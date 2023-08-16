@@ -22,11 +22,6 @@ on:
         description: Build navi number
         required: true
         default: "0"
-      organization:
-        type: string
-        description: Organization based on which location of files will be different
-        required: true
-        default: "AMD"
       overwrite:
         type: boolean
         description: Overwrite image if it already exists
@@ -38,7 +33,6 @@ jobs:
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || '5.1' }}
       benchmark-utils_repo: ${{ github.event.inputs.benchmark-utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
-      organization: ${{ github.event.inputs.organization || 'AMD' }}
       base_image: ${{ github.event.inputs.base_image || 'rocm/dev-ubuntu-20.04' }}
       docker_image: ${{ github.event.inputs.docker_image || 'rocm-migraphx' }}
       build_navi: ${{ github.event.inputs.build_navi || '0' }}

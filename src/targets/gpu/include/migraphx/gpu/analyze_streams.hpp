@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_ANALYZE_STREAMS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_ANALYZE_STREAMS_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <migraphx/analyze_streams.hpp>
 
 namespace migraphx {
@@ -34,7 +34,7 @@ struct module;
 
 namespace gpu {
 
-std::vector<stream_race> analyze_streams(const module& m);
+MIGRAPHX_GPU_EXPORT std::vector<stream_race> analyze_streams(const module& m);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

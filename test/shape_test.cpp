@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -201,6 +201,20 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((2 + e) == d);
 }
 
+TEST_CASE(dynamic_dimension_serialize)
+{
+    using migraphx::shape;
+    auto a  = shape::dynamic_dimension{2, 5, {2, 3}};
+    auto b  = shape::dynamic_dimension{3, 6, {3}};
+    auto v1 = migraphx::to_value(a);
+    auto v2 = migraphx::to_value(b);
+    EXPECT(v1 != v2);
+    auto c = migraphx::from_value<shape::dynamic_dimension>(v1);
+    EXPECT(a == c);
+    auto d = migraphx::from_value<shape::dynamic_dimension>(v2);
+    EXPECT(b == d);
+}
+
 TEST_CASE(test_shape_dynamic_errors)
 {
     using migraphx::shape;
@@ -214,6 +228,15 @@ TEST_CASE(test_shape_dynamic_errors)
     EXPECT(test::throws([&] { s.index(std::vector<std::size_t>{0, 1}); }));
     EXPECT(test::throws([&] { s.with_lens({3, 5}); }));
     EXPECT(test::throws([&] { s.with_lens(shape::float_type, {3, 5}); }));
+    EXPECT(test::throws([&] { s.lens(); }));
+    EXPECT(test::throws([&] { s.strides(); }));
+}
+
+TEST_CASE(test_shape_static_dyn_dim_error)
+{
+    using migraphx::shape;
+    migraphx::shape s{shape::float_type, {2, 3, 4}};
+    EXPECT(test::throws([&] { s.dyn_dims(); }));
 }
 
 TEST_CASE(test_shape_dynamic_serialize)
@@ -933,13 +956,76 @@ TEST_CASE(test_with_type)
 TEST_CASE(test_multi_index)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4, 6}};
-    EXPECT(migraphx::verify_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
-    EXPECT(migraphx::verify_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
-    EXPECT(migraphx::verify_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
-    EXPECT(migraphx::verify_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
-    EXPECT(migraphx::verify_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
-    EXPECT(migraphx::verify_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
-    EXPECT(migraphx::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
+    EXPECT(migraphx::verify::verify_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
+    EXPECT(migraphx::verify::verify_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
+    EXPECT(migraphx::verify::verify_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
+    EXPECT(migraphx::verify::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
+}
+
+TEST_CASE(find_permutation_2d_standard)
+{
+    migraphx::shape s                = {migraphx::shape::float_type, {2, 3}};
+    std::vector<int64_t> permutation = {0, 1};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_2d_transpose)
+{
+    migraphx::shape s                = {migraphx::shape::float_type, {2, 3}, {1, 2}};
+    std::vector<int64_t> permutation = {1, 0};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_3d)
+{
+    migraphx::shape s                = {migraphx::shape::float_type, {2, 3, 4}, {1, 8, 2}};
+    std::vector<int64_t> permutation = {1, 2, 0};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_4d)
+{
+    // ori_lens = 2, 3, 4, 5
+    // ori_strides = 60, 20, 5, 1
+    // perm = 3, 2, 0, 1
+    // inv_perm = 2, 3, 1, 0
+    // out_strides = 5, 1, 20, 60
+    migraphx::shape s                = {migraphx::shape::float_type, {5, 4, 2, 3}, {5, 1, 20, 60}};
+    std::vector<int64_t> permutation = {3, 2, 0, 1};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(from_2d_permutation)
+{
+    std::vector<std::size_t> out_lens = {2, 3};
+    std::vector<int64_t> permutation  = {1, 0};
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
+    EXPECT(out_shape.lens() == out_lens);
+    EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
+TEST_CASE(from_3d_permutation)
+{
+    std::vector<std::size_t> out_lens = {2, 3, 4};
+    std::vector<int64_t> permutation  = {1, 2, 0};
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
+    EXPECT(out_shape.lens() == out_lens);
+    EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
+TEST_CASE(from_4d_permutation)
+{
+    std::vector<std::size_t> out_lens = {5, 4, 2, 3};
+    std::vector<int64_t> permutation  = {3, 2, 0, 1};
+    migraphx::shape out_shape =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
+    EXPECT(out_shape.lens() == out_lens);
+    EXPECT(migraphx::find_permutation(out_shape) == permutation);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

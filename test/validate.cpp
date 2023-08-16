@@ -23,6 +23,7 @@
  */
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 #include <rob.hpp>
@@ -33,7 +34,7 @@ TEST_CASE(simple_test)
     auto* mm = p.get_main_module();
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
-    mm->add_instruction(sum_op{}, one, two);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
     EXPECT(bool{mm->validate() == mm->end()});
     auto result = p.eval({});
     EXPECT(result.back() == migraphx::literal{3});
@@ -46,7 +47,7 @@ TEST_CASE(out_of_order)
     auto* mm = p.get_main_module();
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
-    auto ins = mm->add_instruction(sum_op{}, one, two);
+    auto ins = mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->move_instruction(two, mm->end());
     EXPECT(bool{p.validate() == ins});
 }
@@ -57,7 +58,7 @@ TEST_CASE(incomplete_args)
     auto* mm = p.get_main_module();
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
-    auto ins = mm->add_instruction(sum_op{}, one, two);
+    auto ins = mm->add_instruction(migraphx::make_op("add"), one, two);
     ins->clear_arguments();
     EXPECT(bool{p.validate() == ins});
 }
@@ -73,7 +74,7 @@ TEST_CASE(invalid_args)
     auto* mm = p.get_main_module();
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
-    auto ins = mm->add_instruction(sum_op{}, one, two);
+    auto ins = mm->add_instruction(migraphx::make_op("add"), one, two);
     access_ins_arguments(*ins).clear();
     EXPECT(bool{mm->validate() == mm->begin()});
 }

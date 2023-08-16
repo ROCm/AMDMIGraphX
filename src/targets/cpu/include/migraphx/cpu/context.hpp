@@ -28,6 +28,7 @@
 #include <migraphx/cpu/dnnl.hpp>
 #include <migraphx/cpu/parallel.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/cpu/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

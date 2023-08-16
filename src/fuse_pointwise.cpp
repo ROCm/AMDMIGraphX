@@ -31,6 +31,8 @@
 #include <migraphx/ranges.hpp>
 #include <iterator>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -39,7 +41,7 @@ static literal get_scalar(instruction_ref ins)
     if(ins->name() == "contiguous")
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(s.elements() != 1 && not(s.scalar()))
+    if(s.elements() != 1 and not(s.scalar()))
         return {};
     if(not ins->can_eval())
         return {};
@@ -67,7 +69,6 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             continue;
         if(ins->get_operator().name() == "layout")
             continue;
-        assert(ins->get_operator().attributes().contains("point_op"));
         auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
         pm->set_bypass();
 
@@ -193,6 +194,10 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
     create_pointwise_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
+    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
+    {
+        return;
+    }
     for(int i = 0; i < 8; i++)
     {
         if(not find_pointwise_modules(mpm.get_module()))

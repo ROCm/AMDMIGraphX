@@ -40,7 +40,7 @@ struct shape;
 
 struct cpp_generator_impl;
 
-struct cpp_generator
+struct MIGRAPHX_EXPORT cpp_generator
 {
     using generate_module_callback = std::function<std::string(
         instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>;
@@ -50,7 +50,7 @@ struct cpp_generator
         std::string type;
     };
 
-    struct function
+    struct MIGRAPHX_EXPORT function
     {
         std::vector<param> params           = {};
         std::string body                    = "";
@@ -78,6 +78,7 @@ struct cpp_generator
         function& set_types(const module& m, const std::function<std::string(shape)>& parse);
         function& set_generic_types(const module& m);
         function& add_generic_param(const std::string& pname);
+        function& unused_param(const std::string& pname);
     };
 
     cpp_generator();

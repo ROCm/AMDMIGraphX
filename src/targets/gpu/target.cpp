@@ -57,6 +57,7 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -72,9 +73,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+#ifndef _WIN32
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
+#endif
+
 struct id_pass
 {
     std::string name() const { return "id"; }
@@ -98,16 +102,17 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
+    unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
     // clang-format off
     return
     {
-        enable_pass(options.split_single_dyn_dim, split_single_dyn_dim{}),
-        enable_pass(options.split_single_dyn_dim, dead_code_elimination{}),
+        split_single_dyn_dim{},
+        dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
         simplify_qdq{},
-        rewrite_quantization{},
+        enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
@@ -121,7 +126,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         inline_module{},
         rewrite_pooling{},
         dead_code_elimination{},
-        rewrite_gelu{},
+        enable_pass(options.fast_math, rewrite_gelu{}),
         optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},
@@ -129,11 +134,15 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         auto_contiguous{},
         optimize_module{},
-        enable_pass(not enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
+        fuse_pointwise{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
         dead_code_elimination{},
-        fuse_mlir{&ctx},
+#ifndef _WIN32
+        enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
+#endif
+        dead_code_elimination{},
+        enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
@@ -150,7 +159,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         adjust_allocation{gpu_allocation_model{}},
         dead_code_elimination{},
-        compile_ops{&ctx},
+        compile_ops{&ctx, options.exhaustive_tune},
         dead_code_elimination{},
         promote_literals{},
         dead_code_elimination{},

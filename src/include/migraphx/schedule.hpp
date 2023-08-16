@@ -37,7 +37,7 @@ struct module;
 /**
  * Schedule instructions for concurrent execution
  */
-struct schedule
+struct MIGRAPHX_EXPORT schedule
 {
     schedule_model model{};
     bool enable = true;

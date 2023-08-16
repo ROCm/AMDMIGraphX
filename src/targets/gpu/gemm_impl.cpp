@@ -158,7 +158,15 @@ struct gemm_impl
         {
             beta = 0;
         }
+        if(arg_type == rocblas_datatype_f16_r)
+            compute_type = rocblas_datatype_f32_r;
+    }
 
+    rocblas_gemm_flags flag = rocblas_gemm_flags_none;
+#if ROCBLAS_VERSION_MAJOR < 3
+    if(int8_x4_format)
+        flag = rocblas_gemm_flags_pack_int8x4;
+#endif
         // Create lambdas that will cast alpha, beta to the output shape's type
         // and retain the values being pointed to
         output_shape.visit_type([&](auto as) {

@@ -204,6 +204,131 @@ struct find_mul_slice_conv
     }
 };
 
+struct find_mul_dot
+{
+    auto matcher() const
+    {
+        auto is_dot_const_inputs =
+            match::name("dot")(match::any_of[match::inputs()](match::is_constant()));
+        return match::name("mul")(match::either_arg(0, 1)(
+            is_dot_const_inputs.bind("dot"), match::name("broadcast", "multibroadcast").bind("c")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto dot_ins = r.instructions["dot"];
+        auto a_ins   = dot_ins->inputs()[0];
+        auto b_ins   = dot_ins->inputs()[1];
+        auto c_ins   = r.instructions["c"];
+
+        const auto& c_strides = c_ins->get_shape().strides();
+
+        // There should only be one stride that is not zero
+        if(std::count_if(c_strides.begin(), c_strides.end(), [](auto s) { return s != 0; }) > 1)
+            return;
+
+        auto add_mul_const = [&](instruction_ref x_ins) {
+            if(not x_ins->can_eval())
+                return m.end();
+            auto broadcast_v        = c_ins->get_operator().to_value();
+            broadcast_v["out_lens"] = x_ins->get_shape().lens();
+
+            auto cb_ins =
+                m.insert_instruction(ins, make_op(c_ins->name(), broadcast_v), c_ins->inputs());
+            return m.insert_instruction(ins, make_op("mul"), x_ins, cb_ins);
+        };
+
+        if(c_strides.back() == 1)
+        {
+            b_ins = add_mul_const(b_ins);
+        }
+        else if(c_strides[c_strides.size() - 2] == 1)
+        {
+            a_ins = add_mul_const(a_ins);
+        }
+        else if(c_ins->get_shape().scalar())
+        {
+            if(a_ins->can_eval())
+                a_ins = add_mul_const(a_ins);
+            else
+                b_ins = add_mul_const(b_ins);
+        }
+        else
+        {
+            return;
+        }
+
+        if(contains({a_ins, b_ins}, m.end()))
+            return;
+
+        m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
+    }
+};
+
+struct find_dot_mul
+{
+    auto matcher() const
+    {
+        auto const_broadcast = match::name("broadcast", "multibroadcast")(match::is_constant());
+        auto mul             = match::name("mul")(
+            match::used_once(),
+            match::either_arg(0, 1)(const_broadcast.bind("d"),
+                                    match::none_of(match::is_constant()).bind("z")));
+        return match::name("dot")(match::either_arg(0, 1)(mul, match::is_constant().bind("c")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto a_ins = ins->inputs()[0];
+        auto b_ins = ins->inputs()[1];
+        auto d_ins = r.instructions["d"];
+        auto c_ins = r.instructions["c"];
+        auto z_ins = r.instructions["z"];
+
+        const auto& d_strides = d_ins->get_shape().strides();
+
+        // There should only be one stride that is not zero
+        if(std::count_if(d_strides.begin(), d_strides.end(), [](auto s) { return s != 0; }) > 1)
+            return;
+
+        if(not d_ins->get_shape().scalar())
+        {
+            if(d_strides.back() == 1 and not b_ins->can_eval())
+                return;
+            if(d_strides[d_strides.size() - 2] == 1 and not a_ins->can_eval())
+                return;
+        }
+
+        auto broadcast_v = d_ins->get_operator().to_value();
+        auto c_lens      = c_ins->get_shape().lens();
+        std::vector<int64_t> permutation(c_lens.size());
+        std::iota(permutation.begin(), permutation.end(), 0);
+        std::swap(permutation.back(), permutation[permutation.size() - 2]);
+        c_lens                  = reorder_dims(c_lens, permutation);
+        broadcast_v["out_lens"] = c_lens;
+        auto db_ins =
+            m.insert_instruction(ins, make_op(d_ins->name(), broadcast_v), d_ins->inputs());
+        auto db_transpose_ins =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), db_ins);
+        auto cd_ins = m.insert_instruction(ins, make_op("mul"), c_ins, db_transpose_ins);
+
+        if(c_ins == b_ins)
+        {
+            a_ins = z_ins;
+            b_ins = cd_ins;
+        }
+        else
+        {
+            a_ins = cd_ins;
+            b_ins = z_ins;
+        }
+
+        m.replace_instruction(ins, make_op("dot"), a_ins, b_ins);
+    }
+};
+
 // ******************************
 //  a * (x + b) => a * x + a * b
 // ******************************
@@ -361,30 +486,123 @@ struct find_inner_broadcast
 {
     auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
+    static auto non_scalar_op(const std::string& name)
+    {
+        return [=](instruction_ref ins) {
+            if(ins->get_shape().scalar())
+                return false;
+            return ins->name() == name;
+        };
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins        = r.result;
         auto broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;
+        // Skip if different data types are used
+        if(any_of(broadcasts, [&](auto i) {
+               return i->get_shape().type() != broadcasts.front()->get_shape().type();
+           }))
+            return;
+        bool mixed_broadcasts = any_of(broadcasts, non_scalar_op("broadcast")) and
+                                any_of(broadcasts, non_scalar_op("multibroadcast"));
+        // If the broadcast is not a single dimension, then dont perform inner_broadcast
+        if(mixed_broadcasts and any_of(broadcasts, [&](instruction_ref i) {
+               if(i->get_shape().scalar())
+                   return false;
+               if(i->name() == "multibroadcast")
+                   return false;
+               auto input       = i->inputs().at(0);
+               const auto& lens = input->get_shape().lens();
+               return std::count_if(lens.begin(), lens.end(), [&](std::size_t d) {
+                          return d == 1;
+                      }) < (lens.size() - 1);
+           }))
+            return;
         std::vector<instruction_ref> inputs;
         std::transform(broadcasts.begin(),
                        broadcasts.end(),
                        std::back_inserter(inputs),
-                       [](auto i) { return i->inputs().front(); });
-        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
-               return i->get_shape() != inputs.front()->get_shape() and
-                      i->get_shape().elements() != 1;
-           }))
-            return;
+                       [&](instruction_ref i) {
+                           auto input = i->inputs().front();
+                           if(mixed_broadcasts and not i->get_shape().scalar() and
+                              i->get_shape().lens().size() > 1)
+                               return m.insert_instruction(i, make_op("squeeze"), input);
+                           return input;
+                       });
 
-        auto b_it = std::find_if(broadcasts.begin(), broadcasts.end(), [&](auto i) {
-            return not i->get_shape().scalar();
-        });
-        if(b_it == broadcasts.end())
-            b_it = broadcasts.begin();
+        std::sort(broadcasts.begin(), broadcasts.end(), by(std::less<>{}, [](instruction_ref i) {
+                      if(i->get_shape().scalar())
+                          return 2;
+                      else if(i->name() == "broadcast")
+                          return 0;
+                      if(i->name() == "multibroadcast")
+                          return 1;
+                      return 3;
+                  }));
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, (*b_it)->get_operator(), op);
+        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+    }
+};
+
+struct find_dot_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("dot")(match::all_of[match::inputs()](match::broadcast()));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto a   = ins->inputs()[0];
+        auto b   = ins->inputs()[1];
+        if(a->get_operator().name() != b->get_operator().name())
+            return;
+        if(ins->get_shape().lens().size() < 3)
+            return;
+        auto nbatch_axes      = ins->get_shape().lens().size() - 2;
+        const auto& a_strides = a->get_shape().strides();
+        const auto& b_strides = b->get_shape().strides();
+        // Find leading batch axes that are broadcasted
+        auto p =
+            std::mismatch(a_strides.begin(),
+                          a_strides.begin() + nbatch_axes,
+                          b_strides.begin(),
+                          b_strides.begin() + nbatch_axes,
+                          [](auto astride, auto bstride) { return astride == 0 and bstride == 0; });
+        auto naxes = p.first - a_strides.begin();
+        assert(naxes <= nbatch_axes);
+        std::vector<std::size_t> axes(naxes);
+        std::iota(axes.begin(), axes.end(), 0);
+
+        auto insert_broadcast = [&](instruction_ref b_ins) -> instruction_ref {
+            auto input = b_ins->inputs()[0];
+            std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
+                                          b_ins->get_shape().lens().end());
+            if(b_ins->name() == "multibroadcast")
+            {
+                return m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", lens}}), input);
+            }
+            else if(b_ins->name() == "broadcast")
+            {
+                auto v    = b_ins->get_operator().to_value();
+                auto axis = v.at("axis").to<std::size_t>() - naxes;
+                return m.insert_instruction(
+                    ins, make_op("broadcast", {{"axis", axis}, {"out_lens", lens}}), input);
+            }
+            assert(false);
+            return m.end();
+        };
+        auto a1        = insert_broadcast(a);
+        auto b1        = insert_broadcast(b);
+        auto dot       = m.insert_instruction(ins, make_op("dot"), a1, b1);
+        auto broadcast = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), dot);
+        m.replace_instruction(ins, broadcast);
     }
 };
 
@@ -393,7 +611,8 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(), match::name("broadcast")), match::used_once()));
+            match::any_of(match::pointwise(), match::name("broadcast", "multibroadcast")),
+            match::used_once()));
     }
 
     template <class Iterator>
@@ -412,7 +631,8 @@ struct find_concat_op
 
     static bool is_valid_op(const operation& op)
     {
-        return op.name() == "broadcast" or op.attributes().contains("pointwise");
+        return contains({"broadcast", "multibroadcast"}, op.name()) or
+               op.attributes().contains("pointwise");
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -439,6 +659,16 @@ struct find_concat_op
                 b.broadcast_lens = get_output_lens(start, last, iaxis);
                 op               = b;
                 iaxis            = 0;
+            }
+            else if(op.name() == "multibroadcast")
+            {
+                shape bshape = (*start)->get_shape();
+                auto input   = (*start)->inputs()[0];
+                if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
+                    return {start, last};
+                op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
+                auto delta = bshape.lens().size() - input->get_shape().lens().size();
+                iaxis -= delta;
             }
 
             std::vector<instruction_ref> concats;
@@ -865,8 +1095,9 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
         };
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
+    auto qdots = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("quant_dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    return (dots >= 2 or convs >= 2);
+    return (dots >= 2 or convs >= 2 or qdots >= 2);
 }
 
 struct find_conv_dot_horiz_fusion
@@ -880,7 +1111,7 @@ struct find_conv_dot_horiz_fusion
         auto pred = [](auto i, auto j) {
             if(i->get_operator() != j->get_operator())
                 return false;
-            if(not contains({"dot", "convolution"}, i->name()))
+            if(not contains({"quant_dot", "dot", "convolution"}, i->name()))
                 return true;
             auto x = i->inputs()[1]->get_shape().lens();
             auto y = j->inputs()[1]->get_shape().lens();
@@ -888,7 +1119,7 @@ struct find_conv_dot_horiz_fusion
                 return false;
             // Check that non-axes match
             int axis = 1;
-            if(i->name() == "dot")
+            if(i->name() == "dot" or i->name() == "quant_dot")
             {
                 axis = x.size() - 1;
             }
@@ -899,7 +1130,7 @@ struct find_conv_dot_horiz_fusion
             if(std::distance(start, last) < 2)
                 return;
             auto&& name = (*start)->name();
-            if(not contains({"dot", "convolution"}, name))
+            if(not contains({"quant_dot", "dot", "convolution"}, name))
                 return;
             auto op   = (*start)->get_operator();
             int group = 1;
@@ -914,7 +1145,7 @@ struct find_conv_dot_horiz_fusion
                 start, last, std::back_inserter(args), [&](auto x) { return x->inputs().at(1); });
             int axis        = 1;
             int concat_axis = 0;
-            if(name == "dot")
+            if(name == "dot" or name == "quant_dot")
             {
                 axis        = int(args.front()->get_shape().lens().size() - 1);
                 concat_axis = axis;
@@ -1260,12 +1491,15 @@ void simplify_algebra::apply(module& m) const
     {
         match::find_matches(m,
                             find_inner_broadcast{},
+                            find_dot_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
                             find_mul_slice_conv{},
+                            find_mul_dot{},
+                            find_dot_mul{},
                             find_mul_add{},
                             find_unit_ops{},
                             find_neg_unit_ops{},

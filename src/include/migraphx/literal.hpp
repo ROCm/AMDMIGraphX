@@ -147,8 +147,8 @@ literal transform(literal l1, literal l2, F f)
     return result;
 }
 
-void migraphx_to_value(value& v, const literal& l);
-void migraphx_from_value(const value& v, literal& l);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const literal& l);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, literal& l);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

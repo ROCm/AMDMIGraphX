@@ -440,14 +440,13 @@ TEST_CASE(batch_norm_flat_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {1}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {1}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
 
     auto prog = optimize_onnx("batch_norm_flat_test.onnx");
@@ -465,14 +464,13 @@ TEST_CASE(batch_norm_rank_2_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {5}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {5}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, bias});
 
     auto prog = optimize_onnx("batch_norm_rank_2_test.onnx");
@@ -490,7 +488,6 @@ TEST_CASE(batch_norm_1d_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-5f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), scale);
@@ -498,11 +495,11 @@ TEST_CASE(batch_norm_1d_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_onnx("batch_norm_1d_test.onnx");
@@ -520,7 +517,6 @@ TEST_CASE(batch_norm_2d_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::float_type, {3}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::float_type, {3}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
@@ -528,11 +524,11 @@ TEST_CASE(batch_norm_2d_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_onnx("batch_norm_2d_test.onnx");
@@ -550,7 +546,6 @@ TEST_CASE(batch_norm_3d_test)
     auto mean  = mm->add_parameter("mean", {migraphx::shape::half_type, {2}});
     auto var   = mm->add_parameter("variance", {migraphx::shape::half_type, {2}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-6f}});
 
     auto usq_scale =
@@ -561,12 +556,13 @@ TEST_CASE(batch_norm_3d_test)
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), mean);
     auto usq_var = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2, 3}}}), var);
 
-    auto numer   = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
-    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
-    auto denom   = add_common_op(*mm, migraphx::make_op("pow"), {var_eps, rt});
-    auto div0    = add_common_op(*mm, migraphx::make_op("div"), {numer, denom});
-    auto r0      = add_common_op(*mm, migraphx::make_op("mul"), {div0, usq_scale});
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
+
     auto prog = optimize_onnx("batch_norm_3d_test.onnx");
 
     EXPECT(p == prog);
@@ -823,6 +819,47 @@ TEST_CASE(clip_test_args_type_mismatch)
     EXPECT(p == prog);
 }
 
+TEST_CASE(clip_dyn_min_max_test)
+{
+    migraphx::program p;
+    auto* mm                                            = p.get_main_module();
+    auto min_val                                        = mm->add_literal(0.0f);
+    auto max_val                                        = mm->add_literal(6.0f);
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, dds});
+    min_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, l0);
+    max_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), max_val, l0);
+    auto ret = mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 8, {3}};
+    auto prog                     = parse_onnx("clip_dyn_min_max_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(clip_dyn_min_only_test)
+{
+    migraphx::program p;
+    auto* mm                                            = p.get_main_module();
+    auto min_val                                        = mm->add_literal(0.0f);
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, dds});
+    min_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, l0);
+    auto ret = mm->add_instruction(migraphx::make_op("max"), l0, min_val);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {2, 8, {3}};
+    auto prog                     = parse_onnx("clip_dyn_min_only_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;
@@ -867,7 +904,6 @@ TEST_CASE(constant_test)
 
 TEST_CASE(constant_fill_test)
 {
-
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -1064,7 +1100,6 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto p5 = mm->add_parameter("5", {migraphx::shape::float_type, {1}});
     auto p6 = mm->add_parameter("6", {migraphx::shape::float_type, {1}});
 
-    auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
     auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
 
     uint64_t axis = 1;
@@ -1079,25 +1114,12 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p5);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), p6);
 
-    auto mb_mean = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_mean);
-    auto numer = mm->add_instruction(migraphx::make_op("sub"), l5, mb_mean);
-    auto mb_eps =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), eps);
-    auto var_eps = mm->add_instruction(migraphx::make_op("add"), usq_var, mb_eps);
-    auto mb_rt =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1}}}), rt);
-    auto denom    = mm->add_instruction(migraphx::make_op("pow"), var_eps, mb_rt);
-    auto mb_denom = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), denom);
-    auto div0     = mm->add_instruction(migraphx::make_op("div"), numer, mb_denom);
-    auto mb_scale = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_scale);
-    auto r0      = mm->add_instruction(migraphx::make_op("mul"), div0, mb_scale);
-    auto mb_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 28, 28}}}), usq_bias);
-
-    auto l6 = mm->add_instruction(migraphx::make_op("add"), r0, mb_bias);
+    auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {l5, usq_mean});
+    auto var_eps    = add_common_op(*mm, migraphx::make_op("add"), {usq_var, eps});
+    auto rsqrt      = mm->add_instruction(migraphx::make_op("rsqrt"), var_eps);
+    auto mul0       = add_common_op(*mm, migraphx::make_op("mul"), {usq_scale, rsqrt});
+    auto r0         = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, mul0});
+    auto l6         = add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto l7 = mm->add_instruction(migraphx::make_op("relu"), l6);
     mm->add_instruction(migraphx::make_op("pooling",
@@ -1391,19 +1413,19 @@ TEST_CASE(cosh_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_test)
+TEST_CASE(conv_transpose_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    mm->add_instruction(migraphx::make_op("deconvolution"), l0, l1);
+    mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
 
-    auto prog = optimize_onnx("deconv_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_bias_test)
+TEST_CASE(conv_transpose_bias_test)
 {
     migraphx::program p;
     auto* mm      = p.get_main_module();
@@ -1411,120 +1433,181 @@ TEST_CASE(deconv_bias_test)
     auto l1       = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l2       = mm->add_parameter("b", {migraphx::shape::float_type, {1}});
     uint64_t axis = 1;
-    auto l3       = mm->add_instruction(migraphx::make_op("deconvolution"), l0, l1);
+    auto l3       = mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
     auto l4       = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
     mm->add_instruction(migraphx::make_op("add"), l3, l4);
 
-    auto prog = optimize_onnx("deconv_bias_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_bias_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_input_pads_strides_test)
+TEST_CASE(conv_transpose_input_pads_strides_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {1, 1}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {1, 1}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
 
-    auto prog = optimize_onnx("deconv_input_pads_strides_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_input_pads_strides_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_input_pads_asymm_test)
+TEST_CASE(conv_transpose_input_pads_asymm_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {0, 0}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
     mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {8, 6}}}), l2);
 
-    auto prog = optimize_onnx("deconv_input_pads_asymm_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_input_pads_asymm_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_input_pads_asymm_1d_test)
+TEST_CASE(conv_transpose_input_pads_asymm_1d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution",
-                          {{"padding", {0, 0}}, {"stride", {2}}, {"dilation", {1}}}),
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {6}}}),
                         l2);
 
-    auto prog = optimize_onnx("deconv_input_pads_asymm_1d_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_input_pads_asymm_1d_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_padding_test)
+TEST_CASE(conv_transpose_output_padding_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {0, 0}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_padding_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_padding_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_padding_3d_test)
+TEST_CASE(conv_transpose_output_padding_3d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_padding_3d_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_padding_3d_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_shape_test)
+TEST_CASE(conv_transpose_output_shape_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution", {{"padding", {0, 0}}, {"stride", {3, 2}}}), l0, l1);
+        migraphx::make_op("convolution_backwards", {{"padding", {0, 0}}, {"stride", {3, 2}}}),
+        l0,
+        l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_shape_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_shape_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_shape_3d_test)
+TEST_CASE(conv_transpose_output_shape_3d_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
-        migraphx::make_op("deconvolution",
+        migraphx::make_op("convolution_backwards",
                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}}), l2);
 
-    auto prog = optimize_onnx("deconv_output_shape_3d_test.onnx");
+    auto prog = optimize_onnx("conv_transpose_output_shape_3d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_transpose_auto_pad_error)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_transpose_auto_pad_test.onnx"); }));
+}
+
+TEST_CASE(conv_transpose_dyn_asym_padding_error)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("conv_transpose_dyn_asym_padding_test.onnx", options); }));
+}
+
+TEST_CASE(conv_transpose_dyn_output_shape_error)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("conv_transpose_dyn_output_shape_test.onnx", options); }));
+}
+
+TEST_CASE(conv_transpose_dyn_batch_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0 =
+        mm->add_parameter("x", {migraphx::shape::float_type, {{1, 4}, {1, 1}, {3, 3}, {3, 3}}});
+    auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto ret = mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    auto prog                     = parse_onnx("conv_transpose_dyn_batch_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_transpose_dyn_img_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0 =
+        mm->add_parameter("x", {migraphx::shape::float_type, {{1, 1}, {1, 1}, {3, 6}, {3, 6}}});
+    auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto ret = mm->add_instruction(migraphx::make_op("convolution_backwards"), l0, l1);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {3, 6};
+    auto prog                     = parse_onnx("conv_transpose_dyn_img_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -3174,28 +3257,64 @@ TEST_CASE(instance_norm_test)
     auto bias  = mm->add_parameter("2", s2);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto mean_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
-    auto l0       = mm->add_instruction(migraphx::make_op("sqdiff"), x, mean_bcast);
+    auto l1   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l0   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+
     auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
-    auto l1       = mm->add_instruction(migraphx::make_op("sub"), x, mean_bcast);
+
     auto epsilon_literal =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
-    auto epsilon_bcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
-    auto variance_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), variance);
-    auto l2          = mm->add_instruction(migraphx::make_op("add"), variance_bcast, epsilon_bcast);
-    auto l3          = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
-    auto l4          = mm->add_instruction(migraphx::make_op("mul"), l1, l3);
+    auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
+
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
+
     auto scale_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
-    auto l5 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
-    mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    auto l5  = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto ret = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    mm->add_return({ret});
 
-    auto prog = optimize_onnx("instance_norm_test.onnx");
+    migraphx::onnx_options options;
+    auto prog = migraphx::parse_onnx("instance_norm_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(instance_norm_dyn_batch_test)
+{
+    // instancenorm with dynamic input in the 0'th (batch) dimension
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 2, {2}}, {2, 2}, {3, 3}, {3, 3}}};
+    migraphx::shape s2{migraphx::shape::float_type, {2}};
+
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("0", s1);
+    auto scale = mm->add_parameter("1", s2);
+    auto bias  = mm->add_parameter("2", s2);
+
+    auto mean     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+    auto l1       = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l0       = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
+    auto epsilon_literal =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
+    auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
+
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l1, l3});
+
+    auto scale_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
+    auto bias_bcast  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
+    auto l5          = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto ret         = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 2, {2}};
+    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -3207,35 +3326,92 @@ TEST_CASE(instance_norm_half_test)
     migraphx::shape s2{migraphx::shape::half_type, {2}};
 
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("0", s1);
-    auto scale = mm->add_parameter("1", s2);
-    auto bias  = mm->add_parameter("2", s2);
+    auto* mm        = p.get_main_module();
+    auto x_fp16     = mm->add_parameter("0", s1);
+    auto scale_fp16 = mm->add_parameter("1", s2);
+    auto bias_fp16  = mm->add_parameter("2", s2);
+
+    // conversion of half type to float is enabled by default
+    auto x = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x_fp16);
+    auto scale = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_fp16);
+    auto bias = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bias_fp16);
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-    auto mean_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), mean);
-    auto l0       = mm->add_instruction(migraphx::make_op("sqdiff"), x, mean_bcast);
-    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
-    auto l1       = mm->add_instruction(migraphx::make_op("sub"), x, mean_bcast);
+    auto l0   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l1   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+
+    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l1);
+    // type of epsilon_literal is same as 0'th input; convert instruction will be added by
+    // add_common_op
     auto epsilon_literal =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {1e-5}});
-    auto epsilon_bcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
-    auto variance_bcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), variance);
-    auto l2          = mm->add_instruction(migraphx::make_op("add"), variance_bcast, epsilon_bcast);
-    auto l3          = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
-    auto l4          = mm->add_instruction(migraphx::make_op("mul"), l1, l3);
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
+    auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
+
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l0, l3});
+
     auto scale_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
-    auto l5 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
-    mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
-
+    auto l5                 = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto instance_norm_fp32 = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        instance_norm_fp32);
     auto prog = optimize_onnx("instance_norm_half_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(instance_norm_dyn_batch_half_test)
+{
+    // instancenorm with half type, dynamic input in the 0'th (batch) dimension
+    migraphx::shape s1{migraphx::shape::half_type, {{1, 2, {2}}, {2, 2}, {3, 3}, {3, 3}}};
+    migraphx::shape s2{migraphx::shape::half_type, {2}};
+
+    migraphx::program p;
+    auto* mm        = p.get_main_module();
+    auto x_fp16     = mm->add_parameter("0", s1);
+    auto scale_fp16 = mm->add_parameter("1", s2);
+    auto bias_fp16  = mm->add_parameter("2", s2);
+
+    // conversion of half type to float is enabled by default
+    auto x = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x_fp16);
+    auto scale = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_fp16);
+    auto bias = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), bias_fp16);
+
+    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+    auto l0   = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto l1   = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+
+    auto variance = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l1);
+    // type of epsilon_literal is same as 0'th input; convert instruction will be added by
+    // add_common_op
+    auto epsilon_literal =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
+    auto l2 = add_common_op(*mm, migraphx::make_op("add"), {variance, epsilon_literal});
+
+    auto l3 = mm->add_instruction(migraphx::make_op("rsqrt"), l2);
+    auto l4 = add_common_op(*mm, migraphx::make_op("mul"), {l0, l3});
+
+    auto scale_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), scale, x);
+    auto bias_bcast  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), bias, x);
+    auto l5          = mm->add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+    auto instance_norm_fp32 = mm->add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+    auto ret                = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+        instance_norm_fp32);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 2, {2}};
+    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_half_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -4536,14 +4712,16 @@ TEST_CASE(quantizelinear_test)
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
-    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    std::vector<int> min_data(s.elements(), 0);
-    std::vector<int> max_data(s.elements(), 255);
-    auto min_arg = mm->add_literal(s, min_data);
-    auto max_arg = mm->add_literal(s, max_data);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), round, min_arg, max_arg);
+    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s       = round->get_shape();
+    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {0}});
+    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {255}});
+    auto min_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
+    auto max_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -4565,14 +4743,16 @@ TEST_CASE(quantizelinear_int32_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
-    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    std::vector<int> min_data(s.elements(), 0);
-    std::vector<int> max_data(s.elements(), 255);
-    auto min_arg = mm->add_literal(s, min_data);
-    auto max_arg = mm->add_literal(s, max_data);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), round, min_arg, max_arg);
+    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s       = round->get_shape();
+    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {0}});
+    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {255}});
+    auto min_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
+    auto max_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -4599,13 +4779,15 @@ TEST_CASE(quantizelinear_zero_point_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_mbcast);
-    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
-    auto s   = round->get_shape();
-    std::vector<int> min_data(s.elements(), -128);
-    std::vector<int> max_data(s.elements(), 127);
-    auto min_arg = mm->add_literal(s, min_data);
-    auto max_arg = mm->add_literal(s, max_data);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), add, min_arg, max_arg);
+    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
+    auto s       = round->get_shape();
+    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {-128}});
+    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {127}});
+    auto min_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
+    auto max_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
@@ -4636,13 +4818,15 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_bcast);
-    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
-    auto s   = round->get_shape();
-    std::vector<int> min_data(s.elements(), -128);
-    std::vector<int> max_data(s.elements(), 127);
-    auto min_arg = mm->add_literal(s, min_data);
-    auto max_arg = mm->add_literal(s, max_data);
-    auto clip    = mm->add_instruction(migraphx::make_op("clip"), add, min_arg, max_arg);
+    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
+    auto s       = round->get_shape();
+    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {-128}});
+    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {127}});
+    auto min_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
+    auto max_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
@@ -5884,6 +6068,118 @@ TEST_CASE(shape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(shape_dyn_test0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
+    auto p0 = mm->add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    auto ret = mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 4}}), p0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
+    auto prog                       = parse_onnx("shape_dyn_test0.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(shape_dyn_test1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
+    auto p0 = mm->add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    auto ret =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
+    auto prog                       = parse_onnx("shape_dyn_test1.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(shape_dyn_test2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
+    auto p0 = mm->add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    auto ret =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
+    auto prog                       = parse_onnx("shape_dyn_test2.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(shape_dyn_test3)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
+    auto p0 = mm->add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    auto ret =
+        mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 2}}), p0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
+    auto prog                       = parse_onnx("shape_dyn_test3.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(shape_end_oob_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
+    auto p0 = mm->add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    auto ret = mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 4}}), p0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
+    auto prog                       = migraphx::parse_onnx("shape_end_oob_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(shape_start_oob_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
+    auto p0 = mm->add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    auto ret = mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 4}}), p0);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
+    auto prog                       = migraphx::parse_onnx("shape_start_oob_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(shape_end_less_start_error)
+{
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
+    EXPECT(test::throws([&] { migraphx::parse_onnx("shape_end_less_start_error.onnx", options); }));
+}
+
 TEST_CASE(shape_gather_test)
 {
     migraphx::program p;
@@ -6955,7 +7251,8 @@ TEST_CASE(variable_batch_user_input_test6)
 
 TEST_CASE(variable_batch_user_input_test7)
 {
-    // if entry in map_dyn_input_dims is all fixed dynamic_dimensions, convert it to a static shape
+    // if entry in map_dyn_input_dims is all fixed dynamic_dimensions, convert it to a static
+    // shape
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 16, 16}});

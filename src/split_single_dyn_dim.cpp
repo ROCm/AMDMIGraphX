@@ -100,10 +100,10 @@ struct find_static_2in_broadcasts
 } // namespace
 
 /**
- * Makes all the shapes in the dynamic_dimension range.
- * Probably won't work for `if` and `loop` instructions, depending on how the submodules for those
+ * Makes all the shapes in the dynamic_dimension range.  Probably won't work for `if`
+ * and `loop` instructions, depending on how the submodules for those
  * work. Inserts select_module instruction to the top. Replaces return, bypassing other
- * instructions.
+ * instructions. Skips if the dynamic parameter outputs to a select_module operator.
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
@@ -111,7 +111,13 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
     auto param_names                            = mm->get_parameter_names();
     auto param_shapes                           = mm->get_parameter_shapes();
     optional<dynamic_dimensions_check> dd_check = has_one_dyn_dim(param_shapes);
-    if(dd_check.has_value())
+    auto any_sm_next                            = [&](auto ddc) {
+        auto p_outputs = mm->get_parameter(ddc->dyn_param_str)->outputs();
+        return std::any_of(p_outputs.cbegin(), p_outputs.cend(), [](auto ins) {
+            return ins->name() == "select_module";
+        });
+    };
+    if(dd_check.has_value() and not any_sm_next(dd_check))
     {
         const auto& dyn_param = mm->get_parameter(dd_check->dyn_param_str);
         auto dyn_param_shape  = mm->get_parameter_shape(dd_check->dyn_param_str);

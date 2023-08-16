@@ -28,10 +28,6 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 #include <hip/math_functions.h>
-#include <hip/hip_math_constants.h>
-#elif defined(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS)
-#include <hip/hip_common.h>
-#include <hip/hip_math_constants.h>
 #endif
 
 #endif // MIGRAPHX_GUARD_KERNELS_HIP_HPP

@@ -29,6 +29,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
@@ -171,7 +172,8 @@ std::string make_transformer_args(std::vector<std::string> transformers)
 void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
 {
     module m = pm;
-    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    run_passes(m,
+               {rewrite_quantization{}, eliminate_common_subexpression{}, dead_code_elimination{}});
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
@@ -280,6 +282,14 @@ std::string generate_reduce(const module& m, const std::string& name)
                                     not input->get_shape().broadcasted();
                          });
             auto inner_names = names;
+            for(auto input : ins->inputs())
+            {
+                if(input->name() != "@param")
+                    continue;
+                if(contains(tensors, input))
+                    continue;
+                inner_names[input] += "[out_idx]";
+            }
             for(auto input : tensors)
                 inner_names[input] += "_lambda_param";
             auto call_function =
@@ -308,6 +318,8 @@ std::string generate_reduce(const module& m, const std::string& name)
     });
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
+    f.add_generic_param("out_idx");
+    f.unused_param("out_idx");
     g.create_function(f);
     return g.str();
 }
@@ -319,7 +331,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(ins.name() == "multibroadcast")
+        if(contains({"multibroadcast", "contiguous"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

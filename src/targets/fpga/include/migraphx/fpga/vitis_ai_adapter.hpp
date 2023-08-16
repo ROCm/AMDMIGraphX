@@ -41,7 +41,7 @@ class x_model
     void set_shape(migraphx::shape);
 };
 
-x_model create_xmodel(migraphx::module_ref mod);
+x_model create_xmodel(migraphx::const_module_ref mod);
 
 migraphx::argument execute(const x_model& xmodel,
                            const migraphx::shape& output_shape,

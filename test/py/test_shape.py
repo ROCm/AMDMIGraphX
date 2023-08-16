@@ -29,6 +29,7 @@ def test_create_shape():
     assert s.standard()
     assert s.packed()
     assert s.lens() == [1, 64, 3, 3]
+    assert s.ndim() == 4
 
 
 def test_create_shape_broadcast():
@@ -49,6 +50,35 @@ def test_create_shape_type():
     assert s.type_size() == 4
 
 
+def test_create_dyn_dims():
+    a = migraphx.shape.dynamic_dimension()
+    assert a.is_fixed()
+    assert a.min == 0
+    b = migraphx.shape.dynamic_dimension(4, 4)
+    assert b.is_fixed()
+    assert b.max == 4
+    c = migraphx.shape.dynamic_dimension(1, 4, {2, 4})
+    assert not c.is_fixed()
+    assert c.min == 1
+    assert c.max == 4
+    assert c.optimals == {2, 4}
+
+    dyn_dims = [a, b]
+    dyn_dims.append(c)
+    assert dyn_dims[1] == b
+
+
+def test_create_dyn_shape():
+    a = migraphx.shape.dynamic_dimension(1, 4, {2, 4})
+    b = migraphx.shape.dynamic_dimension(4, 4)
+    dds = [a, b]
+    dyn_shape = migraphx.shape(type='float', dyn_dims=dds)
+    assert dyn_shape.dynamic()
+    assert dyn_shape.dyn_dims()[0].min == dds[0].min
+    assert dyn_shape.dyn_dims()[0].max == dds[0].max
+    assert dyn_shape.dyn_dims()[0].optimals == dds[0].optimals
+
+
 def test_type_enum():
     mgx_types = [
         'bool_type', 'double_type', 'float_type', 'half_type', 'int16_type',
@@ -63,3 +93,5 @@ if __name__ == "__main__":
     test_create_shape()
     test_create_shape_broadcast()
     test_create_shape_type()
+    test_create_dyn_dims()
+    test_create_dyn_shape()

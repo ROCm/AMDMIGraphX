@@ -64,10 +64,7 @@ void instruction::replace(const shape& r)
         result = r;
         for(auto&& ins : output)
         {
-            if(ins->name() == "@return")
-                continue;
-
-            assert(ins->name().front() != '@');
+            assert(ins->name() == "@return" or ins->name().front() != '@');
             ins->recompute_shape();
         }
     }
@@ -122,10 +119,6 @@ bool instruction::valid() const
     {
         computed = result;
     }
-    else if(op.name() == "@return")
-    {
-        computed = {};
-    }
     else
     {
         try
@@ -145,6 +138,7 @@ bool instruction::valid() const
 }
 
 shape instruction::get_shape() const { return result; }
+
 const literal& instruction::get_literal() const
 {
     assert(op.name() == "@literal");
@@ -395,7 +389,7 @@ void instruction::print(std::ostream& os,
     if(not ins->module_inputs().empty())
     {
         std::string delim = ", [";
-        for(auto&& mod_arg : ins->module_inputs())
+        for(const const_module_ref& mod_arg : ins->module_inputs())
         {
             os << delim << mod_arg->name();
             delim = ", ";
@@ -406,6 +400,9 @@ void instruction::print(std::ostream& os,
     // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
+    // print tid
+
+    os << ", target_id=" << ins->target_id;
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)
@@ -464,11 +461,14 @@ operation instruction::normalized_operator() const
     if(this->need_normalization())
     {
         auto s = this->inputs().front()->get_shape();
-        if(not normalize_attributes(o, s.max_lens()))
+        if(not normalize_attributes(o, s))
             return this->get_operator();
     }
     return o;
 }
+std::size_t instruction::get_target_id() const { return target_id; }
+
+void instruction::set_target_id(std::size_t tid) { this->target_id = tid; }
 
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 {

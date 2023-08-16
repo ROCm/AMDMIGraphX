@@ -36,6 +36,8 @@ error_type = ''
 success_type = ''
 try_wrap = ''
 
+export_c_macro = 'MIGRAPHX_C_EXPORT'
+
 c_header_preamble: List[str] = []
 c_api_body_preamble: List[str] = []
 cpp_header_preamble: List[str] = []
@@ -125,7 +127,7 @@ class Type:
 
 
 header_function = Template('''
-${error_type} ${name}(${params});
+${export_c_macro} ${error_type} ${name}(${params});
 ''')
 
 function_pointer_typedef = Template('''
@@ -177,7 +179,7 @@ class CFunction:
                                **kwargs)
 
     def generate_header(self) -> str:
-        return self.substitute(header_function)
+        return self.substitute(header_function, export_c_macro=export_c_macro)
 
     def generate_function_pointer(self, name: Optional[str] = None) -> str:
         return self.substitute(function_pointer_typedef,
@@ -764,10 +766,13 @@ const Target* object_cast(const U* x)
     return reinterpret_cast<const Target*>(x);
 }
 
-template<class T, class... Ts, class Target=std::remove_pointer_t<T>>
+template <class T, class... Ts, class Target = std::remove_pointer_t<T>>
 Target* allocate(Ts&&... xs)
 {
-    return new Target(std::forward<Ts>(xs)...); // NOLINT
+    if constexpr(std::is_aggregate<Target>{})
+        return new Target{std::forward<Ts>(xs)...}; // NOLINT
+    else
+        return new Target(std::forward<Ts>(xs)...); // NOLINT
 }
 
 template<class T>

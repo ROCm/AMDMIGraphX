@@ -700,7 +700,7 @@ TEST_CASE(conv_correctness)
     auto result2 = p2.eval({{"input", input}, {"weights", weights}}).back();
     std::vector<float> rv2(16);
     result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(rv1, rv2));
+    EXPECT(migraphx::verify::verify_range(rv1, rv2));
 }
 
 TEST_CASE(dot_correctness)
@@ -750,7 +750,7 @@ TEST_CASE(dot_correctness)
     auto result2 = p2.eval({{"a", a}, {"b", b}}).back();
     std::vector<float> rv2(sh3.elements());
     result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(rv1, rv2));
+    EXPECT(migraphx::verify::verify_range(rv1, rv2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

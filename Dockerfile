@@ -7,16 +7,18 @@ RUN dpkg --add-architecture i386
 
 # Install rocm key
 RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - 
+    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.4.2/ ubuntu main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.6/ focal main > /etc/apt/sources.list.d/rocm.list'
+
+# From docs.amd.com for installing rocm. Needed to install properly
+RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
-    clang-format-10 \
     cmake \
     curl \
     doxygen \
@@ -75,6 +77,9 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
+# Temporarily install a new cmake until switching to ubuntu 22.04
+RUN pip3 install cmake==3.22.1
+
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 RUN test -f /usr/local/hash || exit 1
@@ -83,7 +88,7 @@ RUN test -f /usr/local/hash || exit 1
 RUN pip3 install yapf==0.28.0
 
 # Install doc requirements
-ADD doc/requirements.txt /doc-requirements.txt
+ADD docs/.sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Download real models to run onnx unit tests
@@ -94,7 +99,11 @@ RUN /download_models.sh && rm /download_models.sh
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
+RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
+
+# Install MLIR
+ADD mlir-requirements.txt /mlir-requirements.txt
+RUN cget -p /usr/local install -f /mlir-requirements.txt
 
 COPY ./test/onnx/.onnxrt-commit /
 
@@ -110,8 +119,6 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
-RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@55c6ee66cc7502db7950693b3e845676cbf400b1 -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
-
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
 ENV LD_LIBRARY_PATH=$PREFIX/lib
@@ -120,4 +127,3 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
-

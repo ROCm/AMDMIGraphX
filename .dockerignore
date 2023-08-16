@@ -5,5 +5,5 @@
 !*.txt
 !*.ini
 !/tools/*.sh
-!/doc/*.txt
 !/test/onnx/.onnxrt-commit
+!/docs/.sphinx/*.txt

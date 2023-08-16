@@ -37,7 +37,7 @@ struct program;
 /**
  * Remove instructions where the output is not used.
  */
-struct dead_code_elimination
+struct MIGRAPHX_EXPORT dead_code_elimination
 {
     std::string name() const { return "dead_code_elimination"; }
     void apply(module& m) const;

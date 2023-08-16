@@ -47,7 +47,7 @@ TEST_CASE(targets)
     auto ref_target = migraphx::make_target("ref");
 #endif
     auto ts = migraphx::get_targets();
-    EXPECT(ts.size() == 1);
+    EXPECT(ts.size() >= 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

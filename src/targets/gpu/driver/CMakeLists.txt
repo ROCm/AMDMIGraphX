@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-file(GLOB GPU_DRIVER_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+file(GLOB GPU_DRIVER_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 add_executable(gpu-driver
     ${GPU_DRIVER_SRCS}
 )

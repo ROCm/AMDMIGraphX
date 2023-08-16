@@ -24,9 +24,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_HIP_HPP
 #define MIGRAPHX_GUARD_RTGLIB_COMPILE_HIP_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/compile_src.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/functional.hpp>
 #include <string>
 #include <utility>
@@ -35,6 +36,11 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+#ifdef MIGRAPHX_USE_HIPRTC
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS);
+#endif
 
 struct hiprtc_src_file
 {
@@ -52,14 +58,13 @@ struct hiprtc_src_file
     }
 };
 
-std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
-                                                           std::string params,
-                                                           const std::string& arch);
+MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>> compile_hip_src_with_hiprtc(
+    std::vector<hiprtc_src_file> srcs, std::string params, const std::string& arch);
 
-std::vector<std::vector<char>>
+MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch);
 
-std::string enum_params(std::size_t count, std::string param);
+MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -357,6 +357,106 @@ TEST_CASE(nop_convert)
     EXPECT(std::distance(m.begin(), m.end()) == n - 1);
 }
 
+TEST_CASE(nested_reshape)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4, 5, 6, 7}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto rshp1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4, 5, 42}}}), x);
+        auto rshp2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 12, 5, 42}}}), rshp1);
+        auto rshp3 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12, 5, 42}}}), rshp2);
+        auto rshp4 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 60, 42}}}), rshp3);
+        auto rshp5 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {120, 42}}}), rshp4);
+        auto rshp6 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {5040}}}), rshp5);
+        m1.add_return({rshp6});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto rshp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {5040}}}), x);
+        m2.add_return({rshp});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nested_reshape_contiguous)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4, 5, 6, 7}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto rshp1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4, 5, 42}}}), x);
+        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), rshp1);
+        auto rshp2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 12, 5, 42}}}), c1);
+        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), rshp2);
+        auto rshp3 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12, 5, 42}}}), c2);
+        auto c3    = m1.add_instruction(migraphx::make_op("contiguous"), rshp3);
+        auto rshp4 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 60, 42}}}), c3);
+        auto c4    = m1.add_instruction(migraphx::make_op("contiguous"), rshp4);
+        auto rshp5 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {120, 42}}}), c4);
+        auto c5    = m1.add_instruction(migraphx::make_op("contiguous"), rshp5);
+        auto rshp6 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {5040}}}), c5);
+        m1.add_return({rshp6});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto rshp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {5040}}}), x);
+        m2.add_return({rshp});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nested_reshape_squeeze)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s);
+        auto rshp    = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 12}}}), x);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), rshp);
+        m1.add_return({squeeze});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto rshp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12}}}), x);
+        m2.add_return({rshp});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(nested_squeeze_reshape)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+        auto rshp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12}}}), squeeze);
+        m1.add_return({rshp});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", s);
+        auto rshp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 12}}}), x);
+        m2.add_return({rshp});
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(concat_multibroadcasts1)
 {
     // Broadcasted batch dim, new axis < old axis

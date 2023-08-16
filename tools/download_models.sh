@@ -24,6 +24,8 @@
 # THE SOFTWARE.
 #####################################################################################
 
+set -e
+
 if [ -z "$ONNX_HOME" ]
 then
    # The onnx library uses ONNX_HOME, by default if it doesn't exist

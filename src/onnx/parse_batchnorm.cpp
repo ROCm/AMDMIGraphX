@@ -57,13 +57,12 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
         auto x_rank = x_lens.size();
         if(x_rank == 1 or x_rank == 2)
         {
-            auto rt      = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
-            auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
-            auto numer   = info.add_broadcastable_binary_op("sub", args[0], args[3]);
-            auto var_eps = info.add_broadcastable_binary_op("add", args[4], eps);
-            auto denom   = info.add_broadcastable_binary_op("pow", var_eps, rt);
-            auto div0    = info.add_broadcastable_binary_op("div", numer, denom);
-            auto r0      = info.add_broadcastable_binary_op("mul", div0, args[1]);
+            auto eps = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
+            auto x_sub_mean = info.add_broadcastable_binary_op("sub", args[0], args[3]);
+            auto var_eps    = info.add_broadcastable_binary_op("add", args[4], eps);
+            auto rsqrt      = info.add_instruction(make_op("rsqrt"), var_eps);
+            auto mul0       = info.add_broadcastable_binary_op("mul", args[1], rsqrt);
+            auto r0         = info.add_broadcastable_binary_op("mul", x_sub_mean, mul0);
             return info.add_broadcastable_binary_op("add", r0, args[2]);
         }
         else if(x_rank > 2)
@@ -71,7 +70,6 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             // unsqueeze tensors of shape (C) to broadcast correctly
             std::vector<int64_t> unsqueeze_axes(x_lens.size() - 2);
             std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 1);
-            auto rt  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5}});
             auto eps = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
             auto scale_unsqueeze = info.add_instruction(
                 migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[1]);
@@ -81,11 +79,11 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
                 migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[3]);
             auto var_unsqueeze = info.add_instruction(
                 migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), args[4]);
-            auto numer   = info.add_broadcastable_binary_op("sub", args[0], mean_unsqueeze);
-            auto var_eps = info.add_broadcastable_binary_op("add", var_unsqueeze, eps);
-            auto denom   = info.add_broadcastable_binary_op("pow", var_eps, rt);
-            auto div0    = info.add_broadcastable_binary_op("div", numer, denom);
-            auto r0      = info.add_broadcastable_binary_op("mul", div0, scale_unsqueeze);
+            auto x_sub_mean = info.add_broadcastable_binary_op("sub", args[0], mean_unsqueeze);
+            auto var_eps    = info.add_broadcastable_binary_op("add", var_unsqueeze, eps);
+            auto rsqrt      = info.add_instruction(make_op("rsqrt"), var_eps);
+            auto mul0       = info.add_broadcastable_binary_op("mul", scale_unsqueeze, rsqrt);
+            auto r0         = info.add_broadcastable_binary_op("mul", x_sub_mean, mul0);
             return info.add_broadcastable_binary_op("add", r0, bias_unsqueeze);
         }
         else

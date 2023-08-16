@@ -59,8 +59,8 @@ enum class rnn_direction
     bidirectional,
 };
 
-std::ostream& operator<<(std::ostream& os, pooling_mode v);
-std::ostream& operator<<(std::ostream& os, rnn_direction v);
+MIGRAPHX_EXPORT std::ostream& operator<<(std::ostream& os, pooling_mode v);
+MIGRAPHX_EXPORT std::ostream& operator<<(std::ostream& os, rnn_direction v);
 
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

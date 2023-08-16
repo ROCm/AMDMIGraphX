@@ -28,14 +28,13 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/cpu/context.hpp>
-#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 struct pass;
 namespace cpu {
 
-struct target
+struct MIGRAPHX_CPU_EXPORT target
 {
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& gctx, const compile_options&) const;

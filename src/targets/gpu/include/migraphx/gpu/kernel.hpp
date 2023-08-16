@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_KERNEL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_KERNEL_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <hip/hip_runtime_api.h>
 #include <memory>
@@ -37,7 +37,7 @@ namespace gpu {
 
 struct kernel_impl;
 
-struct kernel
+struct MIGRAPHX_GPU_EXPORT kernel
 {
     kernel() = default;
     kernel(const char* image, const std::string& name);

@@ -29,6 +29,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/optimize_module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -48,19 +49,12 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
 // This function is to convert any instructions specified in the input
 // from double or float to float16 by inserting a convert operator.
-// For the conversion, there could be cases of overflowing, but it
-// is very rare in the area of deeping learning, so we just do a
-// truncate of the input to get the fp16.
+// For the conversion, there could be cases of overflowing or underflowing, but it
+// is uncommon. Run optimize_module() before converting to fp16 to const eval and fold in FP32 to
+// avoid loss of precision.
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
-    run_passes(prog,
-               {quantize_fp16_pass{ins_names},
-                eliminate_common_subexpression{},
-                dead_code_elimination{},
-                simplify_reshapes{},
-                dead_code_elimination{},
-                simplify_qdq{},
-                dead_code_elimination{}});
+    run_passes(prog, {optimize_module{}, quantize_fp16_pass{ins_names}, optimize_module{}});
 }
 
 void quantize_int8(program& prog,

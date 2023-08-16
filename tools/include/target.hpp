@@ -45,6 +45,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
+
 #ifdef DOXYGEN
 
 /// An interface for a compilation target
@@ -123,27 +125,40 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 <%
-interface('target',
-     virtual('name', returns='std::string', const=True),
-     virtual('get_passes', ctx='context&', options='const compile_options&', returns='std::vector<pass>', const=True),
-     virtual('get_context', returns='context', const=True),
-     virtual('find_supported', returns='supported_segments', mod='const_module_ref', m='support_metric', const=True, default='target_find_supported'),
-     virtual('copy_to',
-             returns = 'argument',
-             input   = 'const argument&',
-             const   = True,
-             default = 'copy_to_target'),
-     virtual('copy_from',
-             returns = 'argument',
-             input   = 'const argument&',
-             const   = True,
-             default = 'copy_from_target'),
-    virtual('allocate', s='const shape&', returns='argument', const=True,
-             default = 'target_allocate')
-)
-%>
+ interface('target',
+           virtual('name', returns = 'std::string', const = True),
+           virtual('get_passes',
+                   ctx     = 'context&',
+                   options = 'const compile_options&',
+                   returns = 'std::vector<pass>',
+                   const   = True),
+           virtual('get_context', returns = 'context', const = True),
+           virtual('find_supported',
+                   returns = 'supported_segments',
+                   mod     = 'const_module_ref',
+                   m       = 'support_metric',
+                   const   = True,
+                   default = 'target_find_supported'),
+           virtual('copy_to',
+                   returns = 'argument',
+                   input   = 'const argument&',
+                   const   = True,
+                   default = 'copy_to_target'),
+           virtual('copy_from',
+                   returns = 'argument',
+                   input   = 'const argument&',
+                   const   = True,
+                   default = 'copy_from_target'),
+           virtual('allocate',
+                   s       = 'const shape&',
+                   returns = 'argument',
+                   const   = True,
+                   default = 'target_allocate')) %>
 
 #endif
+
+void migraphx_to_value(value& v, const target& t);
+void migraphx_from_value(const value& v, target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/hash.hpp>
 #include <unordered_map>
 #include <utility>
 
@@ -284,7 +285,7 @@ bool value::contains(const std::string& pkey) const
 }
 std::size_t value::size() const
 {
-    auto* a = if_array_impl(x);
+    const auto* a = if_array_impl(x);
     if(a == nullptr)
         return 0;
     return a->size();
@@ -517,6 +518,38 @@ std::ostream& operator<<(std::ostream& os, const value& d)
 {
     d.visit([&](auto&& y) { print_value(os, y); });
     return os;
+}
+
+template <class T>
+std::size_t value_hash(const std::string& key, const T& x)
+{
+    std::size_t h = hash_value(key);
+    hash_combine(h, x);
+    return h;
+}
+
+std::size_t value_hash(const std::string& key, std::nullptr_t) { return hash_value(key); }
+
+std::size_t value_hash(const std::string& key, const std::vector<value>& x)
+{
+    std::size_t h = hash_value(key);
+    for(const auto& v : x)
+        hash_combine(h, v);
+    return h;
+}
+std::size_t value_hash(const std::string& key, const value::binary& x)
+{
+    std::size_t h = hash_value(key);
+    for(const auto& v : x)
+        hash_combine(h, v);
+    return h;
+}
+
+std::size_t value::hash() const
+{
+    std::size_t h = 0;
+    this->visit_value([&](const auto& a) { h = value_hash(this->get_key(), a); });
+    return h;
 }
 
 void value::debug_print(bool show_type) const

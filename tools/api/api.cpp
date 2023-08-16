@@ -24,6 +24,7 @@
 #include <migraphx/execution_environment.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
@@ -43,7 +44,7 @@ namespace migraphx {
 
 static thread_local bool disable_exception_catch = false; // NOLINT
 
-extern "C" void migraphx_test_private_disable_exception_catch(bool b)
+extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool b)
 {
     disable_exception_catch = b;
 }
@@ -145,6 +146,11 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
+void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
+{
+    options.default_dyn_dim_value = dd;
+}
+
 void set_default_loop_iterations(onnx_options& options, int64_t value)
 {
     options.max_loop_iterations = value;
@@ -159,6 +165,13 @@ void set_input_parameter_shape(onnx_options& options,
                                std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
+}
+
+void set_dyn_input_parameter_shape(onnx_options& options,
+                                   const char* name,
+                                   std::vector<shape::dynamic_dimension> dyn_dims)
+{
+    options.map_dyn_input_dims[std::string(name)] = std::move(dyn_dims);
 }
 
 void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
@@ -185,6 +198,12 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     std::transform(
         m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.first.c_str(); });
     return result;
+}
+
+template <class T>
+std::set<T> make_set(const T* x, std::size_t n)
+{
+    return {x, x + n};
 }
 
 void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)

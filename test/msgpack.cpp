@@ -28,10 +28,33 @@
 #include "test.hpp"
 
 template <class T>
+void write_msgpack(std::ostream& os, const T& src)
+{
+    msgpack::pack(os, src);
+}
+void write_msgpack(std::ostream& os, const std::vector<char>& src)
+{
+    const auto limit = std::numeric_limits<uint32_t>::max() - 1;
+    std::vector<std::vector<char>> chunks;
+    if(src.size() > limit)
+    {
+        // Only test two chunks
+        assert(std::distance(src.begin()+limit, src.end()) < limit);
+        chunks.emplace_back(src.begin(), src.begin()+limit);
+        chunks.emplace_back(src.begin()+limit, src.end());
+    }
+    else
+    {
+        chunks = {src};
+    }
+    write_msgpack(os, chunks);
+}
+
+template <class T>
 std::vector<char> msgpack_buffer(const T& src)
 {
     std::stringstream buffer;
-    msgpack::pack(buffer, src);
+    write_msgpack(buffer, src);
     buffer.seekg(0);
     std::string str = buffer.str();
     return std::vector<char>(str.data(), str.data() + str.size()); // NOLINT
@@ -147,4 +170,32 @@ TEST_CASE(test_msgpack_array_class)
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
+TEST_CASE(test_msgpack_binary)
+{
+    migraphx::value v = migraphx::value::binary{64};
+    auto buffer       = migraphx::to_msgpack(v);
+    EXPECT(buffer == msgpack_buffer(std::vector<char>(64)));
+    EXPECT(migraphx::from_msgpack(buffer) == v);
+}
+
+#ifndef MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS
+TEST_CASE(test_msgpack_large_binary)
+{
+    const std::size_t n = 4LL*1024*1024*1024 + 1;
+    const char fill_value = 2;
+    migraphx::value v;
+    {
+        std::vector<char> buffer;
+        {
+            migraphx::value::binary bin{n};
+            std::fill(bin.begin(), bin.end(), fill_value);
+            buffer = migraphx::to_msgpack(std::move(bin));
+        }
+        v = migraphx::from_msgpack(buffer);
+    }
+    EXPECT(v.is_binary());
+    EXPECT(v.get_binary().size() == n);
+    EXPECT(std::all_of(v.get_binary().begin(), v.get_binary().end(), [](auto c) { return c == fill_value; }));
+}
+#endif
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

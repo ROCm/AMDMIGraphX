@@ -31,6 +31,11 @@ set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR} --timeout 5000)
 add_custom_target(tests)
 
+set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")
+if(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
+    add_compile_definitions(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
+endif()
+
 find_program(MIGRAPHX_GDB gdb)
 
 if(MIGRAPHX_GDB)

@@ -71,15 +71,12 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
             }
             else
             {
-                migraphx::argument a0 = args[0]->eval();
-                if(a0.empty()) {}
-                else
-                {
+                migraphx::argument in = args[0]->eval();
+                check_arg_empty(in, "ConstantOfShape: dynamic shape is not supported");
 
-                    std::vector<std::size_t> dims;
-                    a0.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
-                    s = migraphx::shape{type, dims};
-                }
+                std::vector<std::size_t> dims;
+                in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+                s = migraphx::shape{type, dims};
             }
 
             literal l_out{};

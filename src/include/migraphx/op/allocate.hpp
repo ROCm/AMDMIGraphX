@@ -36,13 +36,18 @@ namespace op {
 struct allocate
 {
     shape s{};
+    // for dynamic allocate to set the buffer type
     shape::type_t buf_type  = shape::half_type;
-    bool dyn_use_shape_attr = false;
+    // flag for dynamic allocate to use shape attr rather than [0, max] ranges in compute_shape()
+    // useful for optimizations later on
+    bool use_shape_attr = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.s, "shape"), f(self.buf_type, "buf_type"));
+        return pack(f(self.s, "shape"),
+                    f(self.buf_type, "buf_type"),
+                    f(self.use_shape_attr, "use_shape_attr"));
     }
 
     std::string name() const { return "allocate"; }
@@ -50,7 +55,7 @@ struct allocate
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         migraphx::check_shapes{inputs, *this, true}.has(0, 1);
-        if(inputs.empty() or dyn_use_shape_attr)
+        if(inputs.empty() or use_shape_attr)
         {
             return s;
         }

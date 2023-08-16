@@ -46,8 +46,6 @@ struct reshape
         return pack(f(self.dims, "dims"));
     }
 
-    value attributes() const { return {{"require_std_shape", true}}; }
-
     std::string name() const { return "reshape"; }
 
     shape dyn_compute_shape(shape s0) const
@@ -133,26 +131,22 @@ struct reshape
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
-        if(n_neg_dims > 1)
-            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
-        auto s0 = inputs[0];
+        auto s0 = inputs.front();
         if(s0.dynamic())
         {
-            return dyn_compute_shape(s0);
+            return s0;
         }
         else
         {
-            return static_compute_shape(inputs, n_neg_dims);
-        }
+            auto t           = s0.type();
+            return {t, dims};
+        } 
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         assert(dyn_out.computed_shape.standard());
         argument result{dyn_out.computed_shape};
-
-        //auto resh = args[0](dyn_out.computed_shape);
 
         visit_all(result, args[0])([&](auto output, auto input) {
             shape_for_each(output.get_shape(), [&](const auto& idx) {
@@ -162,7 +156,6 @@ struct reshape
         return result;
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

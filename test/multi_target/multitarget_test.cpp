@@ -218,7 +218,7 @@ TEST_CASE(single_target_multi_compile)
     auto score_threshold          = gpu_mod->add_literal(0.0f);
     auto r                        = gpu_mod->add_instruction(
         migraphx::make_op("nonmaxsuppression",
-                                                 {{"center_point_box", true}, {"use_dyn_output", true}}),
+                          {{"center_point_box", true}, {"use_dyn_output", true}}),
         boxes_param_gpu,
         scores_l,
         max_out_l,
@@ -241,7 +241,7 @@ TEST_CASE(single_target_multi_compile)
     // eval
     migraphx::parameter_map params;
     std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     params["boxes"]               = migraphx::argument(boxes_s, boxes_vec.data());
     auto output                   = p.eval(params).back();
     std::vector<int64_t> gold_vec = {0, 0, 3, 0, 0, 0, 0, 0, 5};

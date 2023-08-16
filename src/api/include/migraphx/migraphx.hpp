@@ -1487,8 +1487,8 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
 
 struct experimental_custom_op_base
 {
-    experimental_custom_op_base()                                              = default;
-    experimental_custom_op_base(const experimental_custom_op_base&)            = default;
+    experimental_custom_op_base()                                   = default;
+    experimental_custom_op_base(const experimental_custom_op_base&) = default;
     experimental_custom_op_base& operator=(const experimental_custom_op_base&) = default;
     virtual ~experimental_custom_op_base()                                     = default;
 

@@ -90,7 +90,6 @@ struct miopen_apply
         offload_copy   = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
-        add_generic_op("reshape_lazy");
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("logsoftmax");
@@ -116,7 +115,7 @@ struct miopen_apply
         add_neg_op();
         add_nms_op();
         add_select_module_op();
-        //add_reshape_lazy_op();
+        add_reshape_lazy_op();
     }
 
     void copy_params() const
@@ -382,11 +381,11 @@ struct miopen_apply
     /**
      *  Adds reshape lazy to reshape ops that can be aliased instead of copied
      */
-    /*void add_reshape_lazy_op()
+    void add_reshape_lazy_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
             /* Attempt lazy reshape to allow for aliasing. Potentially throws in get_shape if unable
-             * to alias 
+             * to alias */
             try
             {
                 auto lazy_ins =  mod->replace_instruction(
@@ -398,10 +397,14 @@ struct miopen_apply
             }
             catch(...)
             {
-                return ins;
+                auto output                       = insert_allocation(ins, ins->get_shape());
+                std::vector<instruction_ref> refs = ins->inputs();
+                refs.push_back(output);
+
+                return mod->replace_instruction(ins, make_op("gpu::contiguous"), refs);
             }
         });
-    }*/
+    }
 };
 
 void lowering::apply(module_pass_manager& mpm) const

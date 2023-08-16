@@ -403,7 +403,7 @@ TEST_CASE(averagepool_same_lower_test)
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(
         migraphx::make_op("pooling",
-                          {
+                            {
                               {"mode", migraphx::op::pooling_mode::average},
                               {"padding", {1, 1, 1, 1}},
                               {"stride", {1, 1}},

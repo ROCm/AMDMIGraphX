@@ -379,10 +379,7 @@ TEST_CASE(fp16_subgraph)
     auto create_fp16_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {1}};
-        auto l1 = mm->add_literal(migraphx::literal(sd, {1}));
-        auto l2 = mm->add_literal(migraphx::literal(sd, {2}));
-        auto l3 = mm->add_literal(migraphx::literal(sd, {3}));
+        migraphx::shape sd{migraphx::shape::half_type, {1}};
         migraphx::shape sx{migraphx::shape::float_type, {1, 4}};
         migraphx::shape sy{migraphx::shape::float_type, {3, 4}};
         migraphx::shape sc{migraphx::shape::bool_type};
@@ -390,17 +387,15 @@ TEST_CASE(fp16_subgraph)
         auto x         = mm->add_parameter("x", sx);
         auto y         = mm->add_parameter("y", sy);
         auto* then_mod = p.create_module("If_6_if");
-        auto hl1       = then_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
-        auto mhl1 = then_mod->add_instruction(
+        auto hl2       = then_mod->add_literal(migraphx::literal(sd, {2}));
+        auto hl1       = then_mod->add_literal(migraphx::literal(sd, {1}));
+        auto mhl1      = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), hl1);
         auto hx = then_mod->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
         auto ad  = then_mod->add_instruction(migraphx::make_op("add"), hx, mhl1);
         auto fad = then_mod->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad);
-        auto hl2 = then_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l2);
         auto mhl2 = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), hl2);
         auto hy1 = then_mod->add_instruction(
@@ -411,9 +406,8 @@ TEST_CASE(fp16_subgraph)
         then_mod->add_return({fad, fmu, mu});
 
         auto* else_mod = p.create_module("If_6_else");
-        auto hl3       = else_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l3);
-        auto mhl3 = else_mod->add_instruction(
+        auto hl3       = else_mod->add_literal(migraphx::literal(sd, {3}));
+        auto mhl3      = else_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), hl3);
         auto hx2 = else_mod->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);

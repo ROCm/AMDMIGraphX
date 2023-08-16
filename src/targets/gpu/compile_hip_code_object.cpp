@@ -135,14 +135,13 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
-        std::size_t num_elements = n;
+        // hip require global workitems multiple of local workitems. It may degrade performance.
+        // [TODO]: consider adding "fno-hip-uniform-block" flag when it becomes available.
+        // https://reviews.llvm.org/D155213
+        std::size_t num_elements = ((n + local - 1) / local) * local;
         std::size_t groups       = (num_elements + local - 1) / local;
         std::size_t max_blocks   = max_global / local;
         std::size_t nglobal      = std::min(max_blocks * over, groups) * local;
-#ifdef MIGRAPHX_USE_HIPRTC
-        if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
-            num_elements = ((num_elements + local - 1) / local) * local;
-#endif
         return std::min(nglobal, num_elements);
     };
 }
@@ -168,7 +167,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                    [](auto&& p) {
                        auto&& name = p.first;
                        auto&& c    = p.second;
-                       auto path   = fs::path{"migraphx"} / "kernels" / name;
+                       auto path   = name;
                        return src_file{path, c};
                    });
     srcs.push_back(src_file{fs::path{"main.cpp"},

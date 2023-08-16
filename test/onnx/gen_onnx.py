@@ -6168,6 +6168,101 @@ def shape_test():
 
 
 @onnx_test()
+def shape_dyn_test0():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [None, 4, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [4])
+
+    node = onnx.helper.make_node(
+        'Shape',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shape_dyn_test1():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [None, 4, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+
+    node = onnx.helper.make_node('Shape', inputs=['x'], outputs=['y'], start=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shape_dyn_test2():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [None, 4, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+
+    node = onnx.helper.make_node('Shape',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 start=-2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shape_dyn_test3():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [None, 4, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+
+    node = onnx.helper.make_node('Shape',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 start=1,
+                                 end=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shape_end_oob_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [None, 4, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+
+    node = onnx.helper.make_node('Shape', inputs=['x'], outputs=['y'], end=5)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shape_start_oob_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [None, 4, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+
+    node = onnx.helper.make_node('Shape',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 start=-6)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shape_end_less_start_error():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT,
+                                      [None, 4, None, None])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+
+    node = onnx.helper.make_node('Shape',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 start=3,
+                                 end=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def shape_gather_test():
     values = np.array([1])
     # value = helper.make_tensor_value_info('value', TensorProto.INT32, [1])

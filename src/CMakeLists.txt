@@ -133,6 +133,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    dimensions_of
     div
     dot
     elu
@@ -247,8 +248,6 @@ endif()
 target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
-
-find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 find_package(nlohmann_json 3.8.0 REQUIRED)

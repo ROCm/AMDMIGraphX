@@ -98,17 +98,11 @@ endfunction()
 
 function(add_test_executable TEST_NAME)
     add_executable(${TEST_NAME} EXCLUDE_FROM_ALL ${ARGN})
-    target_link_libraries(${TEST_NAME} ${CMAKE_THREAD_LIBS_INIT})
-
-    # Cmake does not add flags correctly for gcc
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        set_target_properties(${TEST_NAME} PROPERTIES COMPILE_FLAGS -pthread LINK_FLAGS -pthread)
-    endif()
     set(TEST_COMMAND ${TEST_NAME})
     add_test_command(${TEST_NAME} ${TEST_COMMAND})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_ref)
+    target_link_libraries(${TEST_NAME} Threads::Threads migraphx migraphx_onnx migraphx_ref)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
@@ -208,11 +202,16 @@ endif()
 
 
 function(test_header NAME HEADER)
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
-        "#include <${HEADER}>\nint main() {}\n"
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp "
+#include <${HEADER}>
+int main() {}\n"
     )
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
-        "#include <${HEADER}>\n"
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp "
+#include <${HEADER}>
+#if defined(min) || defined(max) || defined(near) || defined(far)
+#error \"Do not include windows.h in header files\"
+#endif
+\n"
     )
     add_test_executable(${NAME}
         ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp

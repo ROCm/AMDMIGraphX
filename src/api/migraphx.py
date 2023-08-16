@@ -79,7 +79,8 @@ def dynamic_dimension(h):
 def dynamic_dimensions(h):
     h.constructor(
         'create',
-        api.params(ptr='const_migraphx_dynamic_dimension_t*', size='size_t'),
+        api.params(ptr='const const_migraphx_dynamic_dimension_t*',
+                   size='size_t'),
         fname='migraphx::to_obj_vector<const_migraphx_dynamic_dimension_t>')
     h.method('size', returns='size_t')
     h.method('get',
@@ -215,7 +216,7 @@ def instruction(h):
 def instructions(h):
     h.constructor(
         'create',
-        api.params(ptr='const_migraphx_instruction_t*', size='size_t'),
+        api.params(ptr='const const_migraphx_instruction_t*', size='size_t'),
         fname='migraphx::to_obj_vector<const_migraphx_instruction_t>')
 
 

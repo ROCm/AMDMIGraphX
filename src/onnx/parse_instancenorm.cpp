@@ -79,13 +79,11 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto x     = args[0];
         auto scale = args[1];
         auto bias  = args[2];
-        auto dims  = x->get_shape().lens();
         if(not contains(valid_types, dtype))
             MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(dtype) +
                            ". Valid types are 1 (float), 10 (half), and 11 (double).");
 
-        bool dyn_input = x->get_shape().dynamic();
-        auto ndims     = x->get_shape().ndim();
+        auto ndims = x->get_shape().ndim();
         assert(ndims >= 2);
         auto kdims = ndims - 2;
         std::vector<int64_t> axes(kdims);
@@ -102,6 +100,12 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
             (dtype == shape::half_type and not convert_fp16) ? "reduce_sum" : "reduce_mean";
         if(dtype == shape::half_type and not convert_fp16)
         {
+            if(x->get_shape().dynamic())
+            {
+                MIGRAPHX_THROW("PARSE_INSTANCENORM: half type not supported with dynamic shape "
+                               "unless convert_fp16 is TRUE");
+            }
+            auto dims = x->get_shape().lens();
             double n =
                 std::accumulate(dims.begin() + 2, dims.end(), 1, [&](const auto& i, const auto& j) {
                     return i * j;
@@ -122,13 +126,14 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         // both scale and bias.
         instruction_ref scale_bcast;
         instruction_ref bias_bcast;
-        if(dyn_input)
+        if(x->get_shape().dynamic())
         {
             scale_bcast = info.add_instruction(make_op("broadcast", {{"axis", 1}}), scale, x);
             bias_bcast  = info.add_instruction(make_op("broadcast", {{"axis", 1}}), bias, x);
         }
         else
         {
+            auto dims   = x->get_shape().lens();
             scale_bcast = info.add_instruction(
                 make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
             bias_bcast =

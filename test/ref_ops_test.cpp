@@ -2004,6 +2004,42 @@ TEST_CASE(cosh_dyn_test)
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
+TEST_CASE(convert_downcast_overflow_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data(4, 2 * std::numeric_limits<migraphx::half>::max());
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<migraphx::half> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {
+        return x == std::numeric_limits<migraphx::half>::max();
+    }));
+}
+
+TEST_CASE(convert_downcast_underflow_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data(4, 2 * std::numeric_limits<migraphx::half>::lowest());
+    auto l = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+                        l);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<migraphx::half> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](const auto& x) {
+        return x == std::numeric_limits<migraphx::half>::lowest();
+    }));
+}
+
 TEST_CASE(convert_nan_upcast_test)
 {
     migraphx::program p;
@@ -2389,6 +2425,46 @@ TEST_CASE(dequantizelinear)
         std::vector<float> gold{-256, -200, -100, -2, 0, 2, 100, 200, 254};
         EXPECT(results_vector == gold);
     }
+}
+
+TEST_CASE(dimensions_of_test0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {2, 4}}, {3, 3}, {4, 4}}};
+    auto p1 = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 3}}), p1);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x_data(24, 1.0);
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(input_fixed_shape, x_data.data());
+    auto result = p.eval(params).back();
+    std::vector<int64_t> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold = {2, 3, 4};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(dimensions_of_test1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {3, 3}, {3, 8}, {3, 8}}};
+    auto p1 = mm->add_parameter("x", s);
+    mm->add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), p1);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x_data(48, 1.0);
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 3, 4, 4}};
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(input_fixed_shape, x_data.data());
+    auto result = p.eval(params).back();
+    std::vector<int64_t> results_vector(2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold = {4, 4};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(div_test)
@@ -5874,6 +5950,29 @@ TEST_CASE(prefix_scan_sum_1d)
                         l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.0, 3.0, 6.0, 10.0, 15.0, 21.0};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(prefix_scan_sum_dyn_1d)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}};
+    migraphx::shape s{migraphx::shape::float_type, dd};
+    auto input = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", false}}),
+                        input);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> a = {1, 2, 3, 4, 5, 6};
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {6}};
+    migraphx::parameter_map params0;
+    params0["X"] = migraphx::argument(input_fixed_shape0, a.data());
+
+    auto result = p.eval(params0).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1.0, 3.0, 6.0, 10.0, 15.0, 21.0};

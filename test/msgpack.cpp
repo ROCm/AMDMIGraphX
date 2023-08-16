@@ -175,7 +175,7 @@ TEST_CASE(test_msgpack_binary)
 {
     migraphx::value::binary bin{64};
     std::iota(bin.begin(), bin.end(), 1);
-    auto buffer       = migraphx::to_msgpack(bin);
+    auto buffer = migraphx::to_msgpack(bin);
     EXPECT(buffer == msgpack_buffer(std::vector<char>(bin.begin(), bin.end())));
     EXPECT(migraphx::from_msgpack(buffer) == bin);
 }

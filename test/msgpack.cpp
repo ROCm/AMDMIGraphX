@@ -39,9 +39,9 @@ void write_msgpack(std::ostream& os, const std::vector<char>& src)
     if(src.size() > limit)
     {
         // Only test two chunks
-        assert(std::distance(src.begin()+limit, src.end()) < limit);
-        chunks.emplace_back(src.begin(), src.begin()+limit);
-        chunks.emplace_back(src.begin()+limit, src.end());
+        assert(std::distance(src.begin() + limit, src.end()) < limit);
+        chunks.emplace_back(src.begin(), src.begin() + limit);
+        chunks.emplace_back(src.begin() + limit, src.end());
     }
     else
     {
@@ -181,7 +181,7 @@ TEST_CASE(test_msgpack_binary)
 #ifndef MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS
 TEST_CASE(test_msgpack_large_binary)
 {
-    const std::size_t n = 4LL*1024*1024*1024 + 1;
+    const std::size_t n   = 4LL * 1024 * 1024 * 1024 + 1;
     const char fill_value = 2;
     migraphx::value v;
     {
@@ -195,7 +195,8 @@ TEST_CASE(test_msgpack_large_binary)
     }
     EXPECT(v.is_binary());
     EXPECT(v.get_binary().size() == n);
-    EXPECT(std::all_of(v.get_binary().begin(), v.get_binary().end(), [](auto c) { return c == fill_value; }));
+    EXPECT(std::all_of(
+        v.get_binary().begin(), v.get_binary().end(), [](auto c) { return c == fill_value; }));
 }
 #endif
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

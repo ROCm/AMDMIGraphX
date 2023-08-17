@@ -388,12 +388,13 @@ struct miopen_apply
              * to alias */
             try
             {
-                auto lazy_ins =  mod->replace_instruction(
-                ins,
-                    make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+                auto lazy_ins = mod->replace_instruction(
+                    ins,
+                    make_op("reshape_lazy",
+                            {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                     ins->inputs(),
                     ins->module_inputs());
-                    return lazy_ins;
+                return lazy_ins;
             }
             catch(...)
             {
@@ -401,7 +402,13 @@ struct miopen_apply
                 std::vector<instruction_ref> refs = ins->inputs();
                 refs.push_back(output);
 
-                return mod->replace_instruction(ins, make_op("gpu::contiguous"), refs);
+                auto contig = mod->replace_instruction(ins, make_op("gpu::contiguous"), refs);
+                return mod->insert_instruction(
+                    contig,
+                    make_op("reshape_lazy",
+                            {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+                    ins->inputs(),
+                    ins->module_inputs());
             }
         });
     }

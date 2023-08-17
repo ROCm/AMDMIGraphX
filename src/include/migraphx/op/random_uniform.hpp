@@ -24,12 +24,12 @@
 
 /**
  * Random Uniform distribution operator.  Given a shape, populate it with random
- * values.  Calls to rand_uniform using the same randomization seed will
+ * values.  Calls to random_uniform using the same randomization seed will
  * always generate the same pseudo-random sequence.  Seed can
  * be given as a runtime argument containing a single value, or a compile-time
  * attribute.
  *
- *      Inputs:   (1) randomization seed (uint32)
+ *      Inputs:   (1) randomization seed (uint64)
  *                (2) the shape of the set to be populated.
  *
  *
@@ -38,8 +38,8 @@
  *      Output:   Same shape.
  *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_RAND_UNIFORM_HPP
-#define MIGRAPHX_GUARD_OPERATORS_RAND_UNIFORM_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_RANDOM_UNIFORM_HPP
+#define MIGRAPHX_GUARD_OPERATORS_RANDOM_UNIFORM_HPP
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
@@ -51,53 +51,48 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct rand_uniform
+struct random_uniform
 {
-    // The rand_uniform operation does not contain a random number generator seed
+    // The random_uniform operation does not contain a random number generator seed
     // as a member, and expects it to be passed as a runtime input.
 
-    // todo:  not currently settable
     float range_min = 0.0f;
     float range_max = 1.0f;
-
-    // todo:  integer data type(s) not yet supported
-    shape::type_t dtype = shape::type_t::float_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dtype, "dtype"));
+        return pack(f(self.range_min, "range_min"), f(self.range_max, "range_max"));
     }
 
     /**
      *   Input 1:  seed
      *   Input 2:  output shape
      */
-    std::string name() const { return "rand_uniform"; }
+    std::string name() const { return "random_uniform"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
 
-        if(inputs.front().type() != shape::type_t::uint32_type)
-            MIGRAPHX_THROW("RAND_UNIFORM:  Input 2 (seed) must have type unsigned int");
+        if(inputs.front().type() != shape::type_t::uint64_type)
+            MIGRAPHX_THROW("RANDOM_UNIFORM:  Input 1 (seed) must have type long unsigned int");
         auto s = inputs.at(1);
         if(s.dynamic())
         {
-            return s.with_type(dtype);
+            return s;
         }
         else
         {
-            return s.with_lens(s.lens()).with_type(dtype);
+            return s.with_lens(s.lens());
         }
     }
 
-    argument compute(const shape& output, std::vector<argument> args) const
+    argument compute(const shape&, std::vector<argument> args) const
     {
-        // Output goes into the passed buffer, not the shape output
-        (void)output;
-        argument result{args[1].get_shape()};
+        // Output goes into the passed buffer, not the shape output.
+        argument result = args[1];
 
-        uint32_t local_seed = args[0].at<uint32_t>(0);
+        uint64_t local_seed = args[0].at<uint64_t>(0);
 
         std::mt19937 gen(local_seed);
         std::uniform_real_distribution<> dis(range_min, range_max);

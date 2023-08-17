@@ -43,7 +43,7 @@ namespace op {
  */
 struct random_seed
 {
-    shape::type_t dtype = shape::type_t::uint32_type;
+    shape::type_t dtype = shape::type_t::uint64_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -54,19 +54,16 @@ struct random_seed
     std::string name() const { return "random_seed"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        (void)inputs;
-        return migraphx::shape(dtype, {1});
+        check_shapes{inputs, *this}.has(0);
+        return shape{dtype};
     }
 
-    argument compute(const shape& output_shape, const std::vector<argument>& args) const
+    argument compute(const shape& output_shape, const std::vector<argument>&) const
     {
-        (void)args;
         argument result(output_shape);
 
         result.visit([&](auto output) {
-            std::generate(output.begin(), output.end(), [&]() {
-                return uint32_t(std::chrono::system_clock::now().time_since_epoch().count());
-            });
+            output.front() = std::random_device{}();
         });
         return result;
     }

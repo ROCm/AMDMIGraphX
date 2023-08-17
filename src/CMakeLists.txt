@@ -183,7 +183,7 @@ register_migraphx_ops(
     quant_convolution
     quant_dot
     quantizelinear
-    rand_uniform
+    random_uniform
     random_seed
     recip
     reduce_max

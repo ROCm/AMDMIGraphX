@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/instruction.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/json.hpp>
@@ -65,9 +66,10 @@ void save(const program& p, const std::string& filename, const file_options& opt
 void print_miopen_warning(const program& p)
 {
     auto mods = p.get_modules();
-    if(std::any_of(mods.begin(), mods.end(), [](const auto& m) {
-           return std::any_of(
-               m.begin(), m.end(), [](const auto& i) { return i.name() == "gpu::miopen_fusion"; });
+    if(std::any_of(mods.begin(), mods.end(), [](const auto* m) {
+           return std::any_of(m->begin(), m->end(), [](const instruction& i) {
+               return i.name() == "gpu::miopen_fusion";
+           });
        }))
     {
         std::cout << "[WARNING]: Program has miopen_fusion instructions for which tuned solutions "

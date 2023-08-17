@@ -127,7 +127,10 @@ MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
     value v    = ins->get_operator().to_value();
     auto group = v.at("group").to<int>();
     if(group != 1)
+    {
+        std::cerr << "Warning: missed convolution with group " << group << " when using MLIR." << std::endl;
         return false;
+    }
     // Avoid MLIR assertion: Index < Length && "Invalid index!"
     if(ins->get_shape().lens().size() != 4)
         return false;

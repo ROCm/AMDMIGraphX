@@ -382,7 +382,8 @@ void memory_coloring::apply(module& m) const
         auto s             = ins->get_shape();
         std::size_t offset = seg.first * alignment;
         assert(offset < n);
-        m.replace_instruction(ins, make_op("load", {{"shape", to_value(s)}, {"offset", offset}}), mem);
+        m.replace_instruction(
+            ins, make_op("load", {{"shape", to_value(s)}, {"offset", offset}}), mem);
     }
 
     // Replace zero allocation
@@ -391,7 +392,8 @@ void memory_coloring::apply(module& m) const
         if(ins->name() != allocation_op)
             continue;
         assert(ins->get_shape().bytes() == 0);
-        m.replace_instruction(ins, make_op("load", {{"shape", to_value(ins->get_shape())}, {"offset", 0}}), mem);
+        m.replace_instruction(
+            ins, make_op("load", {{"shape", to_value(ins->get_shape())}, {"offset", 0}}), mem);
     }
 
     // Remove scratch parameter if its not used

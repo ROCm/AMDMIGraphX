@@ -1257,22 +1257,30 @@ void test_softmax_variations(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, migraphx::make_op(name, {{"axis", 0}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 0}}),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, migraphx::make_op(name, {{"axis", 1}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 1}}),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, migraphx::make_op(name, {{"axis", 2}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 2}}),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, migraphx::make_op(name, {{"axis", 3}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 3}}),
+                     input);
     }
 
     {
@@ -2334,25 +2342,34 @@ void test_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, migraphx::make_op(name), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
+                     migraphx::make_op(name),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, migraphx::make_op(name, {{"axes", {0, 1, 2, 3}}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
+                     migraphx::make_op(name, {{"axes", {0, 1, 2, 3}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 1, 1}}, migraphx::make_op(name, {{"axes", {2, 3}}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 1, 1}},
+                     migraphx::make_op(name, {{"axes", {2, 3}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}}, migraphx::make_op(name, {{"axes", {0}}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axes", {0}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 1}}, migraphx::make_op(name, {{"axes", {-1}}}), input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 1}},
+                     migraphx::make_op(name, {{"axes", {-1}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};

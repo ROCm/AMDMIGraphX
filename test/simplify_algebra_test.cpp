@@ -188,7 +188,7 @@ TEST_CASE(simplify_add_broadcast2)
 {
     migraphx::shape inner{migraphx::shape::int32_type, {2}};
     migraphx::shape outer{migraphx::shape::int32_type, {1, 2, 3, 3}};
-    auto b = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}});
+    auto b              = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}});
     auto create_program = [&] {
         migraphx::module m;
         auto x    = m.add_parameter("x", outer);
@@ -605,7 +605,8 @@ TEST_CASE(simplify_inner_broadcast_scalar)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 384}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
-        auto yb   = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 384}}}), y);
+        auto yb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 384}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
@@ -631,7 +632,8 @@ TEST_CASE(simplify_inner_broadcast_different_dims)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {384, 768}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {768}});
-        auto yb   = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), y);
+        auto yb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
@@ -1847,7 +1849,7 @@ TEST_CASE(simplify_split_add_relu_reshape)
     migraphx::module m1;
     {
         auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
-        auto r     = migraphx::make_op("reshape",{ {"dims", {3, 4}}});
+        auto r     = migraphx::make_op("reshape", {{"dims", {3, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);

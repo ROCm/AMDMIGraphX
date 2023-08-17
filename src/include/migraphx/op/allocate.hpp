@@ -37,7 +37,7 @@ struct allocate
 {
     shape s{};
     // for dynamic allocate to set the buffer type
-    shape::type_t buf_type  = shape::half_type;
+    shape::type_t buf_type = shape::half_type;
     // flag for dynamic allocate to use shape attr rather than [0, max] ranges in compute_shape()
     // useful for optimizations later on
     bool use_shape_attr = false;
@@ -61,7 +61,7 @@ struct allocate
         }
         else
         {
-            auto out_dims = inputs.at(0);
+            const auto& out_dims = inputs.at(0);
             assert(not out_dims.dynamic());
             assert(out_dims.ndim() == 1);
             std::size_t max_val = std::numeric_limits<std::size_t>::max();

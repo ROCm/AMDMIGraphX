@@ -24,7 +24,7 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -153,7 +153,7 @@ TEST_CASE(simplify_add_broadcast1)
 {
     migraphx::shape inner{migraphx::shape::int32_type, {2}};
     migraphx::shape outer{migraphx::shape::int32_type, {1, 2, 3, 3}};
-    migraphx::op::broadcast b{1, {1, 2, 3, 3}};
+    auto b = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}});
     migraphx::module m1;
     {
         auto x    = m1.add_parameter("x", outer);
@@ -188,7 +188,7 @@ TEST_CASE(simplify_add_broadcast2)
 {
     migraphx::shape inner{migraphx::shape::int32_type, {2}};
     migraphx::shape outer{migraphx::shape::int32_type, {1, 2, 3, 3}};
-    migraphx::op::broadcast b{1, {1, 2, 3, 3}};
+    auto b = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 3, 3}}});
     auto create_program = [&] {
         migraphx::module m;
         auto x    = m.add_parameter("x", outer);
@@ -539,7 +539,7 @@ TEST_CASE(simplify_conv_add)
 
 TEST_CASE(simplify_inner_broadcast1)
 {
-    auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+    auto b = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 4, 5}}});
     migraphx::module m1;
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
@@ -564,7 +564,7 @@ TEST_CASE(simplify_inner_broadcast1)
 
 TEST_CASE(simplify_inner_broadcast2)
 {
-    auto b = migraphx::op::multibroadcast{{2, 1, 4, 5}};
+    auto b = migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4, 5}}});
     migraphx::module m1;
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1, 1, 1}});
@@ -589,7 +589,7 @@ TEST_CASE(simplify_inner_broadcast2)
 
 TEST_CASE(simplify_inner_broadcast_scalar)
 {
-    auto b = migraphx::op::multibroadcast{{32, 384}};
+    auto b = migraphx::make_op("multibroadcast", {{"out_lens", {32, 384}}});
     migraphx::module m1;
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 384}});
@@ -605,7 +605,7 @@ TEST_CASE(simplify_inner_broadcast_scalar)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 384}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
-        auto yb   = m2.add_instruction(migraphx::op::multibroadcast{{1, 384}}, y);
+        auto yb   = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 384}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
@@ -615,7 +615,7 @@ TEST_CASE(simplify_inner_broadcast_scalar)
 
 TEST_CASE(simplify_inner_broadcast_different_dims)
 {
-    auto b = migraphx::op::multibroadcast{{2, 384, 768}};
+    auto b = migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 768}}});
     migraphx::module m1;
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {384, 768}});
@@ -631,7 +631,7 @@ TEST_CASE(simplify_inner_broadcast_different_dims)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {384, 768}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {768}});
-        auto yb   = m2.add_instruction(migraphx::op::multibroadcast{{384, 768}}, y);
+        auto yb   = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
@@ -641,8 +641,8 @@ TEST_CASE(simplify_inner_broadcast_different_dims)
 
 TEST_CASE(simplify_inner_broadcast_different_broadcasts)
 {
-    auto b  = migraphx::op::broadcast{1, {1, 24, 112, 112}};
-    auto mb = migraphx::op::multibroadcast{{1, 24, 112, 112}};
+    auto b  = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 24, 112, 112}}});
+    auto mb = migraphx::make_op("multibroadcast", {{"out_lens", {1, 24, 112, 112}}});
     migraphx::module m1;
     {
         auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {24}});
@@ -891,7 +891,7 @@ TEST_CASE(simplify_concat_add_relu_partial_broadcast)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::module m1;
     {
-        auto b    = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto b    = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 4, 5}}});
         auto x    = m1.add_parameter("x", s);
         auto y    = m1.add_parameter("y", s);
         auto one  = m1.add_literal(1);
@@ -907,7 +907,7 @@ TEST_CASE(simplify_concat_add_relu_partial_broadcast)
 
     migraphx::module m2;
     {
-        auto b       = migraphx::op::broadcast{1, {2, 2, 4, 5}};
+        auto b       = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 2, 4, 5}}});
         auto x       = m2.add_parameter("x", s);
         auto y       = m2.add_parameter("y", s);
         auto one     = m2.add_literal(1);
@@ -926,7 +926,7 @@ TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::module m1;
     {
-        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto b      = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 4, 5}}});
         auto x      = m1.add_parameter("x", s);
         auto y      = m1.add_parameter("y", s);
         auto one    = m1.add_literal(1);
@@ -944,7 +944,7 @@ TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
 
     migraphx::module m2;
     {
-        auto b        = migraphx::op::broadcast{1, {2, 2, 4, 5}};
+        auto b        = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 2, 4, 5}}});
         auto x        = m2.add_parameter("x", s);
         auto y        = m2.add_parameter("y", s);
         auto one      = m2.add_literal(1);
@@ -964,7 +964,7 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::module m1;
     {
-        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto b      = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 4, 5}}});
         auto x      = m1.add_parameter("x", s);
         auto y      = m1.add_parameter("y", s);
         auto one    = m1.add_literal(1);
@@ -982,7 +982,7 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
 
     migraphx::module m2;
     {
-        auto b       = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto b       = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 1, 4, 5}}});
         auto x       = m2.add_parameter("x", s);
         auto y       = m2.add_parameter("y", s);
         auto one     = m2.add_literal(1);
@@ -1695,7 +1695,7 @@ TEST_CASE(simplify_split_add_relu)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -1716,7 +1716,7 @@ TEST_CASE(simplify_split_add_relu)
 
     migraphx::module m2;
     {
-        auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto b       = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 2, 4}}});
         auto input   = m2.add_parameter("input", s);
         auto one     = m2.add_literal(1);
         auto two     = m2.add_literal(2);
@@ -1846,8 +1846,8 @@ TEST_CASE(simplify_split_add_relu_reshape)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
-        auto r     = migraphx::op::reshape{{3, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
+        auto r     = migraphx::make_op("reshape",{ {"dims", {3, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -1870,7 +1870,7 @@ TEST_CASE(simplify_split_add_relu_reshape)
 
     migraphx::module m2;
     {
-        auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto b       = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 2, 4}}});
         auto input   = m2.add_parameter("input", s);
         auto one     = m2.add_literal(1);
         auto two     = m2.add_literal(2);
@@ -1894,7 +1894,7 @@ TEST_CASE(simplify_slice_different_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4, 2}};
     migraphx::module m1;
     {
-        auto r     = migraphx::op::reshape{{3, 2, 4}};
+        auto r     = migraphx::make_op("reshape", {{"dims", {3, 2, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -1926,7 +1926,7 @@ TEST_CASE(simplify_slice_missing_begining_slice)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 3, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), input);
@@ -1954,7 +1954,7 @@ TEST_CASE(simplify_slice_missing_middle_slice)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 3, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), input);
@@ -1982,7 +1982,7 @@ TEST_CASE(simplify_slice_missing_end_slice)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 3, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -2010,7 +2010,7 @@ TEST_CASE(simplify_split_add_relu_concat_same_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -2031,7 +2031,7 @@ TEST_CASE(simplify_split_add_relu_concat_same_axis)
 
     migraphx::module m2;
     {
-        auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto b       = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 2, 4}}});
         auto input   = m2.add_parameter("input", s);
         auto one     = m2.add_literal(1);
         auto two     = m2.add_literal(2);
@@ -2049,7 +2049,7 @@ TEST_CASE(simplify_split_add_relu_multi_axes)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4, 6}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4, 3}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4, 3}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1, 3}}, {"starts", {0, 0}}, {"ends", {1, 3}}}),
@@ -2078,7 +2078,7 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split1)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -2100,7 +2100,7 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split1)
 
     migraphx::module m2;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 2, 4}}});
         auto input = m2.add_parameter("input", s);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -2126,7 +2126,7 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split2)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 4}}});
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -2149,7 +2149,7 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split2)
 
     migraphx::module m2;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto b     = migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 2, 4}}});
         auto input = m2.add_parameter("input", s);
         auto slice = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);

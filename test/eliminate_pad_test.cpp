@@ -27,7 +27,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/make_op.hpp>
 
 #include <test.hpp>
@@ -58,9 +58,7 @@ create_conv(migraphx::instruction_ref& l_img,
     migraphx::shape s_weights{migraphx::shape::int32_type, {4, channels, 3, 3}};
     std::vector<int32_t> weights(4 * channels * 3 * 3);
     auto l_weights = m.add_literal(migraphx::literal{s_weights, weights});
-    migraphx::op::convolution op;
-    op.padding_mode = padding_mode;
-    return m.add_instruction(op, l_img, l_weights);
+    return m.add_instruction(migraphx::make_op("convolution", {{"padding_mode", padding_mode}}), l_img, l_weights);
 }
 
 TEST_CASE(rewrite_pad)

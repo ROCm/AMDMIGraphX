@@ -60,9 +60,28 @@ void save(const program& p, const std::string& filename, const file_options& opt
 {
     write_buffer(filename, save_buffer(p, options));
 }
+
+// MIOpen doesn't support serializing fusion plans with Find-2.0 APIs
+void print_miopen_warning(const program& p)
+{
+    auto mods = p.get_modules();
+    if(std::any_of(mods.begin(), mods.end(), [](const auto& m) {
+           return std::any_of(
+               m.begin(), m.end(), [](const auto& i) { return i.name() == "gpu::miopen_fusion"; });
+       }))
+    {
+        std::cout << "[WARNING]: Program has miopen_fusion instructions for which tuned solutions "
+                     "are not stored inside serialized MIGraphX program. Consider serializing with "
+                     "MIGRAPHX_DISABLE_MIOPEN_FUSION=1 flag set."
+                  << std::endl;
+        ;
+    }
+}
+
 std::vector<char> save_buffer(const program& p, const file_options& options)
 {
     value v = p.to_value();
+    print_miopen_warning(p);
     std::vector<char> buffer;
     if(options.format == "msgpack")
     {

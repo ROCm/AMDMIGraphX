@@ -475,13 +475,15 @@ struct compiler
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
                 {
-                    std::cout << "MIGraphX program was likely compiled with offload_copy set, Try "
-                                 "passing "
-                                 "`--enable-offload-copy` if program run fails.\n";
+                    std::cout
+                        << "[WARNING]: MIGraphX program was likely compiled with offload_copy "
+                           "set, Try "
+                           "passing "
+                           "`--enable-offload-copy` if program run fails.\n";
                 }
                 else if(co.offload_copy)
                 {
-                    std::cout << "MIGraphX program was likely compiled without "
+                    std::cout << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
                                  "`--enable-offload-copy` flag if passed to driver, if program run "

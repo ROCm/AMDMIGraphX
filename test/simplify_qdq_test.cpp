@@ -607,7 +607,7 @@ TEST_CASE(mobilenet_snippet)
                                d6);
         auto q3  = add_quantize_op(mm, "quantizelinear", ap, scale, zero);
         auto d7  = add_quantize_op(mm, "dequantizelinear", q3, scale, zero);
-        auto rs  = mm.add_instruction(migraphx::make_op("reshape", {{"dims", {1, -1}}}), d7);
+        auto rs  = mm.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, -1}}}), d7);
         auto q4  = add_quantize_op(mm, "quantizelinear", rs, scale, zero);
         auto d8  = add_quantize_op(mm, "dequantizelinear", q4, scale, zero);
         auto dot = mm.add_instruction(migraphx::make_op("dot"), d8, d4);

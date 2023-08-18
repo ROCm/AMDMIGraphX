@@ -34,7 +34,7 @@ namespace op {
 
 /**
  * fill(default_value, output_buffer)
- * Fill an output buffer with the given scalar literal value.
+ * Fill an output buffer with the given scalar value.
  * Note that if the default_value is a literal and the output_buffer
  * has a static shape this operator can be replaced with a literal.
  */

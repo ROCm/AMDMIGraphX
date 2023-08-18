@@ -2640,6 +2640,76 @@ TEST_CASE(exp_dyn_test)
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
+TEST_CASE(fill_static_int)
+{
+    // Note this case can be simplified to a literal
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape lit_shape{migraphx::shape::int64_type, {1}, {0}};
+    std::vector<int64_t> lit_data = {3};
+    auto l                        = mm->add_literal(migraphx::literal{lit_shape, lit_data});
+    migraphx::shape data_shape{migraphx::shape::int64_type, {3, 4, 4}};
+    auto input = mm->add_parameter("x", data_shape);
+    mm->add_instruction(migraphx::make_op("fill"), l, input);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int64_t> input_data(48);
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(data_shape, input_data.data());
+    auto result = p.eval(params).back();
+    std::vector<int64_t> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold(48, 3);
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(fill_dyn_float)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape lit_shape{migraphx::shape::float_type, {1}, {0}};
+    std::vector<float> lit_data = {7.36};
+    auto l                      = mm->add_literal(migraphx::literal{lit_shape, lit_data});
+    migraphx::shape data_shape{migraphx::shape::float_type,
+                               {{1, 4}, {4, 8, {4, 6, 8}}, {4, 8, {4, 6, 8}}}};
+    auto input = mm->add_parameter("x", data_shape);
+    mm->add_instruction(migraphx::make_op("fill"), l, input);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data(72);
+    migraphx::parameter_map params;
+    migraphx::shape static_shape = {migraphx::shape::float_type, {2, 6, 6}};
+    params["x"]                  = migraphx::argument(static_shape, input_data.data());
+    auto result                  = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold(72, 7.36);
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(fill_var_default_value)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape dv_shape{migraphx::shape::int64_type, {1}, {0}};
+    auto dv = mm->add_parameter("dv", dv_shape);
+    migraphx::shape data_shape{migraphx::shape::int64_type, {3, 4, 4}};
+    auto input = mm->add_parameter("x", data_shape);
+    mm->add_instruction(migraphx::make_op("fill"), dv, input);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int64_t> dv_data = {2};
+    std::vector<int64_t> input_data(48);
+    migraphx::parameter_map params;
+    params["x"]  = migraphx::argument(data_shape, input_data.data());
+    params["dv"] = migraphx::argument(dv_shape, dv_data.data());
+    auto result  = p.eval(params).back();
+    std::vector<int64_t> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold(48, 2);
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
 TEST_CASE(floor_test)
 {
     migraphx::program p;

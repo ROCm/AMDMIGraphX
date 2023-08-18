@@ -147,7 +147,7 @@ struct check_shapes
     {
         if(begin != end)
         {
-            if(begin->max_lens().size() != n)
+            if(begin->ndim() != n)
                 MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
         }
         return *this;
@@ -162,7 +162,7 @@ struct check_shapes
     {
         if(begin != end)
         {
-            if(begin->max_lens().size() > n)
+            if(begin->ndim() > n)
                 MIGRAPHX_THROW(prefix() + "Shape must have at most " + std::to_string(n) +
                                " dimensions");
         }
@@ -178,7 +178,7 @@ struct check_shapes
     {
         if(begin != end)
         {
-            if(begin->max_lens().size() < n)
+            if(begin->ndim() < n)
                 MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
                                " dimensions");
         }
@@ -235,6 +235,16 @@ struct check_shapes
     {
         if(not this->all_of([](const shape& s) { return s.standard(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are not in standard layout");
+        return *this;
+    }
+
+    /*!
+     * Check all shapes are scalar.
+     */
+    const check_shapes& scalar() const
+    {
+        if(not this->all_of([](const shape& s) { return s.scalar(); }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not a scalar");
         return *this;
     }
 

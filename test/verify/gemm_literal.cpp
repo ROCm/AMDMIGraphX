@@ -25,7 +25,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
 
 struct gemm_literal : verify_program<gemm_literal>
 {
@@ -38,7 +38,7 @@ struct gemm_literal : verify_program<gemm_literal>
 
         auto a = mm->add_literal(migraphx::generate_literal(a_shape));
         auto b = mm->add_parameter("b", b_shape);
-        mm->add_instruction(migraphx::op::dot{}, a, b);
+        mm->add_instruction(migraphx::make_op("dot"), a, b);
 
         return p;
     }

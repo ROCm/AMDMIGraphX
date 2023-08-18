@@ -6824,7 +6824,7 @@ TEST_CASE(relu_dyn_test)
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
-TEST_CASE(reshape_test0)
+TEST_CASE(reshape_lazy_test0)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {24, 1, 1, 1}};
     std::vector<float> data(24);
@@ -6833,7 +6833,7 @@ TEST_CASE(reshape_test0)
     auto* mm                       = p.get_main_module();
     auto l                         = mm->add_literal(migraphx::literal{a_shape, data});
     std::vector<int64_t> new_shape = {8, 3, 1, 1};
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), l);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), l);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector{};
@@ -6841,7 +6841,7 @@ TEST_CASE(reshape_test0)
     EXPECT(migraphx::verify::verify_range(results_vector, data));
 }
 
-TEST_CASE(reshape_test1)
+TEST_CASE(reshape_lazy_test1)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {24, 1, 1, 1}};
     std::vector<float> data(24);
@@ -6850,7 +6850,7 @@ TEST_CASE(reshape_test1)
     auto* mm                       = p.get_main_module();
     auto l                         = mm->add_literal(migraphx::literal{a_shape, data});
     std::vector<int64_t> new_shape = {1, 3, 4, 2};
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), l);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), l);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector{};
@@ -6858,7 +6858,7 @@ TEST_CASE(reshape_test1)
     EXPECT(migraphx::verify::verify_range(results_vector, data));
 }
 
-TEST_CASE(reshape_test2)
+TEST_CASE(reshape_lazy_test2)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {24, 1, 1, 1}};
     std::vector<float> data(24);
@@ -6867,7 +6867,7 @@ TEST_CASE(reshape_test2)
     auto* mm                       = p.get_main_module();
     auto l                         = mm->add_literal(migraphx::literal{a_shape, data});
     std::vector<int64_t> new_shape = {1, 2, 3, 4};
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), l);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), l);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector{};
@@ -6875,14 +6875,14 @@ TEST_CASE(reshape_test2)
     EXPECT(migraphx::verify::verify_range(results_vector, data));
 }
 
-TEST_CASE(reshape_dyn_test)
+TEST_CASE(reshape_lazy_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     std::vector<int64_t> new_shape = {0, 8, 3, 1};
     auto input                     = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> data(48);

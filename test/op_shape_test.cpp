@@ -323,7 +323,7 @@ TEST_CASE(conv_dyn_batch)
 TEST_CASE(conv_dyn_img)
 {
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                        {{1, 1}, {3, 3}, {5, 20}, {5, 20}}};
+                                       {{1, 1}, {3, 3}, {5, 20}, {5, 20}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 1}, {1, 1}, {3, 18}, {3, 18}}};
@@ -376,7 +376,7 @@ TEST_CASE(conv_autopad_dyn_batch)
 {
     // auto_pad dynamic batch
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                        {{1, 10}, {3, 3}, {5, 5}, {5, 5}}};
+                                       {{1, 10}, {3, 3}, {5, 5}, {5, 5}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 10}, {1, 1}, {5, 5}, {5, 5}}};
@@ -393,7 +393,7 @@ TEST_CASE(conv_autopad_dyn_img)
 {
     // auto_pad dynamic img
     migraphx::shape input_dyn_shape  = {migraphx::shape::float_type,
-                                        {{1, 1}, {3, 3}, {5, 10}, {5, 10}}};
+                                       {{1, 1}, {3, 3}, {5, 10}, {5, 10}}};
     migraphx::shape weights_shape    = {migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape output_dyn_shape = {migraphx::shape::float_type,
                                         {{1, 1}, {1, 1}, {5, 10}, {5, 10}}};
@@ -2404,7 +2404,7 @@ TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_mean>(); }
 TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_prod>(); }
 TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_sum>(); }
 
-TEST_CASE(reshape_shape)
+TEST_CASE(reshape_lazy_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {24, 1, 1, 1}};
     for(auto&& new_shape :
@@ -2413,13 +2413,13 @@ TEST_CASE(reshape_shape)
         std::vector<std::size_t> lens(new_shape.size());
         std::copy(new_shape.begin(), new_shape.end(), lens.begin());
         migraphx::shape output{migraphx::shape::float_type, lens};
-        expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+        expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
     }
 
     for(auto&& new_shape :
         std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}, {3, 0}, {3, 2}})
     {
-        throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+        throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
     }
 
     std::vector<std::pair<std::vector<int64_t>, migraphx::shape>> minus1_tests{
@@ -2435,19 +2435,19 @@ TEST_CASE(reshape_shape)
 
     for(auto& it : minus1_tests)
     {
-        expect_shape(it.second, migraphx::make_op("reshape", {{"dims", it.first}}), input);
+        expect_shape(it.second, migraphx::make_op("reshape_lazy", {{"dims", it.first}}), input);
     }
 }
 
-// This uses the permutation to compute the reshape since its simpler than
+// This uses the permutation to compute the reshape_lazy since its simpler than
 // trying to calculate strides. As we collapse or expand dimensions, we
 // remove the collapsed dimensions or duplicate the expanded dimensions in
 // the permutation. Then we renumber the permutation. So for dimensions of 4,
-// 24, 1, 1, 1 with a permutation of 1, 0, 2, 3, 4 that reshapes to 4, 1, 3,
+// 24, 1, 1, 1 with a permutation of 1, 0, 2, 3, 4 that reshape_lazys to 4, 1, 3,
 // 4, 2, we first remove the collapsed dimensions or duplicate the expanded
 // dimensions which gives 1, 0, 0, 0, 0. Then after renumbering we get a
 // final permutation of 4, 0, 1, 2, 3.
-TEST_CASE(reshape_nonstandard)
+TEST_CASE(reshape_lazy_nonstandard)
 {
     auto input = migraphx::shape::from_permutation(migraphx::shape::float_type,
                                                    {4, 24, 1, 1, 1},
@@ -2469,21 +2469,21 @@ TEST_CASE(reshape_nonstandard)
     {
         migraphx::shape output = migraphx::shape::from_permutation(
             migraphx::shape::float_type, dims, migraphx::invert_permutation(perm));
-        expect_shape(output, migraphx::make_op("reshape", {{"dims", dims}}), input);
+        expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", dims}}), input);
     }
 }
 
-TEST_CASE(reshape_nonstandard_squeeze)
+TEST_CASE(reshape_lazy_nonstandard_squeeze)
 {
     auto input = migraphx::shape::from_permutation(
         migraphx::shape::float_type, {2, 16, 16, 1280}, migraphx::invert_permutation({0, 2, 3, 1}));
     std::vector<std::size_t> lens = {2, 256, 1280};
     migraphx::shape output        = migraphx::shape::from_permutation(
         migraphx::shape::float_type, lens, migraphx::invert_permutation({0, 2, 1}));
-    expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", lens}}), input);
 }
 
-TEST_CASE(reshape_nonstandard_error)
+TEST_CASE(reshape_lazy_nonstandard_error)
 {
     auto input = migraphx::shape::from_permutation(migraphx::shape::float_type,
                                                    {4, 24, 1, 1, 1},
@@ -2499,60 +2499,60 @@ TEST_CASE(reshape_nonstandard_error)
                                                              {3, 0},
                                                              {3, 2}})
     {
-        throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+        throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
     }
 }
 
-TEST_CASE(reshape_nonpacked_unsqueeze1)
+TEST_CASE(reshape_lazy_nonpacked_unsqueeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
     migraphx::shape output{migraphx::shape::float_type, {4, 2, 8}, {32, 16, 2}};
-    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_nonpacked_unsqueeze2)
+TEST_CASE(reshape_lazy_nonpacked_unsqueeze2)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
     migraphx::shape output{migraphx::shape::float_type, {2, 2, 16}, {64, 32, 2}};
-    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_nonpacked_squeeze)
+TEST_CASE(reshape_lazy_nonpacked_squeeze)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
     migraphx::shape output{migraphx::shape::float_type, {64}, {2}};
-    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_broadcast_unsqueeze1)
+TEST_CASE(reshape_lazy_broadcast_unsqueeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
     migraphx::shape output{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
-    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_broadcast_unsqueeze2)
+TEST_CASE(reshape_lazy_broadcast_unsqueeze2)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
     migraphx::shape output{migraphx::shape::float_type, {2, 256, 16, 80}, {0, 0, 80, 1}};
-    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_broadcast_squeeze)
+TEST_CASE(reshape_lazy_broadcast_squeeze)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
     migraphx::shape output{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
-    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_broadcast_squeeze_error)
+TEST_CASE(reshape_lazy_broadcast_squeeze_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
     std::vector<int64_t> new_shape = {2, 16, 20480};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
 }
 
-TEST_CASE(reshape_dyn_shape)
+TEST_CASE(reshape_lazy_dyn_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{
@@ -2572,29 +2572,29 @@ TEST_CASE(reshape_dyn_shape)
             }
         }
         migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
-        expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+        expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
     }
 }
 
-TEST_CASE(reshape_multiple_non_fixed_error)
+TEST_CASE(reshape_lazy_multiple_non_fixed_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 20}, {1, 1}}};
     std::vector<int64_t> new_shape = {0, 1, 0, 24};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
 }
 
-TEST_CASE(reshape_fixed_ele_not_matching_error)
+TEST_CASE(reshape_lazy_fixed_ele_not_matching_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 10}, {1, 1}}};
     std::vector<int64_t> new_shape = {0, 1, 5, 24};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
 }
 
-TEST_CASE(reshape_non_fixed_not_matching_error)
+TEST_CASE(reshape_lazy_non_fixed_not_matching_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     std::vector<int64_t> new_shape = {2, 1, 1, 24};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
 }
 
 TEST_CASE(return_shape_tuple)

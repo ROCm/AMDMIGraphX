@@ -2,7 +2,7 @@
 
 ## Description
 
-This example demonstrates how to perform an MIGraphX Python API inference through onnxruntime. The model used here is from Torchvision's pretrained resnet50 model
+This example demonstrates how to perform an MIGraphX Python API resnet50 inference through onnxruntime. The model used here is from Torchvision's pretrained resnet50 model
 
 ## Content
 - [Basic Setup](#Basic-Setup)
@@ -53,10 +53,14 @@ $ python resnet50.py
 
 ## Example Output:
 
-We changes the target image to what's found in the example folder which contains three inclass images and one out of class image.
+For each run the target image was changed. Stock images in the example folder which contains three in-class images types and one out of class image.
 
 For guitars we show three different variants of the same item in a class with different backgrounds as well as background shapes
 
+For the tools (scope.jpg and screwdrivers.jpg) these are both in-class images
+
+For the bird.jpg image, the imagenet_classes.txt generated doesn't contain that of a cockatiel and thus the model attempts to find the closet 
+match to the animal found in the image
 
 using scope.jpg. Image of an oscilliscope which is in the imagenet class labels
 
@@ -95,6 +99,7 @@ acoustic guitar 0.23226906
 banjo 0.044191252
 pick 0.0056983875
 stage 0.0013321621
+resnet50, time = 43.09 ms
 
 
 using guitar3.jpg. Image of a super strat 7 string style electric guitar which is in the imagenet classes

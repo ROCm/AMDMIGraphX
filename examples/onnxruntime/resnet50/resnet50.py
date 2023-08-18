@@ -57,7 +57,7 @@ torch.onnx.export(
 
 # Pre-processing for ResNet-50 Inferencing, from https://pytorch.org/hub/pytorch_vision_resnet/
 resnet50.eval()
-filename = 'bird.jpg'  # change to your filename
+filename = 'guitar3.jpg'  # change to your filename
 
 input_image = Image.open(filename)
 preprocess = T.Compose([
@@ -102,6 +102,6 @@ def run_sample(session, image_file, categories, inputs):
     return ort_outputs
 
 
-ort_output = run_sample(session_fp32, 'bird.jpg', categories, input_batch)
+ort_output = run_sample(session_fp32, 'guitar3.jpg', categories, input_batch)
 print("resnet50, time = {} ms".format(
     format(sum(latency) * 1000 / len(latency), '.2f')))

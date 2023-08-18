@@ -31,6 +31,19 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+template <typename T>
+static std::optional<T> parse_attribute(const std::string& attribute_name,
+                                        const onnx_parser& parser,
+                                        onnx_parser::node_info& info)
+{
+    if(!contains(info.attributes, attribute_name))
+    {
+        return std::nullopt;
+    }
+
+    return parser.parse_value(info.attributes.at(attribute_name)).at<T>();
+}
+
 instruction_ref parse_reduce_oper(const std::string& op_name,
                                   const onnx_parser& parser,
                                   onnx_parser::node_info info,
@@ -38,56 +51,53 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
 {
     // default to reduce over all dimensions
     std::vector<int64_t> axes;
+    bool runtime_axes = false;
     if(args.size() == 2)
     {
-        auto arg_axes = args.at(1)->eval();
-        check_arg_empty(arg_axes, "PARSE_" + op_name + ": cannot handle variable axes!");
-        axes.clear();
-        arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
+        if(!(runtime_axes = !args[1]->can_eval()))
+        {
+            args[1]->eval().visit([&](auto s) { axes.assign(s.begin(), s.end()); });
+        }
     }
     else if(contains(info.attributes, "axes"))
     {
-        axes.clear();
         auto&& attr_axes = info.attributes["axes"].ints();
-        axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
+        axes.assign(attr_axes.begin(), attr_axes.end());
     }
 
-    bool noop_with_empty_axes = false;
-    if(contains(info.attributes, "noop_with_empty_axes"))
-    {
-        noop_with_empty_axes = static_cast<bool>(
-            parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>());
-    }
-
+    bool noop_with_empty_axes =
+        parse_attribute<int>("noop_with_empty_axes", parser, info).value_or(0);
     // empty axes behavior
-    if(axes.empty())
+    if(axes.empty() && !runtime_axes)
     {
         if(noop_with_empty_axes)
         {
-            return args.at(0);
+            return args[0];
         }
-        else
+
+        axes.resize(args.front()->get_shape().ndim());
+        std::iota(axes.begin(), axes.end(), 0);
+    }
+
+    bool keep_dims = parse_attribute<int>("keepdims", parser, info).value_or(1);
+
+    auto reduce_op          = make_op(op_name,
+                             {{"axes", axes},
+                                       {"runtime_axes", runtime_axes},
+                                       {"noop_with_empty_axes", noop_with_empty_axes}});
+    auto return_instruction = runtime_axes ? info.add_instruction(reduce_op, args)
+                                           : info.add_instruction(reduce_op, args[0]);
+    if(!keep_dims)
+    {
+        if(runtime_axes)
         {
-            axes.resize(args.front()->get_shape().ndim());
-            std::iota(axes.begin(), axes.end(), 0);
+            MIGRAPHX_THROW("Keepdims currently not supported with runtime provided axes");
         }
+        return_instruction =
+            info.add_instruction(make_op("squeeze", {{"axes", axes}}), return_instruction);
     }
 
-    int keep_dims = 1;
-    if(contains(info.attributes, "keepdims"))
-    {
-        keep_dims = parser.parse_value(info.attributes.at("keepdims")).at<int>();
-    }
-
-    if(keep_dims == 1)
-    {
-        return info.add_instruction(make_op(op_name, {{"axes", axes}}), args.front());
-    }
-    else
-    {
-        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), args.front());
-        return info.add_instruction(make_op("squeeze", {{"axes", axes}}), ins);
-    }
+    return return_instruction;
 }
 
 struct parse_reduce_op : op_parser<parse_reduce_op>

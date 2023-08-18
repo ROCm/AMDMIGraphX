@@ -80,11 +80,15 @@ template <class Derived>
 struct reduce_op : op_name<Derived>
 {
     std::vector<std::int64_t> axes{};
+    bool runtime_axes    = false;
+    bool noop_with_empty_axes = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"));
+        return pack(f(self.axes, "axes"),
+                    f(self.runtime_axes, "runtime_axes"),
+                    f(self.noop_with_empty_axes, "noop_with_empty_axes"));
     }
 
     value attributes() const

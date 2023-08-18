@@ -19,7 +19,7 @@ $ docker build -t migraphx .
 $ docker --device='/dev/kfd' --device='/dev/dri' <your docker settings and mounts> --group-add video -it migraphx
 ```
 
-The dockerfile will install the latest supported version of ROCm with all the depandacnies needed for MIGraphX
+The dockerfile will install the latest supported version of ROCm with all the dependencies needed for MIGraphX
 
 Once the docker file has been installed and you're inside the folder run
 

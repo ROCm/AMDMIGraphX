@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/file_buffer.hpp"
 #include <migraphx/version.h>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/program.hpp>
@@ -583,6 +584,23 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
                     preview_argument(std::cout, buffer);
                     std::cout << std::endl;
                     print_statistics(std::cout, buffer);
+                }
+                else if(trace_level == 3)
+                {
+                    auto buffer_s = buffer.get_shape();
+                    if(buffer_s.type() != shape::tuple_type)
+                    {
+                        auto std_buffer = buffer;
+                        if(not buffer_s.standard())
+                        {
+                            std_buffer =
+                                migraphx::make_op("contiguous")
+                                    .compute(shape{buffer_s.type(), buffer_s.lens()}, {buffer});
+                        }
+                        std::vector<char> binary_vec(
+                            std_buffer.data(), std_buffer.data() + std_buffer.get_shape().bytes());
+                        write_buffer(ins_out.at(ins) + ".bin", binary_vec);
+                    }
                 }
                 else
                 {

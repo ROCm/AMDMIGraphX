@@ -148,7 +148,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             migraphx::msgpack_chunk_for_each(
                 data, data + size, [&](const char* start, const char* last) {
                     o.pack_bin(last - start);
-                    o.pack_bin_body(data, last - start);
+                    o.pack_bin_body(start, last - start);
                 });
             return o;
         }

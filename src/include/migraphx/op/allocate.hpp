@@ -36,20 +36,53 @@ namespace op {
 struct allocate
 {
     shape s{};
+    // for dynamic allocate to set the buffer type
+    shape::type_t buf_type = shape::half_type;
+    // flag for dynamic allocate to use shape attr rather than [0, max] ranges in compute_shape()
+    // useful for optimizations later on
+    bool use_shape_attr = false;
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.s, "shape"));
+        return pack(f(self.s, "shape"),
+                    f(self.buf_type, "buf_type"),
+                    f(self.use_shape_attr, "use_shape_attr"));
     }
+
     std::string name() const { return "allocate"; }
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        migraphx::check_shapes{inputs, *this, true}.has(0);
-        return s;
+        migraphx::check_shapes{inputs, *this, true}.has(0, 1);
+        if(inputs.empty() or use_shape_attr)
+        {
+            return s;
+        }
+        else
+        {
+            const auto& out_dims = inputs.at(0);
+            assert(not out_dims.dynamic());
+            assert(out_dims.ndim() == 1);
+            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+            std::vector<shape::dynamic_dimension> dyn_dims(out_dims.lens().at(0),
+                                                           shape::dynamic_dimension{0, max_val});
+            return {buf_type, dyn_dims};
+        }
     }
-    argument compute(const shape& output_shape, const std::vector<argument>&) const
+    argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
-        return {output_shape};
+        if(args.empty())
+        {
+            return {output_shape};
+        }
+        else
+        {
+            std::vector<std::size_t> output_dims(output_shape.ndim());
+            ;
+            args.at(0).visit([&](auto a) { output_dims.assign(a.begin(), a.end()); });
+            return {shape{buf_type, output_dims}};
+        }
     }
 };
 

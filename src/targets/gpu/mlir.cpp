@@ -180,7 +180,6 @@ std::string mlir_print(F f, T x)
 struct mlir_logger
 {
     std::stringstream ss;
-
     mlir_context* ctx;
     std::optional<MlirDiagnosticHandlerID> id;
 
@@ -201,7 +200,7 @@ struct mlir_logger
     mlir_logger(const mlir_logger& other) = delete;
     mlir_logger& operator=(const mlir_logger& other) = delete;
 
-    mlir_logger(mlir_logger&& other) : ctx(other.ctx), id(other.id)
+    mlir_logger(mlir_logger&& other) : ss(std::move(other.ss)), ctx(other.ctx), id(other.id)
     {
         other.ctx = nullptr;
         other.id  = std::nullopt;
@@ -209,6 +208,7 @@ struct mlir_logger
 
     mlir_logger& operator=(mlir_logger&& other)
     {
+        ss = std::move(other.ss);
         if(other.ctx)
             ctx = other.ctx;
         if(other.id.has_value())

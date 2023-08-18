@@ -7,6 +7,7 @@ This example demonstrates how to perform an MIGraphX Python API inference throug
 ## Content
 - [Basic Setup](#Basic-Setup)
 - [**Running this Example**](#Running-this-Example)
+- [Example output](#example-Output)
 
 ## Basic Setup
 Before running inference we must first install MIGraphX via the Docker method as it also downloads onnxruntime into the dockerfile created. 
@@ -50,7 +51,7 @@ $ pip list | grep onnxruntime
 $ python resnet50.py
 ```
 
-## example output:
+## Example Output:
 
 We changes the target image to what's found in the example folder which contains three inclass images and one out of class image.
 

@@ -81,10 +81,8 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
 
     bool keep_dims = parse_attribute<int>("keepdims", parser, info).value_or(1);
 
-    auto reduce_op          = make_op(op_name,
-                             {{"axes", axes},
-                                       {"runtime_axes", runtime_axes},
-                                       {"noop_with_empty_axes", noop_with_empty_axes}});
+    auto reduce_op =
+        make_op(op_name, {{"axes", axes}, {"noop_with_empty_axes", noop_with_empty_axes}});
     auto return_instruction = runtime_axes ? info.add_instruction(reduce_op, args)
                                            : info.add_instruction(reduce_op, args[0]);
     if(!keep_dims)

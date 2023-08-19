@@ -80,15 +80,12 @@ template <class Derived>
 struct reduce_op : op_name<Derived>
 {
     std::vector<std::int64_t> axes{};
-    bool runtime_axes    = false;
     bool noop_with_empty_axes = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"),
-                    f(self.runtime_axes, "runtime_axes"),
-                    f(self.noop_with_empty_axes, "noop_with_empty_axes"));
+        return pack(f(self.axes, "axes"), f(self.noop_with_empty_axes, "noop_with_empty_axes"));
     }
 
     value attributes() const
@@ -110,6 +107,44 @@ struct reduce_op : op_name<Derived>
         return tuned_axes;
     }
 
+    shape compute_dynamic_shape(const std::vector<shape>& inputs) const
+    {
+        // TODO
+        // auto data_shape      = inputs.at(0);
+        // auto output_dyn_dims = data_shape.dyn_dims();
+        // auto tuned_axes      = tune_axes(output_dyn_dims.size());
+        // for(const auto& axis : tuned_axes)
+        // {
+        //     output_dyn_dims[axis] = {1, 1};
+        // }
+
+        // return shape{data_shape.type(), output_dyn_dims};
+    }
+
+    shape compute_static_shape(const std::vector<shape>& inputs) const
+    {
+        auto data_shape = inputs.at(0);
+        auto lens       = data_shape.lens();
+        if(axes.empty())
+        {
+            std::vector<shape::dynamic_dimension> dims(data_shape.ndim());
+            std::transform(lens.begin(), lens.end(), dims.begin(), [](auto l) {
+                return shape::dynamic_dimension{1, l};
+            });
+
+            return shape(data_shape.type(), std::move(dims));
+        }
+        else
+        {
+            for(const auto a : axes)
+            {
+                lens[a] = 1;
+            }
+
+            return data_shape.with_lens(lens);
+        }
+    }
+
     /**
      * @brief returns a shape in which the axis or axes named
      * for reduction by this op are set, to size 1.
@@ -119,29 +154,16 @@ struct reduce_op : op_name<Derived>
      */
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
-        auto s = inputs.at(0);
-        if(s.dynamic())
-        {
-            auto output_dyn_dims = s.dyn_dims();
-            auto tuned_axes      = tune_axes(output_dyn_dims.size());
-            for(const auto& axis : tuned_axes)
-            {
-                output_dyn_dims[axis] = {1, 1};
-            }
+        auto expected_arg_count = axes.empty() ? 2 : 1;
+        check_shapes{inputs, *this, true}.has(expected_arg_count);
 
-            return shape{s.type(), output_dyn_dims};
+        if(inputs[0].dynamic())
+        {
+            return compute_dynamic_shape(inputs);
         }
         else
         {
-            auto lens       = s.lens();
-            auto tuned_axes = tune_axes(lens.size());
-            for(const auto& axis : tuned_axes)
-            {
-                lens[axis] = 1;
-            }
-
-            return inputs[0].with_lens(lens);
+            return compute_static_shape(inputs);
         }
     }
 
@@ -179,16 +201,43 @@ struct reduce_op : op_name<Derived>
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{dyn_out.computed_shape};
-        auto arg_lens   = args.front().get_shape().lens();
-        auto tuned_axes = tune_axes(arg_lens.size());
-        std::vector<std::size_t> batch_lens(dyn_out.computed_shape.lens().size(), 1);
-        tune_dims(tuned_axes, arg_lens, batch_lens);
-        shape batch_shape{dyn_out.computed_shape.type(), batch_lens};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            par_for(dyn_out.computed_shape.elements(), [&](auto i) {
-                auto out_idx = dyn_out.computed_shape.multi(i);
-                this->reduce(input, batch_shape, tuned_axes, out_idx, output);
+        std::vector<int64_t> reduce_axes;
+        if(axes.empty())
+        {
+            args[1].visit([&](auto&& s) { reduce_axes.assign(s.begin(), s.end()); });
+        }
+        else
+        {
+            reduce_axes = axes;
+        }
+
+        auto&& data_arg = args[0];
+        if(reduce_axes.empty())
+        {
+            if(noop_with_empty_axes)
+            {
+                return data_arg;
+            }
+
+            reduce_axes.resize(data_arg.get_shape().ndim());
+            std::iota(reduce_axes.begin(), reduce_axes.end(), 0);
+        }
+
+        auto arg_lens = data_arg.get_shape().lens();
+        for(auto a : reduce_axes)
+        {
+            arg_lens[a] = 1;
+        }
+        auto result_shape = data_arg.get_shape().with_lens(arg_lens);
+
+        std::vector<std::size_t> batch_lens(result_shape.ndim(), 1);
+        tune_dims(reduce_axes, arg_lens, batch_lens);
+        shape batch_shape{result_shape.type(), batch_lens};
+        argument result{result_shape};
+        visit_all(result, data_arg)([&](auto output, auto input) {
+            par_for(result_shape.elements(), [&](auto i) {
+                auto out_idx = result_shape.multi(i);
+                this->reduce(input, batch_shape, reduce_axes, out_idx, output);
             });
         });
 

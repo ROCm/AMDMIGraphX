@@ -44,10 +44,7 @@ struct parse_slice : op_parser<parse_slice>
         std::vector<int64_t> steps;
         std::vector<int64_t> raxes;
 
-        void always_insert(instruction_ref arg)
-        {
-            op_args.insert(op_args.begin(), arg);
-        }
+        void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
 
         std::vector<int64_t> insert(instruction_ref arg)
         {

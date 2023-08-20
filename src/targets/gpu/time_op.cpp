@@ -41,7 +41,7 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
 }
 
 using milliseconds = std::chrono::duration<double, std::milli>;
-std::pair<double, double>
+double 
 time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
 
@@ -51,21 +51,21 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
     auto output           = op.compute_shape(inputs);
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
+    auto start = context::create_event();
+    auto stop = context::create_event();
     auto run  = [&] {
         op.compute(ctx, output, args);
-        ctx.finish();
     };
-    gctx.enable_perf_measurement();
     run();
-    double host_time   = 0.0;
-    double device_time = 0.0;
+    gctx.get_stream().record(start.get());
     for(auto i : range(n))
     {
         (void)i;
-        host_time += time<milliseconds>(run);
-        device_time += gctx.get_elapsed_ms();
+        run();
     }
-    return std::make_pair(host_time / n, device_time / n);
+    gctx.get_stream().record(stop.get());
+    gctx.finish();
+    return context::get_elapsed_ms(start.get(), stop.get()) / n;
 }
 
 } // namespace gpu

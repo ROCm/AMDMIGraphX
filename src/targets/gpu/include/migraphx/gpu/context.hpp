@@ -323,12 +323,12 @@ struct context
         return std::make_pair(nullptr, nullptr);
     }
 
-    float get_elapsed_ms() const
+    static float get_elapsed_ms(hipEvent_t start, hipEvent_t stop)
     {
         float result = 0;
-        if(start_event != nullptr and stop_event != nullptr)
+        if(start != nullptr and stop != nullptr)
         {
-            auto status = hipEventElapsedTime(&result, start_event.get(), stop_event.get());
+            auto status = hipEventElapsedTime(&result, start, stop);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed hipEventElapsedTime: " + hip_error(status));
         }

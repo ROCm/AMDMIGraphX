@@ -41,8 +41,7 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
 }
 
 using milliseconds = std::chrono::duration<double, std::milli>;
-double 
-time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
 
     // TODO: Use std::ref
@@ -52,10 +51,8 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
     auto start = context::create_event();
-    auto stop = context::create_event();
-    auto run  = [&] {
-        op.compute(ctx, output, args);
-    };
+    auto stop  = context::create_event();
+    auto run   = [&] { op.compute(ctx, output, args); };
     run();
     gctx.get_stream().record(start.get());
     for(auto i : range(n))

@@ -685,9 +685,8 @@ struct mlir_program
         run_high_level_pipeline();
         auto tuning_mode = RocmlirTuningParamSetKindFull;
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
-            tuning_mode = RocmlirTuningParamSetKindExhaustive; 
-        mlir_tuning_space params{
-                mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
+            tuning_mode = RocmlirTuningParamSetKindExhaustive;
+        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
         for(auto i : range(mlirRockTuningGetNumParams(params.get())))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};

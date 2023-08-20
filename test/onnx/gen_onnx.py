@@ -6413,6 +6413,28 @@ def slice_test():
 
     return ([node], [x], [y])
 
+@onnx_test()
+def slice_constant_test():
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])
+
+    x_tensor = helper.make_tensor(name='x_tensor',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=[3, 2],
+                                      vals=[0, 1, 2, 3, 4, 5])
+
+    x = onnx.helper.make_node('Constant',
+                                  inputs=[],
+                                  outputs=['x'],
+                                  value=x_tensor)
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['x'],
+                                 axes=[0, 1],
+                                 starts=[1, 0],
+                                 ends=[2, 2],
+                                 outputs=['1'])
+
+    return ([x, node], [], [y])
 
 @onnx_test()
 def slice_dyn_test():

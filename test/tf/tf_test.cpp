@@ -37,7 +37,6 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/pooling.hpp>
-#include <migraphx/op/slice.hpp>
 
 #include <migraphx/serialize.hpp>
 
@@ -840,12 +839,8 @@ TEST_CASE(slice_test)
     mm->add_literal(migraphx::literal{s0, {1, 0}});
     mm->add_literal(migraphx::literal{s0, {2, -1}});
 
-    migraphx::op::slice op;
-    op.starts = {1, 0};
-    op.ends   = {3, 10};
-    op.axes   = std::vector<int64_t>(num_axes);
-    std::iota(op.axes.begin(), op.axes.end(), 0);
-    mm->add_instruction(op, l0);
+    mm->add_instruction(
+        migraphx::make_op("slice", {{"starts", {1, 0}}, {"ends", {3, 10}}, {"axes", {0, 1}}}), l0);
     auto prog = optimize_tf("slice_test.pb", false);
 
     EXPECT(p == prog);
@@ -975,13 +970,10 @@ TEST_CASE(stridedslice_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 10, 1, 1}});
     auto l1 =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
-    std::size_t num_axes = 4;
-    migraphx::op::slice op;
-    op.starts = {0, 0, 0, 0};
-    op.ends   = {1, 1, 1, 5};
-    op.axes   = std::vector<int64_t>(num_axes);
-    std::iota(op.axes.begin(), op.axes.end(), 0);
-    auto l2          = mm->add_instruction(op, l1);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op(
+            "slice", {{"starts", {0, 0, 0, 0}}, {"ends", {1, 1, 1, 5}}, {"axes", {0, 1, 2, 3}}}),
+        l1);
     auto shrink_axis = 1;
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {shrink_axis}}}), l2);
     auto prog = optimize_tf("stridedslice_test.pb", true);
@@ -995,12 +987,6 @@ TEST_CASE(stridedslice_masks_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 10, 3, 3}});
-    std::size_t num_axes = 4;
-    migraphx::op::slice op;
-    op.starts = {0, 1, 1, 0};
-    op.ends   = {1, 3, 3, 10};
-    op.axes   = std::vector<int64_t>(num_axes);
-    std::iota(op.axes.begin(), op.axes.end(), 0);
     // add literals for starts, ends, and strides in tf (NHWC format)
     mm->add_literal(migraphx::shape{migraphx::shape::int32_type, {4}},
                     std::vector<int>{0, 1, 1, 0});
@@ -1011,7 +997,10 @@ TEST_CASE(stridedslice_masks_test)
 
     auto l1 =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
-    auto l2 = mm->add_instruction(op, l1);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op(
+            "slice", {{"starts", {0, 1, 1, 0}}, {"ends", {1, 3, 3, 10}}, {"axes", {0, 1, 2, 3}}}),
+        l1);
     auto l3 =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), l2);
     mm->add_return({l3});

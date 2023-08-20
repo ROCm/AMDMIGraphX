@@ -228,6 +228,13 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& same_layout() const
+    {
+        if(not this->same([](const shape& s) { return find_permutation(s); }))
+            MIGRAPHX_THROW(prefix() + "Layouts do not match");
+        return *this;
+    }
+
     /*!
      * Check all shapes are standard.
      */

@@ -49,6 +49,10 @@ auto tune_attribute(const std::vector<int64_t>& vec,
                     Message m)
 {
     std::vector<int64_t> result(vec);
+    if(result.empty())
+    {
+        return result;
+    };
     int64_t n_rank                                 = input_shape.ndim();
     std::vector<op::normalize_attribute> vec_attrs = val.to_vector<op::normalize_attribute>();
     if(contains(vec_attrs, op::normalize_attribute::use_output))
@@ -256,6 +260,23 @@ bool normalize_attributes(operation& op, const shape& input_shape)
     }
 
     return tuned;
+}
+
+std::vector<int64_t> normalize_axes(const std::vector<int64_t>& axes,
+                                    const shape& input_shape,
+                                    const value& attr_val,
+                                    const std::string& prefix)
+{
+    return tune_attribute(axes, {}, attr_val, input_shape, [&] { return prefix; });
+}
+
+std::vector<int64_t> normalize_indices(const std::vector<int64_t>& indices,
+                                       const std::vector<int64_t>& axes,
+                                       const shape& input_shape,
+                                       const value& attr_val,
+                                       const std::string& prefix)
+{
+    return tune_attribute(indices, axes, attr_val, input_shape, [&] { return prefix; });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

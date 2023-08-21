@@ -24,7 +24,7 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/gpu/fuse_mlir.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
@@ -90,7 +90,7 @@ TEST_CASE(int8_quantization)
         migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        mm->add_instruction(migraphx::op::dot{}, pa, pb);
+        mm->add_instruction(migraphx::make_op("dot"), pa, pb);
 
         return p;
     };

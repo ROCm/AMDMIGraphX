@@ -70,9 +70,15 @@ struct check_shapes
         check_dynamic();
     }
 
-    template <class Op>
+    template <class Op, MIGRAPHX_REQUIRES(not std::is_convertible<Op, std::string>{})>
     check_shapes(const std::vector<shape>& s, const Op& op, const bool d = false)
         : begin(s.begin()), end(s.end()), name(op.name()), dynamic_allowed(d)
+    {
+        check_dynamic();
+    }
+
+    check_shapes(const std::vector<shape>& s, const std::string& n, const bool d = false)
+        : begin(s.begin()), end(s.end()), name(n), dynamic_allowed(d)
     {
         check_dynamic();
     }

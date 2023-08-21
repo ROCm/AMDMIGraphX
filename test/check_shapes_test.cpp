@@ -38,16 +38,22 @@ void create_shapes(bool dynamic_allowed)
     migraphx::check_shapes{{a, b}, "", dynamic_allowed}.has(2);
 }
 
-TEST_CASE(allow_dynamic_shape) { EXPECT(not test::throws([] { create_shapes(true); })); }
+TEST_CASE(allow_dynamic_shape)
+{
+    EXPECT(not test::throws([] { create_shapes(true); }));
+}
 
-TEST_CASE(fail_dynamic_shape) { EXPECT(test::throws([] { create_shapes(false); })); }
+TEST_CASE(fail_dynamic_shape)
+{
+    EXPECT(test::throws([] { create_shapes(false); }));
+}
 
 TEST_CASE(same_layout_fail)
 {
     EXPECT(test::throws([] {
         shape a{shape::float_type, {2, 3}};
-        shape b{shape::float_type, {2, 3},  {1, 2}};
-        migraphx::check_shapes{{a, b},""}.same_layout();
+        shape b{shape::float_type, {2, 3}, {1, 2}};
+        migraphx::check_shapes{{a, b}, ""}.same_layout();
     }));
 }
 
@@ -55,8 +61,8 @@ TEST_CASE(same_layout_pass)
 {
     EXPECT(not test::throws([] {
         shape a{shape::float_type, {2, 3}, {1, 2}};
-        shape b{shape::float_type, {2, 3},  {1, 2}};
-        migraphx::check_shapes{{a, b},""}.same_layout();
+        shape b{shape::float_type, {2, 3}, {1, 2}};
+        migraphx::check_shapes{{a, b}, ""}.same_layout();
     }));
 }
 

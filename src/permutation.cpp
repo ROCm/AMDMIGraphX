@@ -74,5 +74,15 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
     return it->first;
 }
 
+std::vector<shape> normalize_permutation(const std::vector<shape>& shapes)
+{
+    auto result = shapes;
+    auto perm   = find_permutation(shapes);
+    std::transform(result.begin(), result.end(), result.begin(), [&](auto s) {
+        return reorder_shape(s, perm);
+    });
+    return result;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

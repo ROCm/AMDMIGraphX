@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <atomic>
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
@@ -342,11 +343,19 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     return os;
 }
 
+inline std::atomic<int>& failures()
+{
+    // NOLINTNEXTLINE
+    static std::atomic<int> f = 0;
+    return f;
+}
+
 template <class T, class F>
 void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
 {
     if(not bool(x.value()))
     {
+        failures()++;
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
@@ -384,7 +393,7 @@ bool throws(F f, const std::string& msg = "")
 }
 
 template <class T, class U>
-auto near(T px, U py, double ptol = 1e-6f)
+auto within_abs(T px, U py, double ptol = 1e-6f)
 {
     return make_function("near", [](auto x, auto y, auto tol) { return std::abs(x - y) < tol; })(
         px, py, ptol);
@@ -586,12 +595,20 @@ struct driver
         {
             try
             {
+                failures() = 0;
                 f();
             }
+            // cppcheck-suppress EmptyCatchStatement
             catch(const failure_error&)
             {
-                msg = "Test failure";
             }
+        }
+        if(msg.empty() and failures() != 0)
+        {
+            if(failures() == 1)
+                msg = "Test failure";
+            else
+                msg = std::to_string(failures()) + " test failures";
         }
         if(msg.empty())
         {
@@ -683,10 +700,10 @@ inline void run(int argc, const char* argv[])
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
 // NOLINTNEXTLINE
-#define CHECK(...)                                                                                 \
-    test::failed(                                                                                  \
-        test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] { \
-        })
+#define CHECK(...) \
+    test::failed(  \
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] {})
+
 // NOLINTNEXTLINE
 #define EXPECT(...)                         \
     test::failed(TEST_CAPTURE(__VA_ARGS__), \

@@ -84,7 +84,7 @@ static shape get_reduced_shape(const shape& s, const std::vector<T>& axes)
     std::fill(lens.begin(), lens.end(), 1);
     for(const auto& axis : axes)
         lens[axis] = s.lens()[axis];
-    return shape{s.type(), lens};
+    return s.with_lens(lens);
 }
 
 template <class T>
@@ -93,7 +93,7 @@ static shape get_output_shape(const shape& s, const std::vector<T>& axes)
     auto lens = s.lens();
     for(const auto& axis : axes)
         lens[axis] = 1;
-    return shape{s.type(), lens};
+    return s.with_lens(lens);
 }
 
 template <class ReduceLens>
@@ -228,7 +228,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto virtual_inputs = inputs;
         virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
         virtual_inputs.push_back(get_output_shape(inputs.front(), axes));
-        virtual_inputs           = reduce_dims(virtual_inputs);
+        virtual_inputs           = reduce_dims(normalize_permutation(virtual_inputs));
         auto reduce_output_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
         auto reduction_shape = virtual_inputs.back();

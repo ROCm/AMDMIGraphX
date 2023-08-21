@@ -140,8 +140,11 @@ void gemm_impl(context& ctx,
             compute_type = rocblas_datatype_f32_r;
     }
 
-    rocblas_gemm_flags flag =
-        int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
+    rocblas_gemm_flags flag = rocblas_gemm_flags_none;
+#if ROCBLAS_VERSION_MAJOR < 3
+    if(int8_x4_format)
+        flag = rocblas_gemm_flags_pack_int8x4;
+#endif
 
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();

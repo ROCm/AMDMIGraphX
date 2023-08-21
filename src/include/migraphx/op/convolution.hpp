@@ -82,7 +82,7 @@ struct convolution
         const auto input_ndim   = inputs[0].ndim();
         const auto padding_size = padding.size();
 
-        if(input_ndim != padding_size / 2 + 2 && input_ndim != padding_size + 2)
+        if(input_ndim != padding_size / 2 + 2 and input_ndim != padding_size + 2)
         {
             MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
         }

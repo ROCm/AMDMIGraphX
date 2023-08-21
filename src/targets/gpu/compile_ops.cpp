@@ -190,6 +190,8 @@ struct compile_plan
             });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+        std::cout << "Fastest time: " << *std::min_element(times.begin(), times.end()) << std::endl;
+        std::cout << "Slowest time: " << *std::max_element(times.begin(), times.end()) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation.");

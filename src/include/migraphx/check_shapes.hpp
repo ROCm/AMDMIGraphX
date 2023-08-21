@@ -228,6 +228,9 @@ struct check_shapes
         return *this;
     }
 
+    /*!
+     * Check all shapes have the same layout.
+     */
     const check_shapes& same_layout() const
     {
         if(not this->same([](const shape& s) { return find_permutation(s); }))

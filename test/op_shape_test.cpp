@@ -81,6 +81,12 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
+TEST_CASE(allocate_static)
+{
+    migraphx::shape out_shape{migraphx::shape::float_type, {2, 3, 4}};
+    expect_shape(out_shape, migraphx::make_op("allocate", {{"shape", to_value(out_shape)}}));
+}
+
 TEST_CASE(allocate_dyn)
 {
     migraphx::shape input{migraphx::shape::int64_type, {2}};

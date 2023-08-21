@@ -79,7 +79,6 @@ struct allocate
         else
         {
             std::vector<std::size_t> output_dims(output_shape.ndim());
-            ;
             args.at(0).visit([&](auto a) { output_dims.assign(a.begin(), a.end()); });
             return {shape{buf_type, output_dims}};
         }

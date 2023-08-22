@@ -997,7 +997,7 @@ def const_of_shape_int64_test():
         outputs=['shape'],
         value=shape_ts,
     )
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 3, 4])
 
     node = onnx.helper.make_node('ConstantOfShape',
                                  inputs=['shape'],
@@ -1029,6 +1029,38 @@ def const_of_shape_no_value_attr_test():
     )
 
     return ([shape_const, node], [], [y])
+
+
+@onnx_test()
+def const_of_shape_dyn_float_test():
+    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.FLOAT, [1],
+                                         [10])
+
+    output_dims = helper.make_tensor_value_info('output_dims', TensorProto.INT64, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4])
+
+    node = onnx.helper.make_node('ConstantOfShape',
+                                 inputs=['output_dims'],
+                                 outputs=['y'],
+                                 value=tensor_val)
+
+    return ([node], [output_dims], [y])
+
+
+@onnx_test()
+def const_of_shape_dyn_int64_test():
+    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
+                                         [10])
+
+    output_dims = helper.make_tensor_value_info('output_dims', TensorProto.INT64, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 3, 4])
+
+    node = onnx.helper.make_node('ConstantOfShape',
+                                 inputs=['output_dims'],
+                                 outputs=['y'],
+                                 value=tensor_val)
+
+    return ([node], [output_dims], [y])
 
 
 @onnx_test()

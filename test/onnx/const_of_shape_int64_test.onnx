@@ -1,12 +1,12 @@
-constant-of-shape:ù
+const_of_shape_int64_test:•
 6shape"Constant*#
 value**Bshape_tensor†
 7
 shapey"ConstantOfShape*
 value*:
-Bvalue†constant_of_shapeb
+Bvalue†const_of_shape_int64_testb
 y
-
+
 
 
-B
+B

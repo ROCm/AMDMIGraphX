@@ -62,9 +62,7 @@ struct random_seed
     {
         argument result(output_shape);
 
-        result.visit([&](auto output) {
-            output.front() = std::random_device{}();
-        });
+        result.visit([&](auto output) { output.front() = std::random_device{}(); });
         return result;
     }
 };

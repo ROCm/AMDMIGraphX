@@ -82,18 +82,19 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
                 }
                 literal l_out{};
                 l_val.visit([&](auto val) {
-                        using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
-                        // l_val contains only one element
-                        std::vector<val_type> out_vec(s.elements(), val.front());
-                        l_out = literal(s, out_vec);
-                        });
+                    using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
+                    // l_val contains only one element
+                    std::vector<val_type> out_vec(s.elements(), val.front());
+                    l_out = literal(s, out_vec);
+                });
                 return info.add_literal(l_out);
             }
             // has variable input (dynamic shape buffer)
             else
             {
                 auto dv_lit = info.add_literal(l_val);
-                auto alloc_ins = info.add_instruction(make_op("allocate", {{"buf_type", type}}), args[0]);
+                auto alloc_ins =
+                    info.add_instruction(make_op("allocate", {{"buf_type", type}}), args[0]);
                 return info.add_instruction(make_op("fill"), dv_lit, alloc_ins);
             }
         }

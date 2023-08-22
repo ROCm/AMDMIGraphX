@@ -32,7 +32,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
-#define MIGRAPHX_GPU_TARGETS "@GPU_TARGETS@"
+#define MIGRAPHX_GPU_TARGETS "@GPU_TARGETS@" // NOLINT
 
 const std::vector<std::string>& get_targets();
 std::string get_targets_as_string();

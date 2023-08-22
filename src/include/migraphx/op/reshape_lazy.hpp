@@ -233,8 +233,6 @@ struct reshape_lazy
             }
         }
 
-        //std::cout << rdims.size() << std::endl;
-
         auto s = reshape_lazy_dims(inputs.front(), rdims);
         if(not s.has_value())
             MIGRAPHX_THROW("reshape_lazy on axis that is not packed.");
@@ -268,7 +266,7 @@ struct reshape_lazy
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape_lazy(dyn_out.computed_shape);
+        return args[0].reshape(dyn_out.computed_shape);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }

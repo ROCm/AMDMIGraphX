@@ -133,12 +133,6 @@ argument argument::reshape(const shape& s) const
     return {s, this->m_data};
 }
 
-argument argument::reshape_lazy(const shape& s) const
-{
-    assert(s.element_space() <= this->get_shape().element_space());
-    return {s, this->m_data};
-}
-
 argument::data_t argument::data_t::share() const
 {
     data_t result;

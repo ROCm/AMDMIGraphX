@@ -24,7 +24,6 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass_manager.hpp>

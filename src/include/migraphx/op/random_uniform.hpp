@@ -96,9 +96,9 @@ struct random_uniform
             using type = typename decltype(output)::value_type;
             if constexpr(std::is_integral<type>{})
             {
-                // default range for all integer types is (0, INT_MAX) which depends
-                // on the integral type.  To clamp
-                // to a different range, apply min or max ops. to the output of this.
+                // default range for all integer types is (0,
+                // std::uniform_int_distribution<type>::max()).
+                // To clamp to a different range, apply min or max ops. to the output of this.
                 std::uniform_int_distribution<type> dis;
                 std::generate(output.begin(), output.end(), [&] { return dis(gen); });
             }

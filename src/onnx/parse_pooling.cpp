@@ -91,13 +91,21 @@ struct parse_pooling : op_parser<parse_pooling>
                 kdims, values["lengths"].size(), "PARSE_POOLING: inconsistent lengths");
         }
 
+        if(contains(info.attributes, "dilations"))
+        {
+            values["dilations"].clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(values["dilations"]));
+            check_attr_sizes(
+                kdims, values["dilations"].size(), "PARSE_POOLING: inconsistent dilations");
+        }
+
         // lp_order attribute
         if(contains(info.attributes, "p"))
         {
             values["lp_order"] = info.attributes.at("p").i();
         }
 
-        // ensure pads availabe only when auto_pad is "NOT_SET"
+        // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, "POOLING");
 
         return values;
@@ -165,7 +173,7 @@ struct parse_pooling : op_parser<parse_pooling>
                 cal_auto_padding_size(info,
                                       values,
                                       values["lengths"].to_vector<std::size_t>(),
-                                      {1, 1},
+                                      values["dilations"].to_vector<std::size_t>(),
                                       in_shape.lens(),
                                       paddings);
             }
@@ -187,6 +195,12 @@ struct parse_pooling : op_parser<parse_pooling>
         {
             values["stride"].resize(kdims);
             std::fill_n(values["stride"].begin(), kdims, 1);
+        }
+
+        if(values["dilations"].size() != kdims)
+        {
+            values["dilations"].resize(kdims);
+            std::fill_n(values["dilations"].begin(), kdims, 1);
         }
 
         // used to calculate the supposed output shape

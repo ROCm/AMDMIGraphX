@@ -59,7 +59,7 @@ struct pooling
     // 2 smaller than the input tensor rank (NCHW layout)
     std::vector<std::size_t> lengths = {1, 1};
 
-    // Spacing between the elements of the pooling kernel
+    // Spacing between the elements of the pooling kernel. Must be the same ndim as lengths.
     std::vector<std::size_t> dilations = {1, 1};
 
     // ceiling mode is a flag affecting output size
@@ -104,9 +104,11 @@ struct pooling
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
-        if(std::any_of(lengths.begin(), lengths.end(), [&](auto i) { return (i == 0); }) or
-           std::any_of(stride.begin(), stride.end(), [&](auto i) { return (i == 0); }) or
-           std::any_of(dilations.begin(), dilations.end(), [&](auto i) { return (i == 0); }))
+
+        const auto is_zero = [](auto el) { return el == 0; };
+        if(std::any_of(lengths.begin(), lengths.end(), is_zero) or
+           std::any_of(stride.begin(), stride.end(), is_zero) or
+           std::any_of(dilations.begin(), dilations.end(), is_zero))
         {
             MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride");
         }
@@ -131,9 +133,9 @@ struct pooling
 
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
-    std::size_t dilate_dim(std::size_t length, std::size_t dilation) const
+    std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
     {
-        return dilation * (length - 1) + 1;
+        return dilation * (dim - 1) + 1;
     }
 
     std::vector<std::size_t> calc_spatial_dim_out(const std::vector<std::size_t>& input_lens,
@@ -296,7 +298,7 @@ struct pooling
                 int start =
                     static_cast<int>(idx_o[dim] * stride[d_2]) - static_cast<int>(padding[d_2]);
                 int end;
-                auto dilated_kernel_dim = dilate_dim(kernel_dims[d_2], dilations[d_2]);
+                std::size_t dilated_kernel_dim = dilate_dim(kernel_dims[d_2], dilations[d_2]);
                 // NOLINT
                 if(count_include_pad and ceil_mode and (mode != pooling_mode::max))
                 {
@@ -326,15 +328,16 @@ struct pooling
             }
 
             shape win_shape{output_shape.type(), win_size};
-            auto pool_size    = shape{output_shape.type(), kernel_dims}.elements();
+            auto pool_size = std::accumulate(
+                kernel_dims.cbegin(), kernel_dims.cend(), 1, std::multiplies<std::size_t>());
             double output_val = op.template init<Type>();
 
             // for each element in the window...
             shape_for_each(win_shape, [&](auto idx_w) {
                 // Skip elements that belong to the dilated area
-                for(int index = 0; index < idx_w.size(); ++index)
+                for(int axis = 0; axis < idx_w.size(); ++axis)
                 {
-                    if(idx_w[index] % dilations[index])
+                    if(idx_w[axis] % dilations[axis])
                         return;
                 }
 

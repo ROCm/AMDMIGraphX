@@ -109,7 +109,7 @@ add_library(migraphx_gpu
     compiler.cpp
     device_name.cpp
     fuse_ck.cpp
-    fuse_mlir.cpp
+    mlir_offload.cpp
     fuse_ops.cpp
     gather.cpp
     gemm_impl.cpp

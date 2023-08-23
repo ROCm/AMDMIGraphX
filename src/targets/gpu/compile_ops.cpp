@@ -181,6 +181,7 @@ struct compile_plan
             MIGRAPHX_THROW("Multiple kernels without config");
         std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
                   << std::endl;
+        std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
         times.reserve(results.size());
         std::transform(
@@ -191,7 +192,9 @@ struct compile_plan
                     .first;
             });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
+        auto j = std::distance(times.begin(), std::max_element(times.begin(), times.end()));
         std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+        std::cout << "Slowest solution: " << config->solutions.at(j) << std::endl;
         std::cout << "Fastest time: " << *std::min_element(times.begin(), times.end()) << std::endl;
         std::cout << "Slowest time: " << *std::max_element(times.begin(), times.end()) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));

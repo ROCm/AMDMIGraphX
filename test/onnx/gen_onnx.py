@@ -6415,6 +6415,30 @@ def slice_test():
 
 
 @onnx_test()
+def slice_constant_test():
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])
+
+    x_tensor = helper.make_tensor(name='x_tensor',
+                                  data_type=TensorProto.FLOAT,
+                                  dims=[3, 2],
+                                  vals=[0, 1, 2, 3, 4, 5])
+
+    x = onnx.helper.make_node('Constant',
+                              inputs=[],
+                              outputs=['x'],
+                              value=x_tensor)
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['x'],
+                                 axes=[0, 1],
+                                 starts=[1, 0],
+                                 ends=[2, 2],
+                                 outputs=['1'])
+
+    return ([x, node], [], [y])
+
+
+@onnx_test()
 def slice_dyn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, None, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, None, 2])
@@ -6744,6 +6768,92 @@ def slice_max_end_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def slice_var_input_static0():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 2])
+    starts = helper.make_tensor_value_info('starts', TensorProto.INT32, [2])
+    ends = helper.make_tensor_value_info('ends', TensorProto.INT32, [2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['data', 'starts', 'ends'],
+                                 axes=[0, 1],
+                                 outputs=['output'])
+
+    return ([node], [data, starts, ends], [output])
+
+
+@onnx_test()
+def slice_var_input_static1():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 2])
+    starts = helper.make_tensor_value_info('starts', TensorProto.INT64, [2])
+    ends = helper.make_tensor_value_info('ends', TensorProto.INT64, [2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['data', 'starts', 'ends', 'axes'],
+                                 outputs=['output'])
+
+    return ([node], [data, starts, ends, axes], [output])
+
+
+@onnx_test()
+def slice_var_input_dyn0():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2])
+    starts = helper.make_tensor_value_info('starts', TensorProto.INT32, [2])
+    ends = helper.make_tensor_value_info('ends', TensorProto.INT32, [2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['data', 'starts', 'ends'],
+                                 axes=[0, 1],
+                                 outputs=['output'])
+
+    return ([node], [data, starts, ends], [output])
+
+
+@onnx_test()
+def slice_var_input_dyn1():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2])
+    starts = helper.make_tensor_value_info('starts', TensorProto.INT32, [2])
+    ends = helper.make_tensor_value_info('ends', TensorProto.INT32, [2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT32, [2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['data', 'starts', 'ends', 'axes'],
+                                 outputs=['output'])
+
+    return ([node], [data, starts, ends, axes], [output])
+
+
+@onnx_test()
+def slice_var_input_steps_error():
+    step = np.array([2, 1])
+    step_tensor = helper.make_tensor(name="step",
+                                     data_type=TensorProto.INT32,
+                                     dims=step.shape,
+                                     vals=step.astype(int))
+    arg_step = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_step'],
+                                value=step_tensor)
+
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 2])
+    starts = helper.make_tensor_value_info('starts', TensorProto.FLOAT, [2])
+    ends = helper.make_tensor_value_info('ends', TensorProto.FLOAT, [2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.FLOAT, [2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node(
+        'Slice',
+        inputs=['data', 'starts', 'ends', 'axes', 'arg_step'],
+        outputs=['output'])
+
+    return ([arg_step, node], [data, starts, ends, axes], [output])
 
 
 @onnx_test()

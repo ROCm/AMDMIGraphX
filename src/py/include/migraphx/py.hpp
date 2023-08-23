@@ -26,11 +26,12 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/py/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-program load_py(const std::string& filename);
+MIGRAPHX_PY_EXPORT program load_py(const std::string& filename);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -96,7 +96,7 @@ struct parse_randomuniform_ops : op_parser<parse_randomuniform_ops>
         if(contains(info.attributes, "seed"))
             gen.seed(info.attributes.at("seed").f());
 
-        std::uniform_real_distribution<> d(high, low);
+        std::uniform_real_distribution<> d(low, high);
         std::vector<double> rand_vals(out_shape.elements());
         std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 

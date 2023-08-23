@@ -330,13 +330,16 @@ struct find_mlir_standalone_convolution_op
 
 #endif // MIGRAPHX_MLIR
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_STANDALONE_CONVS);
+
 void mlir_offload::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     match::find_matches(mpm, find_mlir_fused_ops{});
 
     const auto& device = this->ctx->get_current_device();
-    if(starts_with(device.get_gfx_name(), "gfx110"))
+    const std::string navi_family{"gfx110"};
+    if(starts_with(device.get_gfx_name(), navi_family) or enabled(MIGRAPHX_MLIR_STANDALONE_CONVS{}))
     {
         match::find_matches(mpm, find_mlir_standalone_convolution_op{});
     }

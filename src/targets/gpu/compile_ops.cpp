@@ -212,11 +212,15 @@ struct parallel_work
     std::size_t stop              = 0;
     std::shared_ptr<std::mutex> m = std::make_shared<std::mutex>();
 
-    // parallel_work(parallel_work&&) noexcept = default;
+    bool empty() const
+    {
+        std::lock_guard<std::mutex> guard(*m);
+        return start >= stop;
+    }
     optional<std::size_t> pop()
     {
         std::lock_guard<std::mutex> guard(*m);
-        if(stop >= start)
+        if(start >= stop)
             return nullopt;
         return start++;
     }
@@ -228,13 +232,12 @@ void par_compile(std::size_t n, F f)
     if(n == 0)
         return;
     std::cout << "Compile: " << n << std::endl;
-    auto d = value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, std::thread::hardware_concurrency());
+    auto d = std::min(n, value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, std::thread::hardware_concurrency()));
     std::size_t grainsize = std::ceil(static_cast<double>(n) / d);
     std::vector<parallel_work> pw(d);
     std::size_t work = 0;
     std::generate(pw.begin(), pw.end(), [&] {
-        std::cout << "Work: " << work << ", " << (work + grainsize) << std::endl;
-        parallel_work p{work, work + grainsize};
+        parallel_work p{work, std::min(n, work + grainsize)};
         work += grainsize;
         return p;
     });
@@ -249,10 +252,7 @@ void par_compile(std::size_t n, F f)
                 return false;
             auto w = pw[k].pop();
             if(w.has_value())
-            {
-                std::cout << "Steal" << std::endl;
                 f(*w);
-            }
             return w.has_value();
         }))
             ;

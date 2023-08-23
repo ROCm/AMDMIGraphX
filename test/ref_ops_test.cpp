@@ -6564,6 +6564,54 @@ TEST_CASE(reduce_max_axis02)
     EXPECT(results_vector == gold);
 }
 
+template <typename T, bool dynamic = false>
+void reduce_op_axes_input_test(const std::string op_name,
+                               std::vector<int64_t> axes,
+                               std::vector<T> gold)
+{
+    migraphx::program p;
+    auto* mm               = p.get_main_module();
+    auto data_static_shape = migraphx::shape{migraphx::shape::get_type<T>{}, {3, 2, 2}};
+    auto data_shape        = dynamic ? migraphx::shape{migraphx::shape::get_type<T>{},
+                                                {{2, 5, {}}, {2, 3, {}}, {2, 3, {}}}}
+                                     : data_static_shape;
+    auto data_param        = mm->add_parameter("data", data_shape);
+    auto axes_shape        = migraphx::shape{migraphx::shape::int64_type, {axes.size()}};
+    auto axes_param        = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op(op_name, {}), data_param, axes_param);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    T data[12]     = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    params["data"] = migraphx::argument(data_static_shape, data);
+    params["axes"] = migraphx::argument(axes_shape, axes.data());
+    auto result    = p.eval(params).back();
+
+    std::vector<T> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_max_axes_input_axis0)
+{
+    reduce_op_axes_input_test<float>("reduce_max", {0}, {9, 10, 11, 12});
+}
+
+TEST_CASE(reduce_max_axes_input_axes01)
+{
+    reduce_op_axes_input_test<float>("reduce_max", {0, 1}, {11, 12});
+}
+
+TEST_CASE(reduce_max_axes_input_axes02)
+{
+    reduce_op_axes_input_test<float>("reduce_max", {0, 2}, {10, 12});
+}
+
+TEST_CASE(reduce_max_dynamic_data_axes_input_axis0)
+{
+    reduce_op_axes_input_test<float, true>("reduce_max", {0}, {9, 10, 11, 12});
+}
+
 TEST_CASE(reduce_mean_axis02)
 {
     migraphx::program p;
@@ -6644,6 +6692,31 @@ TEST_CASE(reduce_mean_int)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(reduce_mean_axes_input_axes02)
+{
+    reduce_op_axes_input_test<float>("reduce_mean", {0, 2}, {5.5f, 7.5f});
+}
+
+TEST_CASE(reduce_mean_axes_input_axis1)
+{
+    reduce_op_axes_input_test<float>("reduce_mean", {1}, {2, 3, 6, 7, 10, 11});
+}
+
+TEST_CASE(reduce_mean_axes_input_axes12)
+{
+    reduce_op_axes_input_test<float>("reduce_mean", {1, 2}, {2.5f, 6.5f, 10.5f});
+}
+
+TEST_CASE(reduce_mean_axes_input_axis2)
+{
+    reduce_op_axes_input_test<float>("reduce_mean", {2}, {1.5f, 3.5f, 5.5f, 7.5f, 9.5f, 11.5f});
+}
+
+TEST_CASE(reduce_mean_int_axes_input_axes12)
+{
+    reduce_op_axes_input_test<int32_t>("reduce_mean", {1, 2}, {2, 6, 10});
+}
+
 TEST_CASE(reduce_min_axis02)
 {
     migraphx::program p;
@@ -6690,6 +6763,21 @@ TEST_CASE(reduce_min_axis12)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1, 5, 9};
     EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_min_axes_input_axes02)
+{
+    reduce_op_axes_input_test<float>("reduce_min", {0, 2}, {1, 3});
+}
+
+TEST_CASE(reduce_min_axes_input_axis1)
+{
+    reduce_op_axes_input_test<float>("reduce_min", {1}, {1, 2, 5, 6, 9, 10});
+}
+
+TEST_CASE(reduce_min_axes_input_axes12)
+{
+    reduce_op_axes_input_test<float>("reduce_min", {1, 2}, {1, 5, 9});
 }
 
 TEST_CASE(reduce_prod_axis0)

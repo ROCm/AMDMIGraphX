@@ -59,6 +59,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
+#include <migraphx/gpu/standalone_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -143,6 +144,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 #endif
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
+        enable_pass(mlir_enabled(), standalone_mlir{&ctx}),
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

@@ -232,7 +232,8 @@ void par_compile(std::size_t n, F f)
     if(n == 0)
         return;
     std::cout << "Compile: " << n << std::endl;
-    auto d = std::min(n, value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, std::thread::hardware_concurrency()));
+    auto d =
+        std::min(n, value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, std::thread::hardware_concurrency()));
     std::size_t grainsize = std::ceil(static_cast<double>(n) / d);
     std::vector<parallel_work> pw(d);
     std::size_t work = 0;

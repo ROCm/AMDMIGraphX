@@ -32,6 +32,8 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/time_op.hpp>
 
+#include <mutex>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -204,15 +206,54 @@ struct compile_plan
     }
 };
 
+struct parallel_work
+{
+    std::size_t start = 0;
+    std::size_t stop = 0;
+    std::shared_ptr<std::mutex> m = std::make_shared<std::mutex>();
+
+    // parallel_work(parallel_work&&) noexcept = default;
+    optional<std::size_t> pop() {
+        std::lock_guard<std::mutex> guard(*m);
+        if (stop >= start)
+            return nullopt;
+        return start++;
+    }
+};
+
 template <class F>
 void par_compile(std::size_t n, F f)
 {
     if(n == 0)
         return;
-    auto d = value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{});
-    if(d == 0)
-        d = n;
-    par_for(n, n / d, f);
+    std::cout << "Compile: " << n << std::endl;
+    auto d = value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, std::thread::hardware_concurrency());
+    std::size_t grainsize = std::ceil(static_cast<double>(n) / d);
+    std::vector<parallel_work> pw(d);
+    std::size_t work = 0;
+    std::generate(pw.begin(), pw.end(), [&] {
+            std::cout << "Work: " << work << ", " << (work + grainsize) << std::endl;
+            parallel_work p{work, work + grainsize};
+            work += grainsize;
+            return p;
+        });
+    if(work < n)
+        MIGRAPHX_THROW("Work missing");
+    par_for(d, 1, [&](auto i) {
+        while(auto w = pw[i].pop())
+            f(*w);
+        while(any_of(range(d), [&](auto j) {
+                auto k = (j + i + 1) % d;
+                if (k == i)
+                    return false;
+                auto w = pw[k].pop();
+                if (w.has_value()) {
+                    std::cout << "Steal" << std::endl;
+                    f(*w);
+                }
+                return w.has_value();
+            }));
+    });
 }
 
 struct compile_manager

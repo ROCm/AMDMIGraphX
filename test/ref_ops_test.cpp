@@ -6498,7 +6498,7 @@ TEST_CASE(random_uniform_int_test)
     // random uniform distribution with an integer type input shape
     migraphx::program p;
     auto* mm = p.get_main_module();
-    uint64_t seed(0);
+    float seed(0.1);
     size_t sample_size(200);
 
     //      Shape of the random data
@@ -6509,8 +6509,8 @@ TEST_CASE(random_uniform_int_test)
     auto input = mm->add_literal(migraphx::literal(rs, data));
 
     // Runtime randomization seed
-    migraphx::shape seed_shape{migraphx::shape::uint64_type, {1}};
-    std::vector<uint64_t> seed_data{seed};
+    migraphx::shape seed_shape{migraphx::shape::float_type, {1}};
+    std::vector<float> seed_data{seed};
     auto seed_input = mm->add_literal(migraphx::literal(seed_shape, seed_data));
 
     mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, input);

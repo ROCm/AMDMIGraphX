@@ -44,35 +44,30 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/reflect.hpp>
 #include <random>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * random_uniform populates the passed shape with random numbers, in a uniform
+ * distribution.  Range for floating-point data types is (0, 1);
+ * for integer types it is [0, <max value for the type>]
+ *
+ *   Input 1:  seed
+ *   Input 2:  output shape
+ */
 struct random_uniform
 {
-    // The random_uniform operation does not contain a random number generator seed
-    // as a member, and expects it to be passed as a runtime input.
+    // The random_uniform operation needs the random number generator seed
+    // to be passed as a runtime input.
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack();
-    }
-
-    /**
-     *   Input 1:  seed
-     *   Input 2:  output shape
-     */
     std::string name() const { return "random_uniform"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
 
-        if(inputs.front().type() != shape::type_t::uint64_type)
-            MIGRAPHX_THROW("RANDOM_UNIFORM:  Input 1 (seed) must have type long unsigned int");
         auto s = inputs.at(1);
         if(s.dynamic())
         {
@@ -98,7 +93,7 @@ struct random_uniform
             {
                 // default range for all integer types is (0,
                 // std::uniform_int_distribution<type>::max()).
-                // To clamp to a different range, apply min or max ops. to the output of this.
+                // Todo:  enable different ranges
                 std::uniform_int_distribution<type> dis;
                 std::generate(output.begin(), output.end(), [&] { return dis(gen); });
             }

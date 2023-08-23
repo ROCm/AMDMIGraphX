@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/fuse_mlir.hpp>
-#include <migraphx/gpu/standalone_mlir.hpp>
+#include "migraphx/shape.hpp"
+#include <migraphx/gpu/mlir_offload.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -147,9 +147,7 @@ fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op)
         mm->add_instruction(gemm_based_op->get_operator(), imm_inputs);
     return {new_gemm_based_op, top_inputs};
 }
-} // namespace
 
-namespace {
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
     if(ins->name() != "convolution" and ins->name() != "quant_convolution")
@@ -164,7 +162,7 @@ MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
     return true;
 }
 
-struct find_mlir_op
+struct find_mlir_fused_ops
 {
     auto matcher() const
     {
@@ -302,46 +300,19 @@ struct find_mlir_op
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 };
-} // namespace
-
-#endif // MIGRAPHX_MLIR
-
-void fuse_mlir::apply(module_pass_manager& mpm) const
-{
-#ifdef MIGRAPHX_MLIR
-    match::find_matches(mpm, find_mlir_op{});
-#else
-    (void)mpm;
-#endif
-}
-
-#ifdef MIGRAPHX_MLIR
-
-namespace {
-MIGRAPHX_PRED_MATCHER(is_supported_arch, instruction_ref)
-{
-    // TODO(ravil): debug
-    static std::unordered_set<std::string> supported_consumer_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
-
-    // static std::unordered_set<std::string> supported_consumer_archs{"gfx1030"};
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    if(contains(supported_consumer_archs, device_name))
-        return true;
-    return false;
-}
 
 struct find_mlir_standalone_convolution_op
 {
-    auto matcher() const { return match::name("convolution")(is_supported_arch); }
+    auto matcher() const { return match::name("convolution"); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto conv_based_op = r.result;
-        // Only fuse with fp32/fp16
+        // enable only for fp32/fp16/i8 types
         if(std::any_of(conv_based_op->inputs().begin(), conv_based_op->inputs().end(), [&](auto i) {
-               return not contains({shape::type_t::float_type, shape::type_t::half_type},
-                                   i->get_shape().type());
+               return not contains(
+                   {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
+                   i->get_shape().type());
            }))
             return;
 
@@ -354,14 +325,21 @@ struct find_mlir_standalone_convolution_op
             conv_based_op, mlir_op{conv_based_op->get_operator()}, top_inputs, {mm});
     }
 };
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
 
-void standalone_mlir::apply(module_pass_manager& mpm) const
+void mlir_offload::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    match::find_matches(mpm, find_mlir_standalone_convolution_op{});
+    match::find_matches(mpm, find_mlir_fused_ops{});
+
+    const auto& device = this->ctx->get_current_device();
+    if(starts_with(device.get_gfx_name(), "gfx110"))
+    {
+        match::find_matches(mpm, find_mlir_standalone_convolution_op{});
+    }
 #else
     (void)mpm;
 #endif

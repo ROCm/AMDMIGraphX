@@ -292,7 +292,7 @@ struct parse_resize : op_parser<parse_resize>
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
         args[0]                       = info.make_contiguous(args[0]);
-        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+        auto rsp = info.add_instruction(make_op("reshape_lazy", {{"dims", rsp_lens}}), args[0]);
 
         if(mode == "nearest")
         {

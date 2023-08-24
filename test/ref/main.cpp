@@ -21,6 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
+#include <test.hpp>
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

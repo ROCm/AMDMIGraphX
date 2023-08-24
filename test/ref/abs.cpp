@@ -28,7 +28,6 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 
-
 #include "test.hpp"
 
 TEST_CASE(abs_test)

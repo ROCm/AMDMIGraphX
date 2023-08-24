@@ -21,25 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iostream>
-#include <vector>
-#include <cmath>
-#include <random>
-#include <limits>
 #include <migraphx/literal.hpp>
-#include <migraphx/op/pooling.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/quantization.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/serialize.hpp>
-
 #include "test.hpp"
-#include <migraphx/half.hpp>
-#include <iomanip>
 
 TEST_CASE(acos_test)
 {
@@ -81,5 +70,3 @@ TEST_CASE(acos_dyn_test)
         gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

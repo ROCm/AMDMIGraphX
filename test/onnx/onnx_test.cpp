@@ -2197,7 +2197,7 @@ TEST_CASE(gather_elements_axis0_test)
         mm->add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
     auto l_stride = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {4}});
 
-    auto rsp_data    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+    auto rsp_data = mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {12}}}), data);
     auto lbst_stride = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
     auto axis_delta = mm->add_instruction(migraphx::make_op("sub"), indices, l_ind_axis_indices);
@@ -2226,7 +2226,7 @@ TEST_CASE(gather_elements_axis1_test)
         mm->add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
     auto l_stride = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {1}});
 
-    auto rsp_data    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+    auto rsp_data = mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {12}}}), data);
     auto lbst_stride = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
     auto axis_delta = mm->add_instruction(migraphx::make_op("sub"), indices, l_ind_axis_indices);

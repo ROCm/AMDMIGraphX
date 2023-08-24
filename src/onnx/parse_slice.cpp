@@ -44,6 +44,8 @@ struct parse_slice : op_parser<parse_slice>
         std::vector<int64_t> steps;
         std::vector<int64_t> raxes;
 
+        void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
+
         std::vector<int64_t> insert(instruction_ref arg)
         {
             std::vector<int64_t> result;
@@ -132,7 +134,7 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         // data input argument
-        sd.insert(args.at(0));
+        sd.always_insert(args.at(0));
 
         // If axes arg is not given, the default is all of them.
         if(sd.op.axes.empty() and sd.op_args.size() < 3)

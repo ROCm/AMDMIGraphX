@@ -6480,8 +6480,8 @@ TEST_CASE(random_uniform_test)
     mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, input);
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::parameter_map params0;
-    auto result = p.eval(params0).back();
+    // no params_map needed
+    auto result = p.eval({}).back();
     std::vector<float> result_vec(sample_size);
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
@@ -6490,7 +6490,7 @@ TEST_CASE(random_uniform_test)
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);
     std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-    EXPECT(migraphx::verify::verify_range(result_vec, rand_samples, 100000));
+    EXPECT(migraphx::verify::verify_range(result_vec, rand_samples, 100));
 }
 
 TEST_CASE(random_uniform_int_test)
@@ -6611,7 +6611,7 @@ TEST_CASE(random_seed_test)
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    std::vector<uint32_t> result_vec1(1);
+    std::vector<uint64_t> result_vec1(1);
     result.visit([&](auto output) { result_vec1.assign(output.begin(), output.end()); });
     std::vector<uint64_t> result_vec2(1);
 

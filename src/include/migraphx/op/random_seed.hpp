@@ -27,8 +27,6 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/par_for.hpp>
-#include <migraphx/reflect.hpp>
 #include <random>
 
 namespace migraphx {

@@ -29,7 +29,7 @@
  * be given as a runtime argument containing a single value, or a compile-time
  * attribute.
  *
- *      Inputs:   (1) randomization seed (uint64)
+ *      Inputs:   (1) randomization seed (any type is allowed)
  *                (2) the shape of the set to be populated.
  *
  *
@@ -43,7 +43,6 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/par_for.hpp>
 #include <random>
 
 namespace migraphx {
@@ -68,15 +67,7 @@ struct random_uniform
     {
         check_shapes{inputs, *this, true}.has(2);
 
-        auto s = inputs.at(1);
-        if(s.dynamic())
-        {
-            return s;
-        }
-        else
-        {
-            return s.with_lens(s.lens());
-        }
+        return inputs.at(1);
     }
 
     argument compute(const shape&, std::vector<argument> args) const

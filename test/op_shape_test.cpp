@@ -2226,7 +2226,7 @@ TEST_CASE(random_uniform)
 
 TEST_CASE(random_seed)
 {
-    migraphx::shape s{migraphx::shape::uint64_type, {1}};
+    migraphx::shape s{migraphx::shape::uint64_type, {1}, {0}};
     expect_shape(s, migraphx::make_op("random_seed"));
 }
 

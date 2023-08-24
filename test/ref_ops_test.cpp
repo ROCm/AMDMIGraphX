@@ -6614,7 +6614,8 @@ TEST_CASE(random_seed_test)
     std::vector<uint64_t> result_vec1(1);
     result.visit([&](auto output) { result_vec1.assign(output.begin(), output.end()); });
     std::vector<uint64_t> result_vec2(1);
-
+    // Identical calls should give different seeds every time with 1/(2^64) chance of a repeat.
+    // We don't analyze for true randomness.
     result = p.eval({}).back();
     result.visit([&](auto output) { result_vec2.assign(output.begin(), output.end()); });
     EXPECT(result_vec1[0] != result_vec2[0]);

@@ -31,25 +31,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-const auto& reshaper_op_names()
-{
-    // clang-format off
-    static const std::unordered_set<std::string> names = {
-        "flatten",
-        "reshape",
-        "contiguous",
-        "squeeze",
-        "unsqueeze"
-        "transpose",
-        "multibroadcast",
-        "broadcast"
-    };
-    // clang-format on
-    return names;
-}
-
-bool is_reshaper_op(instruction_ref ins) { return contains(reshaper_op_names(), ins->name()); }
-
 void auto_contiguous::apply(module& m) const
 {
     std::string key = "require_std_shape";

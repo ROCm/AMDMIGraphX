@@ -27,6 +27,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <random>
 
 #include <test.hpp>
 

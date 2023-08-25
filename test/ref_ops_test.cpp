@@ -6573,7 +6573,6 @@ TEST_CASE(random_uniform_and_seed_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    float control_seed = 0.0f;
     size_t sample_size(20000);
 
     //      Shape of the random data
@@ -6592,15 +6591,8 @@ TEST_CASE(random_uniform_and_seed_test)
     params0["Input_1"] = migraphx::argument(input_fixed_shape1);
     auto result        = p.eval(params0).back();
 
-    std::vector<float> result_vec(sample_size);
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    // Compare result with the STL's mt19937 generator.  Expected verify_range error ~0.4
-    std::mt19937 gen(control_seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<float> rand_samples(sample_size);
-    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-    EXPECT(migraphx::verify::verify_range(result_vec, rand_samples, 1.e8));
+    result.visit([&](auto output) { EXPECT(output.size() == sample_size); });
+    // Do not check the content of the data since it's not repeatable
 }
 
 TEST_CASE(random_seed_test)

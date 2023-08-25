@@ -34,7 +34,7 @@ namespace op {
 
 /**
  * fill(default_value, output_buffer)
- * Fill an output buffer with the given scalar value.
+ * Fill an output buffer with the given default_value.
  * Note that if the default_value is a literal and the output_buffer
  * has a static shape this operator can be replaced with a literal.
  */
@@ -45,10 +45,12 @@ struct fill
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2).same_type();
-        // check that the default_value input is static and a scalar
-        check_shapes{
-            inputs.begin(), inputs.begin() + 1, std::string("FILL (literal/value input)"), false}
-            .scalar();
+        // check that the shape of default_value is static
+        check_shapes{inputs.begin(), inputs.begin() + 1, std::string("FILL (literal/value input)"), false};
+        if(inputs.at(0).elements() != 1)
+        {
+            MIGRAPHX_THROW("FILL: default_value is more than one element");
+        }
         return inputs.back();
     }
 

@@ -384,32 +384,16 @@ struct miopen_apply
     void add_reshape_lazy_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
-            /* Attempt lazy reshape to allow for aliasing. Potentially throws in get_shape if unable
-             * to alias */
-            try
-            {
-                auto lazy_ins = mod->replace_instruction(
-                    ins,
-                    make_op("reshape_lazy",
-                            {{"dims", {ins->get_operator().to_value().at("dims")}}}),
-                    ins->inputs(),
-                    ins->module_inputs());
-                return lazy_ins;
-            }
-            catch(...)
-            {
-                auto output                       = insert_allocation(ins, ins->get_shape());
-                std::vector<instruction_ref> refs = ins->inputs();
-                refs.push_back(output);
 
-                auto contig = mod->replace_instruction(ins, make_op("gpu::contiguous"), refs);
-                return mod->insert_instruction(
-                    contig,
-                    make_op("reshape_lazy",
-                            {{"dims", {ins->get_operator().to_value().at("dims")}}}),
-                    ins->inputs(),
-                    ins->module_inputs());
-            }
+            auto lazy_ins = mod->replace_instruction(ins,
+                make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+                ins->inputs(), ins->module_inputs());
+
+            auto output2                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs2 = ins->inputs();
+            refs2.push_back(output2);
+
+            return mod->insert_instruction(lazy_ins, make_op("gpu::contiguous"), refs2);
         });
     }
 };

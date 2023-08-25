@@ -631,16 +631,17 @@ struct find_broadcast_transpose
 {
     auto matcher() const
     {
-        return match::name("multibroadcast")(match::all_of[match::outputs()](match::name("transpose").bind("trans_ins")));
+        return match::name("multibroadcast")(
+            match::all_of[match::outputs()](match::name("transpose").bind("trans_ins")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto ins_lens = ins->get_shape().lens();
-        auto input = ins->inputs().front();
-        auto input_lens = input->get_shape().lens();
-        auto trans_ins = r.instructions["trans_ins"];
+        auto ins         = r.result;
+        auto ins_lens    = ins->get_shape().lens();
+        auto input       = ins->inputs().front();
+        auto input_lens  = input->get_shape().lens();
+        auto trans_ins   = r.instructions["trans_ins"];
         auto trans_shape = trans_ins->get_shape();
         auto permutation = trans_ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
 
@@ -669,8 +670,12 @@ struct find_broadcast_transpose
             }
         }
 
-        auto unsqueeze_ins = m.insert_instruction(trans_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
-        auto mbcast_ins = m.insert_instruction(trans_ins, make_op("multibroadcast", {{"out_lens", trans_shape.lens()}}), unsqueeze_ins);
+        auto unsqueeze_ins = m.insert_instruction(
+            trans_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
+        auto mbcast_ins =
+            m.insert_instruction(trans_ins,
+                                 make_op("multibroadcast", {{"out_lens", trans_shape.lens()}}),
+                                 unsqueeze_ins);
         m.replace_instruction(trans_ins, mbcast_ins);
     }
 };

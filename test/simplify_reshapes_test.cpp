@@ -207,16 +207,18 @@ TEST_CASE(broadcast_transpose)
     auto* mm = p.get_main_module();
 
     auto l  = mm->add_parameter("x", {migraphx::shape::float_type, {1024}});
-    auto mb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3072, 1024}}}), l);
+    auto mb = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 3072, 1024}}}), l);
     auto t1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), mb);
     mm->add_return({t1});
-    
+
     run_pass(*mm);
     migraphx::program p2;
-    mm = p2.get_main_module();
-    l = mm->add_parameter("x", {migraphx::shape::float_type, {1024}});
+    mm             = p2.get_main_module();
+    l              = mm->add_parameter("x", {migraphx::shape::float_type, {1024}});
     auto unsqueeze = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), l);
-    mb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1024, 3072}}}), unsqueeze); 
+    mb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1024, 3072}}}),
+                             unsqueeze);
     mm->add_return({mb});
     EXPECT(p == p2);
     // EXPECT(not mm->get_output_shapes().back().standard());

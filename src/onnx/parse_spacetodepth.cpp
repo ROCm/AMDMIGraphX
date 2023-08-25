@@ -71,9 +71,9 @@ struct parse_spacetodepth : op_parser<parse_spacetodepth>
         trans_lens.push_back(res_lens[3]);
         trans_lens.push_back(blocksize); // {N, C, Ho, blocksize, Wo, blocksize}
         std::vector<int64_t> perm = {0, 3, 5, 1, 2, 4};
-        auto temp1 = info.add_instruction(make_op("reshape_lazy", {{"dims", trans_lens}}), args[0]);
+        auto temp1 = info.add_instruction(make_op("reshape", {{"dims", trans_lens}}), args[0]);
         auto temp2 = info.add_instruction(make_op("transpose", {{"permutation", perm}}), temp1);
-        return info.add_instruction(make_op("reshape_lazy", {{"dims", res_lens}}),
+        return info.add_instruction(make_op("reshape", {{"dims", res_lens}}),
                                     info.make_contiguous(temp2));
     }
 };

@@ -495,6 +495,7 @@ TEST_CASE(conv_pooling_dot)
                                                   {"padding", {0, 0, 0, 0}},
                                                   {"stride", {1, 1}},
                                                   {"lengths", {7, 7}},
+                                                  {"dilations", {1, 1}},
                                                   {"ceil_mode", 0}}),
                                a1);
         auto fl  = m1.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
@@ -543,6 +544,7 @@ TEST_CASE(conv_pooling_dot)
                                                   {"padding", {0, 0, 0, 0}},
                                                   {"stride", {1, 1}},
                                                   {"lengths", {7, 7}},
+                                                  {"dilations", {1, 1}},
                                                   {"ceil_mode", 0}}),
                                a1);
         auto fl  = m2.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
@@ -603,6 +605,7 @@ TEST_CASE(mobilenet_snippet)
                                                   {"padding", {0, 0, 0, 0}},
                                                   {"stride", {1, 1}},
                                                   {"lengths", {7, 7}},
+                                                  {"dilations", {1, 1}},
                                                   {"ceil_mode", 0}}),
                                d6);
         auto q3  = add_quantize_op(mm, "quantizelinear", ap, scale, zero);

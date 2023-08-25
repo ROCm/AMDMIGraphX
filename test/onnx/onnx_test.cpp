@@ -267,7 +267,8 @@ TEST_CASE(averagepool_1d_test)
                                           {{"mode", migraphx::op::pooling_mode::average},
                                            {"padding", {0, 0}},
                                            {"stride", {1}},
-                                           {"lengths", {3}}}),
+                                           {"lengths", {3}},
+                                           {"dilations", {1}}}),
                         l0);
 
     auto prog = optimize_onnx("averagepool_1d_test.onnx");
@@ -283,7 +284,8 @@ TEST_CASE(averagepool_3d_test)
                                           {{"mode", migraphx::op::pooling_mode::average},
                                            {"padding", {0, 0, 0, 0, 0, 0}},
                                            {"stride", {1, 1, 1}},
-                                           {"lengths", {3, 3, 3}}}),
+                                           {"lengths", {3, 3, 3}},
+                                           {"dilations", {1, 1, 1}}}),
                         l0);
 
     auto prog = optimize_onnx("averagepool_3d_test.onnx");
@@ -300,7 +302,8 @@ TEST_CASE(averagepool_dyn_test)
                                                      {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {0, 0, 0, 0, 0, 0}},
                                                       {"stride", {1, 1, 1}},
-                                                      {"lengths", {3, 3, 3}}}),
+                                                      {"lengths", {3, 3, 3}},
+                                                      {"dilations", {1, 1, 1}}}),
                                    l0);
     mm->add_return({ret});
 
@@ -343,7 +346,8 @@ TEST_CASE(averagepool_notset_test)
                                                      {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {2, 2, 2, 2}},
                                                       {"stride", {2, 2}},
-                                                      {"lengths", {6, 6}}}),
+                                                      {"lengths", {6, 6}},
+                                                      {"dilations", {1, 1}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {2, 2}}}), ins);
@@ -364,7 +368,8 @@ TEST_CASE(averagepool_nt_cip_test)
                                                      {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {0, 0, 0, 0}},
                                                       {"stride", {2, 2}},
-                                                      {"lengths", {6, 6}}}),
+                                                      {"lengths", {6, 6}},
+                                                      {"dilations", {1, 1}}}),
                                    ins_pad);
     mm->add_return({ret});
 
@@ -381,7 +386,8 @@ TEST_CASE(averagepool_same_lower_test)
                                                      {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {1, 1, 1, 1}},
                                                       {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}}}),
+                                                      {"lengths", {2, 2}},
+                                                      {"dilations", {1, 1}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {5, 5}}}), ins);
@@ -402,7 +408,8 @@ TEST_CASE(averagepool_sl_cip_test)
                                                      {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {0, 0, 0, 0}},
                                                       {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}}}),
+                                                      {"lengths", {2, 2}},
+                                                      {"dilations", {1, 1}}}),
                                    ins_pad);
     mm->add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_sl_cip_test.onnx");
@@ -419,7 +426,8 @@ TEST_CASE(averagepool_same_upper_test)
                                                      {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {1, 1, 1, 1}},
                                                       {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}}}),
+                                                      {"lengths", {2, 2}},
+                                                      {"dilations", {1, 1}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), ins);
@@ -1126,7 +1134,8 @@ TEST_CASE(conv_bn_relu_maxpool_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 0, 0}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         l7);
 
     auto prog = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
@@ -1324,7 +1333,8 @@ TEST_CASE(conv_relu_maxpool_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 0, 0}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         l6);
 
     auto prog = optimize_onnx("conv_relu_maxpool_test.onnx");
@@ -1349,7 +1359,8 @@ TEST_CASE(conv_relu_maxpool_x2_test)
                                                     {{"mode", migraphx::op::pooling_mode::max},
                                                      {"padding", {0, 0, 0, 0}},
                                                      {"stride", {2, 2}},
-                                                     {"lengths", {2, 2}}}),
+                                                     {"lengths", {2, 2}},
+                                                     {"dilations", {1, 1}}}),
                                   l6);
 
     auto l8 = mm->add_parameter("3", {migraphx::shape::float_type, {1, 5, 5, 5}});
@@ -1365,7 +1376,8 @@ TEST_CASE(conv_relu_maxpool_x2_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 0, 0}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         l13);
 
     auto prog = optimize_onnx("conv_relu_maxpool_x2_test.onnx");
@@ -3711,6 +3723,7 @@ TEST_CASE(lppool_l1_test)
                                            {"padding", {0, 0}},
                                            {"stride", {1}},
                                            {"lengths", {3}},
+                                           {"dilations", {1}},
                                            {"lp_order", 1}}),
                         l0);
     auto prog = optimize_onnx("lppool_l1_test.onnx");
@@ -3727,6 +3740,7 @@ TEST_CASE(lppool_l2_test)
                                            {"padding", {0, 0}},
                                            {"stride", {1}},
                                            {"lengths", {3}},
+                                           {"dilations", {1}},
                                            {"lp_order", 2}}),
                         l0);
     auto prog = optimize_onnx("lppool_l2_test.onnx");
@@ -3979,7 +3993,8 @@ TEST_CASE(maxpool_notset_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 1, 1}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {6, 6}}}),
+                                           {"lengths", {6, 6}},
+                                           {"dilations", {1, 1}}}),
                         input);
 
     auto prog = optimize_onnx("maxpool_notset_test.onnx");
@@ -3996,7 +4011,8 @@ TEST_CASE(maxpool_same_upper_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 1, 1}},
                                            {"stride", {1, 1}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         input);
 
     auto prog = optimize_onnx("maxpool_same_upper_test.onnx");

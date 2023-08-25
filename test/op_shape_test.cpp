@@ -2071,7 +2071,8 @@ TEST_CASE(pooling_shape0)
                                    {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {1}},
                                     {"stride", {0}},
-                                    {"lengths", {1}}}),
+                                    {"lengths", {1}},
+                                    {"dilations", {1}}}),
                  input);
 }
 
@@ -2084,7 +2085,8 @@ TEST_CASE(pooling_shape1)
                                    {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
-                                    {"lengths", {1, 1}}}),
+                                    {"lengths", {1, 1}},
+                                    {"dilations", {1, 1}}}),
                  input);
 }
 
@@ -2098,6 +2100,7 @@ TEST_CASE(pooling_shape2)
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
                                     {"lengths", {1, 1}},
+                                    {"dilations", {1, 1}},
                                     {"ceil_mode", true}}),
                  input);
 }
@@ -2112,6 +2115,7 @@ TEST_CASE(pooling_shape3)
                                     {"padding", {2, 2}},
                                     {"stride", {3, 3}},
                                     {"lengths", {3, 3}},
+                                    {"dilations", {1, 1}},
                                     {"ceil_mode", true}}),
                  input);
 }
@@ -2123,7 +2127,8 @@ TEST_CASE(pooling_dyn_shape0)
                                    {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {1}},
                                     {"stride", {0}},
-                                    {"lengths", {1}}}),
+                                    {"lengths", {1}},
+                                    {"dilations", {1}}}),
                  input);
 }
 
@@ -2136,7 +2141,8 @@ TEST_CASE(pooling_dyn_shape1)
                                    {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
-                                    {"lengths", {1, 1}}}),
+                                    {"lengths", {1, 1}},
+                                    {"dilations", {1, 1}}}),
                  input);
 }
 
@@ -2150,6 +2156,7 @@ TEST_CASE(pooling_dyn_shape2)
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
                                     {"lengths", {1, 1}},
+                                    {"dilations", {1, 1}},
                                     {"ceil_mode", true}}),
                  input);
 }
@@ -2164,7 +2171,8 @@ TEST_CASE(pooling_dyn_shape3)
                                    {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
-                                    {"lengths", {1, 1}}}),
+                                    {"lengths", {1, 1}},
+                                    {"dilations", {1, 1}}}),
                  input);
 }
 
@@ -2179,6 +2187,7 @@ TEST_CASE(pooling_dyn_shape4)
                                     {"padding", {2, 2}},
                                     {"stride", {3, 3}},
                                     {"lengths", {3, 3}},
+                                    {"dilations", {1, 1}},
                                     {"ceil_mode", true}}),
                  input);
 }

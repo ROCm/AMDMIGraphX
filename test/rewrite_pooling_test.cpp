@@ -53,7 +53,8 @@ TEST_CASE(rewrite_pooling_test)
                                                        {{"mode", mode},
                                                         {"padding", {0, 0, 0}},
                                                         {"stride", {1, 1, 1}},
-                                                        {"lengths", {3, 4, 5}}}),
+                                                        {"lengths", {3, 4, 5}},
+                                                        {"dilations", {1, 1, 1}}}),
                                      input);
         m.add_return({ret});
         return m;
@@ -94,7 +95,8 @@ TEST_CASE(rewrite_avepooling_na1_test)
                                                 {{"mode", migraphx::op::pooling_mode::average},
                                                  {"padding", {0, 1, 0}},
                                                  {"stride", {1, 1, 1}},
-                                                 {"lengths", {3, 4, 5}}}),
+                                                 {"lengths", {3, 4, 5}},
+                                                 {"dilations", {1, 1, 1}}}),
                               input);
         m.add_return({ret});
         return m;
@@ -119,7 +121,8 @@ TEST_CASE(rewrite_avepooling_na2_test)
                                                 {{"mode", migraphx::op::pooling_mode::average},
                                                  {"padding", {0, 0, 0}},
                                                  {"stride", {1, 2, 1}},
-                                                 {"lengths", {3, 4, 5}}}),
+                                                 {"lengths", {3, 4, 5}},
+                                                 {"dilations", {1, 1, 1}}}),
                               input);
         m.add_return({ret});
         return m;
@@ -143,7 +146,8 @@ TEST_CASE(rewrite_avepooling_na3_test)
                                                        {{"mode", migraphx::op::pooling_mode::max},
                                                         {"padding", {0, 0, 0}},
                                                         {"stride", {1, 1, 1}},
-                                                        {"lengths", {3, 3, 5}}}),
+                                                        {"lengths", {3, 3, 5}},
+                                                        {"dilations", {1, 1, 1}}}),
                                      input);
         m.add_return({ret});
         return m;
@@ -171,7 +175,8 @@ TEST_CASE(literal_rewrite_pooling_test)
                                                          {{"mode", mode},
                                                           {"padding", {0, 0, 0}},
                                                           {"stride", {1, 1, 1}},
-                                                          {"lengths", {3, 4, 5}}}),
+                                                          {"lengths", {3, 4, 5}},
+                                                          {"dilations", {1, 1, 1}}}),
                                        input);
         mm->add_return({ret});
         return p;

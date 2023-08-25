@@ -592,12 +592,13 @@ TEST_CASE(avgpool_rank3_test)
 {
     // 1D case 1, input is 3D
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
-    op.lengths = {2};
-    op.padding = {0};
-    op.stride  = {1};
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {1};
+    op.dilations = {1};
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = mm->add_literal(migraphx::literal{s, data});
@@ -621,7 +622,8 @@ TEST_CASE(avgpool_dyn_test)
                                           {{"mode", migraphx::op::pooling_mode::average},
                                            {"lengths", {2}},
                                            {"padding", {0}},
-                                           {"stride", {1}}}),
+                                           {"stride", {1}},
+                                           {"dilations", {1}}}),
                         x);
     p.compile(migraphx::make_target("ref"));
 
@@ -648,7 +650,8 @@ TEST_CASE(avgpool_dyn_pad_test)
                                            {"lengths", {2, 2}},
                                            {"padding", {1, 0}},
                                            {"ceil_mode", true},
-                                           {"stride", {2, 2}}}),
+                                           {"stride", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         x);
     p.compile(migraphx::make_target("ref"));
 
@@ -681,7 +684,8 @@ TEST_CASE(avgpool_dyn_pad_ceil_test)
                                            {"lengths", {2, 3}},
                                            {"padding", {1, 2}},
                                            {"ceil_mode", true},
-                                           {"stride", {1, 1}}}),
+                                           {"stride", {1, 1}},
+                                           {"dilations", {1, 1}}}),
                         x);
     p.compile(migraphx::make_target("ref"));
 
@@ -710,12 +714,13 @@ TEST_CASE(avgpool_rank3_stride2_test)
 {
     // 1D case 2, stride 2
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
-    op.lengths = {2};
-    op.padding = {1};
-    op.stride  = {2};
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths   = {2};
+    op.padding   = {1};
+    op.stride    = {2};
+    op.dilations = {1};
 
     // clang-format off
     std::vector<float> data{1.6321, -2.4186, 0.2239, -1.4232, 
@@ -743,12 +748,13 @@ TEST_CASE(avgpool_rank5_test)
 {
     // 3D, input is 5D
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
-    op.lengths = {2, 2, 2};
-    op.padding = {0, 0, 0};
-    op.stride  = {1, 1, 1};
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths   = {2, 2, 2};
+    op.padding   = {0, 0, 0};
+    op.stride    = {1, 1, 1};
+    op.dilations = {1, 1, 1};
 
     std::vector<float> data{
         -0.179, -1.756, 0.651,  1.955,  1.87,   -0.604, 0.247,  0.449,  -0.137, 1.187,  1.593,
@@ -4518,13 +4524,14 @@ TEST_CASE(lppool_l1_norm_test)
 {
     // L1 norm test
     migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-    auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
-    op.lengths  = {2};
-    op.padding  = {0};
-    op.stride   = {1};
-    op.lp_order = 1;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {1};
+    op.dilations = {1};
+    op.lp_order  = 1;
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = mm->add_literal(migraphx::literal{s, data});
@@ -4544,13 +4551,14 @@ TEST_CASE(lppool_l1_norm_test)
 // {
 //     // padding too large for kernel size
 //     migraphx::program p;
-//     auto* mm    = p.get_main_module();
-//     auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 5}};
-//     auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
-//     op.lengths  = {3};
-//     op.padding  = {2};
-//     op.stride   = {1};
-//     op.lp_order = 1;
+//     auto* mm     = p.get_main_module();
+//     auto s       = migraphx::shape{migraphx::shape::float_type, {1, 2, 5}};
+//     auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+//     op.lengths   = {3};
+//     op.padding   = {2};
+//     op.stride    = {1};
+//     op.dilations = {1};
+//     op.lp_order  = 1;
 
 //     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7};
 //     auto l0 = mm->add_literal(migraphx::literal{s, data});
@@ -4563,13 +4571,14 @@ TEST_CASE(lppool_l2_norm_test)
 {
     // L2 norm test
     migraphx::program p;
-    auto* mm    = p.get_main_module();
-    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-    auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
-    op.lengths  = {2};
-    op.padding  = {0};
-    op.stride   = {1};
-    op.lp_order = 2;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {1};
+    op.dilations = {1};
+    op.lp_order  = 2;
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = mm->add_literal(migraphx::literal{s, data});
@@ -4601,7 +4610,8 @@ TEST_CASE(lppool_dyn_test)
                                           {{"mode", migraphx::op::pooling_mode::lpnorm},
                                            {"lengths", {2}},
                                            {"padding", {0}},
-                                           {"stride", {1}}}),
+                                           {"stride", {1}},
+                                           {"dilations", {1}}}),
                         x);
     p.compile(migraphx::make_target("ref"));
 
@@ -4734,7 +4744,8 @@ TEST_CASE(maxpool_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {3, 2}}}),
+                                           {"lengths", {3, 2}},
+                                           {"dilations", {1, 1}}}),
                         al);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -4755,7 +4766,8 @@ TEST_CASE(maxpool_pad_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {1, 1}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {3, 2}}}),
+                                           {"lengths", {3, 2}},
+                                           {"dilations", {1, 1}}}),
                         al);
 
     //   * *  *  *                                           * *  *  *
@@ -4776,12 +4788,13 @@ TEST_CASE(maxpool_rank3_test0)
 {
     // 1D case 1, input is 3D
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
-    op.lengths = {2};
-    op.padding = {0};
-    op.stride  = {1};
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::max};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {1};
+    op.dilations = {1};
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = mm->add_literal(migraphx::literal{s, data});
@@ -4799,12 +4812,13 @@ TEST_CASE(maxpool_rank3_test1)
 {
     // 1D case 2, input is 3D
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
-    op.lengths = {2};
-    op.padding = {0};
-    op.stride  = {2};
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::max};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {2};
+    op.dilations = {1};
 
     std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, -0.6186, -0.9618,
                             0.6022, -0.1912, 1.1925,  0.5493,  0.1692,  -0.8039, -1.0281,
@@ -4830,6 +4844,7 @@ TEST_CASE(maxpool_rank3_ceil_test)
     op.lengths   = {2};
     op.padding   = {0};
     op.stride    = {2};
+    op.dilations = {1};
     op.ceil_mode = true;
 
     // clang-format off
@@ -4858,12 +4873,13 @@ TEST_CASE(maxpool_rank5_test)
 {
     // 3D, input is 5D
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
-    op.lengths = {2, 2, 2};
-    op.padding = {0, 0, 0};
-    op.stride  = {2, 2, 2};
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::max};
+    op.lengths   = {2, 2, 2};
+    op.padding   = {0, 0, 0};
+    op.stride    = {2, 2, 2};
+    op.dilations = {1, 1, 1};
 
     std::vector<float> data{
         -2.8029, 0.5861,  0.7015,  0.1297,  -1.44,   -1.9472, 0.7812,  2.408,   -0.3145, 0.3405,
@@ -4897,7 +4913,8 @@ TEST_CASE(maxpool_dyn_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"lengths", {2}},
                                            {"padding", {0}},
-                                           {"stride", {1}}}),
+                                           {"stride", {1}},
+                                           {"dilations", {1}}}),
                         x);
     p.compile(migraphx::make_target("ref"));
 

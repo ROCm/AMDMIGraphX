@@ -110,7 +110,7 @@ struct pooling
            std::any_of(stride.begin(), stride.end(), is_zero) or
            std::any_of(dilations.begin(), dilations.end(), is_zero))
         {
-            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride");
+            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride or dilations");
         }
 
         // TODO:  update lowering to run the reference

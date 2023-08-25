@@ -24,7 +24,8 @@
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/op/common.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
 
@@ -156,13 +157,13 @@ TEST_CASE(broadcast)
     {
         std::vector<std::size_t> lens{1, 1};
         migraphx::shape input{migraphx::shape::float_type, {2}};
-        throws_shape(migraphx::op::broadcast{1, lens}, input);
+        throws_shape(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", lens}}), input);
     }
 
     {
         std::vector<std::size_t> lens{2, 2};
         migraphx::shape input{migraphx::shape::float_type, {1, 2}};
-        throws_shape(migraphx::op::broadcast{1, lens}, input);
+        throws_shape(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", lens}}), input);
     }
 
     {
@@ -1296,36 +1297,45 @@ TEST_CASE(inconsistent_attr_shape)
                  input);
 }
 
-template <class T>
-void test_softmax_variations()
+void test_softmax_variations(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{0}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 0}}),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{1}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 1}}),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{2}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 2}}),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{3}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axis", 3}}),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         int axis = 4;
-        throws_shape(T{axis}, input);
+        throws_shape(migraphx::make_op(name, {{"axis", axis}}), input);
     }
 }
-TEST_CASE(logsoftmax) { test_softmax_variations<migraphx::op::logsoftmax>(); }
+TEST_CASE(logsoftmax) { test_softmax_variations("logsoftmax"); }
+
+TEST_CASE(softmax) { test_softmax_variations("softmax"); }
 
 TEST_CASE(lstm)
 {
@@ -2372,47 +2382,54 @@ TEST_CASE(dqlinear_mismatch_type)
     throws_shape(migraphx::make_op("dequantizelinear"), input, scales, zeros);
 }
 
-template <class T>
-void test_reduce_ops()
+void test_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, T{}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
+                     migraphx::make_op(name),
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, T{{0, 1, 2, 3}}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
+                     migraphx::make_op(name, {{"axes", {0, 1, 2, 3}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 1, 1}}, T{{2, 3}}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 1, 1}},
+                     migraphx::make_op(name, {{"axes", {2, 3}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}}, T{{0}}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}},
+                     migraphx::make_op(name, {{"axes", {0}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 1}}, T{{-1}}, input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 1}},
+                     migraphx::make_op(name, {{"axes", {-1}}}),
+                     input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        throws_shape(T{{4}}, input);
+        throws_shape(migraphx::make_op(name, {{"axes", {4}}}), input);
     }
 }
 
 // dynamic shape
-template <class T>
-void test_dyn_reduce_ops()
+void test_dyn_reduce_ops(const std::string& name)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
         expect_shape(
             migraphx::shape{migraphx::shape::float_type,
                             std::vector<migraphx::shape::dynamic_dimension>({{2, 3, {3}}, {1, 1}})},
-            T{{-1}},
+            migraphx::make_op(name, {{"axes", {-1}}}),
             input);
     }
     {
@@ -2420,7 +2437,7 @@ void test_dyn_reduce_ops()
         expect_shape(
             migraphx::shape{migraphx::shape::float_type,
                             std::vector<migraphx::shape::dynamic_dimension>({{1, 1}, {2, 4, {4}}})},
-            T{{0}},
+            migraphx::make_op(name, {{"axes", {0}}}),
             input);
     }
     {
@@ -2429,24 +2446,24 @@ void test_dyn_reduce_ops()
         expect_shape(
             migraphx::shape{migraphx::shape::float_type,
                             std::vector<migraphx::shape::dynamic_dimension>({{1, 1}, {1, 1}})},
-            T{{}},
+            migraphx::make_op(name),
             input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
-        throws_shape(T{{4}}, input);
+        throws_shape(migraphx::make_op(name, {{"axes", {4}}}), input);
     }
 }
 
-TEST_CASE(reduce_max) { test_reduce_ops<migraphx::op::reduce_max>(); }
-TEST_CASE(reduce_mean) { test_reduce_ops<migraphx::op::reduce_mean>(); }
-TEST_CASE(reduce_prod) { test_reduce_ops<migraphx::op::reduce_prod>(); }
-TEST_CASE(reduce_sum) { test_reduce_ops<migraphx::op::reduce_sum>(); }
+TEST_CASE(reduce_max) { test_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_mean) { test_reduce_ops("reduce_mean"); }
+TEST_CASE(reduce_prod) { test_reduce_ops("reduce_prod"); }
+TEST_CASE(reduce_sum) { test_reduce_ops("reduce_sum"); }
 
-TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_max>(); }
-TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_mean>(); }
-TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_prod>(); }
-TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops<migraphx::op::reduce_sum>(); }
+TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops("reduce_mean"); }
+TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops("reduce_prod"); }
+TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops("reduce_sum"); }
 
 TEST_CASE(reshape_shape)
 {
@@ -3005,8 +3022,6 @@ TEST_CASE(slice_dyn_shape5)
         migraphx::make_op("slice", {{"axes", {0, 20}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
         input);
 }
-
-TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
 TEST_CASE(softmax_dyn0)
 {

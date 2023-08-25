@@ -30,44 +30,22 @@
 
 #include <test.hpp>
 
-TEST_CASE(acos_test)
+TEST_CASE(pointwise_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{-0.8f, 0.0f, 1.0f};
-    auto l = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(migraphx::make_op("acos"), l);
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l1  = mm->add_literal(migraphx::literal{s, {-1, 0, 1}});
+    auto l2  = mm->add_literal(migraphx::literal{s, {1, 2, 3}});
+    auto* pm = p.create_module("pointwise");
+    auto x1  = pm->add_parameter("x1", {migraphx::shape::float_type});
+    auto x2  = pm->add_parameter("x2", {migraphx::shape::float_type});
+    pm->add_instruction(migraphx::make_op("add"), x1, x2);
+    mm->add_instruction(migraphx::make_op("pointwise"), {l1, l2}, {pm});
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+    std::vector<float> gold = {0, 2, 4};
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-
-TEST_CASE(acos_dyn_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8};
-    migraphx::shape s{migraphx::shape::float_type, {dd}};
-    auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("acos"), input);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> input_data{-0.8f, 0.0f, 1.0f};
-    migraphx::parameter_map params0;
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3}};
-    params0["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
-    auto result  = p.eval(params0).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = input_data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-}
-

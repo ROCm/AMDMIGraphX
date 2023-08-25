@@ -30,3 +30,4 @@ add_dependencies(check test_ref)
 target_link_libraries(test_ref migraphx migraphx_onnx migraphx_ref)
 target_include_directories(test_ref PUBLIC ../include)
 rocm_clang_tidy_check(test_ref)
+

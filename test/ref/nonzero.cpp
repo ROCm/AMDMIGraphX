@@ -30,38 +30,21 @@
 
 #include <test.hpp>
 
-TEST_CASE(abs_test)
+TEST_CASE(nonzero_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l = mm->add_literal(migraphx::literal{s, {-1, 2, -3, 4}});
-    mm->add_instruction(migraphx::make_op("abs"), l);
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}};
+    std::vector<float> data = {
+        1.0f, 1.3f, 0.0f, -1.2f, 0.0f, -100.f, 200.f, 0.0f, 0.1f, 0.2f, 0.0f, 0.5f};
+    auto input = mm->add_literal(migraphx::literal(s, data));
+    auto ret   = mm->add_instruction(migraphx::make_op("nonzero"), input);
+    mm->add_return({ret});
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1, 2, 3, 4};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    std::vector<int64_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
+                                 1, 1, 0, 0, 0, 0, 0, 1, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0};
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
-
-TEST_CASE(abs_dyn_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {{2, 8}, {2, 2}}};
-    auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("abs"), input);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> a = {-1, 2, -3, 4};
-    migraphx::parameter_map params0;
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {2, 2}};
-    params0["X"] = migraphx::argument(input_fixed_shape0, a.data());
-    auto result  = p.eval(params0).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1, 2, 3, 4};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-}
-

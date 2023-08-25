@@ -30,44 +30,53 @@
 
 #include <test.hpp>
 
-TEST_CASE(acos_test)
+TEST_CASE(logical_or_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{-0.8f, 0.0f, 1.0f};
-    auto l = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(migraphx::make_op("acos"), l);
+    migraphx::shape s{migraphx::shape::bool_type, {4}};
+    std::vector<bool> data1{true, false, true, false};
+    std::vector<bool> data2{true, true, false, false};
+    auto l1 = mm->add_literal(migraphx::literal{s, data1});
+    auto l2 = mm->add_literal(migraphx::literal{s, data2});
+    mm->add_instruction(migraphx::make_op("logical_or"), l1, l2);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
+    std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = data;
+    std::vector<bool> gold(data1.size());
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+        data1.begin(), data1.end(), data2.begin(), gold.begin(), [](bool n1, bool n2) -> bool {
+            return n1 or n2;
+        });
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
-TEST_CASE(acos_dyn_test)
+TEST_CASE(logical_or_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8};
-    migraphx::shape s{migraphx::shape::float_type, {dd}};
-    auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("acos"), input);
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, {4}}};
+    migraphx::shape s{migraphx::shape::bool_type, dd};
+    auto left  = mm->add_parameter("l", s);
+    auto right = mm->add_parameter("r", s);
+    mm->add_instruction(migraphx::make_op("logical_or"), left, right);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> input_data{-0.8f, 0.0f, 1.0f};
+    std::vector<char> left_data{1, 0, 1, 0};
+    std::vector<char> right_data{1, 1, 0, 0};
     migraphx::parameter_map params0;
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3}};
-    params0["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
+    migraphx::shape input_fixed_shape0{migraphx::shape::bool_type, {4}};
+    params0["l"] = migraphx::argument(input_fixed_shape0, left_data.data());
+    params0["r"] = migraphx::argument(input_fixed_shape0, right_data.data());
     auto result  = p.eval(params0).back();
-    std::vector<float> results_vector(3);
+    std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = input_data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+    std::vector<bool> gold(left_data.size());
+    std::transform(left_data.begin(),
+                   left_data.end(),
+                   right_data.begin(),
+                   gold.begin(),
+                   [](bool n1, bool n2) -> bool { return n1 or n2; });
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-

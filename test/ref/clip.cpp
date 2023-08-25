@@ -30,44 +30,48 @@
 
 #include <test.hpp>
 
-TEST_CASE(acos_test)
+TEST_CASE(clip_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{-0.8f, 0.0f, 1.0f};
-    auto l = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(migraphx::make_op("acos"), l);
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l       = mm->add_literal(migraphx::literal{s, {-1.0, 0.0, 10.0}});
+    auto min_val = mm->add_literal(0.0f);
+    auto max_val = mm->add_literal(6.0f);
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), min_val);
+    max_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), max_val);
+    mm->add_instruction(migraphx::make_op("clip"), l, min_val, max_val);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+    std::vector<float> gold = {0.0, 0.0, 6.0};
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
-TEST_CASE(acos_dyn_test)
+TEST_CASE(clip_dyn_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8};
-    migraphx::shape s{migraphx::shape::float_type, {dd}};
-    auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("acos"), input);
+    auto* mm                                            = p.get_main_module();
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
+    migraphx::shape s{migraphx::shape::float_type, dds};
+    auto l       = mm->add_parameter("X", s);
+    auto min_val = mm->add_literal(0.0f);
+    auto max_val = mm->add_literal(6.0f);
+    min_val      = mm->add_instruction(migraphx::make_op("multibroadcast"), min_val, l);
+    max_val      = mm->add_instruction(migraphx::make_op("multibroadcast"), max_val, l);
+    mm->add_instruction(migraphx::make_op("clip"), l, min_val, max_val);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> input_data{-0.8f, 0.0f, 1.0f};
-    migraphx::parameter_map params0;
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3}};
-    params0["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
-    auto result  = p.eval(params0).back();
+    migraphx::shape static_shape{migraphx::shape::float_type, {3}};
+    migraphx::parameter_map params;
+    std::vector<float> data = {-1.0, 0.0, 10.0};
+    params["X"]             = migraphx::argument(static_shape, data.data());
+    auto result             = p.eval(params).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = input_data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+    std::vector<float> gold = {0.0, 0.0, 6.0};
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-

@@ -30,44 +30,42 @@
 
 #include <test.hpp>
 
-TEST_CASE(acos_test)
+TEST_CASE(prelu_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{-0.8f, 0.0f, 1.0f};
-    auto l = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(migraphx::make_op("acos"), l);
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto x     = mm->add_literal(migraphx::literal{s, {-1, 0, 2}});
+    auto slope = mm->add_literal(migraphx::literal{s, {2, 1, 2}});
+    mm->add_instruction(migraphx::make_op("prelu"), x, slope);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
+    std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+    std::vector<float> gold = {-2.0f, 0.0f, 2.0f};
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
-TEST_CASE(acos_dyn_test)
+TEST_CASE(prelu_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8};
-    migraphx::shape s{migraphx::shape::float_type, {dd}};
-    auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("acos"), input);
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6}};
+    migraphx::shape s{migraphx::shape::float_type, dd};
+    auto x     = mm->add_parameter("x", s);
+    auto slope = mm->add_parameter("slope", s);
+    mm->add_instruction(migraphx::make_op("prelu"), x, slope);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> input_data{-0.8f, 0.0f, 1.0f};
+    std::vector<float> x_data{-1, 0, 2};
+    std::vector<float> slope_data{2, 1, 2};
     migraphx::parameter_map params0;
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3}};
-    params0["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
-    auto result  = p.eval(params0).back();
-    std::vector<float> results_vector(3);
+    params0["x"]     = migraphx::argument(input_fixed_shape0, x_data.data());
+    params0["slope"] = migraphx::argument(input_fixed_shape0, slope_data.data());
+    auto result      = p.eval(params0).back();
+    std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = input_data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+    std::vector<float> gold = {-2.0f, 0.0f, 2.0f};
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-

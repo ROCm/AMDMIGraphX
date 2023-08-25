@@ -30,44 +30,47 @@
 
 #include <test.hpp>
 
-TEST_CASE(acos_test)
+TEST_CASE(div_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{-0.8f, 0.0f, 1.0f};
-    auto l = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(migraphx::make_op("acos"), l);
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data1 = {-1.0f, 0.5f, 1.0f};
+    std::vector<float> data2 = {1.0f, 2.0f, 4.0f};
+    auto l1                  = mm->add_literal(migraphx::literal{s, data1});
+    auto l2                  = mm->add_literal(migraphx::literal{s, data2});
+    mm->add_instruction(migraphx::make_op("div"), l1, l2);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = data;
-    std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+    std::vector<float> gold(data1.size());
+    std::transform(data1.begin(), data1.end(), data2.begin(), gold.begin(), std::divides<float>());
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
-TEST_CASE(acos_dyn_test)
+TEST_CASE(div_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8};
-    migraphx::shape s{migraphx::shape::float_type, {dd}};
-    auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("acos"), input);
+    std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, {3}}};
+    migraphx::shape s{migraphx::shape::float_type, dd};
+    auto x = mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+    mm->add_instruction(migraphx::make_op("div"), x, y);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> input_data{-0.8f, 0.0f, 1.0f};
+    std::vector<float> x_data{-1.0f, 0.5f, 1.0f};
+    std::vector<float> y_data{1.0f, 2.0f, 4.0f};
     migraphx::parameter_map params0;
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3}};
-    params0["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
+    params0["x"] = migraphx::argument(input_fixed_shape0, x_data.data());
+    params0["y"] = migraphx::argument(input_fixed_shape0, y_data.data());
     auto result  = p.eval(params0).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = input_data;
+    std::vector<float> gold(x_data.size());
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
+        x_data.begin(), x_data.end(), y_data.begin(), gold.begin(), std::divides<float>());
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-

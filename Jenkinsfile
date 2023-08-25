@@ -26,7 +26,7 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On ${flags} ..
+            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT ${flags} ..
             git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
             make -j\$(nproc) generate VERBOSE=1
@@ -114,6 +114,10 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
+// }, hidden_symbols: rocmnode('cdna') { cmake_build ->
+//     stage('Hidden symbols') {
+//         cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
+//     }
 }, all_targets_debug : rocmnode('cdna') { cmake_build ->
     stage('All targets Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On") 

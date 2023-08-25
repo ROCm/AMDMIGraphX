@@ -133,9 +133,9 @@ struct pooling
 
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
-    std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
+    inline std::size_t dilate_dim(std::size_t dim, std::size_t dilation) const
     {
-        return dilation * (dim - 1) + 1;
+        return 1 + dilation * (dim - 1);
     }
 
     std::vector<std::size_t> calc_spatial_dim_out(const std::vector<std::size_t>& input_lens,
@@ -316,7 +316,6 @@ struct pooling
                     // In non-ceiling mode, when
                     // count_include_pad is false, or for max pooling, clip off padding.
                     end   = std::min(start + dilated_kernel_dim, in_lens[dim]);
-                    start = std::max(start, 0);
                 }
                 win_start.push_back(start);
                 if(end < start)
@@ -328,17 +327,18 @@ struct pooling
             }
 
             shape win_shape{output_shape.type(), win_size};
-            auto pool_size = std::accumulate(
-                kernel_dims.cbegin(), kernel_dims.cend(), 1, std::multiplies<std::size_t>());
+            auto pool_size = win_shape.elements();
             double output_val = op.template init<Type>();
 
             // for each element in the window...
             shape_for_each(win_shape, [&](auto idx_w) {
                 // Skip elements that belong to the dilated area
-                for(int axis = 0; axis < idx_w.size(); ++axis)
+                for(size_t axis = 0; axis < idx_w.size(); ++axis)
                 {
-                    if(idx_w[axis] % dilations[axis])
+                    if(idx_w[axis] % dilations[axis]) {
+                        pool_size -= 1;
                         return;
+                    }
                 }
 
                 // the coordinates of this element
@@ -365,7 +365,15 @@ struct pooling
                     // this is a padding element.  Padding locations
                     // don't contribute to average or max pooling total but can play in
                     // lpnorm pooling.
-                    output_val = op(output_val, 0);
+                    if (mode == pooling_mode::lpnorm)
+                    {
+                        output_val = op(output_val, 0);
+                    }
+                    if (mode == pooling_mode::average)
+                    {
+                        // Ignore padding
+                        pool_size -= 1;
+                    }
                 }
             });
             output[i] = Type(op.final(output_val, pool_size));

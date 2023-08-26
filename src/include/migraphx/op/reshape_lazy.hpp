@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_reshape_lazy_HPP
-#define MIGRAPHX_GUARD_OPERATORS_reshape_lazy_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_RESHAPE_LAZY_HPP
+#define MIGRAPHX_GUARD_OPERATORS_RESHAPE_LAZY_HPP
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>

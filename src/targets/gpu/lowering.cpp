@@ -384,10 +384,11 @@ struct miopen_apply
     void add_reshape_lazy_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
-
-            auto lazy_ins = mod->replace_instruction(ins,
+            auto lazy_ins = mod->replace_instruction(
+                ins,
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
-                ins->inputs(), ins->module_inputs());
+                ins->inputs(),
+                ins->module_inputs());
 
             auto output2                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs2 = ins->inputs();

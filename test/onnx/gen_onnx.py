@@ -247,6 +247,22 @@ def averagepool_1d_test():
 
 
 @onnx_test()
+def averagepool_dilate_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2],
+                                 strides=[1],
+                                 pads=[1, 1],
+                                 dilations=[3])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def averagepool_3d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5, 5, 5])
     out = helper.make_tensor_value_info('1', TensorProto.FLOAT,
@@ -4207,6 +4223,22 @@ def maxpool_notset_test():
                                  strides=[2, 2],
                                  pads=[0, 0, 1, 1],
                                  auto_pad='NOTSET')
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def maxpool_dilate_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('MaxPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2],
+                                 strides=[1],
+                                 pads=[1, 1],
+                                 dilations=[3])
 
     return ([node], [x], [y])
 

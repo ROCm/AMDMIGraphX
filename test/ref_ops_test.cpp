@@ -612,6 +612,102 @@ TEST_CASE(avgpool_rank3_test)
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
+TEST_CASE(avgpool_rank3_dil_test)
+{
+    // 1D case 1, input is 3D
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {1};
+    op.dilations = {2};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.35, 0.15, 0.85, 0.3, 0.1, 0.65};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_rank3_dil_test2)
+{
+    // 1D case 1, input is 3D
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {1};
+    op.dilations = {3};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.2, 0.45, 0.35};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_rank3_pad_test)
+{
+    // 1D case 1, input is 3D
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths   = {2};
+    op.padding   = {1};
+    op.stride    = {1};
+    op.dilations = {1};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.3, 0.25, 0.3, 0.25, 0.1, 0.8, 0.65, 0.7, 0.5, 0.1, 0.1, 0.4, 0.4, 0.35, 0.6};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_rank3_pad_dil_test)
+{
+    // 1D case 1, input is 3D
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths   = {2};
+    op.padding   = {1};
+    op.stride    = {1};
+    op.dilations = {3};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.4, 0.2, 0.2, 0.9, 0.45, 0.5, 0.1, 0.35, 0.7};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
 TEST_CASE(avgpool_dyn_test)
 {
     migraphx::program p;
@@ -4834,6 +4930,55 @@ TEST_CASE(maxpool_rank3_test1)
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
+TEST_CASE(maxpool_rank3_test2)
+{
+    // 1D case 1, input is 3D
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::max};
+    op.lengths   = {2};
+    op.padding   = {0};
+    op.stride    = {1};
+    op.dilations = {2};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.4, 0.2, 0.9, 0.5, 0.1, 0.7};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(maxpool_rank3_test4)
+{
+    // 1D case 1, input is 3D
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::max};
+    op.lengths   = {2};
+    op.padding   = {1};
+    op.stride    = {1};
+    op.dilations = {3};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.4, 0.3, 0.2, 0.9, 0.8, 0.5, 0.1, 0.6, 0.7};
+
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
 TEST_CASE(maxpool_rank3_ceil_test)
 {
     // 1D case 2, input is 3D, ceil mode
@@ -4926,6 +5071,32 @@ TEST_CASE(maxpool_dyn_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.3, 0.4, 0.4, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(maxpool_dyn_test2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"lengths", {2}},
+                                           {"padding", {0}},
+                                           {"stride", {1}},
+                                           {"dilations", {2}}}),
+                        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 3, 4}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.4, 0.2, 0.9, 0.5, 0.1, 0.7};
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 

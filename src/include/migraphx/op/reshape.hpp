@@ -136,7 +136,7 @@ struct reshape
 
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("reshape: Dimensions for reshape_lazy can only have one -1 dim");
+            MIGRAPHX_THROW("reshape: Dimensions for reshape can only have one -1 dim");
 
         auto s0 = inputs.front();
         if(s0.dynamic())

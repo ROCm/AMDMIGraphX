@@ -5305,16 +5305,16 @@ TEST_CASE(multinomial_dyn_test)
     auto* mm = p.get_main_module();
 
     size_t sample_size = 1000000;
-    uint32_t seed      = 4;
 
     //      Shape of the random data
     migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {2, sample_size + 1}}};
     auto input = mm->add_parameter("Input_1", rs);
 
     // Runtime randomization seed
-    // To seed the rand_uniform, we can provide a value by literal or input,
-    // or we can pass it a 0-size shape in which case it will auto-seed.
-    migraphx::shape seed_shape{migraphx::shape::uint32_type, {migraphx::shape::dynamic_dimension{0, 1}}};    
+    // To seed the random_uniform, we can provide a value by literal or input,
+    // or ask the system to auto-seed with random_seed op.
+    migraphx::shape seed_shape{migraphx::shape::uint32_type,
+                               {migraphx::shape::dynamic_dimension{0, 1}}};
     auto seed_input = mm->add_parameter("Seed", seed_shape);
 
     // Shape of the probability distribution, which also defines the number of categories
@@ -5338,12 +5338,7 @@ TEST_CASE(multinomial_dyn_test)
     cdf = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform",
-                                                         {
-                                                             {"seed", seed},
-                                                         }),
-                                       input,
-                                       seed_input);
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, input);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
 
     p.compile(migraphx::make_target("ref"));
@@ -5355,10 +5350,10 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::parameter_map params0;
     params0["Input_1"] = migraphx::argument(input_fixed_shape1, dummy.data());
 
-    migraphx::shape seed_fixed_shape{migraphx::shape::uint32_type, {0}};
-    std::vector<uint32_t> seed_data = {};
-    params0["Seed"] = migraphx::argument(seed_fixed_shape, seed_data.data());
-    
+    migraphx::shape seed_fixed_shape{migraphx::shape::uint32_type, {1}};
+    std::vector<uint32_t> seed_data = {4};
+    params0["Seed"]                 = migraphx::argument(seed_fixed_shape, seed_data.data());
+
     params0["Input_2"] = migraphx::argument(input_fixed_shape2, data.data());
     auto result        = p.eval(params0).back();
 

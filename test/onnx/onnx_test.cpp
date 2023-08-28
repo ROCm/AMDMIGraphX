@@ -4175,10 +4175,13 @@ TEST_CASE(multinomial_test)
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
+    migraphx::shape s{migraphx::shape::uint32_type, {1}};
+    std::vector<float> seed_data = {seed};
+    auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
     auto rand_dummy =
         mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
-    auto randoms =
-        mm->add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}), rand_dummy);
+
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
 
     auto prog = optimize_onnx("multinomial_test.onnx");
@@ -4205,10 +4208,11 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
     std::vector<float> data(rs.elements(), 0.3f);
 
-    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform",
-                                                         {// {"sample_size", sample_size},
-                                                          {"seed", seed}}),
-                                       input);
+    migraphx::shape s{migraphx::shape::uint32_type, {1}};
+    std::vector<float> seed_data = {seed};
+    auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
+
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, input);
     auto ret     = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     mm->add_return({ret});
 
@@ -4238,12 +4242,9 @@ TEST_CASE(multinomial_autoseed_dyn_test)
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
     std::vector<float> data(rs.elements(), 0.3f);
 
-    auto randoms = mm->add_instruction(migraphx::make_op("rand_uniform",
-                                                         {// {"sample_size", sample_size},
-                                                          // {"seed", seed},
-                                                          {"use_auto_seed", true}}),
-                                       input);
-    auto ret     = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
+    auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));
+    auto randoms    = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, input);
+    auto ret        = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     mm->add_return({ret});
 
     // auto prog = optimize_onnx("multinomial_dyn_test.onnx");
@@ -4285,13 +4286,16 @@ TEST_CASE(multinomial_int64_test)
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
+    // this is random_uniform without output_lens attribute
+
+    migraphx::shape s{migraphx::shape::uint32_type, {1}};
+    std::vector<uint32_t> seed_data = {seed};
+    auto seed_input                 = mm->add_literal(migraphx::literal(s, seed_data));
+
     auto rand_dummy =
         mm->add_literal(migraphx::literal{migraphx::shape::float_type, {sample_size}});
 
-    // this is rand_uniform without output_lens attribute
-    auto randoms = mm->add_instruction(
-        migraphx::make_op("rand_uniform", {{"seed", seed}, {"use_auto_seed", false}}), rand_dummy);
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
 
     mm->add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, randoms);
 

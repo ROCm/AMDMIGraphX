@@ -66,25 +66,30 @@ struct parse_multinomial : op_parser<parse_multinomial>
         cdf = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-        uint32_t seed(0);
+        instruction_ref seed_input;
         if(contains(info.attributes, "seed"))
-            seed = info.attributes.at("seed").i();
+        {
+            uint32_t seed = info.attributes.at("seed").i();
+            migraphx::shape s{migraphx::shape::uint32_type, {1}};
+            std::vector<uint32_t> data = {seed};
+            seed_input                 = info.add_literal(migraphx::literal(s, data));
+        }
+        else
+        {
+            seed_input = info.add_instruction(migraphx::make_op("random_seed"));
+        }
         instruction_ref randoms;
 
         if(args.size() > 0)
         {
             shape s0 = args[0]->get_shape();
-            // TODO: Use literal if batch size is fixed
+
             if(s0.dynamic())
             {
                 //  Dynamic batch_size will be taken from args[0].  Other contents of input are
                 //  ignored here.
-                randoms = info.add_instruction(
-                    migraphx::make_op("rand_uniform",
-                                      {{"seed", seed},
-                                       //   {"sample_size", sample_size},
-                                       {"use_auto_seed", not contains(info.attributes, "seed")}}),
-                    args[0]);
+                randoms =
+                    info.add_instruction(migraphx::make_op("random_uniform"), seed_input, args[0]);
             }
             else
             {
@@ -94,10 +99,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
                     migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
 
                 randoms = info.add_instruction(
-                    migraphx::make_op(
-                        "rand_uniform",
-                        {{"seed", seed}, {"use_auto_seed", not contains(info.attributes, "seed")}}),
-                    rand_dummy);
+                    migraphx::make_op("random_uniform"), seed_input, rand_dummy);
             }
         }
         else
@@ -105,8 +107,8 @@ struct parse_multinomial : op_parser<parse_multinomial>
             // use literal.  It may be quite large.
             auto rand_dummy = info.add_literal(
                 migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
-            randoms = info.add_instruction(migraphx::make_op("rand_uniform", {{"seed", seed}}),
-                                           rand_dummy);
+            randoms =
+                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
         }
 
         return info.add_instruction(

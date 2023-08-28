@@ -33,8 +33,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT std::string get_arch_name(const hipDeviceProp_t& props);
-
 MIGRAPHX_GPU_EXPORT std::string get_device_name();
 
 MIGRAPHX_GPU_EXPORT int get_device_id();

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -183,7 +183,8 @@ register_migraphx_ops(
     quant_convolution
     quant_dot
     quantizelinear
-    rand_uniform
+    random_uniform
+    random_seed
     recip
     reduce_max
     reduce_mean
@@ -249,8 +250,6 @@ endif()
 target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
-
-find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 find_package(nlohmann_json 3.8.0 REQUIRED)

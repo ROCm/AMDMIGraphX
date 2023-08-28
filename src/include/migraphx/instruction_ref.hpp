@@ -33,36 +33,43 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct instruction;
 #if defined(_WIN32) && !defined(NDEBUG)
-class instruction_ref : public std::list<instruction>::iterator
+struct instruction_ref : public std::list<instruction>::iterator
 {
-public:
+    using instruction_iter = std::list<instruction>::iterator;
+    using instruction_const_iter = std::list<instruction>::const_iterator;
+
     instruction_ref() = default;
-    instruction_ref(const std::list<instruction>::iterator& other)
+    instruction_ref(const instruction_iter& other)
     {
         _Ptr = other._Ptr;
         _Adopt(other._Getcont());
     }
 
-    bool operator==(const instruction_ref& other) const
-    {
-        return this->_Unwrapped()._Ptr == other._Unwrapped()._Ptr;
-    }
-
-    bool operator==(const std::list<instruction>::iterator& other) const
-    {
-        return this->_Unwrapped()._Ptr == other._Unwrapped()._Ptr;
-    }
-
-    bool operator==(const std::list<instruction>::const_iterator& other) const
-    {
-        return this->_Unwrapped()._Ptr == other._Unwrapped()._Ptr;
-    }
-
-    bool operator!=(const instruction_ref& other) const
-    {
-        return !(*this == other);
-    }
+    friend bool operator==(const instruction_ref& x, const instruction_ref& y);
+    friend bool operator==(const instruction_ref& x, const instruction_iter& y);
+    friend bool operator==(const instruction_ref& x, const instruction_const_iter& y);
+    friend bool operator!=(const instruction_ref& x, const instruction_ref& y);
 };
+
+bool operator==(const instruction_ref& x, const instruction_ref& y)
+{
+    return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
+}
+
+bool operator==(const instruction_ref& x, const instruction_iter& y)
+{
+    return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
+}
+
+bool operator==(const instruction_ref& x, const instruction_const_iter& y)
+{
+    return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
+}
+
+bool operator!=(const instruction_ref& x, const instruction_ref& y)
+{
+    return !(x == y);
+}
 #else
 using instruction_ref = std::list<instruction>::iterator;
 #endif

@@ -38,7 +38,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT simplify_reshapes
 {
-    int depth = 4;
+    size_t depth = 4;
     std::string name() const { return "simplify_reshapes"; }
     void apply(module& m) const;
 };

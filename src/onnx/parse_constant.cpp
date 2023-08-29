@@ -39,16 +39,29 @@ struct parse_constant : op_parser<parse_constant>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& /*args*/) const
     {
-        literal v = parser.parse_value(info.attributes.at("value"));
+        static const std::string attributes[] = {
+            "value", "value_float", "value_floats", "value_int", "value_ints"};
+
+        auto&& attr = [&] {
+            for(const auto& a : attributes)
+            {
+                if(auto it = info.attributes.find(a); it != info.attributes.end())
+                {
+                    return it->second;
+                }
+            }
+            MIGRAPHX_THROW("Constant does not contain any supported attribute");
+        }();
+
+        literal v = parser.parse_value(attr);
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
             return info.add_literal(literal{v.get_shape().type()});
         }
 
-        auto dim_size = info.attributes.at("value").t().dims_size();
         // if dim_size is 0, it is a scalar
-        if(dim_size == 0)
+        if(attr.t().dims_size() == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
             return info.add_literal(migraphx::literal{scalar_shape, v.data()});

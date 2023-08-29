@@ -4433,7 +4433,8 @@ def multinomial_test():
 def multinomial_dyn_test():
     sample_size = 13
     seed = 0.0
-    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [None, 10])
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT,
+                                          [None, 10])
     output = helper.make_tensor_value_info("output", TensorProto.INT32,
                                            [None, 10])
 
@@ -4450,7 +4451,8 @@ def multinomial_dyn_test():
 def multinomial_autoseed_dyn_test():
     # If seed attribute is not given, device should auto generate one at runtime
     sample_size = 12
-    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [None, 10])
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT,
+                                          [None, 10])
     output = helper.make_tensor_value_info("output", TensorProto.INT32,
                                            [None, 10])
 

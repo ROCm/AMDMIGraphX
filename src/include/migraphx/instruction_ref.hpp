@@ -33,7 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct instruction;
 #if defined(_WIN32) && !defined(NDEBUG)
-struct instruction_ref : public std::list<instruction>::iterator
+struct instruction_ref : std::list<instruction>::iterator
 {
     using instruction_iter = std::list<instruction>::iterator;
     using instruction_const_iter = std::list<instruction>::const_iterator;
@@ -45,31 +45,26 @@ struct instruction_ref : public std::list<instruction>::iterator
         _Adopt(other._Getcont());
     }
 
-    friend bool operator==(const instruction_ref& x, const instruction_ref& y);
-    friend bool operator==(const instruction_ref& x, const instruction_iter& y);
-    friend bool operator==(const instruction_ref& x, const instruction_const_iter& y);
-    friend bool operator!=(const instruction_ref& x, const instruction_ref& y);
+    friend bool operator==(const instruction_ref& x, const instruction_ref& y)
+    {
+        return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
+    }
+
+    friend bool operator==(const instruction_ref& x, const instruction_iter& y)
+    {
+        return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
+    }
+
+    friend bool operator==(const instruction_ref& x, const instruction_const_iter& y)
+    {
+        return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
+    }
+
+    friend bool operator!=(const instruction_ref& x, const instruction_ref& y)
+    {
+        return !(x == y);
+    }
 };
-
-bool operator==(const instruction_ref& x, const instruction_ref& y)
-{
-    return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
-}
-
-bool operator==(const instruction_ref& x, const instruction_iter& y)
-{
-    return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
-}
-
-bool operator==(const instruction_ref& x, const instruction_const_iter& y)
-{
-    return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
-}
-
-bool operator!=(const instruction_ref& x, const instruction_ref& y)
-{
-    return !(x == y);
-}
 #else
 using instruction_ref = std::list<instruction>::iterator;
 #endif

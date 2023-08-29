@@ -43,7 +43,11 @@ TEST_CASE(conv_dyn_batch_test)
 
     auto input   = mm->add_parameter("X", input_dyn_shape);
     auto weights = mm->add_parameter("W", weights_shape);
-    mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
+    mm->add_instruction(migraphx::make_op("convolution",
+                                          {
+                                              {"padding", {1, 1}},
+                                              {"stride", {2, 2}},
+                                          }),
                         input,
                         weights);
 

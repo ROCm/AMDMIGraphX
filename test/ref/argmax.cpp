@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -126,4 +127,23 @@ TEST_CASE(argmax_dyn_test)
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     std::vector<int64_t> res_gold = {0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1};
     EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+}
+
+TEST_CASE(argmax_test_nonstd_shape)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto dl = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 3, 4}}));
+    auto dl_trans =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
+    mm->add_instruction(migraphx::make_op("argmax", {{"axis", -3}}), dl_trans);
+    auto p_uncompiled = p;
+    p.compile(migraphx::make_target("ref"));
+    auto result   = p.eval({}).back();
+    auto res_gold = p_uncompiled.eval({}).back();
+    std::vector<int64_t> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    std::vector<int64_t> res_gold_vec;
+    res_gold.visit([&](auto output) { res_gold_vec.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(result_vec, res_gold_vec));
 }

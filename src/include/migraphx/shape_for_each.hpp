@@ -37,11 +37,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class F>
 void shape_for_each(const migraphx::shape& s, F f)
 {
-    // Ensure calls to f use const ref to vector
-    auto call = [&f](const std::vector<std::size_t>& i) { f(i); };
     std::vector<std::size_t> indices(s.lens().size());
+    auto const& index_const_ref = indices;
     shape ss{s.type(), s.lens()};
-    for(std::size_t i = 0; i < ss.elements(); i++)
+    size_t max = ss.elements();
+    for(std::size_t i = 0; i < max; i++)
     {
         std::transform(ss.strides().begin(),
                        ss.strides().end(),
@@ -51,7 +51,7 @@ void shape_for_each(const migraphx::shape& s, F f)
                            assert(len > 0 and stride > 0);
                            return (i / stride) % len;
                        });
-        call(indices);
+        f(index_const_ref);
     }
 }
 } // namespace MIGRAPHX_INLINE_NS

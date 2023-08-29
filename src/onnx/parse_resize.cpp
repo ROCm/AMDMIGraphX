@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -97,22 +97,19 @@ const auto& get_original_idx_op(const std::string& mode)
 static std::vector<int>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
                      int i_dim,
-                     const std::vector<std::vector<std::size_t>>& vec_dims,
+                     std::vector<std::vector<std::size_t>>& vec_dims,
                      const shape& in_s)
 {
     if(i_dim == vvv_ind.size())
     {
-        std::vector<int> vec_ind;
-        vec_ind.resize(vec_dims.size());
+        std::vector<int> vec_ind(vec_dims.size());
         std::transform(vec_dims.begin(), vec_dims.end(), vec_ind.begin(), [&](auto idx) {
             return static_cast<int>(in_s.index(idx));
         });
-
         return vec_ind;
     }
 
-    const auto& vv_ind = vvv_ind[i_dim];
-    const auto& vv_lo  = vv_ind.at(0);
+    const auto& vv_lo  = vvv_ind[i_dim][0];
     std::vector<std::vector<std::size_t>> vec_dims1;
     for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
     {
@@ -126,8 +123,8 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                        });
     }
 
-    const auto& vv_hi = vv_ind.at(1);
-    for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
+    const auto& vv_hi = vvv_ind[i_dim][1];
+    for(std::size_t start = 0; start < vec_dims.size(); start += vv_hi.size())
     {
         std::transform(vv_hi.begin(),
                        vv_hi.end(),
@@ -138,8 +135,8 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                            return dim;
                        });
     }
-
-    return calc_neighbor_points(vvv_ind, i_dim + 1, vec_dims1, in_s);
+    vec_dims = std::move(vec_dims1);
+    return calc_neighbor_points(vvv_ind, i_dim + 1, vec_dims, in_s);
 }
 
 static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -323,12 +320,10 @@ struct parse_resize : op_parser<parse_resize>
 
             // get the number of dimensions
             std::size_t n_dim = out_lens.size();
-            std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
-            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(n_dim, vv_ind);
+            auto vvv_ind = std::vector(n_dim, std::vector(2, std::vector<size_t>(out_elements)));
             std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 
             shape_for_each(out_s, [&](auto idx) {
-                auto in_idx  = idx;
                 auto out_idx = out_s.index(idx);
                 for(auto ii = 0; ii < in_lens.size(); ++ii)
                 {

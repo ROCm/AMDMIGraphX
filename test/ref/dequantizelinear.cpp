@@ -30,54 +30,55 @@
 
 #include <test.hpp>
 
-TEST_CASE(dequantizelinear)
-{
-    { /*uint8*/
-        migraphx::shape xs{migraphx::shape::uint8_type, {1, 3, 3}};
-        std::vector<uint8_t> xv = {0, 1, 2, 5, 10, 50, 100, 150, 250};
-        migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
-        std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
-        migraphx::shape zs{migraphx::shape::uint8_type, {1, 3, 3}};
-        std::vector<uint8_t> zv = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-        auto create_program     = [&]() {
-            migraphx::program p;
-            auto* mm = p.get_main_module();
-            auto x   = mm->add_literal(xs, xv);
-            auto s   = mm->add_literal(ss, sv);
-            auto z   = mm->add_literal(zs, zv);
-            mm->add_instruction(migraphx::make_op("dequantizelinear"), x, s, z);
-            return p;
-        };
+TEST_CASE(dequantizelinear_unsigned_int8)
 
-        migraphx::program p1 = create_program();
-        p1.compile(migraphx::make_target("ref"));
-        auto result = p1.eval({}).back();
-        std::vector<float> results_vector(9);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{0, 2, 4, 10, 20, 100, 200, 300, 500};
-        EXPECT(results_vector == gold);
-    }
+{ /*uint8*/
+    migraphx::shape xs{migraphx::shape::uint8_type, {1, 3, 3}};
+    std::vector<uint8_t> xv = {0, 1, 2, 5, 10, 50, 100, 150, 250};
+    migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
+    std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
+    migraphx::shape zs{migraphx::shape::uint8_type, {1, 3, 3}};
+    std::vector<uint8_t> zv = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    auto create_program     = [&]() {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_literal(xs, xv);
+        auto s   = mm->add_literal(ss, sv);
+        auto z   = mm->add_literal(zs, zv);
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, s, z);
+        return p;
+    };
 
-    { /*int8*/
-        migraphx::shape xs{migraphx::shape::int8_type, {1, 3, 3}};
-        std::vector<int8_t> xv = {-128, -100, -50, -1, 0, 1, 50, 100, 127};
-        migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
-        std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
-        auto create_program   = [&]() {
-            migraphx::program p;
-            auto* mm = p.get_main_module();
-            auto x   = mm->add_literal(xs, xv);
-            auto s   = mm->add_literal(ss, sv);
-            mm->add_instruction(migraphx::make_op("dequantizelinear"), x, s);
-            return p;
-        };
-
-        migraphx::program p1 = create_program();
-        p1.compile(migraphx::make_target("ref"));
-        auto result = p1.eval({}).back();
-        std::vector<float> results_vector(9);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{-256, -200, -100, -2, 0, 2, 100, 200, 254};
-        EXPECT(results_vector == gold);
-    }
+    migraphx::program p1 = create_program();
+    p1.compile(migraphx::make_target("ref"));
+    auto result = p1.eval({}).back();
+    std::vector<float> results_vector(9);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0, 2, 4, 10, 20, 100, 200, 300, 500};
+    EXPECT(results_vector == gold);
 }
+
+TEST_CASE(dequantizelinear_signed_int8)
+{ /*int8*/
+    migraphx::shape xs{migraphx::shape::int8_type, {1, 3, 3}};
+    std::vector<int8_t> xv = {-128, -100, -50, -1, 0, 1, 50, 100, 127};
+    migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
+    std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
+    auto create_program   = [&]() {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_literal(xs, xv);
+        auto s   = mm->add_literal(ss, sv);
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, s);
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    p1.compile(migraphx::make_target("ref"));
+    auto result = p1.eval({}).back();
+    std::vector<float> results_vector(9);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{-256, -200, -100, -2, 0, 2, 100, 200, 254};
+    EXPECT(results_vector == gold);
+}
+

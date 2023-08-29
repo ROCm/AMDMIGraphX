@@ -211,5 +211,3 @@ TEST_CASE(unsqueeze_slice_test)
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {2, 1, 3, 4, 1}});
     EXPECT(result == expected_result);
 }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

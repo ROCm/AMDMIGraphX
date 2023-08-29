@@ -30,41 +30,40 @@
 
 #include <test.hpp>
 
-TEST_CASE(not_test)
+TEST_CASE(not_test_int32)
+// int32
 {
-    // int32
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::int32_type, {4}};
-        std::vector<float> data{0, 8, 1, -32};
-        auto l1 = mm->add_literal(migraphx::literal{s, data});
-        mm->add_instruction(migraphx::make_op("not"), l1);
-        p.compile(migraphx::make_target("ref"));
-        auto result = p.eval({}).back();
-        std::vector<char> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<char> gold{1, 0, 0, 0};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    }
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int32_type, {4}};
+    std::vector<float> data{0, 8, 1, -32};
+    auto l1 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(migraphx::make_op("not"), l1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<char> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<char> gold{1, 0, 0, 0};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
 
-    // bool
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::bool_type, {4}};
-        std::vector<bool> data{false, false, true, true};
-        auto l1 = mm->add_literal(migraphx::literal{s, {0, 0, 1, 1}});
-        mm->add_instruction(migraphx::make_op("not"), l1);
-        p.compile(migraphx::make_target("ref"));
-        auto result = p.eval({}).back();
-        std::vector<char> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<bool> gold(data.size());
-        std::transform(
-            data.begin(), data.end(), gold.begin(), [](bool n) -> bool { return not n; });
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    }
+TEST_CASE(not_test_bool)
+// bool
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bool_type, {4}};
+    std::vector<bool> data{false, false, true, true};
+    auto l1 = mm->add_literal(migraphx::literal{s, {0, 0, 1, 1}});
+    mm->add_instruction(migraphx::make_op("not"), l1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<char> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<bool> gold(data.size());
+    std::transform(
+        data.begin(), data.end(), gold.begin(), [](bool n) -> bool { return not n; });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(not_dyn_test)

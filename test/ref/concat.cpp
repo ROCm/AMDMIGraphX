@@ -30,111 +30,112 @@
 
 #include <test.hpp>
 
-TEST_CASE(concat_test)
+TEST_CASE(concat_test_1)
 {
-    {
-        migraphx::program p;
-        auto* mm               = p.get_main_module();
-        int axis               = 1;
-        std::vector<int> data0 = {0, 1, 5, 6};
-        std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
-        std::vector<int> data2 = {10, 20};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
-        auto l0 = mm->add_literal(migraphx::literal{s0, data0});
-        auto l1 = mm->add_literal(migraphx::literal{s1, data1});
-        auto l2 = mm->add_literal(migraphx::literal{s2, data2});
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
-        p.compile(migraphx::make_target("ref"));
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
-        std::vector<int> results_vector(2 * 6);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                              std::vector<std::size_t>({2, 6})));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                              std::vector<std::size_t>({6, 1})));
-    }
+    migraphx::program p;
+    auto* mm               = p.get_main_module();
+    int axis               = 1;
+    std::vector<int> data0 = {0, 1, 5, 6};
+    std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
+    std::vector<int> data2 = {10, 20};
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+    migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data0});
+    auto l1 = mm->add_literal(migraphx::literal{s1, data1});
+    auto l2 = mm->add_literal(migraphx::literal{s2, data2});
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
+    p.compile(migraphx::make_target("ref"));
+    auto result           = p.eval({}).back();
+    std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
+    std::vector<int> results_vector(2 * 6);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
+                                          std::vector<std::size_t>({2, 6})));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
+                                          std::vector<std::size_t>({6, 1})));
+}
 
-    {
-        migraphx::program p;
-        auto* mm               = p.get_main_module();
-        int axis               = -1;
-        std::vector<int> data0 = {0, 1, 5, 6};
-        std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
-        std::vector<int> data2 = {10, 20};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
-        auto l0 = mm->add_literal(migraphx::literal{s0, data0});
-        auto l1 = mm->add_literal(migraphx::literal{s1, data1});
-        auto l2 = mm->add_literal(migraphx::literal{s2, data2});
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
-        p.compile(migraphx::make_target("ref"));
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
-        std::vector<int> results_vector(2 * 6);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                              std::vector<std::size_t>({2, 6})));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                              std::vector<std::size_t>({6, 1})));
-    }
+TEST_CASE(concat_test_2)
+{
+    migraphx::program p;
+    auto* mm               = p.get_main_module();
+    int axis               = -1;
+    std::vector<int> data0 = {0, 1, 5, 6};
+    std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
+    std::vector<int> data2 = {10, 20};
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+    migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
+    migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data0});
+    auto l1 = mm->add_literal(migraphx::literal{s1, data1});
+    auto l2 = mm->add_literal(migraphx::literal{s2, data2});
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
+    p.compile(migraphx::make_target("ref"));
+    auto result           = p.eval({}).back();
+    std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
+    std::vector<int> results_vector(2 * 6);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
+                                          std::vector<std::size_t>({2, 6})));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
+                                          std::vector<std::size_t>({6, 1})));
+}
 
-    {
-        migraphx::program p;
-        auto* mm               = p.get_main_module();
-        int axis               = 0;
-        std::vector<int> data0 = {0, 1, 2, 3};
-        std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
-        std::vector<int> data2 = {10, 11};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
-        migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
-        auto l0 = mm->add_literal(migraphx::literal{s0, data0});
-        auto l1 = mm->add_literal(migraphx::literal{s1, data1});
-        auto l2 = mm->add_literal(migraphx::literal{s2, data2});
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
-        p.compile(migraphx::make_target("ref"));
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        std::vector<int> results_vector(6 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                              std::vector<std::size_t>({6, 2})));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                              std::vector<std::size_t>({2, 1})));
-    }
+TEST_CASE(concat_test_3)
+{
+    migraphx::program p;
+    auto* mm               = p.get_main_module();
+    int axis               = 0;
+    std::vector<int> data0 = {0, 1, 2, 3};
+    std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
+    std::vector<int> data2 = {10, 11};
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+    migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
+    migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data0});
+    auto l1 = mm->add_literal(migraphx::literal{s1, data1});
+    auto l2 = mm->add_literal(migraphx::literal{s2, data2});
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
+    p.compile(migraphx::make_target("ref"));
+    auto result           = p.eval({}).back();
+    std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    std::vector<int> results_vector(6 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
+                                          std::vector<std::size_t>({6, 2})));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
+                                          std::vector<std::size_t>({2, 1})));
+}
 
-    {
-        migraphx::program p;
-        auto* mm               = p.get_main_module();
-        int axis               = -2;
-        std::vector<int> data0 = {0, 1, 2, 3};
-        std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
-        std::vector<int> data2 = {10, 11};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
-        migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
-        auto l0 = mm->add_literal(migraphx::literal{s0, data0});
-        auto l1 = mm->add_literal(migraphx::literal{s1, data1});
-        auto l2 = mm->add_literal(migraphx::literal{s2, data2});
-        mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
-        p.compile(migraphx::make_target("ref"));
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        std::vector<int> results_vector(6 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                              std::vector<std::size_t>({6, 2})));
-        EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                              std::vector<std::size_t>({2, 1})));
-    }
+TEST_CASE(concat_test_4)
+{
+    migraphx::program p;
+    auto* mm               = p.get_main_module();
+    int axis               = -2;
+    std::vector<int> data0 = {0, 1, 2, 3};
+    std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
+    std::vector<int> data2 = {10, 11};
+    migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+    migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
+    migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{s0, data0});
+    auto l1 = mm->add_literal(migraphx::literal{s1, data1});
+    auto l2 = mm->add_literal(migraphx::literal{s2, data2});
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
+    p.compile(migraphx::make_target("ref"));
+    auto result           = p.eval({}).back();
+    std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    std::vector<int> results_vector(6 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
+                                          std::vector<std::size_t>({6, 2})));
+    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
+                                          std::vector<std::size_t>({2, 1})));
 }
 
 TEST_CASE(concat_dyn_test)

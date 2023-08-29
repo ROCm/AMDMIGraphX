@@ -30,32 +30,32 @@
 
 #include <test.hpp>
 
-TEST_CASE(unsqueeze_test)
+TEST_CASE(unsqueeze_test_1)
 {
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
-        auto l0 = mm->add_literal(migraphx::literal{s1, data});
-        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l0);
-        p.compile(migraphx::make_target("ref"));
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
-        auto l0 = mm->add_literal(migraphx::literal{s1, data});
-        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0);
-        p.compile(migraphx::make_target("ref"));
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<float> data(4 * 3 * 3);
+    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s1, data});
+    mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    EXPECT(result.get_shape() == s2);
+}
+
+TEST_CASE(unsqueeze_test_2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<float> data(4 * 3 * 3);
+    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s1, data});
+    mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    EXPECT(result.get_shape() == s2);
 }
 
 TEST_CASE(unsqueeze_dyn_test)

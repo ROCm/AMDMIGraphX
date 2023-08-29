@@ -400,7 +400,6 @@ TEST_CASE(rnn_reverse)
     migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
     // concatenation of hidden states as program output
     {
-
         migraphx::program p;
         auto* mm  = p.get_main_module();
         auto seq  = mm->add_literal(migraphx::literal{in_shape, input});
@@ -4989,5 +4988,3 @@ TEST_CASE(lstm_fp16)
         0.135643,  -0.0566208, 0.142701,   0.0342236,   -0.198664,  0.0702607};
     EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold, 5e4));
 }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

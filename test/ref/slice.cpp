@@ -30,50 +30,50 @@
 
 #include <test.hpp>
 
-TEST_CASE(slice_test)
+TEST_CASE(slice_test_1)
 {
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        std::vector<int> data(2 * 2 * 3);
-        std::iota(data.begin(), data.end(), 0);
-        migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
-        auto l0 = mm->add_literal(migraphx::literal{s, data});
-        mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}), l0);
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
-        EXPECT(p.get_output_shapes().back() == s2);
-        p.compile(migraphx::make_target("ref"));
-        migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-        std::vector<int> results_vector(2 * 2 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-        EXPECT(result.get_shape() == sresult);
-    }
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        std::vector<int> data(2 * 2 * 3);
-        std::iota(data.begin(), data.end(), 0);
-        migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
-        auto l0 = mm->add_literal(migraphx::literal{s, data});
-        mm->add_instruction(
-            migraphx::make_op("slice",
-                              {{"axes", {0, 1, 2}}, {"starts", {0, 0, 0}}, {"ends", {2, 2, 2}}}),
-            l0);
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
-        EXPECT(p.get_output_shapes().back() == s2);
-        p.compile(migraphx::make_target("ref"));
-        migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
-        std::vector<int> results_vector(2 * 2 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-        EXPECT(result.get_shape() == sresult);
-    }
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}), l0);
+    migraphx::shape s2{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
+    EXPECT(p.get_output_shapes().back() == s2);
+    p.compile(migraphx::make_target("ref"));
+    migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
+    auto result           = p.eval({}).back();
+    std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
+    std::vector<int> results_vector(2 * 2 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(result.get_shape() == sresult);
+}
+
+TEST_CASE(slice_test_2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", {0, 1, 2}}, {"starts", {0, 0, 0}}, {"ends", {2, 2, 2}}}),
+        l0);
+    migraphx::shape s2{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
+    EXPECT(p.get_output_shapes().back() == s2);
+    p.compile(migraphx::make_target("ref"));
+    migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
+    auto result           = p.eval({}).back();
+    std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
+    std::vector<int> results_vector(2 * 2 * 2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(result.get_shape() == sresult);
 }
 
 TEST_CASE(slice_var_inputs_static0)

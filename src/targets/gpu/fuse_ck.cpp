@@ -73,7 +73,6 @@ struct ck_gemm
 };
 MIGRAPHX_REGISTER_OP(ck_gemm);
 
-
 struct ck_gemm_softmax_gemm
 {
     operation op = make_op("dot");
@@ -107,10 +106,7 @@ struct ck_gemm_softmax_gemm
         return op.compute_shape({op.compute_shape({a, b}), b1});
     }
 
-    static bool is_ck_supported_type(shape::type_t t)
-    {
-        return contains({shape::half_type}, t);
-    }
+    static bool is_ck_supported_type(shape::type_t t) { return contains({shape::half_type}, t); }
 };
 MIGRAPHX_REGISTER_OP(ck_gemm_softmax_gemm);
 
@@ -140,7 +136,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
     // to avoid poor-performing GEMM kernels from CK
     // To-do: Investigate a more precise strategy
-    return true;//k <= 2048;
+    return true; // k <= 2048;
 }
 
 struct find_ck_gemm_softmax_gemm
@@ -163,7 +159,7 @@ struct find_ck_gemm_softmax_gemm
 
         // if (not ck_gemm_softmax_gemm::is_ck_supported_type(gemm1_ins->get_shape().type()))
         //     return;
-        
+
         auto inputs = gemm1_ins->inputs();            // A, B
         inputs.push_back(gemm2_ins->inputs().back()); // B1
 

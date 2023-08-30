@@ -24,11 +24,7 @@ RUN zypper --gpg-auto-import-keys install -y \
 
 #addition of repos for packages
 RUN OPENSUSE_REPO=https://download.opensuse.org/repositories && \
-    zypper addrepo ${OPENSUSE_REPO}/science/SLE_15_SP4/science.repo && \
-    zypper addrepo ${OPENSUSE_REPO}/server:/http/15.4/server:http.repo && \
-    zypper addrepo ${OPENSUSE_REPO}/devel:/languages:/perl/SLE_15_SP4/devel:languages:perl.repo && \
-    zypper addrepo ${OPENSUSE_REPO}/devel:/tools/15.4/devel:tools.repo && \
-    zypper addrepo ${OPENSUSE_REPO}/multimedia:/libs/15.4/multimedia:libs.repo
+    zypper addrepo ${OPENSUSE_REPO}/devel:/languages:/perl/SLE_15_SP4/devel:languages:perl.repo
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm

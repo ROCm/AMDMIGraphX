@@ -82,6 +82,7 @@ struct loader
            {"--model"},
            ap.help("Load model"),
            ap.type("resnet50|inceptionv3|alexnet"),
+           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -769,7 +770,7 @@ struct main_command
         {
             std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset
                       << "' is not a valid command." << std::endl;
-            std::cout << get_command_help("Available commands:") << std::endl;
+            std::cout << get_command_help("Available commands:");
         }
         else
         {

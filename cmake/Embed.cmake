@@ -24,11 +24,7 @@
 find_program(EMBED_LD ld)
 find_program(EMBED_OBJCOPY objcopy)
 
-if(LINUX)
-    option(EMBED_USE_LD "Use ld to embed data files" ON)
-else()
-    option(EMBED_USE_LD "Use ld to embed data files" OFF)
-endif()
+option(EMBED_USE_LD "Use ld to embed data files" OFF)
 
 function(wrap_string)
     set(options)

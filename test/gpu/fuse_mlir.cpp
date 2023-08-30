@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/gpu/mlir_offload.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
@@ -34,7 +34,7 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::gpu::mlir_offload{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::gpu::fuse_mlir{}, migraphx::dead_code_elimination{}});
 }
 
 template <class F>

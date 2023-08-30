@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include "migraphx/shape.hpp"
-#include <migraphx/gpu/mlir_offload.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -362,7 +362,7 @@ bool is_standalone_convs_enabled(const std::string& gfx_name)
 
 #endif // MIGRAPHX_MLIR
 
-void mlir_offload::apply(module_pass_manager& mpm) const
+void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     if(is_fusion_enabled())

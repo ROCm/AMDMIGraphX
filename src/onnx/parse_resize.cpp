@@ -97,7 +97,7 @@ const auto& get_original_idx_op(const std::string& mode)
 static std::vector<int>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
                      int i_dim,
-                     std::vector<std::vector<std::size_t>>& vec_dims,
+                     std::vector<std::vector<std::size_t>> vec_dims,
                      const shape& in_s)
 {
     if(i_dim == vvv_ind.size())
@@ -109,7 +109,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
         return vec_ind;
     }
 
-    const auto& vv_lo  = vvv_ind[i_dim][0];
+    const auto& vv_lo = vvv_ind[i_dim][0];
     std::vector<std::vector<std::size_t>> vec_dims1;
     for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
     {
@@ -135,8 +135,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                            return dim;
                        });
     }
-    vec_dims = std::move(vec_dims1);
-    return calc_neighbor_points(vvv_ind, i_dim + 1, vec_dims, in_s);
+    return calc_neighbor_points(vvv_ind, i_dim + 1, std::move(vec_dims1), in_s);
 }
 
 static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
@@ -237,7 +236,7 @@ struct parse_resize : op_parser<parse_resize>
                 auto arg_out_s = arg->eval();
                 check_arg_empty(arg_out_s,
                                 "PARSE_" + opd.op_name + ": dynamic output size is not supported!");
-                arg_out_s.visit([&](auto ol) { out_lens.assign(ol.begin(), ol.end()); });
+                arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
 
                 if(out_lens.size() != in_lens.size())
                 {
@@ -264,7 +263,7 @@ struct parse_resize : op_parser<parse_resize>
                                     "PARSE_" + opd.op_name +
                                         ": dynamic input scale is not supported!");
 
-                    arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
+                    arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
                     if(in_lens.size() != vec_scale.size())
                     {
                         MIGRAPHX_THROW("PARSE_" + opd.op_name +
@@ -297,7 +296,7 @@ struct parse_resize : op_parser<parse_resize>
 
             // map out_idx to in_idx
             auto nearest_op = get_nearest_op(nearest_mode);
-            shape_for_each(out_s, [&](auto idx) {
+            shape_for_each(out_s, [&](const auto& idx) {
                 auto in_idx = idx;
                 for(auto ii = 0; ii < in_lens.size(); ++ii)
                 {
@@ -323,7 +322,7 @@ struct parse_resize : op_parser<parse_resize>
             auto vvv_ind = std::vector(n_dim, std::vector(2, std::vector<size_t>(out_elements)));
             std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 
-            shape_for_each(out_s, [&](auto idx) {
+            shape_for_each(out_s, [&](const auto& idx) {
                 auto out_idx = out_s.index(idx);
                 for(auto ii = 0; ii < in_lens.size(); ++ii)
                 {
@@ -334,8 +333,8 @@ struct parse_resize : op_parser<parse_resize>
                 }
             });
 
-            std::vector<std::vector<std::size_t>> vec_dims(out_elements);
-            auto ind      = calc_neighbor_points(vvv_ind, 0, vec_dims, in_s);
+            auto ind = calc_neighbor_points(
+                vvv_ind, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s);
             auto ind_lens = out_lens;
             ind_lens[0] *= (std::size_t{1} << n_dim);
             shape ind_s{shape::int32_type, ind_lens};

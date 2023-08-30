@@ -65,21 +65,62 @@ struct ck_gemm
             return r;
         return r.with_type(mods.front()->get_output_shapes().front().type());
     }
+
+    static bool is_ck_supported_type(shape::type_t t)
+    {
+        return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
+    }
 };
 MIGRAPHX_REGISTER_OP(ck_gemm);
 
-namespace {
 
-bool is_ck_supported_type(shape::type_t t)
+struct ck_gemm_softmax_gemm
 {
-    return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
-}
+    operation op = make_op("dot");
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
+
+    std::string name() const { return "gpu::ck_gemm_softmax_gemm"; }
+
+    void check_gemm_shape(const shape& s) const
+    {
+        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1))
+            MIGRAPHX_THROW("Invalid shape for ck_gemm_softmax_gemm");
+    }
+
+    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
+    {
+        check_shapes{inputs, *this}.same_ndims();
+        if(inputs.size() < 2)
+            MIGRAPHX_THROW("should have at least two inputs.");
+        auto a  = inputs[0];
+        auto b  = inputs[1];
+        auto b1 = inputs[2];
+        for(const auto& input : inputs)
+        {
+            check_gemm_shape(input);
+        }
+        return op.compute_shape({op.compute_shape({a, b}), b1});
+    }
+
+    static bool is_ck_supported_type(shape::type_t t)
+    {
+        return contains({shape::half_type}, t);
+    }
+};
+MIGRAPHX_REGISTER_OP(ck_gemm_softmax_gemm);
+
+namespace {
 
 MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
 {
     if(ins->name() != "dot" and ins->name() != "quant_dot")
         return false;
-    if(not is_ck_supported_type(ins->get_shape().type()))
+    if(not ck_gemm::is_ck_supported_type(ins->get_shape().type()))
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
@@ -99,8 +140,37 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
     // to avoid poor-performing GEMM kernels from CK
     // To-do: Investigate a more precise strategy
-    return k <= 2048;
+    return true;//k <= 2048;
 }
+
+struct find_ck_gemm_softmax_gemm
+{
+    auto matcher() const
+    {
+        auto gemm1 =
+            match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
+        auto mul     = match::name("mul")(match::any_of[match::inputs()](gemm1)).bind("scale");
+        auto softmax = match::name("softmax")(match::any_of[match::inputs()](mul)).bind("softmax");
+        return match::name("dot")(is_ck_gemm().bind("gemm2"))(
+            match::any_of[match::inputs()](softmax));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto gemm2_ins = r.instructions["gemm2"];
+        auto gemm1_ins = r.instructions["gemm1"];
+
+        // if (not ck_gemm_softmax_gemm::is_ck_supported_type(gemm1_ins->get_shape().type()))
+        //     return;
+        
+        auto inputs = gemm1_ins->inputs();            // A, B
+        inputs.push_back(gemm2_ins->inputs().back()); // B1
+
+        mpm.get_module().replace_instruction(
+            ins, ck_gemm_softmax_gemm{gemm2_ins->get_operator()}, inputs);
+    }
+};
 
 struct find_ck_gemm_pointwise
 {
@@ -127,7 +197,11 @@ struct find_ck_gemm_pointwise
            ins->get_shape().type() != gemm_ins->get_shape().type())
             return;
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
-               return not is_ck_supported_type(input->get_shape().type());
+               return not ck_gemm::is_ck_supported_type(input->get_shape().type());
+           }))
+            return;
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
+               return not input->inputs().empty() and input->inputs().front()->name() == "capture";
            }))
             return;
         assert(gemm_it != inputs.end());
@@ -152,7 +226,7 @@ struct find_ck_gemm_pointwise
 
 struct find_ck_gemm
 {
-    auto matcher() const { return match::name("dot")(is_ck_gemm().bind("gemm")); }
+    auto matcher() const { return match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm")); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -165,6 +239,7 @@ struct find_ck_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
+    match::find_matches(mpm, find_ck_gemm_softmax_gemm{});
     match::find_matches(mpm, find_ck_gemm_pointwise{});
     match::find_matches(mpm, find_ck_gemm{});
 }

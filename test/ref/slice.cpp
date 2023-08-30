@@ -38,8 +38,8 @@ TEST_CASE(slice_test_1)
     std::iota(data.begin(), data.end(), 0);
     migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
     auto l0 = mm->add_literal(migraphx::literal{s, data});
-    mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}), l0);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}),
+                        l0);
     migraphx::shape s2{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
     EXPECT(p.get_output_shapes().back() == s2);
     p.compile(migraphx::make_target("ref"));

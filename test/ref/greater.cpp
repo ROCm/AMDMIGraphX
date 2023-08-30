@@ -43,7 +43,7 @@ TEST_CASE(greater_brcst_test)
     auto gr  = mm->add_instruction(migraphx::make_op("greater"), l0, bl1);
     auto r   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
 
@@ -67,7 +67,7 @@ TEST_CASE(greater_test)
     auto gr = mm->add_instruction(migraphx::make_op("greater"), l0, l1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                           {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
 
@@ -90,7 +90,7 @@ TEST_CASE(greater_dyn_test)
     auto gr    = mm->add_instruction(migraphx::make_op("greater"), left, right);
     auto r     = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));

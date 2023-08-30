@@ -64,4 +64,3 @@ TEST_CASE(abs_dyn_test)
     std::vector<float> gold{1, 2, 3, 4};
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-

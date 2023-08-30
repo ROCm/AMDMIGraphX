@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-    TEST_CASE(equal_brcst_test)
+TEST_CASE(equal_brcst_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -43,7 +43,7 @@
     auto eq  = mm->add_instruction(migraphx::make_op("equal"), l0, bl1);
     auto r   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
 
@@ -67,7 +67,7 @@ TEST_CASE(equal_test)
     auto eq = mm->add_instruction(migraphx::make_op("equal"), l0, l1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                           {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
 
@@ -90,7 +90,7 @@ TEST_CASE(equal_dyn_test)
     auto eq = mm->add_instruction(migraphx::make_op("equal"), p0, p1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                           {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));

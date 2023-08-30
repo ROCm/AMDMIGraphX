@@ -55,8 +55,8 @@ TEST_CASE(step_test_2)
     std::iota(data.begin(), data.end(), 2);
     migraphx::shape s1{migraphx::shape::float_type, {2, 1, 4, 6}};
     auto l0 = mm->add_literal(migraphx::literal{s1, data});
-    auto tl = mm->add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
+    auto tl =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
     auto r = mm->add_instruction(
         migraphx::make_op("step", {{"axes", {0, 1, 2}}, {"steps", {2, 2, 3}}}), tl);
     mm->add_return({r});

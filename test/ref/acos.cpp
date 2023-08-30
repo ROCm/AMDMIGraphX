@@ -70,4 +70,3 @@ TEST_CASE(acos_dyn_test)
         gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
-

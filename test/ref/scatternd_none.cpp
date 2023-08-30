@@ -75,12 +75,10 @@ TEST_CASE(scatternd_shapes_test_2)
     std::vector<float> upd_vec{5, 6};
 
     auto data = mm->add_literal(migraphx::literal{ds, data_vec});
-    auto td =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), data);
-    auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
-    auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-    auto scatternd =
-        mm->add_instruction(migraphx::make_op("scatternd_none"), td, indices, updates);
+    auto td = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), data);
+    auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
+    auto updates   = mm->add_literal(migraphx::literal{us, upd_vec});
+    auto scatternd = mm->add_instruction(migraphx::make_op("scatternd_none"), td, indices, updates);
     mm->add_return({scatternd});
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -111,8 +109,7 @@ TEST_CASE(scatternd_shapes_test_3)
     auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
     auto tu =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), updates);
-    auto scatternd =
-        mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, tu);
+    auto scatternd = mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, tu);
     mm->add_return({scatternd});
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
@@ -224,10 +221,9 @@ TEST_CASE(scatternd_test_4)
     migraphx::shape is{itype, {2, 1}};
     migraphx::shape us{dtype, {2, 4, 4}};
 
-    std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
-                                1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
-                                8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8,
-                                8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6,
+                                7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4,
+                                5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<int64_t> ind_vec{0, 2};
     std::vector<float> upd_vec{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8,
                                1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};

@@ -43,7 +43,7 @@ TEST_CASE(less_brcst_test)
     auto le  = mm->add_instruction(migraphx::make_op("less"), l0, bl1);
     auto r   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
 
@@ -67,7 +67,7 @@ TEST_CASE(less_test)
     auto le                  = mm->add_instruction(migraphx::make_op("less"), l0, l1);
     auto r                   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
 
@@ -94,7 +94,7 @@ TEST_CASE(less_dyn_test)
     auto le    = mm->add_instruction(migraphx::make_op("less"), left, right);
     auto r     = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));

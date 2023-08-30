@@ -81,4 +81,3 @@ TEST_CASE(dequantizelinear_signed_int8)
     std::vector<float> gold{-256, -200, -100, -2, 0, 2, 100, 200, 254};
     EXPECT(results_vector == gold);
 }
-

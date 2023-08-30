@@ -77,8 +77,8 @@ TEST_CASE(prefix_scan_sum_2d_1)
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
@@ -94,8 +94,8 @@ TEST_CASE(prefix_scan_sum_2d_2)
     migraphx::shape s{migraphx::shape::float_type, {3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
@@ -111,30 +111,14 @@ TEST_CASE(prefix_scan_sum_3d_1)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.0,
-                            2.0,
-                            3.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            2.0,
-                            4.0,
-                            6.0};
+    std::vector<float> gold{
+        1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 2.0, 4.0, 6.0, 2.0, 4.0, 6.0};
     EXPECT(results_vector == gold);
 }
 
@@ -145,30 +129,14 @@ TEST_CASE(prefix_scan_sum_3d_2)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            3.0,
-                            6.0,
-                            9.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            3.0,
-                            6.0,
-                            9.0};
+    std::vector<float> gold{
+        1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 3.0, 6.0, 9.0, 1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 3.0, 6.0, 9.0};
     EXPECT(results_vector == gold);
 }
 
@@ -179,30 +147,14 @@ TEST_CASE(prefix_scan_sum_3d_3)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 2}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 2}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0};
+    std::vector<float> gold{
+        1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0};
     EXPECT(results_vector == gold);
 }
 
@@ -213,8 +165,8 @@ TEST_CASE(prefix_scan_sum_exclusive_1)
     migraphx::shape s{migraphx::shape::float_type, {8}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", true}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", true}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
@@ -230,30 +182,14 @@ TEST_CASE(prefix_scan_sum_exclusive_2)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", true}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", true}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{0.0,
-                            0.0,
-                            0.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            0.0,
-                            0.0,
-                            0.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0};
+    std::vector<float> gold{
+        0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 4.0, 6.0};
     EXPECT(results_vector == gold);
 }
 
@@ -282,30 +218,14 @@ TEST_CASE(prefix_scan_sum_negative_axis_1)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", -3}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", -3}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.0,
-                            2.0,
-                            3.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            2.0,
-                            4.0,
-                            6.0};
+    std::vector<float> gold{
+        1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 2.0, 4.0, 6.0, 2.0, 4.0, 6.0};
     EXPECT(results_vector == gold);
 }
 
@@ -316,30 +236,14 @@ TEST_CASE(prefix_scan_sum_negative_axis_2)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", -2}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", -2}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            3.0,
-                            6.0,
-                            9.0,
-                            1.0,
-                            2.0,
-                            3.0,
-                            2.0,
-                            4.0,
-                            6.0,
-                            3.0,
-                            6.0,
-                            9.0};
+    std::vector<float> gold{
+        1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 3.0, 6.0, 9.0, 1.0, 2.0, 3.0, 2.0, 4.0, 6.0, 3.0, 6.0, 9.0};
     EXPECT(results_vector == gold);
 }
 
@@ -350,30 +254,14 @@ TEST_CASE(prefix_scan_sum_negative_axis_3)
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 3}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", -1}, {"exclusive", false}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", -1}, {"exclusive", false}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0,
-                            1.0,
-                            3.0,
-                            6.0};
+    std::vector<float> gold{
+        1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0, 1.0, 3.0, 6.0};
     EXPECT(results_vector == gold);
 }
 
@@ -384,10 +272,9 @@ TEST_CASE(prefix_scan_sum_reverse_1)
     migraphx::shape s{migraphx::shape::float_type, {8}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum",
-                          {{"axis", 0}, {"exclusive", false}, {"reverse", true}}),
-        l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum",
+                                          {{"axis", 0}, {"exclusive", false}, {"reverse", true}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
@@ -403,10 +290,9 @@ TEST_CASE(prefix_scan_sum_reverse_2)
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum",
-                          {{"axis", 0}, {"exclusive", false}, {"reverse", true}}),
-        l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum",
+                                          {{"axis", 0}, {"exclusive", false}, {"reverse", true}}),
+                        l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;

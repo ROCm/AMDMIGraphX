@@ -121,8 +121,7 @@ TEST_CASE(gathernd_test_4)
     auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
     auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
 
-    mm->add_instruction(
-        migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
+    mm->add_instruction(migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> res_data{};
@@ -148,8 +147,7 @@ TEST_CASE(gathernd_test_5)
     auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
     auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
 
-    mm->add_instruction(
-        migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
+    mm->add_instruction(migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();

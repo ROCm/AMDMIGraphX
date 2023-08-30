@@ -43,8 +43,7 @@ TEST_CASE(add_broadcast_test)
     auto l1       = mm->add_literal(migraphx::literal{a_shape, a_data});
     auto l2       = mm->add_literal(migraphx::literal{b_shape, b_data});
     auto l3       = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l1->get_shape().lens()}}),
-        l2);
+        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l1->get_shape().lens()}}), l2);
     mm->add_instruction(migraphx::make_op("add"), l1, l3);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();

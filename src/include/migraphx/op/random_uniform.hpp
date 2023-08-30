@@ -24,18 +24,16 @@
 
 /**
  * Random Uniform distribution operator.  Given a shape, populate it with random
- * values.  Calls to random_uniform using the same randomization seed will
- * always generate the same pseudo-random sequence.  Seed can
- * be given as a runtime argument containing a single value, or a compile-time
- * attribute.
+ * values.  Calls to random_uniform using the same randomization seed as a
+ * literal input will
+ * always generate the same pseudo-random sequence.
  *
  *      Inputs:   (1) randomization seed (any type is allowed)
- *                (2) the shape of the set to be populated.
- *
+ *                (2) output buffer argument to be populated.
  *
  *      Attributes:  none
  *
- *      Output:   Same shape.
+ *      Output:   Returns the buffer from input #2.
  *
  */
 #ifndef MIGRAPHX_GUARD_OPERATORS_RANDOM_UNIFORM_HPP
@@ -53,9 +51,6 @@ namespace op {
  * random_uniform populates the passed shape with random numbers, in a uniform
  * distribution.  Range for floating-point data types is (0, 1);
  * for integer types it is [0, <max value for the type>]
- *
- *   Input 1:  seed
- *   Input 2:  output shape
  */
 struct random_uniform
 {
@@ -82,8 +77,8 @@ struct random_uniform
             using type = typename decltype(output)::value_type;
             if constexpr(std::is_integral<type>{})
             {
-                // default range for all integer types is (0,
-                // std::uniform_int_distribution<type>::max()).
+                // default range for all integer types is
+                // (0, std::uniform_int_distribution<type>::max()).
                 // Todo:  enable different ranges
                 std::uniform_int_distribution<type> dis;
                 std::generate(output.begin(), output.end(), [&] { return dis(gen); });

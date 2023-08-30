@@ -94,10 +94,7 @@ struct mlir_handle
 
         friend bool operator!=(ptr x, ptr y) { return not(x == y); }
 
-        explicit operator bool() const noexcept
-        {
-            return obj != ptr();
-        }
+        explicit operator bool() const noexcept { return obj != ptr(); }
         T obj{};
     };
 

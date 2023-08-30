@@ -23,7 +23,7 @@
  */
 #include <iostream>
 #include <vector>
-#include <migraphx/gpu/mlir_offload.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>

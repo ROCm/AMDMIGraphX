@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_MLIR_OFFLOAD_HPP
-#define MIGRAPHX_GUARD_GPU_MLIR_OFFLOAD_HPP
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
 #include <migraphx/gpu/context.hpp>
 
@@ -35,10 +35,10 @@ namespace gpu {
 
 MIGRAPHX_GPU_EXPORT bool mlir_enabled();
 
-struct MIGRAPHX_GPU_EXPORT mlir_offload
+struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {
     context* ctx = nullptr;
-    std::string name() const { return "gpu::mlir_offload"; }
+    std::string name() const { return "gpu::fuse_mlir"; }
     void apply(module_pass_manager& mpm) const;
 };
 
@@ -46,4 +46,4 @@ struct MIGRAPHX_GPU_EXPORT mlir_offload
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_MLIR_OFFLOAD_HPP
+#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP

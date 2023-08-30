@@ -21,8 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/shape.hpp"
-#include <migraphx/gpu/mlir_offload.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -327,11 +326,11 @@ struct find_mlir_standalone_convolution_op
 };
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_OPS);
-bool is_self_decide() { return env(MIGRAPHX_MLIR_ENABLE_OPS::value()).empty(); }
+bool is_self_decide() { return string_value_of(MIGRAPHX_MLIR_ENABLE_OPS{}, "").empty(); }
 
 bool is_requested(std::string_view option)
 {
-    assert(enabled(MIGRAPHX_MLIR_ENABLE_OPS{}));
+    assert(not is_self_decide());
     auto string_value = string_value_of(MIGRAPHX_MLIR_ENABLE_OPS{}, "");
     static const char delim{','};
     string_value.push_back(delim);
@@ -351,10 +350,10 @@ bool is_fusion_enabled()
 
 bool is_standalone_convs_enabled(const std::string& gfx_name)
 {
-    const std::string navi_family{"gfx110"};
-    if(is_self_decide() and starts_with(gfx_name, navi_family))
+    if(is_self_decide())
     {
-        return true;
+        const std::string navi_family{"gfx110"};
+        return starts_with(gfx_name, navi_family);
     }
     return is_requested("conv");
 }
@@ -362,7 +361,7 @@ bool is_standalone_convs_enabled(const std::string& gfx_name)
 
 #endif // MIGRAPHX_MLIR
 
-void mlir_offload::apply(module_pass_manager& mpm) const
+void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     if(is_fusion_enabled())

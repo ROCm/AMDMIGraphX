@@ -55,7 +55,6 @@ jobs:
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
           -DMIGRAPHX_ENABLE_FPGA=On \
-          -DMIGRAPHX_ENABLE_MLIR=On \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \

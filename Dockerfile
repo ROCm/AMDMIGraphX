@@ -67,7 +67,7 @@ RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
 
 # Workaround broken miopen cmake files
-RUN sed 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
+RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
 
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8

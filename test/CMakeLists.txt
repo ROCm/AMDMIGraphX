@@ -115,8 +115,7 @@ if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
         target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
         target_include_directories(${TEST_NAME} PUBLIC include)
         add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_MULTI_TARGET_DIR})
-        add_dependencies(tests ${TEST_NAME})
-        add_dependencies(check ${TEST_NAME})
+        rocm_mark_as_test(${TEST_NAME})
     endforeach()
 endif()
 
@@ -133,7 +132,7 @@ int main() {}\n"
 #endif
 \n"
     )
-    add_test_executable(${NAME}
+    rocm_add_test_executable(${NAME}
         ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
     )

@@ -156,11 +156,9 @@ struct shape_impl
     {
         std::size_t result = 0;
         std::size_t s      = 1;
-        std::size_t k      = m_lens.size();
 
-        while(k != 0)
+        for(auto k : migraphx::reverse(migraphx::range(m_lens.size())))
         {
-            --k;
             std::size_t stride = m_strides[k];
             std::size_t len    = m_lens[k];
             std::size_t idx    = (i % (s * len)) / s;

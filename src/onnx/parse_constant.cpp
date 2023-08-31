@@ -61,7 +61,7 @@ struct parse_constant : op_parser<parse_constant>
         }
 
         // if dim_size is 0, it is a scalar
-        if(attr.t().dims_size() == 0)
+        if(attr.has_t() && attr.t().dims_size() == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
             return info.add_literal(migraphx::literal{scalar_shape, v.data()});

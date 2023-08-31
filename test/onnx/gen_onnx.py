@@ -821,6 +821,53 @@ def constant_test():
 
     return ([node], [], [y])
 
+@onnx_test()
+def constant_value_float_test():
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=[],
+        value_float=[1.0]
+    )
+
+    return ([node], [], [])
+
+@onnx_test()
+def constant_value_floats_test():
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=[],
+        value_floats=[1.0, 2.0, 3.0]
+    )
+
+    return ([node], [], [])
+
+@onnx_test()
+def constant_value_int_test():
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=[],
+        value_int=[1]
+    )
+
+    return ([node], [], [])
+
+@onnx_test()
+def constant_value_ints_test():
+
+    node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=[],
+        value_ints=[1, 2, 3]
+    )
+
+    return ([node], [], [])
 
 @onnx_test()
 def constant_fill_test():

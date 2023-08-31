@@ -603,8 +603,8 @@ TEST_CASE(simplify_inner_broadcast_scalar)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 384}});
-        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 384}});
+        auto y = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
         auto yb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 384}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
@@ -630,8 +630,8 @@ TEST_CASE(simplify_inner_broadcast_different_dims)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {384, 768}});
-        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {768}});
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {384, 768}});
+        auto y = m2.add_parameter("y", {migraphx::shape::int32_type, {768}});
         auto yb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
@@ -2906,6 +2906,91 @@ TEST_CASE(reorder_reshape_slice_not_apply)
 
     auto m1 = create_p();
     auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reorder_reshape_slice_multi_rsp)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {4, 128, 3, 32, 80}};
+        auto input = m1.add_parameter("input", s);
+        auto t1    = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}), input);
+        auto slc0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), t1);
+        auto slc1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), t1);
+        auto slc2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), t1);
+
+        auto c1_1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
+        auto c2_1 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
+
+        auto c1 = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
+        auto r1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 32, 128, 80}}}), c1);
+
+        auto c2 = m1.add_instruction(migraphx::make_op("contiguous"), slc2);
+        auto r2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 32, 128, 80}}}), c2);
+
+        auto r1_1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {128, 128, 80}}}), c1_1);
+        auto r2_1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {128, 128, 80}}}), c2_1);
+
+        auto c0 = m1.add_instruction(migraphx::make_op("contiguous"), slc0);
+        auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {128, 128, 80}}}), c0);
+
+        auto t2 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), r1_1);
+        auto c_t2 = m1.add_instruction(migraphx::make_op("contiguous"), t2);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), r0, c_t2);
+
+        m1.add_return({r1, r2, dot, r2_1});
+    };
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {4, 128, 3, 32, 80}};
+        auto input = m2.add_parameter("input", s);
+        auto t1    = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}), input);
+        auto c_t1 = m2.add_instruction(migraphx::make_op("contiguous"), t1);
+        auto rsp1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {384, 128, 80}}}), c_t1);
+        auto slc0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {256}}, {"ends", {384}}}), rsp1);
+        auto slc1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {128}}, {"ends", {256}}}), rsp1);
+
+        auto t_slc1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), slc1);
+        auto c_t_slc1 = m2.add_instruction(migraphx::make_op("contiguous"), t_slc1);
+
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {128}}}), rsp1);
+
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), slc2, c_t_slc1);
+
+        auto slc4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), t1);
+        auto c4 = m2.add_instruction(migraphx::make_op("contiguous"), slc4);
+        auto r4 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 32, 128, 80}}}), c4);
+
+        auto slc5 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), t1);
+        auto c5 = m2.add_instruction(migraphx::make_op("contiguous"), slc5);
+        auto r5 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 32, 128, 80}}}), c5);
+
+        m2.add_return({r5, r4, dot, slc0});
+    };
+
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }

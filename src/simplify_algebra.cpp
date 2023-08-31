@@ -1355,9 +1355,10 @@ struct find_split_reshape
             return cont->outputs().front();
         });
 
-        // all outputs are reshape and of the same shape
-        auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if(not same_ops(vec_rsp))
+        // all outputs are reshape and of the same shape as matched reshape op
+        std::vector<instruction_ref> all_rsp = vec_rsp;
+        all_rsp.push_back(rsp);
+        if(not same_ops(all_rsp))
         {
             return;
         }

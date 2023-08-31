@@ -135,6 +135,7 @@ calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& v
                            return dim;
                        });
     }
+    vec_dims.clear();
     return calc_neighbor_points(vvv_ind, i_dim + 1, std::move(vec_dims1), in_s);
 }
 

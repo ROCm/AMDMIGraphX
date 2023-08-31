@@ -130,6 +130,7 @@ add_library(migraphx_gpu
     lrn.cpp
     mlir.cpp
     multinomial.cpp
+    no_device.cpp
     nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp

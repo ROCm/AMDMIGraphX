@@ -270,23 +270,26 @@ def averagepool_dyn_test():
     node = onnx.helper.make_node('AveragePool',
                                  inputs=['0'],
                                  outputs=['1'],
-                                 kernel_shape=[3, 3, 3])
-
+                                 kernel_shape=[3, 3, 3],
+                                 strides=[2, 2, 2],
+                                 pads=[1, 1, 1, 1, 1, 1])
     return ([node], [x], [out])
 
 
 @onnx_test()
-def averagepool_dyn_autopad_error_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 5, 5])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 1, 5, 5])
+def averagepool_dyn_autopad_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 5, 5, 5])
+    out = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                        [None, 3, 3, 3, 3])
 
     node = onnx.helper.make_node('AveragePool',
-                                 inputs=['x'],
-                                 outputs=['y'],
-                                 kernel_shape=[2, 2],
-                                 auto_pad='SAME_LOWER')
-
-    return ([node], [x], [y])
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 kernel_shape=[3, 3, 3],
+                                 strides=[2, 2, 2],
+                                 auto_pad='SAME_UPPER')
+    return ([node], [x], [out])
 
 
 @onnx_test()
@@ -3502,7 +3505,6 @@ def instance_norm_dyn_batch_test():
                                  inputs=['0', '1', '2'],
                                  outputs=['3'])
 
-    return ([node], [x, scale, bias], [y])
     return ([node], [x, scale, bias], [y])
 
 

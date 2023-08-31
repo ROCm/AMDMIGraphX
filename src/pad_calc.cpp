@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,6 +52,11 @@ void calculate_padding(int64_t idx,
     }
 }
 
+/**
+ * Given the input array dimensions; kernel (wei_lens); strides; and dilations,
+ * calculate the padding value in each dimension.
+ *
+ */
 std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input_lens,
                                            const std::vector<std::size_t>& wei_lens,
                                            const std::vector<std::size_t>& strides,
@@ -60,6 +65,7 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input
 {
     std::vector<std::size_t> padding;
     assert(input_lens.size() >= 3);
+    assert(input_lens.size() == wei_lens.size());
     std::size_t num_spatial_dims = input_lens.size() - 2;
     padding.resize(2 * num_spatial_dims);
     for(std::size_t i = 0; i < num_spatial_dims; i++)
@@ -88,6 +94,11 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input
     return padding;
 }
 
+/**
+ *   Calculate the correct output shape for a convolution with
+ *   a given input size and other parameters.
+ *
+ */
 shape compute_padded_shape(const shape& input,
                            const shape& weights,
                            const std::vector<std::size_t>& padding,
@@ -111,5 +122,33 @@ shape compute_padded_shape(const shape& input,
     return input.with_lens(output_lens);
 }
 
+/**
+ *   Calculate the correct output shape for a pooling with
+ *   a given input size and other parameters.  This uses
+ *   the same formula for pooling that compute_padded_shape() uses
+ *   for convolutions, but takes slightly different inputs.
+ *
+ */
+shape compute_padded_pool_shape(const shape& input,
+                                const shape& kernel,
+                                const std::vector<std::size_t>& padding,
+                                const std::vector<std::size_t>& stride,
+                                const std::vector<std::size_t>& dilation)
+{
+    const size_t num_spatial_dims = input.lens().size() - 2;
+
+    std::vector<size_t> output_lens{input.lens()[0], input.lens()[1]};
+    // calculate the output shape of the pooling: ((W - K + 2P) / S) + 1
+    for(size_t i = 0; i < num_spatial_dims; ++i)
+    {
+        auto padding_factor = padding[i] + padding[i + num_spatial_dims];
+        output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+            1,
+            (input.lens()[i + 2] - (1 + dilation[i] * (kernel.lens()[i] - 1)) + padding_factor) /
+                    stride[i] +
+                1)));
+    }
+    return input.with_lens(output_lens);
+}
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

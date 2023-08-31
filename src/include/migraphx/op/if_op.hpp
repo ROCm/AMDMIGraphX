@@ -70,11 +70,11 @@ struct if_op
         module_ref mod = cond ? mods[0] : mods[1];
         std::unordered_map<std::string, argument> params;
 
-        std::set<std::string> pnames;
+        std::vector<std::string> pnames;
         for(const_module_ref smod : mods)
         {
             auto names = smod->get_parameter_names();
-            pnames.insert(names.begin(), names.end());
+            pnames.insert(pnames.end(), names.begin(), names.end());
         }
 
         assert(pnames.size() < args.size());

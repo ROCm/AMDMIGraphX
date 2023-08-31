@@ -1403,17 +1403,17 @@ TEST_CASE(conv_dyn_weights_shape_test)
                             0.81217463, 0.10789447, 0.43083784, 0.63371852, 0.69742316, 0.09536905};
 
     std::vector<float> c   = {0.98411968,
-                            0.2899219,
-                            0.44638833,
-                            0.30390816,
-                            0.03989896,
-                            0.2445332,
-                            0.32700131,
-                            0.57517075,
-                            0.06956476,
-                            0.93079306,
-                            0.19882314,
-                            0.52940601};
+                              0.2899219,
+                              0.44638833,
+                              0.30390816,
+                              0.03989896,
+                              0.2445332,
+                              0.32700131,
+                              0.57517075,
+                              0.06956476,
+                              0.93079306,
+                              0.19882314,
+                              0.52940601};
     std::vector<float> sol = {1.9939406,
                               2.2703054,
                               1.8896171,
@@ -1437,9 +1437,9 @@ TEST_CASE(conv_dyn_weights_shape_test)
     EXPECT(migraphx::verify::verify_range(results_vector, sol));
 
     c   = {0.98411968, 0.2899219,  0.44638833, 0.30390816, 0.03989896, 0.2445332,  0.32700131,
-         0.57517075, 0.06956476, 0.93079306, 0.19882314, 0.52940601, 0.35624753, 0.35938406,
-         0.9111428,  0.88923574, 0.61040283, 0.2797513,  0.15479768, 0.46534674, 0.16970931,
-         0.49704618, 0.07062198, 0.01678321, 0.53150934, 0.39244495, 0.9963813};
+           0.57517075, 0.06956476, 0.93079306, 0.19882314, 0.52940601, 0.35624753, 0.35938406,
+           0.9111428,  0.88923574, 0.61040283, 0.2797513,  0.15479768, 0.46534674, 0.16970931,
+           0.49704618, 0.07062198, 0.01678321, 0.53150934, 0.39244495, 0.9963813};
     sol = {6.1329393, 4.3199925, 5.448438, 3.8497565};
     migraphx::shape weights_fixed_shape1{migraphx::shape::float_type, {1, 3, 3, 3}};
 
@@ -1543,30 +1543,30 @@ TEST_CASE(conv_dyn_kernel_same_upper_test)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> a   = {0.63321185, 0.6466339,  0.8515352,  0.44240063, 0.5018913,  0.5068494,
-                            0.75330657, 0.7383877,  0.15870683, 0.8171611,  0.56118083, 0.87004256,
-                            0.24401724, 0.8815178,  0.4222333,  0.27191755,
+                              0.75330657, 0.7383877,  0.15870683, 0.8171611,  0.56118083, 0.87004256,
+                              0.24401724, 0.8815178,  0.4222333,  0.27191755,
 
-                            0.41633207, 0.2460619,  0.32004243, 0.6962248,  0.12284133, 0.2620491,
-                            0.96931046, 0.6030955,  0.7623861,  0.2395751,  0.61440414, 0.577285,
-                            0.80087787, 0.12776066, 0.26566318, 0.46569306,
+                              0.41633207, 0.2460619,  0.32004243, 0.6962248,  0.12284133, 0.2620491,
+                              0.96931046, 0.6030955,  0.7623861,  0.2395751,  0.61440414, 0.577285,
+                              0.80087787, 0.12776066, 0.26566318, 0.46569306,
 
-                            0.96701574, 0.3850145,  0.14165345, 0.5887347,  0.7152134,  0.5295342,
-                            0.6303507,  0.4037548,  0.18556239, 0.79416305, 0.29107493, 0.18770285,
-                            0.6870904,  0.30701008, 0.314684,   0.91075855};
+                              0.96701574, 0.3850145,  0.14165345, 0.5887347,  0.7152134,  0.5295342,
+                              0.6303507,  0.4037548,  0.18556239, 0.79416305, 0.29107493, 0.18770285,
+                              0.6870904,  0.30701008, 0.314684,   0.91075855};
     std::vector<float> c   = {2.8150102e-01,
-                            3.3198616e-01,
-                            9.5149356e-01,
-                            7.4039467e-02,
+                              3.3198616e-01,
+                              9.5149356e-01,
+                              7.4039467e-02,
 
-                            9.6555042e-01,
-                            2.8815505e-01,
-                            2.5100240e-01,
-                            5.2186239e-01,
+                              9.6555042e-01,
+                              2.8815505e-01,
+                              2.5100240e-01,
+                              5.2186239e-01,
 
-                            2.3850012e-01,
-                            8.2963020e-01,
-                            3.0763101e-04,
-                            6.7026985e-01};
+                              2.3850012e-01,
+                              8.2963020e-01,
+                              3.0763101e-04,
+                              6.7026985e-01};
     std::vector<float> sol = {2.453681,
                               2.536207,
                               3.0187201,
@@ -1616,30 +1616,30 @@ TEST_CASE(conv_dyn_kernel_same_lower_test)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> a   = {0.63321185, 0.6466339,  0.8515352,  0.44240063, 0.5018913,  0.5068494,
-                            0.75330657, 0.7383877,  0.15870683, 0.8171611,  0.56118083, 0.87004256,
-                            0.24401724, 0.8815178,  0.4222333,  0.27191755,
+                              0.75330657, 0.7383877,  0.15870683, 0.8171611,  0.56118083, 0.87004256,
+                              0.24401724, 0.8815178,  0.4222333,  0.27191755,
 
-                            0.41633207, 0.2460619,  0.32004243, 0.6962248,  0.12284133, 0.2620491,
-                            0.96931046, 0.6030955,  0.7623861,  0.2395751,  0.61440414, 0.577285,
-                            0.80087787, 0.12776066, 0.26566318, 0.46569306,
+                              0.41633207, 0.2460619,  0.32004243, 0.6962248,  0.12284133, 0.2620491,
+                              0.96931046, 0.6030955,  0.7623861,  0.2395751,  0.61440414, 0.577285,
+                              0.80087787, 0.12776066, 0.26566318, 0.46569306,
 
-                            0.96701574, 0.3850145,  0.14165345, 0.5887347,  0.7152134,  0.5295342,
-                            0.6303507,  0.4037548,  0.18556239, 0.79416305, 0.29107493, 0.18770285,
-                            0.6870904,  0.30701008, 0.314684,   0.91075855};
+                              0.96701574, 0.3850145,  0.14165345, 0.5887347,  0.7152134,  0.5295342,
+                              0.6303507,  0.4037548,  0.18556239, 0.79416305, 0.29107493, 0.18770285,
+                              0.6870904,  0.30701008, 0.314684,   0.91075855};
     std::vector<float> c   = {2.8150102e-01,
-                            3.3198616e-01,
-                            9.5149356e-01,
-                            7.4039467e-02,
+                              3.3198616e-01,
+                              9.5149356e-01,
+                              7.4039467e-02,
 
-                            9.6555042e-01,
-                            2.8815505e-01,
-                            2.5100240e-01,
-                            5.2186239e-01,
+                              9.6555042e-01,
+                              2.8815505e-01,
+                              2.5100240e-01,
+                              5.2186239e-01,
 
-                            2.3850012e-01,
-                            8.2963020e-01,
-                            3.0763101e-04,
-                            6.7026985e-01};
+                              2.3850012e-01,
+                              8.2963020e-01,
+                              3.0763101e-04,
+                              6.7026985e-01};
     std::vector<float> sol = {0.91231215,
                               1.1416453,
                               1.00216,
@@ -2563,7 +2563,7 @@ TEST_CASE(equal_brcst_test)
     auto eq  = mm->add_instruction(migraphx::make_op("equal"), l0, bl1);
     auto r   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
 
@@ -2587,7 +2587,7 @@ TEST_CASE(equal_test)
     auto eq = mm->add_instruction(migraphx::make_op("equal"), l0, l1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                           {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
 
@@ -2610,7 +2610,7 @@ TEST_CASE(equal_dyn_test)
     auto eq = mm->add_instruction(migraphx::make_op("equal"), p0, p1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                           {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));
@@ -3575,7 +3575,7 @@ TEST_CASE(greater_brcst_test)
     auto gr  = mm->add_instruction(migraphx::make_op("greater"), l0, bl1);
     auto r   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
 
@@ -3599,7 +3599,7 @@ TEST_CASE(greater_test)
     auto gr = mm->add_instruction(migraphx::make_op("greater"), l0, l1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                           {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
 
@@ -3622,7 +3622,7 @@ TEST_CASE(greater_dyn_test)
     auto gr    = mm->add_instruction(migraphx::make_op("greater"), left, right);
     auto r     = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));
@@ -3748,12 +3748,12 @@ TEST_CASE(if_param_test)
         auto* then_mod           = p.create_module("If_0_if");
         std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
         auto l1                  = then_mod->add_literal(migraphx::literal(ds, data1));
-        auto tx                  = then_mod->add_parameter("x", ds);
+        auto tx                  = then_mod->add_parameter("then_x", ds);
         auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), tx, l1);
         then_mod->add_return({a1});
 
         auto* else_mod = p.create_module("If_0_else");
-        auto ey        = else_mod->add_parameter("y", ds);
+        auto ey        = else_mod->add_parameter("else_y", ds);
         auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), ey, sum);
         else_mod->add_return({a2});
 
@@ -4108,20 +4108,20 @@ TEST_CASE(imagescaler_test)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 2, 2}};
     auto img           = mm->add_literal(migraphx::literal{s,
-                                                 {0.2,
-                                                  0.3,
-                                                  0.5,
-                                                  0.4,
+                                                           {0.2,
+                                                            0.3,
+                                                            0.5,
+                                                            0.4,
 
-                                                  0.7,
-                                                  0.8,
-                                                  0.1,
-                                                  0.9,
+                                                            0.7,
+                                                            0.8,
+                                                            0.1,
+                                                            0.9,
 
-                                                  0.15,
-                                                  0.25,
-                                                  0.35,
-                                                  0.45}});
+                                                            0.15,
+                                                            0.25,
+                                                            0.35,
+                                                            0.45}});
     auto scale_val     = mm->add_literal(2.f);
     auto scaled_tensor = mm->add_instruction(
         migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), scale_val);
@@ -4180,7 +4180,7 @@ TEST_CASE(less_brcst_test)
     auto le  = mm->add_instruction(migraphx::make_op("less"), l0, bl1);
     auto r   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
 
@@ -4204,7 +4204,7 @@ TEST_CASE(less_test)
     auto le                  = mm->add_instruction(migraphx::make_op("less"), l0, l1);
     auto r                   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                                            {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
 
@@ -4231,7 +4231,7 @@ TEST_CASE(less_dyn_test)
     auto le    = mm->add_instruction(migraphx::make_op("less"), left, right);
     auto r     = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));
@@ -5459,9 +5459,9 @@ TEST_CASE(nms_dyn_batch_test)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0,
-                                    0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0,
+                                     0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores_vec = {
         0.9, 0.75, 0.6, 0.95, 0.5, 0.3, 0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
 
@@ -5505,7 +5505,7 @@ TEST_CASE(nms_dyn_boxes_test)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
 
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 6, 4}};
@@ -5548,8 +5548,8 @@ TEST_CASE(nms_dyn_classes_test)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> boxes_vec  = {0.0, 0.0,  1.0, 1.0,  0.0, 0.1,   1.0, 1.1,
-                                    0.0, -0.1, 1.0, 0.9,  0.0, 10.0,  1.0, 11.0,
-                                    0.0, 10.1, 1.0, 11.1, 0.0, 100.0, 1.0, 101.0};
+                                     0.0, -0.1, 1.0, 0.9,  0.0, 10.0,  1.0, 11.0,
+                                     0.0, 10.1, 1.0, 11.1, 0.0, 100.0, 1.0, 101.0};
     std::vector<float> scores_vec = {
         0.9, 0.75, 0.6, 0.95, 0.5, 0.3, 0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
     migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {1, 6, 4}};

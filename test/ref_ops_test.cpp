@@ -613,6 +613,7 @@ TEST_CASE(avgpool_rank3_test)
 
 TEST_CASE(avgpool_dyn_test)
 {
+    // Dynamic input, no padding
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
@@ -638,34 +639,99 @@ TEST_CASE(avgpool_dyn_test)
 
 TEST_CASE(avgpool_dyn_pad_test)
 {
-    // pooling with dynamic input and padding, ceiling mode for output size
+    // Dynamic input with explicit padding
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {1, 3}, {2, 4}, {2, 4}}};
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}, {4, 4}}};
     auto x   = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("pooling",
                                           {{"mode", migraphx::op::pooling_mode::average},
-                                           {"lengths", {2, 2}},
-                                           {"padding", {1, 0}},
-                                           {"ceil_mode", true},
-                                           {"stride", {2, 2}}}),
+                                           {"lengths", {2}},
+                                           {"padding", {1}},
+                                           {"stride", {1}}}),
                         x);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> data{1, 2, 3, 4, 5, 6};
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 3, 4}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    //      *  *  *
-    //      1  2  3        padding will look like this
-    //      4  5  6        The * are used when tiling the kernel
-    //      *  *  *        but are ignored in averaging
+    std::vector<float> gold{
+        0.3, 0.25, 0.3, 0.25, 0.1, 0.8, 0.65, 0.7, 0.5, 0.1, 0.1, 0.4, 0.4, 0.35, 0.6};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
 
-    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 3}};
+TEST_CASE(avgpool_dyn_auto_pad_test)
+{
+    // Pooling with dynamic input, multidimensional kernel and auto-padding
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s =
+        migraphx::shape{migraphx::shape::float_type, {{1, 1}, {1, 3}, {2, 6, {2}}, {2, 6, {2}}}};
+    auto x = mm->add_parameter("X", s);
+    mm->add_instruction(
+        migraphx::make_op("pooling",
+                          {
+                              {"mode", migraphx::op::pooling_mode::average},
+                              {"dyn_global", false},
+                              // non-default auto padding
+                              {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                              {"lengths", {2, 3}},
+                          }),
+        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1, 2, 3, 4};
+
+    //      * 1 2 *      auto padding should look like this
+    //      * 3 4 *
+    //      * * * *
+
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 1, 2, 2}};
     migraphx::parameter_map params;
     params["X"] = migraphx::argument(input_fixed_shape, data.data());
     auto result = p.eval(params).back();
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.5, 3.0, 4.5, 6.0};
+    std::vector<float> gold{2.5, 2.5, 3.5, 3.5};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_dyn_auto_pad_1d_test)
+{
+    // Dynamic input with auto padding (== padding_mode specified)
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {{1, 3}, {3, 3}, {4, 4}}};
+    auto x   = mm->add_parameter("X", s);
+    mm->add_instruction(
+        migraphx::make_op("pooling",
+                          {{"mode", migraphx::op::pooling_mode::average},
+                           {"lengths", {2}},
+                           //    padding added will be {1, 0} to make output
+                           //    the same size as input
+                           {"padding_mode", migraphx::op::padding_mode_t::same_lower},
+                           {"stride", {1}}}),
+        x);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {1, 3, 4}};
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    // clang-format off
+    std::vector<float> gold{0.3, 0.25, 0.3, 0.25, 
+                            0.8, 0.65, 0.7, 0.5, 
+                            0.1, 0.4,  0.4, 0.35};
+    // clang-format on
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
@@ -1157,7 +1223,11 @@ TEST_CASE(conv_dyn_batch_test)
 
     auto input   = mm->add_parameter("X", input_dyn_shape);
     auto weights = mm->add_parameter("W", weights_shape);
-    mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
+    mm->add_instruction(migraphx::make_op("convolution",
+                                          {
+                                              {"padding", {1, 1}},
+                                              {"stride", {2, 2}},
+                                          }),
                         input,
                         weights);
 

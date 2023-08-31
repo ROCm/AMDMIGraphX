@@ -23,6 +23,7 @@
  */
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,6 +60,14 @@ struct find_static_2in_broadcasts
 };
 
 /**
+ *
+ */
+struct find_static_dimensions_of
+{
+
+}
+
+/**
  * Simplify slice with variable `starts` and `ends` to the constant version if
  * the `starts` and `ends` inputs are constant.
  */
@@ -74,50 +83,67 @@ struct find_const_3in_slice
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins            = mr.result;
-        auto starts_in      = ins->inputs().at(1);
-        auto ends_in        = ins->inputs().at(2);
-        argument starts_arg = starts_in->eval();
-        argument ends_arg   = ends_in->eval();
+        auto inputs         = ins->inputs();
+        argument starts_arg = inputs.at(1)->eval();
+        argument ends_arg   = inputs.at(2)->eval();
         if(not(starts_arg.empty() and ends_arg.empty()))
         {
-            m.replace_instrcution(
-                    ins,
-                    make_op("slice", {
-                {
-                    "starts",
-                },
-                    {
-                        "ends",
-                    },
-                {
-                    "axes",
-                }
+            std::vector<int64_t> starts_vec;
+            std::vector<int64_t> ends_vec;
+            starts_arg.visit([&](auto output) { starts_vec.assign(output.begin(), output.end()); });
+            ends_arg.visit([&](auto output) { ends_vec.assign(output.begin(), output.end()); });
+            auto slice_val = ins->get_operator().to_value();
+            auto axes_vec  = slice_val.at("axes").to_vector<int64_t>();
+            m.replace_instruction(
+                ins,
+                make_op("slice", {{"starts", starts_vec}, {"ends", ends_vec}, {"axes", axes_vec}}),
+                inputs.at(0));
         }
-        }
-    };
-
-    /**
-     * Simplify slice with variable `starts`, `ends`, and `input_axes` to the constant version if
-     * the `starts` and `ends` inputs are constant.
-     */
-    struct find_const_4in_slice
-    {
-        auto matcher() const
-        {
-            return match::name("slice")(match::nargs(3),
-                                        match::arg(1)(match::is_constant()),
-                                        match::arg(2)(match::is_constant()),
-                                        match::arg(3)(match::is_constant()));
-        }
-
-        void apply(module& m, const match::matcher_result& mr) const {}
-    };
-
-    void simplify_dyn_ops::apply(module& m) const
-    {
-        match::find_matches(
-            m, find_static_2in_broadcasts{}, find_const_3in_slice{}, find_const_4in_slice{});
     }
+};
+
+/**
+ * Simplify slice with variable `starts`, `ends`, and `input_axes` to the constant version if
+ * the `starts` and `ends` inputs are constant.
+ */
+struct find_const_4in_slice
+{
+    auto matcher() const
+    {
+        return match::name("slice")(match::nargs(3),
+                                    match::arg(1)(match::is_constant()),
+                                    match::arg(2)(match::is_constant()),
+                                    match::arg(3)(match::is_constant()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins            = mr.result;
+        auto inputs         = ins->inputs();
+        argument starts_arg = inputs.at(1)->eval();
+        argument ends_arg   = inputs.at(2)->eval();
+        argument axes_arg   = inputs.at(3)->eval();
+        if(not(starts_arg.empty() and ends_arg.empty() and axes_arg.empty()))
+        {
+            std::vector<int64_t> starts_vec;
+            std::vector<int64_t> ends_vec;
+            std::vector<int64_t> axes_vec;
+            starts_arg.visit([&](auto output) { starts_vec.assign(output.begin(), output.end()); });
+            ends_arg.visit([&](auto output) { ends_vec.assign(output.begin(), output.end()); });
+            axes_arg.visit([&](auto output) { axes_vec.assign(output.begin(), output.end()); });
+            m.replace_instruction(
+                ins,
+                make_op("slice", {{"starts", starts_vec}, {"ends", ends_vec}, {"axes", axes_vec}}),
+                inputs.at(0));
+        }
+    }
+};
+
+void simplify_dyn_ops::apply(module& m) const
+{
+    match::find_matches(
+        m, find_static_2in_broadcasts{}, find_const_3in_slice{}, find_const_4in_slice{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

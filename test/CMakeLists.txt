@@ -154,13 +154,13 @@ test_headers(migraphx ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
 test_headers(migraphx/ref ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/ref/*.hpp)
 
 if(MIGRAPHX_ENABLE_GPU)
-    test_headers(PREFIX migraphx/gpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp DEPENDS migraphx_gpu)
+    test_headers(migraphx/gpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp DEPENDS migraphx_gpu)
 endif()
 if(MIGRAPHX_ENABLE_CPU)
-    test_headers(PREFIX migraphx/cpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp migraphx_cpu)
+    test_headers(migraphx/cpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp migraphx_cpu)
 endif()
 if(MIGRAPHX_ENABLE_FPGA)
-    test_headers(PREFIX migraphx/fpga HEADERS ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp migraphx_fpga)
+    test_headers(migraphx/fpga HEADERS ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp migraphx_fpga)
 endif()
 
 

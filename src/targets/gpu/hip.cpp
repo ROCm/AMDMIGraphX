@@ -146,7 +146,11 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     gpu_sync();
     std::vector<T> result(sz);
     assert(not is_device_ptr(result.data()));
-    assert(is_device_ptr(x));
+    if(not is_device_ptr(x))
+    {
+        MIGRAPHX_THROW(
+            "read_from_gpu() requires Src buffer to be on the GPU, Copy from gpu failed\n");
+    }
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Copy from gpu failed: " + hip_error(status)); // NOLINT

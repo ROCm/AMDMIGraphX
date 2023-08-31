@@ -12,7 +12,7 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '5.4.2'
+        default: '5.6'
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
@@ -42,13 +42,15 @@ on:
         required: true
         default: '-r'
 
-concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+concurrency: 
+  group: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+  cancel-in-progress: true
 
 jobs:
   release:
     uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release || '5.4.2' }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.6' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}
       flags: ${{ github.event.inputs.flags || '-r' }}
       performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }}

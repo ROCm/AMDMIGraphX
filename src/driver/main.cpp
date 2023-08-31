@@ -32,6 +32,7 @@
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/py.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -81,6 +82,7 @@ struct loader
            {"--model"},
            ap.help("Load model"),
            ap.type("resnet50|inceptionv3|alexnet"),
+           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -241,6 +243,20 @@ struct loader
         return options;
     }
 
+    static std::string get_file_type(const std::string& file)
+    {
+        if(ends_with(file, ".onnx"))
+            return "onnx";
+        else if(ends_with(file, ".pb"))
+            return "tf";
+        else if(ends_with(file, ".json"))
+            return "json";
+        else if(ends_with(file, ".py"))
+            return "py";
+        else
+            return "migraphx";
+    }
+
     program load()
     {
         program p;
@@ -248,14 +264,7 @@ struct loader
         {
             if(file_type.empty())
             {
-                if(ends_with(file, ".onnx"))
-                    file_type = "onnx";
-                else if(ends_with(file, ".pb"))
-                    file_type = "tf";
-                else if(ends_with(file, ".json"))
-                    file_type = "json";
-                else
-                    file_type = "migraphx";
+                file_type = get_file_type(file);
             }
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
@@ -271,6 +280,10 @@ struct loader
                 file_options options;
                 options.format = "json";
                 p              = migraphx::load(file, options);
+            }
+            else if(file_type == "py")
+            {
+                p = migraphx::load_py(file);
             }
             else if(file_type == "migraphx")
             {
@@ -415,7 +428,8 @@ struct compiler
     program_params parameters;
     compiler_target ct;
     compile_options co;
-    precision quantize = precision::fp32;
+    bool to_fp16 = false;
+    bool to_int8 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -436,8 +450,8 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
-        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
-        ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
+        ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
+        ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -445,20 +459,46 @@ struct compiler
         return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
     }
 
+    auto host_params(const program& p)
+    {
+        return parameters.generate(p, ct.get_target(), true, l.batch);
+    }
+
     program compile()
     {
         auto p = l.load();
         // Dont compile if its already been compiled
+
         if(p.is_compiled())
+        {
+            if(ct.target_name == "gpu")
+            {
+                if(is_offload_copy_set(p) and not co.offload_copy)
+                {
+                    std::cout << "MIGraphX program was likely compiled with offload_copy set, Try "
+                                 "passing "
+                                 "`--enable-offload-copy` if program run fails.\n";
+                }
+                else if(co.offload_copy)
+                {
+                    std::cout << "MIGraphX program was likely compiled without "
+                                 "offload_copy set, Try "
+                                 "removing "
+                                 "`--enable-offload-copy` flag if passed to driver, if program run "
+                                 "fails.\n";
+                }
+            }
+
             return p;
+        }
         auto t = ct.get_target();
-        if(quantize == precision::fp16)
+        if(to_fp16)
         {
             quantize_fp16(p);
         }
-        else if(quantize == precision::int8)
+        if(to_int8)
         {
-            quantize_int8(p, t, {params(p)});
+            quantize_int8(p, t, {host_params(p)});
         }
         p.compile(t, co);
         l.save(p);
@@ -517,17 +557,23 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
+        auto quantize = precision::fp32;
+        if(c.to_fp16)
+            quantize = precision::fp16;
+        if(c.to_int8)
+            quantize = precision::int8;
+
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, c.quantize, tolerance);
+            verify_instructions(p, t, c.co, quantize, tolerance);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, c.quantize, m, tolerance);
+            verify_reduced_program(p, t, c.co, quantize, m, tolerance);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, c.quantize, m, tolerance);
+            verify_program(c.l.file, p, t, c.co, quantize, m, tolerance);
         }
     }
 };
@@ -724,7 +770,7 @@ struct main_command
         {
             std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset
                       << "' is not a valid command." << std::endl;
-            std::cout << get_command_help("Available commands:") << std::endl;
+            std::cout << get_command_help("Available commands:");
         }
         else
         {

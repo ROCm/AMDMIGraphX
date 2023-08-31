@@ -42,7 +42,7 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void scatternd_kernel(void* in_indices, void* in_updates, void* output) 
+MIGRAPHX_GLOBAL void scatternd_kernel(void* in_indices, void* in_updates, void* output) 
 {
     make_tensors()(in_indices, in_updates, output)([](auto&&... xs) { 
         scatternd(xs..., ${reduction}{}); 
@@ -85,15 +85,15 @@ struct scatternd_compiler : compiler<scatternd_compiler>
             {{"reduction", reduction}}));
     }
 
-    compiler_replace insert(const operation& op) const
+    compiler_replace insert(const operation& co) const
     {
-        return [=](module& m, instruction_ref ins) {
-            auto args = ins->inputs();
-            args.back() =
-                m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
-            args.erase(args.begin());
-            return m.replace_instruction(ins, op, args);
-        };
+        return {co, [](module& m, instruction_ref ins, const operation& op) {
+                    auto args = ins->inputs();
+                    args.back() =
+                        m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
+                    args.erase(args.begin());
+                    return m.replace_instruction(ins, op, args);
+                }};
     }
 };
 

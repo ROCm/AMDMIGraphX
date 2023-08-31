@@ -88,6 +88,25 @@ struct minus_op
 struct pass_op
 {
     std::string name() const { return "pass"; }
+    migraphx::argument compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+    int output_alias(const std::vector<migraphx::shape>& s) const { return s.empty() ? -1 : 0; }
+};
+
+struct non_const_pass_op
+{
+    std::string name() const { return "pass"; }
     migraphx::argument
     compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
     {
@@ -176,14 +195,27 @@ struct pass_standard_op
 struct nop
 {
     std::string name() const { return "nop"; }
-    migraphx::argument compute(migraphx::context&,
-                               const migraphx::shape&,
-                               const std::vector<migraphx::argument>&) const
+    migraphx::argument compute(const migraphx::shape&, const std::vector<migraphx::argument>&) const
     {
         return {};
     }
 
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const { return {}; }
+};
+
+struct tuple_op
+{
+    std::string name() const { return "tuple_op"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+    {
+        return {inputs};
+    }
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& input_args) const
+    {
+        return input_args;
+    }
 };
 
 inline migraphx::literal get_2x2(int base = 0)

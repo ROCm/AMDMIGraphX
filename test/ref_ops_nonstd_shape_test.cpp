@@ -49,7 +49,7 @@ TEST_CASE(argmax_test_nonstd_shape)
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     std::vector<int64_t> res_gold_vec;
     res_gold.visit([&](auto output) { res_gold_vec.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(result_vec, res_gold_vec));
+    EXPECT(migraphx::verify::verify_range(result_vec, res_gold_vec));
 }
 
 TEST_CASE(argmin_test_nonstd_shape)
@@ -68,7 +68,7 @@ TEST_CASE(argmin_test_nonstd_shape)
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     std::vector<int64_t> res_gold_vec;
     res_gold.visit([&](auto output) { res_gold_vec.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(result_vec, res_gold_vec));
+    EXPECT(migraphx::verify::verify_range(result_vec, res_gold_vec));
 }
 
 TEST_CASE(isnan_broadcast_test)
@@ -88,7 +88,7 @@ TEST_CASE(isnan_broadcast_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> correct = {0, 0, 0, 0, 1, 1};
-    EXPECT(migraphx::verify_range(results_vector, correct));
+    EXPECT(migraphx::verify::verify_range(results_vector, correct));
 }
 
 TEST_CASE(squeeze_transpose_test)

@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-file(GLOB VERIFY_TESTS ${CONFIGURE_DEPENDS} *.cpp)
+file(GLOB VERIFY_TESTS CONFIGURE_DEPENDS *.cpp)
 
 add_executable(test_verify ${VERIFY_TESTS})
 rocm_mark_as_test(test_verify)

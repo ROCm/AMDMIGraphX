@@ -52,14 +52,6 @@ static void quantize_module(module& m, const std::vector<std::string>& ins_names
 
         auto mod_inputs = ins->module_inputs();
         auto s          = ins->get_shape();
-        // Convert back to original type before quantizing the inputs
-        if(mod_inputs.empty())
-        {
-            auto r = m.insert_instruction(
-                std::next(ins), make_op("convert", {{"target_type", s.type()}}), ins);
-            m.replace_instruction(ins, r);
-        }
-
         // Convert each of the inputs that are floating point to fp16
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
@@ -70,8 +62,17 @@ static void quantize_module(module& m, const std::vector<std::string>& ins_names
                 ins, make_op("convert", {{"target_type", shape::half_type}}), input);
         });
 
-        // Replace inputs
-        m.replace_instruction(ins, ins->get_operator(), inputs, mod_inputs);
+        // Insert quantized ins
+        auto converted_ins = m.insert_instruction(ins, ins->get_operator(), inputs, mod_inputs);
+
+        // Convert back to original type after quantizing
+        if(mod_inputs.empty())
+        {
+            converted_ins = m.insert_instruction(
+                ins, make_op("convert", {{"target_type", s.type()}}), converted_ins);
+        }
+        // Replace original instruction
+        m.replace_instruction(ins, converted_ins);
     }
 }
 

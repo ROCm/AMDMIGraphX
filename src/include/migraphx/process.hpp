@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct process_impl;
 
-struct process
+struct MIGRAPHX_EXPORT process
 {
     using writer = std::function<void(const char*, std::size_t)>;
     process(const std::string& cmd);

@@ -27,7 +27,7 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
-#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/convolution_backwards.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>

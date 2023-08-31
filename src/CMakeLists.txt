@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #####################################################################################
 
+include(ExportHeader)
+
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
@@ -94,6 +96,7 @@ add_library(migraphx
     simplify_algebra.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    target.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp
@@ -126,10 +129,11 @@ register_migraphx_ops(
     contiguous
     convert
     convolution
+    convolution_backwards
     cosh
     cos
-    deconvolution
     dequantizelinear
+    dimensions_of
     div
     dot
     elu
@@ -195,6 +199,7 @@ register_migraphx_ops(
     roialign
     round
     rsqrt
+    run_on_target
     scalar
     scatter_add
     scatter_mul
@@ -243,12 +248,11 @@ endif()
 target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
-
-find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
+migraphx_generate_export_header(migraphx)
 
 find_package(PkgConfig)
 pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)

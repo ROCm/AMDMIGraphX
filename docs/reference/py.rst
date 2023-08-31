@@ -151,6 +151,15 @@ argument
 
     :rtype: argument
 
+.. py:function:: create_argument(s, values)
+
+    Create an argument of shape s with a set of values.
+
+    :param shape s: Shape of argument to create.
+    :param list values: Values to put in the argument. Must be the same number of elements as the shape.
+
+    :rtype: argument
+
 .. py:function:: argument_from_pointer(shape, address)
 
     Create argument from data stored in given address without copy.

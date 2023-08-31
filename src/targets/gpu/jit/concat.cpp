@@ -47,7 +47,7 @@ ${preamble}
 
 extern "C" {
 
-__global__ void ${kernel}(${params}) 
+MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
         concat<${axis}>(${concat_args})(${post}, y, xs...);
@@ -108,7 +108,7 @@ struct concat_compiler : compiler<concat_compiler>
             v["post"]          = "MIGRAPHX_LIFT(post_concat)";
             v["kernel"]        = "concat_" + generate_name_from_ops(*pm) + "_kernel";
         }
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

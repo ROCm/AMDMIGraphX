@@ -39,7 +39,7 @@ struct module;
  * Remove pads if they can be written as an
  * attribute to another op (im2col, convolution, pooling)
  */
-struct eliminate_pad
+struct MIGRAPHX_EXPORT eliminate_pad
 {
     std::string name() const { return "eliminate_pad"; }
 

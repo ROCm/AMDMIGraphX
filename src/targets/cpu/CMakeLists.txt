@@ -78,6 +78,8 @@ else()
 endif()
 target_link_libraries(migraphx_cpu PRIVATE migraphx)
 
+migraphx_generate_export_header(migraphx_cpu)
+
 find_package(OpenMP)
 target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)
 # Add library path to rpath to workaround issues with our broken packages
@@ -87,8 +89,6 @@ foreach(LIBRARY ${OpenMP_CXX_LIBRARIES})
         target_link_libraries(migraphx_cpu PUBLIC -Wl,-rpath=${LIBRARY_PATH} -Wl,-rpath-link=${LIBRARY_PATH})
     endif()
 endforeach()
-
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 
 rocm_install_targets(
   TARGETS migraphx_cpu

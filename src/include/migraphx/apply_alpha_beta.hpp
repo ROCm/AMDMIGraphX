@@ -33,6 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_EXPORT
 instruction_ref insert_apply_alpha_beta(module& m,
                                         instruction_ref pos,
                                         const std::vector<instruction_ref>& args,

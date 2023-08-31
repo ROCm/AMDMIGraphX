@@ -168,7 +168,7 @@ TEST_CASE(handling_tensors)
     std::vector<float> results_vector(64);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify_range(results_vector, sol));
+    EXPECT(migraphx::verify::verify_range(results_vector, sol));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

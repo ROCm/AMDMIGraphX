@@ -75,21 +75,43 @@ using miopen_find_options = MIGRAPHX_MANAGE_PTR(miopenFindOptions_t, miopenDestr
 using miopen_problem      = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
 using miopen_solution     = MIGRAPHX_MANAGE_PTR(miopenSolution_t, miopenDestroySolution);
 
-inline miopen_solution
-find_solution(miopenHandle_t handle, miopenProblem_t problem, bool tune = false)
+inline miopen_solution find_solution(miopenHandle_t handle,
+                                     size_t num_inputs,
+                                     const miopenTensorArgument_t* tensor_args,
+                                     void* workspace,
+                                     size_t workspace_size,
+                                     miopenProblem_t problem,
+                                     bool tune = false)
 {
     miopenSolution_t solution;
     size_t found           = 0;
-    miopen_find_options fo = nullptr;
+    miopen_find_options fo = make_obj<miopen_find_options>(&miopenCreateFindOptions);
     if(tune)
     {
-        fo = make_obj<miopen_find_options>(&miopenCreateFindOptions);
         miopenSetFindOptionTuning(fo.get(), 1);
     }
-    auto status = miopenFindSolutions(handle, problem, fo.get(), &solution, &found, 1);
+#ifdef MIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS
+    for(auto i : range(num_inputs))
+    {
+        auto status = miopenSetFindOptionPreallocatedTensor(
+            fo.get(), tensor_args[i].id, tensor_args[i].buffer);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen: failed to preallocate tensors for the find process");
+    }
+    auto status = miopenSetFindOptionPreallocatedWorkspace(fo.get(), workspace, workspace_size);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen: failed to preallocate workspace for the find process");
+#else
+    miopenStatus_t status;
+    (void)(num_inputs);
+    (void)(tensor_args);
+    (void)(workspace_size);
+    (void)(workspace);
+#endif
+    status      = miopenFindSolutions(handle, problem, fo.get(), &solution, &found, 1);
     auto result = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)
-        MIGRAPHX_THROW("MIOpen miopenFindSolutions failed");
+        MIGRAPHX_THROW("MIOpen: miopenFindSolutions failed");
     return result;
 }
 
@@ -170,7 +192,7 @@ inline convolution_descriptor make_conv(const T& op)
 }
 
 template <class T>
-inline convolution_descriptor make_deconv(const T& op)
+inline convolution_descriptor make_convolution_backwards(const T& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenTranspose;

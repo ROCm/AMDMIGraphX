@@ -326,6 +326,8 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 
     if(ins == std::prev(this->end()))
     {
+        // "rep" instruction could be used earlier in the program and moving it at the end
+        // may cause invalid program, therefore make an identity operation in this case.
         return replace_instruction(ins, make_op("identity"), rep);
     }
 
@@ -458,11 +460,11 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    impl->push_back({builtin::returns{}, {}, std::move(args)});
+    shape instr_shape = compute_shape(builtin::returns{}, args);
+    impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
-
     return result;
 }
 
@@ -650,8 +652,9 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
-void module::finalize(context& ctx)
+void module::finalize(std::vector<context>& contexts)
 {
+    assert(not contexts.empty());
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {
@@ -660,10 +663,10 @@ void module::finalize(context& ctx)
             std::cout << "Finalize: ";
             this->debug_print(ins);
         }
-        ins->finalize(ctx);
+        ins->finalize(contexts[ins->get_target_id()]);
         for(const auto& smod : ins->module_inputs())
         {
-            smod->finalize(ctx);
+            smod->finalize(contexts);
         }
     }
 
@@ -723,15 +726,15 @@ std::unordered_map<instruction_ref, std::string> module::print(
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
+        if(not this->name().empty() and this->name() != "main")
+            var_name = this->name() + ":";
         if(ins->name() == "@param")
         {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            var_name.append(any_cast<builtin::param>(ins->get_operator()).parameter);
         }
         else
         {
-            var_name = this->name();
-            var_name.append((this->name().empty() ? "@" : ":@"));
-            var_name.append(std::to_string(count));
+            var_name.append("@" + std::to_string(count));
         }
         // count every instruction so index matches loc in the printout program
         count++;
@@ -795,7 +798,10 @@ static std::string to_c_id(const std::string& name, char rep = '_')
 
 static std::string cpp_var_name(const std::string& name)
 {
-    return to_c_id("x_" + replace_string(name, ":", "_module_"));
+    std::string prefix = "x_";
+    if(not contains(name, "@"))
+        prefix = "p_";
+    return to_c_id(prefix + replace_string(name, ":", "_module_"));
 }
 
 static void print_py_op(std::ostream& os, const operation& op)
@@ -867,15 +873,14 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                bool use_abs = false;
-                ins->get_literal().visit([&](auto v) {
-                    use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                });
+                const bool use_abs = false;
                 // Disable abs for now
-                use_abs = false;
+                // ins->get_literal().visit([&](auto v) {
+                //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                // });
                 if(use_abs)
                     os << "migraphx.abs_literal(";
-                os << "migraphx.generate_literal(";
+                os << "migraphx.generate_argument(";
                 print_py_shape(os, ins->get_shape());
                 os << ", " << seed << ")";
                 if(use_abs)
@@ -1005,9 +1010,17 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
+    auto implicit_deps = calc_implicit_deps();
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
-        for(auto child : ins->inputs())
+        auto ins_inputs = ins->inputs();
+        if(implicit_deps.find(ins) != implicit_deps.end())
+        {
+            auto ins_implict_inputs = implicit_deps.at(ins);
+            ins_inputs.insert(
+                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+        }
+        for(auto child : ins_inputs)
         {
             if(not contains(this->impl->instructions, child))
             {

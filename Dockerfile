@@ -7,16 +7,18 @@ RUN dpkg --add-architecture i386
 
 # Install rocm key
 RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - 
+    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.5/ focal main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/5.6/ focal main > /etc/apt/sources.list.d/rocm.list'
+
+# From docs.amd.com for installing rocm. Needed to install properly
+RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
-    clang-format-10 \
     cmake \
     curl \
     doxygen \
@@ -75,6 +77,9 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
+# Temporarily install a new cmake until switching to ubuntu 22.04
+RUN pip3 install cmake==3.22.1
+
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 RUN test -f /usr/local/hash || exit 1
@@ -94,7 +99,11 @@ RUN /download_models.sh && rm /download_models.sh
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.24.3
+RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
+
+# Install MLIR
+ADD mlir-requirements.txt /mlir-requirements.txt
+RUN cget -p /usr/local install -f /mlir-requirements.txt
 
 COPY ./test/onnx/.onnxrt-commit /
 
@@ -109,8 +118,6 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
-
-RUN cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@a997d5f51314b45d7a4c04f1599966dcf53f9b4d -DBUILD_MIXR_TARGET=On -DLLVM_ENABLE_ZSTD=Off -DLLVM_ENABLE_THREADS=Off
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

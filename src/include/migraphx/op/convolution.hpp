@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,17 +79,17 @@ struct convolution
         check_shapes{inputs, *this, true}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
         // num of dims of input and attribute should match
-        const auto input_size   = inputs[0].max_lens().size();
+        const auto input_ndim   = inputs[0].ndim();
         const auto padding_size = padding.size();
 
-        if(input_size != padding_size / 2 + 2 && input_size != padding_size + 2)
+        if(input_ndim != padding_size / 2 + 2 and input_ndim != padding_size + 2)
         {
             MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
         }
 
         const shape& x_shape          = inputs.at(0);
         const shape& w_shape          = inputs.at(1);
-        const size_t num_spatial_dims = input_size - 2;
+        const size_t num_spatial_dims = input_ndim - 2;
         if(num_spatial_dims != this->kdims())
         {
             MIGRAPHX_THROW("CONVOLUTION: input k-dims does not match attribute size");
@@ -105,7 +105,7 @@ struct convolution
         }
         else
         {
-            return fixed_compute_shape(x_shape, w_shape);
+            return static_compute_shape(x_shape, w_shape);
         }
     }
 
@@ -143,23 +143,10 @@ struct convolution
     shape dynamic_compute_shape(shape x_shape, shape w_shape) const
     {
         std::vector<shape::dynamic_dimension> output_dyn_dims = {};
+        output_dyn_dims.push_back(x_shape.to_dynamic().dyn_dims().at(0));
+        output_dyn_dims.push_back(w_shape.to_dynamic().dyn_dims().at(0));
 
-        auto dynamic_shape_push_back = [&](const shape& input_shape) {
-            if(input_shape.dynamic())
-            {
-                output_dyn_dims.push_back(input_shape.dyn_dims().at(0));
-            }
-            else
-            {
-                auto l = input_shape.lens().at(0);
-                output_dyn_dims.push_back({l, l});
-            }
-        };
-
-        dynamic_shape_push_back(x_shape);
-        dynamic_shape_push_back(w_shape);
-
-        const size_t num_spatial_dims = x_shape.max_lens().size() - 2;
+        const size_t num_spatial_dims = x_shape.ndim() - 2;
         if(padding_mode != default_)
         {
             for(std::size_t i = 0; i < num_spatial_dims; ++i)
@@ -198,7 +185,7 @@ struct convolution
         return shape{x_shape.type(), output_dyn_dims};
     }
 
-    shape fixed_compute_shape(shape x_shape, shape w_shape) const
+    shape static_compute_shape(shape x_shape, shape w_shape) const
     {
         std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[0]};
         auto spatial_lens = calc_conv_lens(x_shape.lens(), w_shape.lens());
@@ -219,6 +206,7 @@ struct convolution
         std::vector<std::size_t> new_padding;
         if(padding_mode != op::padding_mode_t::default_)
         {
+            // auto-Calculate the padding sizes with calc_dyn_auto_pad
             auto input_lens   = args[0].get_shape().lens();
             auto weights_lens = args[1].get_shape().lens();
             new_padding =
@@ -230,6 +218,7 @@ struct convolution
         }
         else
         {
+            // Use the padding that was given
             new_padding = padding;
             if(output_shape.dynamic())
             {

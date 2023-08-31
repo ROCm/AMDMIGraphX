@@ -27,7 +27,7 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
-#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/convolution_backwards.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
@@ -345,7 +345,7 @@ struct cpu_apply
         extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
 #ifndef MIGRAPHX_ENABLE_ZENDNN
-        extend_op("deconvolution", "dnnl::deconvolution");
+        extend_op("convolution_backwards", "dnnl::convolution_backwards");
         extend_op("dot", "dnnl::dot");
 #endif
         extend_op("erf", "cpu::erf");

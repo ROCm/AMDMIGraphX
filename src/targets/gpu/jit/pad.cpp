@@ -44,7 +44,7 @@ static const char* const pointwise_kernel = R"__migraphx__(
 namespace migraphx {
 
 extern "C" {
-__global__ void pad_kernel(void* input_p, void* output_p) 
+MIGRAPHX_GLOBAL void pad_kernel(void* input_p, void* output_p) 
 {
     auto offsets = index_ints<${offsets}>{};
     auto idx     = make_index();
@@ -92,7 +92,7 @@ struct pad_compiler : compiler<pad_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
     }
 };
 } // namespace gpu

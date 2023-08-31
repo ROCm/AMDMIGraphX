@@ -36,7 +36,7 @@ struct module;
  * Inserts quantized operators in place of dq->quantizable_op->q
  * then removes remaining fake quantization (q->dq pairs)
  */
-struct simplify_qdq
+struct MIGRAPHX_EXPORT simplify_qdq
 {
     std::string name() const { return "simplify_qdq"; }
     void apply(module& m) const;

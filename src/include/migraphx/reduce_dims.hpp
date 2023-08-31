@@ -31,7 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT std::vector<shape> reduce_dims(const std::vector<shape>& shapes);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

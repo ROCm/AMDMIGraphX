@@ -31,9 +31,14 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
+
+#ifndef MIGRAPHX_USE_TYPE_ERASED_MATCHERS
+#define MIGRAPHX_USE_TYPE_ERASED_MATCHERS 0
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -103,6 +108,13 @@ struct predicate_matcher
     }
 };
 
+/// Convert a predicate function into a matcher
+template <class P>
+predicate_matcher<P> make_predicate_matcher(P p)
+{
+    return {p};
+}
+
 /// Convert a function into a matcher
 template <class F>
 struct function_matcher
@@ -124,14 +136,14 @@ template <class M>
 auto bind_match(M m, std::string name)
 {
     return make_function_matcher(
-        [=, name = std::move(name)](matcher_context& ctx,
-                                    instruction_ref ins) -> optional<instruction_ref> {
+        [=, m_name = std::move(name)](matcher_context& ctx,
+                                      instruction_ref ins) -> optional<instruction_ref> {
             auto result = m.match(ctx, ins);
             if(result)
             {
                 if(not ctx.has_instruction(ins))
                     return nullopt;
-                ctx.instructions[name] = ins;
+                ctx.instructions[m_name] = ins;
             }
             return result;
         });
@@ -183,14 +195,26 @@ struct id_matcher
 template <class M>
 struct basic_matcher;
 
+struct any_matcher;
+
 template <class M>
-basic_matcher<M> make_basic_matcher(M m);
+struct type_erased_matcher
+{
+#if MIGRAPHX_USE_TYPE_ERASED_MATCHERS
+    using type = any_matcher;
+#else
+    using type = basic_matcher<M>;
+#endif
+};
+
+template <class M>
+typename type_erased_matcher<M>::type make_basic_matcher(M m);
 
 template <class F>
-basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f);
+auto make_basic_fun_matcher(F f);
 
 template <class P>
-basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p);
+auto make_basic_pred_matcher(P p);
 
 /// The basic matcher provides the all_of composability of the matcher
 template <class M>
@@ -222,27 +246,6 @@ struct basic_matcher
     auto match(matcher_context& ctx, instruction_ref ins) const { return m.match(ctx, ins); }
 };
 
-/// Create a basic matcher from a matcher
-template <class M>
-basic_matcher<M> make_basic_matcher(M m)
-{
-    return {m};
-}
-
-/// Create a basic matcher from a function
-template <class F>
-basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f)
-{
-    return {{f}};
-}
-
-/// Create a basic matcher from a predicate function
-template <class P>
-basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
-{
-    return {{p}};
-}
-
 /// Create a typed-erased matcher
 using any_matcher_base = basic_matcher<
     function_matcher<std::function<optional<instruction_ref>(matcher_context&, instruction_ref)>>>;
@@ -253,6 +256,27 @@ struct any_matcher : any_matcher_base
     {
     }
 };
+
+/// Create a basic matcher from a matcher
+template <class M>
+typename type_erased_matcher<M>::type make_basic_matcher(M m)
+{
+    return {m};
+}
+
+/// Create a basic matcher from a function
+template <class F>
+auto make_basic_fun_matcher(F f)
+{
+    return make_basic_matcher(make_function_matcher(f));
+}
+
+/// Create a basic matcher from a predicate function
+template <class P>
+auto make_basic_pred_matcher(P p)
+{
+    return make_basic_matcher(make_predicate_matcher(p));
+}
 
 /// This macro takes care of the boilerplate for defining a matcher
 #define MIGRAPHX_BASIC_MATCHER(name, ...)                                     \
@@ -347,33 +371,34 @@ match::matcher_result find_match(module& modl, M&& m)
 }
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES_FOR)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VALIDATE_MATCHES)
 
-/// Find matches for an instruction in the module
+/// Find matches for an instruction in the module for per section of matchers
 template <class Mod, class... Ms>
-void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
+void find_matches_for(source_location location, Mod& mod, instruction_ref ins, Ms&&... ms)
 {
-#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
-    const
-#endif
-        int trace = value_of(MIGRAPHX_TRACE_MATCHES{});
-#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
-    const
-#endif
-        bool validate = enabled(MIGRAPHX_VALIDATE_MATCHES{});
-    bool match        = false;
+    const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
+    const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
+    const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
+    bool match              = false;
     each_args(
         [&](auto&& m) {
+            const auto& matcher_name = get_type_name(m);
+            const bool trace_for     = not trace_filter.empty() and
+                                   (contains(std::string{location.file_name()}, trace_filter) or
+                                    contains(std::string{location.function_name()}, trace_filter) or
+                                    contains(matcher_name, trace_filter));
             if(match)
                 return;
-            if(trace > 1)
-                std::cout << "Match: " << get_type_name(m) << std::endl;
+            if(trace > 1 and trace_for)
+                std::cout << "Match: " << matcher_name << std::endl;
             auto r = match_instruction(get_module(mod), ins, m.matcher());
             if(r.result == get_module(mod).end())
                 return;
-            if(trace > 0)
+            if(trace > 0 or trace_for)
             {
-                std::cout << "Matched by " << get_type_name(m) << std::endl;
+                std::cout << "Matched by " << matcher_name << std::endl;
                 get_module(mod).debug_print(ins);
             }
             // If its already invalid dont validate it again
@@ -384,7 +409,7 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
                 auto invalid = get_module(mod).validate();
                 if(invalid != get_module(mod).end())
                 {
-                    std::cout << "Invalid program from match: " << get_type_name(m) << std::endl;
+                    std::cout << "Invalid program from match: " << matcher_name << std::endl;
                     std::cout << "Invalid instructions: " << std::endl;
                     get_module(mod).debug_print(invalid->inputs());
                     get_module(mod).debug_print(invalid);
@@ -397,13 +422,19 @@ void find_matches(Mod& mod, instruction_ref ins, Ms&&... ms)
 
 /// Find matches in a module
 template <class Mod, class... Ms>
-void find_matches(Mod& mod, Ms&&... ms)
+struct find_matches
 {
-    for(auto ins : iterator_for(get_module(mod)))
+    find_matches(Mod& mod, Ms&&... ms, source_location location = source_location::current())
     {
-        find_matches(mod, ins, ms...);
+        for(auto ins : iterator_for(get_module(mod)))
+        {
+            find_matches_for(location, mod, ins, ms...);
+        }
     }
-}
+};
+
+template <class Mod, class... Ms>
+find_matches(Mod& mod, Ms&&... ms) -> find_matches<Mod, Ms...>;
 
 template <class M, class F>
 struct find_generic_match
@@ -632,9 +663,9 @@ auto skip_output(Ms... ms)
 inline auto var(std::string s)
 {
     return make_basic_fun_matcher(
-        [=, s = std::move(s)](const matcher_context& ctx,
-                              instruction_ref) -> optional<instruction_ref> {
-            auto it = ctx.instructions.find(s);
+        [=, m_s = std::move(s)](const matcher_context& ctx,
+                                instruction_ref) -> optional<instruction_ref> {
+            auto it = ctx.instructions.find(m_s);
             if(it == ctx.instructions.end())
                 return nullopt;
             return it->second;
@@ -644,7 +675,7 @@ inline auto var(std::string s)
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [=, s = std::move(s)](instruction_ref ins) { return ins->name() == s; });
+        [=, m_s = std::move(s)](instruction_ref ins) { return ins->name() == m_s; });
 }
 
 inline auto name_contains(const std::string& name)
@@ -655,8 +686,8 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([=, names = std::move(names)](instruction_ref ins) {
-        return names.count(ins->name()) > 0;
+    return make_basic_pred_matcher([=, m_names = std::move(names)](instruction_ref ins) {
+        return m_names.count(ins->name()) > 0;
     });
 }
 

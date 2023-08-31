@@ -24,10 +24,11 @@
 
 cmake_policy(SET CMP0057 NEW)
 
-rocm_test_link_libraries(migraphx migraphx_ref migraphx_onnx migraphx_tf)
+find_package(Threads REQUIRED)
+rocm_test_link_libraries(Threads::Threads migraphx migraphx_ref migraphx_onnx migraphx_tf)
 rocm_test_include_directories(include)
 
-file(GLOB TESTS ${CONFIGURE_DEPENDS} *.cpp)
+file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -37,7 +38,7 @@ endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
-    file(GLOB GPU_TESTS ${CONFIGURE_DEPENDS} gpu/*.cpp)
+    file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)
 
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -56,7 +57,7 @@ endif()
 
 if(MIGRAPHX_ENABLE_FPGA)
     # fpga tests
-    file(GLOB FPGA_TESTS ${CONFIGURE_DEPENDS} fpga/*.cpp)
+    file(GLOB FPGA_TESTS CONFIGURE_DEPENDS fpga/*.cpp)
 
     foreach(TEST ${FPGA_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -101,16 +102,66 @@ if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)
 endif()
 
-rocm_test_headers(PREFIX migraphx HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
-rocm_test_headers(PREFIX migraphx/ref HEADERS ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/ref/*.hpp)
+# multitarget test
+if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
+    set(TEST_MULTI_TARGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/multi_target)
+    file(GLOB MULTI_TARGET_TESTS CONFIGURE_DEPENDS ${TEST_MULTI_TARGET_DIR}/*.cpp)
+
+    foreach(MULTI_TARGET_TEST ${MULTI_TARGET_TESTS})
+        get_filename_component(BASE_NAME ${MULTI_TARGET_TEST} NAME_WE)
+        set(TEST_NAME test_${BASE_NAME})
+        add_executable(${TEST_NAME} ${MULTI_TARGET_TEST})
+        rocm_clang_tidy_check(${TEST_NAME})
+        target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
+        target_include_directories(${TEST_NAME} PUBLIC include)
+        add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_MULTI_TARGET_DIR})
+        add_dependencies(tests ${TEST_NAME})
+        add_dependencies(check ${TEST_NAME})
+    endforeach()
+endif()
+
+
+function(test_header NAME HEADER)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp "
+#include <${HEADER}>
+int main() {}\n"
+    )
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp "
+#include <${HEADER}>
+#if defined(min) || defined(max) || defined(near) || defined(far)
+#error \"Do not include windows.h in header files\"
+#endif
+\n"
+    )
+    add_test_executable(${NAME}
+        ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
+    )
+endfunction()
+
+function(test_headers PREFIX)
+    file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})
+
+    foreach(HEADER ${HEADERS})
+        file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
+        string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
+        get_filename_component(BASE_NAME ${HEADER} NAME_WE)
+        test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
+    endforeach()
+endfunction()
+
+test_headers(migraphx ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
+test_headers(migraphx/ref ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/ref/*.hpp)
 
 if(MIGRAPHX_ENABLE_GPU)
-    rocm_test_headers(PREFIX migraphx/gpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp DEPENDS migraphx_gpu)
+    test_headers(PREFIX migraphx/gpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp DEPENDS migraphx_gpu)
 endif()
 if(MIGRAPHX_ENABLE_CPU)
-    rocm_test_headers(PREFIX migraphx/cpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp migraphx_cpu)
+    test_headers(PREFIX migraphx/cpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp migraphx_cpu)
 endif()
 if(MIGRAPHX_ENABLE_FPGA)
-    rocm_test_headers(PREFIX migraphx/fpga HEADERS ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp migraphx_fpga)
+    test_headers(PREFIX migraphx/fpga HEADERS ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp migraphx_fpga)
 endif()
+
 

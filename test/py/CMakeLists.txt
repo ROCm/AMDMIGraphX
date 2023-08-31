@@ -27,7 +27,7 @@ include(PythonModules)
 function(add_py_test NAME SCRIPT)
     foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
         set (ENV_COMMAND ${CMAKE_COMMAND} -E env 
-            "PYTHONPATH=$<TARGET_FILE_DIR:migraphx_py_${PYTHON_VERSION}>"
+            "PYTHONPATH=$<TARGET_FILE_DIR:migraphx_pybind_${PYTHON_VERSION}>"
             "PYTHONMALLOC=debug"
             "MALLOC_CHECK_=3"
         )
@@ -41,16 +41,15 @@ function(add_py_test NAME SCRIPT)
 
     endforeach()
 endfunction()
-foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
-    add_dependencies(tests migraphx_py_${PYTHON_VERSION})
-    add_dependencies(check migraphx_py_${PYTHON_VERSION})
-endforeach()
+add_dependencies(tests migraphx_py)
+add_dependencies(check migraphx_py)
 
 add_py_test(ref test_cpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(save_load test_save_load.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(op test_op.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(shape test_shape.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(module_construct test_module_construct.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(literal test_literal.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 if(MIGRAPHX_ENABLE_GPU)
 add_py_test(gpu_offload test_gpu_offload.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(gpu test_gpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})

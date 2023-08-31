@@ -130,6 +130,8 @@ struct index
         return blockDim.x;
     }
 #endif
+
+    constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
     template <class N, class Stride>
     static constexpr auto max_stride_iterations(N n, Stride stride)
     {
@@ -230,6 +232,12 @@ struct index
     __device__ void local_stride(N n, F f) const
     {
         for_stride<true>(local, n, nlocal(), f);
+    }
+
+    template <class F, class N>
+    __device__ void group_stride(N n, F f) const
+    {
+        for_stride<false>(group, n, ngroup(), f);
     }
 };
 

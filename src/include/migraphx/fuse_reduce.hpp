@@ -32,7 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
-struct fuse_reduce
+struct MIGRAPHX_EXPORT fuse_reduce
 {
     std::string name() const { return "fuse_reduce"; }
     void apply(module_pass_manager& mpm) const;

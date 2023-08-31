@@ -531,10 +531,13 @@ TEST_CASE(multitarget_compile_nested_if_then_else_partition)
             "target_" + std::to_string(tid) + "_" + std::to_string(counter_map[tid]++);
         auto* test_mod = prog.create_module(mod_name);
         std::vector<float> data(ds.elements(), -1);
-        auto l1   = test_mod->add_literal(migraphx::literal(ds, data));
-        auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), inputs[0], l1);
-        auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, inputs[1]);
-        auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, inputs[2]);
+        auto l1               = test_mod->add_literal(migraphx::literal(ds, data));
+        auto test_mod_param_0 = test_mod->add_parameter(mod_name + "_param_0", ds);
+        auto test_mod_param_1 = test_mod->add_parameter(mod_name + "_param_1", ds);
+        auto test_mod_param_2 = test_mod->add_parameter(mod_name + "_param_2", ds);
+        auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), test_mod_param_0, l1);
+        auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, test_mod_param_1);
+        auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, test_mod_param_2);
         test_mod->add_return({ins3});
         tass.insert(tass.begin(), std::make_pair(ins1, tid));
         tass.insert(tass.begin(), std::make_pair(ins2, tid));

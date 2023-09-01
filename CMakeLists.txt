@@ -270,6 +270,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 add_subdirectory(src)
 add_subdirectory(docs)
 if(BUILD_TESTING)
+    rocm_enable_test_package(migraphx)
     add_subdirectory(test)
 endif()
 add_subdirectory(tools)
@@ -282,7 +283,6 @@ foreach(py_file ${backend_files})
 endforeach(py_file)
 configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
 
-rocm_enable_test_package(migraphx)
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"

@@ -129,6 +129,7 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_softsign_example_expanded_ver18_cpu')
     backend_test.exclude(r'test_softsign_expanded_ver18_cpu')
 
+
 def disabled_tests_onnx_1_14_0(backend_test):
     # The following tests fail due to the CastLike operator being unsupported
     backend_test.exclude(r'test_softplus_example_expanded_ver18_cpu')

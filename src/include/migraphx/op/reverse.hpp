@@ -70,13 +70,13 @@ struct reverse
         argument result{s};
         auto lens = s.lens();
         visit_all(result, args.front())([&](auto output, auto input) {
-            shape_for_each(s, [&](const auto& out_idx) {
-                auto in_idx = out_idx;
+            shape_for_each(s, [&](auto out_idx, const auto& out_idx_v) {
+                auto in_idx = out_idx_v;
                 for(const auto& axis : axes)
                 {
-                    in_idx[axis] = lens[axis] - 1 - out_idx[axis];
+                    in_idx[axis] = lens[axis] - 1 - out_idx_v[axis];
                 }
-                output[s.index(out_idx)] = input[s.index(in_idx)];
+                output[out_idx] = input[s.index(in_idx)];
             });
         });
 

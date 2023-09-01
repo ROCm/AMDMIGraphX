@@ -297,15 +297,15 @@ struct parse_resize : op_parser<parse_resize>
 
             // map out_idx to in_idx
             auto nearest_op = get_nearest_op(nearest_mode);
-            shape_for_each(out_s, [&](const auto& idx) {
-                auto in_idx = idx;
+            shape_for_each(out_s, [&](size_t out_idx, const auto& out_idx_v) {
+                std::vector<size_t> in_idx(out_idx_v.size());
                 for(auto ii = 0; ii < in_lens.size(); ++ii)
                 {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], idx[ii], vec_scale[ii]);
+                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
                     in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
                 }
 
-                ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
+                ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
             });
 
             shape ind_s{shape::int32_type, out_lens};
@@ -323,11 +323,10 @@ struct parse_resize : op_parser<parse_resize>
             auto vvv_ind = std::vector(n_dim, std::vector(2, std::vector<size_t>(out_elements)));
             std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 
-            shape_for_each(out_s, [&](const auto& idx) {
-                auto out_idx = out_s.index(idx);
+            shape_for_each(out_s, [&](auto out_idx, const auto& out_idx_v) {
                 for(auto ii = 0; ii < in_lens.size(); ++ii)
                 {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], idx[ii], vec_scale[ii]);
+                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
                     vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[ii], idx_val);
                     vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[ii], idx_val);
                     delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];

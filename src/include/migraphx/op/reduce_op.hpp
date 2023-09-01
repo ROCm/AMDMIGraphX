@@ -163,7 +163,7 @@ struct reduce_op : op_name<Derived>
         auto& self        = static_cast<const Derived&>(*this);
         auto data_idx     = out_idx;
         accumulator val   = self.init();
-        shape_for_each(batch_shape, [&](auto b_idx) {
+        shape_for_each(batch_shape, [&](size_t, auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
             accumulator x = input(data_idx.begin(), data_idx.end());
             val           = self.op()(accumulator{self.input()(x)}, val);

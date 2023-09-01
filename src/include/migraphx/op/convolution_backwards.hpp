@@ -164,7 +164,7 @@ struct convolution_backwards
             shape win_shape{dyn_out.computed_shape.type(), win_size};
 
             par_dfor(in_n, wei_c)([&](int o, int k) {
-                shape_for_each(win_shape, [&](auto idx_win) {
+                shape_for_each(win_shape, [&](size_t, auto idx_win) {
                     const int w = idx_win[0];
 
                     auto input_dims_start = idx_win.begin() + 1;

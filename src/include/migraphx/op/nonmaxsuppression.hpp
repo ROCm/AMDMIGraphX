@@ -258,7 +258,7 @@ struct nonmaxsuppression
         selected_boxes_inside_class.reserve(max_output_shape.elements());
         // iterate over batches and classes
         shape comp_s{shape::double_type, {num_batches, num_classes}};
-        shape_for_each(comp_s, [&](auto idx) {
+        shape_for_each(comp_s, [&](size_t, auto idx) {
             auto batch_idx = idx[0];
             auto class_idx = idx[1];
             // index offset for this class

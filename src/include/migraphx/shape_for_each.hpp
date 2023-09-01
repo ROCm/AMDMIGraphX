@@ -51,9 +51,10 @@ void shape_for_each(const migraphx::shape& s, F f)
                            assert(len > 0 and stride > 0);
                            return (i / stride) % len;
                        });
-        f(index_const_ref);
+        f(i, index_const_ref);
     }
 }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

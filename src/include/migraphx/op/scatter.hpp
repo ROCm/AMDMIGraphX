@@ -85,7 +85,7 @@ struct scatter : op_name<Derived>
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 // iterate through items in shape
-                shape_for_each(ind_s, [&](const auto& idx) {
+                shape_for_each(ind_s, [&](size_t, const auto& idx) {
                     auto out_idx = idx;
 
                     // Overloaded tensor_view::() invokes indexing logic of

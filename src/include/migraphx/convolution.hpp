@@ -62,7 +62,7 @@ void convolution(Output output, T input, T weights, Padding padding, Stride stri
         shape win_shape{output_shape.type(), win_size};
 
         double acc = 0.0;
-        shape_for_each(win_shape, [&](auto idx_win) {
+        shape_for_each(win_shape, [&](size_t, auto idx_win) {
             auto k           = idx_win[0];
             const auto in_ch = group_id * wei_c + k;
             std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());

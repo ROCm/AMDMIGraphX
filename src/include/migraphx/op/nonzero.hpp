@@ -56,10 +56,10 @@ struct nonzero
         std::vector<std::vector<std::size_t>> vec_idx;
         auto s = args.front().get_shape();
         args.front().visit([&](auto v) {
-            shape_for_each(s, [&](auto idx) {
-                if(not float_equal(v[s.index(idx)], 0))
+            shape_for_each(s, [&](size_t idx, auto idx_v) {
+                if(not float_equal(v[idx], 0))
                 {
-                    vec_idx.push_back(idx);
+                    vec_idx.push_back(idx_v);
                 }
             });
         });

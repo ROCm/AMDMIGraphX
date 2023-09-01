@@ -125,13 +125,12 @@ struct gather
                     auto out_lens  = data.get_shape().lens();
                     out_lens[axis] = indices.get_shape().elements();
                     migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-                    shape_for_each(out_comp_shape, [&](const auto& out_idx) {
-                        auto data_idx  = out_idx;
+                    shape_for_each(out_comp_shape, [&](size_t out_idx, const auto& out_idx_v) {
+                        auto data_idx  = out_idx_v;
                         auto in_index  = indices[data_idx[axis]];
                         in_index       = (in_index < 0) ? in_index + axis_dim_size : in_index;
                         data_idx[axis] = in_index;
-                        output[out_comp_shape.index(out_idx.begin(), out_idx.end())] =
-                            data(data_idx.begin(), data_idx.end());
+                        output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });
                 }
             });

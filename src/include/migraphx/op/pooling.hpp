@@ -359,7 +359,7 @@ struct pooling
                 {
                     // In non-ceiling mode, when
                     // count_include_pad is false, or for max pooling, clip off padding.
-                    end   = std::min(start + dilated_kernel_dim, in_lens[dim]);
+                    end = std::min(start + dilated_kernel_dim, in_lens[dim]);
                 }
                 win_start.push_back(start);
                 if(end < start)
@@ -380,7 +380,8 @@ struct pooling
                 // Skip elements that belong to the dilated area
                 for(size_t axis = 0; axis < idx_w.size(); ++axis)
                 {
-                    if(idx_w[axis] % dilations[axis]) {
+                    if(idx_w[axis] % dilations[axis])
+                    {
                         pool_size -= 1;
                         return;
                     }
@@ -410,11 +411,11 @@ struct pooling
                     // this is a padding element.  Padding locations
                     // don't contribute to average or max pooling total but can play in
                     // lpnorm pooling.
-                    if (mode == pooling_mode::lpnorm)
+                    if(mode == pooling_mode::lpnorm)
                     {
                         output_val = op(output_val, 0);
                     }
-                    if (mode == pooling_mode::average)
+                    if(mode == pooling_mode::average)
                     {
                         // Ignore padding
                         pool_size -= 1;

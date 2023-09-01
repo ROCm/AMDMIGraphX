@@ -2122,6 +2122,13 @@ TEST_CASE(pooling_shape3)
 
 TEST_CASE(pooling_shape4)
 {
+    migraphx::shape tiny_input{migraphx::shape::float_type, {4, 1}};
+    throws_shape(migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}),
+                 tiny_input);
+}
+
+TEST_CASE(pooling_shape5)
+{
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};
     expect_shape(output,
@@ -2134,7 +2141,7 @@ TEST_CASE(pooling_shape4)
                  input);
 }
 
-TEST_CASE(pooling_shape5)
+TEST_CASE(pooling_shape6)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 2, 2}};
@@ -2148,7 +2155,7 @@ TEST_CASE(pooling_shape5)
                  input);
 }
 
-TEST_CASE(pooling_shape6)
+TEST_CASE(pooling_shape7)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 2, 2}};
@@ -2163,7 +2170,7 @@ TEST_CASE(pooling_shape6)
                  input);
 }
 
-TEST_CASE(pooling_shape7)
+TEST_CASE(pooling_shape8)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};

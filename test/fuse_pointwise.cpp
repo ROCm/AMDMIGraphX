@@ -443,6 +443,43 @@ TEST_CASE(add_reshape_add_nonstandard)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(add_unsqueeze_add_nonstandard)
+{
+    migraphx::shape s1 =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {3, 10, 16}, {2, 0, 1});
+    migraphx::shape s2{migraphx::shape::float_type, {3, 10, 1, 16}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s1);
+        auto z       = mm->add_parameter("z", s2);
+        auto add1    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto unsqueeze = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), add1);
+        auto add2    = mm->add_instruction(migraphx::make_op("add"), unsqueeze, z);
+        mm->add_return({add2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto z   = mm->add_parameter("z", s2);
+        auto cx  = mm->add_instruction(migraphx::make_op("contiguous"), x);
+        auto cy  = mm->add_instruction(migraphx::make_op("contiguous"), y);
+        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), cx);
+        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), cy);
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {x2, y2, z}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+            });
+        mm->add_return({fadd});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(add_reshape_add_error)
 {
     migraphx::shape s1{migraphx::shape::float_type, {6, 35}};

@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /// for both sets of dimensions. Two axes_maps are provided for each of the
 /// dims that will map the axis to the axes that are used by the result of
 /// common_dims.
-struct common_dims
+struct MIGRAPHX_EXPORT common_dims
 {
     static common_dims compute(const std::vector<std::size_t>& dims1,
                                const std::vector<std::size_t>& dims2);

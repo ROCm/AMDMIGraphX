@@ -128,6 +128,7 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
 common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
                                  const std::vector<std::size_t>& dims2)
 {
+    assert(elements(dims1) > 0);
     assert(elements(dims1) == elements(dims2));
     common_dims cd;
     common_dim_state state1{dims1, cd.axes_map1};

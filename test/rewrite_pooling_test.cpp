@@ -62,11 +62,8 @@ TEST_CASE(rewrite_pooling_test)
     auto opt_program = [&](const migraphx::operation& reduce_op) {
         migraphx::module m;
         auto input = m.add_parameter("x", s);
-        auto rsp   = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), input);
-        auto rdm   = m.add_instruction(reduce_op, rsp);
-        auto ret =
-            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 1, 1, 1}}}), rdm);
-        m.add_return({ret});
+        auto rdm   = m.add_instruction(reduce_op, input);
+        m.add_return({rdm});
         return m;
     };
 
@@ -78,8 +75,8 @@ TEST_CASE(rewrite_pooling_test)
     };
 
     test_rewrite(migraphx::op::pooling_mode::average,
-                 migraphx::make_op("reduce_mean", {{"axes", {1}}}));
-    test_rewrite(migraphx::op::pooling_mode::max, migraphx::make_op("reduce_max", {{"axes", {1}}}));
+                 migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}));
+    test_rewrite(migraphx::op::pooling_mode::max, migraphx::make_op("reduce_max", {{"axes", {2, 3, 4}}}));
 }
 
 TEST_CASE(rewrite_avepooling_na1_test)

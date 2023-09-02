@@ -76,7 +76,8 @@ TEST_CASE(rewrite_pooling_test)
 
     test_rewrite(migraphx::op::pooling_mode::average,
                  migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}));
-    test_rewrite(migraphx::op::pooling_mode::max, migraphx::make_op("reduce_max", {{"axes", {2, 3, 4}}}));
+    test_rewrite(migraphx::op::pooling_mode::max,
+                 migraphx::make_op("reduce_max", {{"axes", {2, 3, 4}}}));
 }
 
 TEST_CASE(rewrite_avepooling_na1_test)

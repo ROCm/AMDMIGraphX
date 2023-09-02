@@ -43,7 +43,7 @@ void rewrite_pooling::apply(module& m) const
             continue;
         if(ins->inputs().empty())
             continue;
-        auto&& s = ins->inputs().front()->get_shape();
+        auto&& s  = ins->inputs().front()->get_shape();
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(not std::all_of(op.padding.begin(), op.padding.end(), [](auto i) { return i == 0; }))
             continue;

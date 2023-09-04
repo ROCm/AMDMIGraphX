@@ -76,7 +76,7 @@ TEST_CASE(test_msgpack_float)
     migraphx::value v = 3.0;
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(3.0));
-    EXPECT(migraphx::from_msgpack(buffer) == v);
+    EXPECT(migraphx::from_msgpack(buffer).to<float>() == v.to<float>());
 }
 
 TEST_CASE(test_msgpack_string)
@@ -109,7 +109,11 @@ TEST_CASE(test_msgpack_object)
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(std::map<std::string, double>{
                          {"one", 1.0}, {"three", 3.0}, {"two", 2.0}}));
-    EXPECT(migraphx::from_msgpack(buffer) == v);
+
+    // converted to vector in the following line because in value.cpp value constructor with
+    // unordered map is creating vector<value> with map items as vector elements
+    // value(std::vector<value>(m.begin(), m.end()), false)
+    EXPECT(migraphx::from_msgpack(buffer).to_vector<double>() == v.to_vector<double>());
 }
 
 TEST_CASE(test_msgpack_empty_object)

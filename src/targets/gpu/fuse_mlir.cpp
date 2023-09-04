@@ -348,12 +348,20 @@ bool is_fusion_enabled()
     return is_requested("fused");
 }
 
-bool is_standalone_convs_enabled(const std::string& gfx_name)
+bool is_standalone_convs_enabled(context* ctx)
 {
     if(is_self_decide())
     {
-        const std::string navi_family{"gfx110"};
-        return starts_with(gfx_name, navi_family);
+        if(ctx)
+        {
+            const auto& device = ctx->get_current_device();
+            const std::string navi_family{"gfx110"};
+            return starts_with(device.get_gfx_name(), navi_family);
+        }
+        else
+        {
+            return false;
+        }
     }
     return is_requested("conv");
 }
@@ -369,8 +377,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlir_fused_ops{});
     }
 
-    const auto& device = this->ctx->get_current_device();
-    if(is_standalone_convs_enabled(device.get_gfx_name()))
+    if(is_standalone_convs_enabled(this->ctx))
     {
         match::find_matches(mpm, find_mlir_standalone_convolution_op{});
     }

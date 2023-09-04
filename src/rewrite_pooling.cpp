@@ -51,6 +51,8 @@ void rewrite_pooling::apply(module& m) const
             continue;
         if(not std::all_of(op.stride.begin(), op.stride.end(), [](auto i) { return i == 1; }))
             continue;
+        if(not std::all_of(op.dilations.begin(), op.dilations.end(), [](auto i) { return i == 1; }))
+            continue;
         auto lens = s.lens();
         if(not std::equal(lens.begin() + 2, lens.end(), op.lengths.begin(), op.lengths.end()))
             continue;

@@ -22,12 +22,9 @@
 # THE SOFTWARE.
 #####################################################################################
 
-file(GLOB VERIFY_REF CONFIGURE_DEPENDS *.cpp)
+file(GLOB REF CONFIGURE_DEPENDS *.cpp)
 
-add_executable(test_ref ${VERIFY_REF})
-add_dependencies(tests test_ref)
-add_dependencies(check test_ref)
-target_link_libraries(test_ref migraphx migraphx_onnx migraphx_ref)
+add_test_executable(test_ref ${REF})
 target_include_directories(test_ref PUBLIC ../include)
 rocm_clang_tidy_check(test_ref)
 

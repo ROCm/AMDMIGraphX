@@ -208,7 +208,7 @@ TEST_CASE(test_msgpack_large_binary1)
 
 TEST_CASE(test_msgpack_binary2)
 {
-    const std::size_t n   = 4LL * 1024 * 1024 * 1024 + 2;
+    const std::size_t n = 4LL * 1024 * 1024 * 1024 + 2;
     migraphx::value::binary bin{n};
     std::size_t i = 0;
     std::generate(bin.begin(), bin.end(), [&] {

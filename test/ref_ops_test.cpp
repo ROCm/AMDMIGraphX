@@ -5377,6 +5377,7 @@ TEST_CASE(multinomial_dyn_test)
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
+    // The given test tolerance is about 10x the typical error
     EXPECT(migraphx::verify::verify_range(norm, res_norm, 100000));
 }
 

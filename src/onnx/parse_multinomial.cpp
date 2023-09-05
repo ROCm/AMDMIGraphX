@@ -80,7 +80,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
         }
         instruction_ref randoms;
 
-        if(args.size() > 0)
+        if(not args.empty())
         {
             shape s0 = args[0]->get_shape();
 

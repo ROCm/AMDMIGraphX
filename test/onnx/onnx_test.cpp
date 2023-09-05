@@ -4191,6 +4191,7 @@ TEST_CASE(multinomial_test)
 
 TEST_CASE(multinomial_dyn_test)
 {
+    // compile-time random seed
     migraphx::program p;
     auto* mm           = p.get_main_module();
     size_t sample_size = 13;
@@ -4206,7 +4207,6 @@ TEST_CASE(multinomial_dyn_test)
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    std::vector<float> data(rs.elements(), 0.3f);
 
     migraphx::shape s{migraphx::shape::uint32_type, {1}};
     std::vector<float> seed_data = {seed};
@@ -4216,7 +4216,6 @@ TEST_CASE(multinomial_dyn_test)
     auto ret     = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     mm->add_return({ret});
 
-    // auto prog = optimize_onnx("multinomial_dyn_test.onnx");
     migraphx::onnx_options options;
     options.default_dyn_dim_value  = {1, 10};
     options.print_program_on_error = true;
@@ -4226,6 +4225,7 @@ TEST_CASE(multinomial_dyn_test)
 
 TEST_CASE(multinomial_autoseed_dyn_test)
 {
+    // runtime random seed
     migraphx::program p;
     auto* mm           = p.get_main_module();
     size_t sample_size = 13;
@@ -4247,7 +4247,6 @@ TEST_CASE(multinomial_autoseed_dyn_test)
     auto ret        = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     mm->add_return({ret});
 
-    // auto prog = optimize_onnx("multinomial_dyn_test.onnx");
     migraphx::onnx_options options;
     options.default_dyn_dim_value  = {1, 10};
     options.print_program_on_error = true;

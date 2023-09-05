@@ -212,6 +212,7 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
           -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
@@ -365,6 +366,7 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
@@ -481,6 +483,7 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \

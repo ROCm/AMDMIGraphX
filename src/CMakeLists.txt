@@ -250,6 +250,13 @@ target_link_libraries(migraphx PRIVATE -ldl)
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
+find_package(TBB)
+if(TBB_FOUND)
+    target_link_libraries(migraphx PUBLIC TBB::tbb)
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
+    message(STATUS "Using TBB for parallel execution")
+endif()
+
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 migraphx_generate_export_header(migraphx)

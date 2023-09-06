@@ -94,6 +94,8 @@ struct mlir_handle
         friend bool operator==(ptr x, ptr y) { return x.get_value() == y.get_value(); }
 
         friend bool operator!=(ptr x, ptr y) { return not(x == y); }
+
+        explicit operator bool() const noexcept { return obj != ptr(); }
         T obj{};
     };
 
@@ -728,8 +730,8 @@ struct mlir_program
     void set_gpu_properties(const context& migraphx_ctx)
     {
         const auto& device = migraphx_ctx.get_current_device();
-        target_arch  = device.get_device_name();
-        num_cu       = device.get_cu_count();
+        target_arch        = device.get_device_name();
+        num_cu             = device.get_cu_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -951,15 +953,22 @@ code_object_op compile_mlir(const context& migraphx_ctx,
     adjust_param_shapes(m, to_shapes(inputs));
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
+    static std::mutex mutex;
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << m << std::endl;
+    }
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
     auto co            = mp.compile(solution);
     co.expected_inputs = to_shapes(inputs);
     co.output          = m.get_output_shapes().front();

@@ -8,9 +8,46 @@
 #include <migraphx/simple_par_for.hpp>
 #endif
 #include <algorithm>
+#include <mutex>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+namespace detail {
+
+struct exception_list
+{
+    std::vector<std::exception_ptr> exceptions;
+    std::mutex m;
+    void add_exception()
+    {
+        std::lock_guard<std::mutex> guard(m);
+        exceptions.push_back(std::current_exception());
+    }
+    void throw_if_exception() const
+    {
+        if(not exceptions.empty())
+            std::rethrow_exception(exceptions.front());
+    }
+};
+
+template<class F>
+auto par_collect_exceptions(exception_list& ex, F f)
+{
+    return [=, &ex](auto&&... xs) {
+        try
+        {
+            f(std::forward<decltype(xs)>(xs)...);
+        }
+        catch(...)
+        {
+            ex.add_exception();
+        }
+    };
+}
+
+} // namespace detail
 
 template <class InputIt, class OutputIt, class UnaryOperation>
 OutputIt par_transform(InputIt first1, InputIt last1, OutputIt d_first, UnaryOperation unary_op)
@@ -40,7 +77,10 @@ template <class InputIt, class UnaryFunction>
 void par_for_each(InputIt first, InputIt last, UnaryFunction f)
 {
 #ifdef MIGRAPHX_HAS_EXECUTORS
-    std::for_each(std::execution::par, first, last, std::move(f));
+    // Propagate the exception
+    detail::exception_list ex;
+    std::for_each(std::execution::par, first, last, detail::par_collect_exceptions(ex, std::move(f)));
+    ex.throw_if_exception();
 #else
     simple_par_for(last - first, [&](auto i) { f(first[i]); });
 #endif

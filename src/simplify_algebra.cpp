@@ -1369,9 +1369,8 @@ struct find_split_reshape
         auto slc_lens     = slc->get_shape().lens();
         auto slc_dim_size = std::accumulate(
             slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
-        auto input_lens = input->get_shape().lens();
-        auto input_size = std::accumulate(
-            input_lens.begin(), input_lens.end(), 1, std::multiplies<std::size_t>());
+        auto input_lens   = input->get_shape().lens();
+        auto input_size   = input->get_shape().elements();
         auto slc_axis_len = input_lens[axis];
 
         // search the reshape output (standard shape) to decide which axis are

@@ -32,7 +32,7 @@ struct exception_list
     }
 };
 
-template<class F>
+template <class F>
 auto par_collect_exceptions(exception_list& ex, F f)
 {
     return [=, &ex](auto&&... xs) {
@@ -79,7 +79,8 @@ void par_for_each(InputIt first, InputIt last, UnaryFunction f)
 #ifdef MIGRAPHX_HAS_EXECUTORS
     // Propagate the exception
     detail::exception_list ex;
-    std::for_each(std::execution::par, first, last, detail::par_collect_exceptions(ex, std::move(f)));
+    std::for_each(
+        std::execution::par, first, last, detail::par_collect_exceptions(ex, std::move(f)));
     ex.throw_if_exception();
 #else
     simple_par_for(last - first, [&](auto i) { f(first[i]); });

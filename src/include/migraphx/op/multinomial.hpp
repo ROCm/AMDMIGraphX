@@ -29,7 +29,7 @@
  *
  *          In the large number limit, the fractional counts approach the multinomial distribution.
  *
- *      Inputs:   args[0] - a vector of probabilities for each category.  Values are running 
+ *      Inputs:   args[0] - a vector of probabilities for each category.  Values are running
  *                          totals as provided by op prefix_scan_sum.
  *                          Values are log normalized (i.e. start with any set of numbers > 0, then
  *                          val[i] = log(val[i]) / sum (log(val[0]) + log(val[1])+ ...) )

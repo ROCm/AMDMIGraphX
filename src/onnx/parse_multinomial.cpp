@@ -102,14 +102,20 @@ struct parse_multinomial : op_parser<parse_multinomial>
                     migraphx::make_op("random_uniform"), seed_input, rand_dummy);
             }
         }
-        else
-        {
-            // use literal.  It may be quite large.
-            auto rand_dummy = info.add_literal(
-                migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
-            randoms =
-                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
-        }
+
+        // TODO:  Confirm that this case with no inputs should not be supported.  The input defines
+        // the number of categories, which can't be defaulted.  You can't get to this line with no
+        // inputs because there will be an exception when accessing args[0] above.
+
+        // else
+        // {
+        //     // use literal.  It may be quite large.
+        //     auto rand_dummy = info.add_literal(
+        //         migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+        //     randoms =
+        //         info.add_instruction(migraphx::make_op("random_uniform"), seed_input,
+        //         rand_dummy);
+        // }
 
         return info.add_instruction(
             migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);

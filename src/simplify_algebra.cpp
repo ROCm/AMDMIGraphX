@@ -1467,10 +1467,13 @@ struct find_split_transpose
         {
             return;
         }
+        if(std::any_of(split_outputs.begin(), split_outputs.end(), [](auto i) {
+               return i->outputs().size() != 1;
+           }))
+            return;
 
         std::vector<instruction_ref> vec_trans(split_outputs.size());
         std::transform(split_outputs.begin(), split_outputs.end(), vec_trans.begin(), [](auto i) {
-            assert(i->outputs().size() == 1);
             return i->outputs().front();
         });
 

@@ -3137,6 +3137,36 @@ void reorder_slice_trans_diff_perm()
 TEST_CASE_REGISTER(reorder_slice_trans_diff_perm<1>);
 TEST_CASE_REGISTER(reorder_slice_trans_diff_perm<4>);
 
+TEST_CASE(reorder_slice_trans_multi_outputs)
+{
+    migraphx::module m1;
+    {
+        auto s                    = migraphx::shape{migraphx::shape::float_type, {8, 128, 1920}};
+        auto input                = m1.add_parameter("input", s);
+        std::vector<int64_t> perm = {0, 2, 1};
+        auto slc0                 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {640}}}), input);
+        auto slc1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {640}}, {"ends", {1280}}}),
+            input);
+        auto slc2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1280}}, {"ends", {1920}}}),
+            input);
+
+        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), slc0);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), slc1);
+        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), slc2);
+
+        auto sum      = m1.add_instruction(migraphx::make_op("add"), t0, t1);
+        auto dot      = m1.add_instruction(migraphx::make_op("mul"), sum, t2);
+        auto slc_cont = m1.add_instruction(migraphx::make_op("contiguous"), slc1);
+        m1.add_return({slc_cont, dot});
+    };
+    run_pass(m1);
+    auto m2 = m1;
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(reorder_slice_ins_deps)
 {
     auto create_module = [] {

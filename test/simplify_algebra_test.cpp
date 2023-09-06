@@ -2976,19 +2976,17 @@ TEST_CASE(reorder_reshape_slice_multi_rsp)
 
         auto dot = m2.add_instruction(migraphx::make_op("dot"), slc2, c_t_slc1);
 
-        auto slc4 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), t1);
-        auto c4 = m2.add_instruction(migraphx::make_op("contiguous"), slc4);
-        auto r4 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 32, 128, 80}}}), c4);
+        auto c_t1_1 = m2.add_instruction(migraphx::make_op("contiguous"), t1);
+        auto rsp2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12, 32, 128, 80}}}), c_t1_1);
 
-        auto slc5 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), t1);
-        auto c5 = m2.add_instruction(migraphx::make_op("contiguous"), slc5);
-        auto r5 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 32, 128, 80}}}), c5);
+        auto slc2_1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), rsp2);
 
-        m2.add_return({r5, r4, dot, slc0});
+        auto slc2_2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {12}}}), rsp2);
+
+        m2.add_return({slc2_1, slc2_2, dot, slc0});
     };
 
     run_pass(m1);
@@ -3016,13 +3014,32 @@ void reorder_reshape_slice_diff_dims()
         std::vector<int64_t> lens  = {static_cast<int64_t>(BS), 32, 3, 32};
         std::vector<int64_t> lens1 = {static_cast<int64_t>(BS), 48, 2, 32};
         auto r0 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
-        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
-        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens1}}), c2);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens1}}), c1);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
 
         m1.add_return({r0, r1, r2});
     };
 
-    auto m2 = m1;
+    migraphx::module m2;
+    {
+        auto s     = migraphx::shape{migraphx::shape::float_type, {BS, 96, 96}};
+        auto input = m2.add_parameter("input", s);
+        auto slc1  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {32}}, {"ends", {64}}}), input);
+        auto c1                    = m2.add_instruction(migraphx::make_op("contiguous"), slc1);
+        std::vector<int64_t> lens1 = {static_cast<int64_t>(BS), 48, 2, 32};
+        auto r1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens1}}), c1);
+
+        std::vector<int64_t> lens = {static_cast<int64_t>(BS), 32, 3, 96};
+        auto r_new = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), input);
+        auto slc0  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {32}}}), r_new);
+        auto slc2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {96}}}), r_new);
+
+        m2.add_return({slc0, r1, slc2});
+    };
+
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }

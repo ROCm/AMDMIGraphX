@@ -1330,35 +1330,36 @@ struct find_split_reshape
 
         auto input         = slc->inputs().front();
         auto split_outputs = get_splits(input);
+
         if(split_outputs.empty())
         {
             return;
         }
 
-        // Only want to apply this optimization if each split output is followed by
-        // a contiguous op and a reshape
-        if(std::any_of(split_outputs.begin(), split_outputs.end(), [](auto i) {
-               if(i->outputs().size() == 1)
-               {
-                   auto cont = i->outputs().front();
-                   return cont->outputs().size() != 1;
-               }
-               return false;
-           }))
+        // Find all the reshapes (similar to rsp) that can be simplified
+        std::vector<instruction_ref> conts;
+        std::vector<instruction_ref> vec_rsp;
+
+        // Iterate through slice and contiguous outputs to allow simplifications when
+        // slice is followed by multiple reshapes
+        for(auto& i : split_outputs)
         {
-            return;
+            std::copy_if(i->outputs().begin(),
+                         i->outputs().end(),
+                         std::back_inserter(conts),
+                         [](auto j) { return j->name() == "contiguous"; });
         }
 
-        std::vector<instruction_ref> vec_rsp(split_outputs.size());
-        std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [](auto i) {
-            auto cont = i->outputs().front();
-            return cont->outputs().front();
-        });
+        for(auto& i : conts)
+        {
+            std::copy_if(i->outputs().begin(),
+                         i->outputs().end(),
+                         std::back_inserter(vec_rsp),
+                         [&](auto j) { return j->get_operator() == rsp->get_operator(); });
+        }
 
-        // all outputs are reshape and of the same shape as matched reshape op
-        std::vector<instruction_ref> all_rsp = vec_rsp;
-        all_rsp.push_back(rsp);
-        if(not same_ops(all_rsp))
+        // No simplification needed if there is only one slice -> cont -> reshape
+        if(vec_rsp.size() <= 1)
         {
             return;
         }
@@ -1368,6 +1369,10 @@ struct find_split_reshape
         auto slc_lens     = slc->get_shape().lens();
         auto slc_dim_size = std::accumulate(
             slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
+        auto input_lens = input->get_shape().lens();
+        auto input_size = std::accumulate(
+            input_lens.begin(), input_lens.end(), 1, std::multiplies<std::size_t>());
+        auto slc_axis_len = input_lens[axis];
 
         // search the reshape output (standard shape) to decide which axis are
         // in its output corresponding to the slc_dim_size
@@ -1394,16 +1399,34 @@ struct find_split_reshape
         {
             rsp_axis = std::distance(rsp_strides.begin(), ait);
         }
-        // calculate reshape output shape
-        std::vector<int64_t> vec_dims(vec_rsp.size());
 
-        std::transform(vec_rsp.begin(), vec_rsp.end(), vec_dims.begin(), [&](auto is) {
-            return is->get_shape().lens()[rsp_axis];
+        // calculate reshape output shape
+        std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
+        rsp_out_lens[rsp_axis] = 1;
+        auto rsp_fixed_size    = std::accumulate(
+            rsp_out_lens.begin(), rsp_out_lens.end(), 1, std::multiplies<std::size_t>());
+        auto rsp_axis_len      = input_size / rsp_fixed_size;
+        rsp_out_lens[rsp_axis] = rsp_axis_len;
+
+        // calculate new slice start and end indices
+        // indices are scaled using the new reshape axis and the original slice axis
+        // eg. slice with size [1, 2, 4, 30] can be reshaped to [8, 30] and vice-versa
+
+        std::vector<int64_t> new_starts(vec_rsp.size());
+        std::transform(vec_rsp.begin(), vec_rsp.end(), new_starts.begin(), [&](auto is) {
+            auto cont   = is->inputs().front();
+            auto og_slc = cont->inputs().front();
+            return any_cast<op::slice>(og_slc->get_operator()).starts[0] * rsp_axis_len /
+                   slc_axis_len;
         });
 
-        std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
-
-        rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
+        std::vector<int64_t> new_ends(vec_rsp.size());
+        std::transform(vec_rsp.begin(), vec_rsp.end(), new_ends.begin(), [&](auto is) {
+            auto cont   = is->inputs().front();
+            auto og_slc = cont->inputs().front();
+            return any_cast<op::slice>(og_slc->get_operator()).ends[0] * rsp_axis_len /
+                   slc_axis_len;
+        });
 
         // insert the reshape instruction and add contiguous if needed
         if(not input->get_shape().standard())
@@ -1414,16 +1437,14 @@ struct find_split_reshape
             std::next(input), make_op("reshape", {{"dims", rsp_out_lens}}), input);
 
         // replace the original reshape with slice
-        int64_t start = 0;
         for(std::size_t i = 0; i < vec_rsp.size(); ++i)
         {
             m.replace_instruction(
                 vec_rsp[i],
                 make_op(
                     "slice",
-                    {{"axes", {rsp_axis}}, {"starts", {start}}, {"ends", {start + vec_dims[i]}}}),
+                    {{"axes", {rsp_axis}}, {"starts", {new_starts[i]}}, {"ends", {new_ends[i]}}}),
                 rsp_ins);
-            start += vec_dims[i];
         }
     }
 };

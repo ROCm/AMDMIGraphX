@@ -870,6 +870,32 @@ def constant_value_ints_test():
 
 
 @onnx_test()
+def constant_no_attributes_test():
+
+    node = onnx.helper.make_node('Constant', inputs=[], outputs=[])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_multiple_attributes_test():
+    x = np.array([0, 1, 2])
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_floats=[1.0, 2.0],
+                                 value_ints=[1, 2],
+                                 value=onnx.helper.make_tensor(
+                                     name='const_tensor',
+                                     data_type=TensorProto.FLOAT,
+                                     dims=x.shape,
+                                     vals=x.flatten().astype(float)))
+
+    return ([node], [], [])
+
+
+@onnx_test()
 def constant_fill_test():
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [2, 3])
 

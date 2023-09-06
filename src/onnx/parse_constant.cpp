@@ -39,21 +39,33 @@ struct parse_constant : op_parser<parse_constant>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& /*args*/) const
     {
-        static const std::string attributes[] = {
+        static const std::vector<std::string> attributes = {
             "value", "value_float", "value_floats", "value_int", "value_ints"};
 
-        auto&& attr = [&] {
-            for(const auto& a : attributes)
+        const auto p  = [&](const std::string& a) { return contains(info.attributes, a); };
+        const auto it = std::find_if(attributes.begin(), attributes.end(), p);
+
+        if(it == attributes.end())
+        {
+            MIGRAPHX_THROW("Constant node does not contain any supported attribute");
+        }
+
+        if(std::any_of(std::next(it), attributes.end(), p))
+        {
+            std::string err = "Constant contains multiple attributes: " + *it;
+            for(auto i = std::next(it); i != attributes.end(); ++i)
             {
-                if(auto it = info.attributes.find(a); it != info.attributes.end())
+                if(p(*i))
                 {
-                    return it->second;
+                    err += ", " + *i;
                 }
             }
-            MIGRAPHX_THROW("Constant does not contain any supported attribute");
-        }();
+            MIGRAPHX_THROW(err);
+        }
 
-        literal v = parser.parse_value(attr);
+        auto&& attr = info.attributes[*it];
+        literal v   = parser.parse_value(attr);
+
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
@@ -61,7 +73,7 @@ struct parse_constant : op_parser<parse_constant>
         }
 
         // if dim_size is 0, it is a scalar
-        if(attr.has_t() && attr.t().dims_size() == 0)
+        if(attr.has_t() and attr.t().dims_size() == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
             return info.add_literal(migraphx::literal{scalar_shape, v.data()});

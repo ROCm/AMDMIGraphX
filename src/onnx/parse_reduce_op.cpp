@@ -54,7 +54,13 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
     bool runtime_axes = false;
     if(args.size() == 2)
     {
-        if(!(runtime_axes = !args[1]->can_eval()))
+        runtime_axes = not args[1]->can_eval();
+        if(runtime_axes)
+        {
+            // The reference implementation supports variable axes, but the backends do not
+            MIGRAPHX_THROW("Cannot handle variable axes");
+        }
+        else
         {
             args[1]->eval().visit([&](auto s) { axes.assign(s.begin(), s.end()); });
         }
@@ -65,10 +71,10 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
         axes.assign(attr_axes.begin(), attr_axes.end());
     }
 
-    bool noop_with_empty_axes =
+    int noop_with_empty_axes =
         parse_attribute<int>("noop_with_empty_axes", parser, info).value_or(0);
     // empty axes behavior
-    if(axes.empty() && !runtime_axes)
+    if(axes.empty() and not runtime_axes)
     {
         if(noop_with_empty_axes)
         {
@@ -79,13 +85,12 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
         std::iota(axes.begin(), axes.end(), 0);
     }
 
-    bool keep_dims = parse_attribute<int>("keepdims", parser, info).value_or(1);
+    int keep_dims = parse_attribute<int>("keepdims", parser, info).value_or(1);
 
-    auto reduce_op =
-        make_op(op_name, {{"axes", axes}, {"noop_with_empty_axes", noop_with_empty_axes}});
+    auto reduce_op          = make_op(op_name, {{"axes", axes}});
     auto return_instruction = runtime_axes ? info.add_instruction(reduce_op, args)
                                            : info.add_instruction(reduce_op, args[0]);
-    if(!keep_dims)
+    if(not keep_dims)
     {
         if(runtime_axes)
         {

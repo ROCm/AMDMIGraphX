@@ -125,5 +125,3 @@ TEST_CASE(loop_test4)
     std::vector<int64_t> gold_concat = {5, 9, 14, 20, 0, 0, 0, 0, 0, 0};
     EXPECT(ress.back() == gold_concat);
 }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

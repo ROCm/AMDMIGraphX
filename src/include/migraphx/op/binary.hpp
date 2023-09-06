@@ -97,10 +97,10 @@ struct binary : op_name<Derived>
         argument result{dyn_out.computed_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
             par_transform(input1.begin(),
-                           input1.end(),
-                           input2.begin(),
-                           output.begin(),
-                           static_cast<const Derived&>(*this).apply());
+                          input1.end(),
+                          input2.begin(),
+                          output.begin(),
+                          static_cast<const Derived&>(*this).apply());
         });
         return result;
     }

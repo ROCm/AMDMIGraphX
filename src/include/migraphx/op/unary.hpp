@@ -86,9 +86,9 @@ struct unary : op_name<Derived>
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
                 par_transform(input.begin(),
-                               input.end(),
-                               output.begin(),
-                               static_cast<const Derived&>(*this).apply());
+                              input.end(),
+                              output.begin(),
+                              static_cast<const Derived&>(*this).apply());
             });
         });
         return result;

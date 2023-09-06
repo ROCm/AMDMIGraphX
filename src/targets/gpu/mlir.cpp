@@ -187,7 +187,7 @@ struct mlir_logger
 
     mlir_logger() : ctx(nullptr), id(std::nullopt) {}
 
-    mlir_logger(mlir_context* _ctx) : ctx(_ctx)
+    mlir_logger(mlir_context* context) : ctx(context)
     {
         id =
             mlirContextAttachDiagnosticHandler(ctx->get(), mlir_diagnostic_print_cb, this, nullptr);
@@ -202,13 +202,14 @@ struct mlir_logger
     mlir_logger(const mlir_logger& other) = delete;
     mlir_logger& operator=(const mlir_logger& other) = delete;
 
-    mlir_logger(mlir_logger&& other) : ss(std::move(other.ss)), ctx(other.ctx), id(other.id)
+    mlir_logger(mlir_logger&& other) noexcept
+        : ss(std::move(other.ss)), ctx(other.ctx), id(other.id)
     {
         other.ctx = nullptr;
         other.id  = std::nullopt;
     }
 
-    mlir_logger& operator=(mlir_logger&& other)
+    mlir_logger& operator=(mlir_logger&& other) noexcept
     {
         ss = std::move(other.ss);
         if(other.ctx)
@@ -688,7 +689,7 @@ struct mlir_program
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
-        logger.ss.str("");
+        logger.ss = std::stringstream{};
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
         {
@@ -701,7 +702,7 @@ struct mlir_program
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
-        logger.ss.str("");
+        logger.ss = std::stringstream{};
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()))))
         {

@@ -289,7 +289,8 @@ def create_backend_test(testname=None, target_device=None):
             r'test_argmin_no_keepdims_example_select_last_index_cpu')
         backend_test.exclude(r'test_lrn_cpu')
         backend_test.exclude(r'test_lrn_default_cpu')
-        backend_test.exclude(r'test_maxpool_2d_dilations_cpu')
+        # MaxPool dialtion is partially supported on GPU by a workaround
+        # But these tests require too large allocations to work properly
         backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
         backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
         backend_test.exclude(

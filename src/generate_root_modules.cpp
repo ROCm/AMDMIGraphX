@@ -244,7 +244,6 @@ struct AutoGenRootModules
             std::cout << "\n";
         }
 
-        std::cout << "1\n";
         auto* tmod = p.create_module("target_mod_" + std::to_string(current_tid) + "_" +
                                      std::to_string(tid_counter[current_tid]));
         update_tid_counter(current_tid);
@@ -265,7 +264,7 @@ struct AutoGenRootModules
                 params_map[*pins] = tmod->add_literal(scalar);
             }
         }
-        std::cout << "2\n";
+
         // TODO: what if params_map is empty ?
         assert(not params_map.empty());
         for(auto tins : iterator_for(same_tid_ins_vec))
@@ -281,26 +280,27 @@ struct AutoGenRootModules
             // add parameter to params map so that it can be looked up by other insturctions
             params_map[*tins] = tmod_tins;
         }
-        std::cout << "3\n";
+
         std::vector<instruction_ref> rins;
         std::unordered_map<instruction_ref, std::size_t> return_ins_idx_map;
-        std::cout << "4\n";
         for(auto ritr : iterator_for(return_ins))
         {
             rins.push_back(params_map.at(*ritr));
             return_ins_idx_map[*ritr] = std::distance(ritr, return_ins.begin());
         }
         tmod->add_return(rins);
-        std::cout << "5\n";
+
         if(enabled(MIGRAPHX_DEBUG_PARTITIONER{}))
         {
             std::cout << "Created target module: " << tmod->name() << "\n";
             tmod->debug_print();
         }
+
         // add run_on_target ins
         auto rot_ins = mm->insert_instruction(
             ins, make_op("run_on_target", {{"target_id", current_tid}}), rot_ins_params, {tmod});
         skip_ins.insert(rot_ins);
+
         // fetch return instructions from tuple
         for(auto mm_rins : iterator_for(return_ins))
         {

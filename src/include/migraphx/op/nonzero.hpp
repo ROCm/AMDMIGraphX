@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,7 +56,7 @@ struct nonzero
         std::vector<std::vector<std::size_t>> vec_idx;
         auto s = args.front().get_shape();
         args.front().visit([&](auto v) {
-            shape_for_each(s, [&](size_t idx, auto idx_v) {
+            shape_for_each(s, [&](const auto& idx_v, size_t idx) {
                 if(not float_equal(v[idx], 0))
                 {
                     vec_idx.push_back(idx_v);

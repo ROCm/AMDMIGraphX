@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  * Iterates the given function over the indices from the shape in order.
  */
-template <class F>
+template <class F, class Vec = std::vector<std::size_t>, class Idx = size_t>
 void shape_for_each(const migraphx::shape& s, F f)
 {
     std::vector<std::size_t> indices(s.lens().size());
@@ -51,7 +51,10 @@ void shape_for_each(const migraphx::shape& s, F f)
                            assert(len > 0 and stride > 0);
                            return (i / stride) % len;
                        });
-        f(i, index_const_ref);
+        if constexpr(std::is_invocable_v<F, Vec, Idx>)
+            f(index_const_ref, i);
+        else
+            f(index_const_ref);
     }
 }
 

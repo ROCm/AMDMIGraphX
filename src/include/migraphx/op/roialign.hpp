@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -113,7 +113,7 @@ struct roialign
     {
         std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
                                         output_width);
-        shape_for_each(comp_s, [&](size_t index, auto idx_v) {
+        shape_for_each(comp_s, [&](const auto& idx_v, size_t index) {
             std::array<std::size_t, 2> p = {idx_v[0], idx_v[1]};
             std::array<std::size_t, 2> i = {idx_v[2], idx_v[3]};
 
@@ -254,7 +254,7 @@ struct roialign
                 std::vector<std::size_t> comp_lens1 = {channels, out_dims[0], out_dims[1]};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);
-                shape_for_each(comp_s1, [&](size_t, auto idx) {
+                shape_for_each(comp_s1, [&](const auto& idx) {
                     auto c  = idx[0];
                     auto ph = idx[1];
                     auto pw = idx[2];

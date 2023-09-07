@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -70,7 +70,7 @@ struct reverse
         argument result{s};
         auto lens = s.lens();
         visit_all(result, args.front())([&](auto output, auto input) {
-            shape_for_each(s, [&](auto out_idx, const auto& out_idx_v) {
+            shape_for_each(s, [&](const auto& out_idx_v, size_t out_idx) {
                 auto in_idx = out_idx_v;
                 for(const auto& axis : axes)
                 {

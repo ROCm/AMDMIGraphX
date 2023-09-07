@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -85,7 +85,7 @@ struct scatter : op_name<Derived>
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 // iterate through items in shape
-                shape_for_each(ind_s, [&](size_t, const auto& idx) {
+                shape_for_each(ind_s, [&](const auto& idx) {
                     auto out_idx = idx;
 
                     // Overloaded tensor_view::() invokes indexing logic of

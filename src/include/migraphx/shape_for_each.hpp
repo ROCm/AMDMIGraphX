@@ -38,7 +38,7 @@ template <class F, class Vec = std::vector<std::size_t>, class Idx = size_t>
 void shape_for_each(const migraphx::shape& s, F f)
 {
     std::vector<std::size_t> indices(s.lens().size());
-    auto const& index_const_ref = indices;
+    const auto& index_const_ref = indices;
     shape ss{s.type(), s.lens()};
     size_t max = ss.elements();
     for(std::size_t i = 0; i < max; i++)

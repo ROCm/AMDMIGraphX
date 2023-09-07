@@ -50,14 +50,19 @@ struct instruction_ref : std::list<instruction>::iterator
         return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
     }
 
-    friend bool operator==(const instruction_ref& x, const instruction_iter& y)
+    friend bool operator==(const instruction_ref& x, const instruction_const_iter& y)
     {
         return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
     }
 
-    friend bool operator==(const instruction_ref& x, const instruction_const_iter& y)
+    friend bool operator!=(const instruction_iter& y, const instruction_ref& x)
     {
-        return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
+        return !(x == y);
+    }
+
+    friend bool operator!=(const instruction_ref& x, const instruction_iter& y)
+    {
+        return !(x == y);
     }
 
     friend bool operator!=(const instruction_ref& x, const instruction_ref& y)

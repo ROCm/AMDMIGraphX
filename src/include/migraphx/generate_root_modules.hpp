@@ -30,9 +30,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 /*
-given target_assignments, paritions the migraphx program into separate root modules.
+given target_assignments, generates root modules for each individual targets inside main module.
 */
-void partition(migraphx::program& p, const migraphx::target_assignments& tass);
+void generate_root_modules(migraphx::program& p, const migraphx::target_assignments& tass);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

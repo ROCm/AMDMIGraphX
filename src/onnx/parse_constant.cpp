@@ -25,6 +25,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,28 +43,24 @@ struct parse_constant : op_parser<parse_constant>
         static const std::vector<std::string> attributes = {
             "value", "value_float", "value_floats", "value_int", "value_ints"};
 
-        const auto p  = [&](const std::string& a) { return contains(info.attributes, a); };
-        const auto it = std::find_if(attributes.begin(), attributes.end(), p);
+        std::vector<std::string> present_attributes;
+        std::copy_if(attributes.begin(),
+                     attributes.end(),
+                     std::back_inserter(present_attributes),
+                     [&](const std::string& a) { return contains(info.attributes, a); });
 
-        if(it == attributes.end())
+        if(present_attributes.empty())
         {
             MIGRAPHX_THROW("Constant node does not contain any supported attribute");
         }
 
-        if(std::any_of(std::next(it), attributes.end(), p))
+        if(present_attributes.size() > 1)
         {
-            std::string err = "Constant contains multiple attributes: " + *it;
-            for(auto i = std::next(it); i != attributes.end(); ++i)
-            {
-                if(p(*i))
-                {
-                    err += ", " + *i;
-                }
-            }
-            MIGRAPHX_THROW(err);
+            MIGRAPHX_THROW("Constant contains multiple attributes: " +
+                           join_strings(std::move(present_attributes), ", "));
         }
 
-        auto&& attr = info.attributes[*it];
+        auto&& attr = info.attributes[present_attributes[0]];
         literal v   = parser.parse_value(attr);
 
         // return empty literal

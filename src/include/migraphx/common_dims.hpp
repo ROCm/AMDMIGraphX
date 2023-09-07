@@ -21,29 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_COMMON_DIMS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_COMMON_DIMS_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <cstdint>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-
-/**
- * Eliminate redundant reshapes.
- */
-struct MIGRAPHX_EXPORT simplify_reshapes
+/// This will compute a higher dimensional space that will preserve the axes
+/// for both sets of dimensions. Two axes_maps are provided for each of the
+/// dims that will map the axis to the axes that are used by the result of
+/// common_dims.
+struct MIGRAPHX_EXPORT common_dims
 {
-    size_t depth = 4;
-    std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
+    static common_dims compute(const std::vector<std::size_t>& dims1,
+                               const std::vector<std::size_t>& dims2);
+    std::vector<std::size_t> dims;
+    std::vector<std::vector<std::size_t>> axes_map1;
+    std::vector<std::vector<std::size_t>> axes_map2;
 };
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_COMMON_DIMS_HPP

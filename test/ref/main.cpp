@@ -21,29 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
+#include <test.hpp>
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Eliminate redundant reshapes.
- */
-struct MIGRAPHX_EXPORT simplify_reshapes
-{
-    size_t depth = 4;
-    std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
-};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

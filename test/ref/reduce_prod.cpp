@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,29 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_RESHAPES_HPP
+#include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/onnx.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/config.hpp>
+#include <test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Eliminate redundant reshapes.
- */
-struct MIGRAPHX_EXPORT simplify_reshapes
+TEST_CASE(reduce_prod_axis0)
 {
-    size_t depth = 4;
-    std::string name() const { return "simplify_reshapes"; }
-    void apply(module& m) const;
-};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {4, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 3, 2, 3}};
+    auto l0    = mm->add_literal(input);
+    mm->add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{6, 18, 12, 18};
+    EXPECT(results_vector == gold);
+}

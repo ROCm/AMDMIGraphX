@@ -2160,6 +2160,13 @@ TEST_CASE(pooling_shape3)
                  input);
 }
 
+TEST_CASE(pooling_shape4)
+{
+    migraphx::shape tiny_input{migraphx::shape::float_type, {4, 1}};
+    throws_shape(migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}),
+                 tiny_input);
+}
+
 TEST_CASE(pooling_dyn_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3, {3}}, {3, 3, {3}}, {3, 3}}};

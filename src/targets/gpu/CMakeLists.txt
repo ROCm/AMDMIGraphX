@@ -48,7 +48,7 @@ include(Embed)
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-add_embed_library(migraphx_kernels ${KERNEL_FILES})
+add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
@@ -89,7 +89,7 @@ rocm_clang_tidy_check(kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
-if(NOT WIN32)
+if(WIN32)
     # TODO: re-enable when CK is ported to Windows
     list(REMOVE_ITEM JIT_GPU_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp)
 endif()
@@ -123,6 +123,7 @@ add_library(migraphx_gpu
     lrn.cpp
     mlir.cpp
     multinomial.cpp
+    no_device.cpp
     nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp

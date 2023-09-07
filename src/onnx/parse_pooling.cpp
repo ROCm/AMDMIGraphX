@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -151,26 +151,6 @@ struct parse_pooling : op_parser<parse_pooling>
                 kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
         }
 
-        if(contains(info.attributes, "auto_pad"))
-        {
-            if(in_shape.dynamic())
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_POOLING: Auto padding pooling with dynamic input shape not supported");
-            }
-            else
-            {
-                values["padding"].clear();
-                // return paddings could be empty, then setting to 0 for no padding
-                cal_auto_padding_size(info,
-                                      values,
-                                      values["lengths"].to_vector<std::size_t>(),
-                                      {1, 1},
-                                      in_shape.lens(),
-                                      paddings);
-            }
-        }
-
         if(paddings.size() != 2 * kdims)
         {
             paddings.resize(kdims * 2);
@@ -192,6 +172,36 @@ struct parse_pooling : op_parser<parse_pooling>
         // used to calculate the supposed output shape
         std::vector<int64_t> orig_padding = paddings;
 
+        // TODO:  add parsing for dilations
+        if(contains(info.attributes, "auto_pad") and
+           to_upper(info.attributes["auto_pad"].s()) != "NOTSET")
+        {
+            auto auto_pad = to_upper(info.attributes["auto_pad"].s());
+            // don't use the given padding sizes, if any
+            // values["padding"].clear();
+            if(in_shape.dynamic())
+            {
+                // set padding_mode to trigger auto padding at runtime
+                bool is_same_upper     = (auto_pad.find("SAME_UPPER") != std::string::npos);
+                values["padding_mode"] = is_same_upper ? to_value(op::padding_mode_t::same_upper)
+                                                       : to_value(op::padding_mode_t::same_lower);
+            }
+            else
+            {
+                // Calculate auto padding
+                // dilations (argument 4) not supported; default to all 1's
+                cal_auto_padding_size(info,
+                                      values,
+                                      values["lengths"].to_vector<std::size_t>(),
+                                      std::vector<size_t>(in_shape.ndim() - 2, 1),
+                                      in_shape.lens(),
+                                      paddings);
+                values["padding"] = paddings;
+                // default padding_mode indicates that padding sizes are not calculated dynamically
+                values["padding_mode"] = migraphx::op::padding_mode_t::default_;
+            }
+        }
+
         std::vector<int64_t> slice_start;
         std::vector<int64_t> slice_end;
         tune_padding_size(values, paddings, count_include_pad, slice_start);
@@ -208,8 +218,9 @@ struct parse_pooling : op_parser<parse_pooling>
             orig_padding.insert(orig_padding.begin(), 2, 0);
             op::pad pad{orig_padding, 0.0f};
             shape padded_shape = pad.compute_shape({l0->get_shape()});
-            auto out_lens      = make_op("pooling", values).compute_shape({padded_shape}).lens();
 
+            // make an op just to get its output shape
+            auto out_lens = make_op("pooling", values).compute_shape({padded_shape}).lens();
             // compute slice_end information
             slice_end.resize(slice_start.size());
             std::transform(out_lens.begin() + 2,

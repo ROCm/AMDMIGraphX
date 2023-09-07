@@ -44,7 +44,7 @@ namespace migraphx {
 
 static thread_local bool disable_exception_catch = false; // NOLINT
 
-extern "C" void migraphx_test_private_disable_exception_catch(bool b)
+extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool b)
 {
     disable_exception_catch = b;
 }
@@ -899,7 +899,7 @@ migraphx_dynamic_dimensions_assign_to(migraphx_dynamic_dimensions_t output,
 
 extern "C" migraphx_status
 migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions,
-                                   const_migraphx_dynamic_dimension_t* ptr,
+                                   const const_migraphx_dynamic_dimension_t* ptr,
                                    size_t size)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -1432,7 +1432,7 @@ extern "C" migraphx_status migraphx_instructions_assign_to(migraphx_instructions
 }
 
 extern "C" migraphx_status migraphx_instructions_create(migraphx_instructions_t* instructions,
-                                                        const_migraphx_instruction_t* ptr,
+                                                        const const_migraphx_instruction_t* ptr,
                                                         size_t size)
 {
     auto api_error_result = migraphx::try_([&] {

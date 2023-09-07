@@ -24,7 +24,6 @@
 #include <migraphx/layout_nhwc.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>

@@ -98,16 +98,14 @@ TEST_CASE(allocate_dyn)
                  input);
 }
 
-TEST_CASE(allocate_dyn_use_shape_attr)
+TEST_CASE(allocate_dyn_with_shape_attr)
 {
     migraphx::shape input{migraphx::shape::int64_type, {4}};
     migraphx::shape shape_attr{migraphx::shape::float_type,
                                {{1, 4}, {3, 3}, {4, 8, {4, 6}}, {4, 8}, {4, 6}}};
-    expect_shape(
-        shape_attr,
-        migraphx::make_op("allocate",
-                          {{"shape", migraphx::to_value(shape_attr)}, {"use_shape_attr", true}}),
-        input);
+    expect_shape(shape_attr,
+                 migraphx::make_op("allocate", {{"shape", migraphx::to_value(shape_attr)}}),
+                 input);
 }
 
 TEST_CASE(argmax_axis0)

@@ -245,14 +245,12 @@ TEST_CASE(multitarget_compile_if_then_else)
     auto* then_mod = p.create_module("if_gpu_mod");
     std::vector<float> data1(ds.elements(), 1);
     auto l1 = then_mod->add_literal(migraphx::literal(ds, data1));
-    // auto gpu_x = then_mod->add_parameter("gpu_x", ds);
     auto a1 = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
     then_mod->add_return({a1});
 
     auto* else_mod = p.create_module("else_cpu_mod");
     std::vector<float> data2(ds.elements(), 2);
     auto l2 = else_mod->add_literal(migraphx::literal(ds, data2));
-    // auto cpu_y = else_mod->add_parameter("cpu_y", ds);
     auto a2 = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     else_mod->add_return({a2});
 

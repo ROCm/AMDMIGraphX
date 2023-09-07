@@ -125,7 +125,7 @@ struct roialign
             {
                 xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
                          (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
-                xy[ii] = (coord_trans_mode == "output_half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
+                xy[ii] = (coord_trans_mode == "half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
                     results[index] = pos_weight{};

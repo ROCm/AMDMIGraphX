@@ -74,7 +74,6 @@ struct if_op
         for(const_module_ref smod : mods)
         {
             auto names = smod->get_parameter_names();
-            std::cout << smod->name() << std::endl;
             pnames.insert(pnames.end(), names.begin(), names.end());
         }
         assert(pnames.size() < args.size());

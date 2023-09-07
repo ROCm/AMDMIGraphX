@@ -60,16 +60,8 @@ struct find_static_2in_broadcasts
 };
 
 /**
- *
- */
-struct find_static_dimensions_of
-{
-
-}
-
-/**
  * Simplify slice with variable `starts` and `ends` to the constant version if
- * the `starts` and `ends` inputs are constant.
+ * the `input_starts` and `input_ends` inputs are constant.
  */
 struct find_const_3in_slice
 {
@@ -104,13 +96,13 @@ struct find_const_3in_slice
 
 /**
  * Simplify slice with variable `starts`, `ends`, and `input_axes` to the constant version if
- * the `starts` and `ends` inputs are constant.
+ * the `input_starts`, `input_ends`, and `input_axes` inputs are constant.
  */
 struct find_const_4in_slice
 {
     auto matcher() const
     {
-        return match::name("slice")(match::nargs(3),
+        return match::name("slice")(match::nargs(4),
                                     match::arg(1)(match::is_constant()),
                                     match::arg(2)(match::is_constant()),
                                     match::arg(3)(match::is_constant()));

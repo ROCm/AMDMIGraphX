@@ -1404,6 +1404,11 @@ struct find_split_reshape
         rsp_out_lens[rsp_axis] = 1;
         auto rsp_fixed_size    = std::accumulate(
             rsp_out_lens.begin(), rsp_out_lens.end(), 1, std::multiplies<std::size_t>());
+        // cannot create a valid reshape for simplification
+        if(input_size % rsp_fixed_size != 0)
+        {
+            return;
+        }
         auto rsp_axis_len      = input_size / rsp_fixed_size;
         rsp_out_lens[rsp_axis] = rsp_axis_len;
 

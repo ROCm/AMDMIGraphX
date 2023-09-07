@@ -35,7 +35,7 @@ struct instruction;
 #if defined(_WIN32) && !defined(NDEBUG)
 struct instruction_ref : std::list<instruction>::iterator
 {
-    using instruction_iter = std::list<instruction>::iterator;
+    using instruction_iter       = std::list<instruction>::iterator;
     using instruction_const_iter = std::list<instruction>::const_iterator;
 
     instruction_ref() = default;
@@ -65,10 +65,7 @@ struct instruction_ref : std::list<instruction>::iterator
         return !(x == y);
     }
 
-    friend bool operator!=(const instruction_ref& x, const instruction_ref& y)
-    {
-        return !(x == y);
-    }
+    friend bool operator!=(const instruction_ref& x, const instruction_ref& y) { return !(x == y); }
 };
 #else
 using instruction_ref = std::list<instruction>::iterator;

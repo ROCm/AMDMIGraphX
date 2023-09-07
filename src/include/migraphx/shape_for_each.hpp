@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  * Iterates the given function over the indices from the shape in order.
  */
-template <class F, class Vec = std::vector<std::size_t>, class Idx = size_t>
+template <class F>
 void shape_for_each(const migraphx::shape& s, F f)
 {
     std::vector<std::size_t> indices(s.lens().size());
@@ -51,7 +51,7 @@ void shape_for_each(const migraphx::shape& s, F f)
                            assert(len > 0 and stride > 0);
                            return (i / stride) % len;
                        });
-        if constexpr(std::is_invocable_v<F, Vec, Idx>)
+        if constexpr(std::is_invocable<F, decltype(index_const_ref), decltype(i)>{})
             f(index_const_ref, i);
         else
             f(index_const_ref);

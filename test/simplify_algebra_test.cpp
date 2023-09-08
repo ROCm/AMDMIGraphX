@@ -2993,6 +2993,43 @@ TEST_CASE(reorder_reshape_slice_multi_rsp)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reorder_reshape_slice_uneven_slice)
+{
+    auto create_p = [] {
+        migraphx::module m;
+        migraphx::shape s{migraphx::shape::float_type, {128, 96}};
+        auto input = m.add_parameter("input", s);
+        auto slc0  = m.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {31}}}), input);
+        auto slc1 = m.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {31}}, {"ends", {62}}}), input);
+        auto slc2 = m.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {62}}, {"ends", {93}}}), input);
+        auto slc3 = m.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {93}}, {"ends", {128}}}), input);
+
+        auto c0 = m.add_instruction(migraphx::make_op("contiguous"), slc0);
+        auto c1 = m.add_instruction(migraphx::make_op("contiguous"), slc1);
+        auto c2 = m.add_instruction(migraphx::make_op("contiguous"), slc2);
+
+        std::vector<int64_t> lens = {1, 31, 96};
+        auto r0 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c0);
+        auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c1);
+        auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), c2);
+
+        auto sum = m.add_instruction(migraphx::make_op("add"), r0, r1);
+        auto ret = m.add_instruction(migraphx::make_op("mul"), sum, r2);
+        m.add_return({ret, slc3});
+
+        return m;
+    };
+
+    auto m1 = create_p();
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 template <std::size_t BS>
 void reorder_reshape_slice_diff_dims()
 {

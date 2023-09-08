@@ -25,27 +25,26 @@ struct exception_list
         std::lock_guard<std::mutex> guard(m);
         exceptions.push_back(std::current_exception());
     }
+    template <class F>
+    auto collect(F f)
+    {
+        return [f, this](auto&&... xs) {
+            try
+            {
+                f(std::forward<decltype(xs)>(xs)...);
+            }
+            catch(...)
+            {
+                this->add_exception();
+            }
+        };
+    }
     void throw_if_exception() const
     {
         if(not exceptions.empty())
             std::rethrow_exception(exceptions.front());
     }
 };
-
-template <class F>
-auto par_collect_exceptions(exception_list& ex, F f)
-{
-    return [=, &ex](auto&&... xs) {
-        try
-        {
-            f(std::forward<decltype(xs)>(xs)...);
-        }
-        catch(...)
-        {
-            ex.add_exception();
-        }
-    };
-}
 
 } // namespace detail
 
@@ -80,7 +79,7 @@ void par_for_each(InputIt first, InputIt last, UnaryFunction f)
     // Propagate the exception
     detail::exception_list ex;
     std::for_each(
-        std::execution::par, first, last, detail::par_collect_exceptions(ex, std::move(f)));
+        std::execution::par, first, last, ex.collect(std::move(f)));
     ex.throw_if_exception();
 #else
     simple_par_for(last - first, [&](auto i) { f(first[i]); });

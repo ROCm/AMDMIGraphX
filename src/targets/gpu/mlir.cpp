@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include "migraphx/make_op.hpp"
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
 
 #ifdef MIGRAPHX_MLIR
@@ -719,7 +720,8 @@ struct mlir_program
         if(not tuning_cfg_path.empty())
         {
             std::vector<std::string> tokens = split_string(prob_config, '\t');
-            std::string prob                = tokens[1];
+            std::string prob                = tokens[2];
+
             if(starts_with(prob, "conv"))
             {
                 tuning_cfg_path += ".conv";
@@ -729,6 +731,8 @@ struct mlir_program
                 tuning_cfg_path += ".gemm";
             }
             std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
+            prob =
+                trim(prob, [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
             tuning_cfg << prob << std::endl;
         }
     }

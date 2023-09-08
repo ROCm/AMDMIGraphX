@@ -331,11 +331,8 @@ bool is_self_decide() { return string_value_of(MIGRAPHX_MLIR_ENABLE_OPS{}, "").e
 bool is_requested(std::string_view option)
 {
     assert(not is_self_decide());
-    auto string_value = string_value_of(MIGRAPHX_MLIR_ENABLE_OPS{}, "");
-    static const char delim{','};
-    string_value.push_back(delim);
-
-    const auto options = split_string(string_value, delim);
+    auto string_value  = string_value_of(MIGRAPHX_MLIR_ENABLE_OPS{}, "");
+    const auto options = split_string(string_value, ',');
     return contains(options, option);
 }
 
@@ -352,7 +349,7 @@ bool is_standalone_convs_enabled(context* ctx)
 {
     if(is_self_decide())
     {
-        if(ctx)
+        if(ctx != nullptr)
         {
             const auto& device = ctx->get_current_device();
             const std::string navi_family{"gfx110"};

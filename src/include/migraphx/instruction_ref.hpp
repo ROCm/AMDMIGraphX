@@ -39,11 +39,7 @@ struct instruction_ref : std::list<instruction>::iterator
     using instruction_const_iter = std::list<instruction>::const_iterator;
 
     instruction_ref() = default;
-    instruction_ref(const instruction_iter& other)
-    {
-        _Ptr = other._Ptr;
-        _Adopt(other._Getcont());
-    }
+    instruction_ref(const instruction_iter& other) : instruction_iter(other) {}
 
     friend bool operator==(const instruction_ref& x, const instruction_ref& y)
     {

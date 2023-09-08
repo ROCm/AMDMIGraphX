@@ -187,7 +187,7 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
 {
     const auto metric = options.metric;
 
-    target_assignments p;
+    target_assignments tass;
 
     const auto* mm = get_main_module();
     std::vector<std::pair<std::size_t, supported_segments>> target_subgraphs;
@@ -196,12 +196,11 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
     std::transform(tr.begin(), tr.end(), std::back_inserter(target_subgraphs), [&](auto tid) {
         return std::make_pair(tid, targets[tid].find_supported(mm, metric));
     });
+
     for(const auto ins : iterator_for(*mm))
     {
-        if(contains(p, ins))
-        {
+        if(contains(tass, ins))
             continue;
-        }
 
         for(const auto& [tid, subgraph] : target_subgraphs)
         {
@@ -211,17 +210,15 @@ target_assignments program::get_target_assignments(const std::vector<target>& ta
             {
                 const auto& instructions = segment.instructions;
                 if(contains(instructions, ins))
-                {
                     std::transform(instructions.begin(),
                                    instructions.end(),
-                                   std::inserter(p, p.end()),
+                                   std::inserter(tass, tass.end()),
                                    [&](auto instr) { return std::make_pair(instr, t); });
-                }
             }
         }
     }
 
-    return p;
+    return tass;
 }
 
 bool program::is_compiled() const { return not this->impl->contexts.empty(); }

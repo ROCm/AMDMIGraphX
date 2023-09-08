@@ -141,17 +141,15 @@ struct auto_gen_root_modules
                 std::cout << "\n";
             }
 
-            if(ins->name() == "@return")
-            {
-                generate_run_on_target_modules(mm, p, ins, current_tid);
-            }
             // skip all params, literal and builtins other than return, skip "run_on_target_mod"
             // ins
-            else if(starts_with(ins->name(), "@") or skip_ins.count(ins) != 0)
+            if((starts_with(ins->name(), "@") and ins->name() != "@return") or
+               skip_ins.count(ins) != 0)
             {
                 continue;
             }
-            else if(tass.find(ins) == tass.end())
+            else if(ins->name() == "@return" or tass.find(ins) == tass.end() or
+                    tass.at(ins) != current_tid)
             {
                 generate_run_on_target_modules(mm, p, ins, current_tid);
             }
@@ -166,10 +164,6 @@ struct auto_gen_root_modules
             {
                 same_tid_ins_vec.push_back(ins);
                 same_tid_ins_set.insert(ins);
-            }
-            else if(tass.at(ins) != current_tid)
-            {
-                generate_run_on_target_modules(mm, p, ins, current_tid);
             }
             else
             {

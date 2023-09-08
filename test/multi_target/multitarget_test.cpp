@@ -294,29 +294,30 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape cond_s{migraphx::shape::bool_type};
-    auto cond_0             = mm->add_parameter("cond_0", cond_s);
-    auto cond_1             = mm->add_parameter("cond_1", cond_s);
-    auto x                  = mm->add_parameter("x", ds);
-    auto y                  = mm->add_parameter("y", ds);
-    auto z                  = mm->add_parameter("z", ds);
-    auto create_test_module = [&](migraphx::program& prog, std::size_t tid) {
-        std::string mod_name =
-            "target_" + std::to_string(tid) + "_" + std::to_string(counter_map[tid]++);
-        auto* test_mod = prog.create_module(mod_name);
-        std::vector<float> data(ds.elements(), -1);
-        auto l1               = test_mod->add_literal(migraphx::literal(ds, data));
-        auto test_mod_param_0 = test_mod->add_parameter(mod_name + "_param_0", ds);
-        auto test_mod_param_1 = test_mod->add_parameter(mod_name + "_param_1", ds);
-        auto test_mod_param_2 = test_mod->add_parameter(mod_name + "_param_2", ds);
-        auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), test_mod_param_0, l1);
-        auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, test_mod_param_1);
-        auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, test_mod_param_2);
-        test_mod->add_return({ins3});
-        tass.insert(tass.begin(), std::make_pair(ins1, tid));
-        tass.insert(tass.begin(), std::make_pair(ins2, tid));
-        tass.insert(tass.begin(), std::make_pair(ins3, tid));
-        return test_mod;
-    };
+    auto cond_0 = mm->add_parameter("cond_0", cond_s);
+    auto cond_1 = mm->add_parameter("cond_1", cond_s);
+    auto x      = mm->add_parameter("x", ds);
+    auto y      = mm->add_parameter("y", ds);
+    auto z      = mm->add_parameter("z", ds);
+    auto create_test_module =
+        [&](migraphx::program& prog, std::size_t tid, std::string param_prefix) {
+            std::string mod_name =
+                "target_" + std::to_string(tid) + "_" + std::to_string(counter_map[tid]++);
+            auto* test_mod = prog.create_module(mod_name);
+            std::vector<float> data(ds.elements(), -1);
+            auto l1               = test_mod->add_literal(migraphx::literal(ds, data));
+            auto test_mod_param_0 = test_mod->add_parameter(param_prefix + "_param_0", ds);
+            auto test_mod_param_1 = test_mod->add_parameter(param_prefix + "_param_1", ds);
+            auto test_mod_param_2 = test_mod->add_parameter(param_prefix + "_param_2", ds);
+            auto ins1 = test_mod->add_instruction(migraphx::make_op("add"), test_mod_param_0, l1);
+            auto ins2 = test_mod->add_instruction(migraphx::make_op("mul"), ins1, test_mod_param_1);
+            auto ins3 = test_mod->add_instruction(migraphx::make_op("sub"), ins2, test_mod_param_2);
+            test_mod->add_return({ins3});
+            tass.insert(tass.begin(), std::make_pair(ins1, tid));
+            tass.insert(tass.begin(), std::make_pair(ins2, tid));
+            tass.insert(tass.begin(), std::make_pair(ins3, tid));
+            return test_mod;
+        };
 
     auto* then_mod        = p.create_module("then_mod");
     auto then_mod_cond    = then_mod->add_parameter("then_mod_cond", cond_s);
@@ -335,7 +336,7 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
                                    then_mod_ref_ins,
                                    then_mod_param_1,
                                    then_mod_param_2},
-                                  {create_test_module(p, 1), create_test_module(p, 0)});
+                                  {create_test_module(p, 1, "1_"), create_test_module(p, 0, "2_")});
     auto then_mod_if_0 =
         then_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), then_mod_if);
     then_mod->add_return({then_mod_if_0});
@@ -360,7 +361,7 @@ TEST_CASE(multitarget_compile_nested_if_then_else)
                                    else_mod_param_2,
                                    else_mod_param_1,
                                    else_mod_param_0},
-                                  {create_test_module(p, 0), create_test_module(p, 1)});
+                                  {create_test_module(p, 0, "1_"), create_test_module(p, 1, "2_")});
     auto else_mod_if_0 =
         else_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), else_mod_if);
     else_mod->add_return({else_mod_if_0});

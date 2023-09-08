@@ -52,7 +52,8 @@ else
     python3-dev \
     python3-pip \
     rocblas-dev \
-    rocm-cmake
+    rocm-cmake \
+    libtbb-dev
 fi
 
 

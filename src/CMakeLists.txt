@@ -250,11 +250,20 @@ target_link_libraries(migraphx PRIVATE -ldl)
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
+
+set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
 find_package(TBB)
 if(TBB_FOUND)
     target_link_libraries(migraphx PUBLIC TBB::tbb)
-    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
+    set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
     message(STATUS "Using TBB for parallel execution")
+endif()
+
+option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
+if(MIGRAPHX_HAS_EXECUTORS)
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
+else()
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
 endif()
 
 find_package(nlohmann_json 3.8.0 REQUIRED)

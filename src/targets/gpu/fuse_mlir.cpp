@@ -325,13 +325,13 @@ struct find_mlir_standalone_convolution_op
     }
 };
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_OPS);
-bool is_self_decide() { return string_value_of(MIGRAPHX_MLIR_ENABLE_OPS{}, "").empty(); }
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
+bool is_self_decide() { return string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "").empty(); }
 
 bool is_requested(std::string_view option)
 {
     assert(not is_self_decide());
-    auto string_value  = string_value_of(MIGRAPHX_MLIR_ENABLE_OPS{}, "");
+    auto string_value  = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
     const auto options = split_string(string_value, ',');
     return contains(options, option);
 }

@@ -42,7 +42,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/generate_root_modules.hpp>
-#include "migraphx/target_assignments.hpp"
+#include <migraphx/target_assignments.hpp>
 #include "test.hpp"
 
 // check if it is custom_op or run_on_module operator

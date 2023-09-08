@@ -78,8 +78,7 @@ void par_for_each(InputIt first, InputIt last, UnaryFunction f)
 #if MIGRAPHX_HAS_EXECUTORS
     // Propagate the exception
     detail::exception_list ex;
-    std::for_each(
-        std::execution::par, first, last, ex.collect(std::move(f)));
+    std::for_each(std::execution::par, first, last, ex.collect(std::move(f)));
     ex.throw_if_exception();
 #else
     simple_par_for(last - first, [&](auto i) { f(first[i]); });

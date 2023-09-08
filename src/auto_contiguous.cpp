@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,7 +63,6 @@ void auto_contiguous::apply(module& m) const
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;
-
         shape s = ins->get_shape();
         if(not s.dynamic() and not s.standard() and s.elements() != 0)
         {

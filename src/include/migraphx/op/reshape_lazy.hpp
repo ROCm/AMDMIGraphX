@@ -128,7 +128,7 @@ struct reshape_lazy
                           });
     }
 
-    // This will reshape_lazy the dimesions of the input shape to use the lens of
+    // This will attempt to alias the dimensions of the input shape to the lens of
     // `rdims`. If this can't be done without changing memory layout then it
     // will return nullopt
     static optional<shape> reshape_lazy_dims(const shape& input,

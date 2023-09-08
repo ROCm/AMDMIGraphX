@@ -49,7 +49,7 @@ static literal get_scalar(instruction_ref ins)
     if(ins->name() == "contiguous")
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(s.elements() != 1 && not(s.scalar()))
+    if(s.elements() != 1 and not(s.scalar()))
         return {};
     if(not ins->can_eval())
         return {};
@@ -97,10 +97,10 @@ Step 3:
 Create modules using information collected in step 2 and insert run_on_target instructions.
 */
 
-struct AutoGenRootModules
+struct auto_gen_root_modules
 {
 
-    AutoGenRootModules(migraphx::program& p, const target_assignments& target_assignments)
+    auto_gen_root_modules(migraphx::program& p, const target_assignments& target_assignments)
         : tass(target_assignments)
     {
         auto* mm = p.get_main_module();
@@ -182,7 +182,7 @@ struct AutoGenRootModules
                 std::unordered_set<instruction_ref> same_tid_ins_set_copy = {};
                 std::swap(same_tid_ins_set_copy, same_tid_ins_set);
                 std::swap(same_tid_ins_vec_copy, same_tid_ins_vec);
-                for(auto sub_mod : ins->module_inputs())
+                for(auto* sub_mod : ins->module_inputs())
                 {
                     find_subgraphs(sub_mod, p);
                 }
@@ -344,7 +344,7 @@ struct AutoGenRootModules
 
 void generate_root_modules(migraphx::program& p, const target_assignments& tass)
 {
-    AutoGenRootModules(p, tass);
+    auto_gen_root_modules(p, tass);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

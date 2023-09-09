@@ -40,7 +40,7 @@ bool skip_propogate(instruction_ref ins)
     if(ins->name() == "contiguous")
         return skip_propogate(ins->inputs().front());
     auto&& s = ins->get_shape();
-    if(s.broadcasted() and not s.scalar())
+    if(s.broadcasted() and not s.scalar() and not s.packed())
         return true;
     if(s.scalar() and s.elements() != 1)
         return true;
@@ -101,9 +101,13 @@ void propagate_constant::apply(module& m) const
                 })(const_instrs_vec[i]);
                 m.debug_print(inss);
             }
-            assert(literals[i].get_shape() == const_instrs_vec[i]->get_shape());
-            auto l = m.add_literal(literals[i].get_shape(), literals[i].data());
-            m.replace_instruction(const_instrs_vec[i], l);
+            auto in_shape = const_instrs_vec[i]->get_shape();
+            assert(literals[i].get_shape() == in_shape);
+            literal l{in_shape, literals[i].data()};
+            if(const_instrs_vec[i]->outputs().front()->name() == "dot")
+                l = {{in_shape.type(), in_shape.lens()}, literals[i].data()};
+            auto l0 = m.add_literal(l);
+            m.replace_instruction(const_instrs_vec[i], l0);
         }
     }
 }

@@ -263,7 +263,7 @@ struct MIGRAPHX_EXPORT shape
     /// no padding
     bool packed() const;
 
-    /// Returns true is the shape has been transposed. That is the strides are not in descending
+    /// Returns true if the shape has been transposed. That is the strides are not in descending
     /// order
     bool transposed() const;
 

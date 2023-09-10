@@ -97,6 +97,7 @@ add_test(NAME test_tf COMMAND $<TARGET_FILE:test_tf> WORKING_DIRECTORY ${TEST_TF
 
 add_subdirectory(api)
 add_subdirectory(verify)
+add_subdirectory(ref)
 
 if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)

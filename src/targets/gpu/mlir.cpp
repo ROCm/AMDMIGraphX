@@ -70,6 +70,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 
@@ -685,8 +686,10 @@ struct mlir_program
     {
         tuning_config tc;
         run_high_level_pipeline();
-        mlir_tuning_space params{
-            mlirRockTuningSpaceCreate(mmodule.get(), RocmlirTuningParamSetKindFull)};
+        auto tuning_mode = RocmlirTuningParamSetKindFull;
+        if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
+            tuning_mode = RocmlirTuningParamSetKindExhaustive;
+        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
         for(auto i : range(mlirRockTuningGetNumParams(params.get())))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};

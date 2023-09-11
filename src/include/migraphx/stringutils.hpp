@@ -149,6 +149,10 @@ interpolate_string(const std::string& input, F f, std::string start = "${", std:
         result.append(it, next_start);
         if(next_start == input.end())
             break;
+        if(next_end == input.end())
+        {
+            throw std::runtime_error("Unbalanced brackets");
+        }
         auto r = f(next_start + start.size(), next_end);
         result.append(r.begin(), r.end());
         it = next_end + end.size();

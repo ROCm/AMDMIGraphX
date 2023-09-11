@@ -102,7 +102,7 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
-        add_extend_op("scatter_none");
+        add_extend_op("scatter");
         add_extend_op("topk");
 
         add_convolution_op("convolution");

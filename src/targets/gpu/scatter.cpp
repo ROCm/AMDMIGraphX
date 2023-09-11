@@ -37,7 +37,8 @@ shape hip_scatter::compute_shape(std::vector<shape> inputs) const
 
 argument hip_scatter::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    return device::scatter(ctx.get_stream().get(), args.back(), args[0], args[1], args[2], op.axis);
+    return device::scatter(
+        ctx.get_stream().get(), args.back(), args[0], args[1], args[2], op.axis, op.reduction);
 }
 
 } // namespace gpu

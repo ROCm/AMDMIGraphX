@@ -46,15 +46,15 @@ namespace op {
 // This is a template for deriving child structs from.  Each child needs to define
 // only a reduction() method.  Names are automatically handled by the op_name template.
 
-template <class Derived>
-struct scatter : op_name<Derived>
+struct scatter : op_name<scatter>
 {
-    int64_t axis = 0;
+    int64_t axis          = 0;
+    std::string reduction = "none";
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), f(self.reduction, "reduction"));
     }
 
     value attributes() const
@@ -73,8 +73,37 @@ struct scatter : op_name<Derived>
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
+        if(reduction == "none")
+        {
+            return compute(output_shape, std::move(args), [](auto& x, const auto& y) { x = y; });
+        }
+        else if(reduction == "add")
+        {
+
+            return compute(output_shape, std::move(args), [](auto& x, const auto& y) { x += y; });
+        }
+        else if(reduction == "mul")
+        {
+            return compute(output_shape, std::move(args), [](auto& x, const auto& y) { x *= y; });
+        }
+        else if(reduction == "min")
+        {
+            return compute(
+                output_shape, std::move(args), [](auto& x, const auto& y) { x = std::min(x, y); });
+        }
+        else if(reduction == "max")
+        {
+            return compute(
+                output_shape, std::move(args), [](auto& x, const auto& y) { x = std::max(x, y); });
+        }
+
+        MIGRAPHX_THROW("Scatter: " + reduction + " is not supported");
+    }
+
+    template <typename F>
+    argument compute(const shape& output_shape, std::vector<argument> args, F f) const
+    {
         argument result{output_shape};
-        auto& self = static_cast<const Derived&>(*this);
 
         // max dimension in each axis
         auto axis_dim_size = output_shape.lens()[axis];
@@ -100,8 +129,7 @@ struct scatter : op_name<Derived>
 
                     // look up the appropriate locations in output, using idx and out_idx.
                     // call reduction() method of derived struct to copy and reduce that element
-                    self.reduction()(output(out_idx.begin(), out_idx.end()),
-                                     update(idx.begin(), idx.end()));
+                    f(output(out_idx.begin(), out_idx.end()), update(idx.begin(), idx.end()));
                 });
             });
         });

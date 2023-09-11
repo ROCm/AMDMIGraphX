@@ -112,9 +112,7 @@
 #include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
-#include <migraphx/op/scatter_add.hpp>
-#include <migraphx/op/scatter_mul.hpp>
-#include <migraphx/op/scatter_none.hpp>
+#include <migraphx/op/scatter.hpp>
 #include <migraphx/op/scatternd_add.hpp>
 #include <migraphx/op/scatternd_none.hpp>
 #include <migraphx/op/scatternd_mul.hpp>

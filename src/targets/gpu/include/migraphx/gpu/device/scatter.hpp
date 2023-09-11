@@ -33,8 +33,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument MIGRAPHX_DEVICE_EXPORT scatter(
-    hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2, int64_t axis);
+argument MIGRAPHX_DEVICE_EXPORT scatter(hipStream_t stream,
+                                        argument result,
+                                        argument arg0,
+                                        argument arg1,
+                                        argument arg2,
+                                        int64_t axis,
+                                        std::string reduction);
 
 } // namespace device
 } // namespace gpu

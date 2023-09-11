@@ -33,8 +33,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument scatter(
-    hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2, int64_t axis)
+template <typename F>
+argument scatter(hipStream_t stream,
+                 argument result,
+                 argument arg0,
+                 argument arg1,
+                 argument arg2,
+                 int64_t axis,
+                 F f)
 {
     auto ds            = arg0.get_shape();
     auto s1            = arg1.get_shape();
@@ -50,17 +56,62 @@ argument scatter(
                 const auto* upd_ptr     = device_cast(update.data());
                 const auto* indices_ptr = device_cast(indices.data());
                 gs_launch(stream, s1.elements())([=](auto i) __device__ {
-                    auto out_idx    = indices.get_shape().multi(i);
-                    auto index      = indices_ptr[i];
-                    index           = index < 0 ? index + axis_dim_size : index;
-                    out_idx[axis]   = index;
-                    output[out_idx] = upd_ptr[i];
+                    auto out_idx  = indices.get_shape().multi(i);
+                    auto index    = indices_ptr[i];
+                    index         = index < 0 ? index + axis_dim_size : index;
+                    out_idx[axis] = index;
+                    f(output[out_idx], upd_ptr[i]);
                 });
             }
         });
     });
 
     return result;
+}
+
+argument scatter(hipStream_t stream,
+                 argument result,
+                 argument arg0,
+                 argument arg1,
+                 argument arg2,
+                 int64_t axis,
+                 std::string reduction)
+{
+    if(reduction == "none")
+    {
+        return scatter(
+            stream, result, arg0, arg1, arg2, axis, [](auto& x, const auto& y) __device__ {
+                x = y;
+            });
+    }
+    else if(reduction == "add")
+    {
+        return scatter(
+            stream, result, arg0, arg1, arg2, axis, [](auto& x, const auto& y) __device__ {
+                x += y;
+            });
+    }
+    else if(reduction == "mul")
+    {
+        return scatter(
+            stream, result, arg0, arg1, arg2, axis, [](auto& x, const auto& y) __device__ {
+                x *= y;
+            });
+    }
+    else if(reduction == "min")
+    {
+        return scatter(
+            stream, result, arg0, arg1, arg2, axis, [](auto& x, const auto& y) __device__ {
+                x = min(x, y);
+            });
+    }
+    else if(reduction == "max")
+    {
+        return scatter(
+            stream, result, arg0, arg1, arg2, axis, [](auto& x, const auto& y) __device__ {
+                x = max(x, y);
+            });
+    }
 }
 
 } // namespace device

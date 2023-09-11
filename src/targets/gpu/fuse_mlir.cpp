@@ -106,6 +106,7 @@ struct mlir_op
                 auto s = ins_shapes[ins->inputs().at(0)].with_type(type);
                 if(not s.standard())
                     MIGRAPHX_THROW("MLIR doesnt support non-standard output");
+                return s;
             }
             std::vector<shape> input_shapes;
             input_shapes.resize(ins->inputs().size());

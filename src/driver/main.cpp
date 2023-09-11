@@ -51,6 +51,7 @@
 #include <migraphx/register_target.hpp>
 
 #include <fstream>
+#include <experimental/string_view>
 
 namespace migraphx {
 namespace driver {
@@ -565,12 +566,6 @@ struct verify : command<verify>
     }
 };
 
-struct ort_sha : command<ort_sha>
-{
-    void parse(const argument_parser&) {}
-    void run() const { std::cout << MIGRAPHX_ORT_SHA1 << std::endl; }
-};
-
 struct version : command<version>
 {
     void parse(const argument_parser&) {}
@@ -795,6 +790,13 @@ int main(int argc, const char* argv[])
 
     auto&& m = get_commands();
     auto cmd = args.front();
+
+    if(std::experimental::string_view(argv[1]) == "ort-sha")
+    {
+        std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
+        return 0;
+    }
+
     if(m.count(cmd) > 0)
     {
         m.at(cmd)(argv[0], {args.begin() + 1, args.end()});

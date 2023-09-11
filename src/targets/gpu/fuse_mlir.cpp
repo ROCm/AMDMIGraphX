@@ -325,6 +325,17 @@ struct find_mlir_standalone_convolution_op
     }
 };
 
+/**
+ * @brief Declares a new MIGraphX environment variable which forces to generate
+ * only specific MLIR operations.
+ *
+ * The variable, if defined, forces MIGraphX to use only specific operations
+ * with MLIR regardless of the underlying GPU architecture. The variable accepts
+ * a list of operations separated by comma. The variable recognizes the following
+ * operations: "fused", "convolution". If the variable is not defined MIGraphX
+ * will decide by itself which operations to delegate to MLIR. The variable is
+ * intended to be primarily used by rocMLIR developers.
+ */
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
 bool is_self_decide() { return string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "").empty(); }
 
@@ -349,18 +360,18 @@ bool is_standalone_convs_enabled(context* ctx)
 {
     if(is_self_decide())
     {
-        if(ctx != nullptr)
+        if(ctx == nullptr)
+        {
+            return false;
+        }
+        else
         {
             const auto& device = ctx->get_current_device();
             const std::string navi_family{"gfx110"};
             return starts_with(device.get_gfx_name(), navi_family);
         }
-        else
-        {
-            return false;
-        }
     }
-    return is_requested("conv");
+    return is_requested("convolution");
 }
 } // namespace
 

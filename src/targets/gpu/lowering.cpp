@@ -379,7 +379,9 @@ struct miopen_apply
     }
 
     /**
-     *  Adds reshape lazy to reshape ops that can be aliased instead of copied
+     *  Adds reshape lazy to reshape ops that can be aliased instead of copied.
+     *  `gpu::contiguous` are added before and after the reshape; these contiguous
+     *  instructions can be removed by the eliminate_contiguous pass.
      */
     void add_reshape_lazy_op()
     {

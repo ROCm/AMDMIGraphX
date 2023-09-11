@@ -112,7 +112,10 @@ TEST_CASE_REGISTER(test_limits<double, int>);
 TEST_CASE_REGISTER(test_limits<double, migraphx::half>);
 TEST_CASE_REGISTER(test_limits<float, int>);
 TEST_CASE_REGISTER(test_limits<int, migraphx::half>);
+#ifndef _WIN32
+// On Windows, types int and long have the same min and max values.
 TEST_CASE_REGISTER(test_limits<long, int>);
+#endif
 TEST_CASE_REGISTER(test_limits<long, char>);
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

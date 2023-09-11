@@ -91,9 +91,9 @@ __content__
     return replace_string(args_hpp, "__content__", inner);
 }
 
-const std::vector<std::string>& compiler_warnings()
+static std::vector<std::string> get_compiler_warnings()
 {
-    static std::vector<std::string> warnings = {"-Weverything",
+    std::vector<std::string> warnings = {"-Weverything",
                                                 "-Wno-c++98-compat",
                                                 "-Wno-c++98-compat-pedantic",
                                                 "-Wno-conversion",
@@ -112,7 +112,16 @@ const std::vector<std::string>& compiler_warnings()
                                                 "-Wno-sign-compare",
                                                 "-Wno-unused-command-line-argument",
                                                 "-Wno-weak-vtables",
-                                                "-Wno-c99-extensions"};
+                                                "-Wno-c99-extensions",};
+    
+    if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
+        warnings.push_back("-Wno-unsafe-buffer-usage");
+    return warnings;
+}
+
+const std::vector<std::string>& compiler_warnings()
+{
+    static std::vector<std::string> warnings = get_compiler_warnings();
     return warnings;
 }
 

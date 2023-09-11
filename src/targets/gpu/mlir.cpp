@@ -211,17 +211,17 @@ struct mlir_logger
         other.id  = std::nullopt;
     }
 
-    mlir_logger& operator=(mlir_logger&& other) noexcept
+    mlir_logger& operator=(mlir_logger other) noexcept
     {
-        ss = std::move(other.ss);
-        if(other.ctx)
-            ctx = other.ctx;
-        if(other.id.has_value())
-            id = other.id;
-        other.ctx = nullptr;
-        other.id  = std::nullopt;
+        std::swap(ss, other.ss);
+        std::swap(ctx, other.ctx);
+        std::swap(id, other.id);
         return *this;
     }
+
+    std::string str() const { return ss.str(); }
+
+    void clear() { ss = std::stringstream{}; }
 
     static MlirLogicalResult mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger);
 
@@ -687,24 +687,24 @@ struct mlir_program
         }
     }
 
-    void run_high_level_pipeline() MIGRAPHX_TIDY_CONST
+    void run_high_level_pipeline()
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
-        logger.ss = std::stringstream{};
+        logger.clear();
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
         {
-            std::string error = "Invalid MLIR created: " + logger.ss.str();
+            std::string error = "Invalid MLIR created: " + logger.str();
             MIGRAPHX_THROW(error);
         }
     }
 
-    void run_backend_pipeline() MIGRAPHX_TIDY_CONST
+    void run_backend_pipeline()
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
-        logger.ss = std::stringstream{};
+        logger.clear();
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()))))
         {

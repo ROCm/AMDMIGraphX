@@ -305,9 +305,6 @@ if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
-file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
-target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
-
 rocm_export_targets(
   TARGETS migraphx::migraphx_c
   NAMESPACE migraphx::

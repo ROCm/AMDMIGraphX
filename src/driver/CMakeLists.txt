@@ -43,6 +43,9 @@ add_custom_command(
 set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
 rocm_clang_tidy_check(driver)
 
+file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
+target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
+
 target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
 
 rocm_install_targets(

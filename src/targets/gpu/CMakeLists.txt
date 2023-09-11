@@ -205,7 +205,7 @@ if(MIGRAPHX_ENABLE_MLIR)
 endif()
 
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
-if(${hip_VERSION_FLAT} GREATER_EQUAL 500700000)
+if(${hip_VERSION_FLAT} GREATER_EQUAL 500723302)
     set(MIGRAPHX_HIP_REQUIRE_UNIFORM_WG ON CACHE BOOL "Whether HIP requires uniform workgroup sizes or not")
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HIP_REQUIRE_UNIFORM_WG)
 endif()

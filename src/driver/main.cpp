@@ -51,7 +51,6 @@
 #include <migraphx/register_target.hpp>
 
 #include <fstream>
-#include <experimental/string_view>
 
 namespace migraphx {
 namespace driver {
@@ -791,7 +790,7 @@ int main(int argc, const char* argv[])
     auto&& m = get_commands();
     auto cmd = args.front();
 
-    if(std::experimental::string_view(argv[1]) == "ort-sha")
+    if(cmd == "ort-sha")
     {
         std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
         return 0;

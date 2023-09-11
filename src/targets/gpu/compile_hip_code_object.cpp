@@ -167,7 +167,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                    [](auto&& p) {
                        auto&& name = p.first;
                        auto&& c    = p.second;
-                       auto path   = fs::path{"migraphx"} / "kernels" / name;
+                       auto path   = name;
                        return src_file{path, c};
                    });
     srcs.push_back(src_file{fs::path{"main.cpp"},

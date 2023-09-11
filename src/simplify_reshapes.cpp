@@ -784,7 +784,7 @@ struct find_transpose_slice
 
 void simplify_reshapes::apply(module& m) const
 {
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < depth; i++)
     {
         match::find_matches(m,
                             find_where_op{},

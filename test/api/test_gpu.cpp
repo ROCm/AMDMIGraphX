@@ -34,7 +34,6 @@ TEST_CASE(load_and_run)
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options options;
     options.set_offload_copy();
-    options.set_exhaustive_tune_flag();
     p.compile(migraphx::target("gpu"), options);
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);

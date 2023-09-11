@@ -69,7 +69,7 @@ struct multibroadcast
 
         auto make_bcast_strides = [&](std::vector<std::size_t> bcast_lens, std::size_t offset) {
             std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
-            for(std::ptrdiff_t i = s0.lens().size() - 1; i >= 0; i--)
+            for(std::ptrdiff_t i = s0.ndim() - 1; i >= 0; i--)
             {
                 if(bcast_lens[i + offset] == s0.lens()[i])
                 {
@@ -84,13 +84,13 @@ struct multibroadcast
             if(s0.dynamic())
                 MIGRAPHX_THROW(
                     "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
-            if(s0.lens().size() > output_lens.size())
+            if(s0.ndim() > output_lens.size())
             {
                 MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");
             }
 
-            auto offset = output_lens.size() - s0.lens().size();
-            for(std::ptrdiff_t i = s0.lens().size() - 1; i >= 0; i--)
+            auto offset = output_lens.size() - s0.ndim();
+            for(std::ptrdiff_t i = s0.ndim() - 1; i >= 0; i--)
             {
                 if(output_lens[i + offset] != s0.lens()[i] and s0.lens()[i] != 1)
                 {
@@ -119,7 +119,7 @@ struct multibroadcast
             {
                 // output_lens will not be set for 2+ input version
                 auto bcast_lens    = compute_common_lens(inputs);
-                auto offset        = bcast_lens.size() - s0.lens().size();
+                auto offset        = bcast_lens.size() - s0.ndim();
                 auto bcast_strides = make_bcast_strides(bcast_lens, offset);
                 return {t, std::move(bcast_lens), std::move(bcast_strides)};
             }

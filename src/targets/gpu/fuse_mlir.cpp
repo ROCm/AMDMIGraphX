@@ -86,7 +86,7 @@ struct mlir_op
         size_t param_cnt               = 0;
         std::vector<std::string> names = mod->get_parameter_names();
         std::sort(names.begin(), names.end());
-        for(std::string param_name : names)
+        for(const std::string& param_name : names)
         {
             ins_shapes[mod->get_parameter(param_name)] = inputs[param_cnt++];
         }
@@ -210,41 +210,47 @@ struct find_mlir_op
             return false;
         }
         const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
-        const std::initializer_list<std::string> no_bool_ops  = {"convolution",
-                                                                "quant_convolution",
-                                                                "dot",
-                                                                "quant_dot",
-                                                                "add",
-                                                                "clip",
-                                                                "sub",
-                                                                "mul",
-                                                                "div",
-                                                                "pow",
-                                                                "where",
-                                                                "quantizelinear",
-                                                                "dequantizelinear",
-                                                                "abs",
-                                                                "neg"};
-        const std::initializer_list<std::string> fp_only_ops  = {"ceil",
-                                                                "erf",
-                                                                "exp",
-                                                                "floor",
-                                                                "log",
-                                                                "recip",
-                                                                "rsqrt",
-                                                                "sigmoid"
-                                                                "softmax",
-                                                                "tanh"};
+        const std::initializer_list<std::string> no_bool_ops  = {
+            "convolution",
+            "quant_convolution",
+            "dot",
+            "quant_dot",
+            "add",
+            "clip",
+            "relu",
+            "sub",
+            "mul",
+            "div",
+            "pow",
+            "where",
+            "quantizelinear",
+            "dequantizelinear",
+            "abs",
+            "neg",
+        };
+        const std::initializer_list<std::string> fp_only_ops = {
+            "ceil",
+            "erf",
+            "exp",
+            "floor",
+            "log",
+            "recip",
+            "rsqrt",
+            // There are bugs in MLIR right now for models using sigmoid so disable it for now
+            // "sigmoid",
+            "softmax",
+            "tanh",
+        };
         bool is_float = contains({type_t::float_type, type_t::half_type}, result_type);
         if(contains(any_type_ops, name))
             return true;
-        if(result_type != type_t::bool_type && contains(no_bool_ops, name))
+        if(result_type != type_t::bool_type and contains(no_bool_ops, name))
             return true;
-        if(is_float && contains(fp_only_ops, name))
+        if(is_float and contains(fp_only_ops, name))
             return true;
         // Only conversions between floating types are known to be unambigiously
         // supported.
-        if(is_float && name == "convert")
+        if(is_float and name == "convert")
         {
             return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
                 return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());

@@ -116,7 +116,7 @@ struct hiprtc_program
     std::string cpp_name = "";
 
     hiprtc_program(const std::string& src, const std::string& name = "main.cpp")
-    : cpp_src(src), cpp_name(name)
+        : cpp_src(src), cpp_name(name)
     {
         create_program();
     }
@@ -355,13 +355,14 @@ bool hip_has_flags(const std::vector<std::string>& flags)
 {
     src_compiler compiler;
     compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
-    compiler.flags = join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
-    
+    compiler.flags =
+        join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
+
     std::string src;
     src_file input;
-    input.path = "main.cpp";
-    input.content = std::make_pair(src.data(), src.data()+src.size());
-    
+    input.path    = "main.cpp";
+    input.content = std::make_pair(src.data(), src.data() + src.size());
+
     // compiler.compile({input});
     try
     {

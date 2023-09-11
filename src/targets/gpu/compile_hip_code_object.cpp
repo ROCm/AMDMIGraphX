@@ -93,27 +93,29 @@ __content__
 
 static std::vector<std::string> get_compiler_warnings()
 {
-    std::vector<std::string> warnings = {"-Weverything",
-                                                "-Wno-c++98-compat",
-                                                "-Wno-c++98-compat-pedantic",
-                                                "-Wno-conversion",
-                                                "-Wno-double-promotion",
-                                                "-Wno-exit-time-destructors",
-                                                "-Wno-extra-semi",
-                                                "-Wno-extra-semi-stmt",
-                                                "-Wno-float-conversion",
-                                                "-Wno-gnu-anonymous-struct",
-                                                "-Wno-gnu-zero-variadic-macro-arguments",
-                                                "-Wno-missing-prototypes",
-                                                "-Wno-nested-anon-types",
-                                                "-Wno-padded",
-                                                "-Wno-shorten-64-to-32",
-                                                "-Wno-sign-conversion",
-                                                "-Wno-sign-compare",
-                                                "-Wno-unused-command-line-argument",
-                                                "-Wno-weak-vtables",
-                                                "-Wno-c99-extensions",};
-    
+    std::vector<std::string> warnings = {
+        "-Weverything",
+        "-Wno-c++98-compat",
+        "-Wno-c++98-compat-pedantic",
+        "-Wno-conversion",
+        "-Wno-double-promotion",
+        "-Wno-exit-time-destructors",
+        "-Wno-extra-semi",
+        "-Wno-extra-semi-stmt",
+        "-Wno-float-conversion",
+        "-Wno-gnu-anonymous-struct",
+        "-Wno-gnu-zero-variadic-macro-arguments",
+        "-Wno-missing-prototypes",
+        "-Wno-nested-anon-types",
+        "-Wno-padded",
+        "-Wno-shorten-64-to-32",
+        "-Wno-sign-conversion",
+        "-Wno-sign-compare",
+        "-Wno-unused-command-line-argument",
+        "-Wno-weak-vtables",
+        "-Wno-c99-extensions",
+    };
+
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
     return warnings;

@@ -29,8 +29,6 @@ include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
  
-file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" MIGRAPHX_ORT_SHA1_RAW)
-add_compile_definitions(MIGRAPHX_ORT_SHA1="${MIGRAPHX_ORT_SHA1_RAW}")
 
 add_library(migraphx 
     adjust_allocation.cpp
@@ -306,6 +304,9 @@ endif()
 if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
+
+file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
+target_compile_definitions(migraphx PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

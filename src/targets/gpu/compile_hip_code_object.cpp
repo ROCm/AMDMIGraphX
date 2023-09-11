@@ -146,14 +146,10 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
-        // hip require global workitems multiple of local workitems. It may degrade performance.
-        // [TODO]: consider adding "fno-hip-uniform-block" flag when it becomes available.
-        // https://reviews.llvm.org/D155213
-        std::size_t num_elements = ((n + local - 1) / local) * local;
-        std::size_t groups       = (num_elements + local - 1) / local;
-        std::size_t max_blocks   = max_global / local;
-        std::size_t nglobal      = std::min(max_blocks * over, groups) * local;
-        return std::min(nglobal, num_elements);
+        std::size_t groups     = 1 + (n - 1) / local;
+        std::size_t max_blocks = max_global / local;
+        std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
+        return std::min(nglobal, n);
     };
 }
 
@@ -187,6 +183,12 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
     srcs.push_back(src_file{fs::path{"args.hpp"},
                             std::make_pair(args_hpp.data(), args_hpp.data() + args_hpp.size())});
+#ifdef MIGRAPHX_HIP_REQUIRE_UNIFORM_WG
+    if(options.global % options.local != 0)
+    {
+        options.params += " -fno-offload-uniform-block";
+    }
+#endif
     options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
     options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
     options.params += " " + join_strings(compiler_warnings(), " ");

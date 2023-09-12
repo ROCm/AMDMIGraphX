@@ -116,10 +116,10 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
-}, hidden_symbols: rocmnode('cdna') { cmake_build ->
-    stage('Hidden symbols') {
-        cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
-    }
+// }, hidden_symbols: rocmnode('cdna') { cmake_build ->
+//     stage('Hidden symbols') {
+//         cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
+//     }
 }, all_targets_debug : rocmnode('cdna') { cmake_build ->
     stage('All targets Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On") 

@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/pad_calc.hpp>
 #include "test.hpp"
 

@@ -623,6 +623,8 @@ MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
 template <class... Ms>
 auto skip(Ms... ms)
 {
+    static_assert(((not std::is_convertible<Ms, std::string>{}) and ...),
+                  "Use a matcher not a string for skip.");
     auto m = any_of(ms...);
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
         return fix<optional<instruction_ref>>(

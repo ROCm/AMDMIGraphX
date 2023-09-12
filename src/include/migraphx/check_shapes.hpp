@@ -255,16 +255,6 @@ struct check_shapes
     }
 
     /*!
-     * Check all shapes are scalar.
-     */
-    const check_shapes& scalar() const
-    {
-        if(not this->all_of([](const shape& s) { return s.scalar(); }))
-            MIGRAPHX_THROW(prefix() + "Shapes are not a scalar");
-        return *this;
-    }
-
-    /*!
      * Check all shapes are standard or scalar.
      */
     const check_shapes& standard_or_scalar() const

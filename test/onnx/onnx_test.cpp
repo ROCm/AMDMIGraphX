@@ -988,11 +988,25 @@ TEST_CASE(constant_one_val_int64_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(const_of_shape_default_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape output_dims_shape(migraphx::shape::int64_type, {3});
+    mm->add_literal(migraphx::literal(output_dims_shape, {2, 3, 4}));
+    migraphx::shape output_shape{migraphx::shape::float_type, {2, 3, 4}};
+    std::vector<float> vec(output_shape.elements(), 0.0);
+    mm->add_literal(migraphx::literal(output_shape, vec));
+
+    auto prog = optimize_onnx("const_of_shape_default_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal(migraphx::shape::int32_type));
+    mm->add_literal(migraphx::literal(migraphx::shape::int64_type));
     migraphx::shape s(migraphx::shape::int64_type, {1}, {0});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
@@ -1005,7 +1019,7 @@ TEST_CASE(const_of_shape_float_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
     mm->add_literal(migraphx::literal(ss, {2, 3, 4}));
     migraphx::shape s(migraphx::shape::float_type, {2, 3, 4});
     std::vector<float> vec(s.elements(), 10.0f);
@@ -1019,8 +1033,10 @@ TEST_CASE(const_of_shape_int64_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    // output_dims
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
     mm->add_literal(migraphx::literal(ss, {2, 3, 4}));
+    // constant shape literal
     migraphx::shape s(migraphx::shape::int64_type, {2, 3, 4});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
@@ -1033,7 +1049,7 @@ TEST_CASE(const_of_shape_no_value_attr_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
     mm->add_literal(migraphx::literal(ss, {2, 3, 4}));
     migraphx::shape s(migraphx::shape::float_type, {2, 3, 4});
     std::vector<float> vec(s.elements(), 0.0f);

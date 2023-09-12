@@ -939,9 +939,9 @@ def const_of_shape_empty_input_test():
                                          [10])
     empty_val = np.array([]).astype(np.int64)
     empty_ts = helper.make_tensor(name='empty_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=empty_val.shape,
-                                  vals=empty_val.flatten().astype(int))
+                                  vals=empty_val.flatten().astype(np.int64))
     shape_const = helper.make_node(
         'Constant',
         inputs=[],
@@ -967,9 +967,9 @@ def const_of_shape_float_test():
 
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(name='shape_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=shape_val.shape,
-                                  vals=shape_val.flatten().astype(int))
+                                  vals=shape_val.flatten().astype(np.int64))
 
     shape_const = helper.make_node(
         'Constant',
@@ -988,14 +988,36 @@ def const_of_shape_float_test():
 
 
 @onnx_test()
+def const_of_shape_default_test():
+    shape_val = np.array([2, 3, 4]).astype(np.int64)
+    shape_ts = helper.make_tensor(name='shape_tensor',
+                                  data_type=TensorProto.INT64,
+                                  dims=shape_val.shape,
+                                  vals=shape_val.flatten().astype(np.int64))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape'],
+        value=shape_ts,
+    )
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 3, 4])
+
+    node = onnx.helper.make_node('ConstantOfShape',
+                                 inputs=['shape'],
+                                 outputs=['y'])
+
+    return ([shape_const, node], [], [y])
+
+
+@onnx_test()
 def const_of_shape_int64_test():
     tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
                                          [10])
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(name='shape_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=shape_val.shape,
-                                  vals=shape_val.flatten().astype(int))
+                                  vals=shape_val.flatten().astype(np.int64))
     shape_const = helper.make_node(
         'Constant',
         inputs=[],
@@ -1016,9 +1038,9 @@ def const_of_shape_int64_test():
 def const_of_shape_no_value_attr_test():
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(name='shape_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=shape_val.shape,
-                                  vals=shape_val.flatten().astype(int))
+                                  vals=shape_val.flatten().astype(np.int64))
     shape_const = helper.make_node(
         'Constant',
         inputs=[],

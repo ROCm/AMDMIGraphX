@@ -82,6 +82,12 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
+TEST_CASE(allocate_static)
+{
+    migraphx::shape out_shape{migraphx::shape::float_type, {2, 3, 4}};
+    expect_shape(out_shape, migraphx::make_op("allocate", {{"shape", to_value(out_shape)}}));
+}
+
 TEST_CASE(allocate_dyn)
 {
     migraphx::shape input{migraphx::shape::int64_type, {2}};
@@ -93,16 +99,14 @@ TEST_CASE(allocate_dyn)
                  input);
 }
 
-TEST_CASE(allocate_dyn_use_shape_attr)
+TEST_CASE(allocate_dyn_with_shape_attr)
 {
     migraphx::shape input{migraphx::shape::int64_type, {4}};
     migraphx::shape shape_attr{migraphx::shape::float_type,
                                {{1, 4}, {3, 3}, {4, 8, {4, 6}}, {4, 8}, {4, 6}}};
-    expect_shape(
-        shape_attr,
-        migraphx::make_op("allocate",
-                          {{"shape", migraphx::to_value(shape_attr)}, {"use_shape_attr", true}}),
-        input);
+    expect_shape(shape_attr,
+                 migraphx::make_op("allocate", {{"shape", migraphx::to_value(shape_attr)}}),
+                 input);
 }
 
 TEST_CASE(argmax_axis0)
@@ -2181,6 +2185,13 @@ TEST_CASE(pooling_shape3)
                                     {"lengths", {3, 3}},
                                     {"ceil_mode", true}}),
                  input);
+}
+
+TEST_CASE(pooling_shape4)
+{
+    migraphx::shape tiny_input{migraphx::shape::float_type, {4, 1}};
+    throws_shape(migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}),
+                 tiny_input);
 }
 
 TEST_CASE(pooling_dyn_shape0)

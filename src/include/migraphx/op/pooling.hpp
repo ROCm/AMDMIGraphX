@@ -376,7 +376,7 @@ struct pooling
             double output_val = op.template init<Type>();
 
             // for each element in the window...
-            shape_for_each(win_shape, [&](auto idx_w) {
+            shape_for_each(win_shape, [&](const auto& idx_w) {
                 // Skip elements that belong to the dilated area
                 for(size_t axis = 0; axis < idx_w.size(); ++axis)
                 {

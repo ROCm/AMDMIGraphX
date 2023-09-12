@@ -1367,6 +1367,9 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_resnet50_cpu')
         backend_test.exclude(r'test_squeezenet_cpu')
 
+        # PRelu OnnxBackendPyTorchConvertedModelTest has wrong dim for broadcasting
+        backend_test.exclude(r'[a-z,_]*PReLU_[0-9]d_multiparam[a-z,_]*')
+
         # additional cases disabled for a specific onnx version
         if version.parse(onnx.__version__) >= version.parse("1.7.0"):
             disabled_tests_onnx_1_7_0(backend_test)

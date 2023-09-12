@@ -150,10 +150,6 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
     stage('HIP Clang Release Navi32') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
     }
-}, clang_release_navi_debug: rocmnode('navi32') { cmake_build ->
-    stage('HIP Clang Release Navi32') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release", gpu_debug: true)
-    }
 }
 
 

@@ -365,7 +365,7 @@ struct pooling
             double output_val = op.template init<Type>();
 
             // for each element in the window...
-            shape_for_each(win_shape, [&](auto idx_w) {
+            shape_for_each(win_shape, [&](const auto& idx_w) {
                 // the coordinates of this element
                 auto idx = idx_o;
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -206,6 +206,7 @@ struct convolution
         std::vector<std::size_t> new_padding;
         if(padding_mode != op::padding_mode_t::default_)
         {
+            // auto-Calculate the padding sizes with calc_dyn_auto_pad
             auto input_lens   = args[0].get_shape().lens();
             auto weights_lens = args[1].get_shape().lens();
             new_padding =
@@ -217,6 +218,7 @@ struct convolution
         }
         else
         {
+            // Use the padding that was given
             new_padding = padding;
             if(output_shape.dynamic())
             {

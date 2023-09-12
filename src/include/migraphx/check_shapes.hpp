@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -70,9 +70,15 @@ struct check_shapes
         check_dynamic();
     }
 
-    template <class Op>
+    template <class Op, MIGRAPHX_REQUIRES(not std::is_convertible<Op, std::string>{})>
     check_shapes(const std::vector<shape>& s, const Op& op, const bool d = false)
         : begin(s.begin()), end(s.end()), name(op.name()), dynamic_allowed(d)
+    {
+        check_dynamic();
+    }
+
+    check_shapes(const std::vector<shape>& s, const std::string& n, const bool d = false)
+        : begin(s.begin()), end(s.end()), name(n), dynamic_allowed(d)
     {
         check_dynamic();
     }
@@ -225,6 +231,16 @@ struct check_shapes
     {
         if(not this->same([](const shape& s) { return s.ndim(); }))
             MIGRAPHX_THROW(prefix() + "Number of dimensions do not match");
+        return *this;
+    }
+
+    /*!
+     * Check all shapes have the same layout.
+     */
+    const check_shapes& same_layout() const
+    {
+        if(not this->same([](const shape& s) { return find_permutation(s); }))
+            MIGRAPHX_THROW(prefix() + "Layouts do not match");
         return *this;
     }
 

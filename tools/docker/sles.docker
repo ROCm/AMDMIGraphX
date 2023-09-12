@@ -3,7 +3,7 @@ FROM registry.suse.com/suse/sle15:15.4
 RUN sh -c 'echo -e "\
 [rocm]\n\
 name=rocm\n\
-baseurl=https://repo.radeon.com/rocm/zyp/5.5/main\n\
+baseurl=https://repo.radeon.com/rocm/zyp/5.6/main\n\
 enabled=1\n\
 gpgcheck=1\n\
 gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
@@ -19,7 +19,12 @@ RUN zypper --gpg-auto-import-keys install -y \
     gcc-c++ \
     gdb \
     git \
-    python3-pip
+    python3-pip \
+    rpm-build
+
+#addition of repos for packages
+RUN OPENSUSE_REPO=https://download.opensuse.org/repositories && \
+    zypper addrepo ${OPENSUSE_REPO}/devel:/languages:/perl/SLE_15_SP4/devel:languages:perl.repo
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm

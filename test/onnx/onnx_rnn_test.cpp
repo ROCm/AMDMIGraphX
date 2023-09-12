@@ -24,7 +24,7 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>

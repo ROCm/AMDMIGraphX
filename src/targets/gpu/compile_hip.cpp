@@ -363,7 +363,6 @@ bool hip_has_flags(const std::vector<std::string>& flags)
     input.path    = "main.cpp";
     input.content = std::make_pair(src.data(), src.data() + src.size());
 
-    // compiler.compile({input});
     try
     {
         compiler.compile({input});

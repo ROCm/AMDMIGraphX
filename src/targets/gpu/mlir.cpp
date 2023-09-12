@@ -712,7 +712,7 @@ struct mlir_program
         }
     }
 
-    code_object_op compile(const value& solution) MIGRAPHX_TIDY_CONST
+    code_object_op compile(const value& solution)
     {
         // 1st pipeline to call
         run_high_level_pipeline();
@@ -766,7 +766,7 @@ struct mlir_program
             MIGRAPHX_THROW("Failed setting tuning key: " + *str);
     }
 
-    tuning_config get_tuning_config() MIGRAPHX_TIDY_CONST
+    tuning_config get_tuning_config()
     {
         tuning_config tc;
         run_high_level_pipeline();

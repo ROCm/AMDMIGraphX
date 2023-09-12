@@ -34,8 +34,7 @@
 
 /**
  * Reference test for the random_uniform operation.  Also invokes the random_seed operation.
-*/
-
+ */
 
 TEST_CASE(random_uniform_test)
 {

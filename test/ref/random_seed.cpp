@@ -32,7 +32,7 @@
 
 /**
  * Reference test for the random_seed operation
-*/
+ */
 TEST_CASE(random_seed_test)
 {
     migraphx::program p;

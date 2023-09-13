@@ -31,24 +31,39 @@
 
 using migraphx::shape;
 
-bool create_shapes(bool dynamic_allowed)
+void create_shapes(bool dynamic_allowed)
 {
-    try
-    {
-        shape a{shape::int64_type, {3}};
-        shape b{shape::float_type, {{3, 6}, {4, 4}}};
-        auto op = migraphx::make_op("add");
-        migraphx::check_shapes{{a, b}, op, dynamic_allowed}.has(2);
-        return true;
-    }
-    catch(...)
-    {
-        return false;
-    }
+    shape a{shape::int64_type, {3}};
+    shape b{shape::float_type, {{3, 6}, {4, 4}}};
+    migraphx::check_shapes{{a, b}, "", dynamic_allowed}.has(2);
 }
 
-TEST_CASE(allow_dynamic_shape) { EXPECT(create_shapes(true)); }
+TEST_CASE(allow_dynamic_shape)
+{
+    EXPECT(not test::throws([] { create_shapes(true); }));
+}
 
-TEST_CASE(fail_dynamic_shape) { EXPECT(not create_shapes(false)); }
+TEST_CASE(fail_dynamic_shape)
+{
+    EXPECT(test::throws([] { create_shapes(false); }));
+}
+
+TEST_CASE(same_layout_fail)
+{
+    EXPECT(test::throws([] {
+        shape a{shape::float_type, {2, 3}};
+        shape b{shape::float_type, {2, 3}, {1, 2}};
+        migraphx::check_shapes{{a, b}, ""}.same_layout();
+    }));
+}
+
+TEST_CASE(same_layout_pass)
+{
+    EXPECT(not test::throws([] {
+        shape a{shape::float_type, {2, 3}, {1, 2}};
+        shape b{shape::float_type, {2, 3}, {1, 2}};
+        migraphx::check_shapes{{a, b}, ""}.same_layout();
+    }));
+}
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

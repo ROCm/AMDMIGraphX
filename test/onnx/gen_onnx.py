@@ -4891,6 +4891,19 @@ def pad_test():
 
 
 @onnx_test()
+def pad_asym_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 6, 4, 12])
+
+    node = onnx.helper.make_node('Pad',
+                                 inputs=['0'],
+                                 pads=[0, 1, 0, 3, 0, 2, 0, 4],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def pad_3arg_test():
     values = np.array([1])
     val_tensor = helper.make_tensor(name='val',
@@ -4920,6 +4933,90 @@ def pad_3arg_test():
                                  outputs=['1'])
 
     return ([arg_val, arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_4arg_axes_test():
+    values = np.array([1])
+    val_tensor = helper.make_tensor(name='val',
+                                    data_type=TensorProto.FLOAT,
+                                    dims=values.reshape(()).shape,
+                                    vals=values.astype(float))
+    arg_val = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_val'],
+                                    value=val_tensor)
+
+    sizes = np.array([1, 3, 2, 4])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    axes = np.array([1, 3])
+    axes_tensor = helper.make_tensor(name='pad_axes',
+                                     data_type=TensorProto.INT32,
+                                     dims=axes.shape,
+                                     vals=axes.astype(int))
+    arg_axes = onnx.helper.make_node('Constant',
+                                     inputs=[],
+                                     outputs=['arg_axes'],
+                                     value=axes_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 6, 4, 12])
+
+    node = onnx.helper.make_node('Pad',
+                                 inputs=['0', 'arg_pad', 'arg_val', 'arg_axes'],
+                                 outputs=['1'])
+
+    return ([arg_axes, arg_val, arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_4arg_neg_axes_test():
+    values = np.array([1])
+    val_tensor = helper.make_tensor(name='val',
+                                    data_type=TensorProto.FLOAT,
+                                    dims=values.reshape(()).shape,
+                                    vals=values.astype(float))
+    arg_val = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_val'],
+                                    value=val_tensor)
+
+    sizes = np.array([1, 3, 2, 4])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    axes = np.array([-3, -1])
+    axes_tensor = helper.make_tensor(name='pad_axes',
+                                     data_type=TensorProto.INT32,
+                                     dims=axes.shape,
+                                     vals=axes.astype(int))
+    arg_axes = onnx.helper.make_node('Constant',
+                                     inputs=[],
+                                     outputs=['arg_axes'],
+                                     value=axes_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 6, 4, 12])
+
+    node = onnx.helper.make_node('Pad',
+                                 inputs=['0', 'arg_pad', 'arg_val', 'arg_axes'],
+                                 outputs=['1'])
+
+    return ([arg_axes, arg_val, arg_pad, node], [x], [y])
 
 
 @onnx_test()

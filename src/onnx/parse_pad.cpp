@@ -163,7 +163,7 @@ struct parse_pad : op_parser<parse_pad>
 
         float value = 0.0f;
         // third input is the value
-        if(args.size() == 3)
+        if(args.size() >= 3)
         {
             auto val_ins = args.at(2);
             if(not val_ins->can_eval())
@@ -180,6 +180,53 @@ struct parse_pad : op_parser<parse_pad>
         else if(contains(info.attributes, "value"))
         {
             value = parser.parse_value(info.attributes.at("value")).at<float>();
+        }
+
+        std::vector<int64_t> axes{};
+        // fourth input is the axes
+        if(args.size() == 4)
+        {
+            auto axes_arg = args.at(3)->eval();
+            check_arg_empty(axes_arg, "PARSE_PAD: pad input must be constant");
+            axes_arg.visit([&](auto v) { axes.assign(v.begin(), v.end()); });
+        }
+        else if(contains(info.attributes, "axes"))
+        {
+            auto&& axes_vals = info.attributes["axes"].ints();
+            axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
+        }
+
+        size_t input_rank = args.front()->get_shape().ndim();
+        if(not axes.empty())
+        {
+            size_t num_axes = axes.size();
+            if(num_axes * 2 != pads.size())
+            {
+                MIGRAPHX_THROW("PARSE_PAD: number of elements of pads should be equal to 2 * "
+                               "number of elements of axes");
+            }
+
+            std::vector<int64_t> new_pads(input_rank * 2);
+            for(size_t idx{0}; idx < num_axes; ++idx)
+            {
+                int64_t axis = axes[idx];
+                // axis can be negative
+                if(axis < 0)
+                {
+                    axis = input_rank + axis;
+                }
+                // pad format is x1_begin, x2_begin, ... , x3_end, x4_end
+                new_pads[axis]              = pads[idx];
+                new_pads[axis + input_rank] = pads[idx + num_axes];
+            }
+
+            pads = new_pads;
+        }
+
+        if(pads.size() != input_rank * 2)
+        {
+            MIGRAPHX_THROW("PARSE_PAD: number of elements of pads should be equal to 2 * "
+                           "input rank");
         }
 
         return info.add_instruction(migraphx::make_op("pad", {{"pads", pads}, {"value", value}}),

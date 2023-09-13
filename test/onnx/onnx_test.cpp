@@ -4676,6 +4676,17 @@ TEST_CASE(pad_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(pad_asym_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}});
+    mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 1, 0, 3, 0, 2, 0, 4}}}), l0);
+    auto prog = optimize_onnx("pad_asym_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(pad_3arg_test)
 {
     migraphx::program p;
@@ -4688,6 +4699,48 @@ TEST_CASE(pad_3arg_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("pad_3arg_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(pad_4arg_axes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}});
+    // axes=[1,3]
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 3}});
+    // constant_value=1
+    mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {1.0f}});
+    // pads=[1,3,2,4]
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 3, 2, 4}});
+    auto r = mm->add_instruction(
+        migraphx::make_op("pad", {{"pads", {0, 1, 0, 3, 0, 2, 0, 4}}, {"value", 1.0f}}), l0);
+    mm->add_return({r});
+
+    std::cout << "mm\n" << *mm << std::endl;
+    auto prog = migraphx::parse_onnx("pad_4arg_axes_test.onnx");
+    std::cout << "prog\n" << prog << std::endl;
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(pad_4arg_neg_axes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}});
+    // axes=[-3,-1]
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {2}}, {-3, -1}});
+    // constant_value=1
+    mm->add_literal({migraphx::shape{migraphx::shape::float_type}, {1.0f}});
+    // pads=[1,3,2,4]
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 3, 2, 4}});
+    auto r = mm->add_instruction(
+        migraphx::make_op("pad", {{"pads", {0, 1, 0, 3, 0, 2, 0, 4}}, {"value", 1.0f}}), l0);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("pad_4arg_neg_axes_test.onnx");
 
     EXPECT(p == prog);
 }

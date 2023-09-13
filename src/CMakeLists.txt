@@ -28,6 +28,7 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
+ 
 
 add_library(migraphx 
     adjust_allocation.cpp

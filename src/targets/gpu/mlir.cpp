@@ -686,7 +686,8 @@ struct mlir_program
     {
         tuning_config tc;
         run_high_level_pipeline();
-        auto tuning_mode = exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
+        auto tuning_mode =
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
@@ -914,8 +915,10 @@ instruction_ref insert_mlir(module& m,
     return m.insert_instruction(ins, co, refs);
 }
 
-tuning_config
-get_tuning_config_mlir(const context& migraphx_ctx, module m, const std::vector<shape>& inputs, bool exhaustive)
+tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
+                                     module m,
+                                     const std::vector<shape>& inputs,
+                                     bool exhaustive)
 {
     adjust_param_shapes(m, inputs);
 

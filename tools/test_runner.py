@@ -39,9 +39,7 @@ def parse_args():
                         type=str,
                         default='gpu',
                         help='Specify where the tests execute (ref, gpu)')
-    parser.add_argument('--fp16',
-                        action='store_true',
-                        help='Quantize to fp16')
+    parser.add_argument('--fp16', action='store_true', help='Quantize to fp16')
     parser.add_argument('--atol',
                         type=float,
                         default=1e-3,
@@ -292,7 +290,10 @@ def main():
         output_data = run_one_case(model, input_data)
 
         # check output correctness
-        ret = check_correctness(gold_outputs, output_data, atol=args.atol, rtol=args.rtol)
+        ret = check_correctness(gold_outputs,
+                                output_data,
+                                atol=args.atol,
+                                rtol=args.rtol)
         if ret:
             correct_num += 1
 

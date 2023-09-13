@@ -39,6 +39,17 @@ def parse_args():
                         type=str,
                         default='gpu',
                         help='Specify where the tests execute (ref, gpu)')
+    parser.add_argument('--fp16',
+                        action='store_true',
+                        help='Quantize to fp16')
+    parser.add_argument('--atol',
+                        type=float,
+                        default=1e-3,
+                        help='The absolute tolerance parameter')
+    parser.add_argument('--rtol',
+                        type=float,
+                        default=1e-3,
+                        help='The relative tolerance parameter')
     args = parser.parse_args()
 
     return args
@@ -257,6 +268,8 @@ def main():
 
     # read and compile model
     model = migraphx.parse_onnx(model_path_name, map_input_dims=param_shapes)
+    if args.fp16:
+        migraphx.quantize_fp16(model)
     model.compile(migraphx.get_target(target))
 
     # get test cases
@@ -279,7 +292,7 @@ def main():
         output_data = run_one_case(model, input_data)
 
         # check output correctness
-        ret = check_correctness(gold_outputs, output_data)
+        ret = check_correctness(gold_outputs, output_data, atol=args.atol, rtol=args.rtol)
         if ret:
             correct_num += 1
 

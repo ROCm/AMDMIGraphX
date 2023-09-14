@@ -63,15 +63,15 @@ struct layernorm_base
            all_of(inputs, [](const auto& ss) { return ss.scalar(); }))
             return inputs.front();
 
-        auto lp_s = shape::from_permutation(
+        auto l_s = shape::from_permutation(
             t, s.lens(), find_permutation(std::vector<shape>(inputs.begin(), inputs.begin() + N)));
-        // just prelayernorm, preadd_layernorm or prelayernorm+pointwise fused kernel
-        if(nargs <= 2)
-            return lp_s;
-        // else, preadd_layernorm + pointwise fusion, preserve layout of fused op
-        std::vector<shape> alp_s(inputs.begin() + N, inputs.end());
-        alp_s.insert(alp_s.begin(), lp_s);
-        return shape::from_permutation(t, s.lens(), find_permutation(alp_s));
+        // just prelayernorm or preadd_layernorm
+        if(nargs <= N)
+            return l_s;
+        // else, layernorm + pointwise fusion, preserve layout of fused op
+        std::vector<shape> lp_s(inputs.begin() + N, inputs.end());
+        lp_s.insert(lp_s.begin(), lp_s);
+        return shape::from_permutation(t, s.lens(), find_permutation(lp_s));
     }
 };
 

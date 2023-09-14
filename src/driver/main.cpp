@@ -804,6 +804,13 @@ int main(int argc, const char* argv[])
 
     auto&& m = get_commands();
     auto cmd = args.front();
+
+    if(cmd == "ort-sha")
+    {
+        std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
+        return 0;
+    }
+
     if(m.count(cmd) > 0)
     {
         m.at(cmd)(argv[0], {args.begin() + 1, args.end()});

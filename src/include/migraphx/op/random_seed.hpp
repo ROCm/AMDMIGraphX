@@ -21,65 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_REVERSE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_REVERSE_HPP
 
-#include <algorithm>
-#include <vector>
-#include <cmath>
-#include <utility>
+#ifndef MIGRAPHX_GUARD_OPERATORS_RANDOM_SEED_HPP
+#define MIGRAPHX_GUARD_OPERATORS_RANDOM_SEED_HPP
+
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/value.hpp>
+#include <random>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct reverse
+/**
+ *    Generates a random seed for the use of random number generators.  Generating the seed
+ * at runtime guarantees there will be a different random sequence on every execution.
+ * This operation has no inputs or attributes, and outputs an unsigned integer tensor with
+ * a single value.
+ */
+struct random_seed
 {
-
-    std::vector<int64_t> axes;
+    shape::type_t dtype = shape::type_t::uint64_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"));
+        return pack(f(self.dtype, "dtype"));
     }
 
-    std::string name() const { return "reverse"; }
-
-    value attributes() const
+    std::string name() const { return "random_seed"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
-        value normalize;
-        normalize["axes"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
+        check_shapes{inputs, *this}.has(0);
+        return shape{dtype};
     }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    argument compute(const shape& output_shape, const std::vector<argument>&) const
     {
-        check_shapes{inputs, *this}.has(1);
-        return inputs[0].with_lens(inputs[0].lens());
-    }
+        argument result(output_shape);
 
-    argument compute(const shape& s, std::vector<argument> args) const
-    {
-        argument result{s};
-        auto lens = s.lens();
-        visit_all(result, args.front())([&](auto output, auto input) {
-            shape_for_each(s, [&](const auto& out_idx_v, size_t out_idx) {
-                auto in_idx = out_idx_v;
-                for(const auto& axis : axes)
-                {
-                    in_idx[axis] = lens[axis] - 1 - out_idx_v[axis];
-                }
-                output[out_idx] = input[s.index(in_idx)];
-            });
-        });
-
+        result.visit([&](auto output) { output.front() = std::random_device{}(); });
         return result;
     }
 };

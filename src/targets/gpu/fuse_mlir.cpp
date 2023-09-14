@@ -357,31 +357,23 @@ bool is_requested(std::string_view option)
     return contains(options, option);
 }
 
-bool is_enabled(std::string_view op_name, context* ctx)
+bool is_enabled(std::string_view op_name)
 {
     if(is_self_decide())
     {
         if(op_name == "fused")
         {
-            return true;
-        }
-        else if(op_name == "convolution" or op_name == "quant_convolution")
-        {
-            if(ctx == nullptr)
-            {
-                return false;
-            }
-            else
-            {
-                const auto& device = ctx->get_current_device();
-                const std::string navi_family{"gfx110"};
-                return starts_with(device.get_gfx_name(), navi_family);
-            }
-        }
-        else
-        {
             return false;
         }
+        if(op_name == "dot")
+        {
+            return true;
+        }
+        if(op_name == "convolution")
+        {
+            return true;
+        }
+        return false;
     }
     return is_requested(op_name);
 }
@@ -392,17 +384,17 @@ bool is_enabled(std::string_view op_name, context* ctx)
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    if(is_enabled("fused", this->ctx))
+    if(is_enabled("fused"))
     {
         match::find_matches(mpm, find_mlir_fused_ops{});
     }
 
-    if(is_enabled("convolution", this->ctx))
+    if(is_enabled("convolution"))
     {
         match::find_matches(mpm, find_mlir_standalone_convolution_op{});
     }
 
-    if(is_enabled("dot", this->ctx))
+    if(is_enabled("dot"))
     {
         match::find_matches(mpm, find_mlir_standalone_dot_op{});
     }

@@ -58,7 +58,7 @@ migraphx::instruction_ref add_layernorm(migraphx::module& m,
     auto div = m.add_instruction(migraphx::make_op("div"), sub, sqrt_mbcast);
     auto scale_mbcast =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), scale);
-    auto mul = m.add_instruction(migraphx::make_op("mul"), scale_mbcast, div);
+    auto mul = m.add_instruction(migraphx::make_op("mul"), div, scale_mbcast);
 
     auto bias_mbcast =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), bias);
@@ -171,7 +171,7 @@ struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_ad
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto s =
-            migraphx::shape::from_permutation(migraphx::shape::float_type, {8, 1, 16}, {2, 0, 1});
+            migraphx::shape::from_permutation(migraphx::shape::float_type, {8, 1, 16}, {1, 2, 0});
         auto x = mm->add_parameter("x", s);
         auto y = mm->add_parameter("y", s);
         auto z = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {8, 16, 64}});

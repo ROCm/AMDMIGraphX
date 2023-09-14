@@ -238,8 +238,7 @@ struct find_mlir_fused_ops
             "log",
             "recip",
             "rsqrt",
-            // There are bugs in MLIR right now for models using sigmoid so disable it for now
-            // "sigmoid",
+            "sigmoid",
             "softmax",
             "tanh",
         };

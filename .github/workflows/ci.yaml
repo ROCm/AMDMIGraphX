@@ -65,6 +65,7 @@ jobs:
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
+      continue-on-error: true
       if: ${{ steps.tidy_restore.outputs.cache-hit }}
       shell: bash
       env:
@@ -72,7 +73,6 @@ jobs:
       run: |
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
-      continue-on-error: true
 
     - name: Save cache files for tidy
       uses: actions/cache/save@v3 
@@ -124,6 +124,7 @@ jobs:
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear cppcheck cache before saving
+      continue-on-error: true
       if: ${{ steps.cppcheck_restore.outputs.cache-hit }}
       shell: bash
       env:
@@ -131,7 +132,6 @@ jobs:
       run: |
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
-      continue-on-error: true
 
     - name: Save cache files for cppcheck
       uses: actions/cache/save@v3
@@ -219,12 +219,12 @@ jobs:
         make -j$(nproc) tests driver
 
     - name: Clear ccache cache before saving
+      continue-on-error: true
       if: ${{ steps.ccache_restore.outputs.cache-hit }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set +x
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
@@ -374,12 +374,12 @@ jobs:
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear ccache cache before saving
+      continue-on-error: true
       if: ${{ steps.ccache_restore.outputs.cache-hit }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set +x
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
@@ -491,15 +491,14 @@ jobs:
 
     # this is a workaround, with GH actions can not update existing cache
     - name: Clear ccache cache before saving
+      continue-on-error: true
       if: ${{ steps.ccache_restore_fpga.outputs.cache-hit }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set +x
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
-      continue-on-error: true
 
     - name: Save cache files for ccache
       uses: actions/cache/save@v3 

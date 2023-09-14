@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/check_shapes.hpp>
@@ -51,23 +52,26 @@ struct layernorm_base
             auto* pm = mods.front();
             nargs    = pm->get_parameter_names().size();
         }
-        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs + N);
-        auto s = inputs.at(0);
+        nargs += N;
+        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs);
+        auto s = inputs.front();
         auto t = s.type();
         if(not mods.empty())
             t = mods.front()->get_output_shapes().front().type();
-        if(s.scalar())
-        {
-            return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {t, s.lens()};
-        }
-        else
-        {
-            return s.with_lens(t, s.lens());
-        }
+
+        // Scalar output if all inputs are scalar
+        if(inputs.front().elements() == 1 and
+           all_of(inputs, [](const auto& ss) { return ss.scalar(); }))
+            return inputs.front();
+
+        auto lp_s = shape::from_permutation(t, s.lens(), find_permutation(inputs));
+        // just prelayernorm or prelayernorm+pointwise fused kernel
+        if(nargs <= 2)
+            return lp_s;
+        // else, preadd_layernorm + pointwise fusion, preserve layout of fused op
+        std::vector<shape> alp_s(inputs.begin() + 2, inputs.end());
+        alp_s.insert(alp_s.begin(), lp_s);
+        return shape::from_permutation(t, s.lens(), find_permutation(alp_s));
     }
 };
 

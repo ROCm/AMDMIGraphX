@@ -49,7 +49,8 @@ migraphx::instruction_ref add_layernorm(migraphx::module& m,
     auto pow            = m.add_instruction(migraphx::make_op("pow"), sub, exponent_mbcast);
     auto var            = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), pow);
     auto epsilon_mbcast = m.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, dims.at(1), 1}}}), epsilon);
+        migraphx::make_op("multibroadcast", {{"out_lens", {dims.at(0), dims.at(1), 1}}}), epsilon);
+
     auto add_epsilon = m.add_instruction(migraphx::make_op("add"), var, epsilon_mbcast);
     auto sqrt        = m.add_instruction(migraphx::make_op("sqrt"), add_epsilon);
     auto sqrt_mbcast =
@@ -58,6 +59,7 @@ migraphx::instruction_ref add_layernorm(migraphx::module& m,
     auto scale_mbcast =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), scale);
     auto mul = m.add_instruction(migraphx::make_op("mul"), scale_mbcast, div);
+
     auto bias_mbcast =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", dims}}), bias);
     return m.add_instruction(migraphx::make_op("add"), mul, bias_mbcast);
@@ -158,6 +160,24 @@ struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
         add_layernorm(*mm, add2, dims);
+        return p;
+    }
+};
+
+struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_add_gemm_nonstd>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto s =
+            migraphx::shape::from_permutation(migraphx::shape::float_type, {8, 1, 16}, {2, 0, 1});
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        auto z = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {8, 16, 64}});
+        auto add           = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto layernorm_ins = add_layernorm(*mm, add, s.lens());
+        mm->add_instruction(migraphx::make_op("dot"), layernorm_ins, z);
         return p;
     }
 };

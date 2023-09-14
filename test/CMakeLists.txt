@@ -182,6 +182,7 @@ add_dependencies(check test_tf)
 
 add_subdirectory(api)
 add_subdirectory(verify)
+add_subdirectory(ref)
 
 if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)

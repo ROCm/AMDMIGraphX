@@ -46,13 +46,12 @@ struct layernorm_base
     }
     shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
     {
-        std::size_t nargs = 1;
+        std::size_t nargs = N;
         if(not mods.empty())
         {
             auto* pm = mods.front();
-            nargs    = pm->get_parameter_names().size();
+            nargs += pm->get_parameter_names().size() - 1;
         }
-        nargs += N;
         check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs);
         auto s = inputs.front();
         auto t = s.type();
@@ -64,25 +63,26 @@ struct layernorm_base
            all_of(inputs, [](const auto& ss) { return ss.scalar(); }))
             return inputs.front();
 
-        auto lp_s = shape::from_permutation(t, s.lens(), find_permutation(inputs));
-        // just prelayernorm or prelayernorm+pointwise fused kernel
+        auto lp_s = shape::from_permutation(
+            t, s.lens(), find_permutation(std::vector<shape>(inputs.begin(), inputs.begin() + N)));
+        // just prelayernorm, preadd_layernorm or prelayernorm+pointwise fused kernel
         if(nargs <= 2)
             return lp_s;
         // else, preadd_layernorm + pointwise fusion, preserve layout of fused op
-        std::vector<shape> alp_s(inputs.begin() + 2, inputs.end());
+        std::vector<shape> alp_s(inputs.begin() + N, inputs.end());
         alp_s.insert(alp_s.begin(), lp_s);
         return shape::from_permutation(t, s.lens(), find_permutation(alp_s));
     }
 };
 
-struct layernorm : layernorm_base<layernorm, 0>
+struct layernorm : layernorm_base<layernorm, 1>
 {
 
     std::string name() const { return "gpu::prelayernorm"; }
 };
 MIGRAPHX_REGISTER_OP(layernorm);
 
-struct add_layernorm : layernorm_base<add_layernorm, 1>
+struct add_layernorm : layernorm_base<add_layernorm, 2>
 {
     std::string name() const { return "gpu::preadd_layernorm"; }
 };

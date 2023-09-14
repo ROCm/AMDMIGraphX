@@ -59,7 +59,8 @@ struct scatternd_compiler : compiler<scatternd_compiler>
 {
     std::vector<std::string> names() const
     {
-        return {"scatternd_none", "scatternd_add", "scatternd_mul"};
+        return {
+            "scatternd_none", "scatternd_add", "scatternd_mul", "scatternd_min", "scatternd_max"};
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
@@ -70,8 +71,11 @@ struct scatternd_compiler : compiler<scatternd_compiler>
         options.output         = inputs.back();
         options.kernel_name    = "scatternd_kernel";
         options.virtual_inputs = inputs;
-        auto reduction         = "assign_" + v.get("reduction", std::string{"none"});
-        auto src               = interpolate_string(scatternd_kernel, {{"reduction", reduction}});
+        // The compiler protests the inequality comparison in assign_mul when pertaining to floating
+        // point, despite it making sense in the context. Thus the warning removal.
+        options.params += "-Wno-float-equal";
+        auto reduction = "assign_" + v.get("reduction", std::string{"none"});
+        auto src       = interpolate_string(scatternd_kernel, {{"reduction", reduction}});
         return compile_hip_code_object(src, options);
     }
 

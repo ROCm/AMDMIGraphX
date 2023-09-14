@@ -208,6 +208,8 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    scatternd_max
+    scatternd_min
     select_module
     sigmoid
     sign

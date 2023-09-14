@@ -708,7 +708,8 @@ struct mlir_program
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()))))
         {
-            std::cerr << "MLIR backend compilation failed" << std::endl;
+            std::string error = "MLIR backend compilation failed: " + logger.str();
+            MIGRAPHX_THROW(error);
         }
     }
 

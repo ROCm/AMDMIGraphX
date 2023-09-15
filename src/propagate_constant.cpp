@@ -53,7 +53,7 @@ void propagate_constant::apply(module& m) const
 {
     std::unordered_set<instruction_ref> const_instrs;
     auto last = std::prev(m.end());
-    
+
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {

@@ -2983,7 +2983,7 @@ TEST_CASE(gru_fp16)
                                     -0.3969709,  0.43360898, 0.35775262,  0.23280787, -0.52179873,
                                     -0.21944991, 0.4535257,  -0.13735442, 0.51757574, 0.50380427};
 
-    EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold, 0.00596));
+    EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold, 0.005));
 }
 
 TEST_CASE(lstm_forward)

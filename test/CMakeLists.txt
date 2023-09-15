@@ -31,6 +31,11 @@ set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR} --timeout 5000)
 add_custom_target(tests)
 
+set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")
+if(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
+    add_compile_definitions(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
+endif()
+
 find_program(MIGRAPHX_GDB gdb)
 
 if(MIGRAPHX_GDB)
@@ -98,17 +103,11 @@ endfunction()
 
 function(add_test_executable TEST_NAME)
     add_executable(${TEST_NAME} EXCLUDE_FROM_ALL ${ARGN})
-    target_link_libraries(${TEST_NAME} ${CMAKE_THREAD_LIBS_INIT})
-
-    # Cmake does not add flags correctly for gcc
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        set_target_properties(${TEST_NAME} PROPERTIES COMPILE_FLAGS -pthread LINK_FLAGS -pthread)
-    endif()
     set(TEST_COMMAND ${TEST_NAME})
     add_test_command(${TEST_NAME} ${TEST_COMMAND})
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_ref)
+    target_link_libraries(${TEST_NAME} Threads::Threads migraphx migraphx_onnx migraphx_ref)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
@@ -183,6 +182,7 @@ add_dependencies(check test_tf)
 
 add_subdirectory(api)
 add_subdirectory(verify)
+add_subdirectory(ref)
 
 if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)
@@ -208,11 +208,16 @@ endif()
 
 
 function(test_header NAME HEADER)
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
-        "#include <${HEADER}>\nint main() {}\n"
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp "
+#include <${HEADER}>
+int main() {}\n"
     )
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
-        "#include <${HEADER}>\n"
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp "
+#include <${HEADER}>
+#if defined(min) || defined(max) || defined(near) || defined(far)
+#error \"Do not include windows.h in header files\"
+#endif
+\n"
     )
     add_test_executable(${NAME}
         ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp

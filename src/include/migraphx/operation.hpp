@@ -251,9 +251,10 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f)
-    -> decltype(
-        x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
+                F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
+                                           inputs,
+                                           module_args,
+                                           f))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
 }
@@ -309,9 +310,10 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f)
-    -> decltype(
-        x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
+                F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
+                                           inputs,
+                                           module_args,
+                                           f))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
 }
@@ -573,7 +575,7 @@ struct operation
     {
         using std::swap;
         auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.unique())
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
         }
@@ -1263,7 +1265,7 @@ struct operation
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
         assert(private_detail_te_handle_mem_var != nullptr);
-        if(not private_detail_te_handle_mem_var.unique())
+        if(private_detail_te_handle_mem_var.use_count() > 1)
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -240,6 +240,10 @@ struct MIGRAPHX_EXPORT shape
     template <class Iterator>
     std::size_t index(Iterator start, Iterator last) const
     {
+        if(this->dynamic())
+        {
+            MIGRAPHX_THROW("SHAPE: index() called on dynamic shape");
+        }
         assert(std::distance(start, last) <= this->lens().size());
         assert(this->lens().size() == this->strides().size());
         return std::inner_product(start, last, this->strides().begin(), std::size_t{0}); // NOLINT
@@ -259,7 +263,7 @@ struct MIGRAPHX_EXPORT shape
     /// no padding
     bool packed() const;
 
-    /// Returns true is the shape has been transposed. That is the strides are not in descending
+    /// Returns true if the shape has been transposed. That is the strides are not in descending
     /// order
     bool transposed() const;
 

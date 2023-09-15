@@ -24,7 +24,6 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
@@ -497,7 +496,7 @@ TEST_CASE(concat_multibroadcasts1)
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 
 TEST_CASE(concat_multibroadcasts2)
@@ -520,7 +519,7 @@ TEST_CASE(concat_multibroadcasts2)
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 0);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 0);
 }
 
 TEST_CASE(concat_multibroadcasts3)
@@ -543,7 +542,7 @@ TEST_CASE(concat_multibroadcasts3)
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 2);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 2);
 }
 
 TEST_CASE(concat_multibroadcasts4)
@@ -579,7 +578,7 @@ TEST_CASE(concat_transpose1)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 3);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 3);
 }
 
 TEST_CASE(concat_transpose2)
@@ -603,7 +602,7 @@ TEST_CASE(concat_transpose2)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 
 TEST_CASE(concat_transpose3)
@@ -627,7 +626,7 @@ TEST_CASE(concat_transpose3)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 
 TEST_CASE(concat_transpose4)

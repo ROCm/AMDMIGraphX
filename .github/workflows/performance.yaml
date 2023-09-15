@@ -42,7 +42,9 @@ on:
         required: true
         default: '-r'
 
-concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+concurrency: 
+  group: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+  cancel-in-progress: true
 
 jobs:
   release:

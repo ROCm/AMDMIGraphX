@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,8 +33,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+// Specifies where to add the "extra" cell of padding if the
+// calculated padding is an odd number.
 // Padding mode is default_ for fixed shape padding.
-// same_lower and same_upper used for dynamic padding.
+// same_lower and same_upper specify dynamic padding.
+// The odd cell goes at the beginning of the dimension
+// (same_lower) or end (same_upper).
 enum padding_mode_t
 {
     default_, // NOLINT

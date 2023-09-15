@@ -61,7 +61,7 @@ namespace cpu {
 
 std::string target::name() const { return "cpu"; }
 
-// cppcheck-suppress constParameter
+// cppcheck-suppress constParameterReference
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options&) const
 {
     auto& ctx = any_cast<context>(gctx);

@@ -100,7 +100,7 @@ struct stream_model
     {
         using std::swap;
         auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.unique())
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
         }
@@ -288,7 +288,7 @@ struct stream_model
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
         assert(private_detail_te_handle_mem_var != nullptr);
-        if(not private_detail_te_handle_mem_var.unique())
+        if(private_detail_te_handle_mem_var.use_count() > 1)
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }

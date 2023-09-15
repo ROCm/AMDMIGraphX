@@ -31,7 +31,6 @@
 
 #include <test.hpp>
 
-
 TEST_CASE(multinomial_test)
 {
     migraphx::program p;

@@ -103,7 +103,10 @@ struct mlir_op
             }
             if(ins->name() == "@return")
             {
-                return ins_shapes[ins->inputs().at(0)].with_type(type);
+                auto s = ins_shapes[ins->inputs().at(0)].with_type(type);
+                if(not s.standard())
+                    MIGRAPHX_THROW("MLIR doesnt support non-standard output");
+                return s;
             }
             std::vector<shape> input_shapes;
             input_shapes.resize(ins->inputs().size());
@@ -235,8 +238,7 @@ struct find_mlir_fused_ops
             "log",
             "recip",
             "rsqrt",
-            // There are bugs in MLIR right now for models using sigmoid so disable it for now
-            // "sigmoid",
+            "sigmoid",
             "softmax",
             "tanh",
         };

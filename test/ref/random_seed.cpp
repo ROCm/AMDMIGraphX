@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,49 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
-#include <migraphx/check_shapes.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <random>
 
-/*!
- * Tests for check_shapes object handling dynamic shapes
+#include <test.hpp>
+
+/**
+ * Reference test for the random_seed operation
  */
-
-using migraphx::shape;
-
-void create_shapes(bool dynamic_allowed)
+TEST_CASE(random_seed_test)
 {
-    shape a{shape::int64_type, {3}};
-    shape b{shape::float_type, {{3, 6}, {4, 4}}};
-    migraphx::check_shapes{{a, b}, "", dynamic_allowed}.has(2);
-}
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_instruction(migraphx::make_op("random_seed"));
 
-TEST_CASE(allow_dynamic_shape)
-{
-    EXPECT(not test::throws([] { create_shapes(true); }));
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<uint64_t> result_vec1(1);
+    result.visit([&](auto output) { result_vec1.assign(output.begin(), output.end()); });
+    std::vector<uint64_t> result_vec2(1);
+    // Identical calls should give different seeds every time with 1/(2^64) chance of a repeat.
+    // We don't analyze for true randomness.
+    result = p.eval({}).back();
+    result.visit([&](auto output) { result_vec2.assign(output.begin(), output.end()); });
+    EXPECT(result_vec1[0] != result_vec2[0]);
 }
-
-TEST_CASE(fail_dynamic_shape)
-{
-    EXPECT(test::throws([] { create_shapes(false); }));
-}
-
-TEST_CASE(same_layout_fail)
-{
-    EXPECT(test::throws([] {
-        shape a{shape::float_type, {2, 3}};
-        shape b{shape::float_type, {2, 3}, {1, 2}};
-        migraphx::check_shapes{{a, b}, ""}.same_layout();
-    }));
-}
-
-TEST_CASE(same_layout_pass)
-{
-    EXPECT(not test::throws([] {
-        shape a{shape::float_type, {2, 3}, {1, 2}};
-        shape b{shape::float_type, {2, 3}, {1, 2}};
-        migraphx::check_shapes{{a, b}, ""}.same_layout();
-    }));
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

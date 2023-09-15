@@ -187,11 +187,32 @@ double rms_range(const R1& r1, const R2& r2)
         return std::numeric_limits<range_value<R1>>::max();
 }
 
-template <class R1, class R2>
-bool verify_range(const R1& r1, const R2& r2, double tolerance = 80, double* out_error = nullptr)
+template <class R>
+double get_threshold(const R&, std::size_t tolerance = 80)
 {
+    double threshold = std::numeric_limits<range_value<R>>::epsilon() * tolerance;
+    return threshold;
+}
+
+template <class R1, class R2>
+bool verify_range(const R1& r1,
+                  const R2& r2,
+                  std::size_t tolerance = 80,
+                  double* out_error     = nullptr)
+{
+    // double threshold = get_threshold(r1, tolerance);
     double threshold = std::numeric_limits<range_value<R1>>::epsilon() * tolerance;
-    auto error       = rms_range(r1, r2);
+
+    auto error = rms_range(r1, r2);
+    if(out_error != nullptr)
+        *out_error = error;
+    return error <= threshold;
+}
+
+template <class R1, class R2>
+bool verify_range(const R1& r1, const R2& r2, double threshold, double* out_error = nullptr)
+{
+    auto error = rms_range(r1, r2);
     if(out_error != nullptr)
         *out_error = error;
     return error <= threshold;

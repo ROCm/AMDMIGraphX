@@ -37,18 +37,18 @@ void verify_program(const std::string& name,
                     compile_options options     = compile_options{},
                     precision quantize          = precision::fp32,
                     const parameter_map& inputs = {},
-                    double tolerance            = 100);
+                    double threshold            = 0.001);
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options = compile_options{},
                          precision quantize      = precision::fp32,
-                         double tolerance        = 80);
+                         double threshold        = 0.001);
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options     = compile_options{},
                             precision quantize          = precision::fp32,
                             const parameter_map& inputs = {},
-                            double tolerance            = 80);
+                            double threshold            = 0.001);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

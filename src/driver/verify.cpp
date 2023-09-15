@@ -76,7 +76,7 @@ void verify_program(const std::string& name,
                     compile_options options,
                     precision quantize,
                     const parameter_map& inputs,
-                    double tolerance)
+                    double threshold)
 {
     auto x = run_ref(p, inputs);
     auto y = run_target(p, t, options, quantize, inputs);
@@ -84,7 +84,7 @@ void verify_program(const std::string& name,
     std::size_t output_num = x.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        verify_args(name, x[i], y[i], tolerance);
+        verify_args(name, x[i], y[i], threshold);
     }
 }
 
@@ -92,7 +92,7 @@ void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options,
                          precision quantize,
-                         double tolerance)
+                         double threshold)
 {
     const auto* mm_prog = prog.get_main_module();
     for(auto&& ins : (*mm_prog))
@@ -124,7 +124,7 @@ void verify_instructions(const program& prog,
             std::cout << "Verify: " << ins.name() << std::endl;
             std::cout << p << std::endl;
             verify_program(
-                ins.name(), p, t, options, quantize, create_param_map(p, false), tolerance);
+                ins.name(), p, t, options, quantize, create_param_map(p, false), threshold);
         }
         catch(...)
         {
@@ -140,14 +140,14 @@ void verify_reduced(program p,
                     compile_options options,
                     precision quantize,
                     const parameter_map& inputs,
-                    double tolerance)
+                    double threshold)
 {
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n + 1);
     mm->remove_instructions(last, mm->end());
     std::cout << "Verify: " << n << std::endl;
     std::cout << p << std::endl;
-    verify_program(std::to_string(n), p, t, options, quantize, inputs, tolerance);
+    verify_program(std::to_string(n), p, t, options, quantize, inputs, threshold);
 }
 
 void verify_reduced_program(const program& p,
@@ -155,14 +155,14 @@ void verify_reduced_program(const program& p,
                             compile_options options,
                             precision quantize,
                             const parameter_map& inputs,
-                            double tolerance)
+                            double threshold)
 {
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());
     std::cout << "Verify steps: " << n << std::endl;
     for(std::size_t i = 0; i < n; i++)
     {
-        verify_reduced(p, i, t, options, quantize, inputs, tolerance);
+        verify_reduced(p, i, t, options, quantize, inputs, threshold);
     }
 }
 

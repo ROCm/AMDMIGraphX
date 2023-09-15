@@ -83,7 +83,7 @@ TEST_CASE(param_add)
         auto hs  = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
         auto fs  = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+                               {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hs);
         if(add_return)
         {
@@ -1077,7 +1077,7 @@ TEST_CASE(int8_quantization_dot)
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, m, no_quant_result);
 
-        EXPECT(migraphx::verify::verify_range(quant_result, no_quant_result, 30000));
+        EXPECT(migraphx::verify::verify_range(quant_result, no_quant_result, 0.003576));
     }
 }
 

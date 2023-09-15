@@ -30,12 +30,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 bool verify_args(const std::string& name,
                  const argument& ref_arg,
                  const argument& target_arg,
-                 double tolerance)
+                 double threshold)
 {
     bool passed = true;
     visit_all(ref_arg, target_arg)([&](auto ref, auto target) {
         double error;
-        passed = verify::verify_range(ref, target, tolerance, &error);
+        passed = verify::verify_range(ref, target, threshold, &error);
         if(not passed)
         {
             // TODO: Check for nans
@@ -91,6 +91,16 @@ bool verify_args(const std::string& name,
         }
     });
     return passed;
+}
+
+bool verify_args(const std::string& name,
+                 const argument& ref_arg,
+                 const argument& target_arg,
+                 std::size_t tolerance)
+{
+    double threshold = 0.001;
+    target_arg.visit([&](auto ta) { threshold = verify::get_threshold(ta, tolerance); });
+    return verify_args(name, ref_arg, target_arg, threshold);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

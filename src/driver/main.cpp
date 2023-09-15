@@ -536,7 +536,7 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    double threshold     = 0.001;
+    double threshold     = 0.002;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)

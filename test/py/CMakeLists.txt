@@ -23,6 +23,23 @@
 #####################################################################################
 
 include(PythonModules)
+set(FIX_NAME SETUP_VIRTUAL_ENV)
+set(VENV_DIR ${CMAKE_BINARY_DIR}/test/py/venv)
+
+function(add_py_venv_fixture FIXTURE_NAME VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
+    message("Attempting to create virtual environment: ${VIRTUAL_ENV_DIR}")
+    find_package (Python3 COMPONENTS Interpreter)
+    add_test (NAME INITIALIZE_VENV COMMAND "${Python3_EXECUTABLE}" -m venv ${VIRTUAL_ENV_DIR})
+    set_tests_properties(INITIALIZE_VENV PROPERTIES FIXTURES_SETUP INIT_VENV)
+
+    set (ENV{VIRTUAL_ENV} ${VIRTUAL_ENV_DIR})
+    set (Python3_FIND_VIRTUALENV ONLY)
+    unset (Python3_EXECUTABLE)
+    find_package (Python3 COMPONENTS Interpreter Development)
+    add_test (NAME SETUP_VENV COMMAND "${Python3_EXECUTABLE}" -m pip install -r ${REQUIREMENTS_FILE})
+    set_tests_properties(SETUP_VENV PROPERTIES FIXTURES_REQUIRED INIT_VENV)
+    set_tests_properties(SETUP_VENV PROPERTIES FIXTURES_SETUP ${FIXTURE_NAME})
+endfunction()
 
 function(add_py_test NAME SCRIPT)
     foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
@@ -31,10 +48,15 @@ function(add_py_test NAME SCRIPT)
             "PYTHONMALLOC=debug"
             "MALLOC_CHECK_=3"
         )
-        set(PYTHON_EXECUTABLE ${PYTHON_${PYTHON_VERSION}_EXECUTABLE})
+        set (ENV{VIRTUAL_ENV} ${VENV_DIR})
+        set (Python3_FIND_VIRTUALENV ONLY)
+        unset (Python3_EXECUTABLE)
+        find_package (Python3 COMPONENTS Interpreter Development)
+        set(PYTHON_EXECUTABLE "${Python3_EXECUTABLE}")
         add_test(
             NAME test_py_${PYTHON_VERSION}_${NAME} 
             COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN})
+        set_tests_properties(test_py_${PYTHON_VERSION}_${NAME} PROPERTIES FIXTURES_REQUIRED ${FIX_NAME})
         add_custom_target(test_py_${PYTHON_VERSION}_${NAME} 
             COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN} 
             COMMENT "${PYTHON_EXECUTABLE} ${SCRIPT}")
@@ -43,6 +65,9 @@ function(add_py_test NAME SCRIPT)
 endfunction()
 add_dependencies(tests migraphx_py)
 add_dependencies(check migraphx_py)
+
+add_py_venv_fixture(
+    ${FIX_NAME} ${VENV_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/REQUIREMENTS.TXT)
 
 add_py_test(ref test_cpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(save_load test_save_load.py WORKING_DIRECTORY ${TEST_ONNX_DIR})

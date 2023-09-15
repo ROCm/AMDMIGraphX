@@ -51,6 +51,7 @@ else
     openmp-extras \
     python3-dev \
     python3-pip \
+    python3.8-venv \
     rocblas-dev \
     rocm-cmake
 fi

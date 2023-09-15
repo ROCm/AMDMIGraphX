@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -185,6 +185,8 @@ register_migraphx_ops(
     quant_convolution
     quant_dot
     quantizelinear
+    random_uniform
+    random_seed
     recip
     reduce_max
     reduce_mean

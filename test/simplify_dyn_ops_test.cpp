@@ -210,4 +210,32 @@ TEST_CASE(const_slice_4input)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(static_dimensions_of)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 4, 4}};
+        m0.add_parameter("data", s);
+        migraphx::shape lit_shape{migraphx::shape::int64_type, {3}};
+        ;
+        std::vector<int64_t> lit_data = {2, 4, 4};
+        auto lit_ins                  = m0.add_literal(migraphx::literal{lit_shape, lit_data});
+        m0.add_return({lit_ins});
+    }
+
+    // dead_code_elimination will get rid of atan
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 4, 4}};
+        auto input    = m1.add_parameter("data", s);
+        auto atan_ins = m1.add_instruction(migraphx::make_op("atan"), input);
+        auto dimensions_of_ins =
+            m1.add_instruction(migraphx::make_op("dimensions_of", {{"end", 3}}), atan_ins);
+        m1.add_return({dimensions_of_ins});
+    }
+    run_pass(m1);
+
+    EXPECT(m0 == m1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

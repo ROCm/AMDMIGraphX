@@ -68,7 +68,7 @@ TEST_CASE(random_uniform_test)
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);
     std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-    EXPECT(migraphx::verify::verify_range(result_vec, rand_samples, 0.00001));
+    EXPECT(migraphx::verify::verify_range_with_threshold(result_vec, rand_samples, 0.00001));
 }
 
 TEST_CASE(random_uniform_int_test)

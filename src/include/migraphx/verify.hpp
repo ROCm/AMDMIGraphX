@@ -208,7 +208,7 @@ bool verify_range(const R1& r1,
 }
 
 template <class R1, class R2>
-bool verify_range(const R1& r1, const R2& r2, double threshold, double* out_error = nullptr)
+bool verify_range_with_threshold(const R1& r1, const R2& r2, double threshold, double* out_error = nullptr)
 {
     auto error = rms_range(r1, r2);
     if(out_error != nullptr)

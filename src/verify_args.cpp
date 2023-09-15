@@ -35,7 +35,7 @@ bool verify_args(const std::string& name,
     bool passed = true;
     visit_all(ref_arg, target_arg)([&](auto ref, auto target) {
         double error;
-        passed = verify::verify_range(ref, target, threshold, &error);
+        passed = verify::verify_range_with_threshold(ref, target, threshold, &error);
         if(not passed)
         {
             // TODO: Check for nans

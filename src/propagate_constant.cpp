@@ -35,10 +35,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
-bool skip_propogate(instruction_ref ins)
+bool skip_propagate(instruction_ref ins)
 {
     if(ins->name() == "contiguous")
-        return skip_propogate(ins->inputs().front());
+        return skip_propagate(ins->inputs().front());
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar())
         return true;
@@ -47,14 +47,13 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propogate(ins); }
+bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propagate(ins); }
 
 void propagate_constant::apply(module& m) const
 {
     std::unordered_set<instruction_ref> const_instrs;
     auto last = std::prev(m.end());
-    // std::cout << "BEFORE" << std::endl;
-    // m.debug_print();
+    
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {

@@ -68,6 +68,26 @@ migraphx::module make_concat_multibroadcast(const std::vector<size_t>& in_lens,
     return m;
 }
 
+TEST_CASE(broadcast_transpose_scalar)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto l  = mm->add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+    auto mb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+    auto t1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
+    mm->add_return({t1});
+
+    run_pass(*mm);
+    migraphx::program p2;
+    mm = p2.get_main_module();
+
+    l = mm->add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+    mb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l); 
+    mm->add_return({mb});
+    EXPECT(p == p2);
+}
+
 TEST_CASE(double_contig)
 {
     migraphx::program p;

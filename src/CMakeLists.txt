@@ -28,6 +28,7 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
+ 
 
 add_library(migraphx 
     adjust_allocation.cpp
@@ -36,6 +37,7 @@ add_library(migraphx
     argument.cpp
     auto_contiguous.cpp
     common.cpp
+    common_dims.cpp
     compile_src.cpp
     convert_to_json.cpp
     cpp_generator.cpp

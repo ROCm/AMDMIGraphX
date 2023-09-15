@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,49 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "test.hpp"
-#include <migraphx/check_shapes.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/onnx.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 
-/*!
- * Tests for check_shapes object handling dynamic shapes
- */
+#include <test.hpp>
 
-using migraphx::shape;
-
-void create_shapes(bool dynamic_allowed)
+TEST_CASE(allocate_dyn)
 {
-    shape a{shape::int64_type, {3}};
-    shape b{shape::float_type, {{3, 6}, {4, 4}}};
-    migraphx::check_shapes{{a, b}, "", dynamic_allowed}.has(2);
-}
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int64_type, {4}};
+    auto out_dims = mm->add_parameter("out_dims", s);
+    mm->add_instruction(migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}),
+                        out_dims);
+    p.compile(migraphx::make_target("ref"));
 
-TEST_CASE(allow_dynamic_shape)
-{
-    EXPECT(not test::throws([] { create_shapes(true); }));
+    migraphx::parameter_map params;
+    std::vector<int64_t> data = {2, 3, 4, 4};
+    params["out_dims"]        = migraphx::argument(s, data.data());
+    auto result               = p.eval(params).back();
+    migraphx::shape sresult{migraphx::shape::float_type, {2, 3, 4, 4}};
+    result.visit([&](auto output) { EXPECT(output.get_shape() == sresult); });
 }
-
-TEST_CASE(fail_dynamic_shape)
-{
-    EXPECT(test::throws([] { create_shapes(false); }));
-}
-
-TEST_CASE(same_layout_fail)
-{
-    EXPECT(test::throws([] {
-        shape a{shape::float_type, {2, 3}};
-        shape b{shape::float_type, {2, 3}, {1, 2}};
-        migraphx::check_shapes{{a, b}, ""}.same_layout();
-    }));
-}
-
-TEST_CASE(same_layout_pass)
-{
-    EXPECT(not test::throws([] {
-        shape a{shape::float_type, {2, 3}, {1, 2}};
-        shape b{shape::float_type, {2, 3}, {1, 2}};
-        migraphx::check_shapes{{a, b}, ""}.same_layout();
-    }));
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

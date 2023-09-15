@@ -627,6 +627,28 @@ struct find_transpose_contiguous_reshaper_unary
     }
 };
 
+struct find_broadcast_transpose
+{
+    auto matcher() const
+    {
+        return match::name("transpose")(match::arg(0)(match::name("multibroadcast").bind("bcast_ins")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto ins_lens = ins->get_shape().lens();
+        auto bcast_ins = r.instructions["bcast_ins"];
+        auto input = bcast_ins->inputs().front();
+        // for now, focusing on scalar transformation
+        if(not input->get_shape().scalar())
+            return;
+        
+        auto new_mbcast = m.insert_instruction(bcast_ins, make_op("multibroadcast", {{"out_lens", ins_lens}}), input);
+        m.replace_instruction(ins, new_mbcast);
+    }
+};
+
 struct find_slice_transpose
 {
     auto matcher() const
@@ -799,6 +821,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},
+                            find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{});
         dead_code_elimination{}.apply(m);

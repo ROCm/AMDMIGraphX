@@ -200,10 +200,8 @@ bool verify_range(const R1& r1,
                   std::size_t tolerance = 80,
                   double* out_error     = nullptr)
 {
-    // double threshold = get_threshold(r1, tolerance);
-    double threshold = std::numeric_limits<range_value<R1>>::epsilon() * tolerance;
-
-    auto error = rms_range(r1, r2);
+    double threshold = get_threshold(r1, tolerance);
+    auto error       = rms_range(r1, r2);
     if(out_error != nullptr)
         *out_error = error;
     return error <= threshold;

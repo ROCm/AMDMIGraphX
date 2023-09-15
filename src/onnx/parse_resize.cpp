@@ -206,21 +206,28 @@ struct parse_resize : op_parser<parse_resize>
             MIGRAPHX_THROW("PARSE_" + opd.op_name + ": exclude_outside 1 is not supported!");
         }
 
-        // input data shape info
-        auto in_s    = args[0]->get_shape();
-        auto in_lens = in_s.lens();
+        // input data shape info.  Convert static lens to dynamic to simplify referencing them later
+        auto in_s                                               = args[0]->get_shape().to_dynamic();
+        std::vector<migraphx::shape::dynamic_dimension> in_dims = in_s.dyn_dims();
 
         // output shape is explicitly specified
-        std::vector<std::size_t> out_lens(in_lens.size());
+        std::vector<size_t> out_lens(in_dims.size());
 
         // scale
         std::vector<double> vec_scale;
 
+        // Infer either output size or scale, depending on input type
         for(const auto& arg : args)
         {
             if(arg->name() == "undefined" or arg == args.front())
             {
                 continue;
+            }
+
+            // this is just developer code, figure out real requirement
+            if(arg != args[0] and arg->get_shape().dynamic())
+            {
+                MIGRAPHX_THROW("parse_resize:  no other dynamic shapes allowed");
             }
 
             // skipped empty input
@@ -237,139 +244,257 @@ struct parse_resize : op_parser<parse_resize>
                 auto arg_out_s = arg->eval();
                 check_arg_empty(arg_out_s,
                                 "PARSE_" + opd.op_name + ": dynamic output size is not supported!");
-                arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
 
-                if(out_lens.size() != in_lens.size())
+                // reallocate a vector and copy the values to it.  All dimensions except batch, even
+                // if originally dynamic, are required to be fixed so we can refer to their max
+                // value WLOG.
+                arg_out_s.visit([&](auto ol) {
+                    // todo:  assign doesn't work with dynamic shapes
+                    auto ols = ol.get_shape().to_dynamic();
+                    for(auto it = ols.dyn_dims().begin(); it != ols.dyn_dims().end(); it++)
+                    {
+                        out_lens.push_back(it->max);
+                    }
+
+                    // out_lens.assign(ol.begin(), ol.end());
+                });
+
+                if(out_lens.size() != in_dims.size())
                 {
                     MIGRAPHX_THROW("PARSE_" + opd.op_name +
                                    ": specified output size does not match input size");
                 }
 
-                // compute the scale
-                vec_scale.resize(in_lens.size());
-                std::transform(in_lens.begin(),
-                               in_lens.end(),
+                // compute the scale in each dimension
+                vec_scale.resize(in_dims.size());
+
+                std::transform(in_dims.begin(),
+                               in_dims.end(),
                                out_lens.begin(),
                                vec_scale.begin(),
-                               [](auto iss, auto oss) { return 1.0 * oss / iss; });
+                               [](auto iss, auto oss) { return double(1.0 * oss / iss.max); });
             }
             else
             {
-
                 // scale input
-                if(lens[0] == in_lens.size())
+                if(lens[0] == in_dims.size())
                 {
                     auto arg_scale = arg->eval();
                     check_arg_empty(arg_scale,
                                     "PARSE_" + opd.op_name +
                                         ": dynamic input scale is not supported!");
 
-                    arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
-                    if(in_lens.size() != vec_scale.size())
+                    arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
+                    if(in_dims.size() != vec_scale.size())
                     {
                         MIGRAPHX_THROW("PARSE_" + opd.op_name +
                                        ": ranks of input and scale are different!");
                     }
 
-                    std::transform(in_lens.begin(),
-                                   in_lens.end(),
+                    std::transform(in_dims.begin(),
+                                   in_dims.end(),
                                    vec_scale.begin(),
                                    out_lens.begin(),
                                    [&](auto idx, auto scale) {
-                                       return static_cast<std::size_t>(idx * scale);
+                                       // inferred output size is floor(idx.max * scale)
+                                       return idx.max * scale;
                                    });
                 }
             }
         }
 
-        shape out_s{in_s.type(), out_lens};
-        std::size_t out_elements = out_s.elements();
-        auto idx_op              = get_original_idx_op(coord_trans_mode);
-
-        // reshape input to one-dimension
-        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        args[0]                       = info.make_contiguous(args[0]);
-        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
-
-        if(mode == "nearest")
+        // Dynamic batch:  Only args[0] can have a dynamic shape, only the 0'th
+        // dimension--batch size--can be non-fixed, and the only resize mode allowed is "nearest"
+        if(args[0]->get_shape().dynamic())
         {
-            std::vector<int> ind(out_elements);
+            if(mode == "nearest")
+            {
+                auto some_dims = args[0]->get_shape().dyn_dims();
 
-            // map out_idx to in_idx
-            auto nearest_op = get_nearest_op(nearest_mode);
-            shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
-                std::vector<size_t> in_idx(out_idx_v.size());
-                for(auto ii = 0; ii < in_lens.size(); ++ii)
-                {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                    in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
-                }
+                bool mostly_fixed =
+                    std::all_of(some_dims.begin() + 1,
+                                some_dims.end(),
+                                [](shape::dynamic_dimension dd) { return dd.is_fixed(); });
 
-                ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
-            });
+                if(not mostly_fixed)
+                    MIGRAPHX_THROW(
+                        "PARSE_" + opd.op_name +
+                        ": dynamic shape inputs other than batch size are not supported");
 
-            shape ind_s{shape::int32_type, out_lens};
-            auto ins_ind = info.add_literal(literal(ind_s, ind));
-            return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+                // TODO:  Add support for channel dimension
+
+                // take max_lens() to get static dimension set
+                // Drop the 0'th dimension,
+                auto fixed_dims = args[0]->get_shape().max_lens();
+                fixed_dims.erase(fixed_dims.begin());
+                // dimensions of the (scaled) output, also with the 0'th dimension dropped
+                auto fixed_out_lens = out_lens;
+                fixed_out_lens.erase(fixed_out_lens.begin());
+
+                // create a shape with the scaled lens and no batch dimension
+                migraphx::shape static_out_shape(args[0]->get_shape().type(), fixed_out_lens);
+
+                size_t out_elements = std::accumulate(fixed_out_lens.begin(),
+                                                      fixed_out_lens.end(),
+                                                      std::size_t{1},
+                                                      std::multiplies<>());
+                std::vector<int> ind(out_elements);
+
+                //               map out_idx to in_idx
+                auto idx_op     = get_original_idx_op(coord_trans_mode);
+                auto nearest_op = get_nearest_op(nearest_mode);
+
+                // For each element of static_out_shape, find the matching location of input shape.
+                // The indexes we find will be an argument to the gather op.
+                shape_for_each(static_out_shape, [&](const auto& out_idx_v, size_t out_idx) {
+                    std::vector<size_t> in_idx(out_idx_v.size());
+                    for(auto ii = 0; ii < fixed_dims.size(); ++ii)
+                    {
+                        // Convert this index by scaling.  Inefficient since indexes are repeated
+                        auto idx_val = idx_op(
+                            fixed_dims[ii], fixed_out_lens[ii], out_idx_v[ii], vec_scale[ii]);
+                        // round the scaled value to an index
+                        in_idx[ii] = nearest_op(fixed_dims[ii], idx_val);
+                    }
+
+                    ind[out_idx] = static_cast<int64_t>(static_out_shape.index(in_idx));
+                });
+
+                // Create a static shape that's just like the scaled out_lens except we set to 1 the
+                // 0'th dimension of output, later to be broadcasted to dynamic batch size
+                out_lens[0] = 1;
+                shape ind_s{shape::int32_type, out_lens};
+                auto ins_ind = info.add_literal(literal(ind_s, ind));
+
+                // define a dynamic shape including the batch dimension
+                std::vector<shape::dynamic_dimension> out_dyn_dims(in_dims.size());
+                out_dyn_dims[0] = in_dims[0];
+                std::transform(fixed_out_lens.begin(),
+                               fixed_out_lens.end(),
+                               out_dyn_dims.begin() + 1,
+                               [&](auto len) {
+                                   return shape::dynamic_dimension{len, len};
+                               });
+                shape dyn_out_shape{in_s.type(), out_dyn_dims};
+
+                // allocate op to create the output argument we want
+                auto ins_dyn_out =
+                    info.add_instruction(make_op("allocate", {{"shape", to_value(dyn_out_shape)}}));
+
+                // multibroadcast op to convert static ins_ind to a dynamic shape
+                auto ins_dyn =
+                    info.add_instruction(make_op("multibroadcast"), ins_ind, ins_dyn_out);
+
+                return info.add_instruction(make_op("gather", {{"axis", 0}}), args[0], ins_dyn);
+            }
+            else
+            {
+                MIGRAPHX_THROW("PARSE_RESIZE: only nearest_mode supports dynamic batch size input");
+            }
         }
-        // linear mode
         else
         {
-            auto nearest_floor = get_nearest_op("floor");
-            auto nearest_ceil  = get_nearest_op("ceil");
+            //
+            //        Static input shape.
+            //
+            in_s         = args[0]->get_shape();
+            auto in_lens = args[0]->get_shape().lens();
 
-            // get the number of dimensions
-            std::size_t n_dim = out_lens.size();
-            auto vvv_ind = std::vector(n_dim, std::vector(2, std::vector<size_t>(out_elements)));
-            std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
+            shape out_s{in_s.type(), out_lens};
+            std::size_t out_elements = out_s.elements();
+            auto idx_op              = get_original_idx_op(coord_trans_mode);
 
-            shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
-                for(auto ii = 0; ii < in_lens.size(); ++ii)
-                {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                    vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[ii], idx_val);
-                    vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[ii], idx_val);
-                    delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
-                }
-            });
+            // reshape input to one-dimension
+            // TODO:  We did this in multi dimensions in the dynamic case.  Can we do
+            //          the same here?
+            std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+            args[0]                       = info.make_contiguous(args[0]);
+            auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
 
-            auto ind = calc_neighbor_points(
-                vvv_ind, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s);
-            auto ind_lens = out_lens;
-            ind_lens[0] *= (std::size_t{1} << n_dim);
-            shape ind_s{shape::int32_type, ind_lens};
-            auto ins_ind = info.add_literal(literal(ind_s, ind));
-            auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
-
-            auto dim_lens = out_lens;
-            dim_lens[0] *= (std::size_t{1} << (n_dim - 1));
-            for(std::size_t i = 0; i < n_dim; ++i)
+            if(mode == "nearest")
             {
-                shape dim_s{shape::float_type, dim_lens};
-                const auto& dim_delta = delta[n_dim - i - 1];
-                std::vector<float> delta_data;
-                for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
-                {
-                    delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
-                }
-                auto ins_delta = info.add_literal(dim_s, delta_data);
+                std::vector<int> ind(out_elements);
 
-                // slice the data
-                int64_t slc_stride = dim_lens[0];
-                auto low           = info.add_instruction(
-                    make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
-                    data);
-                auto hi = info.add_instruction(
-                    make_op("slice",
-                            {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
-                    data);
-                auto diff = info.add_instruction(make_op("sub"), hi, low);
-                auto ddf  = info.add_instruction(make_op("mul"), diff, ins_delta);
-                data      = info.add_instruction(make_op("add"), ddf, low);
-                dim_lens[0] /= 2;
+                // map out_idx to in_idx
+                auto nearest_op = get_nearest_op(nearest_mode);
+                shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
+                    std::vector<size_t> in_idx(out_idx_v.size());
+                    for(auto ii = 0; ii < in_lens.size(); ++ii)
+                    {
+                        auto idx_val =
+                            idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
+                        in_idx[ii] = nearest_op(in_lens[ii], idx_val);
+                    }
+
+                    ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
+                });
+
+                shape ind_s{shape::int32_type, out_lens};
+                auto ins_ind = info.add_literal(literal(ind_s, ind));
+                return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
             }
+            // linear mode
+            else
+            {
+                auto nearest_floor = get_nearest_op("floor");
+                auto nearest_ceil  = get_nearest_op("ceil");
 
-            return data;
+                // get the number of dimensions
+                std::size_t n_dim = out_lens.size();
+                auto vvv_ind =
+                    std::vector(n_dim, std::vector(2, std::vector<size_t>(out_elements)));
+                std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
+
+                shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
+                    for(auto ii = 0; ii < in_lens.size(); ++ii)
+                    {
+                        auto idx_val =
+                            idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
+                        vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[ii], idx_val);
+                        vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[ii], idx_val);
+                        delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
+                    }
+                });
+
+                auto ind = calc_neighbor_points(
+                    vvv_ind, 0, std::vector<std::vector<std::size_t>>(out_elements), in_s);
+                auto ind_lens = out_lens;
+                ind_lens[0] *= (std::size_t{1} << n_dim);
+                shape ind_s{shape::int32_type, ind_lens};
+                auto ins_ind = info.add_literal(literal(ind_s, ind));
+                auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+
+                auto dim_lens = out_lens;
+                dim_lens[0] *= (std::size_t{1} << (n_dim - 1));
+                for(std::size_t i = 0; i < n_dim; ++i)
+                {
+                    shape dim_s{shape::float_type, dim_lens};
+                    const auto& dim_delta = delta[n_dim - i - 1];
+                    std::vector<float> delta_data;
+                    for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
+                    {
+                        delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
+                    }
+                    auto ins_delta = info.add_literal(dim_s, delta_data);
+
+                    // slice the data
+                    int64_t slc_stride = dim_lens[0];
+                    auto low           = info.add_instruction(
+                        make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
+                        data);
+                    auto hi = info.add_instruction(
+                        make_op(
+                            "slice",
+                            {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
+                        data);
+                    auto diff = info.add_instruction(make_op("sub"), hi, low);
+                    auto ddf  = info.add_instruction(make_op("mul"), diff, ins_delta);
+                    data      = info.add_instruction(make_op("add"), ddf, low);
+                    dim_lens[0] /= 2;
+                }
+
+                return data;
+            }
         }
     }
 };

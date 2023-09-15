@@ -5374,7 +5374,7 @@ TEST_CASE(resize_downsample_f_test)
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     mm->add_literal(migraphx::literal{ss, ds});
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 35, 60}};
     auto inx = mm->add_parameter("X", sx);
 
     mm->add_instruction(migraphx::make_op("undefined"));
@@ -5383,11 +5383,44 @@ TEST_CASE(resize_downsample_f_test)
     std::vector<int> ind = {0, 3};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2100}}}), inx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_downsample_f_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(resize_downsample_f_dyn_test)
+{
+    migraphx::program p;
+    auto* mm              = p.get_main_module();
+    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    mm->add_literal(migraphx::literal{ss, ds});
+
+    // reshape only allows one non-fixed dimension
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 4, {1, 4}}, {1, 1}, {35, 35}, {60, 60}}};
+    auto inx = mm->add_parameter("X", sx);
+
+    mm->add_instruction(migraphx::make_op("undefined"));
+
+    // the "nearest" indices to gather
+    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
+    std::vector<int> ind = {0, 3};
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
+
+    // dim corresponding to the non-static dimension in sx must be either 0 or -1.  Still
+    // don't know what this is for
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 2100, 1, 1}}}), inx);
+    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    mm->add_return({r});
+
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["X"] = {{1, 4, {1, 4}}, {1, 1}, {35, 35}, {60, 60}};
+
+    auto prog = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

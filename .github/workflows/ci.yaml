@@ -27,6 +27,8 @@ jobs:
     outputs:
       imageexists:  ${{ steps.check_image.outputs.imageexists }}
       imagetag:  ${{ steps.image_hash.outputs.imagetag }}
+      imageexists_sles:  ${{ steps.check_image.outputs.imageexists_sles }}
+      imagetag_sles:  ${{ steps.image_hash.outputs.imagetag_sles }}
 
     steps: 
       - name: Checkout Code
@@ -36,11 +38,13 @@ jobs:
         id: image_hash
         run: |
           echo "imagetag=rocm/migraphx-private:hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag_sles=rocm/migraphx-private:hip-clang-sles-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
 
       - name: Check if image is built already
         id: check_image
         env:
           DOCKERIMAGE: ${{ steps.image_hash.outputs.imagetag }}
+          DOCKERIMAGE_SLES: ${{ steps.image_hash.outputs.imagetag_sles }}
         run: |
           echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
@@ -51,6 +55,15 @@ jobs:
             echo "imageexists=false" >> $GITHUB_OUTPUT
             echo "Tag does not exist, build and publishing required"
           fi
+
+          if [[ "$(docker manifest inspect $DOCKERIMAGE_SLES 2> /dev/null)" != "" ]]; then
+            echo "imageexists_sles=true" >> $GITHUB_OUTPUT
+            echo "SLES Image already exists, skip building available"
+          else
+            echo "imageexists_sles=false" >> $GITHUB_OUTPUT
+            echo "SLES Tag does not exist, build and publishing required"
+          fi
+
 
   build_image:
     name: Build image
@@ -66,6 +79,21 @@ jobs:
       run: |
         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
         docker build . --file hip-clang.docker --tag $DOCKERIMAGE;
+        docker push $DOCKERIMAGE;
+
+  build_SLES_image:
+    name: Build SLES image
+    runs-on: ROCM-Ubuntu
+    needs: check_image
+    if: ${{ needs.check_image.outputs.imageexists_sles != 'true' }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build and publish SLES
+      env:            
+        DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag_sles }}
+      run: |
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
+        docker build . --file tools/docker/sles.docker --tag $DOCKERIMAGE;
         docker push $DOCKERIMAGE;
 
 
@@ -207,25 +235,13 @@ jobs:
 
   sles:
     runs-on: ROCM-Ubuntu
+    needs: [ build_SLES_image, check_image ]
+    env:
+      DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag_sles }}    
     steps:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
-
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-sles-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-sles-
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-
-    - name: Build the Docker image
-      run: docker build . --file tools/docker/sles.docker --tag migraphx-sles
 
     - name: Restore cache files for ccache
       uses: actions/cache/restore@v3 
@@ -235,8 +251,12 @@ jobs:
         key: ccache-sles-${{ github.ref }}
         restore-keys: ccache-sles-
 
+    - name: Docker Login
+      run: |
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
+
     - name: Build migraphx
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx-sles bash < {0}"
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
       run: |
         set -e
         export CCACHE_COMPRESSLEVEL=10

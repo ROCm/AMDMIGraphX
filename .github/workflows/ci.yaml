@@ -42,7 +42,7 @@ jobs:
         env:
           DOCKERIMAGE: ${{ steps.image_hash.outputs.imagetag }}
         run: |
-          echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+          echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
           if [[ "$(docker manifest inspect $DOCKERIMAGE 2> /dev/null)" != "" ]]; then
             echo "imageexists=true" >> $GITHUB_OUTPUT
@@ -64,7 +64,7 @@ jobs:
       env:            
         DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag }}
       run: |
-        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
         docker build . --file hip-clang.docker --tag $DOCKERIMAGE;
         docker push $DOCKERIMAGE;
 
@@ -89,7 +89,7 @@ jobs:
 
     - name: Docker Login
       run: |
-        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
     - name: Clang Tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
@@ -147,7 +147,7 @@ jobs:
 
     - name: Docker Login
       run: |
-        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
 
     - name: Cppcheck
@@ -195,7 +195,7 @@ jobs:
 
     - name: Docker Login
       run: |
-        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
 
     - name: Check formatting

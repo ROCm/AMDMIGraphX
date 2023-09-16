@@ -631,20 +631,22 @@ struct find_broadcast_transpose
 {
     auto matcher() const
     {
-        return match::name("transpose")(match::arg(0)(match::name("multibroadcast")(match::used_once().bind("bcast_ins"))));
+        return match::name("transpose")(
+            match::arg(0)(match::name("multibroadcast")(match::used_once().bind("bcast_ins"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto ins_lens = ins->get_shape().lens();
+        auto ins       = r.result;
+        auto ins_lens  = ins->get_shape().lens();
         auto bcast_ins = r.instructions["bcast_ins"];
-        auto input = bcast_ins->inputs().front();
+        auto input     = bcast_ins->inputs().front();
         // for now, focusing on scalar transformation
         if(not input->get_shape().scalar())
             return;
-        
-        auto new_mbcast = m.insert_instruction(bcast_ins, make_op("multibroadcast", {{"out_lens", ins_lens}}), input);
+
+        auto new_mbcast = m.insert_instruction(
+            bcast_ins, make_op("multibroadcast", {{"out_lens", ins_lens}}), input);
         m.replace_instruction(ins, new_mbcast);
     }
 };

@@ -87,6 +87,23 @@ TEST_CASE(broadcast_transpose_scalar)
     EXPECT(p == p2);
 }
 
+TEST_CASE(broadcast_transpose_scalar_multi_use)
+{
+    // multibroadcast used more than once
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto l  = mm->add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+    auto mb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+    auto t1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
+    auto id = mm->add_instruction(migraphx::make_op("identity"), mb);
+    mm->add_return({id, t1});
+
+    migraphx::program p2 = p;
+    run_pass(*mm);
+    EXPECT(p == p2);
+}
+
 TEST_CASE(double_contig)
 {
     migraphx::program p;

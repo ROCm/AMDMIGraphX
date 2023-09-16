@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_HPP
-#define MIGRAPHX_GUARD_OPERATORS_SCATTER_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_HPP
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
@@ -46,7 +46,7 @@ namespace op {
 // This is a template for deriving child structs from.  Each child needs to define
 // only a reduction() method.  Names are automatically handled by the op_name template.
 
-struct scatter : op_name<scatter>
+struct scatter_elements : op_name<scatter_elements>
 {
     int64_t axis          = 0;
     std::string reduction = "none";

@@ -202,7 +202,7 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
-    scatter
+    scatter_elements
     scatternd_add
     scatternd_mul
     scatternd_none

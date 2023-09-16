@@ -21,93 +21,61 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-
-  build_docker:
+  check_image:
+    name: Check if image exists in registry
     runs-on: ubuntu-latest
+    outputs:
+      imageexists:  ${{ steps.check_image.outputs.imageexists }}
+      imagetag:  ${{ steps.image_hash.outputs.imagetag }}
+
     steps: 
-    - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: check File System Size
-      run: df -h
+      - name: Create Image Tag
+        id: image_hash
+        run: |
+          echo "imagetag=rocm/migraphx-private:hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
 
-    - name: Free space
-      uses: jlumbroso/free-disk-space@main
-      continue-on-error: true
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        swap-storage: true
-        docker-images: true
+      - name: Check if image is built already
+        id: check_image
+        env:
+          DOCKERIMAGE: ${{ steps.image_hash.outputs.imagetag }}
+        run: |
+          echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
 
-    - name: check File System Size
-      run: df -h
+          if [[ "$(docker manifest inspect $DOCKERIMAGE 2> /dev/null)" != "" ]]; then
+            echo "imageexists=true" >> $GITHUB_OUTPUT
+            echo "Image already exists, skip building available"
+          else
+            echo "imageexists=false" >> $GITHUB_OUTPUT
+            echo "Tag does not exist, build and publishing required"
+          fi
 
-    - name: Docker Build
-      env:
-        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-      run: |
-        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
-        docker build . --file hip-clang.docker --tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
-
-    - name: Docker Publish
-      env:
-        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-      run: |
-        docker push rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
-
-    - name: Check FS and Docker Size
-      run: |
-        df -h
-        docker image ls
-
-
-  build_faster_docker:
+  build_image:
+    name: Build image
     runs-on: ROCM-Ubuntu
-    steps: 
+    needs: check_image
+    if: ${{ needs.check_image.outputs.imageexists != 'true' }}
+    steps:
     - uses: actions/checkout@v3
 
-    - name: check File System Size
-      run: df -h
-
-    - name: Free space
-      uses: jlumbroso/free-disk-space@main
-      continue-on-error: true
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        swap-storage: true
-        docker-images: true
-
-    - name: check File System Size
-      run: df -h
-
-    - name: Docker Build
-      env:
-        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-
+    - name: Build and publish 
+      env:            
+        DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag }}
       run: |
-        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
-        docker build . --file hip-clang.docker --tag rocm/migraphx-private:hip-clang-f-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-
-    - name: Docker Publish
-      run: |
-        docker push rocm/migraphx-private:hip-clang-f-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-
-    - name: Check FS and Docker Size
-      run: |
-        df -h
-        docker image ls
+        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        docker build . --file hip-clang.docker --tag $DOCKERIMAGE;
+        docker push $DOCKERIMAGE;
 
 
   tidy:
     runs-on: ROCM-Ubuntu
-    needs: build_docker
+    needs: [ build_image, check_image ]
+    env:
+      DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag }}
+
+    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps: 
     - uses: actions/checkout@v3
 
@@ -118,17 +86,13 @@ jobs:
         path: tidy-cache
         key: tidy-cache-${{ github.ref }}
         restore-keys: tidy-cache-
-        
-    - name: Pull Docker image
-      env:
-        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}
+
+    - name: Docker Login
       run: |
         echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
-        docker pull rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
-        docker tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }} migraphx:latest
 
-    - name: Clang tidy
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+    - name: Clang Tidy
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
       run: |
         mkdir build
         cd build
@@ -165,6 +129,11 @@ jobs:
 
   cppcheck:
     runs-on: ROCM-Ubuntu
+    needs: [ build_image, check_image ]
+    env:
+      DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag }}
+
+    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
     - uses: actions/checkout@v3
 
@@ -176,16 +145,13 @@ jobs:
         key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
         restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
-    - name: Pull Docker image
-      env:
-        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}
+    - name: Docker Login
       run: |
         echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
-        docker pull rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
-        docker tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }} migraphx:latest
+
 
     - name: Cppcheck
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
       run: |
         mkdir build
         cd build
@@ -217,21 +183,23 @@ jobs:
 
   format:
     runs-on: ROCM-Ubuntu
+    needs: [ build_image, check_image ]
+    env:
+      DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag }}
+
+    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
 
-    - name: Pull Docker image
-      env:
-        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}
+    - name: Docker Login
       run: |
         echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
-        docker pull rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
-        docker tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }} migraphx:latest
+
 
     - name: Check formatting
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
       run: |
         set -e
         git config --global --add safe.directory /data

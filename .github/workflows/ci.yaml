@@ -8,6 +8,9 @@ on:
       - master
       - 'release/**'
 
+env:
+  DOCKER_USER: ${{secrets.DOCKERHUB_USERID}}
+  DOCKER_TOKEN: ${{secrets.DOCKERHUB_TOKEN}}
 
 jobs:
   cancel:
@@ -17,22 +20,96 @@ jobs:
         uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
-  tidy:
+
+
+  build_docker:
+    runs-on: ubuntu-latest
+    steps: 
+    - uses: actions/checkout@v3
+
+    - name: check File System Size
+      run: df -h
+
+    - name: Free space
+      uses: jlumbroso/free-disk-space@main
+      continue-on-error: true
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+        docker-images: true
+
+    - name: check File System Size
+      run: df -h
+
+    - name: Docker Build
+      env:
+        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+      run: |
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
+        docker build . --file hip-clang.docker --tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
+
+    - name: Docker Publish
+      env:
+        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+      run: |
+        docker push rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
+
+    - name: Check FS and Docker Size
+      run: |
+        df -h
+        docker image ls
+
+
+  build_faster_docker:
     runs-on: ROCM-Ubuntu
     steps: 
     - uses: actions/checkout@v3
 
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-
-      # Ignore the failure of a step and avoid terminating the job.
+    - name: check File System Size
+      run: df -h
+
+    - name: Free space
+      uses: jlumbroso/free-disk-space@main
       continue-on-error: true
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+        docker-images: true
+
+    - name: check File System Size
+      run: df -h
+
+    - name: Docker Build
+      env:
+        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+
+      run: |
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
+        docker build . --file hip-clang.docker --tag rocm/migraphx-private:hip-clang-f-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+
+    - name: Docker Publish
+      run: |
+        docker push rocm/migraphx-private:hip-clang-f-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
+
+    - name: Check FS and Docker Size
+      run: |
+        df -h
+        docker image ls
+
+
+  tidy:
+    runs-on: ROCM-Ubuntu
+    needs: build_docker
+    steps: 
+    - uses: actions/checkout@v3
 
     - name: Restore cache files for tidy
       uses: actions/cache/restore@v3 
@@ -42,9 +119,13 @@ jobs:
         key: tidy-cache-${{ github.ref }}
         restore-keys: tidy-cache-
         
-    - name: Build the Docker image
+    - name: Pull Docker image
+      env:
+        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}
       run: |
-        docker build . --file hip-clang.docker --tag migraphx
+        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        docker pull rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
+        docker tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }} migraphx:latest
 
     - name: Clang tidy
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
@@ -87,18 +168,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-
     - name: Restore cache files for cppcheck
       id: cppcheck_restore
       uses: actions/cache/restore@v3
@@ -107,8 +176,13 @@ jobs:
         key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
         restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
-    - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+    - name: Pull Docker image
+      env:
+        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}
+      run: |
+        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        docker pull rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
+        docker tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }} migraphx:latest
 
     - name: Cppcheck
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
@@ -148,20 +222,13 @@ jobs:
       with:
         fetch-depth: 0
 
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-
-    - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+    - name: Pull Docker image
+      env:
+        TAGHASH: ${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}
+      run: |
+        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USER --password-stdin
+        docker pull rocm/migraphx-private:hip-clang-${{ env.TAGHASH }}
+        docker tag rocm/migraphx-private:hip-clang-${{ env.TAGHASH }} migraphx:latest
 
     - name: Check formatting
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/register_target.hpp>
-#include <migraphx/target.hpp>
-#include "test.hpp"
 
-TEST_CASE(make_target)
+#include <migraphx/gpu/device/targets.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/errors.hpp>
+#include <hip/hip_runtime_api.h>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+namespace device {
+
+static std::vector<std::string> parse_targets() { return split_string(MIGRAPHX_GPU_TARGETS, ';'); }
+
+const std::vector<std::string>& get_targets()
 {
-    for(const auto& name : migraphx::get_targets())
-    {
-        auto t = migraphx::make_target(name);
-        CHECK(t.name() == name);
-    }
+    static auto result = parse_targets();
+    return result;
 }
 
-TEST_CASE(make_invalid_target)
+std::string get_targets_as_string() { return join_strings(get_targets(), ", "); }
+
+static int get_device_id()
 {
-    EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("No device");
+    return device;
 }
 
-TEST_CASE(targets)
+std::string get_device_name()
 {
-    // GCC doesn't load libmigraphx_ref unless necesssary even though it is linked to the test.
-    // Force it to load by making ref target
-#if defined(__GNUC__) && !defined(__clang__)
-    auto ref_target = migraphx::make_target("ref");
-#endif
-    auto ts = migraphx::get_targets();
-    EXPECT(ts.size() >= 1);
+    hipDeviceProp_t props{};
+    auto status = hipGetDeviceProperties(&props, get_device_id());
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Failed to get device properties");
+    return props.gcnArchName;
 }
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace device
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

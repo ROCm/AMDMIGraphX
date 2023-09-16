@@ -22,46 +22,31 @@
  * THE SOFTWARE.
  */
 #include <migraphx/instruction.hpp>
-#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <random>
 
 #include <test.hpp>
 
-TEST_CASE(rsqrt_test)
+/**
+ * Reference test for the random_seed operation
+ */
+TEST_CASE(random_seed_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = mm->add_literal(migraphx::literal{s, {4.0, 16.0, 64.0}});
-    mm->add_instruction(migraphx::make_op("rsqrt"), l);
+    mm->add_instruction(migraphx::make_op("random_seed"));
+
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.5, 0.25, 0.125};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-}
-
-TEST_CASE(rsqrt_dyn_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape::dynamic_dimension dd{3, 8};
-    migraphx::shape s{migraphx::shape::float_type, {dd}};
-    auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("rsqrt"), input);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> input_data{4.0, 16.0, 64.0};
-    migraphx::parameter_map params0;
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {3}};
-    params0["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
-    auto result  = p.eval(params0).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.5, 0.25, 0.125};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    std::vector<uint64_t> result_vec1(1);
+    result.visit([&](auto output) { result_vec1.assign(output.begin(), output.end()); });
+    std::vector<uint64_t> result_vec2(1);
+    // Identical calls should give different seeds every time with 1/(2^64) chance of a repeat.
+    // We don't analyze for true randomness.
+    result = p.eval({}).back();
+    result.visit([&](auto output) { result_vec2.assign(output.begin(), output.end()); });
+    EXPECT(result_vec1[0] != result_vec2[0]);
 }

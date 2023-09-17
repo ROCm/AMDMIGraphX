@@ -21,11 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_hip_code_object.hpp>
-#include <migraphx/gpu/compile_hip.hpp>
+#include "scatter.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,7 +51,7 @@ MIGRAPHX_GLOBAL void scatternd_kernel(void* in_indices, void* in_updates, void* 
 
 )__migraphx__";
 
-struct scatternd_compiler : compiler<scatternd_compiler>
+struct scatternd_compiler : scatter_compiler<scatternd_compiler>
 {
     std::vector<std::string> names() const
     {
@@ -63,42 +59,13 @@ struct scatternd_compiler : compiler<scatternd_compiler>
             "scatternd_none", "scatternd_add", "scatternd_mul", "scatternd_min", "scatternd_max"};
     }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    std::string make_interpolated_string(const operation& op) const
     {
-        hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.kernel_name    = "scatternd_kernel";
-        options.virtual_inputs = inputs;
-        // The compiler protests the inequality comparison in assign_mul when pertaining to floating
-        // point, despite it making sense in the context. Thus the warning removal.
-        options.params += "-Wno-float-equal";
-        auto reduction = "assign_" + v.get("reduction", std::string{"none"});
-        auto src       = interpolate_string(scatternd_kernel, {{"reduction", reduction}});
-        return compile_hip_code_object(src, options);
+        const auto reduction = op.name().substr(std::char_traits<char>::length("scatternd_"));
+        return interpolate_string(scatternd_kernel, {{"reduction", "assign_" + reduction}});
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
-    {
-        assert(starts_with(op.name(), "scatternd_"));
-        auto reduction = op.name().substr(10);
-        return insert(compile_op(
-            ctx,
-            to_shapes(std::vector<instruction_ref>{ins->inputs().begin() + 1, ins->inputs().end()}),
-            {{"reduction", reduction}}));
-    }
-
-    compiler_replace insert(const operation& co) const
-    {
-        return {co, [](module& m, instruction_ref ins, const operation& op) {
-                    auto args = ins->inputs();
-                    args.back() =
-                        m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
-                    args.erase(args.begin());
-                    return m.replace_instruction(ins, op, args);
-                }};
-    }
+    std::string get_kernel_name(const operation&) const { return "scatternd_kernel"; }
 };
 
 } // namespace gpu

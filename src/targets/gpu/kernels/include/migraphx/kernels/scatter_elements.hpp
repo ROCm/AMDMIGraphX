@@ -26,58 +26,9 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/scatter_reduction_modes.hpp>
 
 namespace migraphx {
-
-struct assign_none
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        x = y;
-    }
-};
-
-struct assign_add
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomicAdd(&x, y);
-    }
-};
-
-struct assign_mul
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        T old = x, assumed;
-        do
-        {
-            assumed = old;
-            old     = atomicCAS(&x, assumed, assumed * y);
-        } while(assumed != old);
-    }
-};
-
-struct assign_max
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomicMax(&x, y);
-    }
-};
-
-struct assign_min
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomicMin(&x, y);
-    }
-};
 
 template <uint64_t Axis, class T, class U, class V, class F>
 __device__ void scatter_elements(const T& indices_t, const U& updates_t, const V& output_t, F f)

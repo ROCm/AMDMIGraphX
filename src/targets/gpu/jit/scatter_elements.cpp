@@ -21,11 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_hip_code_object.hpp>
-#include <migraphx/gpu/compile_hip.hpp>
+#include "scatter.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,42 +51,18 @@ MIGRAPHX_GLOBAL void scatter_elements_kernel(void* in_indices, void* in_updates,
 
 )__migraphx__";
 
-struct scatter_elements_compiler : compiler<scatter_elements_compiler>
+struct scatter_elements_compiler : scatter_compiler<scatter_elements_compiler>
 {
     std::vector<std::string> names() const { return {"scatter_elements"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    std::string make_interpolated_string(const operation& op) const
     {
-        hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.kernel_name    = "scatter_elements_kernel";
-        options.virtual_inputs = inputs;
-        auto reduction         = "assign_" + v.get("reduction", std::string{"none"});
-        auto axis              = std::to_string(v.get("axis", 0));
-        auto src =
-            interpolate_string(scatter_elements_kernel, {{"reduction", reduction}, {"axis", axis}});
-        return compile_hip_code_object(src, options);
-    }
+        const auto v   = op.to_value();
+        auto reduction = "assign_" + v.get("reduction", std::string{"none"});
+        auto axis      = std::to_string(v.get("axis", 0));
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
-    {
-        return insert(compile_op(
-            ctx,
-            to_shapes(std::vector<instruction_ref>{ins->inputs().begin() + 1, ins->inputs().end()}),
-            op.to_value()));
-    }
-
-    compiler_replace insert(const operation& co) const
-    {
-        return {co, [](module& m, instruction_ref ins, const operation& op) {
-                    auto args = ins->inputs();
-                    args.back() =
-                        m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
-                    args.erase(args.begin());
-                    return m.replace_instruction(ins, op, args);
-                }};
+        return interpolate_string(scatter_elements_kernel,
+                                  {{"reduction", reduction}, {"axis", axis}});
     }
 };
 

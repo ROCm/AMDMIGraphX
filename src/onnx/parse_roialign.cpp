@@ -42,9 +42,9 @@ struct parse_roialign : op_parser<parse_roialign>
                           const std::vector<instruction_ref>& args) const
     {
         std::string coord_trans_mode =
-            parser.opset_version == 16 ? "half_pixel" : "output_half_pixel";
+            parser.opset_version >= 16 ? "half_pixel" : "output_half_pixel";
 
-        if(const auto a = "coordinate_transformation_mode"; contains(info.attributes, a))
+        if(const auto* a = "coordinate_transformation_mode"; contains(info.attributes, a))
         {
             coord_trans_mode = info.attributes.at(a).s();
         }

@@ -1325,12 +1325,18 @@ struct find_split_reshape
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto slc = r.instructions["slice"];
-        auto rsp = r.instructions["reshape"];
+        auto slc   = r.instructions["slice"];
+        auto rsp   = r.instructions["reshape"];
+        auto input = slc->inputs().front();
 
-        auto input         = slc->inputs().front();
+        // Only apply simplification when slices are on a single axis
+        auto axes = any_cast<op::slice>(slc->get_operator()).axes;
+        if(axes.size() > 1)
+        {
+            return;
+        }
+
         auto split_outputs = get_splits(input);
-
         if(split_outputs.empty())
         {
             return;
@@ -1365,7 +1371,7 @@ struct find_split_reshape
         }
 
         // ensure reshape happens after the axis dimension
-        auto axis         = any_cast<op::slice>(slc->get_operator()).axes[0];
+        auto axis         = axes[0];
         auto slc_lens     = slc->get_shape().lens();
         auto slc_dim_size = std::accumulate(
             slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());

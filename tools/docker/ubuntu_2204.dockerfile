@@ -87,7 +87,7 @@ RUN test -f /usr/local/hash || exit 1
 RUN pip3 install yapf==0.28.0
 
 # Install doc requirements
-ADD doc/requirements.txt /doc-requirements.txt
+ADD docs/.sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
 # Download real models to run onnx unit tests

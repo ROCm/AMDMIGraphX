@@ -4970,9 +4970,8 @@ def pad_4arg_axes_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 6, 4, 12])
 
-    node = onnx.helper.make_node('Pad',
-                                 inputs=['0', 'arg_pad', 'arg_val', 'arg_axes'],
-                                 outputs=['1'])
+    node = onnx.helper.make_node(
+        'Pad', inputs=['0', 'arg_pad', 'arg_val', 'arg_axes'], outputs=['1'])
 
     return ([arg_axes, arg_val, arg_pad, node], [x], [y])
 
@@ -5012,9 +5011,8 @@ def pad_4arg_neg_axes_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 6, 4, 12])
 
-    node = onnx.helper.make_node('Pad',
-                                 inputs=['0', 'arg_pad', 'arg_val', 'arg_axes'],
-                                 outputs=['1'])
+    node = onnx.helper.make_node(
+        'Pad', inputs=['0', 'arg_pad', 'arg_val', 'arg_axes'], outputs=['1'])
 
     return ([arg_axes, arg_val, arg_pad, node], [x], [y])
 

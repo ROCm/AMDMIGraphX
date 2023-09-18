@@ -41,6 +41,9 @@ struct parse_multinomial : op_parser<parse_multinomial>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+        if(args.empty())
+            MIGRAPHX_THROW("PARSE_MULTINOMIAL: no arguments given");
+
         int dtype = 6;
         if(contains(info.attributes, "dtype"))
             dtype = info.attributes.at("dtype").i();
@@ -80,42 +83,25 @@ struct parse_multinomial : op_parser<parse_multinomial>
         }
         instruction_ref randoms;
 
-        if(not args.empty())
+        shape s0 = args[0]->get_shape();
+
+        if(s0.dynamic())
         {
-            shape s0 = args[0]->get_shape();
-
-            if(s0.dynamic())
-            {
-                //  Dynamic batch_size will be taken from args[0].  Other contents of input are
-                //  ignored here.
-                randoms =
-                    info.add_instruction(migraphx::make_op("random_uniform"), seed_input, args[0]);
-            }
-            else
-            {
-                // use literal.  It may be quite large.
-                batch_size      = s0.lens().front();
-                auto rand_dummy = info.add_literal(
-                    migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
-
-                randoms = info.add_instruction(
-                    migraphx::make_op("random_uniform"), seed_input, rand_dummy);
-            }
+            //  Dynamic batch_size will be taken from args[0].  Other contents of input are
+            //  ignored here.
+            randoms =
+                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, args[0]);
         }
+        else
+        {
+            // use literal.  It may be quite large.
+            batch_size      = s0.lens().front();
+            auto rand_dummy = info.add_literal(
+                migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
 
-        // TODO:  Confirm that this case with no inputs should not be supported.  The input defines
-        // the number of categories, which can't be defaulted.  You can't get to this line with no
-        // inputs because there will be an exception when accessing args[0] above.
-
-        // else
-        // {
-        //     // use literal.  It may be quite large.
-        //     auto rand_dummy = info.add_literal(
-        //         migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
-        //     randoms =
-        //         info.add_instruction(migraphx::make_op("random_uniform"), seed_input,
-        //         rand_dummy);
-        // }
+            randoms = info.add_instruction(
+                migraphx::make_op("random_uniform"), seed_input, rand_dummy);
+        }
 
         return info.add_instruction(
             migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);

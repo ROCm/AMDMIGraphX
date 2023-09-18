@@ -36,7 +36,7 @@ Full documentation for MIGraphX is available at [MIGraphX Documentation](https:/
 - Add missing specialization for the `nullptr` for the hash function
 ### Changed
 - Bumped version of half library to 5.6.0
-- Bumped CI to support rocm 5.7
+- Bumped CI to support rocm 5.6
 - Make building tests optional
 - replace np.bool with bool as per numpy request
 ### Removed

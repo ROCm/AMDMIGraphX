@@ -72,19 +72,21 @@ TEST_CASE(broadcast_transpose_scalar)
 {
     migraphx::module m1;
     {
-        auto l  = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
-        auto mb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
         auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
         m1.add_return({t1});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
-        auto mb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
+        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
         m2.add_return({mb});
     }
-    
+
     EXPECT(m1 == m2);
 }
 
@@ -93,8 +95,9 @@ TEST_CASE(broadcast_transpose_scalar_multi_use)
     // multibroadcast used more than once
     migraphx::module m1;
     {
-        auto l  = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
-        auto mb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
         auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
         auto id = m1.add_instruction(migraphx::make_op("identity"), mb);
         m1.add_return({t1, id});
@@ -102,13 +105,15 @@ TEST_CASE(broadcast_transpose_scalar_multi_use)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
-        auto mb = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
-        auto mb2 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
+        auto mb2 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
         auto id = m2.add_instruction(migraphx::make_op("identity"), mb2);
         m2.add_return({mb, id});
     }
-    
+
     EXPECT(m1 == m2);
 }
 

@@ -631,7 +631,8 @@ struct find_broadcast_transpose
 {
     auto matcher() const
     {
-        return match::name("transpose")(match::arg(0)(match::name("multibroadcast").bind("bcast_ins")));
+        return match::name("transpose")(
+            match::arg(0)(match::name("multibroadcast").bind("bcast_ins")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

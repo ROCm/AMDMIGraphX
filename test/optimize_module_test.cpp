@@ -30,10 +30,7 @@
 #include <migraphx/serialize.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
-{
-    migraphx::run_passes(m, {migraphx::optimize_module{}});
-}
+void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::optimize_module{}}); }
 
 TEST_CASE(broadcast_transpose_inner_broadcast)
 {
@@ -45,16 +42,18 @@ TEST_CASE(broadcast_transpose_inner_broadcast)
         auto l2 = m1.add_parameter("y", {migraphx::shape::float_type, {1}, {0}});
         auto mb1 =
             m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3}}}), l1);
-        auto mb2 = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 2}}}), l2);
-        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), mb1);
+        auto mb2 =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 2}}}), l2);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), mb1);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), mb2, t1);
         m1.add_return({mul});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto l1 = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
-        auto l2 = m2.add_parameter("y", {migraphx::shape::float_type, {1}, {0}});
+        auto l1  = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto l2  = m2.add_parameter("y", {migraphx::shape::float_type, {1}, {0}});
         auto mul = m2.add_instruction(migraphx::make_op("mul"), l2, l1);
         auto mb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 2}}}), mul);

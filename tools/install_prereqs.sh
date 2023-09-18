@@ -40,6 +40,7 @@ if [[ ("${ID}" == "sles") ]]; then
     openmp-extras-devel \
     python3-devel \
     python3-pip \
+    python3-venv \
     rocblas-devel \
     rocm-cmake
 else
@@ -51,7 +52,7 @@ else
     openmp-extras \
     python3-dev \
     python3-pip \
-    python3.8-venv \
+    python3-venv \
     rocblas-dev \
     rocm-cmake
 fi

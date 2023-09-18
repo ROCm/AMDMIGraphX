@@ -60,6 +60,7 @@ struct parse_constant : op_parser<parse_constant>
                            join_strings(std::move(present_attributes), ", "));
         }
 
+        // cppcheck-suppress accessMoved
         auto&& attr = info.attributes[present_attributes[0]];
         literal v   = parser.parse_value(attr);
 

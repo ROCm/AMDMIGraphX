@@ -4718,9 +4718,7 @@ TEST_CASE(pad_4arg_axes_test)
         migraphx::make_op("pad", {{"pads", {0, 1, 0, 3, 0, 2, 0, 4}}, {"value", 1.0f}}), l0);
     mm->add_return({r});
 
-    std::cout << "mm\n" << *mm << std::endl;
     auto prog = migraphx::parse_onnx("pad_4arg_axes_test.onnx");
-    std::cout << "prog\n" << prog << std::endl;
 
     EXPECT(p == prog);
 }

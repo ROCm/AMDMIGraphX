@@ -115,10 +115,35 @@ struct parse_pad : op_parser<parse_pad>
 {
     std::vector<op_desc> operators() const { return {{"Pad"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+    std::string parse_mode(const onnx_parser::node_info& info,
+                           const std::vector<instruction_ref>& args) const
+    {
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if(mode == "reflect")
+            {
+                if(args.front()->get_shape().dynamic())
+                {
+                    MIGRAPHX_THROW("PARSE_PAD: reflect padding with dynamic shape not supported");
+                }
+            }
+            else if(mode != "constant")
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_PAD: migraphx currently only supports constant and reflect padding");
+            }
+            return mode;
+        }
+        else
+        {
+            // default mode
+            return "constant";
+        }
+    }
+
+    std::vector<int64_t> parse_pads(const onnx_parser::node_info& info,
+                                    const std::vector<instruction_ref>& args) const
     {
         std::vector<int64_t> pads{};
         if(args.size() >= 2)
@@ -129,41 +154,22 @@ struct parse_pad : op_parser<parse_pad>
         }
         else if(contains(info.attributes, "pads"))
         {
-            auto&& pad_vals = info.attributes["pads"].ints();
+            auto&& pad_vals = info.attributes.at("pads").ints();
             pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
         }
         else
         {
             MIGRAPHX_THROW("PARSE_PAD: pad must be available");
         }
+        return pads;
+    }
 
-        // check if padding is actually being done (at least one value is nonzero)
-        if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
-        {
-            return info.add_instruction(make_op("identity"), args.front());
-        }
-
-        if(contains(info.attributes, "mode"))
-        {
-            auto mode = info.attributes.at("mode").s();
-            if(mode == "reflect")
-            {
-                if(args.front()->get_shape().dynamic())
-                {
-                    MIGRAPHX_THROW("PARSE_PAD: reflect padding with dynamic shape not supported");
-                }
-                return reflect_pad(info, pads, args.front());
-            }
-            if(mode != "constant")
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_PAD: migraphx currently only supports constant and reflect padding");
-            }
-        }
-
+    float parse_constant_value(const onnx_parser& parser,
+                               const onnx_parser::node_info& info,
+                               const std::vector<instruction_ref>& args) const
+    {
         float value = 0.0f;
-        // third input is the value
-        if(args.size() >= 3)
+        if(args.size() >= 3 and args.at(2)->get_shape().scalar())
         {
             auto val_ins = args.at(2);
             if(not val_ins->can_eval())
@@ -181,52 +187,80 @@ struct parse_pad : op_parser<parse_pad>
         {
             value = parser.parse_value(info.attributes.at("value")).at<float>();
         }
+        return value;
+    }
 
+    std::vector<int64_t> parse_axes(const std::vector<instruction_ref>& args,
+                                    bool is_constant_mode) const
+    {
         std::vector<int64_t> axes{};
-        // fourth input is the axes
-        if(args.size() == 4)
+        // axes is 3rd or 4th, depending on constant mode
+        auto pos = is_constant_mode ? 4 : 3;
+        if(args.size() >= pos)
         {
-            auto axes_arg = args.at(3)->eval();
+            auto axes_arg = args.at(pos - 1)->eval();
             check_arg_empty(axes_arg, "PARSE_PAD: pad input must be constant");
             axes_arg.visit([&](auto v) { axes.assign(v.begin(), v.end()); });
         }
-        else if(contains(info.attributes, "axes"))
+        return axes;
+    }
+
+    std::vector<int64_t> calculate_pads_with_axes(const std::vector<int64_t>& pads,
+                                                  const std::vector<int64_t>& axes,
+                                                  size_t input_rank) const
+    {
+        size_t num_axes = axes.size();
+        if(num_axes * 2 != pads.size())
         {
-            auto&& axes_vals = info.attributes["axes"].ints();
-            axes             = std::vector<int64_t>(axes_vals.begin(), axes_vals.end());
+            MIGRAPHX_THROW("PARSE_PAD: number of elements of pads should be equal to 2 * "
+                           "number of elements of axes");
         }
 
-        size_t input_rank = args.front()->get_shape().ndim();
+        std::vector<int64_t> new_pads(input_rank * 2);
+        for(size_t idx{0}; idx < num_axes; ++idx)
+        {
+            // axis can be negative
+            int64_t axis = axes[idx] < 0 ? input_rank + axes[idx] : axes[idx];
+            // pad format is x1_begin, x2_begin, ... , x3_end, x4_end
+            new_pads[axis]              = pads[idx];
+            new_pads[axis + input_rank] = pads[idx + num_axes];
+        }
+        return new_pads;
+    }
+
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& parser,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
+    {
+        std::vector<int64_t> pads = parse_pads(info, args);
+
+        // check if padding is actually being done (at least one value is nonzero)
+        if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
+        {
+            return info.add_instruction(make_op("identity"), args.front());
+        }
+
+        std::string mode      = parse_mode(info, args);
+        bool is_constant_mode = mode == "constant";
+        float value           = is_constant_mode ? parse_constant_value(parser, info, args) : 0.0f;
+        std::vector<int64_t> axes = parse_axes(args, is_constant_mode);
+        size_t input_rank         = args.front()->get_shape().ndim();
+
         if(not axes.empty())
         {
-            size_t num_axes = axes.size();
-            if(num_axes * 2 != pads.size())
-            {
-                MIGRAPHX_THROW("PARSE_PAD: number of elements of pads should be equal to 2 * "
-                               "number of elements of axes");
-            }
-
-            std::vector<int64_t> new_pads(input_rank * 2);
-            for(size_t idx{0}; idx < num_axes; ++idx)
-            {
-                int64_t axis = axes[idx];
-                // axis can be negative
-                if(axis < 0)
-                {
-                    axis = input_rank + axis;
-                }
-                // pad format is x1_begin, x2_begin, ... , x3_end, x4_end
-                new_pads[axis]              = pads[idx];
-                new_pads[axis + input_rank] = pads[idx + num_axes];
-            }
-
-            pads = new_pads;
+            pads = calculate_pads_with_axes(pads, axes, input_rank);
         }
 
         if(pads.size() != input_rank * 2)
         {
             MIGRAPHX_THROW("PARSE_PAD: number of elements of pads should be equal to 2 * "
                            "input rank");
+        }
+
+        if(mode == "reflect")
+        {
+            return reflect_pad(info, pads, args.front());
         }
 
         return info.add_instruction(migraphx::make_op("pad", {{"pads", pads}, {"value", value}}),

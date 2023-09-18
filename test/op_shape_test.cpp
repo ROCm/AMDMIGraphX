@@ -82,6 +82,33 @@ void throws_shape(const migraphx::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
+TEST_CASE(allocate_static)
+{
+    migraphx::shape out_shape{migraphx::shape::float_type, {2, 3, 4}};
+    expect_shape(out_shape, migraphx::make_op("allocate", {{"shape", to_value(out_shape)}}));
+}
+
+TEST_CASE(allocate_dyn)
+{
+    migraphx::shape input{migraphx::shape::int64_type, {2}};
+    auto max_val = std::numeric_limits<std::size_t>::max();
+    std::vector<migraphx::shape::dynamic_dimension> dyn_dims(
+        2, migraphx::shape::dynamic_dimension{0, max_val});
+    expect_shape(migraphx::shape{migraphx::shape::float_type, dyn_dims},
+                 migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}),
+                 input);
+}
+
+TEST_CASE(allocate_dyn_with_shape_attr)
+{
+    migraphx::shape input{migraphx::shape::int64_type, {4}};
+    migraphx::shape shape_attr{migraphx::shape::float_type,
+                               {{1, 4}, {3, 3}, {4, 8, {4, 6}}, {4, 8}, {4, 6}}};
+    expect_shape(shape_attr,
+                 migraphx::make_op("allocate", {{"shape", migraphx::to_value(shape_attr)}}),
+                 input);
+}
+
 TEST_CASE(argmax_axis0)
 {
     migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
@@ -861,6 +888,50 @@ TEST_CASE(flatten_dyn_axis4)
         migraphx::shape{migraphx::shape::float_type, {{1 * 4 * 6 * 8, 4 * 4 * 6 * 8}, {1, 1}}},
         migraphx::make_op("flatten", {{"axis", 4}}),
         input);
+}
+
+TEST_CASE(fill_static_int)
+{
+    migraphx::shape default_value{migraphx::shape::int64_type, {1}, {0}};
+    migraphx::shape data{migraphx::shape::int64_type, {3, 4, 4}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {3, 4, 4}},
+                 migraphx::make_op("fill"),
+                 default_value,
+                 data);
+}
+
+TEST_CASE(fill_static_float)
+{
+    migraphx::shape default_value{migraphx::shape::float_type, {1}, {0}};
+    migraphx::shape data{migraphx::shape::float_type, {4, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}},
+                 migraphx::make_op("fill"),
+                 default_value,
+                 data);
+}
+
+TEST_CASE(fill_dyn_int)
+{
+    migraphx::shape default_value{migraphx::shape::int64_type, {1}, {0}};
+    migraphx::shape data{migraphx::shape::int64_type,
+                         {{1, 4}, {4, 8, {4, 6, 8}}, {4, 8, {4, 6, 8}}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {{1, 4}, {4, 8, {4, 6, 8}}, {4, 8, {4, 6, 8}}}},
+                 migraphx::make_op("fill"),
+                 default_value,
+                 data);
+}
+
+TEST_CASE(fill_dyn_float)
+{
+    migraphx::shape default_value{migraphx::shape::float_type, {1}, {0}};
+    migraphx::shape data{migraphx::shape::float_type,
+                         {{1, 4}, {4, 8, {4, 6, 8}}, {4, 8, {4, 6, 8}}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                 {{1, 4}, {4, 8, {4, 6, 8}}, {4, 8, {4, 6, 8}}}},
+                 migraphx::make_op("fill"),
+                 default_value,
+                 data);
 }
 
 TEST_CASE(gather)
@@ -2231,6 +2302,20 @@ TEST_CASE(prefix_scan_sum_dyn_2d)
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
             s);
     }
+}
+
+TEST_CASE(random_uniform)
+{
+    std::vector<migraphx::shape::dynamic_dimension> dd{{5, 8}, {3, 7}};
+    migraphx::shape s0{migraphx::shape::uint64_type, {1}};
+    migraphx::shape s1{migraphx::shape::float_type, dd};
+    expect_shape(s1, migraphx::make_op("random_uniform"), s0, s1);
+}
+
+TEST_CASE(random_seed)
+{
+    migraphx::shape s{migraphx::shape::uint64_type, {1}, {0}};
+    expect_shape(s, migraphx::make_op("random_seed"));
 }
 
 TEST_CASE(quant_convolution_shape)

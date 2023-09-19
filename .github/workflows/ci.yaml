@@ -38,7 +38,7 @@ jobs:
         id: image_hash
         run: |
           echo "imagetag=rocm/migraphx-private:hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
-          echo "imagetag_sles=rocm/migraphx-private:hip-clang-sles-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag_sles=rocm/migraphx-sles-private:hip-clang-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
 
       - name: Check if image is built already
         id: check_image

@@ -186,7 +186,7 @@ TEST_CASE(const_slice_3input_dyn)
 {
     migraphx::module m0;
     {
-        migraphx::shape s{migraphx::shape::float_type, {{3, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
+        migraphx::shape s{migraphx::shape::float_type, {{6, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
         auto input     = m0.add_parameter("data", s);
         auto slice_ins = m0.add_instruction(
             migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
@@ -195,7 +195,7 @@ TEST_CASE(const_slice_3input_dyn)
 
     migraphx::module m1;
     {
-        migraphx::shape s{migraphx::shape::float_type, {{3, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
+        migraphx::shape s{migraphx::shape::float_type, {{6, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
         auto input = m1.add_parameter("data", s);
         migraphx::shape s1{migraphx::shape::int32_type, {1}};
         auto input_starts = m1.add_literal(migraphx::literal{s1, {0}});

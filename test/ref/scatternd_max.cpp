@@ -154,3 +154,38 @@ TEST_CASE(scatternd_max_test_4)
 
     EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
+
+TEST_CASE(scatternd_max_test_duplicate_idx)
+{
+    // r=3, q=2, k=1
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto dtype = migraphx::shape::float_type;
+    auto itype = migraphx::shape::int64_type;
+    migraphx::shape ds{dtype, {4, 4, 4}};
+    migraphx::shape is{itype, {2, 1}};
+    migraphx::shape us{dtype, {2, 4, 4}};
+
+    std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6,
+                                7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4,
+                                5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<int64_t> ind_vec{0, 0};
+    std::vector<float> upd_vec{5, 5, 5, 5, 2, 2, 2, 2, 7, 7, 7, 7, 4, 4, 4, 4,
+                               1, 1, 1, 1, 6, 6, 6, 6, 3, 3, 3, 3, 8, 8, 8, 8};
+
+    auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+    auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+    auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+    auto scatternd =
+        mm->add_instruction(migraphx::make_op("scatternd_max"), data, indices, updates);
+    mm->add_return({scatternd});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{5, 5, 5, 5, 6, 6, 7, 8, 8, 7, 7, 7, 8, 8, 8, 8, 1, 2, 3, 4, 5, 6,
+                            7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4,
+                            5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
+
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+}

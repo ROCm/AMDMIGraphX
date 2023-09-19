@@ -35,51 +35,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_pooling::apply(module& m) const
-{
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() != "pooling")
-            continue;
-        if(ins->inputs().empty())
-            continue;
-        auto&& s = ins->inputs().front()->get_shape();
-        if(not s.standard())
-            continue;
-        auto&& op                 = any_cast<op::pooling>(ins->get_operator());
-        bool same_kernel_as_shape = std::equal(
-            s.lens().cbegin() + 2, s.lens().cend(), op.lengths.cbegin(), op.lengths.cend());
-        bool default_strides =
-            std::all_of(op.stride.cbegin(), op.stride.cend(), [](auto i) { return i == 1; });
-        bool default_padding =
-            std::all_of(op.padding.cbegin(), op.padding.cend(), [](auto i) { return i == 0; });
-        bool default_dilations =
-            std::all_of(op.dilations.cbegin(), op.dilations.cend(), [](auto i) { return i == 1; });
-        if(same_kernel_as_shape and default_strides and default_padding and default_dilations)
-        {
-            replace_with_reduce(m, ins);
-        }
-        else if(not default_dilations)
-        {
-            // Dilated AvgPool with padding is not supported
-            if(not default_padding and op.mode == op::pooling_mode::average)
-            {
-                continue;
-            }
-            auto size =
-                std::accumulate(s.lens().cbegin(), s.lens().cend(), 1, std::multiplies<size_t>());
-            // Can't handle too much size because of literal size
-            if(size > 100000)
-            {
-                continue;
-            }
-
-            replace_dilations_with_gather_pooling(m, ins);
-        }
-    }
-}
-
-void rewrite_pooling::replace_with_reduce(module& m, instruction_ref ins) const
+static void replace_with_reduce(module& m, instruction_ref ins)
 {
     auto&& s       = ins->inputs().front()->get_shape();
     auto&& op      = any_cast<op::pooling>(ins->get_operator());
@@ -106,7 +62,7 @@ void rewrite_pooling::replace_with_reduce(module& m, instruction_ref ins) const
     m.replace_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), pooling);
 }
 
-void rewrite_pooling::replace_dilations_with_gather_pooling(module& m, instruction_ref ins) const
+static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins)
 {
     // TODO remove this when MIOpen supports dilated pooling
     auto&& s  = ins->inputs().front()->get_shape();
@@ -188,6 +144,50 @@ void rewrite_pooling::replace_dilations_with_gather_pooling(module& m, instructi
                                    {"lengths", kernels},
                                    {"dilations", new_dilations}}),
                           elements);
+}
+
+void rewrite_pooling::apply(module& m) const
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "pooling")
+            continue;
+        if(ins->inputs().empty())
+            continue;
+        auto&& s = ins->inputs().front()->get_shape();
+        if(not s.standard())
+            continue;
+        auto&& op                 = any_cast<op::pooling>(ins->get_operator());
+        bool same_kernel_as_shape = std::equal(
+            s.lens().cbegin() + 2, s.lens().cend(), op.lengths.cbegin(), op.lengths.cend());
+        bool default_strides =
+            std::all_of(op.stride.cbegin(), op.stride.cend(), [](auto i) { return i == 1; });
+        bool default_padding =
+            std::all_of(op.padding.cbegin(), op.padding.cend(), [](auto i) { return i == 0; });
+        bool default_dilations =
+            std::all_of(op.dilations.cbegin(), op.dilations.cend(), [](auto i) { return i == 1; });
+        if(same_kernel_as_shape and default_strides and default_padding and default_dilations)
+        {
+            replace_with_reduce(m, ins);
+        }
+        else if(not default_dilations)
+        {
+            // Dilated AvgPool with padding is not supported
+            if(not default_padding and op.mode == op::pooling_mode::average)
+            {
+                continue;
+            }
+            auto size =
+                std::accumulate(s.lens().cbegin(), s.lens().cend(), 1, std::multiplies<size_t>());
+            // Can't handle too much size because of literal size
+            if(size > 100000)
+            {
+                continue;
+            }
+
+            replace_dilations_with_gather_pooling(m, ins);
+        }
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

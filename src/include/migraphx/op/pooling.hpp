@@ -413,7 +413,7 @@ struct pooling
                     // lpnorm pooling.
                     if(mode == pooling_mode::lpnorm)
                     {
-                        output_val = op(output_val, 0);
+                        output_val = op(output_val, op.template init<Type>());
                     }
                     if(mode == pooling_mode::average)
                     {

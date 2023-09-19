@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/check_shapes.hpp>
@@ -45,40 +46,42 @@ struct layernorm_base
     }
     shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
     {
-        std::size_t nargs = 1;
+        std::size_t nargs = N;
         if(not mods.empty())
         {
             auto* pm = mods.front();
-            nargs    = pm->get_parameter_names().size();
+            nargs += pm->get_parameter_names().size() - 1;
         }
-        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs + N);
-        auto s = inputs.at(0);
+        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(nargs);
+        auto s = inputs.front();
         auto t = s.type();
         if(not mods.empty())
             t = mods.front()->get_output_shapes().front().type();
-        if(s.scalar())
-        {
-            return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {t, s.lens()};
-        }
-        else
-        {
-            return s.with_lens(t, s.lens());
-        }
+
+        // Scalar output if all inputs are scalar
+        if(inputs.front().elements() == 1 and
+           all_of(inputs, [](const auto& ss) { return ss.scalar(); }))
+            return inputs.front();
+        auto l_s = shape::from_permutation(
+            t, s.lens(), find_permutation(std::vector<shape>(inputs.begin(), inputs.begin() + N)));
+        // just prelayernorm or preadd_layernorm
+        if(nargs <= N)
+            return l_s;
+        // else, layernorm + pointwise fusion, preserve layout of fused op
+        std::vector<shape> lp_s(inputs.begin() + N, inputs.end());
+        lp_s.insert(lp_s.begin(), l_s);
+        return shape::from_permutation(t, s.lens(), find_permutation(lp_s));
     }
 };
 
-struct layernorm : layernorm_base<layernorm, 0>
+struct layernorm : layernorm_base<layernorm, 1>
 {
 
     std::string name() const { return "gpu::prelayernorm"; }
 };
 MIGRAPHX_REGISTER_OP(layernorm);
 
-struct add_layernorm : layernorm_base<add_layernorm, 1>
+struct add_layernorm : layernorm_base<add_layernorm, 2>
 {
     std::string name() const { return "gpu::preadd_layernorm"; }
 };

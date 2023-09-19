@@ -51,7 +51,8 @@ struct assign_mul
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        T old = x, assumed;
+        T old = x;
+        T assumed;
         do
         {
             assumed = old;

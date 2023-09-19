@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/optional.hpp>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -43,6 +44,9 @@ struct MIGRAPHX_EXPORT dynamic_loader
         return path(reinterpret_cast<void*>(address));
     }
     static fs::path path(void* address);
+
+    static optional<dynamic_loader> try_load(const fs::path& p);
+
     dynamic_loader() = default;
 
     dynamic_loader(const fs::path& p);

@@ -92,7 +92,7 @@ struct hip_sync_stream
         return inputs.front();
     }
 
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(const context& ctx, const shape&, const std::vector<argument>& args) const
     {
         gpu_sync(ctx);
         if(args.empty())

@@ -40,13 +40,14 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+
 #include <iostream>
+#include <queue>
 #include <sstream>
 #include <algorithm>
 #include <set>
 #include <unordered_map>
 #include <utility>
-
 #include <unordered_set>
 #include <map>
 #include <cassert>
@@ -222,7 +223,7 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     // Gather all the target roots
     std::unordered_multimap<std::size_t, module_ref> roots;
     auto mods = this->get_modules();
-    for(auto* mod : mods)
+    for(const auto* mod : mods)
     {
         for(const auto& ins : *mod)
         {
@@ -547,7 +548,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
         ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
-            auto& ctx = contexts[ins->get_target_id()];
+            const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();
             std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             timer t{};
@@ -623,7 +624,7 @@ std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 6;
+const int program_file_version = 7;
 
 value program::to_value() const
 {
@@ -727,7 +728,7 @@ static void mod_from_val(module_ref mod,
                                std::back_inserter(module_inputs),
                                [&](const value& i) { return map_mods.at(i.to<std::string>()); });
 
-                for(auto& smod : module_inputs)
+                for(const auto& smod : module_inputs)
                 {
                     mod_from_val(smod, v, instructions, map_mods);
                 }
@@ -1185,17 +1186,25 @@ void program::remove_unused_modules()
     std::vector<module*> unused;
     generic_get_unused_modules(
         impl->modules, generic_get_modules(this->get_main_module()), std::back_inserter(unused));
-    for(auto* m : unused)
+    for(const auto* m : unused)
         this->remove_module(m->name());
 }
 
 program& program::sort()
 {
-    for(auto& pp : this->impl->modules)
+    std::queue<migraphx::module_ref> mqueue;
+    mqueue.push(get_main_module());
+    while(not mqueue.empty())
     {
-        pp.second.sort();
+        module_ref current_mod = mqueue.front();
+        current_mod->sort();
+        mqueue.pop();
+        auto child_mods = current_mod->get_sub_modules(true);
+        for(auto& sub_mod : child_mods)
+        {
+            mqueue.push(sub_mod);
+        }
     }
-
     return *this;
 }
 

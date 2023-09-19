@@ -77,6 +77,9 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
+# Temporarily install a new cmake until switching to ubuntu 22.04
+RUN pip3 install cmake==3.22.1
+
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 RUN test -f /usr/local/hash || exit 1
@@ -98,6 +101,9 @@ RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cma
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
 
+# Install MLIR
+ADD mlir-requirements.txt /mlir-requirements.txt
+RUN cget -p /usr/local install -f /mlir-requirements.txt
 
 COPY ./test/onnx/.onnxrt-commit /
 
@@ -114,9 +120,6 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
 ADD tools/build_and_install_onnxrt.sh /onnxruntime/build_and_install_onnxrt.sh
 ADD tools/test_onnxrt_unit_tests.sh /onnxruntime/test_onnxrt_unit_tests.sh
 ADD tools/test_onnxrt_parity_checks.sh /onnxruntime/test_onnxrt_parity_checks.sh
-
-# Use the /opt/cmake install because LLVM/MLIR need cmake >= 3.20
-RUN env PATH=/opt/cmake/bin:$PATH cget -p /usr/local install ROCmSoftwarePlatform/rocMLIR@1ad9d6df32acc6d29d58e8ed6710e36746d0a4d6 -DBUILD_FAT_LIBROCKCOMPILER=On
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

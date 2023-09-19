@@ -72,12 +72,12 @@ struct hip_heap_vector
             index_int l    = 2 * index + 1;
             index_int r    = 2 * index + 2;
 
-            if(l < n && compare(data[data_index(l)], data[data_index(index)]))
+            if(l < n and compare(data[data_index(l)], data[data_index(index)]))
             {
                 index = l;
             }
 
-            if(r < n && compare(data[data_index(r)], data[data_index(index)]))
+            if(r < n and compare(data[data_index(r)], data[data_index(index)]))
             {
                 index = r;
                 if(compare(data[data_index(l)], data[data_index(r)]))

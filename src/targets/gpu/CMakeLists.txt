@@ -33,7 +33,10 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-find_package(composable_kernel 1.0.0 COMPONENTS jit_library REQUIRED) 
+if(NOT WIN32)
+    # TODO: re-enable when CK is ported to Windows
+    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+endif()
 
 if(BUILD_DEV)
     set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "Use hipRTC APIs")
@@ -45,8 +48,9 @@ include(Embed)
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-add_embed_library(migraphx_kernels ${KERNEL_FILES})
+add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
+configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
@@ -66,6 +70,7 @@ rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
@@ -85,6 +90,12 @@ target_link_libraries(kernel_file_check compile_for_gpu)
 rocm_clang_tidy_check(kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
+
+if(WIN32)
+    # TODO: re-enable when CK is ported to Windows
+    list(REMOVE_ITEM JIT_GPU_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp)
+endif()
+
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -114,6 +125,7 @@ add_library(migraphx_gpu
     lrn.cpp
     mlir.cpp
     multinomial.cpp
+    no_device.cpp
     nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp
@@ -133,6 +145,7 @@ add_library(migraphx_gpu
     write_literals.cpp
     ${JIT_GPU_SRCS}
 )
+
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 
@@ -255,7 +268,11 @@ else()
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels composable_kernel::jit_library)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+if(NOT WIN32)
+    # TODO: re-enable when CK is ported to Windows
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+endif()
 
 add_subdirectory(driver)
 add_subdirectory(hiprtc)

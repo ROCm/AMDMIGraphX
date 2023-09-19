@@ -32,6 +32,7 @@
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/py.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -81,6 +82,7 @@ struct loader
            {"--model"},
            ap.help("Load model"),
            ap.type("resnet50|inceptionv3|alexnet"),
+           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -241,6 +243,20 @@ struct loader
         return options;
     }
 
+    static std::string get_file_type(const std::string& file)
+    {
+        if(ends_with(file, ".onnx"))
+            return "onnx";
+        else if(ends_with(file, ".pb"))
+            return "tf";
+        else if(ends_with(file, ".json"))
+            return "json";
+        else if(ends_with(file, ".py"))
+            return "py";
+        else
+            return "migraphx";
+    }
+
     program load()
     {
         program p;
@@ -248,14 +264,7 @@ struct loader
         {
             if(file_type.empty())
             {
-                if(ends_with(file, ".onnx"))
-                    file_type = "onnx";
-                else if(ends_with(file, ".pb"))
-                    file_type = "tf";
-                else if(ends_with(file, ".json"))
-                    file_type = "json";
-                else
-                    file_type = "migraphx";
+                file_type = get_file_type(file);
             }
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
@@ -271,6 +280,10 @@ struct loader
                 file_options options;
                 options.format = "json";
                 p              = migraphx::load(file, options);
+            }
+            else if(file_type == "py")
+            {
+                p = migraphx::load_py(file);
             }
             else if(file_type == "migraphx")
             {
@@ -462,13 +475,15 @@ struct compiler
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
                 {
-                    std::cout << "MIGraphX program was likely compiled with offload_copy set, Try "
-                                 "passing "
-                                 "`--enable-offload-copy` if program run fails.\n";
+                    std::cout
+                        << "[WARNING]: MIGraphX program was likely compiled with offload_copy "
+                           "set, Try "
+                           "passing "
+                           "`--enable-offload-copy` if program run fails.\n";
                 }
                 else if(co.offload_copy)
                 {
-                    std::cout << "MIGraphX program was likely compiled without "
+                    std::cout << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
                                  "`--enable-offload-copy` flag if passed to driver, if program run "
@@ -757,7 +772,7 @@ struct main_command
         {
             std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset
                       << "' is not a valid command." << std::endl;
-            std::cout << get_command_help("Available commands:") << std::endl;
+            std::cout << get_command_help("Available commands:");
         }
         else
         {
@@ -789,6 +804,13 @@ int main(int argc, const char* argv[])
 
     auto&& m = get_commands();
     auto cmd = args.front();
+
+    if(cmd == "ort-sha")
+    {
+        std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
+        return 0;
+    }
+
     if(m.count(cmd) > 0)
     {
         m.at(cmd)(argv[0], {args.begin() + 1, args.end()});

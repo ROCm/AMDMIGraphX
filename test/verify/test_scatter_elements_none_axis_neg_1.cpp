@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_scatter0 : verify_program<test_scatter0>
+struct test_scatter_elements_none_axis_neg_1 : verify_program<test_scatter_elements_none_axis_neg_1>
 {
     migraphx::program create_program() const
     {
@@ -41,7 +41,11 @@ struct test_scatter0 : verify_program<test_scatter0>
         auto pd = mm->add_parameter("data", sd);
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto pu = mm->add_parameter("update", su);
-        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
+        auto r  = mm->add_instruction(
+            migraphx::make_op("scatter_elements", {{"axis", -1}, {"reduction", "none"}}),
+            pd,
+            li,
+            pu);
         mm->add_return({r});
 
         return p;

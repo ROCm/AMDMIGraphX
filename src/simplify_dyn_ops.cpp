@@ -167,9 +167,9 @@ void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
                         find_static_2in_broadcasts{},
+                        find_static_dimensions_of{},
                         find_const_3in_slice{},
-                        find_const_4in_slice{},
-                        find_static_dimensions_of{});
+                        find_const_4in_slice{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

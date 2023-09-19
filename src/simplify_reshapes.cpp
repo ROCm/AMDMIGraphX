@@ -789,7 +789,6 @@ void simplify_reshapes::apply(module& m) const
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
-                            find_reshape_cont{},
                             find_nop_reshapes{},
                             find_reshaper{},
                             find_reshape_cont{},

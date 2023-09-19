@@ -90,11 +90,11 @@ jobs:
     - uses: actions/checkout@v3
     - name: Build and publish SLES
       env:            
-        DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag_sles }}
+        DOCKERIMAGE_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
       run: |
         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
-        docker build . --file tools/docker/sles.docker --tag $DOCKERIMAGE;
-        docker push $DOCKERIMAGE;
+        docker build . --file tools/docker/sles.docker --tag $DOCKERIMAGE_SLES;
+        docker push $DOCKERIMAGE_SLES;
 
 
   tidy:
@@ -177,7 +177,6 @@ jobs:
       run: |
         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
-
     - name: Cppcheck
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
       run: |
@@ -225,7 +224,6 @@ jobs:
       run: |
         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
-
     - name: Check formatting
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
       run: |
@@ -237,7 +235,7 @@ jobs:
     runs-on: ROCM-Ubuntu
     needs: [ build_SLES_image, check_image ]
     env:
-      DOCKERIMAGE: ${{ needs.check_image.outputs.imagetag_sles }}    
+      DOCKERIMAGE_SLES: ${{ needs.check_image.outputs.imagetag_sles }}    
     steps:
     - uses: actions/checkout@v3
       with:
@@ -256,7 +254,7 @@ jobs:
         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 
     - name: Build migraphx
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE bash < {0}"
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKERIMAGE_SLES bash < {0}"
       run: |
         set -e
         export CCACHE_COMPRESSLEVEL=10

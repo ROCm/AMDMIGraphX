@@ -85,10 +85,12 @@ void verify_program(const std::string& name,
     std::size_t output_num = x.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        if(x[i].get_shape().type() != y[i].get_shape().type() or x[i].get_shape().lens() != y[i].get_shape().lens())
+        if(x[i].get_shape().type() != y[i].get_shape().type() or
+           x[i].get_shape().lens() != y[i].get_shape().lens())
         {
             std::cout << "FAILED: " << name << std::endl;
-            std::cout << "Shape mismatch {" << x[i].get_shape() << "} != {" << y[i].get_shape() << "}" << std::endl;
+            std::cout << "Shape mismatch {" << x[i].get_shape() << "} != {" << y[i].get_shape()
+                      << "}" << std::endl;
         }
         else
         {
@@ -160,7 +162,7 @@ void verify_reduced(program p,
     {
         verify_program(std::to_string(n), p, t, options, quantize, inputs, tolerance);
     }
-    catch(const std::exception& e) 
+    catch(const std::exception& e)
     {
         std::cout << "FAILED: " << n << std::endl;
         std::cout << "Exception: " << e.what() << std::endl;
@@ -180,7 +182,8 @@ void verify_reduced_program(const program& p,
     for(std::size_t i = 1; i < n; i++)
     {
         auto last = std::prev(mm->end(), i + 1);
-        if(contains({"@literal", "@param"}, last->name())) {
+        if(contains({"@literal", "@param"}, last->name()))
+        {
             std::cout << "Skip: " << i << std::endl;
             continue;
         }

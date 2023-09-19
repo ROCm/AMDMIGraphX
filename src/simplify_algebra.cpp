@@ -1405,11 +1405,28 @@ struct find_split_reshape
             rsp_axis = std::distance(rsp_strides.begin(), ait);
         }
 
-        // calculate reshape output shape
+        // Calculate reshape output shape
+        // Need to find a reshape such that data represented by instructions in vec_rsp can be
+        // written as slices of this new reshape. This is done by holding all the dims constant in
+        // rsp_lens to compute the required dim for rsp_axis (axis that will be sliced)
+
+        // ex 1:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
+        //        Reshape Outputs: {2, 2, 2, 4}, {2, 2, 2, 4}, {2, 2, 2, 4}
+        //        rsp_axis = 1, rsp_out_lens (initial) = {2, 1, 2, 4}, rsp_fixed_size = 2*1*2*4 = 16
+        //        rsp_axis_len = 2*12*4 / 16 = 6
+        //        rsp_out_lens (final) = {2, 6, 2, 4}
+
+        // ex 2:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
+        //        Reshape Outputs: {2, 16}, {2, 16}, {2, 16}
+        //        rsp_axis = 1, rsp_out_lens (initial) = {2, 1}, rsp_fixed_size = 2*1 = 2
+        //        rsp_axis_len = 2*12*4 / 2 = 48
+        //        rsp_out_lens (final) = {2, 48}
+
         std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
         rsp_out_lens[rsp_axis] = 1;
         auto rsp_fixed_size    = std::accumulate(
             rsp_out_lens.begin(), rsp_out_lens.end(), 1, std::multiplies<std::size_t>());
+
         // cannot create a valid reshape for simplification
         if(input_size % rsp_fixed_size != 0)
         {
@@ -1418,9 +1435,20 @@ struct find_split_reshape
         auto rsp_axis_len      = input_size / rsp_fixed_size;
         rsp_out_lens[rsp_axis] = rsp_axis_len;
 
-        // calculate new slice start and end indices
-        // indices are scaled using the new reshape axis and the original slice axis
-        // eg. slice with size [1, 2, 4, 30] can be reshaped to [8, 30] and vice-versa
+        // Calculate new slice start and end indices. Indices are scaled using the new reshape axis
+        // and the original slice axis. See examples:
+
+        // ex 1:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
+        //        Reshape Outputs: {2, 2, 2, 4}, {2, 2, 2, 4}, {2, 2, 2, 4}
+        //        slc_axis_len = 12, rsp_axis_len = 6
+        //        New Starts: {0*6/12, 4*6/12,  8*6/12} = {0, 2, 4}
+        //        New Ends:   {4*6/12, 8*6/12, 12*6/12} = {2, 4, 6}
+
+        // ex 2:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
+        //        Reshape Outputs: {2, 16}, {2, 16}, {2, 16}
+        //        slc_axis_len = 12, rsp_axis_len = 48
+        //        New Starts: {0*48/12, 4*48/12,  8*48/12} = { 0, 16, 32}
+        //        New Ends:   {4*48/12, 8*48/12, 12*48/12} = {16, 32, 48}
 
         std::vector<int64_t> new_starts(vec_rsp.size());
         std::transform(vec_rsp.begin(), vec_rsp.end(), new_starts.begin(), [&](auto is) {

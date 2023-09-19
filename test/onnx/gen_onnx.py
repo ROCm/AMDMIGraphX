@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -6068,8 +6070,7 @@ def scatter_none_test():
     return ([node], [x, i, u], [y])
 
 
-@onnx_test()
-def scatternd_add_test():
+def make_scatternd_test(reduction="none"):
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
     indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
                                             [2, 1, 2])
@@ -6081,44 +6082,34 @@ def scatternd_add_test():
     node = onnx.helper.make_node('ScatterND',
                                  inputs=['data', 'indices', 'updates'],
                                  outputs=['output'],
-                                 reduction="add")
+                                 reduction=reduction)
 
     return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
+def scatternd_add_test():
+    return make_scatternd_test("add")
 
 
 @onnx_test()
 def scatternd_mul_test():
-    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
-    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
-                                            [2, 1, 2])
-    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
-                                            [2, 1, 2])
-    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
-                                           [2, 2, 2])
+    return make_scatternd_test("mul")
 
-    node = onnx.helper.make_node('ScatterND',
-                                 inputs=['data', 'indices', 'updates'],
-                                 outputs=['output'],
-                                 reduction="mul")
 
-    return ([node], [data, indices, updates], [output])
+@onnx_test()
+def scatternd_max_test():
+    return make_scatternd_test("max")
+
+
+@onnx_test()
+def scatternd_min_test():
+    return make_scatternd_test("min")
 
 
 @onnx_test()
 def scatternd_test():
-    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
-    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
-                                            [2, 1, 2])
-    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
-                                            [2, 1, 2])
-    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
-                                           [2, 2, 2])
-
-    node = onnx.helper.make_node('ScatterND',
-                                 inputs=['data', 'indices', 'updates'],
-                                 outputs=['output'])
-
-    return ([node], [data, indices, updates], [output])
+    return make_scatternd_test()
 
 
 @onnx_test()

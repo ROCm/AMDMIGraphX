@@ -5985,19 +5985,29 @@ TEST_CASE(scatter_none_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(scatternd_test)
+void scatternd_test_base(const std::string& reduction, const std::string& onnx_file)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
     auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_none"), l0, l1, l2);
+    auto r   = mm->add_instruction(migraphx::make_op("scatternd_" + reduction), l0, l1, l2);
     mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_test.onnx");
+    auto prog = migraphx::parse_onnx(onnx_file);
 
     EXPECT(p == prog);
 }
+
+TEST_CASE(scatternd_test) { scatternd_test_base("none", "scatternd_test.onnx"); }
+
+TEST_CASE(scatternd_add_test) { scatternd_test_base("add", "scatternd_add_test.onnx"); }
+
+TEST_CASE(scatternd_mul_test) { scatternd_test_base("mul", "scatternd_mul_test.onnx"); }
+
+TEST_CASE(scatternd_max_test) { scatternd_test_base("max", "scatternd_max_test.onnx"); }
+
+TEST_CASE(scatternd_min_test) { scatternd_test_base("min", "scatternd_min_test.onnx"); }
 
 TEST_CASE(scatternd_dyn_test)
 {
@@ -6018,34 +6028,6 @@ TEST_CASE(scatternd_dyn_test)
     options.map_dyn_input_dims["indices"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
     options.map_dyn_input_dims["updates"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
     auto prog = migraphx::parse_onnx("scatternd_dyn_test.onnx", options);
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(scatternd_add_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
-    auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_add"), l0, l1, l2);
-    mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_add_test.onnx");
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(scatternd_mul_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
-    auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_mul"), l0, l1, l2);
-    mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_mul_test.onnx");
 
     EXPECT(p == prog);
 }

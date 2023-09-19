@@ -239,6 +239,17 @@ bool verify_range_with_threshold(const R1& r1,
     return error <= threshold;
 }
 
+// expected argument should be passed as second, but if it is passed as the first by mistake then
+// flip the order
+template <class R1, class R2>
+bool verify_range_with_threshold(const expected<R1>& r1,
+                                 const R2& r2,
+                                 double threshold,
+                                 double* out_error = nullptr)
+{
+    return verify_range(r2, r1, threshold, out_error);
+}
+
 } // namespace verify
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

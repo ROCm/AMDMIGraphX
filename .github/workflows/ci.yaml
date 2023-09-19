@@ -236,6 +236,8 @@ jobs:
     needs: [ build_SLES_image, check_image ]
     env:
       DOCKERIMAGE_SLES: ${{ needs.check_image.outputs.imagetag_sles }}    
+    
+    if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || needs.build_SLES_image.result == 'skipped') }}      
     steps:
     - uses: actions/checkout@v3
       with:

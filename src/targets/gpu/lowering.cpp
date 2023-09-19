@@ -391,17 +391,16 @@ struct miopen_apply
             before_contiguous_args.push_back(before_alloc);
             mod->insert_instruction(ins, make_op("gpu::contiguous"), before_contiguous_args);
 
-            mod->replace_instruction(
+            auto new_lazy_reshape = mod->insert_instruction(
                 ins,
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                 ins->inputs(),
                 ins->module_inputs());
 
-            std::vector<instruction_ref> after_contiguous_args = {ins};
-            auto after_alloc = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
+            auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
             after_contiguous_args.push_back(after_alloc);
-            return mod->insert_instruction(
-                std::next(ins), make_op("gpu::contiguous"), after_contiguous_args);
+            return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
         });
     }
 };

@@ -143,6 +143,7 @@ register_migraphx_ops(
     equal
     erf
     exp
+    fill
     flatten
     floor
     fmod

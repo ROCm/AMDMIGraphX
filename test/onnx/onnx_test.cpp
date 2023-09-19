@@ -4268,7 +4268,6 @@ TEST_CASE(multinomial_autoseed_dyn_test)
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    std::vector<float> data(rs.elements(), 0.3f);
 
     auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));
     auto randoms    = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, input);

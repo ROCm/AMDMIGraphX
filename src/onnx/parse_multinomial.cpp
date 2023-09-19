@@ -49,10 +49,6 @@ struct parse_multinomial : op_parser<parse_multinomial>
             dtype = info.attributes.at("dtype").i();
         shape::type_t output_type = get_type(dtype);
 
-        size_t batch_size = 1;
-        if(contains(info.attributes, "batch_size"))
-            batch_size = info.attributes.at("batch_size").i();
-
         size_t sample_size = 1;
         if(contains(info.attributes, "sample_size"))
             sample_size = info.attributes.at("sample_size").i();
@@ -95,12 +91,12 @@ struct parse_multinomial : op_parser<parse_multinomial>
         else
         {
             // use literal.  It may be quite large.
-            batch_size      = s0.lens().front();
-            auto rand_dummy = info.add_literal(
+            size_t batch_size = s0.lens().front();
+            auto rand_dummy   = info.add_literal(
                 migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
 
-            randoms = info.add_instruction(
-                migraphx::make_op("random_uniform"), seed_input, rand_dummy);
+            randoms =
+                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
         }
 
         return info.add_instruction(

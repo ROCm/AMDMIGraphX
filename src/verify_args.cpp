@@ -28,14 +28,15 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 bool verify_args_with_threshold(const std::string& name,
-                                const argument& ref_arg,
                                 const argument& target_arg,
+                                const argument& ref_arg,
                                 double threshold)
 {
     bool passed = true;
     visit_all(ref_arg, target_arg)([&](auto ref, auto target) {
         double error;
-        passed = verify::verify_range_with_threshold(ref, target, threshold, &error);
+        passed =
+            verify::verify_range_with_threshold(target, verify::expected{ref}, threshold, &error);
         if(not passed)
         {
             // TODO: Check for nans
@@ -100,7 +101,7 @@ bool verify_args(const std::string& name,
 {
     double threshold = 0.001;
     target_arg.visit([&](auto ta) { threshold = verify::get_threshold(ta, tolerance); });
-    return verify_args_with_threshold(name, ref_arg, target_arg, threshold);
+    return verify_args_with_threshold(name, target_arg, ref_arg, threshold);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

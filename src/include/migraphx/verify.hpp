@@ -29,6 +29,7 @@
 #include <functional>
 #include <iostream>
 #include <numeric>
+#include <assert.h>
 
 #include <migraphx/float_equal.hpp>
 #include <migraphx/config.hpp>
@@ -194,6 +195,25 @@ double get_threshold(const R&, std::size_t tolerance = 80)
     return threshold;
 }
 
+template <class T>
+struct expected
+{
+    expected() = default;
+    expected(const T& input) : x(&input) {}
+    const T& data() const
+    {
+        assert(x != nullptr);
+        return *x;
+    }
+
+    private:
+    const T* x = nullptr;
+};
+
+// deduction guide for templated expected class
+template <class T>
+expected(const T&) -> expected<T>;
+
 template <class R1, class R2>
 bool verify_range(const R1& r1,
                   const R2& r2,
@@ -208,9 +228,12 @@ bool verify_range(const R1& r1,
 }
 
 template <class R1, class R2>
-bool verify_range_with_threshold(const R1& r1, const R2& r2, double threshold, double* out_error = nullptr)
+bool verify_range_with_threshold(const R1& r1,
+                                 const expected<R2>& r2,
+                                 double threshold,
+                                 double* out_error = nullptr)
 {
-    auto error = rms_range(r1, r2);
+    auto error = rms_range(r1, r2.data());
     if(out_error != nullptr)
         *out_error = error;
     return error <= threshold;

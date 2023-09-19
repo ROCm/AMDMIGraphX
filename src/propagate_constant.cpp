@@ -104,8 +104,6 @@ void propagate_constant::apply(module& m) const
             auto in_shape = const_instrs_vec[i]->get_shape();
             assert(literals[i].get_shape() == in_shape);
             literal l{in_shape, literals[i].data()};
-            if(const_instrs_vec[i]->outputs().front()->name() == "dot")
-                l = {{in_shape.type(), in_shape.lens()}, literals[i].data()};
             auto l0 = m.add_literal(l);
             m.replace_instruction(const_instrs_vec[i], l0);
         }

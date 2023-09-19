@@ -21,39 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GPU_MLIR_HPP
 
-#include <string>
-#include <vector>
-#include <migraphx/gpu/config.hpp>
-#include <migraphx/gpu/code_object_op.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/gpu/tuning_config.hpp>
+#include <migraphx/gpu/device/targets.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/errors.hpp>
+#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct module;
 namespace gpu {
+namespace device {
 
-MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
-MIGRAPHX_GPU_EXPORT code_object_op compile_mlir(const context& migraphx_ctx,
-                                                module m,
-                                                const std::vector<instruction_ref>& inputs,
-                                                const value& solution);
+static std::vector<std::string> parse_targets() { return split_string(MIGRAPHX_GPU_TARGETS, ';'); }
 
-MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
-                                                instruction_ref ins,
-                                                code_object_op co,
-                                                const std::vector<instruction_ref>& inputs);
+const std::vector<std::string>& get_targets()
+{
+    static auto result = parse_targets();
+    return result;
+}
 
-MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
-                                                         module m,
-                                                         const std::vector<shape>& inputs,
-                                                         bool exhaustive);
+std::string get_targets_as_string() { return join_strings(get_targets(), ", "); }
 
+static int get_device_id()
+{
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("No device");
+    return device;
+}
+
+std::string get_device_name()
+{
+    hipDeviceProp_t props{};
+    auto status = hipGetDeviceProperties(&props, get_device_id());
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Failed to get device properties");
+    return props.gcnArchName;
+}
+
+} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

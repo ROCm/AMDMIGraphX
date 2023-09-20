@@ -282,3 +282,10 @@ rocm_install_targets(
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+if(WIN32)
+    add_custom_command(TARGET migraphx_gpu POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy  "${MIOPEN_LOCATION}" $<TARGET_FILE_DIR:migraphx_gpu>
+        COMMAND_EXPAND_LISTS
+    )
+endif()

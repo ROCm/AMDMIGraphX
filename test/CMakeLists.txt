@@ -28,6 +28,11 @@ find_package(Threads REQUIRED)
 rocm_test_link_libraries(Threads::Threads migraphx migraphx_ref migraphx_onnx migraphx_tf)
 rocm_test_include_directories(include)
 
+set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")
+if(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
+    add_compile_definitions(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
+endif()
+
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 
 foreach(TEST ${TESTS})

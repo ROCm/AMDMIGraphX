@@ -117,7 +117,7 @@ TEST_CASE(int8_quantization)
         // the regular pipeline uses the rewrite_quantization in the much
         // earlier stage.
         if(migraphx::gpu::mlir_enabled())
-            EXPECT(migraphx::verify::verify_range_with_threshold(
+            EXPECT(migraphx::verify::verify_range_with_tolerance(
                 gpu_result,
                 migraphx::verify::expected{ref_result},
                 migraphx::verify::tolerance{0.01}));

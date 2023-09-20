@@ -1077,7 +1077,7 @@ TEST_CASE(int8_quantization_dot)
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, m, no_quant_result);
 
-        EXPECT(migraphx::verify::verify_range_with_threshold(
+        EXPECT(migraphx::verify::verify_range_with_tolerance(
             quant_result,
             migraphx::verify::expected{no_quant_result},
             migraphx::verify::tolerance{0.003}));

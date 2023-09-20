@@ -254,7 +254,7 @@ bool verify_range(const R1& r1,
 }
 
 template <class R1, class R2>
-bool verify_range_with_threshold(const R1& r1,
+bool verify_range_with_tolerance(const R1& r1,
                                  const expected<R2>& r2,
                                  tolerance tols    = tolerance{},
                                  double* out_error = nullptr)
@@ -270,7 +270,7 @@ bool verify_range_with_threshold(const R1& r1,
 // expected argument should be passed as second, but if it is passed as the first by mistake then
 // flip the order
 template <class R1, class R2>
-bool verify_range_with_threshold(const expected<R1>& r1,
+bool verify_range_with_tolerance(const expected<R1>& r1,
                                  const R2& r2,
                                  tolerance tols    = tolerance{},
                                  double* out_error = nullptr)

@@ -26,6 +26,7 @@
 
 #include "precision.hpp"
 #include <migraphx/program.hpp>
+#include <migraphx/verify.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -37,18 +38,18 @@ void verify_program(const std::string& name,
                     compile_options options     = compile_options{},
                     precision quantize          = precision::fp32,
                     const parameter_map& inputs = {},
-                    double threshold            = 0.001);
+                    verify::threshold tols      = verify::threshold{});
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options = compile_options{},
                          precision quantize      = precision::fp32,
-                         double threshold        = 0.001);
+                         verify::threshold tols  = verify::threshold{});
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options     = compile_options{},
                             precision quantize          = precision::fp32,
                             const parameter_map& inputs = {},
-                            double threshold            = 0.001);
+                            verify::threshold tols      = verify::threshold{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

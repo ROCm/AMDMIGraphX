@@ -536,13 +536,15 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    double rms_tol       = 0.001;
+    migraphx::verify::threshold tols;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(rms_tol, {"--rms_tol"}, ap.help("Tolerance for the RMS error"));
+        ap(tols.rms_tol, {"--rms_tol"}, ap.help("Tolerance for the RMS error"));
+        ap(tols.atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute error"));
+        ap(tols.rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative error"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
@@ -567,15 +569,15 @@ struct verify : command<verify>
 
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, quantize, rms_tol);
+            verify_instructions(p, t, c.co, quantize, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, quantize, m, rms_tol);
+            verify_reduced_program(p, t, c.co, quantize, m, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, quantize, m, rms_tol);
+            verify_program(c.l.file, p, t, c.co, quantize, m, tols);
         }
     }
 };

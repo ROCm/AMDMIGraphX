@@ -234,7 +234,7 @@ bool allclose(const R1& r1, const R2& r2, tolerance tols)
         auto idx = mismatch_idx(r1, r2, [&](auto x, auto y) {
             return abs_diff(double(x), double(y)) > tols.atol + tols.rtol * std::abs(double(y));
         });
-        return idx < range_distance(r1);
+        return idx >= range_distance(r1);
     }
     return false;
 }

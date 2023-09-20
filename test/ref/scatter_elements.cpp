@@ -46,7 +46,7 @@ migraphx::program create_scatter_elements_program(const std::string& reduction_m
     auto ld = mm->add_literal(migraphx::literal{sd, vd});
     auto li = mm->add_literal(migraphx::literal{si, vi});
     auto lu = mm->add_literal(migraphx::literal{su, vu});
-    // scatter_none, formerly the scatter op
+
     auto r = mm->add_instruction(
         migraphx::make_op("scatter_elements", {{"axis", axis}, {"reduction", reduction_mode}}),
         ld,
@@ -58,42 +58,36 @@ migraphx::program create_scatter_elements_program(const std::string& reduction_m
 
 TEST_CASE(scatter_elements_axis_0_test)
 {
-    {
-        migraphx::program p = create_scatter_elements_program("none", 0);
-        p.compile(migraphx::make_target("ref"));
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    }
+    migraphx::program p = create_scatter_elements_program("none", 0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(scatter_elements_axis_neg_2_test)
 {
-    {
-        migraphx::program p = create_scatter_elements_program("none", -2);
+    migraphx::program p = create_scatter_elements_program("none", -2);
 
-        p.compile(migraphx::make_target("ref"));
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    }
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(scatter_elements_axis_1_test)
 {
-    {
-        migraphx::program p = create_scatter_elements_program("none", 1);
-        p.compile(migraphx::make_target("ref"));
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {1.1, 1.0, 1.2, 2.0, 2.2, 2.1, 0.0, 0.0, 0.0};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    }
+    migraphx::program p = create_scatter_elements_program("none", 1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.1, 1.0, 1.2, 2.0, 2.2, 2.1, 0.0, 0.0, 0.0};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 migraphx::program create_scatter_elements_program2(const std::string& reduction_mode, int axis)
@@ -160,6 +154,95 @@ TEST_CASE(scatter_elements_add_axis_1_test)
     EXPECT(migraphx::verify::verify_range(results_vector, gold_add));
 }
 
+TEST_CASE(scatter_elements_min_axis_1_test)
+{
+    migraphx::program p = create_scatter_elements_program2("min", 1);
+    p.compile(migraphx::make_target("ref"));
+
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold_min = {1.0, 1.1, 3.0, 2.1, 5.0};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold_min));
+}
+
+TEST_CASE(scatter_elements_max_axis_1_test)
+{
+    migraphx::program p = create_scatter_elements_program2("max", 1);
+    p.compile(migraphx::make_target("ref"));
+
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold_max = {1.0, 2.0, 3.0, 4.0, 5.0};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold_max));
+}
+
+auto scatter_elements_duplicate_index_test(const std::string& reduction_mode)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {1, 5}};
+    std::vector<float> vd({1., 2., 3., 4., 5.});
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 2}};
+    std::vector<int> vi = {1, 1};
+
+    migraphx::shape su{migraphx::shape::float_type, {1, 2}};
+    std::vector<float> vu = {1.1, 2.1};
+
+    auto ld = mm->add_literal(migraphx::literal{sd, vd});
+    auto li = mm->add_literal(migraphx::literal{si, vi});
+    auto lu = mm->add_literal(migraphx::literal{su, vu});
+    auto r  = mm->add_instruction(
+        migraphx::make_op("scatter_elements", {{"axis", 1}, {"reduction", reduction_mode}}),
+        ld,
+        li,
+        lu);
+    mm->add_return({r});
+    p.compile(migraphx::make_target("ref"));
+
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    return results_vector;
+}
+
+TEST_CASE(scatter_elements_add_axis_1_duplicate_idx_test)
+{
+    const auto results = scatter_elements_duplicate_index_test("add");
+    const std::vector<float> gold{1.0, 5.2, 3.0, 4.0, 5.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
+}
+
+TEST_CASE(scatter_elements_mul_axis_1_duplicate_idx_test)
+{
+    const auto results = scatter_elements_duplicate_index_test("mul");
+    const std::vector<float> gold{1.0, 4.62, 3.0, 4.0, 5.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
+}
+
+TEST_CASE(scatter_elements_min_axis_1_duplicate_idx_test)
+{
+    const auto results = scatter_elements_duplicate_index_test("min");
+    const std::vector<float> gold{1.0, 1.1, 3.0, 4.0, 5.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
+}
+
+TEST_CASE(scatter_elements_max_axis_1_duplicate_idx_test)
+{
+    const auto results = scatter_elements_duplicate_index_test("max");
+    const std::vector<float> gold{1.0, 2.1, 3.0, 4.0, 5.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
+}
+
 migraphx::program create_scatter_elements_program_3x3(const std::string& reduction_mode, int axis)
 {
     migraphx::program p;
@@ -220,4 +303,90 @@ TEST_CASE(scatter_elements_mul_axis_0_3x3_test)
     std::vector<float> gold_mul2 = {3.3, 21.0, 3.0, 3.0, 21.6, 3.0, 3.6, 21.3, 3.0};
 
     EXPECT(migraphx::verify::verify_range(results_vector, gold_mul2));
+}
+
+TEST_CASE(scatter_elements_min_axis_0_3x3_test)
+{
+    migraphx::program p = create_scatter_elements_program_3x3("min", 0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold_min = {1.1, 3.0, 3.0, 1.0, 3.0, 3.0, 1.2, 3.0, 3.0};
+
+    EXPECT(migraphx::verify::verify_range(results_vector, gold_min));
+}
+
+TEST_CASE(scatter_elements_max_axis_0_3x3_test)
+{
+    migraphx::program p = create_scatter_elements_program_3x3("max", 0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold_max = {3.0, 7.0, 3.0, 3.0, 7.2, 3.0, 3.0, 7.1, 3.0};
+
+    EXPECT(migraphx::verify::verify_range(results_vector, gold_max));
+}
+
+auto scatter_elements_3x3_duplicate_index_test(const std::string& reduction_mode)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> vd(sd.elements(), 1.0f);
+
+    migraphx::shape si{migraphx::shape::int32_type, {3, 2}};
+    std::vector<int> vi = {1, 0, 1, 0, 1, 0};
+
+    migraphx::shape su{migraphx::shape::float_type, {3, 2}};
+    std::vector<float> vu = {0.9, 2.0, 1.1, 2.1, 1.2, 2.2};
+
+    auto ld = mm->add_literal(migraphx::literal{sd, vd});
+    auto li = mm->add_literal(migraphx::literal{si, vi});
+    auto lu = mm->add_literal(migraphx::literal{su, vu});
+    auto r  = mm->add_instruction(
+        migraphx::make_op("scatter_elements", {{"axis", 0}, {"reduction", reduction_mode}}),
+        ld,
+        li,
+        lu);
+    mm->add_return({r});
+    p.compile(migraphx::make_target("ref"));
+
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    return results_vector;
+}
+
+TEST_CASE(scatter_elements_add_axis_0_3x3_duplicate_index_test)
+{
+    const auto results            = scatter_elements_3x3_duplicate_index_test("add");
+    const std::vector<float> gold = {1.0, 7.3, 1.0, 4.2, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
+}
+
+TEST_CASE(scatter_elements_mul_axis_0_3x3_duplicate_index_test)
+{
+    const auto results            = scatter_elements_3x3_duplicate_index_test("mul");
+    const std::vector<float> gold = {1.0, 9.24, 1.0, 1.188, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
+}
+
+TEST_CASE(scatter_elements_min_axis_0_3x3_duplicate_index_test)
+{
+    const auto results            = scatter_elements_3x3_duplicate_index_test("min");
+    const std::vector<float> gold = {1.0, 1.0, 1.0, 0.9, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
+}
+
+TEST_CASE(scatter_elements_max_axis_0_3x3_duplicate_index_test)
+{
+    const auto results            = scatter_elements_3x3_duplicate_index_test("max");
+    const std::vector<float> gold = {1.0, 2.2, 1.0, 1.2, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    EXPECT(migraphx::verify::verify_range(results, gold));
 }

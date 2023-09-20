@@ -48,21 +48,21 @@ TEST_CASE(quant_conv2d_padding_stride_test)
     auto result = p.eval({}).back();
 
     std::vector<int32_t> gold = {4521,
-                              7014,
-                              7830,
-                              11952,
-                              10515,
-                              16734,
-                              19737,
-                              30906,
-                              13161,
-                              19542,
-                              19494,
-                              28800,
-                              34707,
-                              52590,
-                              54729,
-                              82746};
+                                 7014,
+                                 7830,
+                                 11952,
+                                 10515,
+                                 16734,
+                                 19737,
+                                 30906,
+                                 13161,
+                                 19542,
+                                 19494,
+                                 28800,
+                                 34707,
+                                 52590,
+                                 54729,
+                                 82746};
     std::vector<int32_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_range(results_vector, gold));

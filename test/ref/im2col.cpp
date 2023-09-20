@@ -92,7 +92,7 @@ TEST_CASE(im2col_3x3_no_pad_test)
     auto result = p.eval({}).back();
 
     std::vector<int> gold = {0, 1, 2, 4, 5, 6,  8,  9,  10, 1, 2, 3, 5, 6,  7,  9,  10, 11,
-                                4, 5, 6, 8, 9, 10, 12, 13, 14, 5, 6, 7, 9, 10, 11, 13, 14, 15};
+                             4, 5, 6, 8, 9, 10, 12, 13, 14, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 
     std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
     std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;

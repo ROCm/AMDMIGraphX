@@ -167,6 +167,7 @@ struct reshape
             auto stride = rstrides.back();
             for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
             {
+                (void)d;
                 rstrides.push_back(stride);
             }
         }

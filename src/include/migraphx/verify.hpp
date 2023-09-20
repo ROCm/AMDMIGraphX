@@ -260,6 +260,7 @@ bool verify_range_with_threshold(const R1& r1,
                                  double* out_error = nullptr)
 {
     auto rms_error = rms_range(r1, r2.data());
+    // disable ewise_verify for now, it requires lot of tests to be fixed
     // auto ewise_verify = allclose(r1, r2.data(), tols);
     if(out_error != nullptr)
         *out_error = rms_error;

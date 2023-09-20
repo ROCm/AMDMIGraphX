@@ -210,7 +210,7 @@ struct reshape
                            std::to_string(s->elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
-        assert(s->bytes() == inputs.front().bytes());
+        assert(s->bytes() >= inputs.front().bytes());
         return *s;
     }
 

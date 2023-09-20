@@ -195,6 +195,10 @@ double get_rms_tol(const R&, std::size_t tolerance = 80)
     return threshold;
 }
 
+/*
+C++ doesn't support named arguments, this is just wrapper that helps distinguish between actual
+results v/s expected results arguments.
+*/
 template <class T>
 struct expected
 {

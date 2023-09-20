@@ -251,8 +251,8 @@ void run_verify::verify(const std::string& name,
             std::size_t num = gold.size();
             for(std::size_t i = 0; ((i < num) and passed); ++i)
             {
-                passed &=
-                    migraphx::verify_args_with_tolerance(tname, result[i], migraphx::verify::expected{gold[i]});
+                passed &= migraphx::verify_args_with_tolerance(
+                    tname, result[i], migraphx::verify::expected{gold[i]});
             }
 
             if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))

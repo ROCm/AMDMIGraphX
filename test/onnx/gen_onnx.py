@@ -6008,8 +6008,7 @@ def roialign_test():
     return ([node], [x, roi, bi], [y])
 
 
-@onnx_test()
-def scatter_add_test():
+def make_scatter_elements_test(reduction="none"):
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32,
                                       [2, 3, 4, 5])
@@ -6019,53 +6018,38 @@ def scatter_add_test():
 
     node = onnx.helper.make_node(
         'ScatterElements',
-        reduction='add',
+        reduction=reduction,
         inputs=['data', 'indices', 'update'],
         outputs=['y'],
         axis=-2,
     )
 
     return ([node], [x, i, u], [y])
+
+
+@onnx_test()
+def scatter_add_test():
+    return make_scatter_elements_test("add")
 
 
 @onnx_test()
 def scatter_mul_test():
-    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
-    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
-                                      [2, 3, 4, 5])
-    u = helper.make_tensor_value_info('update', TensorProto.FLOAT,
-                                      [2, 3, 4, 5])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
+    return make_scatter_elements_test("mul")
 
-    node = onnx.helper.make_node(
-        'ScatterElements',
-        reduction='mul',
-        inputs=['data', 'indices', 'update'],
-        outputs=['y'],
-        axis=-2,
-    )
 
-    return ([node], [x, i, u], [y])
+@onnx_test()
+def scatter_min_test():
+    return make_scatter_elements_test("min")
+
+
+@onnx_test()
+def scatter_max_test():
+    return make_scatter_elements_test("max")
 
 
 @onnx_test()
 def scatter_none_test():
-    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
-    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
-                                      [2, 3, 4, 5])
-    u = helper.make_tensor_value_info('update', TensorProto.FLOAT,
-                                      [2, 3, 4, 5])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
-
-    node = onnx.helper.make_node(
-        'ScatterElements',
-        reduction='none',
-        inputs=['data', 'indices', 'update'],
-        outputs=['y'],
-        axis=-2,
-    )
-
-    return ([node], [x, i, u], [y])
+    return make_scatter_elements_test()
 
 
 @onnx_test()

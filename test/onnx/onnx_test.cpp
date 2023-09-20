@@ -5981,6 +5981,22 @@ TEST_CASE(scatter_elements_mul_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(scatter_elements_min_test)
+{
+    migraphx::program p = create_scatter_elements_program("min", -2);
+    auto prog           = migraphx::parse_onnx("scatter_min_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(scatter_elements_max_test)
+{
+    migraphx::program p = create_scatter_elements_program("max", -2);
+    auto prog           = migraphx::parse_onnx("scatter_max_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(scatter_elements_none_test)
 {
     migraphx::program p = create_scatter_elements_program("none", -2);

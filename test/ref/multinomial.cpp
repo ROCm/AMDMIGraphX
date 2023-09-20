@@ -79,5 +79,5 @@ TEST_CASE(multinomial_test)
         return static_cast<double>(n) / res_dist_sum;
     });
     EXPECT(migraphx::verify::verify_range_with_threshold(
-        res_norm, migraphx::verify::expected{norm}, migraphx::verify::threshold{0.01}));
+        res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
 }

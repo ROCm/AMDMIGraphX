@@ -1080,7 +1080,7 @@ TEST_CASE(int8_quantization_dot)
         EXPECT(migraphx::verify::verify_range_with_threshold(
             quant_result,
             migraphx::verify::expected{no_quant_result},
-            migraphx::verify::threshold{0.003}));
+            migraphx::verify::tolerance{0.003}));
     }
 }
 

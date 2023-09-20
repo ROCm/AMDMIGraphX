@@ -214,7 +214,7 @@ struct expected
 template <class T>
 expected(const T&) -> expected<T>;
 
-struct threshold
+struct tolerance
 {
     double rms_tol = 0.001;
     double atol    = 0.001;
@@ -222,7 +222,7 @@ struct threshold
 };
 
 template <class R1, class R2>
-bool allclose(const R1& r1, const R2& r2, threshold thres)
+bool allclose(const R1& r1, const R2& r2, tolerance thres)
 {
     std::size_t n = range_distance(r1);
     if(n == range_distance(r2))
@@ -256,7 +256,7 @@ bool verify_range(const R1& r1,
 template <class R1, class R2>
 bool verify_range_with_threshold(const R1& r1,
                                  const expected<R2>& r2,
-                                 threshold tols    = threshold{},
+                                 tolerance tols    = tolerance{},
                                  double* out_error = nullptr)
 {
     auto rms_error = rms_range(r1, r2.data());
@@ -272,7 +272,7 @@ bool verify_range_with_threshold(const R1& r1,
 template <class R1, class R2>
 bool verify_range_with_threshold(const expected<R1>& r1,
                                  const R2& r2,
-                                 threshold tols    = threshold{},
+                                 tolerance tols    = tolerance{},
                                  double* out_error = nullptr)
 {
     return verify_range(r2, r1, tols, out_error);

@@ -77,7 +77,7 @@ void verify_program(const std::string& name,
                     compile_options options,
                     precision quantize,
                     const parameter_map& inputs,
-                    verify::threshold tols)
+                    verify::tolerance tols)
 {
     auto x = run_ref(p, inputs);
     auto y = run_target(p, t, options, quantize, inputs);
@@ -93,7 +93,7 @@ void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options,
                          precision quantize,
-                         verify::threshold tols)
+                         verify::tolerance tols)
 {
     const auto* mm_prog = prog.get_main_module();
     for(auto&& ins : (*mm_prog))
@@ -140,7 +140,7 @@ void verify_reduced(program p,
                     compile_options options,
                     precision quantize,
                     const parameter_map& inputs,
-                    verify::threshold tols)
+                    verify::tolerance tols)
 {
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n + 1);
@@ -155,7 +155,7 @@ void verify_reduced_program(const program& p,
                             compile_options options,
                             precision quantize,
                             const parameter_map& inputs,
-                            verify::threshold tols)
+                            verify::tolerance tols)
 {
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());

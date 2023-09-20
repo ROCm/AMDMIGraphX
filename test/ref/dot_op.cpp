@@ -79,7 +79,7 @@ void dot_2d_test()
                            2.16294914e+00,
                            -1.48101497e-01};
     EXPECT(migraphx::verify::verify_range_with_threshold(
-        results_vector, migraphx::verify::expected{gold}, migraphx::verify::threshold{9e-6}));
+        results_vector, migraphx::verify::expected{gold}, migraphx::verify::tolerance{9e-6}));
 }
 TEST_CASE_REGISTER(dot_2d_test<float>)
 TEST_CASE_REGISTER(dot_2d_test<double>)
@@ -131,7 +131,7 @@ void dot_4d_test()
     std::vector<T> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_range_with_threshold(
-        results_vector, migraphx::verify::expected{gold}, migraphx::verify::threshold{9e-6}));
+        results_vector, migraphx::verify::expected{gold}, migraphx::verify::tolerance{9e-6}));
 }
 
 TEST_CASE_REGISTER(dot_4d_test<float>)

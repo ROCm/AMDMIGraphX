@@ -120,7 +120,7 @@ TEST_CASE(int8_quantization)
             EXPECT(migraphx::verify::verify_range_with_threshold(
                 gpu_result,
                 migraphx::verify::expected{ref_result},
-                migraphx::verify::threshold{0.01}));
+                migraphx::verify::tolerance{0.01}));
         else
             EXPECT(migraphx::verify::verify_range(gpu_result, ref_result));
     }

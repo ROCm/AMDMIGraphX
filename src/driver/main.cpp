@@ -536,7 +536,7 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    migraphx::verify::threshold tols;
+    migraphx::verify::tolerance tols;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)

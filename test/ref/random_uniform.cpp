@@ -70,7 +70,7 @@ TEST_CASE(random_uniform_test)
     std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
     EXPECT(migraphx::verify::verify_range_with_threshold(result_vec,
                                                          migraphx::verify::expected{rand_samples},
-                                                         migraphx::verify::threshold{0.00001}));
+                                                         migraphx::verify::tolerance{0.00001}));
 }
 
 TEST_CASE(random_uniform_int_test)

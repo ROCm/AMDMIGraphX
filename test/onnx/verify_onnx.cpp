@@ -1637,9 +1637,10 @@ std::vector<float> gen_trilu_test(const migraphx::shape& s, const migraphx::prog
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     return result_vector;
 }
-TEST_CASE(trilu_test)
+
+TEST_CASE(triu_test)
 {
-    migraphx::program p = migraphx::parse_onnx("trilu_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("triu_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {3, 4}}, p);
 
@@ -1648,9 +1649,9 @@ TEST_CASE(trilu_test)
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
-TEST_CASE(trilu_batch_diff_k_test)
+TEST_CASE(triu_batch_diff_k_test)
 {
-    migraphx::program p = migraphx::parse_onnx("trilu_batch_diff_k_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("triu_batch_diff_k_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {2, 2, 3}}, p);
 
@@ -1659,9 +1660,42 @@ TEST_CASE(trilu_batch_diff_k_test)
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
-TEST_CASE(trilu_lower_test)
+TEST_CASE(tril_test)
 {
-    migraphx::program p = migraphx::parse_onnx("trilu_lower_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("tril_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {3, 4}}, p);
+
+    std::vector<float> gold = {1, 0, 0, 0, 5, 6, 0, 0, 9, 10, 11, 0};
+
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+}
+
+TEST_CASE(tril_batch_diff_k_test)
+{
+    migraphx::program p = migraphx::parse_onnx("tril_batch_diff_k_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {2, 2, 3}}, p);
+
+    std::vector<float> gold = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+}
+
+TEST_CASE(triu_neg_k_test)
+{
+    migraphx::program p = migraphx::parse_onnx("triu_neg_k_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {3, 4}}, p);
+
+    std::vector<float> gold = {1, 2, 3, 4, 5, 6, 7, 8, 0, 10, 11, 12};
+
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+}
+
+TEST_CASE(tril_neg_k_test)
+{
+    migraphx::program p = migraphx::parse_onnx("tril_neg_k_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {3, 4}}, p);
 
@@ -1670,9 +1704,9 @@ TEST_CASE(trilu_lower_test)
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
-TEST_CASE(trilu_out_k_test)
+TEST_CASE(triu_out_k_test)
 {
-    migraphx::program p = migraphx::parse_onnx("trilu_out_k_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("triu_out_k_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {3, 4}}, p);
 
@@ -1681,13 +1715,35 @@ TEST_CASE(trilu_out_k_test)
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
-TEST_CASE(trilu_row_one_test)
+TEST_CASE(tril_out_k_test)
 {
-    migraphx::program p = migraphx::parse_onnx("trilu_row_one_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("tril_out_k_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {3, 4}}, p);
+
+    std::vector<float> gold = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+}
+
+TEST_CASE(triu_row_one_test)
+{
+    migraphx::program p = migraphx::parse_onnx("triu_row_one_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {1, 4}}, p);
 
     std::vector<float> gold = {0, 2, 3, 4};
+
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+}
+
+TEST_CASE(tril_row_one_test)
+{
+    migraphx::program p = migraphx::parse_onnx("tril_row_one_test.onnx");
+
+    std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {1, 4}}, p);
+
+    std::vector<float> gold = {1, 2, 0, 0};
 
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }

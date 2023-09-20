@@ -102,7 +102,20 @@ def disabled_tests_onnx_1_10_0(backend_test):
     backend_test.exclude(r'test_shape_start_1_end_2_cpu')
     backend_test.exclude(r'test_shape_start_1_end_negative_1_cpu')
     backend_test.exclude(r'test_shape_start_negative_1_cpu')
-
+    # unsupported trilu dynamic k parameter
+    backend_test.exclude(r'test_triu_neg_cpu')
+    backend_test.exclude(r'test_triu_out_neg_out_cpu')
+    backend_test.exclude(r'test_triu_pos_cpu')
+    backend_test.exclude(r'test_triu_out_pos_cpu')
+    backend_test.exclude(r'test_triu_square_neg_cpu')
+    backend_test.exclude(r'test_triu_one_row_cpu')
+    backend_test.exclude(r'test_triu_zero_cpu')
+    backend_test.exclude(r'test_tril_neg_cpu')
+    backend_test.exclude(r'test_tril_out_neg_cpu')
+    backend_test.exclude(r'test_tril_pos_cpu')
+    backend_test.exclude(r'test_tril_out_pos_cpu')
+    backend_test.exclude(r'test_tril_square_neg_cpu')
+    backend_test.exclude(r'test_triu_one_row_cpu')
 
 def disabled_tests_onnx_1_12_0(backend_test):
     backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
@@ -246,6 +259,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_thresholdedrelu.*')
         backend_test.include(r'.*test_topk.*')
         backend_test.include(r'.*test_Topk.*')
+        backend_test.include(r'.*test_tril.*')
+        backend_test.include(r'.*test_triu.*')
         backend_test.include(r'.*test_transpose.*')
         backend_test.include(r'.*test_unsqueeze.*')
         backend_test.include(r'.*test_where*')

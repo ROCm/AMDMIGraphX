@@ -244,26 +244,26 @@ template <class R1, class R2>
 bool verify_range(const R1& r1,
                   const R2& r2,
                   std::size_t tolerance = 80,
-                  double* out_error     = nullptr)
+                  double* out_rms_error = nullptr)
 {
     double threshold = get_rms_tol(r1, tolerance);
     auto error       = rms_range(r1, r2);
-    if(out_error != nullptr)
-        *out_error = error;
+    if(out_rms_error != nullptr)
+        *out_rms_error = error;
     return error <= threshold;
 }
 
 template <class R1, class R2>
 bool verify_range_with_tolerance(const R1& r1,
                                  const expected<R2>& r2,
-                                 tolerance tols    = tolerance{},
-                                 double* out_error = nullptr)
+                                 tolerance tols        = tolerance{},
+                                 double* out_rms_error = nullptr)
 {
     auto rms_error = rms_range(r1, r2.data());
     // disable ewise_verify for now, it requires lot of tests to be fixed
     // auto ewise_verify = allclose(r1, r2.data(), tols);
-    if(out_error != nullptr)
-        *out_error = rms_error;
+    if(out_rms_error != nullptr)
+        *out_rms_error = rms_error;
     return rms_error <= tols.rms_tol;
 }
 
@@ -272,10 +272,10 @@ bool verify_range_with_tolerance(const R1& r1,
 template <class R1, class R2>
 bool verify_range_with_tolerance(const expected<R1>& r1,
                                  const R2& r2,
-                                 tolerance tols    = tolerance{},
-                                 double* out_error = nullptr)
+                                 tolerance tols        = tolerance{},
+                                 double* out_rms_error = nullptr)
 {
-    return verify_range(r2, r1, tols, out_error);
+    return verify_range(r2, r1, tols, out_rms_error);
 }
 
 } // namespace verify

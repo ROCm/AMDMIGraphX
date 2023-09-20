@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 #include "verify.hpp"
-#include "migraphx/verify.hpp"
 #include "perf.hpp"
 
 #include <migraphx/register_target.hpp>

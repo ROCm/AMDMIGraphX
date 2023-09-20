@@ -34,13 +34,14 @@ bool verify_args_with_threshold(const std::string& name,
 {
     bool passed = true;
     visit_all(ref_arg, target_arg)([&](auto ref, auto target) {
-        double error;
-        passed = verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &error);
+        double rms_error;
+        passed =
+            verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
         if(not passed)
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
-            std::cout << "error: " << error << std::endl;
+            std::cout << "RMS Error: " << rms_error << std::endl;
             if(ref.size() < 32)
                 std::cout << "ref:" << ref << std::endl;
             if(target.size() < 32)

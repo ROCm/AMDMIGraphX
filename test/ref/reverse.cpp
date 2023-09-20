@@ -44,9 +44,9 @@ TEST_CASE(reverse_test_axis0)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> target_data = data;
-    std::swap_ranges(target_data.begin(), target_data.begin() + 16, target_data.begin() + 16);
-    EXPECT(migraphx::verify::verify_range(results_vector, target_data));
+    std::vector<float> gold = data;
+    std::swap_ranges(gold.begin(), gold.begin() + 16, gold.begin() + 16);
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(reverse_test_axis1)
@@ -63,10 +63,10 @@ TEST_CASE(reverse_test_axis1)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> target_data = data;
-    std::reverse(target_data.begin(), target_data.begin() + 16);
-    std::reverse(target_data.end() - 16, target_data.end());
-    EXPECT(migraphx::verify::verify_range(results_vector, target_data));
+    std::vector<float> gold = data;
+    std::reverse(gold.begin(), gold.begin() + 16);
+    std::reverse(gold.end() - 16, gold.end());
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(reverse_test_axis10)
@@ -83,9 +83,9 @@ TEST_CASE(reverse_test_axis10)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> target_data = data;
-    std::reverse(target_data.begin(), target_data.begin() + 16);
-    std::reverse(target_data.end() - 16, target_data.end());
-    std::swap_ranges(target_data.begin(), target_data.begin() + 16, target_data.begin() + 16);
-    EXPECT(migraphx::verify::verify_range(results_vector, target_data));
+    std::vector<float> gold = data;
+    std::reverse(gold.begin(), gold.begin() + 16);
+    std::reverse(gold.end() - 16, gold.end());
+    std::swap_ranges(gold.begin(), gold.begin() + 16, gold.begin() + 16);
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }

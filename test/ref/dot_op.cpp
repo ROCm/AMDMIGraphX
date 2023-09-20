@@ -56,18 +56,7 @@ void dot_2d_test()
                             1.53027987e+00,
                             -3.81407415e-04,
                             -3.29650255e-01};
-    std::vector<float> c = {-1.56327541e+00,
-                            -7.09570140e-01,
-                            -5.37424982e-01,
-                            -2.22994831e-01,
-                            -2.15586437e+00,
-                            2.09177941e-03,
-                            -1.47279677e+00,
-                            2.02627040e-01,
-                            -6.04527691e-01,
-                            -1.29885596e+00,
-                            2.16294914e+00,
-                            -1.48101497e-01};
+
     migraphx::shape a_shape{migraphx::shape::get_type<T>{}, {4, 5}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
     migraphx::shape b_shape{migraphx::shape::get_type<T>{}, {5, 3}};
@@ -77,7 +66,19 @@ void dot_2d_test()
     auto result = p.eval({}).back();
     std::vector<T> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(c, results_vector));
+    std::vector<float> gold = {-1.56327541e+00,
+                               -7.09570140e-01,
+                               -5.37424982e-01,
+                               -2.22994831e-01,
+                               -2.15586437e+00,
+                               2.09177941e-03,
+                               -1.47279677e+00,
+                               2.02627040e-01,
+                               -6.04527691e-01,
+                               -1.29885596e+00,
+                               2.16294914e+00,
+                               -1.48101497e-01};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 TEST_CASE_REGISTER(dot_2d_test<float>)
 TEST_CASE_REGISTER(dot_2d_test<double>)
@@ -87,38 +88,38 @@ void dot_4d_test()
 {
     migraphx::program p;
 
-    auto* mm             = p.get_main_module();
-    std::vector<T> a     = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
-                            1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
-                            -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
-                            -1.66423624, 0.69040076, -1.31490171, -0.11282616, -0.79391814};
-    std::vector<float> b = {6.09568541e-01,
-                            -6.10527007e-01,
-                            3.66646462e-01,
-                            1.18951101e-01,
-                            5.58777432e-01,
-                            -3.21296298e-01,
-                            -5.95997198e-01,
-                            -5.01425721e-01,
-                            -2.84606807e-01,
-                            -5.73673557e-01,
-                            -8.99430260e-01,
-                            -4.25103093e-01,
-                            1.53027987e+00,
-                            -3.81407415e-04,
-                            -3.29650255e-01};
-    std::vector<float> c = {-1.56327541e+00,
-                            -7.09570140e-01,
-                            -5.37424982e-01,
-                            -2.22994831e-01,
-                            -2.15586437e+00,
-                            2.09177941e-03,
-                            -1.47279677e+00,
-                            2.02627040e-01,
-                            -6.04527691e-01,
-                            -1.29885596e+00,
-                            2.16294914e+00,
-                            -1.48101497e-01};
+    auto* mm                = p.get_main_module();
+    std::vector<T> a        = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
+                               1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
+                               -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
+                               -1.66423624, 0.69040076, -1.31490171, -0.11282616, -0.79391814};
+    std::vector<float> b    = {6.09568541e-01,
+                               -6.10527007e-01,
+                               3.66646462e-01,
+                               1.18951101e-01,
+                               5.58777432e-01,
+                               -3.21296298e-01,
+                               -5.95997198e-01,
+                               -5.01425721e-01,
+                               -2.84606807e-01,
+                               -5.73673557e-01,
+                               -8.99430260e-01,
+                               -4.25103093e-01,
+                               1.53027987e+00,
+                               -3.81407415e-04,
+                               -3.29650255e-01};
+    std::vector<float> gold = {-1.56327541e+00,
+                               -7.09570140e-01,
+                               -5.37424982e-01,
+                               -2.22994831e-01,
+                               -2.15586437e+00,
+                               2.09177941e-03,
+                               -1.47279677e+00,
+                               2.02627040e-01,
+                               -6.04527691e-01,
+                               -1.29885596e+00,
+                               2.16294914e+00,
+                               -1.48101497e-01};
     migraphx::shape a_shape{migraphx::shape::get_type<T>{}, {1, 1, 4, 5}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
     migraphx::shape b_shape{migraphx::shape::get_type<T>{}, {1, 1, 5, 3}};
@@ -128,7 +129,7 @@ void dot_4d_test()
     auto result = p.eval({}).back();
     std::vector<T> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(c, results_vector));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 TEST_CASE_REGISTER(dot_4d_test<float>)
 TEST_CASE_REGISTER(dot_4d_test<double>)
@@ -166,7 +167,7 @@ TEST_CASE(dot_3D_test)
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
-    std::vector<float> m_res = {0.18208394,
+    std::vector<float> gold = {0.18208394,
                                 -0.49276402,
                                 0.87189133,
                                 0.75150114,
@@ -183,7 +184,7 @@ TEST_CASE(dot_3D_test)
                                 0.40245487,
                                 1.80182751};
 
-    EXPECT(migraphx::verify::verify_range(m, m_res));
+    EXPECT(migraphx::verify::verify_range(m, gold));
 }
 
 TEST_CASE(dot_3D_C_test0)
@@ -242,7 +243,7 @@ TEST_CASE(dot_3D_C_test0)
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
-    std::vector<float> m_res = {0.18208394,
+    std::vector<float> gold = {0.18208394,
                                 -0.49276402,
                                 0.87189133,
                                 0.75150114,
@@ -259,7 +260,7 @@ TEST_CASE(dot_3D_C_test0)
                                 0.40245487,
                                 1.80182751};
 
-    EXPECT(migraphx::verify::verify_range(m, m_res));
+    EXPECT(migraphx::verify::verify_range(m, gold));
 }
 
 TEST_CASE(dot_3D_C_test1)
@@ -309,7 +310,7 @@ TEST_CASE(dot_3D_C_test1)
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
-    std::vector<float> m_res = {0.18208394,
+    std::vector<float> gold = {0.18208394,
                                 -0.49276402,
                                 0.87189133,
                                 0.75150114,
@@ -318,7 +319,7 @@ TEST_CASE(dot_3D_C_test1)
                                 -0.95536130,
                                 2.27996211};
 
-    EXPECT(migraphx::verify::verify_range(m, m_res));
+    EXPECT(migraphx::verify::verify_range(m, gold));
 }
 
 TEST_CASE(dot_4D_test1)
@@ -351,13 +352,13 @@ TEST_CASE(dot_4D_test1)
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
-    std::vector<float> m_res = {0.26735861,  -4.30770895, 1.05257728,  -1.19954265, 0.50493170,
+    std::vector<float> gold = {0.26735861,  -4.30770895, 1.05257728,  -1.19954265, 0.50493170,
                                 -0.18729756, 1.09137941,  -1.09298312, 3.42956915,  -0.41681939,
                                 0.17833257,  0.26040336,  0.15351280,  1.87632715,  -0.63545406,
                                 -0.95467340, -1.74728628, -2.42477030, 0.76262372,  0.15539164,
                                 3.32281958,  0.96769613,  0.43727545,  2.43019906};
 
-    EXPECT(migraphx::verify::verify_range(m, m_res));
+    EXPECT(migraphx::verify::verify_range(m, gold));
 }
 
 TEST_CASE(dot_4D_alpha_beta_test)
@@ -405,13 +406,13 @@ TEST_CASE(dot_4D_alpha_beta_test)
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
-    std::vector<float> m_res = {-0.91147203, 0.47540785, -0.30313587, 0.43325099,  -0.43711586,
+    std::vector<float> gold = {-0.91147203, 0.47540785, -0.30313587, 0.43325099,  -0.43711586,
                                 0.50928632,  0.06919868, -0.80382802, -0.05125718, -0.06685650,
                                 -0.06972163, 0.32407764, 0.45677396,  0.25909489,  0.56911252,
                                 -0.17183724, 0.10858734, 0.39406289,  0.04662959,  1.07979824,
                                 0.40355016,  0.52410648, -0.31728447, 1.09550845};
 
-    EXPECT(migraphx::verify::verify_range(m, m_res));
+    EXPECT(migraphx::verify::verify_range(m, gold));
 }
 
 TEST_CASE(dot_4D_alpha_beta_C_test)
@@ -457,13 +458,13 @@ TEST_CASE(dot_4D_alpha_beta_C_test)
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
-    std::vector<float> m_res = {-0.91147203, 0.47540785, -0.30313587, 0.43325099,  -0.43711586,
+    std::vector<float> gold = {-0.91147203, 0.47540785, -0.30313587, 0.43325099,  -0.43711586,
                                 0.50928632,  0.06919868, -0.80382802, -0.05125718, -0.06685650,
                                 -0.06972163, 0.32407764, 0.45677396,  0.25909489,  0.56911252,
                                 -0.17183724, 0.10858734, 0.39406289,  0.04662959,  1.07979824,
                                 0.40355016,  0.52410648, -0.31728447, 1.09550845};
 
-    EXPECT(migraphx::verify::verify_range(m, m_res));
+    EXPECT(migraphx::verify::verify_range(m, gold));
 }
 
 TEST_CASE(dot_2D_C_test0)
@@ -1202,19 +1203,19 @@ TEST_CASE(dot_dyn_2D_test)
     auto result = p.eval(params).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> c = {-1.56327541e+00,
-                            -7.09570140e-01,
-                            -5.37424982e-01,
-                            -2.22994831e-01,
-                            -2.15586437e+00,
-                            2.09177941e-03,
-                            -1.47279677e+00,
-                            2.02627040e-01,
-                            -6.04527691e-01,
-                            -1.29885596e+00,
-                            2.16294914e+00,
-                            -1.48101497e-01};
-    EXPECT(migraphx::verify::verify_range(c, results_vector));
+    std::vector<float> gold = {-1.56327541e+00,
+                               -7.09570140e-01,
+                               -5.37424982e-01,
+                               -2.22994831e-01,
+                               -2.15586437e+00,
+                               2.09177941e-03,
+                               -1.47279677e+00,
+                               2.02627040e-01,
+                               -6.04527691e-01,
+                               -1.29885596e+00,
+                               2.16294914e+00,
+                               -1.48101497e-01};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(dot_dyn_4D_test)
@@ -1256,19 +1257,19 @@ TEST_CASE(dot_dyn_4D_test)
     auto result = p.eval(params).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> c = {-1.56327541e+00,
-                            -7.09570140e-01,
-                            -5.37424982e-01,
-                            -2.22994831e-01,
-                            -2.15586437e+00,
-                            2.09177941e-03,
-                            -1.47279677e+00,
-                            2.02627040e-01,
-                            -6.04527691e-01,
-                            -1.29885596e+00,
-                            2.16294914e+00,
-                            -1.48101497e-01};
-    EXPECT(migraphx::verify::verify_range(c, results_vector));
+    std::vector<float> gold = {-1.56327541e+00,
+                               -7.09570140e-01,
+                               -5.37424982e-01,
+                               -2.22994831e-01,
+                               -2.15586437e+00,
+                               2.09177941e-03,
+                               -1.47279677e+00,
+                               2.02627040e-01,
+                               -6.04527691e-01,
+                               -1.29885596e+00,
+                               2.16294914e+00,
+                               -1.48101497e-01};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(quant_dot_2args_multi4_1)

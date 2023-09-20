@@ -47,7 +47,7 @@ TEST_CASE(quant_conv2d_padding_stride_test)
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-    std::vector<int32_t> s = {4521,
+    std::vector<int32_t> gold = {4521,
                               7014,
                               7830,
                               11952,
@@ -65,7 +65,7 @@ TEST_CASE(quant_conv2d_padding_stride_test)
                               82746};
     std::vector<int32_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(quant_conv2d_padding_test)
@@ -83,8 +83,8 @@ TEST_CASE(quant_conv2d_padding_test)
     mm->add_instruction(
         migraphx::make_op("quant_convolution", {{"padding", {1, 1}}, {"stride", {1, 1}}}), al, cl);
     p.compile(migraphx::make_target("ref"));
-    auto result            = p.eval({}).back();
-    std::vector<int32_t> s = {
+    auto result               = p.eval({}).back();
+    std::vector<int32_t> gold = {
         4521,  6753,  7014,  4635,  6858,  10197, 10548, 6939,  7830,  11601, 11952, 7839,  5007,
         7383,  7590,  4953,  10515, 15987, 16734, 11277, 16821, 25506, 26586, 17874, 19737, 29826,
         30906, 20718, 13593, 20505, 21198, 14187, 13161, 19281, 19542, 12699, 18522, 27045, 27396,
@@ -93,7 +93,7 @@ TEST_CASE(quant_conv2d_padding_test)
 
     std::vector<int32_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(quant_conv2d_test)
@@ -114,24 +114,24 @@ TEST_CASE(quant_conv2d_test)
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-    std::vector<int32_t> s = {10197,
-                              10548,
-                              11601,
-                              11952,
-                              25506,
-                              26586,
-                              29826,
-                              30906,
-                              27045,
-                              27396,
-                              28449,
-                              28800,
-                              77346,
-                              78426,
-                              81666,
-                              82746};
+    std::vector<int32_t> gold = {10197,
+                                 10548,
+                                 11601,
+                                 11952,
+                                 25506,
+                                 26586,
+                                 29826,
+                                 30906,
+                                 27045,
+                                 27396,
+                                 28449,
+                                 28800,
+                                 77346,
+                                 78426,
+                                 81666,
+                                 82746};
 
     std::vector<int32_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }

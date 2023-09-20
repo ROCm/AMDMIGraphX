@@ -565,12 +565,6 @@ TEST_CASE(maxpool_test)
         -0.88503587, 0.6629802,   1.47319221,  -1.05829155, -0.97027361, -0.93187737, -1.39954746,
         -0.52359426, -0.14743951, 1.51522756,  0.2078452,   -1.28156149, -1.19363916, -0.78680223,
         -0.89094824, 1.30212069,  -0.77974445, -0.58411664, 0.48764706,  -0.67132682};
-    std::vector<float> c = {1.33493888, 1.54562736, 1.22098756, 1.33493888, 1.18358743, 1.99097753,
-                            1.00170159, 1.45862222, 1.39087725, 1.46645272, 1.18943918, -0.01443311,
-                            1.47151589, 2.36277103, 2.24768877, 0.68883753, 0.82949388, 0.71550399,
-                            1.95433736, 2.46601582, 1.53285873, 1.95433736, 1.06763375, 1.4545635,
-                            1.33624589, 1.16736257, 0.6126079,  1.36892557, 2.40126371, 1.53441942,
-                            0.52119428, 2.07681108, 0.88494766, 1.51522756, 0.54275119, 0.6629802};
     migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 6, 6}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
     mm->add_instruction(migraphx::make_op("pooling",
@@ -583,7 +577,15 @@ TEST_CASE(maxpool_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(36);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, c));
+    std::vector<float> gold = {
+        1.33493888, 1.54562736, 1.22098756, 1.33493888, 1.18358743, 1.99097753,
+        1.00170159, 1.45862222, 1.39087725, 1.46645272, 1.18943918, -0.01443311,
+        1.47151589, 2.36277103, 2.24768877, 0.68883753, 0.82949388, 0.71550399,
+        1.95433736, 2.46601582, 1.53285873, 1.95433736, 1.06763375, 1.4545635,
+        1.33624589, 1.16736257, 0.6126079,  1.36892557, 2.40126371, 1.53441942,
+        0.52119428, 2.07681108, 0.88494766, 1.51522756, 0.54275119, 0.6629802};
+
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_pad_test)
@@ -591,7 +593,6 @@ TEST_CASE(maxpool_pad_test)
     migraphx::program p;
     auto* mm             = p.get_main_module();
     std::vector<float> a = {-6, -5, -4, -3, -5, -1, 0, 1, 2, 3, 4, 5};
-    std::vector<float> c = {-4, -3, -4, -1, 2, 3, 4, 5};
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 3, 2}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
     mm->add_instruction(migraphx::make_op("pooling",
@@ -611,8 +612,8 @@ TEST_CASE(maxpool_pad_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(8);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify::verify_range(results_vector, c));
+    std::vector<float> gold = {-4, -3, -4, -1, 2, 3, 4, 5};
+    EXPECT(migraphx::verify::verify_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_rank3_test0)

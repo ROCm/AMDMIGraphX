@@ -189,7 +189,7 @@ double rms_range(const R1& r1, const R2& r2)
 }
 
 template <class R>
-double get_threshold(const R&, std::size_t tolerance = 80)
+double get_rms_tol(const R&, std::size_t tolerance = 80)
 {
     double threshold = std::numeric_limits<range_value<R>>::epsilon() * tolerance;
     return threshold;
@@ -214,13 +214,39 @@ struct expected
 template <class T>
 expected(const T&) -> expected<T>;
 
+struct threshold
+{
+    double rms_tol = 0.001;
+    double atol    = 0.001;
+    double rtol    = 0.001;
+};
+
+template <class R1, class R2>
+bool allclose(const R1& r1, const R2& r2, threshold thres)
+{
+    std::size_t n = range_distance(r1);
+    if(n == range_distance(r2))
+    {
+        auto idx = mismatch_idx(r1, r2, [&](auto x, auto y) {
+            return abs_diff(double(x), double(y)) > thres.atol + thres.rtol * std::abs(double(y));
+        });
+        if(idx < range_distance(r1))
+        {
+            return false;
+        }
+        return true;
+    }
+    else
+        return false;
+}
+
 template <class R1, class R2>
 bool verify_range(const R1& r1,
                   const R2& r2,
                   std::size_t tolerance = 80,
                   double* out_error     = nullptr)
 {
-    double threshold = get_threshold(r1, tolerance);
+    double threshold = get_rms_tol(r1, tolerance);
     auto error       = rms_range(r1, r2);
     if(out_error != nullptr)
         *out_error = error;
@@ -230,13 +256,14 @@ bool verify_range(const R1& r1,
 template <class R1, class R2>
 bool verify_range_with_threshold(const R1& r1,
                                  const expected<R2>& r2,
-                                 double threshold,
+                                 threshold tols    = threshold{},
                                  double* out_error = nullptr)
 {
-    auto error = rms_range(r1, r2.data());
+    auto rms_error = rms_range(r1, r2.data());
+    // auto ewise_verify = allclose(r1, r2.data(), tols);
     if(out_error != nullptr)
-        *out_error = error;
-    return error <= threshold;
+        *out_error = rms_error;
+    return rms_error <= tols.rms_tol;
 }
 
 // expected argument should be passed as second, but if it is passed as the first by mistake then
@@ -244,10 +271,10 @@ bool verify_range_with_threshold(const R1& r1,
 template <class R1, class R2>
 bool verify_range_with_threshold(const expected<R1>& r1,
                                  const R2& r2,
-                                 double threshold,
+                                 threshold tols    = threshold{},
                                  double* out_error = nullptr)
 {
-    return verify_range(r2, r1, threshold, out_error);
+    return verify_range(r2, r1, tols, out_error);
 }
 
 } // namespace verify

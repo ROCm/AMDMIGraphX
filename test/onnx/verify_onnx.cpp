@@ -76,15 +76,15 @@ TEST_CASE(batch_norm_flat_test)
     migraphx::shape x_shape{migraphx::shape::float_type, {10}};
     migraphx::shape c_shape(migraphx::shape::float_type, {1});
     std::vector<float> x_data        = {1.6524342,
-                                 -0.51048076,
-                                 0.32543048,
-                                 2.4410043,
-                                 2.0833702,
-                                 0.44981122,
-                                 1.0044622,
-                                 -0.24006313,
-                                 -0.43065986,
-                                 0.07626268};
+                                        -0.51048076,
+                                        0.32543048,
+                                        2.4410043,
+                                        2.0833702,
+                                        0.44981122,
+                                        1.0044622,
+                                        -0.24006313,
+                                        -0.43065986,
+                                        0.07626268};
     std::vector<float> scale_data    = {-0.02927135};
     std::vector<float> bias_data     = {0.42347777};
     std::vector<float> mean_data     = {-0.00449735};
@@ -309,12 +309,12 @@ TEST_CASE(celu_verify_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> correct(6);
+    std::vector<float> gold(6);
     float alpha = 0.5;
-    std::transform(data.begin(), data.end(), correct.begin(), [&](auto x) {
+    std::transform(data.begin(), data.end(), gold.begin(), [&](auto x) {
         return std::max(0.0f, x) + std::min(0.0f, alpha * std::expm1(x / alpha));
     });
-    EXPECT(migraphx::verify::verify_range(result_vector, correct));
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
 TEST_CASE(clip_args_type_mismatch)
@@ -374,11 +374,11 @@ TEST_CASE(spacetodepth_depthtospace_test)
     // space to depth
     auto p1 = migraphx::parse_onnx("spacetodepth_simple_test.onnx");
     p1.compile(migraphx::make_target("ref"));
-    std::vector<float> data_in(48);
-    std::iota(std::begin(data_in), std::end(data_in), 0);
+    std::vector<float> gold_data_in(48);
+    std::iota(std::begin(gold_data_in), std::end(gold_data_in), 0);
     migraphx::shape s_x_1{migraphx::shape::float_type, {1, 2, 4, 6}};
     migraphx::parameter_map pp1;
-    pp1["x"]     = migraphx::argument(s_x_1, data_in.data());
+    pp1["x"]     = migraphx::argument(s_x_1, gold_data_in.data());
     auto result1 = p1.eval(pp1).back();
     // depth to space
     auto p2 = migraphx::parse_onnx("depthtospace_simple_test.onnx");
@@ -388,7 +388,7 @@ TEST_CASE(spacetodepth_depthtospace_test)
     auto result2 = p2.eval(pp2).back();
     std::vector<float> result_vector2;
     result2.visit([&](auto output) { result_vector2.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(result_vector2, data_in));
+    EXPECT(migraphx::verify::verify_range(result_vector2, gold_data_in));
 }
 
 TEST_CASE(eyelike_verify_test)
@@ -405,8 +405,8 @@ TEST_CASE(eyelike_verify_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> eyelike_mat = {0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.};
-    EXPECT(migraphx::verify::verify_range(result_vector, eyelike_mat));
+    std::vector<float> gold_eyelike_mat = {0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.};
+    EXPECT(migraphx::verify::verify_range(result_vector, gold_eyelike_mat));
 }
 
 TEST_CASE(eyelike_verify_negk_test)
@@ -423,8 +423,8 @@ TEST_CASE(eyelike_verify_negk_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> eyelike_mat = {0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.};
-    EXPECT(migraphx::verify::verify_range(result_vector, eyelike_mat));
+    std::vector<float> gold_eyelike_mat = {0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.};
+    EXPECT(migraphx::verify::verify_range(result_vector, gold_eyelike_mat));
 }
 
 TEST_CASE(gather_elements)
@@ -1012,19 +1012,19 @@ TEST_CASE(lpnormalization_2norm)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> correct{0.f,
-                               2.f / 3.f,
-                               -2.f / 3.f,
-                               1.f / 3.f,
-                               1.f / 6.f,
-                               -5.f / 6.f,
-                               3.f / 6.f,
-                               -1.f / 6.f,
-                               -4.f / 5.f,
-                               3.f / 5.f,
-                               0.f,
-                               0.f};
-    EXPECT(migraphx::verify::verify_range(result_vector, correct));
+    std::vector<float> gold{0.f,
+                            2.f / 3.f,
+                            -2.f / 3.f,
+                            1.f / 3.f,
+                            1.f / 6.f,
+                            -5.f / 6.f,
+                            3.f / 6.f,
+                            -1.f / 6.f,
+                            -4.f / 5.f,
+                            3.f / 5.f,
+                            0.f,
+                            0.f};
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
 TEST_CASE(mean_broadcast_test)

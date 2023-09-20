@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include "verify.hpp"
+#include "migraphx/verify.hpp"
 #include "perf.hpp"
 
 #include <migraphx/register_target.hpp>
@@ -84,7 +85,7 @@ void verify_program(const std::string& name,
     std::size_t output_num = x.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        verify_args_with_threshold(name, x[i], y[i], threshold);
+        verify_args_with_threshold(name, x[i], y[i], verify::threshold{threshold});
     }
 }
 

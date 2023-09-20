@@ -133,7 +133,7 @@ bool verify_mlir(const migraphx::module& mmlir)
     auto inputs = generate_params(ref);
 
     auto mlir = create_program_from_mlir(mmlir);
-    return migraphx::verify_args("mlir", run_ref(ref, inputs), run_gpu(mlir, inputs));
+    return migraphx::verify_args("mlir", run_gpu(mlir, inputs), run_ref(ref, inputs));
 }
 
 TEST_CASE(conv)

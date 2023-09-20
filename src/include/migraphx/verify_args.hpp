@@ -34,11 +34,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_EXPORT bool verify_args_with_threshold(const std::string& name,
                                                 const argument& ref_arg,
                                                 const argument& target_arg,
-                                                double threshold);
+                                                verify::threshold);
 
 MIGRAPHX_EXPORT bool verify_args(const std::string& name,
-                                 const argument& ref_arg,
                                  const argument& target_arg,
+                                 const argument& ref_arg,
                                  std::size_t tolerance = 80);
 
 } // namespace MIGRAPHX_INLINE_NS

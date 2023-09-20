@@ -33,8 +33,8 @@
 TEST_CASE(softmax_simple_test)
 {
     migraphx::program p;
-    auto* mm             = p.get_main_module();
-    std::vector<float> a = {0.25, 0.75};
+    auto* mm                = p.get_main_module();
+    std::vector<float> a    = {0.25, 0.75};
     std::vector<float> gold = {0.377541, 0.622459};
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
@@ -43,7 +43,7 @@ TEST_CASE(softmax_simple_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(softmax_test)
@@ -103,7 +103,7 @@ TEST_CASE(softmax_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(120);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(softmax_dyn_test)
@@ -166,5 +166,5 @@ TEST_CASE(softmax_dyn_test)
         0.13268511, 0.61795473, 0.49703068, 0.41696799, 0.10175809, 0.71028161, 0.29929739,
         0.17377149, 0.76075399, 0.20071237, 0.32632929, 0.36892858, 0.09416146, 0.26656723,
         0.42914796};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

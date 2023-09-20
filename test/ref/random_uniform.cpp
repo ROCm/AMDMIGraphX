@@ -106,7 +106,7 @@ TEST_CASE(random_uniform_int_test)
     std::uniform_int_distribution<uint16_t> dis;
     std::vector<uint16_t> gold_rand_samples(sample_size);
     std::generate(gold_rand_samples.begin(), gold_rand_samples.end(), [&]() { return dis(gen); });
-    EXPECT(migraphx::verify::verify_range(result_vec, gold_rand_samples));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, gold_rand_samples));
 }
 
 TEST_CASE(random_uniform_dyn_test)
@@ -145,7 +145,7 @@ TEST_CASE(random_uniform_dyn_test)
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> gold_rand_samples(sample_size);
     std::generate(gold_rand_samples.begin(), gold_rand_samples.end(), [&]() { return dis(gen); });
-    EXPECT(migraphx::verify::verify_range(result_vec, gold_rand_samples));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, gold_rand_samples));
 }
 
 TEST_CASE(random_uniform_and_seed_test)

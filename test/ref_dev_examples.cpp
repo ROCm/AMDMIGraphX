@@ -167,7 +167,7 @@ TEST_CASE(handling_tensors)
                                -0.16138598,
                                0.79344082};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

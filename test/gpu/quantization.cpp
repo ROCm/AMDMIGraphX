@@ -51,7 +51,7 @@ TEST_CASE(gpu_target_copy)
     std::vector<int8_t> val_final;
     ref_arg_final.visit([&](auto v) { val_final.assign(v.begin(), v.end()); });
 
-    EXPECT(migraphx::verify::verify_range(val_orig, val_final));
+    EXPECT(migraphx::verify::verify_rms_range(val_orig, val_final));
 }
 
 TEST_CASE(int8_quantization)
@@ -122,7 +122,7 @@ TEST_CASE(int8_quantization)
                 migraphx::verify::expected{ref_result},
                 migraphx::verify::tolerance{0.01}));
         else
-            EXPECT(migraphx::verify::verify_range(gpu_result, ref_result));
+            EXPECT(migraphx::verify::verify_rms_range(gpu_result, ref_result));
     }
 }
 

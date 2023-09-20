@@ -244,10 +244,10 @@ bool allclose(const R1& r1, const R2& r2, tolerance tols)
 }
 
 template <class R1, class R2>
-bool verify_range(const R1& r1,
-                  const R2& r2,
-                  std::size_t tolerance = 80,
-                  double* out_rms_error = nullptr)
+bool verify_rms_range(const R1& r1,
+                      const R2& r2,
+                      std::size_t tolerance = 80,
+                      double* out_rms_error = nullptr)
 {
     double threshold = get_rms_tol(r1, tolerance);
     auto error       = rms_range(r1, r2);
@@ -278,7 +278,7 @@ bool verify_range_with_tolerance(const expected<R1>& r1,
                                  tolerance tols        = tolerance{},
                                  double* out_rms_error = nullptr)
 {
-    return verify_range(r2, r1, tols, out_rms_error);
+    return verify_rms_range(r2, r1, tols, out_rms_error);
 }
 
 } // namespace verify

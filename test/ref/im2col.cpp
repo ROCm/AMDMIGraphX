@@ -61,7 +61,7 @@ TEST_CASE(im2col_3x3_no_pad_identity_test)
     std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
     std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(im2col_3x3_no_pad_test)
@@ -98,7 +98,7 @@ TEST_CASE(im2col_3x3_no_pad_test)
     std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
     std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(im2col_3x3_stride_2_no_pad_test)
@@ -136,7 +136,7 @@ TEST_CASE(im2col_3x3_stride_2_no_pad_test)
     std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
     std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(im2col_3x3_with_channels_identity_test)
@@ -170,7 +170,7 @@ TEST_CASE(im2col_3x3_with_channels_identity_test)
     std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
     std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(im2col_3x3_with_padding_test)
@@ -207,5 +207,5 @@ TEST_CASE(im2col_3x3_with_padding_test)
     std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
     std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

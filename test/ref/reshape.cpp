@@ -44,7 +44,7 @@ TEST_CASE(reshape_test0)
     auto result = p.eval({}).back();
     std::vector<float> results_vector{};
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(reshape_test1)
@@ -61,7 +61,7 @@ TEST_CASE(reshape_test1)
     auto result = p.eval({}).back();
     std::vector<float> results_vector{};
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(reshape_test2)
@@ -78,7 +78,7 @@ TEST_CASE(reshape_test2)
     auto result = p.eval({}).back();
     std::vector<float> results_vector{};
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(reshape_dyn_test)
@@ -99,5 +99,5 @@ TEST_CASE(reshape_dyn_test)
     auto result = p.eval(params).back();
     std::vector<float> results_vector{};
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

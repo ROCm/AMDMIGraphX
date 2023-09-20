@@ -64,7 +64,7 @@ TEST_CASE(host_same_buffer_copy)
     std::vector<float> results_vector(ss.elements(), -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold_vec(ss.elements(), 0);
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_vec));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_vec));
 }
 
 TEST_CASE(arguments_lifetime)

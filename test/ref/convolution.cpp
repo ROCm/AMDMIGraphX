@@ -103,7 +103,7 @@ TEST_CASE(conv_dyn_batch_test)
                                0.44276932,
                                -0.16138598,
                                0.79344082};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv_dyn_img_shape_test)
@@ -149,7 +149,7 @@ TEST_CASE(conv_dyn_img_shape_test)
 
     std::vector<float> gold = {6.1329393, 4.3199925, 5.448438, 3.8497565};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 
     a = {0.95600171, 0.20768181, 0.82844489, 0.14928212, 0.51280462, 0.1359196,  0.68903648,
          0.84174772, 0.425509,   0.956926,   0.82533291, 0.33821531, 0.57576055, 0.75330186,
@@ -191,7 +191,7 @@ TEST_CASE(conv_dyn_img_shape_test)
     result = p.eval(params1).back();
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv_dyn_weights_shape_test)
@@ -251,7 +251,7 @@ TEST_CASE(conv_dyn_weights_shape_test)
                                2.1917608,
                                1.6797699};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 
     c    = {0.98411968, 0.2899219,  0.44638833, 0.30390816, 0.03989896, 0.2445332,  0.32700131,
             0.57517075, 0.06956476, 0.93079306, 0.19882314, 0.52940601, 0.35624753, 0.35938406,
@@ -267,7 +267,7 @@ TEST_CASE(conv_dyn_weights_shape_test)
     result = p.eval(params1).back();
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv_dyn_img_same_upper_test)
@@ -336,7 +336,7 @@ TEST_CASE(conv_dyn_img_same_upper_test)
                                4.117671,
                                3.5187216,
                                2.3236327};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv_dyn_kernel_same_upper_test)
@@ -409,7 +409,7 @@ TEST_CASE(conv_dyn_kernel_same_upper_test)
                                0.9225286,
                                1.43048,
                                0.74341124};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv_dyn_kernel_same_lower_test)
@@ -483,7 +483,7 @@ TEST_CASE(conv_dyn_kernel_same_lower_test)
                                2.50734,
                                2.7736917};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv2d_padding_stride_test)
@@ -546,7 +546,7 @@ TEST_CASE(conv2d_padding_stride_test)
                                -0.16138598,
                                0.79344082};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv2d_padding_test)
@@ -603,7 +603,7 @@ TEST_CASE(conv2d_padding_test)
         -0.02471633, -0.58163726, -0.02211772, -0.42014724, 0.77525634,  0.504951,    -0.20537445,
         -0.20369984, -0.83037728, -1.40423918, -0.46160448, -0.22944322, 0.36074194,  0.49579027,
         0.46527559};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv2d_test)
@@ -668,7 +668,7 @@ TEST_CASE(conv2d_test)
                                0.71606487,
                                -0.55201721,
                                -0.46427044};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(conv3d_test)
@@ -736,5 +736,5 @@ TEST_CASE(conv3d_test)
                                0.71606487,
                                -0.55201721,
                                -0.46427044};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

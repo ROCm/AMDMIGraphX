@@ -542,9 +542,13 @@ struct verify : command<verify>
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(tols.rms_tol, {"--rms_tol"}, ap.help("Tolerance for the RMS error"));
-        ap(tols.atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute error"));
-        ap(tols.rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative error"));
+        ap(tols.rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
+        ap(tols.atol,
+           {"--atol"},
+           ap.help("Tolerance for the elementwise absolute error (Default: 0.001)"));
+        ap(tols.rtol,
+           {"--rtol"},
+           ap.help("Tolerance for the elementwise relative error (Default: 0.001)"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),

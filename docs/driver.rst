@@ -50,7 +50,7 @@ Runs reference and CPU or GPU implementations and checks outputs for consistency
 
 .. include:: ./driver/compile.rst
 
-.. option::  --rms_tol [double]
+.. option::  --rms-tol [double]
 
 Tolerance for RMS error (Default: 0.001)
 

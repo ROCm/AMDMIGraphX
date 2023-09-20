@@ -226,13 +226,13 @@ struct tolerance
 };
 
 template <class R1, class R2>
-bool allclose(const R1& r1, const R2& r2, tolerance thres)
+bool allclose(const R1& r1, const R2& r2, tolerance tols)
 {
     std::size_t n = range_distance(r1);
     if(n == range_distance(r2))
     {
         auto idx = mismatch_idx(r1, r2, [&](auto x, auto y) {
-            return abs_diff(double(x), double(y)) > thres.atol + thres.rtol * std::abs(double(y));
+            return abs_diff(double(x), double(y)) > tols.atol + tols.rtol * std::abs(double(y));
         });
         if(idx < range_distance(r1))
         {

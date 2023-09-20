@@ -84,7 +84,7 @@ void verify_program(const std::string& name,
     std::size_t output_num = ref_outs.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        verify_args_with_threshold(name, target_outs[i], verify::expected{ref_outs[i]}, tols);
+        verify_args(name, target_outs[i], verify::expected{ref_outs[i]}, tols);
     }
 }
 

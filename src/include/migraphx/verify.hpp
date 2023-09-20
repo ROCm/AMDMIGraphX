@@ -203,7 +203,7 @@ template <class T>
 struct expected
 {
     expected() = default;
-    expected(const T& input) : x(&input) {}
+    explicit expected(const T& input) : x(&input) {}
     const T& data() const
     {
         assert(x != nullptr);

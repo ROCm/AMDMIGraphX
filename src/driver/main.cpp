@@ -536,13 +536,13 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    double threshold     = 0.001;
+    double rms_tol       = 0.001;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(threshold, {"--threshold"}, ap.help("threshold for the RMS error"));
+        ap(rms_tol, {"--rms_tol"}, ap.help("Tolerance for the RMS error"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
@@ -567,15 +567,15 @@ struct verify : command<verify>
 
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, quantize, threshold);
+            verify_instructions(p, t, c.co, quantize, rms_tol);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, quantize, m, threshold);
+            verify_reduced_program(p, t, c.co, quantize, m, rms_tol);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, quantize, m, threshold);
+            verify_program(c.l.file, p, t, c.co, quantize, m, rms_tol);
         }
     }
 };

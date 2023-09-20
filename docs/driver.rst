@@ -50,9 +50,9 @@ Runs reference and CPU or GPU implementations and checks outputs for consistency
 
 .. include:: ./driver/compile.rst
 
-.. option::  --threshold [double]
+.. option::  --rms_tol [double]
 
-Threshold for RMS error (Default: 0.001)
+Tolerance for RMS error (Default: 0.001)
 
 .. option::  -i, --per-instruction
 

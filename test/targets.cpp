@@ -23,6 +23,9 @@
  */
 #include <migraphx/register_target.hpp>
 #include <migraphx/target.hpp>
+#include <migraphx/par_for.hpp>
+#include <mutex>
+#include <thread>
 #include "test.hpp"
 
 TEST_CASE(make_target)
@@ -48,6 +51,23 @@ TEST_CASE(targets)
 #endif
     auto ts = migraphx::get_targets();
     EXPECT(ts.size() >= 1);
+}
+
+TEST_CASE(concurrent_targets)
+{
+    std::vector<std::thread> threads;
+
+    for(auto i = 0u; i < 10000; i++)
+    {
+        auto thread_body = []() {
+            auto ref_target = migraphx::make_target("gpu");
+            migraphx::register_target(ref_target);
+        };
+
+        threads.emplace_back(thread_body);
+    }
+    for(auto& tt : threads)
+        tt.join();
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

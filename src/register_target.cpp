@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <migraphx/register_target.hpp>
@@ -33,6 +34,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+
     target_loader.emplace_back(lib);
 }
 
@@ -46,14 +50,28 @@ void register_target_init() { (void)target_map(); }
 
 void unregister_target(const std::string& name)
 {
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
     assert(target_map().count(name));
     target_map().erase(name);
 }
 
-void register_target(const target& t) { target_map()[t.name()] = t; }
+void register_target(const target& t)
+{
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+
+    target_map()[t.name()] = t;
+}
 
 target make_target(const std::string& name)
 {
+    // debug
+    for(auto pp : target_map())
+        std::cout << pp.first << "\n";
+
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
     if(not contains(target_map(), name))
     {
         std::string target_name = "libmigraphx_" + name + ".so";

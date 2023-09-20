@@ -56,11 +56,11 @@ Tolerance for RMS error (Default: 0.001)
 
 .. option::  --atol [double]
 
-Tolerance for elementwise absolute error (Default: 0.001)
+Tolerance for elementwise absolute difference (Default: 0.001)
 
 .. option::  --rtol [double]
 
-Tolerance for elementwise relative error (Default: 0.001)
+Tolerance for elementwise relative difference (Default: 0.001)
 
 .. option::  -i, --per-instruction
 

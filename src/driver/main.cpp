@@ -545,10 +545,10 @@ struct verify : command<verify>
         ap(tols.rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
         ap(tols.atol,
            {"--atol"},
-           ap.help("Tolerance for the elementwise absolute error (Default: 0.001)"));
+           ap.help("Tolerance for the elementwise absolute difference (Default: 0.001)"));
         ap(tols.rtol,
            {"--rtol"},
-           ap.help("Tolerance for the elementwise relative error (Default: 0.001)"));
+           ap.help("Tolerance for the elementwise relative difference (Default: 0.001)"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),

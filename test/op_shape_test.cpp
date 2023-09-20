@@ -2466,13 +2466,21 @@ TEST_CASE(reshape_shape)
         migraphx::shape output{migraphx::shape::float_type, lens};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
+}
 
+TEST_CASE(reshape_shape_invalid)
+{
+    migraphx::shape input{migraphx::shape::float_type, {24, 1, 1, 1}};
     for(auto&& new_shape :
         std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}, {3, 0}, {3, 2}})
     {
         throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
+}
 
+TEST_CASE(reshape_shape_minus1_reshapes)
+{
+    migraphx::shape input{migraphx::shape::float_type, {24, 1, 1, 1}};
     std::vector<std::pair<std::vector<int64_t>, migraphx::shape>> minus1_tests{
         {{2, -1, 3}, {migraphx::shape::float_type, {2, 4, 3}}},
         {{0, -1, 0}, {migraphx::shape::float_type, {24, 1, 1}}},

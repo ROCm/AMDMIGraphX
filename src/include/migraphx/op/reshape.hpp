@@ -125,7 +125,15 @@ struct reshape
             }
         }
 
-        return {inputs.front().type(), rdims};
+        shape s{inputs.front().type(), rdims};
+
+        if(s.elements() != inputs.front().elements())
+            MIGRAPHX_THROW("reshape: Wrong number of elements for reshape: reshape has " +
+                           std::to_string(s.elements()) + " elements whereas the input has " +
+                           std::to_string(inputs.front().elements()));
+
+        assert(s.bytes() == inputs.front().bytes());
+        return s;
     }
 
     shape compute_shape(std::vector<shape> inputs) const

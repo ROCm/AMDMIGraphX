@@ -389,10 +389,11 @@ struct miopen_apply
             std::vector<instruction_ref> before_contiguous_args = ins->inputs();
             auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
             before_contiguous_args.push_back(before_alloc);
-            mod->insert_instruction(ins, make_op("gpu::contiguous"), before_contiguous_args);
+            auto before_contig =
+                mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
 
             auto new_lazy_reshape = mod->insert_instruction(
-                ins,
+                before_contig,
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                 ins->inputs(),
                 ins->module_inputs());

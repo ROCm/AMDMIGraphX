@@ -54,6 +54,14 @@ Runs reference and CPU or GPU implementations and checks outputs for consistency
 
 Tolerance for RMS error (Default: 0.001)
 
+.. option::  --atol [double]
+
+Tolerance for elementwise absolute error (Default: 0.001)
+
+.. option::  --rtol [double]
+
+Tolerance for elementwise relative error (Default: 0.001)
+
 .. option::  -i, --per-instruction
 
 Verify each instruction

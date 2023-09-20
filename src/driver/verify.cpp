@@ -78,13 +78,13 @@ void verify_program(const std::string& name,
                     const parameter_map& inputs,
                     verify::tolerance tols)
 {
-    auto x = run_ref(p, inputs);
-    auto y = run_target(p, t, options, quantize, inputs);
+    auto ref_outs    = run_ref(p, inputs);
+    auto target_outs = run_target(p, t, options, quantize, inputs);
 
-    std::size_t output_num = x.size();
+    std::size_t output_num = ref_outs.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        verify_args_with_threshold(name, x[i], y[i], tols);
+        verify_args_with_threshold(name, target_outs[i], ref_outs[i], tols);
     }
 }
 

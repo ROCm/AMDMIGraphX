@@ -36,10 +36,12 @@ struct test_reduce_noop_add : verify_program<test_reduce_noop_add>
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {4, 1000, 1, 1}};
         migraphx::shape bs{migraphx::shape::half_type, {1, 32, 128}};
-        auto x      = mm->add_parameter("x", s);
-        auto reduce_mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-        auto reduce_max = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2, 3}}}), x);
-        auto add    = mm->add_instruction(migraphx::make_op("add"), reduce_mean, reduce_max);
+        auto x = mm->add_parameter("x", s);
+        auto reduce_mean =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+        auto reduce_max =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2, 3}}}), x);
+        auto add = mm->add_instruction(migraphx::make_op("add"), reduce_mean, reduce_max);
         mm->add_return({add});
         return p;
     };

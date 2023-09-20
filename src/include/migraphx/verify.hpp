@@ -225,6 +225,10 @@ struct tolerance
     double rtol    = 0.001;
 };
 
+/*
+MIGraphX implementation of numpy's np.allclose() which checks if elementwise absolute diff is within
+tolerance using this formula:  abs(a - b) < atol + rtol(abs(b))
+*/
 template <class R1, class R2>
 bool allclose(const R1& r1, const R2& r2, tolerance tols)
 {

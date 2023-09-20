@@ -29,11 +29,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 bool verify_args_with_threshold(const std::string& name,
                                 const argument& target_arg,
-                                const argument& ref_arg,
+                                const verify::expected<argument>& ref_arg,
                                 verify::tolerance tols)
 {
     bool passed = true;
-    visit_all(ref_arg, target_arg)([&](auto ref, auto target) {
+    visit_all(ref_arg.data(), target_arg)([&](auto ref, auto target) {
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
@@ -96,7 +96,7 @@ bool verify_args_with_threshold(const std::string& name,
 
 bool verify_args(const std::string& name,
                  const argument& target_arg,
-                 const argument& ref_arg,
+                 const verify::expected<argument>& ref_arg,
                  std::size_t tolerance)
 {
     double rms_tol = 0.001;

@@ -21,47 +21,47 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | perf    | Compiles and runs input graph then prints performance report               |
 
 ### Options
-| Option                                   | Description                                                                                    |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| --help \| -h                             | Show help                                                                                      |
-| --model <resnet50\|inceptionv3\|alexnet> | Loads one of the three default models                                                          |
-| --onnx                                   | Load file as onnx graph                                                                        |
-| --tf                                     | Load file as a tensorflow graph                                                                |
-| --migraphx                               | Load file as a migraphx graph                                                                  |
-| --migraphx-json                          | Load file as a migraphx JSON graph                                                             |
-| --batch                                  | For a static model, set batch size. For a dynamic batch model, sets the batch size at runtime. |
-| --nhwc                                   | Treat tensorflow format as nhwc                                                                |
-| --nchw                                   | Treat tensorflow format as nchw                                                                |
-| --skip-unknown-operators                 | Skip unknown operators when parsing and continue to parse                                      |
-| --trim \| -t                             | Trim instructions from the end                                                                 |
-| --optimize \| -O                         | Optimize when reading                                                                          |
-| --graphviz \| -g                         | Print out a graphviz representation                                                            |
-| --brief                                  | Make the output brief                                                                          |
-| --cpp                                    | Print out the program as cpp program                                                           |
-| --json                                   | Print out program as json                                                                      |
-| --text                                   | Print out program in text format                                                               |
-| --binary                                 | Print out program in binary format                                                             |
-| --output \| -o                           | Output to file                                                                                 |
-| --fill0                                  | Fill parameter with 0s                                                                         |
-| --fill1                                  | Fill parameter with 1s                                                                         |
-| --input-dim                              | Set static dimensions of a parameter                                                           |
-| --dyn-input-dim                          | Set dynamic dimensions of a parameter                                                          |
-| --default-dyn-dim                        | Set default dynamic dimension                                                                  |
-| --gpu                                    | Compile on the gpu                                                                             |
-| --cpu                                    | Compile on the cpu                                                                             |
-| --ref                                    | Compile on the reference implementation                                                        |
-| --enable-offload-copy                    | Enable implicit offload copying                                                                |
-| --disable-fast-math                      | Disable fast math optimization                                                                 |
-| --exhaustive-tune                        | Enable exhaustive search to find fastest kernel                                                |
-| --fp16                                   | Quantize for fp16                                                                              |
-| --int8                                   | Quantize for int8                                                                              |
-| --rms_tol                                | Tolerance for the RMS error                                                                    |
-| --atol                                   | Tolerance for elementwise absolute error                                                       |
-| --rtol                                   | Tolerance for elementwise relative error                                                       |
-| --per-instruction \| -i                  | Verify each instruction                                                                        |
-| --reduce \| -r                           | Reduce program and verify                                                                      |
-| --iterations \| -n                       | Number of iterations to run for perf report                                                    |
-| --list \| -l                             | List all the operators of MIGraphX                                                             |
+| Option                                   | Description                                               |
+| ---------------------------------------- | --------------------------------------------------------- |
+| --help \| -h                             | Show help                                                 |
+| --model <resnet50\|inceptionv3\|alexnet> | Loads one of the three default models                     |
+| --onnx                                   | Load file as onnx graph                                   |
+| --tf                                     | Load file as a tensorflow graph                           |
+| --migraphx                               | Load file as a migraphx graph                             |
+| --migraphx-json                          | Load file as a migraphx JSON graph                        |
+| --batch                                  | For a static model, set batch size. For a dynamic batch model, sets the batch size at runtime.|
+| --nhwc                                   | Treat tensorflow format as nhwc                           |
+| --nchw                                   | Treat tensorflow format as nchw                           |
+| --skip-unknown-operators                 | Skip unknown operators when parsing and continue to parse |
+| --trim \| -t                             | Trim instructions from the end                            |
+| --optimize \| -O                         | Optimize when reading                                     |
+| --graphviz \| -g                         | Print out a graphviz representation                       |
+| --brief                                  | Make the output brief                                     |
+| --cpp                                    | Print out the program as cpp program                      |
+| --json                                   | Print out program as json                                 |
+| --text                                   | Print out program in text format                          |
+| --binary                                 | Print out program in binary format                        |
+| --output \| -o                           | Output to file                                            |
+| --fill0                                  | Fill parameter with 0s                                    |
+| --fill1                                  | Fill parameter with 1s                                    |
+| --input-dim                              | Set static dimensions of a parameter                      |
+| --dyn-input-dim                          | Set dynamic dimensions of a parameter                     |
+| --default-dyn-dim                        | Set default dynamic dimension                             |
+| --gpu                                    | Compile on the gpu                                        |
+| --cpu                                    | Compile on the cpu                                        |
+| --ref                                    | Compile on the reference implementation                   |
+| --enable-offload-copy                    | Enable implicit offload copying                           |
+| --disable-fast-math                      | Disable fast math optimization                            |
+| --exhaustive-tune                        | Enable exhaustive search to find fastest kernel           |
+| --fp16                                   | Quantize for fp16                                         |
+| --int8                                   | Quantize for int8                                         |
+| --rms_tol                                | Tolerance for the RMS error                               |
+| --atol                                   | Tolerance for elementwise absolute error                  |
+| --rtol                                   | Tolerance for elementwise relative error                  |
+| --per-instruction \| -i                  | Verify each instruction                                   |
+| --reduce \| -r                           | Reduce program and verify                                 |
+| --iterations \| -n                       | Number of iterations to run for perf report               |
+| --list \| -l                             | List all the operators of MIGraphX                        |
 
 ## Usage Examples
 The examples below supply a simple MNIST ConvNet as the input graph. Models of higher complexity will have considerably larger outputs in most cases.

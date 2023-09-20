@@ -96,6 +96,84 @@ struct reshape
         return {s0.type(), output_dyn_dims};
     }
 
+    template <class Iterator>
+    static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim)
+    {
+        std::size_t x = 1;
+        auto it       = std::find_if(start, last, [&](auto i) {
+            x *= i;
+            return x >= dim;
+        });
+        if(x != dim)
+            return start;
+        return it;
+    }
+
+    // This will attempt to alias the dimensions of the input shape to the lens of
+    // `rdims`. Unlike reshape_lazy though we can modify memory layout with out copies and this
+    // can remove previous nullopts that were sent back for the alias case
+    static optional<shape> reshape_dims(const shape& input,
+                                             const std::vector<std::size_t>& rdims)
+    {
+        if(input.standard())
+            return shape{input.type(), rdims};
+
+        const auto& idims    = input.lens();
+        const auto& istrides = input.strides();
+
+        std::vector<std::size_t> rstrides;
+        std::size_t i = 0;
+        std::size_t r = 0;
+        while(i < idims.size() and r < rdims.size())
+        {
+            auto idim = idims[i];
+            auto rdim = rdims[r];
+            if(rdim == idim)
+            {
+                rstrides.push_back(istrides[i]);
+            }
+            // squeeze
+            else if(rdim > idim)
+            {
+                auto start = idims.begin() + i;
+                auto it    = compute_end_dim(start, idims.end(), rdim);
+                auto n = it - start;
+                assert((i + n) <= istrides.size());
+                i += n;
+                rstrides.push_back(istrides[i]);
+            }
+            // unsqueeze
+            else // if(rdim < idim)
+            {
+                auto start = rdims.begin() + i;
+                auto it    = compute_end_dim(start, rdims.end(), idim);
+
+                auto n = it - start;
+                assert((r + n) <= rdims.size());
+                auto stride = istrides[i] * idim;
+                std::for_each(start, it + 1, [&](auto dim) {
+                    stride /= dim;
+                    rstrides.push_back(stride);
+                });
+                r += n;
+            }
+            i++;
+            r++;
+        }
+
+        // Handle trailing 1s
+        if(rstrides.size() < rdims.size() and not rstrides.empty())
+        {
+            auto stride = rstrides.back();
+            for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
+            {
+                rstrides.push_back(stride);
+            }
+        }
+
+        return shape{input.type(), rdims, rstrides};
+    }
+
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
     {
         check_shapes{inputs, *this}.has(1);
@@ -125,15 +203,15 @@ struct reshape
             }
         }
 
-        shape s{inputs.front().type(), rdims};
+        auto s = reshape_dims(inputs.front(), rdims);
 
-        if(s.elements() != inputs.front().elements())
+        if(s->elements() != inputs.front().elements())
             MIGRAPHX_THROW("reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s.elements()) + " elements whereas the input has " +
+                           std::to_string(s->elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
-        assert(s.bytes() == inputs.front().bytes());
-        return s;
+        assert(s->bytes() == inputs.front().bytes());
+        return *s;
     }
 
     shape compute_shape(std::vector<shape> inputs) const

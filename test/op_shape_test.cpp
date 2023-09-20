@@ -2604,11 +2604,11 @@ TEST_CASE(reshape_broadcast_squeeze)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_broadcast_squeeze_error)
+TEST_CASE(reshape_broadcast_squeeze_memlayout_change)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
-    std::vector<int64_t> new_shape = {2, 16, 20480};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    migraphx::shape output{migraphx::shape::float_type, {2, 16, 20480}, {0, 0, 1}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_dyn_shape)

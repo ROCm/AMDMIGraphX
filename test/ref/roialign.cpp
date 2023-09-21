@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
@@ -73,7 +73,7 @@ TEST_CASE(roialign_out_of_bound_test)
     };
 
     {
-        auto p = create_program("output_half_pixel");
+        auto p = create_program("half_pixel");
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -130,7 +130,7 @@ TEST_CASE(roialign_test)
     };
 
     {
-        auto p = create_program();
+        auto p = create_program("output_half_pixel");
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -154,7 +154,7 @@ TEST_CASE(roialign_test)
     }
 
     {
-        auto p = create_program("output_half_pixel");
+        auto p = create_program("half_pixel");
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -175,7 +175,7 @@ TEST_CASE(roialign_test)
     }
 
     {
-        auto p = create_program("output_half_pixel", migraphx::op::pooling_mode::max, 0);
+        auto p = create_program("half_pixel", migraphx::op::pooling_mode::max, 0);
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;

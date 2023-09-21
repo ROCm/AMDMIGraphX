@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -46,5 +46,5 @@ TEST_CASE(nonzero_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<int64_t> gold = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
                                  1, 1, 0, 0, 0, 0, 0, 1, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

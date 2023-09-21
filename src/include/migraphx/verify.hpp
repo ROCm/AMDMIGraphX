@@ -29,6 +29,7 @@
 #include <functional>
 #include <iostream>
 #include <numeric>
+#include <assert.h>
 
 #include <migraphx/float_equal.hpp>
 #include <migraphx/config.hpp>
@@ -187,14 +188,97 @@ double rms_range(const R1& r1, const R2& r2)
         return std::numeric_limits<range_value<R1>>::max();
 }
 
-template <class R1, class R2>
-bool verify_range(const R1& r1, const R2& r2, double tolerance = 80, double* out_error = nullptr)
+template <class R>
+double get_rms_tol(const R&, std::size_t tolerance = 80)
 {
-    double threshold = std::numeric_limits<range_value<R1>>::epsilon() * tolerance;
+    double threshold = std::numeric_limits<range_value<R>>::epsilon() * tolerance;
+    return threshold;
+}
+
+/*
+C++ doesn't support named arguments, this is just wrapper that helps distinguish between actual
+results v/s expected results arguments.
+*/
+template <class T>
+struct expected
+{
+    expected() = default;
+    explicit expected(const T& input) : x(&input) {}
+    const T& data() const
+    {
+        assert(x != nullptr);
+        return *x;
+    }
+
+    private:
+    const T* x = nullptr;
+};
+
+// deduction guide for templated expected class
+template <class T>
+expected(const T&) -> expected<T>;
+
+struct tolerance
+{
+    double rms_tol = 0.001;
+    double atol    = 0.001;
+    double rtol    = 0.001;
+};
+
+/*
+MIGraphX implementation of numpy's np.allclose() which checks if elementwise absolute diff is within
+tolerance using this formula:  abs(a - b) < atol + rtol(abs(b))
+*/
+template <class R1, class R2>
+bool allclose(const R1& r1, const R2& r2, tolerance tols)
+{
+    std::size_t n = range_distance(r1);
+    if(n == range_distance(r2))
+    {
+        auto idx = mismatch_idx(r1, r2, [&](auto x, auto y) {
+            return abs_diff(double(x), double(y)) > tols.atol + tols.rtol * std::abs(double(y));
+        });
+        return idx >= range_distance(r1);
+    }
+    return false;
+}
+
+template <class R1, class R2>
+bool verify_rms_range(const R1& r1,
+                      const R2& r2,
+                      std::size_t tolerance = 80,
+                      double* out_rms_error = nullptr)
+{
+    double threshold = get_rms_tol(r1, tolerance);
     auto error       = rms_range(r1, r2);
-    if(out_error != nullptr)
-        *out_error = error;
+    if(out_rms_error != nullptr)
+        *out_rms_error = error;
     return error <= threshold;
+}
+
+template <class R1, class R2>
+bool verify_range_with_tolerance(const R1& r1,
+                                 const expected<R2>& r2,
+                                 tolerance tols        = tolerance{},
+                                 double* out_rms_error = nullptr)
+{
+    auto rms_error = rms_range(r1, r2.data());
+    // disable ewise_verify for now, it requires lot of tests to be fixed
+    // auto ewise_verify = allclose(r1, r2.data(), tols);
+    if(out_rms_error != nullptr)
+        *out_rms_error = rms_error;
+    return rms_error <= tols.rms_tol;
+}
+
+// expected argument should be passed as second, but if it is passed as the first by mistake then
+// flip the order
+template <class R1, class R2>
+bool verify_range_with_tolerance(const expected<R1>& r1,
+                                 const R2& r2,
+                                 tolerance tols        = tolerance{},
+                                 double* out_rms_error = nullptr)
+{
+    return verify_rms_range(r2, r1, tols, out_rms_error);
 }
 
 } // namespace verify

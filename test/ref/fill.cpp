@@ -21,84 +21,82 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/program.hpp>
+#include <migraphx/onnx.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
 
-TEST_CASE(contiguous_test)
+TEST_CASE(fill_static_int)
 {
-    migraphx::shape a_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
-    std::vector<float> data(12);
-    std::iota(data.begin(), data.end(), 0);
-
+    // Note this case can be simplified to a literal
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l   = mm->add_literal(migraphx::literal{a_shape, data});
-    mm->add_instruction(migraphx::make_op("contiguous"), l);
+    migraphx::shape lit_shape{migraphx::shape::int64_type, {1}, {0}};
+    std::vector<int64_t> lit_data = {3};
+    auto l                        = mm->add_literal(migraphx::literal{lit_shape, lit_data});
+    migraphx::shape data_shape{migraphx::shape::int64_type, {3, 4, 4}};
+    auto input = mm->add_parameter("x", data_shape);
+    mm->add_instruction(migraphx::make_op("fill"), l, input);
     p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
 
-    std::vector<size_t> new_strides = {12, 4, 2, 1};
-    EXPECT(result.get_shape().strides() == new_strides);
-
-    std::vector<float> results_vector(12);
+    std::vector<int64_t> input_data(48);
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(data_shape, input_data.data());
+    auto result = p.eval(params).back();
+    std::vector<int64_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    std::vector<int64_t> gold(48, 3);
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(contiguous_param_test)
+TEST_CASE(fill_dyn_float)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape a_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
-    auto a = mm->add_parameter("X", a_shape);
-    mm->add_instruction(migraphx::make_op("contiguous"), a);
+    migraphx::shape lit_shape{migraphx::shape::float_type, {1}, {0}};
+    std::vector<float> lit_data = {7.36};
+    auto l                      = mm->add_literal(migraphx::literal{lit_shape, lit_data});
+    migraphx::shape data_shape{migraphx::shape::float_type,
+                               {{1, 4}, {4, 8, {4, 6, 8}}, {4, 8, {4, 6, 8}}}};
+    auto input = mm->add_parameter("x", data_shape);
+    mm->add_instruction(migraphx::make_op("fill"), l, input);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> data(12);
-    std::iota(data.begin(), data.end(), 0);
+    std::vector<float> input_data(72);
     migraphx::parameter_map params;
-    params["X"] = migraphx::argument(a_shape, data.data());
-    auto result = p.eval(params).back();
-
-    std::vector<size_t> new_strides = {12, 4, 2, 1};
-    EXPECT(result.get_shape().strides() == new_strides);
-
-    std::vector<float> results_vector(12);
+    migraphx::shape static_shape = {migraphx::shape::float_type, {2, 6, 6}};
+    params["x"]                  = migraphx::argument(static_shape, input_data.data());
+    auto result                  = p.eval(params).back();
+    std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
+    std::vector<float> gold(72, 7.36);
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(contiguous_dyn_test)
+TEST_CASE(fill_var_default_value)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape dyn_shape{migraphx::shape::float_type, {{1, 1}, {2, 6}, {2, 2}, {2, 2}}};
-    auto input = mm->add_parameter("X", dyn_shape);
-    mm->add_instruction(migraphx::make_op("contiguous"), input);
+    migraphx::shape dv_shape{migraphx::shape::int64_type, {1}, {0}};
+    auto dv = mm->add_parameter("dv", dv_shape);
+    migraphx::shape data_shape{migraphx::shape::int64_type, {3, 4, 4}};
+    auto input = mm->add_parameter("x", data_shape);
+    mm->add_instruction(migraphx::make_op("fill"), dv, input);
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape static_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
-    std::vector<float> data(12);
-    std::iota(data.begin(), data.end(), 0);
+    std::vector<int64_t> dv_data = {2};
+    std::vector<int64_t> input_data(48);
     migraphx::parameter_map params;
-    params["X"] = migraphx::argument(static_shape, data.data());
-    auto result = p.eval(params).back();
-
-    std::vector<size_t> new_strides = {12, 4, 2, 1};
-    EXPECT(result.get_shape().strides() == new_strides);
-
-    std::vector<float> results_vector(12);
+    params["x"]  = migraphx::argument(data_shape, input_data.data());
+    params["dv"] = migraphx::argument(dv_shape, dv_data.data());
+    auto result  = p.eval(params).back();
+    std::vector<int64_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
+    std::vector<int64_t> gold(48, 2);
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

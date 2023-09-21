@@ -21,27 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_VERIFY_ARGS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_VERIFY_ARGS_HPP
 
-#include <migraphx/verify.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/device/targets.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/errors.hpp>
+#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+namespace device {
 
-MIGRAPHX_EXPORT bool verify_args(const std::string& name,
-                                 const argument& target_arg,
-                                 const verify::expected<argument>& ref_arg,
-                                 verify::tolerance);
+static std::vector<std::string> parse_targets() { return split_string(MIGRAPHX_GPU_TARGETS, ';'); }
 
-MIGRAPHX_EXPORT bool verify_args_with_tolerance(const std::string& name,
-                                                const argument& target_arg,
-                                                const verify::expected<argument>& ref_arg,
-                                                std::size_t tolerance = 80);
+const std::vector<std::string>& get_targets()
+{
+    static auto result = parse_targets();
+    return result;
+}
 
+std::string get_targets_as_string() { return join_strings(get_targets(), ", "); }
+
+static int get_device_id()
+{
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("No device");
+    return device;
+}
+
+std::string get_device_name()
+{
+    hipDeviceProp_t props{};
+    auto status = hipGetDeviceProperties(&props, get_device_id());
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Failed to get device properties");
+    return props.gcnArchName;
+}
+
+} // namespace device
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

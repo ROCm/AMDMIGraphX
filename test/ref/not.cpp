@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -44,7 +44,7 @@ TEST_CASE(not_test_int32)
     std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<char> gold{1, 0, 0, 0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(not_test_bool)
@@ -62,7 +62,7 @@ TEST_CASE(not_test_bool)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<bool> gold(data.size());
     std::transform(data.begin(), data.end(), gold.begin(), [](bool n) -> bool { return not n; });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(not_dyn_test)
@@ -83,5 +83,5 @@ TEST_CASE(not_dyn_test)
     std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<char> gold{1, 0, 0, 0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

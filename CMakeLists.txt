@@ -162,6 +162,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-virtual-class-destructor
+        -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -google-readability-*
         -google-runtime-int
         -google-runtime-references

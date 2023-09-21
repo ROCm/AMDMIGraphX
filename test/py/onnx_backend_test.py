@@ -108,6 +108,34 @@ def disabled_tests_onnx_1_12_0(backend_test):
     backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
 
 
+def disabled_tests_onnx_1_13_0(backend_test):
+    # The following tests fail due to the CastLike operator being unsupported
+    backend_test.exclude(r'test_elu_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_elu_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_elu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_hardsigmoid_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_hardsigmoid_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_hardsigmoid_expanded_ver18_cpu')
+    backend_test.exclude(r'test_leakyrelu_default_expanded_cpu')
+    backend_test.exclude(r'test_leakyrelu_example_expanded_cpu')
+    backend_test.exclude(r'test_leakyrelu_expanded_cpu')
+    backend_test.exclude(r'test_selu_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_selu_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_selu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_thresholdedrelu_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_thresholdedrelu_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_thresholdedrelu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_relu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_softsign_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_softsign_expanded_ver18_cpu')
+
+
+def disabled_tests_onnx_1_14_0(backend_test):
+    # The following tests fail due to the CastLike operator being unsupported
+    backend_test.exclude(r'test_softplus_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_softplus_expanded_ver18_cpu')
+
+
 def create_backend_test(testname=None, target_device=None):
     if target_device is not None:
         c2.set_device(target_device)
@@ -333,6 +361,12 @@ def create_backend_test(testname=None, target_device=None):
 
         if version.parse(onnx.__version__) >= version.parse("1.12.0"):
             disabled_tests_onnx_1_12_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.13.0"):
+            disabled_tests_onnx_1_13_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.14.0"):
+            disabled_tests_onnx_1_14_0(backend_test)
 
 
 # import all test cases at global scope to make

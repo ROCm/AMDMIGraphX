@@ -930,6 +930,58 @@ TEST_CASE(constant_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(constant_value_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
+    auto prog = optimize_onnx("constant_value_float_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_floats_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {1.0f, 2.0f, 3.0f}});
+    auto prog = optimize_onnx("constant_value_floats_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_int_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+    auto prog = optimize_onnx("constant_value_int_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_ints_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3}}, {1, 2, 3}});
+    auto prog = optimize_onnx("constant_value_ints_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_no_attributes_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("constant_no_attributes_test.onnx"); }));
+}
+
+TEST_CASE(constant_multiple_attributes_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("constant_multiple_attributes_test.onnx"); }));
+}
+
 TEST_CASE(constant_fill_test)
 {
     migraphx::program p;

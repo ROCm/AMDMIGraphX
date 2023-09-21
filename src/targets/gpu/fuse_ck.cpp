@@ -130,6 +130,10 @@ struct find_ck_gemm_pointwise
                return not is_ck_supported_type(input->get_shape().type());
            }))
             return;
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
+               return not input->inputs().empty() and input->inputs().front()->name() == "capture";
+           }))
+            return;
         assert(gemm_it != inputs.end());
         if(gemm_idx != 0)
         {

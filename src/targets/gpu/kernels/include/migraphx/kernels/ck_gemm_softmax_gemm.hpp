@@ -44,8 +44,20 @@ template <class Tensor>
 using ck_transposeb = decltype(make_shape(ck_transposeb_dims(get_shape_c<Tensor>{}.lens),
                                           ck_transposeb_dims(get_shape_c<Tensor>{}.strides)));
 
-template <class G, class C, class A, class B, class B1>
-__device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
+template <class T>
+struct ck_gemm_softmax_gemm_settings
+{
+    T scale{};
+};
+
+template <class... Ts>
+constexpr ck_gemm_softmax_gemm_settings<Ts...> make_ck_gemm_softmax_gemm_settings(Ts... xs)
+{
+    return {xs...};
+}
+
+template <class G, class C, class A, class B, class B1, class Settings>
+__device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1, Settings s)
 {
     constexpr auto desc = G::make_descriptor(to_ck_tensor<A>(),
                                              to_ck_tensor<ck_transposeb<B>>(),
@@ -53,19 +65,20 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1)
                                              to_ck_tensor<C>());
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
-
+    const float scale = s.scale;
     G::Run(desc,
+           scale,
            to_ck_const_pointer(a.data()),
            to_ck_const_pointer(b.data()),
            to_ck_const_pointer(b1.data()),
            to_ck_pointer(c.data()));
 }
 
-template <class G, index_int BlocksPerBatch, class... Ts>
-__device__ void ck_gemm_softmax_gemm(Ts... xs)
+template <class G, index_int BlocksPerBatch, class... Ts, class Settings>
+__device__ void ck_gemm_softmax_gemm(Settings s, Ts... xs)
 {
     gemm_batch_args(make_index(), _c<BlocksPerBatch>, xs...)(
-        [](auto... ys) { ck_gemm_softmax_gemm_matrix<G>(ys...); });
+        [&](auto... ys) { ck_gemm_softmax_gemm_matrix<G>(ys..., s); });
 }
 
 } // namespace migraphx

@@ -76,11 +76,12 @@ MIGRAPHX_REGISTER_OP(ck_gemm);
 struct ck_gemm_softmax_gemm
 {
     operation op = make_op("dot");
+    double scale = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.op, "op"));
+        return pack(f(self.op, "op"), f(self.scale, "scale"));
     }
 
     std::string name() const { return "gpu::ck_gemm_softmax_gemm"; }
@@ -91,7 +92,7 @@ struct ck_gemm_softmax_gemm
             MIGRAPHX_THROW("Invalid shape for ck_gemm_softmax_gemm");
     }
 
-    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
+    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>&) const
     {
         check_shapes{inputs, *this}.same_ndims();
         if(inputs.size() < 2)
@@ -136,37 +137,8 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
     // to avoid poor-performing GEMM kernels from CK
     // To-do: Investigate a more precise strategy
-    return true; // k <= 2048;
+    return k <= 2048;
 }
-
-struct find_ck_gemm_softmax_gemm
-{
-    auto matcher() const
-    {
-        auto gemm1 =
-            match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
-        auto mul     = match::name("mul")(match::any_of[match::inputs()](gemm1)).bind("scale");
-        auto softmax = match::name("softmax")(match::any_of[match::inputs()](mul)).bind("softmax");
-        return match::name("dot")(is_ck_gemm().bind("gemm2"))(
-            match::any_of[match::inputs()](softmax));
-    }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        auto ins       = r.result;
-        auto gemm2_ins = r.instructions["gemm2"];
-        auto gemm1_ins = r.instructions["gemm1"];
-
-        // if (not ck_gemm_softmax_gemm::is_ck_supported_type(gemm1_ins->get_shape().type()))
-        //     return;
-
-        auto inputs = gemm1_ins->inputs();            // A, B
-        inputs.push_back(gemm2_ins->inputs().back()); // B1
-
-        mpm.get_module().replace_instruction(
-            ins, ck_gemm_softmax_gemm{gemm2_ins->get_operator()}, inputs);
-    }
-};
 
 struct find_ck_gemm_pointwise
 {
@@ -228,6 +200,74 @@ struct find_ck_gemm
     {
         auto ins = r.result;
         mpm.get_module().replace_instruction(ins, ck_gemm{ins->get_operator()}, ins->inputs());
+    }
+};
+
+static bool is_mul_module(const module& m)
+{
+    std::vector<std::string> result;
+    for(auto& ins : m)
+    {
+        if(starts_with(ins.name(), "@"))
+            continue;
+        if(contains({"multibroadcast", "contiguous"}, ins.name()))
+            continue;
+        if(ins.name() == "pointwise")
+        {
+            return is_mul_module(*ins.module_inputs().front());
+        }
+        else if(ins.name() == "mul")
+        {
+                return true;
+        }
+    }
+    return false;
+}
+
+struct find_ck_gemm_softmax_gemm
+{
+    auto matcher() const
+    {
+        auto gemm1 =
+            match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
+        auto mul     = match::name("pointwise")(match::any_of[match::inputs()](gemm1)).bind("scale");
+        auto softmax = match::name("softmax")(match::any_of[match::inputs()](mul)).bind("softmax");
+        return match::name("dot")(is_ck_gemm().bind("gemm2"))(
+            match::any_of[match::inputs()](softmax));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto gemm2_ins = r.instructions["gemm2"];
+        auto gemm1_ins = r.instructions["gemm1"];
+        auto scale_ins = r.instructions["scale"];
+
+        if (scale_ins->module_inputs().size() != 1 or not is_mul_module(*scale_ins->module_inputs().front()))
+            return;
+        if (not ck_gemm_softmax_gemm::is_ck_supported_type(gemm1_ins->get_shape().type()))
+            return;
+        
+        double scale = 1.0;
+        for (auto& in: scale_ins->inputs())
+        {
+            if (in->can_eval())
+            {
+                in->get_literal().visit([&](const auto s) {
+                    if (std::all_of(
+                        s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
+                        scale = s.front();
+                    else    
+                        return;
+                });
+            }
+        }
+
+        auto inputs = gemm1_ins->inputs();            // A, B
+        inputs.push_back(gemm2_ins->inputs().back()); // B1
+
+        mpm.get_module().replace_instruction(
+            ins, ck_gemm_softmax_gemm{gemm2_ins->get_operator(), scale}, inputs);
     }
 };
 

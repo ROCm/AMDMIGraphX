@@ -58,6 +58,8 @@ static const char* const ck_gemm_softmax_gemm_kernel = R"__migraphx__(
 #include <migraphx/kernels/ck_gemm_softmax_gemm.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/generic_constant.hpp>
 #include <${include}>
 
 namespace migraphx {
@@ -69,7 +71,8 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
-        ck_gemm_softmax_gemm<${solution}, ${blocks_per_batch}>(xs...);
+        auto settings = make_ck_gemm_softmax_gemm_settings(MIGRAPHX_MAKE_CONSTANT(float{SCALE}));
+        ck_gemm_softmax_gemm<${solution}, ${blocks_per_batch}>(settings, xs...);
     });
 }
 
@@ -158,6 +161,7 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
         std::cout << "  " << inputs[0] << std::endl;
         std::cout << "  " << inputs[1] << std::endl;
         std::cout << "  " << inputs[2] << std::endl;
+        std::cout << "  " << inputs[3] << std::endl;
     }
     auto it = std::find_if(
         tuning.begin(), tuning.end(), [&](const auto& p) { return p.first == inputs; });
@@ -167,6 +171,7 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
         std::cout << "  " << inputs[0] << std::endl;
         std::cout << "  " << inputs[1] << std::endl;
         std::cout << "  " << inputs[2] << std::endl;
+        std::cout << "  " << inputs[3] << std::endl;
         std::vector<std::pair<float, std::size_t>> w;
         std::transform(tuning.begin(), tuning.end(), std::back_inserter(w), [&](const auto& p) {
             if(inputs.size() < 3 or p.first.size() < 3)
@@ -181,7 +186,7 @@ static std::size_t get_tuning_for(const std::vector<shape>& inputs)
             return std::make_pair(avg_distance, p.second);
         });
         std::sort(w.begin(), w.end());
-        std::size_t default_value = 4;
+        std::size_t default_value = 5;
         if(not w.empty())
             default_value = w.front().second;
         auto tuning_val = value_of(MIGRAPHX_CK_TUNING_VALUE{}, default_value);
@@ -322,12 +327,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         const auto b_type   = get_type(b_shape);
         const auto b1_type  = get_type(b1_shape);
         const auto c_type   = get_type(c_shape);
-        const auto scale    = 1.0f;
 
         std::string ck_passthrough = "ck_passthrough";
-        std::string cde_op         = ck_passthrough;
-
-        /// update params after adding to jitlib
         return ck::host::device_batched_gemm_softmax_gemm::Problem{m,
                                                                    n,
                                                                    k,
@@ -343,19 +344,18 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                                                                    ck_passthrough,
                                                                    ck_passthrough,
                                                                    ck_passthrough,
-                                                                   ck_passthrough,
-                                                                   scale};
+                                                                   ck_passthrough};
     }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         const auto& a_shape = inputs[0];
         const auto& b_shape = inputs[1];
+        const auto& b1_shape = inputs[2];
         const auto& c_shape = inputs.back();
-        /// update for 4-arg lookup?
         auto tuning_value = v.get("tuning_value", 4);
         if(not v.contains("tuning_value"))
-            tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
+            tuning_value = get_tuning_for({a_shape, b_shape, b1_shape, c_shape});
         auto batch_count = get_batch_count(c_shape);
         auto problem     = create_problem(inputs, v);
 
@@ -386,6 +386,11 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.params += " -DMIGRAPHX_CK_CHECK=1";
 
+        // scale
+        assert(v.contains("scale"));
+        auto scale = v.at("scale").to<float>();
+        options.params += " -DSCALE=" + std::to_string(scale);
+
         auto src = interpolate_string(ck_gemm_softmax_gemm_kernel,
                                       {{"solution", template_str},
                                        {"include", include_header},
@@ -394,7 +399,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
-
+        
         return compile_hip_code_object(src, options);
     }
 

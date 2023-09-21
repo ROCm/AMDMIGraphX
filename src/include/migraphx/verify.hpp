@@ -266,7 +266,7 @@ bool verify_range_with_tolerance(const R1& r1,
                                  double* out_rms_error = nullptr)
 {
     auto rms_error = rms_range(r1, r2.data());
-    // disable ewise_verify for now, it requires lot of tests to be fixed
+    // disable ewise_verify by default for now, it requires lot of tests to be fixed
     bool ewise_verify = true;
     if(enabled(MIGRAPHX_VERIFY_ENABLE_ALLCLOSE{}))
     {

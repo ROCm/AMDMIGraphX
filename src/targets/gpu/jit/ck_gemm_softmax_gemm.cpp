@@ -352,7 +352,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         const auto& a_shape = inputs[0];
         const auto& b_shape = inputs[1];
         const auto& b1_shape = inputs[2];
-        const auto& c_shape = inputs.back();
+        const auto& c_shape  = inputs.back();
         auto tuning_value = v.get("tuning_value", 4);
         if(not v.contains("tuning_value"))
             tuning_value = get_tuning_for({a_shape, b_shape, b1_shape, c_shape});
@@ -399,7 +399,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
-        
+
         return compile_hip_code_object(src, options);
     }
 

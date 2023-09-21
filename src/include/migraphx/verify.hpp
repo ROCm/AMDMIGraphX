@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_VERIFY_HPP
 #define MIGRAPHX_GUARD_VERIFY_HPP
 
+#include "migraphx/env.hpp"
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -33,7 +34,9 @@
 
 #include <migraphx/float_equal.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/env.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_VERIFY_ENABLE_ALLCLOSE)
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace verify {
@@ -264,10 +267,14 @@ bool verify_range_with_tolerance(const R1& r1,
 {
     auto rms_error = rms_range(r1, r2.data());
     // disable ewise_verify for now, it requires lot of tests to be fixed
-    // auto ewise_verify = allclose(r1, r2.data(), tols);
+    bool ewise_verify = true;
+    if(enabled(MIGRAPHX_VERIFY_ENABLE_ALLCLOSE{}))
+    {
+        ewise_verify = allclose(r1, r2.data(), tols);
+    }
     if(out_rms_error != nullptr)
         *out_rms_error = rms_error;
-    return rms_error <= tols.rms_tol;
+    return rms_error <= tols.rms_tol and ewise_verify;
 }
 
 // expected argument should be passed as second, but if it is passed as the first by mistake then

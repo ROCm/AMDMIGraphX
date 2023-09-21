@@ -115,7 +115,7 @@ def disabled_tests_onnx_1_10_0(backend_test):
     backend_test.exclude(r'test_tril_pos_cpu')
     backend_test.exclude(r'test_tril_out_pos_cpu')
     backend_test.exclude(r'test_tril_square_neg_cpu')
-    backend_test.exclude(r'test_triu_one_row_cpu')
+    backend_test.exclude(r'test_tril_zero_cpu')
 
 def disabled_tests_onnx_1_12_0(backend_test):
     backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')

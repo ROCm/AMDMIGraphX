@@ -67,7 +67,8 @@ struct parse_trilu : op_parser<parse_trilu>
         // the inner triangle will have values set to 0
         std::vector<bool> mask_mat(num_rows * num_cols, upper);
         // if upper == 0, kth diagonal must also be masked
-        if (not upper) k++;
+        if(not upper)
+            k++;
         for(size_t i = 0; i < num_rows; i++)
         {
             for(int j = 0; j < std::min(k, static_cast<int>(num_cols)); j++)

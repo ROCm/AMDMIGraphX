@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_VERIFY_HPP
 #define MIGRAPHX_GUARD_VERIFY_HPP
 
-#include "migraphx/env.hpp"
 #include <algorithm>
 #include <cmath>
 #include <functional>

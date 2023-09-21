@@ -52,6 +52,5 @@ done
 
 # CI jobs can run as a different user then the docker image builder.
 # Allow read/write access to the models
-ls -la  $model_dir
 chmod 777 $model_dir
 

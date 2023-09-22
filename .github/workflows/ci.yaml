@@ -133,6 +133,7 @@ jobs:
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
+          -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) -k onnx-proto tf-proto tidy
 
@@ -186,6 +187,7 @@ jobs:
           -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
+          -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) cppcheck
 

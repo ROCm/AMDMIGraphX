@@ -283,9 +283,9 @@ struct find_mlir_fused_ops
                        names.end(),
                        ins->inputs().begin(),
                        std::inserter(param_map, param_map.end()),
-                       [&, &anchor_op = anchor_op](auto name, auto input) {
+                       [&, &anc_op = anchor_op](auto name, auto input) {
                            if(input == x_ins)
-                               return std::make_pair(pm->get_parameter(name), anchor_op);
+                               return std::make_pair(pm->get_parameter(name), anc_op);
                            return std::make_pair(pm->get_parameter(name),
                                                  mm->add_parameter(name, input->get_shape()));
                        });

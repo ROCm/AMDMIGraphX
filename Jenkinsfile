@@ -161,12 +161,15 @@ def onnxnode(name, body) {
 
 rocmtest onnx: onnxnode('cdna') { cmake_build ->
     stage("Onnx runtime") {
-        sh '''
+        def cmd = """
+            env
             apt install half
             #ls -lR
             md5sum ./build/*.deb
             dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
-        '''
+        """
+        echo cmd
+        sh cmd
     }
 }

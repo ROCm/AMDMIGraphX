@@ -2607,7 +2607,7 @@ TEST_CASE(reshape_broadcast_squeeze)
 TEST_CASE(reshape_broadcast_squeeze_memlayout_change)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
-    migraphx::shape output{migraphx::shape::float_type, {2, 16, 20480}, {0, 0, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 16, 256, 80}, {0, 0, 0, 16}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 

@@ -79,7 +79,7 @@ jobs:
         DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
       run: |
         # The TOKEN and USERID are github secrets, Action failures at this step
-        # can come from a PR from a fork changing a file wichi forces a rebuild
+        # can come from a PR from a fork changing a file which forces a rebuild
         # Resolve by making an internal PR of the Forked PR
         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
 

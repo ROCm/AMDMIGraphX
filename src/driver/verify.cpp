@@ -89,8 +89,8 @@ void verify_program(const std::string& name,
            ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
         {
             std::cout << "FAILED: " << name << std::endl;
-            std::cout << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {" << target_outs[i].get_shape()
-                      << "}" << std::endl;
+            std::cout << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
+                      << target_outs[i].get_shape() << "}" << std::endl;
         }
         else
         {

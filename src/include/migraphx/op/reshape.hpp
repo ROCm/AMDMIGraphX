@@ -110,7 +110,7 @@ struct reshape
     }
 
     // This will attempt to alias the dimensions of the input shape to the lens of
-    // `rdims`. Unlike reshape_lazy though we can modify memory layout with out copies and this
+    // `rdims`. Unlike reshape_lazy though we can modify memory layout with copies and this
     // can remove previous nullopts that were sent back for the alias case
     static optional<shape> reshape_dims(const shape& input, const std::vector<std::size_t>& rdims)
     {

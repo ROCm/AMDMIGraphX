@@ -112,7 +112,6 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
 }, clang_release: rocmnode('cdna') { cmake_build ->
     stage('Hip Clang Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
-        stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 // }, hidden_symbols: rocmnode('cdna') { cmake_build ->
 //     stage('Hidden symbols') {
@@ -121,6 +120,7 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
 }, all_targets_debug : rocmnode('cdna') { cmake_build ->
     stage('All targets Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On") 
+        stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 }, mlir_debug: rocmnode('cdna') { cmake_build ->
     stage('MLIR Debug') {

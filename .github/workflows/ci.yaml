@@ -187,7 +187,7 @@ jobs:
           -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
-          -DGPU_TARGETS=gfx908 \
+          -DGPU_TARGETS=gfx908 \ 
           ..
         make -j$(nproc) cppcheck
 
@@ -273,6 +273,7 @@ jobs:
           -DBUILD_DEV=On \
           -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
           -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+          -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) tests driver
 

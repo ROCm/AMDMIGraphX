@@ -6634,16 +6634,16 @@ TEST_CASE(reduce_max_axis02)
     EXPECT(results_vector == gold);
 }
 
-template <typename T, bool dynamic = false>
-void reduce_op_axes_input_test(const std::string op_name,
+template <typename T, bool Dynamic = false>
+void reduce_op_axes_input_test(const std::string& op_name,
                                std::vector<int64_t> axes,
                                std::vector<T> gold)
 {
     migraphx::program p;
     auto* mm               = p.get_main_module();
     auto data_static_shape = migraphx::shape{migraphx::shape::get_type<T>{}, {3, 2, 2}};
-    auto data_shape        = dynamic ? migraphx::shape{migraphx::shape::get_type<T>{},
-                                                {{2, 5, {}}, {2, 3, {}}, {2, 3, {}}}}
+    auto data_shape        = Dynamic ? migraphx::shape{migraphx::shape::get_type<T>{},
+                                                       {{2, 5, {}}, {2, 3, {}}, {2, 3, {}}}}
                                      : data_static_shape;
     auto data_param        = mm->add_parameter("data", data_shape);
     auto axes_shape        = migraphx::shape{migraphx::shape::int64_type, {axes.size()}};

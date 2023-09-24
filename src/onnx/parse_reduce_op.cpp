@@ -36,7 +36,7 @@ static std::optional<T> parse_attribute(const std::string& attribute_name,
                                         const onnx_parser& parser,
                                         onnx_parser::node_info& info)
 {
-    if(!contains(info.attributes, attribute_name))
+    if(not contains(info.attributes, attribute_name))
     {
         return std::nullopt;
     }
@@ -60,10 +60,7 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
             // The reference implementation supports variable axes, but the backends do not
             MIGRAPHX_THROW("Cannot handle variable axes");
         }
-        else
-        {
-            args[1]->eval().visit([&](auto s) { axes.assign(s.begin(), s.end()); });
-        }
+        args[1]->eval().visit([&](auto s) { axes.assign(s.begin(), s.end()); });
     }
     else if(contains(info.attributes, "axes"))
     {
@@ -73,10 +70,10 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
 
     int noop_with_empty_axes =
         parse_attribute<int>("noop_with_empty_axes", parser, info).value_or(0);
-    // empty axes behavior
+
     if(axes.empty() and not runtime_axes)
     {
-        if(noop_with_empty_axes)
+        if(noop_with_empty_axes != 0)
         {
             return args[0];
         }
@@ -87,14 +84,15 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
 
     int keep_dims = parse_attribute<int>("keepdims", parser, info).value_or(1);
 
-    auto reduce_op          = make_op(op_name, {{"axes", axes}});
+    auto reduce_op =
+        make_op(op_name, {{"axes", axes}, {"noop_with_empty_axes", noop_with_empty_axes}});
     auto return_instruction = runtime_axes ? info.add_instruction(reduce_op, args)
                                            : info.add_instruction(reduce_op, args[0]);
-    if(not keep_dims)
+    if(keep_dims == 0)
     {
         if(runtime_axes)
         {
-            MIGRAPHX_THROW("Keepdims currently not supported with runtime provided axes");
+            MIGRAPHX_THROW("Keepdims not supported with runtime provided axes");
         }
         return_instruction =
             info.add_instruction(make_op("squeeze", {{"axes", axes}}), return_instruction);

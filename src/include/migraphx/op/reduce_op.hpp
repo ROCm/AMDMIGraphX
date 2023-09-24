@@ -80,11 +80,12 @@ template <class Derived>
 struct reduce_op : op_name<Derived>
 {
     std::vector<std::int64_t> axes{};
+    bool noop_with_empty_axes = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"));
+        return pack(f(self.axes, "axes"), f(self.noop_with_empty_axes, "noop_with_empty_axes"));
     }
 
     value attributes() const
@@ -109,7 +110,7 @@ struct reduce_op : op_name<Derived>
     shape compute_dynamic_shape(const std::vector<shape>& inputs) const
     {
         const auto& data_shape = inputs[0];
-        auto dims       = data_shape.dyn_dims();
+        auto dims              = data_shape.dyn_dims();
         if(axes.empty())
         {
             for(auto& dim : dims)
@@ -125,7 +126,7 @@ struct reduce_op : op_name<Derived>
             }
         }
 
-        return shape{data_shape.type(), dims};
+        return {data_shape.type(), dims};
     }
 
     shape compute_static_shape(const std::vector<shape>& inputs) const
@@ -139,7 +140,7 @@ struct reduce_op : op_name<Derived>
                 return shape::dynamic_dimension{1, l};
             });
 
-            return shape{data_shape.type(), std::move(dims)};
+            return {data_shape.type(), std::move(dims)};
         }
         else
         {
@@ -224,7 +225,7 @@ struct reduce_op : op_name<Derived>
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         auto&& data_arg = args[0];
-        if(!axes.empty())
+        if(not axes.empty())
         {
             return compute(dyn_out.computed_shape, axes, data_arg);
         }
@@ -237,8 +238,13 @@ struct reduce_op : op_name<Derived>
 
         if(reduce_axes.empty())
         {
-            // If axes is empty always treat is a noop
-            return data_arg;
+            if(noop_with_empty_axes)
+            {
+                return data_arg;
+            }
+
+            reduce_axes.resize(data_arg.get_shape().ndim());
+            std::iota(reduce_axes.begin(), reduce_axes.end(), 0);
         }
 
         const auto result_shape = collapse_reduced_axes(data_arg.get_shape(), reduce_axes);

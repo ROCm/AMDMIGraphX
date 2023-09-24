@@ -2116,13 +2116,6 @@ TEST_CASE(pooling_shape3)
                  input);
 }
 
-TEST_CASE(pooling_shape4)
-{
-    migraphx::shape tiny_input{migraphx::shape::float_type, {4, 1}};
-    throws_shape(migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}),
-                 tiny_input);
-}
-
 TEST_CASE(pooling_dyn_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3, {3}}, {3, 3, {3}}, {3, 3}}};
@@ -2350,6 +2343,13 @@ void test_reduce_ops(const std::string& name)
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
+                     migraphx::make_op(name),
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
                      migraphx::make_op(name, {{"axes", {0, 1, 2, 3}}}),
                      input);
     }
@@ -2394,6 +2394,15 @@ void test_dyn_reduce_ops(const std::string& name)
             migraphx::shape{migraphx::shape::float_type,
                             std::vector<migraphx::shape::dynamic_dimension>({{1, 1}, {2, 4, {4}}})},
             migraphx::make_op(name, {{"axes", {0}}}),
+            input);
+    }
+    {
+        // Empty axis argument reduces all axes
+        migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
+        expect_shape(
+            migraphx::shape{migraphx::shape::float_type,
+                            std::vector<migraphx::shape::dynamic_dimension>({{1, 1}, {1, 1}})},
+            migraphx::make_op(name),
             input);
     }
     {

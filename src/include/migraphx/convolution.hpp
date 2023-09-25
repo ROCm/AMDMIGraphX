@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,7 @@ void convolution(Output output, T input, T weights, Padding padding, Stride stri
         shape win_shape{output_shape.type(), win_size};
 
         double acc = 0.0;
-        shape_for_each(win_shape, [&](auto idx_win) {
+        shape_for_each(win_shape, [&](const auto& idx_win) {
             auto k           = idx_win[0];
             const auto in_ch = group_id * wei_c + k;
             std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());

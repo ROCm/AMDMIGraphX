@@ -25,6 +25,6 @@ ROCmSoftwarePlatform/rocm-recipes
 facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 ccache@v4.1 -DENABLE_TESTING=OFF
 pcre,pfultz2/pcre@8.45 -H sha256:d6f7182602a775a7d500a0cedca6449af0400c6493951513046d17615ed0bf11
-danmar/cppcheck@2.9 -DHAVE_RULES=1
-RadeonOpenCompute/rocm-cmake@027404a8326da6e7e9338e0b81f9428660190724 --build
+danmar/cppcheck@bb2711c22a0be09efe7f1a8da3030876471026c8 -DHAVE_RULES=1 # 2.11
+RadeonOpenCompute/rocm-cmake@5a34e72d9f113eb5d028e740c2def1f944619595 --build
 -f requirements.txt

@@ -218,6 +218,15 @@ TEST_CASE(compile_warnings)
 #endif
 }
 
+TEST_CASE(has_flags)
+{
+    EXPECT(migraphx::gpu::hip_has_flags({"--std=c++17"}));
+    EXPECT(not migraphx::gpu::hip_has_flags({"--non-existent-flag-to-test-in-migraphx"}));
+    EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}));
+    EXPECT(not migraphx::gpu::hip_has_flags(
+        {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
+}
+
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(

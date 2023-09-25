@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -258,7 +258,7 @@ struct nonmaxsuppression
         selected_boxes_inside_class.reserve(max_output_shape.elements());
         // iterate over batches and classes
         shape comp_s{shape::double_type, {num_batches, num_classes}};
-        shape_for_each(comp_s, [&](auto idx) {
+        shape_for_each(comp_s, [&](const auto& idx) {
             auto batch_idx = idx[0];
             auto class_idx = idx[1];
             // index offset for this class

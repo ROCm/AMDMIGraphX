@@ -205,7 +205,7 @@ void transform(Range1&& r1, Range2&& r2, Iterator it, F f)
 }
 
 template <class Range>
-auto reverse(Range& r)
+auto reverse(Range&& r)
 {
     return range(std::make_reverse_iterator(r.end()), std::make_reverse_iterator(r.begin()));
 }

@@ -48,6 +48,7 @@
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
@@ -108,6 +109,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     return
     {
         split_single_dyn_dim{},
+        dead_code_elimination{},
+        simplify_dyn_ops{},
         dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},

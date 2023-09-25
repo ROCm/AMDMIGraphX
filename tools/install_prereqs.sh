@@ -31,9 +31,30 @@ set -e
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
+source /etc/os-release
 
-# Need pip3 and Python headers to build dependencies
-apt update && apt install -y python3-pip python3-dev cmake rocm-cmake rocblas miopen-hip openmp-extras
+if [[ ("${ID}" == "sles") ]]; then
+  zypper -n --gpg-auto-import-keys install -y \
+    cmake \
+    miopen-hip-devel \
+    openmp-extras-devel \
+    python3-devel \
+    python3-pip \
+    rocblas-devel \
+    rocm-cmake
+else
+  # Need pip3 and Python headers to build dependencies
+  apt update && apt install -y \
+    cmake \
+    libnuma-dev \
+    miopen-hip-dev \
+    openmp-extras \
+    python3-dev \
+    python3-pip \
+    rocblas-dev \
+    rocm-cmake
+fi
+
 
 # Needed for cmake to build various pip packages
 pip3 install setuptools wheel
@@ -56,9 +77,11 @@ echo "Dependencies are installed at $PREFIX"
 # Install deps with rbuild
 rbuild prepare -d $PREFIX -s develop
 
+if [[ ("${ID}" != "sles") ]]; then
 export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
-pip3 install onnx==1.10.2 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
+pip3 install onnx==1.14.1 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
 
 # pin version of protobuf in Python for onnx runtime unit tests between dist versions
-pip3 install protobuf==3.20.0
+pip3 install protobuf==3.20.2
+fi

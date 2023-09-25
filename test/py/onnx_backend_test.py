@@ -111,8 +111,6 @@ def disabled_tests_onnx_1_11_0(backend_test):
     # fails
     backend_test.exclude(r'test_roialign_aligned_false_cpu')
     backend_test.exclude(r'test_roialign_aligned_true_cpu')
-    backend_test.exclude(r'test_scatternd_add_cpu')
-    backend_test.exclude(r'test_scatternd_multiply_cpu')
 
     # errors
     backend_test.exclude(r'test_identity_opt_cpu')
@@ -154,8 +152,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
         r'test_reduce_sum_square_negative_axes_keepdims_example_cpu')
     backend_test.exclude(
         r'test_reduce_sum_square_negative_axes_keepdims_random_cpu')
-    backend_test.exclude(r'test_scatternd_max_cpu')
-    backend_test.exclude(r'test_scatternd_min_cpu')
 
     # errors
     backend_test.exclude(r'test_constant_pad_axes_cpu')

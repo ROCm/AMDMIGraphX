@@ -6067,6 +6067,11 @@ TEST_CASE(scatternd_max_test) { scatternd_test_base("max", "scatternd_max_test.o
 
 TEST_CASE(scatternd_min_test) { scatternd_test_base("min", "scatternd_min_test.onnx"); }
 
+TEST_CASE(scatternd_invalid_reduction_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("scatternd_invalid_reduction_test.onnx"); }));
+}
+
 TEST_CASE(scatternd_dyn_test)
 {
     // dynamic input.

@@ -6183,6 +6183,11 @@ def scatternd_test():
 
 
 @onnx_test()
+def scatternd_invalid_reduction_test():
+    return make_scatternd_test("invalid")
+
+
+@onnx_test()
 def scatternd_dyn_test():
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT,
                                          [None, 2, 2])

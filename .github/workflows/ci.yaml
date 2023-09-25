@@ -188,12 +188,11 @@ jobs:
       run: |
         mkdir build
         cd build
-        ls -la /data/
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
           -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
-          -DGPU_TARGETS=gfx908 \ 
+          -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) cppcheck
 

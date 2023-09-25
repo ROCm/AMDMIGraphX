@@ -521,6 +521,19 @@ struct find_inner_broadcast
                       }) < (lens.size() - 1);
            }))
             return;
+        auto bcast_strides = broadcasts.front()->get_shape().strides().size();
+        std::vector<size_t> common_axis(bcast_strides, 0);
+        for(auto i = 0; i < broadcasts.front()->get_shape().strides().size(); i++)
+        {
+            for(auto j = 0; j < broadcasts.size(); j++)
+            {
+                if(broadcasts[j]->get_shape().strides()[i] == 0)
+                    common_axis[i]++;
+            }
+        }
+        if(std::find_if(common_axis.begin(), common_axis.end(), [](auto num_common){ return num_common > 1 ; }) == common_axis.end())
+            return;
+
         std::vector<instruction_ref> inputs;
         std::transform(broadcasts.begin(),
                        broadcasts.end(),

@@ -182,6 +182,7 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
     else
     {
         auto common = common_shape(to_shapes(inputs));
+        std::cout << common << std::endl;
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input->get_shape().lens() != common.lens())
             {

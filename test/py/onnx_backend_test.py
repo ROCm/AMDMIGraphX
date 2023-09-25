@@ -1400,6 +1400,17 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_vgg19.*')
         backend_test.include(r'.*test_zfnet512.*')
 
+        # Skipped tests
+        # backend_test.include(r'.*test_adagrad.*')
+        # backend_test.include(r'.*test_adam.*')
+        # backend_test.include(r'.*test_ai_onnx_ml.*')
+        # backend_test.include(r'.*test_batchnorm_epsilon_training.*')
+        # backend_test.include(r'.*test_batchnorm_example_training.*')
+        # backend_test.include(r'.*test_momentum.*')
+        # backend_test.include(r'.*test_nesterov_momentum.*')
+        # backend_test.include(r'.*test_training_dropout.*')
+        # backend_test.include(r'.*test_Softmin.*')
+
         # Exclude failing tests
 
         # from OnnxBackendRealModelTest

@@ -38,7 +38,6 @@ pytest_plugins = 'onnx.backend.test.report',
 
 
 class MIGraphXBackendTest(onnx.backend.test.BackendTest):
-
     def __init__(self, backend, parent_module=None):
         super(MIGraphXBackendTest, self).__init__(backend, parent_module)
 
@@ -414,6 +413,16 @@ def disabled_tests_onnx_1_7_0(backend_test):
         r'test_softmax_cross_entropy_sum_log_prob_expanded_cpu')
     backend_test.exclude(r'test_split_zero_size_splits_cpu')
     backend_test.exclude(
+        r'test_strnormalizer_export_monday_casesensintive_lower_cpu')
+    backend_test.exclude(
+        r'test_strnormalizer_export_monday_casesensintive_nochangecase_cpu')
+    backend_test.exclude(
+        r'test_strnormalizer_export_monday_casesensintive_upper_cpu')
+    backend_test.exclude(r'test_strnormalizer_export_monday_empty_output_cpu')
+    backend_test.exclude(
+        r'test_strnormalizer_export_monday_insensintive_upper_twodim_cpu')
+    backend_test.exclude(r'test_strnormalizer_nostopwords_nochangecase_cpu')
+    backend_test.exclude(
         r'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu')
     backend_test.exclude(
         r'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu')
@@ -455,6 +464,14 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_sequence_model7_cpu')
     backend_test.exclude(r'test_sequence_model8_cpu')
     backend_test.exclude(r'test_shrink_cpu')
+    backend_test.exclude(r'test_strnorm_model_monday_casesensintive_lower_cpu')
+    backend_test.exclude(
+        r'test_strnorm_model_monday_casesensintive_nochangecase_cpu')
+    backend_test.exclude(r'test_strnorm_model_monday_casesensintive_upper_cpu')
+    backend_test.exclude(r'test_strnorm_model_monday_empty_output_cpu')
+    backend_test.exclude(
+        r'test_strnorm_model_monday_insensintive_upper_twodim_cpu')
+    backend_test.exclude(r'test_strnorm_model_nostopwords_nochangecase_cpu')
 
 
 def disabled_tests_onnx_1_8_0(backend_test):
@@ -1268,6 +1285,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_sqrt.*')
         backend_test.include(r'.*test_squeeze.*')
         backend_test.include(r'.*test_squeeze.*')
+        backend_test.include(r'.*test_strnorm.*')
         backend_test.include(r'.*test_sub.*')
         backend_test.include(r'.*test_sum.*')
         backend_test.include(r'.*test_tan_.*')
@@ -1369,6 +1387,7 @@ def create_backend_test(testname=None, target_device=None):
         # OnnxBackendSimpleModelTest
         backend_test.include(r'.*test_gradient_of.*')
         backend_test.include(r'.*test_sequence_model.*')
+        backend_test.include(r'.*test_single_relu_model.*')
 
         # OnnxBackendRealModelTest
         backend_test.include(r'.*test_bvlc_alexnet.*')

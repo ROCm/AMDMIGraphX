@@ -828,6 +828,76 @@ def constant_test():
 
 
 @onnx_test()
+def constant_value_float_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_float=[1.0])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_value_floats_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_floats=[1.0, 2.0, 3.0])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_value_int_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_int=[1])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_value_ints_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_ints=[1, 2, 3])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_no_attributes_test():
+
+    node = onnx.helper.make_node('Constant', inputs=[], outputs=[])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_multiple_attributes_test():
+    x = np.array([0, 1, 2])
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_floats=[1.0, 2.0],
+                                 value_ints=[1, 2],
+                                 value=onnx.helper.make_tensor(
+                                     name='const_tensor',
+                                     data_type=TensorProto.FLOAT,
+                                     dims=x.shape,
+                                     vals=x.flatten().astype(float)))
+
+    return ([node], [], [])
+
+
+@onnx_test()
 def constant_fill_test():
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [2, 3])
 

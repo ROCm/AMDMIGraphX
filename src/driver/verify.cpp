@@ -157,19 +157,15 @@ void verify_reduced(program p,
     mm->remove_instructions(last, mm->end());
     std::cout << "Verify: " << n << std::endl;
     std::cout << p << std::endl;
-<<<<<<< HEAD
-    verify_program(std::to_string(n), p, t, options, quantize, inputs, tols);
-=======
     try
     {
-        verify_program(std::to_string(n), p, t, options, quantize, inputs, tolerance);
+        verify_program(std::to_string(n), p, t, options, quantize, inputs, tols);
     }
     catch(const std::exception& e)
     {
         std::cout << "FAILED: " << n << std::endl;
         std::cout << "Exception: " << e.what() << std::endl;
     }
->>>>>>> origin/develop
 }
 
 void verify_reduced_program(const program& p,
@@ -184,17 +180,13 @@ void verify_reduced_program(const program& p,
     std::cout << "Verify steps: " << n << std::endl;
     for(std::size_t i = 1; i < n; i++)
     {
-<<<<<<< HEAD
-        verify_reduced(p, i, t, options, quantize, inputs, tols);
-=======
         auto last = std::prev(mm->end(), i + 1);
         if(contains({"@literal", "@param"}, last->name()))
         {
             std::cout << "Skip: " << i << std::endl;
             continue;
         }
-        verify_reduced(p, i, t, options, quantize, inputs, tolerance);
->>>>>>> origin/develop
+        verify_reduced(p, i, t, options, quantize, inputs, tols);
     }
 }
 

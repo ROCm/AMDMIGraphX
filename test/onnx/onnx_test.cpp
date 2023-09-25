@@ -2786,6 +2786,142 @@ TEST_CASE(group_conv_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(group_norm_3d_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, 4, 2}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {2}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {2}});
+
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+    auto x_reshaped =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 2}}}), x);
+    auto mean =
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x_reshaped);
+    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
+    auto var =
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x_sqdiff_mean);
+    auto var_eps     = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt       = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+    auto result      = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto scale_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 2}}}), scale);
+    auto bias_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 2}}}), bias);
+    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2}}}), y);
+
+    auto prog = optimize_onnx("group_norm_3d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_4d_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, 4, 3, 3}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {2}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {2}});
+
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+    auto x_reshaped =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 3, 3}}}), x);
+    auto mean =
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}), x_reshaped);
+    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
+    auto var =
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}), x_sqdiff_mean);
+    auto var_eps     = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt       = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+    auto result      = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto scale_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 3, 3}}}), scale);
+    auto bias_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 3, 3}}}), bias);
+    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3, 3}}}), y);
+
+    auto prog = optimize_onnx("group_norm_4d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_5d_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {3, 3, 3, 3, 3}});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {1}});
+    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {1}});
+
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+    auto x_reshaped =
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 3, 3, 3, 3}}}), x);
+    auto mean =
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4, 5}}}), x_reshaped);
+    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
+    auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4, 5}}}),
+                                   x_sqdiff_mean);
+    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+    auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    auto scale_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 3, 3, 3, 3}}}), scale);
+    auto bias_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 3, 3, 3, 3}}}), bias);
+    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 3, 3, 3, 3}}}), y);
+
+    auto prog = optimize_onnx("group_norm_5d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_invalid_num_groups_error_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("group_norm_invalid_num_groups_error_test.onnx"); }));
+}
+
+TEST_CASE(group_norm_missing_attribute_error_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("group_norm_missing_attribute_error_test.onnx"); }));
+}
+
+TEST_CASE(group_norm_invalid_input_count_error_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("group_norm_invalid_input_count_error_test.onnx"); }));
+}
+
+TEST_CASE(group_norm_invalid_input_shape_error_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("group_norm_invalid_input_shape_error_test.onnx"); }));
+}
+
+TEST_CASE(group_norm_invalid_scale_shape_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("group_norm_invalid_scale_shape_test.onnx"); }));
+}
+
+TEST_CASE(group_norm_invalid_bias_shape_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("group_norm_invalid_bias_shape_test.onnx"); }));
+}
+
 TEST_CASE(hardsigmoid_default_test)
 {
     migraphx::program p;

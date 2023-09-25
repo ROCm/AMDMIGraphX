@@ -26,7 +26,9 @@
 
 #include <hip/hip_runtime.h>
 #include <migraphx/config.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/device/types.hpp>
+#include <migraphx/gpu/device/targets.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -84,8 +86,15 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         hipError_t kernel_launch_status = hipGetLastError();
         if(kernel_launch_status != hipSuccess)
         {
-            MIGRAPHX_THROW("MIGraphX device kernel failed to launch with error: " +
-                           std::string(hipGetErrorString(kernel_launch_status)));
+            std::string message = hipGetErrorString(kernel_launch_status);
+            if(not contains(get_targets(), get_device_name()))
+            {
+                message += ". Trying to run a kernel for " + get_device_name() +
+                           " but MIGraphX was built for targets " + get_targets_as_string() +
+                           ". Please rebuild MIGraphX with -DGPU_TARGETS='" + get_device_name() +
+                           "'.";
+            }
+            MIGRAPHX_THROW("MIGraphX device kernel failed to launch with error: " + message);
         }
     };
 }

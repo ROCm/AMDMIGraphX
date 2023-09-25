@@ -2,7 +2,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@ def getipynb_markdownBlockAsList():
         '\t\t"cell_type": "code",\n', '\t\t"execution_count": null,\n',
         '\t\t"metadata": {},\n', '\t\t"outputs": [],\n', '\t\t"source": [\n',
         '\t\t\t\"#  The MIT License (MIT)\\n\",\n', '\t\t\t\"#\\n\",\n',
-        '\t\t\t\"#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
+        '\t\t\t\"#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
         '\t\t\t\"#\\n\",\n',
         '\t\t\t\"#  Permission is hereby granted, free of charge, to any person obtaining a copy\\n\",\n',
         '\t\t\t\"#  of this software and associated documentation files (the \'Software\'), to deal\\n\",\n',

@@ -21,15 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iostream>
-#include <vector>
-#include <cmath>
-#include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/make_op.hpp>
 
 #include "test.hpp"
 

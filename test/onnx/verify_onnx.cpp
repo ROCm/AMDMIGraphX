@@ -983,6 +983,39 @@ TEST_CASE(instance_norm_3d_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(layer_norm_test)
+{
+    migraphx::program p = migraphx::parse_onnx("layer_norm_3d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data_x(8);
+    std::iota(std::begin(data_x), std::end(data_x), 1);
+    migraphx::shape s_x{migraphx::shape::float_type, {1, 4, 2}};
+    std::vector<float> data_scale{1.2, 0.8};
+    migraphx::shape s_s{migraphx::shape::float_type, {2}};
+    std::vector<float> data_bias{0.5, 0.2};
+    migraphx::shape s_b{migraphx::shape::float_type, {2}};
+
+    migraphx::parameter_map pp;
+    pp["x"]     = migraphx::argument(s_x, data_x.data());
+    pp["scale"] = migraphx::argument(s_s, data_scale.data());
+    pp["bias"]  = migraphx::argument(s_b, data_bias.data());
+
+    auto result = p.eval(pp).back();
+
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-0.69997597,
+                               0.99998398,
+                               -0.69997597,
+                               0.99998398,
+                               -0.69997597,
+                               0.99998398,
+                               -0.69997597,
+                               0.99998398};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
 TEST_CASE(lessorequal_test)
 {
     migraphx::program p = migraphx::parse_onnx("lessorequal_test.onnx");

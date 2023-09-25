@@ -3937,6 +3937,88 @@ def layernorm_test():
              bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
 
 
+def make_layer_norm(shape, axis):
+    norm_axis = axis + len(shape) if axis < 0 else axis
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, shape)
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT,
+                                          shape[norm_axis:])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT,
+                                         shape[norm_axis:])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, shape)
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'scale', 'bias'],
+                                 outputs=['y'],
+                                 axis=axis)
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
+def layer_norm_invalid_shape_error_test():
+    return make_layer_norm([3], 0)
+
+
+@onnx_test()
+def layer_norm_2d_axis_zero_test():
+    return make_layer_norm([3, 4], 0)
+
+
+@onnx_test()
+def layer_norm_2d_axis_one_test():
+    return make_layer_norm([3, 4], 1)
+
+
+@onnx_test()
+def layer_norm_2d_axis_minus_one_test():
+    return make_layer_norm([3, 4], -1)
+
+
+@onnx_test()
+def layer_norm_3d_test():
+    return make_layer_norm([1, 4, 2], -1)
+
+
+@onnx_test()
+def layer_norm_4d_test():
+    return make_layer_norm([3, 3, 3, 3], -1)
+
+
+@onnx_test()
+def layer_norm_invalid_axis_error_test():
+    return make_layer_norm([1, 4, 2], 1000)
+
+
+@onnx_test()
+def layer_norm_invalid_minus_axis_error_test():
+    return make_layer_norm([1, 4, 2], -1000)
+
+
+@onnx_test()
+def layer_norm_invalid_input_count_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def layer_norm_without_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'scale'],
+                                 outputs=['y'])
+
+    return ([node], [x, scale], [y])
+
+
 @onnx_test()
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])

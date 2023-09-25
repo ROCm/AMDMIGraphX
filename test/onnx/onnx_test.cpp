@@ -3784,6 +3784,120 @@ TEST_CASE(lessorequal_test)
     EXPECT(p == prog);
 }
 
+migraphx::program make_layer_norm(const std::vector<int64_t>& input_shape,
+                                  const std::vector<int64_t>& scale_bias_shape,
+                                  const std::vector<int64_t>& reduce_axes,
+                                  size_t skipped_axis,
+                                  bool skip_bias = false)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, input_shape});
+    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, scale_bias_shape});
+    migraphx::instruction_ref bias;
+    if(not skip_bias)
+    {
+        bias = mm->add_parameter("bias", {migraphx::shape::float_type, scale_bias_shape});
+    }
+
+    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+
+    auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x);
+    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});
+    auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}),
+                                   x_sqdiff_mean);
+    auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
+    auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
+    auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
+    migraphx::instruction_ref scale_bcast = scale;
+    migraphx::instruction_ref bias_bcast  = bias;
+    if(skipped_axis > 0)
+    {
+        scale_bcast = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+            scale);
+        if(not skip_bias)
+        {
+            bias_bcast = mm->add_instruction(
+                migraphx::make_op("broadcast", {{"axis", skipped_axis}, {"out_lens", input_shape}}),
+                bias);
+        }
+    }
+    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
+    if(not skip_bias)
+    {
+        mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    }
+
+    return p;
+}
+
+TEST_CASE(layer_norm_2d_axis_zero_test)
+{
+    migraphx::program p = make_layer_norm({3, 4}, {3, 4}, {0, 1}, 0);
+
+    auto prog = optimize_onnx("layer_norm_2d_axis_zero_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(layer_norm_2d_axis_one_test)
+{
+    migraphx::program p = make_layer_norm({3, 4}, {4}, {1}, 1);
+
+    auto prog = optimize_onnx("layer_norm_2d_axis_one_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(layer_norm_2d_axis_minus_one_test)
+{
+    migraphx::program p = make_layer_norm({3, 4}, {4}, {1}, 1);
+
+    auto prog = optimize_onnx("layer_norm_2d_axis_one_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(layer_norm_3d_test)
+{
+    migraphx::program p = make_layer_norm({1, 4, 2}, {2}, {2}, 2);
+
+    auto prog = optimize_onnx("layer_norm_3d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(layer_norm_4d_test)
+{
+    migraphx::program p = make_layer_norm({3, 3, 3, 3}, {3}, {3}, 3);
+
+    auto prog = optimize_onnx("layer_norm_4d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(layer_norm_invalid_axis_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("layer_norm_invalid_axis_error_test.onnx"); }));
+}
+
+TEST_CASE(layer_norm_invalid_minus_axis_error_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("layer_norm_invalid_minus_axis_error_test.onnx"); }));
+}
+
+TEST_CASE(layer_norm_invalid_input_count_error_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("layer_norm_invalid_input_count_error_test.onnx"); }));
+}
+
+TEST_CASE(layer_norm_without_bias_test)
+{
+    migraphx::program p = make_layer_norm({1, 2}, {2}, {1}, 1, true);
+
+    auto prog = optimize_onnx("layer_norm_without_bias_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;

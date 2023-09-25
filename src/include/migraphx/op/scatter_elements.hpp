@@ -42,9 +42,6 @@ namespace op {
 // it as a separate derived struct for each of the three reduction methods.  The related operator
 // scatterND is a generalization that works on a set of 3 tensors of different ranks.  The
 // complementary operations are gather/gatherND.
-//
-// This is a template for deriving child structs from.  Each child needs to define
-// only a reduction() method.  Names are automatically handled by the op_name template.
 
 struct scatter_elements : op_name<scatter_elements>
 {

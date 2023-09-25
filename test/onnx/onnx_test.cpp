@@ -6063,6 +6063,11 @@ TEST_CASE(scatter_elements_none_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(scatter_elements_invalid_reduction_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("scatter_elements_invalid_reduction_test.onnx"); }));
+}
+
 TEST_CASE(scatternd_test)
 {
     migraphx::program p;

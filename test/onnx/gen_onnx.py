@@ -6123,6 +6123,11 @@ def scatter_none_test():
 
 
 @onnx_test()
+def scatter_elements_invalid_reduction_test():
+    return make_scatter_elements_test("invalid")
+
+
+@onnx_test()
 def scatternd_add_test():
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
     indices = helper.make_tensor_value_info('indices', TensorProto.INT64,

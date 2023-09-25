@@ -105,9 +105,6 @@ def disabled_tests_onnx_1_10_0(backend_test):
 
 
 def disabled_tests_onnx_1_11_0(backend_test):
-    # crash
-    backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
-
     # fails
     backend_test.exclude(r'test_roialign_aligned_false_cpu')
     backend_test.exclude(r'test_roialign_aligned_true_cpu')
@@ -265,8 +262,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
         r'test_reduce_sum_square_negative_axes_keepdims_example_expanded_cpu')
     backend_test.exclude(
         r'test_reduce_sum_square_negative_axes_keepdims_random_expanded_cpu')
-    backend_test.exclude(r'test_scatter_elements_with_reduction_max_cpu')
-    backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')
 
     # The following tests fail due to the CastLike operator being unsupported
     backend_test.exclude(r'test_elu_default_expanded_ver18_cpu')

@@ -196,6 +196,21 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
                                                            std::string params,
                                                            const std::string& arch)
 {
+    /*std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
+    if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
+    {
+        tmp_dir td{"compile"};
+        std::cout << "cd " << td.path << std::endl;
+        for(const auto& src : hsrcs)
+        {
+            fs::path full_path   = td.path / src.path;
+            fs::path parent_path = full_path.parent_path();
+            fs::create_directories(parent_path);
+            write_buffer(full_path.string(),
+                         std::vector<char>(src.content.begin(), src.content.end()));
+        }
+    }*/
+
     hiprtc_program prog(std::move(srcs));
     auto options = split_string(params, ' ');
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
@@ -246,34 +261,34 @@ std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
-    if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
-    {
-        for(const auto& src : srcs)
-        {
-            if(src.path.extension() != ".cpp")
-                continue;
-            std::cout << std::string(src.content.first, src.len()) << std::endl;
-        }
-    }
+    // if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
+    // {
+    //     for(const auto& src : srcs)
+    //     {
+    //         // if(src.path.extension() != ".cpp")
+    //         //     continue;
+    //         std::cout << std::string(src.content.first, src.len()) << std::endl;
+    //     }
+    // }
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path().parent_path() / "bin" / "migraphx-hiprtc-driver";
 
-    // if(fs::exists(driver))
-    // {
-    //     value v;
-    //     v["srcs"]   = to_value(hsrcs);
-    //     v["params"] = to_value(params);
-    //     v["arch"]   = to_value(arch);
+    if(fs::exists(driver))
+    {
+        value v;
+        v["srcs"]   = to_value(hsrcs);
+        v["params"] = to_value(params);
+        v["arch"]   = to_value(arch);
 
-    //     tmp_dir td{};
-    //     auto out = td.path / "output";
+        tmp_dir td{};
+        auto out = td.path / "output";
 
-    //     process(driver.string() + " " + out.string()).write([&](auto writer) {
-    //         to_msgpack(v, writer);
-    //     });
-    //     if(fs::exists(out))
-    //         return {read_buffer(out.string())};
-    // }
+        process(driver.string() + " " + out.string()).write([&](auto writer) {
+            to_msgpack(v, writer);
+        });
+        if(fs::exists(out))
+            return {read_buffer(out.string())};
+    }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), std::move(params), arch);
 }
 

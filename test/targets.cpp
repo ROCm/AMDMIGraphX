@@ -23,8 +23,6 @@
  */
 #include <migraphx/register_target.hpp>
 #include <migraphx/target.hpp>
-#include <migraphx/par_for.hpp>
-#include <mutex>
 #include <thread>
 #include "test.hpp"
 

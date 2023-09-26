@@ -1565,7 +1565,7 @@ TEST_CASE(conv_transpose_input_pads_asymm_1d_test)
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3}});
     auto l2  = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                          {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}}),
+                           {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {6}}}),
@@ -1599,7 +1599,7 @@ TEST_CASE(conv_transpose_output_padding_3d_test)
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                          {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
+                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}}), l2);
@@ -1632,7 +1632,7 @@ TEST_CASE(conv_transpose_output_shape_3d_test)
     auto l1  = mm->add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
     auto l2  = mm->add_instruction(
         migraphx::make_op("convolution_backwards",
-                          {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
+                           {{"padding", {0, 0, 0}}, {"stride", {3, 2, 2}}, {"dilation", {1, 1, 1}}}),
         l0,
         l1);
     mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}}), l2);
@@ -4787,11 +4787,16 @@ TEST_CASE(prelu_brcst_test)
     EXPECT(p == prog);
 }
 
-migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m, const migraphx::instruction_ref ins, const migraphx::instruction_ref round, const migraphx::shape s, const int64_t min_quant, const int64_t max_quant)
+migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m,
+                                                     const migraphx::instruction_ref ins,
+                                                     const migraphx::instruction_ref round,
+                                                     const migraphx::shape s,
+                                                     const int64_t min_quant,
+                                                     const int64_t max_quant)
 {
     migraphx::instruction_ref min_arg;
     migraphx::instruction_ref max_arg;
-    if (migraphx::enabled(MIGRAPHX_ENABLE_CK{}))
+    if(migraphx::enabled(MIGRAPHX_ENABLE_CK{}))
     {
         std::vector<int> min_data(s.elements(), min_quant);
         std::vector<int> max_data(s.elements(), max_quant);
@@ -4800,8 +4805,8 @@ migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m, const 
     }
     else
     {
-        min_arg  = m.add_literal(migraphx::literal{migraphx::shape{s.type()}, {min_quant}});
-        max_arg  = m.add_literal(migraphx::literal{migraphx::shape{s.type()}, {max_quant}});
+        min_arg = m.add_literal(migraphx::literal{migraphx::shape{s.type()}, {min_quant}});
+        max_arg = m.add_literal(migraphx::literal{migraphx::shape{s.type()}, {max_quant}});
     }
 
     return migraphx::insert_common_op(m, ins, migraphx::make_op("clip"), {round, min_arg, max_arg});
@@ -4815,10 +4820,10 @@ TEST_CASE(quantizelinear_test)
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
-    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s       = round->get_shape();
-    auto clip = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s     = round->get_shape();
+    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -4840,10 +4845,10 @@ TEST_CASE(quantizelinear_int32_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
-    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s       = round->get_shape();
-    auto clip = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s     = round->get_shape();
+    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -4870,8 +4875,8 @@ TEST_CASE(quantizelinear_zero_point_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_mbcast);
-    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
-    auto s       = round->get_shape();
+    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
+    auto s    = round->get_shape();
     auto clip = insert_quantizelinear_clip(*mm, div, add, s, -128, 127);
     mm->add_instruction(
         migraphx::make_op("convert",
@@ -4903,8 +4908,8 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_bcast);
-    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
-    auto s       = round->get_shape();
+    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
+    auto s    = round->get_shape();
     auto clip = insert_quantizelinear_clip(*mm, div, add, s, -128, 127);
     mm->add_instruction(
         migraphx::make_op("convert",
@@ -5130,7 +5135,7 @@ TEST_CASE(reducel1_dyn_test)
         // a shape with 4 dynamic dimensions
         auto l0      = mm->add_parameter("x",
                                     migraphx::shape{migraphx::shape::float_type,
-                                                    {{3, 3}, {3, 5}, {4, 6, {5}}, {5, 7, {6}}}});
+                                                         {{3, 3}, {3, 5}, {4, 6, {5}}, {5, 7, {6}}}});
         auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), l0);
         auto sum_ins =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-2}}}), abs_ins);
@@ -5150,7 +5155,7 @@ TEST_CASE(reducel1_dyn_test)
         // No axes given in the onnx file.  Parser should default to all axes.
         auto l0      = mm->add_parameter("x",
                                     migraphx::shape{migraphx::shape::float_type,
-                                                    {{3, 3}, {3, 5}, {4, 6, {5}}, {5, 7, {6}}}});
+                                                         {{3, 3}, {3, 5}, {4, 6, {5}}, {5, 7, {6}}}});
         auto abs_ins = mm->add_instruction(migraphx::make_op("abs"), l0);
         auto sum_ins =
             mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2, 3}}}), abs_ins);
@@ -6840,7 +6845,7 @@ TEST_CASE(squeeze_unsqueeze_dyn_test)
     std::vector<int64_t> unsqueeze_axes{0, 1, 3, 5};
     auto l0  = mm->add_parameter("0",
                                 migraphx::shape{migraphx::shape::float_type,
-                                                {{1, 1}, {1, 4}, {1, 1}, {1, 1}, {1, 4}, {1, 1}}});
+                                                 {{1, 1}, {1, 4}, {1, 1}, {1, 1}, {1, 4}, {1, 1}}});
     auto c0  = mm->add_instruction(migraphx::make_op("contiguous"), l0);
     auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), c0);
     auto c1  = mm->add_instruction(migraphx::make_op("contiguous"), l1);

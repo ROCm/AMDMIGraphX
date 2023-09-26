@@ -64,11 +64,11 @@ void apply_quantizelinear(module& m, instruction_ref ins)
         max_quant = qt.max();
         min_quant = qt.min();
     });
-    auto s        = add_zero_point->get_shape();
+    auto s = add_zero_point->get_shape();
     instruction_ref min_arg;
     instruction_ref max_arg;
 
-    if (enabled(MIGRAPHX_ENABLE_CK{}))
+    if(enabled(MIGRAPHX_ENABLE_CK{}))
     {
         std::vector<int> min_data(s.elements(), min_quant);
         std::vector<int> max_data(s.elements(), max_quant);
@@ -77,8 +77,8 @@ void apply_quantizelinear(module& m, instruction_ref ins)
     }
     else
     {
-        min_arg  = m.add_literal(literal{shape{s.type()}, {min_quant}});
-        max_arg  = m.add_literal(literal{shape{s.type()}, {max_quant}});
+        min_arg = m.add_literal(literal{shape{s.type()}, {min_quant}});
+        max_arg = m.add_literal(literal{shape{s.type()}, {max_quant}});
     }
     auto saturate = insert_common_op(m, ins, make_op("clip"), {add_zero_point, min_arg, max_arg});
     m.replace_instruction(

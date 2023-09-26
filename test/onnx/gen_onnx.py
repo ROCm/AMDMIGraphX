@@ -5400,7 +5400,7 @@ def recip_test():
 
 def reduceop_variable_axes_test(op_name):
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
-    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [1]);
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [1])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
 
     node = onnx.helper.make_node(op_name,

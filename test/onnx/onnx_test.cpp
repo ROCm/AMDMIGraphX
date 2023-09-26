@@ -5223,7 +5223,8 @@ TEST_CASE(reduce_log_sum_exp_test)
 
 TEST_CASE(reduce_log_sum_exp_variable_axes_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("reduce_log_sum_exp_variable_axes_test.onnx"); }));
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("reduce_log_sum_exp_variable_axes_test.onnx"); }));
 }
 
 TEST_CASE(reducemax_test)

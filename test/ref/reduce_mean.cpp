@@ -46,6 +46,31 @@ TEST_CASE(reduce_mean_axis02)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(reduce_mean_variable_axes02)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {2}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_mean"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{0, 2};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{5.5, 7.5};
+    EXPECT(results_vector == gold);
+}
+
 TEST_CASE(reduce_mean_axis1)
 {
     migraphx::program p;
@@ -58,6 +83,31 @@ TEST_CASE(reduce_mean_axis1)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{2, 3, 6, 7, 10, 11};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_mean_variable_axis1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_mean"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{1};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
     std::vector<float> gold{2, 3, 6, 7, 10, 11};
     EXPECT(results_vector == gold);
 }
@@ -78,6 +128,31 @@ TEST_CASE(reduce_mean_axis12)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(reduce_mean_variable_axes12)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {2}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_mean"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{1, 2};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{2.5, 6.5, 10.5};
+    EXPECT(results_vector == gold);
+}
+
 TEST_CASE(reduce_mean_axis2)
 {
     migraphx::program p;
@@ -90,6 +165,31 @@ TEST_CASE(reduce_mean_axis2)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.5f, 3.5f, 5.5f, 7.5f, 9.5f, 11.5f};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_mean_variable_axis2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_mean"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{2};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
     std::vector<float> gold{1.5f, 3.5f, 5.5f, 7.5f, 9.5f, 11.5f};
     EXPECT(results_vector == gold);
 }
@@ -107,5 +207,30 @@ TEST_CASE(reduce_mean_int)
     std::vector<int> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold{2, 6, 10};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_mean_variable_axes12_int)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::int32_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {2}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_mean"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<int32_t> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{1, 2};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<int32_t> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int32_t> gold{2, 6, 10};
     EXPECT(results_vector == gold);
 }

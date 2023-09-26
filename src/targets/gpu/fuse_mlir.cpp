@@ -365,7 +365,7 @@ bool is_enabled(std::string_view op_name, context* ctx)
         {
             return true;
         }
-        else if(op_name == "convolution" || op_name == "quant_convolution")
+        else if(op_name == "convolution" or op_name == "quant_convolution")
         {
             if(ctx == nullptr)
             {

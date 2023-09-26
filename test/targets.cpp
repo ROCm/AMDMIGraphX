@@ -58,7 +58,7 @@ TEST_CASE(concurrent_targets)
     for(auto i = 0u; i < 1000; i++)
     {
         auto thread_body = []() {
-            auto ref_target = migraphx::make_target("gpu");
+            auto ref_target = migraphx::make_target("ref");
             migraphx::register_target(ref_target);
         };
 

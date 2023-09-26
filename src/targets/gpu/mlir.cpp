@@ -24,6 +24,7 @@
 #include "migraphx/make_op.hpp"
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <ostream>
 
 #ifdef MIGRAPHX_MLIR
 #include <mlir-c/IR.h>
@@ -696,6 +697,10 @@ struct mlir_program
                mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
         {
             std::string error = "Invalid MLIR created: " + logger.str();
+            if(enabled(MIGRAPHX_TRACE_MLIR{}))
+            {
+                std::cout << error << std::endl;
+            }
             MIGRAPHX_THROW(error);
         }
     }
@@ -705,10 +710,22 @@ struct mlir_program
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
         logger.clear();
-        if(mlirLogicalResultIsFailure(
-               mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()))))
+        const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
+        static std::mutex mutex;
+        auto mod_op = mlirModuleGetOperation(mmodule.get());
+        if(trace >= 2)
+        {
+            const std::lock_guard<std::mutex> lock(mutex);
+            std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+        }
+
+        if(mlirLogicalResultIsFailure(mlirPassManagerRunOnOp(pm_back.get(), mod_op)))
         {
             std::string error = "MLIR backend compilation failed: " + logger.str();
+            if(enabled(MIGRAPHX_TRACE_MLIR{}))
+            {
+                std::cout << error << std::endl;
+            }
             MIGRAPHX_THROW(error);
         }
     }

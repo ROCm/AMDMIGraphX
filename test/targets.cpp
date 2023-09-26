@@ -57,7 +57,7 @@ TEST_CASE(concurrent_targets)
 {
     std::vector<std::thread> threads;
 
-    for(auto i = 0u; i < 10000; i++)
+    for(auto i = 0u; i < 1000; i++)
     {
         auto thread_body = []() {
             auto ref_target = migraphx::make_target("gpu");

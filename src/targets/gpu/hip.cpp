@@ -55,7 +55,7 @@ bool is_device_ptr(const void* ptr)
     auto status = hipPointerGetAttributes(&attr, ptr);
     if(status != hipSuccess)
         return false;
-    return attr.memoryType == hipMemoryTypeDevice;
+    return attr.type == hipMemoryTypeDevice;
 }
 
 std::size_t get_available_gpu_memory()

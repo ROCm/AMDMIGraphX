@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <deque>
 #include <filesystem>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/errors.hpp>
@@ -93,7 +94,7 @@ struct hiprtc_program
 {
     struct string_array
     {
-        std::vector<std::string> strings{};
+        std::deque<std::string> strings{};
         std::vector<const char*> c_strs{};
 
         string_array() {}
@@ -211,10 +212,8 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
         options.push_back("-Wno-gnu-line-marker");
         options.push_back("-Wno-old-style-cast");
     }
-    options.push_back("-D__HIPCC_RTC__=1");
+    // remove this flag later
     options.push_back("-DCK_DONT_USE_HIP_RUNTIME_HEADERS=1");
-    options.push_back("-D__HIP_PLATFORM_HCC__=1");
-    options.push_back("-D__HIP_PLATFORM_AMD__=1");
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
@@ -269,7 +268,6 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         tmp_dir td{};
         auto out  = td.path / "output";
         auto dris = td.path / "srcs";
-        std::cout << "cd " << td.path.string() << std::endl;
         migraphx::write_buffer(dris, migraphx::to_msgpack(v));
         process(driver.string() + " " + dris.string() + " " + out.string()).exec();
         if(fs::exists(out))

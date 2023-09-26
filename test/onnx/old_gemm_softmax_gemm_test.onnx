@@ -1,46 +1,0 @@
-old_gemm_softmax_gemm_test:Ð
-
-a
-b	gemm1_out"MatMul
-!
-	gemm1_out
-scalemul1_out"Mul
-
-mul1_out
-cadd1_out"Add
- 
-add1_outsoftmax_out"Softmax
-
-softmax_out
-b1out"MatMulold_gemm_softmax_gemm_test*
-*BscaleZ
-a
-
-
-
-Z
-b
-
-
-
-Z
-c
-
-
-
-Z
-b1
-
-
-
-Z
-bias
-
-
-
-b
-out
-
-
-
-B

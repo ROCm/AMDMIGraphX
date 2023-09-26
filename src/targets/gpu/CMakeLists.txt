@@ -85,6 +85,7 @@ add_library(migraphx_device
         device/reverse.cpp
         device/rnn_variable_seq_lens.cpp
         device/scatter.cpp
+        device/targets.cpp
         device/topk.cpp)
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)

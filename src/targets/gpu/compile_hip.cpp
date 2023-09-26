@@ -366,10 +366,7 @@ bool hip_has_flags(const std::vector<std::string>& flags)
         join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
 
     std::string src;
-    src_file input;
-    input.path    = "main.cpp";
-    input.content = std::make_pair(src.data(), src.data() + src.size());
-
+    src_file input{ "main.cpp", src };
     try
     {
         compiler.compile({input});

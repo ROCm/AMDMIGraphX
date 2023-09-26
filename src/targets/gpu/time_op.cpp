@@ -55,17 +55,25 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
         op.compute(ctx, output, args);
         ctx.finish();
     };
-    gctx.enable_perf_measurement();
     run();
-    double host_time   = 0.0;
-    double device_time = 0.0;
+
+    shared<hip_event_ptr> start = gctx.create_event_for_timing();
+    shared<hip_event_ptr> stop = gctx.create_event_for_timing();
+    gctx.get_stream().record(start.get());
     for(auto i : range(n))
     {
         (void)i;
-        host_time += time<milliseconds>(run);
-        device_time += gctx.get_elapsed_ms();
+        op.compute(ctx, output, args);
     }
-    return std::make_pair(host_time / n, device_time / n);
+    gctx.get_stream().record(stop.get());
+    auto status = hipEventSynchronize(stop.get());
+    if (status != hipSuccess) { MIGRAPHX_THROW("Failed to `hipEventSynchronize`: " + hip_error(status)); }
+
+    float milliseconds = 0.0;
+    status = hipEventElapsedTime(&milliseconds, start.get(), stop.get());
+    if (status != hipSuccess) { MIGRAPHX_THROW("Failed to `hipEventElapsedTime`: " + hip_error(status)); }
+
+    return std::make_pair(milliseconds, milliseconds);
 }
 
 } // namespace gpu

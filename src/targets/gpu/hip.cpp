@@ -232,9 +232,13 @@ argument from_gpu(const argument& arg)
 
 void set_device(std::size_t id)
 {
-    auto status = hipSetDevice(id);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Error setting device");
+    static std::size_t curr_id{0};
+    if (curr_id != id) {
+        curr_id = id;
+        auto status = hipSetDevice(curr_id);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Error setting device");
+    }
 }
 
 void gpu_sync()

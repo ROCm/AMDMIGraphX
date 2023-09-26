@@ -48,7 +48,7 @@ std::vector<char> read_stdin()
 
 int main(int argc, char const* argv[])
 {
-    if(argc < 2 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
+    if(argc < 3 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
     {
         std::cout << "USAGE:" << std::endl;
         std::cout << "    ";
@@ -56,9 +56,10 @@ int main(int argc, char const* argv[])
                   << std::endl;
         std::exit(0);
     }
-    std::string output_name = argv[1];
+    std::string input_name  = argv[1];
+    std::string output_name = argv[2];
 
-    auto v = migraphx::from_msgpack(read_stdin());
+    auto v = migraphx::from_msgpack(migraphx::read_buffer(input_name));
     std::vector<migraphx::gpu::hiprtc_src_file> srcs;
     migraphx::from_value(v.at("srcs"), srcs);
     auto out = migraphx::gpu::compile_hip_src_with_hiprtc(

@@ -138,6 +138,12 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         }
     }
+}, ck_hiprtc: rocmnode('mi100+') { cmake_build ->
+    stage('CK hipRTC') {
+        withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1']) {
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On")
+        }
+    }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"

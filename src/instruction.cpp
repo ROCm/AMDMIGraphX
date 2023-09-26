@@ -332,7 +332,7 @@ bool instruction::can_eval() const
     }
 }
 
-template<class InstructionRef>
+template <class InstructionRef>
 static bool is_low_precision_float(InstructionRef ins)
 {
     auto t = ins->get_shape().type();

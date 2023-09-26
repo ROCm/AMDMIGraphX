@@ -21,8 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <deque>
-#include <filesystem>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
@@ -30,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <cassert>
 #include <iostream>
+#include <deque>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>

@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <filesystem>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/value.hpp>
@@ -49,7 +48,7 @@ std::vector<char> read_stdin()
 
 int main(int argc, char const* argv[])
 {
-    if(argc < 3 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
+    if(argc < 2 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
     {
         std::cout << "USAGE:" << std::endl;
         std::cout << "    ";
@@ -57,24 +56,11 @@ int main(int argc, char const* argv[])
                   << std::endl;
         std::exit(0);
     }
-    std::string input_name  = argv[1];
-    std::string output_name = argv[2];
-    auto v                  = migraphx::from_msgpack(migraphx::read_buffer(input_name));
+    std::string output_name = argv[1];
+
+    auto v = migraphx::from_msgpack(read_stdin());
     std::vector<migraphx::gpu::hiprtc_src_file> srcs;
     migraphx::from_value(v.at("srcs"), srcs);
-    for(const auto& src : srcs)
-    {
-        migraphx::fs::path full_path   = migraphx::fs::path(input_name).parent_path() / src.path;
-        migraphx::fs::path parent_path = full_path.parent_path();
-        migraphx::fs::create_directories(parent_path);
-        migraphx::write_buffer(full_path.string(), src.content.data(), src.content.size());
-    }
-    for(const auto& src : srcs)
-    {
-        migraphx::write_buffer(migraphx::fs::current_path().string() + "/" + src.path,
-                               src.content.data(),
-                               src.content.size());
-    }
     auto out = migraphx::gpu::compile_hip_src_with_hiprtc(
         std::move(srcs), v.at("params").to<std::string>(), v.at("arch").to<std::string>());
     if(not out.empty())

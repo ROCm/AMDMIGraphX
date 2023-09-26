@@ -120,7 +120,7 @@ struct hiprtc_program
     hiprtc_program(const std::string& src, const std::string& name = "main.cpp")
         : cpp_src(src), cpp_name(name)
     {
-        create_hiprtc_program();
+        create_program();
     }
 
     hiprtc_program(std::vector<hiprtc_src_file> srcs)
@@ -138,10 +138,10 @@ struct hiprtc_program
                 include_names.push_back(std::move(src.path));
             }
         }
-        create_hiprtc_program();
+        create_program();
     }
 
-    void create_hiprtc_program()
+    void create_program()
     {
         assert(not cpp_src.empty());
         assert(not cpp_name.empty());
@@ -156,8 +156,7 @@ struct hiprtc_program
     void compile(const std::vector<std::string>& options, bool quiet = false) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
-            std::cout << "rm -rf main.o srcs && ~/repo/hiprtc-driver/build/hiprtc-driver "
-                      << join_strings(options, " ") << std::endl;
+            std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
         std::vector<const char*> c_options;
         std::transform(options.begin(),
                        options.end(),
@@ -266,10 +265,11 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         v["arch"]   = to_value(arch);
 
         tmp_dir td{};
-        auto out  = td.path / "output";
-        auto dris = td.path / "srcs";
-        migraphx::write_buffer(dris, migraphx::to_msgpack(v));
-        process(driver.string() + " " + dris.string() + " " + out.string()).exec();
+        auto out = td.path / "output";
+
+        process(driver.string() + " " + out.string()).write([&](auto writer) {
+            to_msgpack(v, writer);
+        });
         if(fs::exists(out))
             return {read_buffer(out.string())};
     }

@@ -523,7 +523,7 @@ struct find_inner_broadcast
             return;
         auto bcast_strides = broadcasts.front()->get_shape().strides().size();
         std::vector<size_t> common_axis(bcast_strides, 0);
-        for(auto i = 0; i < broadcasts.front()->get_shape().strides().size(); i++)
+        for(auto i = 0; i < bcast_strides; i++)
         {
             for(auto j = 0; j < broadcasts.size(); j++)
             {

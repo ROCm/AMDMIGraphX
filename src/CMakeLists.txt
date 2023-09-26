@@ -175,6 +175,7 @@ register_migraphx_ops(
     mul
     multibroadcast
     multinomial
+    nearbyint
     neg
     nonmaxsuppression
     nonzero

@@ -84,6 +84,7 @@
 #include <migraphx/op/mod.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/op/nearbyint.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/nonmaxsuppression.hpp>
 #include <migraphx/op/nonzero.hpp>

@@ -37,7 +37,7 @@ TEST_CASE(round_test)
     migraphx::shape s{migraphx::shape::float_type, {9}};
     auto l =
         mm->add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
-    mm->add_instruction(migraphx::make_op("round"), l);
+    mm->add_instruction(migraphx::make_op("nearbyint"), l);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
@@ -53,7 +53,7 @@ TEST_CASE(round_dyn_test)
     migraphx::shape::dynamic_dimension dd{4, 10};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("round"), input);
+    mm->add_instruction(migraphx::make_op("nearbyint"), input);
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> input_data{1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0};

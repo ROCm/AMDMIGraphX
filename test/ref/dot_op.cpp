@@ -21,18 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iostream>
-#include <vector>
-#include <migraphx/literal.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/onnx.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/apply_alpha_beta.hpp>
 
 #include "test.hpp"
-#include <migraphx/half.hpp>
 
 template <class T>
 void dot_2d_test()

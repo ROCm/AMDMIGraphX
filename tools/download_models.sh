@@ -49,3 +49,8 @@ do
 curl https://download.onnxruntime.ai/onnx/models/$name.tar.gz --output $tmp_dir/$name.tar.gz
 tar -xzvf $tmp_dir/$name.tar.gz --directory $model_dir && rm $tmp_dir/$name.tar.gz
 done
+
+# CI jobs can run as a different user then the docker image builder.
+# Allow read/write access to the models
+chmod 777 $model_dir
+

@@ -65,7 +65,7 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1, Settings s)
                                              to_ck_tensor<C>());
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
-    
+
     G::Run(desc,
            s.scale,
            to_ck_const_pointer(a.data()),

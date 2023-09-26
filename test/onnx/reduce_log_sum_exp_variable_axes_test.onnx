@@ -1,0 +1,21 @@
+	%reduce_log_sum_exp_variable_axes_test:¥
+.
+x
+axesy"ReduceLogSumExp*
+keepdims %reduce_log_sum_exp_variable_axes_testZ
+x
+
+
+
+
+Z
+axes
+
+
+b
+y
+
+
+
+
+B

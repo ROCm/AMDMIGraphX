@@ -5167,6 +5167,11 @@ TEST_CASE(reducel1_dyn_test)
     }
 }
 
+TEST_CASE(reducel1_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reducel1_variable_axes_test.onnx"); }));
+}
+
 TEST_CASE(reducel2_test)
 {
     migraphx::program p;
@@ -5181,6 +5186,11 @@ TEST_CASE(reducel2_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducel2_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reducel2_variable_axes_test.onnx"); }));
+}
+
 TEST_CASE(reduce_log_sum_test)
 {
     migraphx::program p;
@@ -5191,6 +5201,11 @@ TEST_CASE(reduce_log_sum_test)
     auto prog = optimize_onnx("reduce_log_sum_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(reduce_log_sum_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reduce_log_sum_variable_axes_test.onnx"); }));
 }
 
 TEST_CASE(reduce_log_sum_exp_test)
@@ -5204,6 +5219,11 @@ TEST_CASE(reduce_log_sum_exp_test)
     auto prog = optimize_onnx("reduce_log_sum_exp_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(reduce_log_sum_exp_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reduce_log_sum_exp_variable_axes_test.onnx"); }));
 }
 
 TEST_CASE(reducemax_test)
@@ -5235,6 +5255,11 @@ TEST_CASE(reducemax_dyn_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducemax_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reducemax_variable_axes_test.onnx"); }));
+}
+
 TEST_CASE(reducemean_test)
 {
     migraphx::program p;
@@ -5258,6 +5283,11 @@ TEST_CASE(reducemean_keepdims_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducemean_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reducemean_variable_axes_test.onnx"); }));
+}
+
 TEST_CASE(reducemin_test)
 {
     migraphx::program p;
@@ -5270,6 +5300,11 @@ TEST_CASE(reducemin_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducemin_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reducemin_variable_axes_test.onnx"); }));
+}
+
 TEST_CASE(reduceprod_test)
 {
     migraphx::program p;
@@ -5279,6 +5314,11 @@ TEST_CASE(reduceprod_test)
     auto prog = optimize_onnx("reduceprod_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(reduceprod_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reduceprod_variable_axes_test.onnx"); }));
 }
 
 TEST_CASE(reducesum_test)
@@ -5343,6 +5383,11 @@ TEST_CASE(reducesum_keepdims_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducesum_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reducesum_variable_axes_test.onnx"); }));
+}
+
 TEST_CASE(reducesum_square_test)
 {
     migraphx::program p;
@@ -5354,6 +5399,11 @@ TEST_CASE(reducesum_square_test)
     auto prog = optimize_onnx("reducesum_square_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(reducesum_square_variable_axes_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reducesum_square_variable_axes_test.onnx"); }));
 }
 
 TEST_CASE(reshape_test)

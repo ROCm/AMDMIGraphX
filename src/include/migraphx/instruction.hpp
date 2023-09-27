@@ -81,6 +81,7 @@ struct MIGRAPHX_EXPORT instruction
 
     const std::vector<module_ref>& module_inputs() const;
 
+    /// Where this instruction is used as an input to another instruction
     const std::vector<instruction_ref>& outputs() const;
 
     friend bool operator==(const instruction& x, const instruction& y);

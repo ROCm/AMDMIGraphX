@@ -210,8 +210,6 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
         options.push_back("-Wno-gnu-line-marker");
         options.push_back("-Wno-old-style-cast");
     }
-    // remove this flag later
-    options.push_back("-DCK_DONT_USE_HIP_RUNTIME_HEADERS=1");
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {

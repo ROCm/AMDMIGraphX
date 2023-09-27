@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include "migraphx/make_op.hpp"
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
 
 #ifdef MIGRAPHX_MLIR
@@ -69,6 +70,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 
@@ -93,6 +95,8 @@ struct mlir_handle
         friend bool operator==(ptr x, ptr y) { return x.get_value() == y.get_value(); }
 
         friend bool operator!=(ptr x, ptr y) { return not(x == y); }
+
+        explicit operator bool() const noexcept { return obj != ptr(); }
         T obj{};
     };
 
@@ -645,8 +649,8 @@ struct mlir_program
     void set_gpu_properties(const context& migraphx_ctx)
     {
         const auto& device = migraphx_ctx.get_current_device();
-        target_arch  = device.get_device_name();
-        num_cu       = device.get_cu_count();
+        target_arch        = device.get_device_name();
+        num_cu             = device.get_cu_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -678,12 +682,15 @@ struct mlir_program
             MIGRAPHX_THROW("Failed setting tuning key: " + *str);
     }
 
-    tuning_config get_tuning_config() MIGRAPHX_TIDY_CONST
+    tuning_config get_tuning_config(bool exhaustive) MIGRAPHX_TIDY_CONST
     {
         tuning_config tc;
         run_high_level_pipeline();
-        mlir_tuning_space params{
-            mlirRockTuningSpaceCreate(mmodule.get(), RocmlirTuningParamSetKindFull)};
+        auto tuning_mode =
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
+        if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
+            tuning_mode = RocmlirTuningParamSetKindExhaustive;
+        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
         for(auto i : range(mlirRockTuningGetNumParams(params.get())))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};
@@ -717,7 +724,8 @@ struct mlir_program
         if(not tuning_cfg_path.empty())
         {
             std::vector<std::string> tokens = split_string(prob_config, '\t');
-            std::string prob                = tokens[1];
+            std::string prob                = tokens[2];
+
             if(starts_with(prob, "conv"))
             {
                 tuning_cfg_path += ".conv";
@@ -727,6 +735,8 @@ struct mlir_program
                 tuning_cfg_path += ".gemm";
             }
             std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
+            prob =
+                trim(prob, [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
             tuning_cfg << prob << std::endl;
         }
     }
@@ -867,15 +877,22 @@ code_object_op compile_mlir(const context& migraphx_ctx,
     adjust_param_shapes(m, to_shapes(inputs));
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
+    static std::mutex mutex;
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << m << std::endl;
+    }
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
     auto co            = mp.compile(solution);
     co.expected_inputs = to_shapes(inputs);
     co.output          = m.get_output_shapes().front();
@@ -898,15 +915,17 @@ instruction_ref insert_mlir(module& m,
     return m.insert_instruction(ins, co, refs);
 }
 
-tuning_config
-get_tuning_config_mlir(const context& migraphx_ctx, module m, const std::vector<shape>& inputs)
+tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
+                                     module m,
+                                     const std::vector<shape>& inputs,
+                                     bool exhaustive)
 {
     adjust_param_shapes(m, inputs);
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
-    return mp.get_tuning_config();
+    return mp.get_tuning_config(exhaustive);
 }
 
 #else
@@ -935,7 +954,7 @@ insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<ins
     return m.end();
 }
 
-tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&)
+tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
     return {};
 }

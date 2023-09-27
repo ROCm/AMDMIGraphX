@@ -49,17 +49,15 @@ struct allocate
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        migraphx::check_shapes{inputs, *this, true}.has(0, 1);
-        // check if shape attribute is not default
         if(s != shape())
         {
+            migraphx::check_shapes{inputs, *this}.has(0);
             return s;
         }
         else
         {
+            migraphx::check_shapes{inputs, *this}.has(1).only_dims(1);
             const auto& out_dims = inputs.at(0);
-            assert(not out_dims.dynamic());
-            assert(out_dims.ndim() == 1);
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
             std::vector<shape::dynamic_dimension> dyn_dims(out_dims.lens().at(0),
                                                            shape::dynamic_dimension{0, max_val});

@@ -154,6 +154,29 @@ struct ck_add
     }
 };
 
+// In CK, the B matrix is ordered as N,K instead of K,N
+template <class Dims>
+constexpr auto ck_transposeb_dims(Dims dims)
+{
+    return unpack(dims, [](auto k, auto n) { return make_const_array(n, k); });
+}
+
+template <class Tensor>
+using ck_transposeb = decltype(make_shape(ck_transposeb_dims(get_shape_c<Tensor>{}.lens),
+                                          ck_transposeb_dims(get_shape_c<Tensor>{}.strides)));
+
+template <class T>
+struct ck_gemm_softmax_gemm_settings
+{
+    T scale{};
+};
+
+template <class... Ts>
+constexpr ck_gemm_softmax_gemm_settings<Ts...> make_ck_gemm_softmax_gemm_settings(Ts... xs)
+{
+    return {xs...};
+}
+
 #ifdef MIGRAPHX_CK_CHECK
 #define MIGRAPHX_CK_STATIC_ASSERT static_assert
 #else

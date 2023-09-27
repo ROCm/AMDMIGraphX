@@ -1,125 +1,116 @@
+// RULES:
+// 1) Build and cache the docker 
+// 2) Be able to restart parts of the pipeline
+// 3) Check your targets 
+//
+// Build Process
+//
+// HIP Clang Docker --> "all targets", "clang asan", etc 
+// ORT Docker       --> "ORT benchmark"
+//
+// Each docker can be used on any system
 
-// def rocmtestnode(variant, name, body, args, pre) {
-def rocmtestnode(Map conf) {
-    def variant = conf.get("variant")
-    def name = conf.get("node")
-    def body = conf.get("body")
-    def docker_args = conf.get("docker_args", "")
-    def docker_build_args = conf.get("docker_build_args", "")
-    def pre = conf.get("pre", {})
-    def post = conf.get("post", {})
-    def ccache = "/var/jenkins/.cache/ccache"
-    def image = 'migraphxlib'
-    env.CCACHE_COMPRESSLEVEL = 7
-    env.CCACHE_DIR = ccache
-    def cmake_build = { bconf ->
-        def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
-        def flags = bconf.get("flags", "")
-        def gpu_debug = bconf.get("gpu_debug", "0")
-        def cmd = """
-            ulimit -c unlimited
-            echo "leak:dnnl::impl::malloc" > suppressions.txt
-            export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
-            export MIGRAPHX_GPU_DEBUG=${gpu_debug}
-            export CXX=${compiler}
-            export CXXFLAGS='-Werror'
-            env
-            rm -rf build
-            mkdir build
-            cd build
-            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT ${flags} ..
-            git diff
-            git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
-            make -j\$(nproc) generate VERBOSE=1
-            git diff
-            git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-            make -j\$(nproc) all package VERBOSE=1
-            md5sum ./*.deb
-        """
-        echo cmd
-        sh cmd
-        // Only archive from master or develop
-        if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
-            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+
+
+def rocmnode(name) {
+    return 'rocmtest && (' + name + ')'
+}
+
+def getDockerImageName(dockerArgs)
+{
+    sh "echo ${dockerArgs} > factors.txt"
+    def image = "rocm/migraphx-ci-ubuntu"
+    sh "md5sum Dockerfile requirements.txt dev-requirements.txt >> factors.txt"
+    def docker_hash = sh(script: "md5sum factors.txt | awk '{print \$1}' | head -c 6", returnStdout: true)
+    sh "rm factors.txt"
+    echo "Docker tag hash: ${docker_hash}"
+    image = "${image}:ci_${docker_hash}"
+    if(params.DOCKER_IMAGE_OVERRIDE != '')
+    {
+        echo "Overriding the base docker image with ${params.DOCKER_IMAGE_OVERRIDE}"
+        image = "${params.DOCKER_IMAGE_OVERRIDE}"
+    }
+    return image
+
+}
+
+def getDockerImage(Map conf=[:])
+{
+    env.DOCKER_BUILDKIT=1
+    def gpu_arch = "gfx1030;gfx1100;gfx1101;gfx1102" // prebuilt dockers should have all the architectures enabled so one image can be used for all stages
+    def dockerArgs = "--build-arg GPU_TARGETS='${gpu_arch}'"
+    echo "Docker Args: ${dockerArgs}"
+
+    def image = getDockerImageName(dockerArgs)
+
+    def dockerImage
+    try{
+        echo "Pulling down image: ${image}"
+        dockerImage = docker.image("${image}")
+        dockerImage.pull()
+    }
+    catch(org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+        echo "The job was cancelled or aborted"
+        throw e
+    }
+    catch(Exception ex)
+    {
+        dockerImage = docker.build("${image}", "${dockerArgs} .")
+        withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+            dockerImage.push()
         }
     }
-    node(name) {
-        withEnv(['HSA_ENABLE_SDMA=0']) {
-            stage("checkout ${variant}") {
-                checkout scm
-            }
-            gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
-                pre()
-                stage("image ${variant}") {
-                    try {
-                        docker.build("${image}", "${docker_build_args} .")
-                    } catch(Exception ex) {
-                        docker.build("${image}", "${docker_build_args} --no-cache .")
+    return [dockerImage, image]
+}
 
+
+
+pipeline {
+    agent none
+    options {
+        parallelsAlwaysFailFast()
+    }
+    parameters {
+        booleanParam(
+            name: "BUILD_DOCKER",
+            defaultValue: true,
+            description: "")
+        booleanParam(
+            name: "BUILD_STATIC_CHECKS",
+            defaultValue: true,
+            description: "")
+        string(name: "DOCKER_IMAGE_OVERRIDE",
+            defaultValue: '',
+            description: "")            
+    }
+
+    stages{
+        stage('Build Docker'){
+            when {
+                expression { params.BUILD_DOCKER }
+            }
+            agent{ label rocmnode("nogpu") }
+            steps{
+                getDockerImage()
+            }
+        }
+        stage("Static checks") {
+            parallel{
+                stage('Hip Tidy') {
+                    agent{ label rocmnode("nogpu") }
+                    environment{
+                    }
+                    steps{
+                        sh "echo Hi from Hip Tidy"
                     }
                 }
-                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/var/jenkins/:/var/jenkins ${docker_args}") {
-                    timeout(time: 2, unit: 'HOURS') {
-                        body(cmake_build)
+                stage('Clang Format') {
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        sh "echo Hi from Clang Format"
                     }
                 }
-                post()
             }
         }
-    }
-}
-def rocmtest(m) {
-    def builders = [:]
-    m.each { e ->
-        def label = e.key;
-        def action = e.value;
-        builders[label] = {
-            action(label)
-        }
-    }
-    parallel builders
-}
-
-def rocmnodename(name) {
-    def rocmtest_name = "(rocmtest || migraphx)"
-    def node_name = "${rocmtest_name}"
-    if(name == "fiji") {
-        node_name = "${rocmtest_name} && fiji";
-    } else if(name == "vega") {
-        node_name = "${rocmtest_name} && vega";
-    } else if(name == "navi") {
-        node_name = "${rocmtest_name} && (navi21 || navi31 || navi32)";
-    } else if(name == "mi100+") {
-        node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
-    } else if(name == "cdna") {
-        node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
-    } else if(name == "nogpu") {
-        node_name = "${rocmtest_name} && nogpu";
-    }
-    return node_name
-}
-
-def rocmnode(name, body) {
-    return { label ->
-        rocmtestnode(variant: label, node: rocmnodename(name), body: body)
-    }
-}
-def onnxnode(name, body) {
-    return { label ->
-        rocmtestnode(variant: label, node: rocmnodename(name), docker_args: '-u root', body: body, post: {
-            sh '''
-            apt install half
-            env
-            md5sum ./build/*.deb
-            dpkg -i ./build/*.deb
-            cd /onnxruntime && ./build_and_test_onnxrt.sh
-            '''
-        })
-    }
-}
-
-rocmtest clang_ort: onnxnode('navi') { cmake_build ->
-    stage('ONNX Runtime') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS=\"gfx1030;gfx1100;gfx1101\"")
     }
 }

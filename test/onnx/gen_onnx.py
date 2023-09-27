@@ -4385,6 +4385,62 @@ def mean_integral_test():
     return ([node], data, [mean])
 
 
+def mvn_default_axes_test_base(dims):
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT, dims)
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, dims)
+    node = helper.make_node("MeanVarianceNormalization",
+                            inputs=["data"],
+                            outputs=["out"])
+
+    return ([node], [data], [out])
+
+
+@onnx_test()
+def mvn_default_axes_test():
+    return mvn_default_axes_test_base([2, 2, 2, 2])
+
+
+@onnx_test()
+def mvn_default_axes_rank_too_small_test():
+    return mvn_default_axes_test_base([2, 2, 2])
+
+
+@onnx_test()
+def mvn_default_axes_rank_too_big_test():
+    return mvn_default_axes_test_base([2, 2, 2, 2, 2])
+
+
+def mvn_n_rank_test_base(axes, dims):
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT, dims)
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, dims)
+    node = helper.make_node("MeanVarianceNormalization",
+                            inputs=["data"],
+                            outputs=["out"],
+                            axes=axes)
+
+    return ([node], [data], [out])
+
+
+@onnx_test()
+def mvn_rank_2_test():
+    return mvn_n_rank_test_base([1], [2, 2])
+
+
+@onnx_test()
+def mvn_rank_3_test():
+    return mvn_n_rank_test_base([0, 1], [2, 2, 2])
+
+
+@onnx_test()
+def mvn_axes_rank_too_small_test():
+    return mvn_n_rank_test_base([0, 1, 2], [2, 2, 2])
+
+
+@onnx_test()
+def mvn_axes_rank_too_big_test():
+    return mvn_n_rank_test_base([0], [2, 2, 2])
+
+
 @onnx_test()
 def min_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])

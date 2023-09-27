@@ -40,6 +40,8 @@ struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normali
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
+        auto&& data    = args.front();
+        auto data_rank = data->get_shape().ndim();
         std::vector<int64_t> axes{0, 2, 3};
 
         if(contains(info.attributes, "axes"))
@@ -47,8 +49,17 @@ struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normali
             const auto& axes_attr = info.attributes["axes"].ints();
             axes.assign(axes_attr.begin(), axes_attr.end());
         }
+        else if(data_rank != 4)
+        {
+            MIGRAPHX_THROW(
+                "Input tensor needs to be rank 4 when axes is not specified. Instead it is rank " +
+                std::to_string(data_rank));
+        }
 
-        auto&& data = args.front();
+        if(axes.size() != data_rank - 1)
+        {
+            MIGRAPHX_THROW("Length of axes array needs to be equal to input tensor rank - 1");
+        }
 
         auto data_mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), data);
         auto data_mean_squared = info.add_common_op("mul", data_mean, data_mean);

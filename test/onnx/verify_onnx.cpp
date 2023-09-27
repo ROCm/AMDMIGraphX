@@ -1112,6 +1112,68 @@ TEST_CASE(mean_integral_test)
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
+std::vector<float> mvn_test(std::vector<size_t> data_lens, const std::string& test_file)
+{
+    migraphx::program p = migraphx::parse_onnx(test_file);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape data_shape(migraphx::shape::float_type, std::move(data_lens));
+    std::vector<float> data(data_shape.elements());
+    std::iota(begin(data), end(data), 0);
+
+    migraphx::parameter_map pm;
+    pm["data"] = migraphx::argument(data_shape, data.data());
+
+    auto result = p.eval(pm).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    return result_vector;
+}
+
+TEST_CASE(mvn_default_axes_test)
+{
+    auto result = mvn_test({2, 2, 2, 2}, "mvn_default_axes_test.onnx");
+    std::vector<float> gold{-1.32424438,
+                            -1.08347268,
+                            -0.84270097,
+                            -0.60192927,
+                            -1.32424438,
+                            -1.08347268,
+                            -0.84270097,
+                            -0.60192927,
+                            0.60192927,
+                            0.84270097,
+                            1.08347268,
+                            1.32424438,
+                            0.60192927,
+                            0.84270097,
+                            1.08347268,
+                            1.32424438};
+    EXPECT(migraphx::verify::verify_range(result, gold));
+}
+
+TEST_CASE(mvn_rank_2_test)
+{
+    auto result = mvn_test({2, 2}, "mvn_rank_2_test.onnx");
+    std::vector<float> gold{-1, 1, -1, 1};
+    EXPECT(migraphx::verify::verify_range(result, gold));
+}
+
+TEST_CASE(mvn_rank_3_test)
+{
+    auto result = mvn_test({2, 2, 2}, "mvn_rank_3_test.onnx");
+    std::vector<float> gold{-1.34164079,
+                            -1.34164079,
+                            -0.4472136,
+                            -0.4472136,
+                            0.4472136,
+                            0.4472136,
+                            1.34164079,
+                            1.34164079};
+    EXPECT(migraphx::verify::verify_range(result, gold));
+}
+
 TEST_CASE(mod_test)
 {
     migraphx::program p = migraphx::parse_onnx("mod_test.onnx");

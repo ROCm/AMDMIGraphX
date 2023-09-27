@@ -702,7 +702,8 @@ struct mlir_program
             if(perf_key_bytes > perf_key.size())
                 MIGRAPHX_THROW("Tuning perf key was " + std::to_string(perf_key_bytes) +
                                " bytes and thus too long");
-            tc.solutions.emplace_back(perf_key.begin(), perf_key.begin() + perf_key_bytes);
+            tc.solutions.emplace_back(
+                std::string(perf_key.begin(), perf_key.begin() + perf_key_bytes));
         }
         std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> tuning_key;
         size_t tuning_key_bytes =

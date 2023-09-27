@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,8 +36,12 @@ void optimize_module::apply(module_pass_manager& mpm) const
 {
     for(int i = 0; i < 2; i++)
     {
-        mpm.run_pass(simplify_reshapes{});
-        mpm.run_pass(simplify_algebra{});
+        // loop to further optimize after initial transformations
+        for(int j = 0; j < 2; j++)
+        {
+            mpm.run_pass(simplify_reshapes{});
+            mpm.run_pass(simplify_algebra{});
+        }
         mpm.run_pass(eliminate_common_subexpression{});
         mpm.run_pass(dead_code_elimination{});
         mpm.run_pass(propagate_constant{});

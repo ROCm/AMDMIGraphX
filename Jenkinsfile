@@ -105,7 +105,7 @@ def rocmnode(name, body) {
 
 rocmtest clang_ort: rocmnode('navi') { cmake_build ->
     stage('ONNX Runtime') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS=gfx1030;gfx1100;gfx1101")
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS=\"gfx1030;gfx1100;gfx1101\"")
         sh '''
             apt install half
             env

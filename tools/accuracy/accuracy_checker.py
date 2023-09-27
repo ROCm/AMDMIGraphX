@@ -192,7 +192,7 @@ def main():
                                       batch_size=batch,
                                       map_input_dims=input_dims)
 
-    if(args.fp16):
+    if (args.fp16):
         migraphx.quantize_fp16(model)
 
     if args.verbose:
@@ -290,7 +290,8 @@ def main():
 
     if not args.ort_run:
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
-                                       args.tolerance, args.argmax, args.verbose)
+                                       args.tolerance, args.argmax,
+                                       args.verbose)
         verbose_string = ' Rerun with --verbose for detailed information.' \
                 if not args.verbose else ''
         if is_correct:

@@ -85,8 +85,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && fiji";
     } else if(name == "vega") {
         node_name = "${rocmtest_name} && vega";
-    } else if(name == "navi21") {
-        node_name = "${rocmtest_name} && navi21";
+    } else if(name == "navi") {
+        node_name = "${rocmtest_name} && (navi21 || navi31 || navi32)";
     } else if(name == "mi100+") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
     } else if(name == "cdna") {
@@ -103,7 +103,7 @@ def rocmnode(name, body) {
     }
 }
 
-rocmtest clang_ort: rocmnode('cdna') { cmake_build ->
+rocmtest clang_ort: rocmnode('navi') { cmake_build ->
     stage('ONNX Runtime') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         sh '''

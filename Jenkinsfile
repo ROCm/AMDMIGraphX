@@ -7,6 +7,7 @@ def rocmtestnode(Map conf) {
     def docker_args = conf.get("docker_args", "")
     def docker_build_args = conf.get("docker_build_args", "")
     def pre = conf.get("pre", {})
+    def post = conf.get("post", {})
     def ccache = "/var/jenkins/.cache/ccache"
     def image = 'migraphxlib'
     env.CCACHE_COMPRESSLEVEL = 7
@@ -62,6 +63,7 @@ def rocmtestnode(Map conf) {
                         body(cmake_build)
                     }
                 }
+                post()
             }
         }
     }
@@ -102,16 +104,22 @@ def rocmnode(name, body) {
         rocmtestnode(variant: label, node: rocmnodename(name), body: body)
     }
 }
-
-rocmtest clang_ort: rocmnode('navi') { cmake_build ->
-    stage('ONNX Runtime') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS=\"gfx1030;gfx1100;gfx1101\"")
-        sh '''
+def onnxnode(name, body) {
+    return { label ->
+        rocmtestnode(variant: label, node: rocmnodename(name), docker_args: '-u root', body: body, post: {
+            sh '''
             apt install half
             env
             md5sum ./build/*.deb
             dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
-        '''
+            '''
+        })
+    }
+}
+
+rocmtest clang_ort: onnxnode('navi') { cmake_build ->
+    stage('ONNX Runtime') {
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS=\"gfx1030;gfx1100;gfx1101\"")
     }
 }

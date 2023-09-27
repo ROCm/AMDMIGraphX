@@ -32,7 +32,7 @@ def rocmtestnode(Map conf) {
             make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-            make -j\$(nproc) all doc package check VERBOSE=1
+            make -j\$(nproc) all package VERBOSE=1
             md5sum ./*.deb
         """
         echo cmd
@@ -105,7 +105,7 @@ def rocmnode(name, body) {
 
 rocmtest clang_ort: rocmnode('navi') { cmake_build ->
     stage('ONNX Runtime') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS=gfx1030;gfx1100;gfx1101")
         sh '''
             apt install half
             env

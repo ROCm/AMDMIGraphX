@@ -72,8 +72,10 @@ struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normali
         auto std      = info.add_common_op("sqrt", mean_sub);
 
         auto dividend = info.add_common_op("sub", data, data_mean);
-        auto epsilon  = info.add_literal({data->get_shape().type(), {1e-9}});
-        auto divisor  = info.add_common_op("add", std, epsilon);
+        auto epsilon =
+            info.add_literal({data->get_shape().type(),
+                              {data->get_shape().type() == shape::half_type ? 1e-8 : 1e-9}});
+        auto divisor = info.add_common_op("add", std, epsilon);
 
         return info.add_common_op("div", dividend, divisor);
     }

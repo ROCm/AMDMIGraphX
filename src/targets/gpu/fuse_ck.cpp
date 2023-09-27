@@ -95,8 +95,8 @@ struct ck_gemm_softmax_gemm
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>&) const
     {
         check_shapes{inputs, *this}.same_ndims();
-        if(inputs.size() < 2)
-            MIGRAPHX_THROW("should have at least two inputs.");
+        if(inputs.size() < 3)
+            MIGRAPHX_THROW("Expected 3 inputs but got " + to_string(inputs.size()));
         auto a  = inputs[0];
         auto b  = inputs[1];
         auto b1 = inputs[2];

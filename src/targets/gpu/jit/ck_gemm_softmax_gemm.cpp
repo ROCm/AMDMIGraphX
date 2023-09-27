@@ -349,11 +349,11 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& a_shape = inputs[0];
-        const auto& b_shape = inputs[1];
+        const auto& a_shape  = inputs[0];
+        const auto& b_shape  = inputs[1];
         const auto& b1_shape = inputs[2];
         const auto& c_shape  = inputs.back();
-        auto tuning_value = v.get("tuning_value", 4);
+        auto tuning_value    = v.get("tuning_value", 4);
         if(not v.contains("tuning_value"))
             tuning_value = get_tuning_for({a_shape, b_shape, b1_shape, c_shape});
         auto batch_count = get_batch_count(c_shape);

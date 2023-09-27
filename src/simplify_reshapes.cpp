@@ -122,6 +122,11 @@ struct find_nop_reshapes
         reshapes.insert("pad");
         reshapes.insert("slice");
         reshapes.insert("transpose");
+        reshapes.insert("reduce_mean");
+        reshapes.insert("reduce_max");
+        reshapes.insert("reduce_min");
+        reshapes.insert("reduce_sum");
+        reshapes.insert("reduce_prod");
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 

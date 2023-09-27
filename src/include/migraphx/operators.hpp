@@ -55,6 +55,7 @@
 #include <migraphx/op/equal.hpp>
 #include <migraphx/op/erf.hpp>
 #include <migraphx/op/exp.hpp>
+#include <migraphx/op/fill.hpp>
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/floor.hpp>
 #include <migraphx/op/fmod.hpp>

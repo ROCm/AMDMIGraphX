@@ -25,6 +25,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,16 +40,38 @@ struct parse_constant : op_parser<parse_constant>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& /*args*/) const
     {
-        literal v = parser.parse_value(info.attributes.at("value"));
+        static const std::vector<std::string> attributes = {
+            "value", "value_float", "value_floats", "value_int", "value_ints"};
+
+        std::vector<std::string> present_attributes;
+        std::copy_if(attributes.begin(),
+                     attributes.end(),
+                     std::back_inserter(present_attributes),
+                     [&](const std::string& a) { return contains(info.attributes, a); });
+
+        if(present_attributes.empty())
+        {
+            MIGRAPHX_THROW("Constant node does not contain any supported attribute");
+        }
+
+        if(present_attributes.size() > 1)
+        {
+            MIGRAPHX_THROW("Constant contains multiple attributes: " +
+                           join_strings(std::move(present_attributes), ", "));
+        }
+
+        // cppcheck-suppress accessMoved
+        auto&& attr = info.attributes[present_attributes[0]];
+        literal v   = parser.parse_value(attr);
+
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
             return info.add_literal(literal{v.get_shape().type()});
         }
 
-        auto dim_size = info.attributes.at("value").t().dims_size();
         // if dim_size is 0, it is a scalar
-        if(dim_size == 0)
+        if(attr.has_t() and attr.t().dims_size() == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
             return info.add_literal(migraphx::literal{scalar_shape, v.data()});

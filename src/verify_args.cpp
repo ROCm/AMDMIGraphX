@@ -78,16 +78,6 @@ bool verify_args(const std::string& name,
             if(verify::range_zero(target))
                 std::cout << "Target data is all zeros" << std::endl;
 
-            // auto mxdiff = max_diff(ref, target);
-            // std::cout << "Max diff: " << mxdiff << std::endl;
-
-            // auto idx = mismatch_idx(ref, target, float_equal);
-            // if(idx < verify::range_distance(ref))
-            // {
-            //     std::cout << "Mismatch at " << idx << ": " << ref[idx] << " != " << target[idx]
-            //               << std::endl;
-            // }
-
             auto ref_nan_idx = find_idx(ref, verify::not_finite);
             if(ref_nan_idx >= 0)
                 std::cout << "Non finite number found in ref at " << ref_nan_idx << ": "
@@ -97,7 +87,7 @@ bool verify_args(const std::string& name,
             if(target_nan_idx >= 0)
                 std::cout << "Non finite number found in target at " << target_nan_idx << ": "
                           << target[target_nan_idx] << std::endl;
-            // std::cout << std::endl;
+            std::cout << "MIGraphX verification passed successfully." << std::endl;
         }
     });
     return passed;

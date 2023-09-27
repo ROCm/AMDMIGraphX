@@ -21,22 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_RESHAPE_LAZY_HPP
+#define MIGRAPHX_GUARD_OPERATORS_RESHAPE_LAZY_HPP
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
-
-#include <algorithm>
+#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct reshape
+struct reshape_lazy
 {
     std::vector<int64_t> dims;
 
@@ -46,7 +45,9 @@ struct reshape
         return pack(f(self.dims, "dims"));
     }
 
-    std::string name() const { return "reshape"; }
+    value attributes() const { return {{"require_std_shape", true}}; }
+
+    std::string name() const { return "reshape_lazy"; }
 
     shape dyn_compute_shape(shape s0) const
     {
@@ -55,7 +56,7 @@ struct reshape
             dyn_dims.cbegin(), dyn_dims.cend(), [](auto dd) { return not dd.is_fixed(); });
         if(num_not_fixed != 1)
         {
-            MIGRAPHX_THROW("Reshape: Only supports one non-fixed dynamic_dimension");
+            MIGRAPHX_THROW("reshape_lazy: Only supports one non-fixed dynamic_dimension");
         }
         // track number of fixed elements in input and output
         std::size_t num_dims_ele = 1;
@@ -72,14 +73,14 @@ struct reshape
                 if(dims[i] != 0 and dims[i] != -1)
                 {
                     MIGRAPHX_THROW(
-                        "Reshape: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
+                        "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
                         "output dimension");
                 }
             }
         }
         if(num_dims_ele != num_dd_ele)
         {
-            MIGRAPHX_THROW("Reshape: Number of fixed elements must match. Input: " +
+            MIGRAPHX_THROW("reshape_lazy: Number of fixed elements must match. Input: " +
                            std::to_string(num_dd_ele) + " Output: " + std::to_string(num_dims_ele));
         }
         // construct output dynamic shape from dims attribute
@@ -109,10 +110,29 @@ struct reshape
         return it;
     }
 
+    template <class DimIterator, class StrideIterator>
+    static auto can_strides_merge(DimIterator dim_start,
+                                  DimIterator dim_last,
+                                  StrideIterator stride_start,
+                                  StrideIterator stride_last)
+    {
+        assert(std::distance(dim_start, dim_last) == std::distance(stride_start, stride_last));
+        auto cstride = *std::prev(stride_last);
+        return std::equal(std::make_reverse_iterator(dim_last),
+                          std::make_reverse_iterator(dim_start + 1),
+                          std::make_reverse_iterator(stride_last - 1),
+                          std::make_reverse_iterator(stride_start),
+                          [&](auto dim, auto stride) {
+                              cstride *= dim;
+                              return stride == cstride;
+                          });
+    }
+
     // This will attempt to alias the dimensions of the input shape to the lens of
-    // `rdims`. Unlike reshape_lazy though we can modify memory layout with copies and this
-    // can remove previous nullopts that were sent back for the alias case
-    static optional<shape> reshape_dims(const shape& input, const std::vector<std::size_t>& rdims)
+    // `rdims`. If this can't be done without changing memory layout then it
+    // will return nullopt
+    static optional<shape> reshape_lazy_dims(const shape& input,
+                                             const std::vector<std::size_t>& rdims)
     {
         if(input.standard())
             return shape{input.type(), rdims};
@@ -136,8 +156,13 @@ struct reshape
             {
                 auto start = idims.begin() + i;
                 auto it    = compute_end_dim(start, idims.end(), rdim);
+                if(it == start)
+                    return nullopt;
                 auto n = it - start;
                 assert((i + n) <= istrides.size());
+                if(not can_strides_merge(
+                       start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
+                    return nullopt;
                 i += n;
                 rstrides.push_back(istrides[i]);
             }
@@ -146,7 +171,8 @@ struct reshape
             {
                 auto start = rdims.begin() + i;
                 auto it    = compute_end_dim(start, rdims.end(), idim);
-
+                if(it == start)
+                    return nullopt;
                 auto n = it - start;
                 assert((r + n) <= rdims.size());
                 auto stride = istrides[i] * idim;
@@ -166,10 +192,14 @@ struct reshape
             auto stride = rstrides.back();
             for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
             {
-                (void)d;
+                if(d != 1)
+                    return nullopt;
                 rstrides.push_back(stride);
             }
         }
+
+        if(rdims.size() != rstrides.size())
+            return nullopt;
 
         return shape{input.type(), rdims, rstrides};
     }
@@ -203,25 +233,27 @@ struct reshape
             }
         }
 
-        auto s = reshape_dims(inputs.front(), rdims);
+        auto s = reshape_lazy_dims(inputs.front(), rdims);
+        if(not s.has_value())
+            MIGRAPHX_THROW("reshape_lazy on axis that is not packed.");
 
         if(s->elements() != inputs.front().elements())
-            MIGRAPHX_THROW("reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s->elements()) + " elements whereas the input has " +
-                           std::to_string(inputs.front().elements()));
+            MIGRAPHX_THROW(
+                "reshape_lazy: Wrong number of elements for reshape_lazy: reshape_lazy has " +
+                std::to_string(s->elements()) + " elements whereas the input has " +
+                std::to_string(inputs.front().elements()));
 
+        assert(s->bytes() == inputs.front().bytes());
         return *s;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("reshape: Dimensions for reshape can only have one -1 dim");
-
-        auto s0 = inputs.front();
+            MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim");
+        auto s0 = inputs[0];
         if(s0.dynamic())
         {
             return dyn_compute_shape(s0);
@@ -234,14 +266,10 @@ struct reshape
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(dyn_out.computed_shape.standard());
-        argument result{dyn_out.computed_shape};
-
-        visit_all(result, args[0])([&](auto output, auto input) {
-            std::copy(input.begin(), input.end(), output.begin());
-        });
-        return result;
+        return args[0].reshape(dyn_out.computed_shape);
     }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

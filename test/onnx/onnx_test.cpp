@@ -5376,8 +5376,7 @@ TEST_CASE(reshape_non_standard_test)
     auto x = mm->add_parameter("x", s);
     auto tran_x =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
-    auto cont_x = mm->add_instruction(migraphx::make_op("contiguous"), tran_x);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), cont_x);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), tran_x);
     auto prog = optimize_onnx("reshape_non_standard_test.onnx");
 
     EXPECT(p == prog);

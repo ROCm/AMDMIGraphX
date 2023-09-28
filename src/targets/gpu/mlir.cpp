@@ -22,7 +22,9 @@
  * THE SOFTWARE.
  */
 #include "migraphx/make_op.hpp"
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <ostream>
 
 #ifdef MIGRAPHX_MLIR
 #include <mlir-c/IR.h>
@@ -33,6 +35,7 @@
 #include <mlir-c/Dialect/Rock.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Pass.h>
+#include <mlir-c/Support.h>
 #include <mutex>
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
 #warning "Incompatible version of rocMLIR library used, disabling"
@@ -69,6 +72,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 
@@ -178,13 +182,85 @@ std::string mlir_print(F f, T x)
     return ss.str();
 }
 
+struct mlir_logger
+{
+    std::stringstream ss;
+    mlir_context* ctx;
+    std::optional<MlirDiagnosticHandlerID> id;
+
+    mlir_logger() : ctx(nullptr), id(std::nullopt) {}
+
+    mlir_logger(mlir_context* context) : ctx(context)
+    {
+        id =
+            mlirContextAttachDiagnosticHandler(ctx->get(), mlir_diagnostic_print_cb, this, nullptr);
+    }
+
+    ~mlir_logger()
+    {
+        if(id.has_value())
+            mlirContextDetachDiagnosticHandler(ctx->get(), *id);
+    }
+
+    mlir_logger(const mlir_logger& other)            = delete;
+    mlir_logger& operator=(const mlir_logger& other) = delete;
+
+    mlir_logger(mlir_logger&& other) noexcept
+        : ss(std::move(other.ss)), ctx(other.ctx), id(other.id)
+    {
+        other.ctx = nullptr;
+        other.id  = std::nullopt;
+    }
+
+    mlir_logger& operator=(mlir_logger other) noexcept
+    {
+        std::swap(ss, other.ss);
+        std::swap(ctx, other.ctx);
+        std::swap(id, other.id);
+        return *this;
+    }
+
+    std::string str() const { return ss.str(); }
+
+    void clear() { ss = std::stringstream{}; }
+
+    static MlirLogicalResult mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger);
+
+    MlirLogicalResult handle(MlirDiagnostic diag);
+};
+
+MlirLogicalResult mlir_logger::mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger)
+{
+    return reinterpret_cast<mlir_logger*>(logger)->handle(diag);
+}
+
+MlirLogicalResult mlir_logger::handle(MlirDiagnostic diag)
+{
+    MlirDiagnosticSeverity sev = mlirDiagnosticGetSeverity(diag);
+    switch(sev)
+    {
+    case MlirDiagnosticSeverity::MlirDiagnosticError: ss << "Error: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticWarning: ss << "Warning: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticNote: ss << "Note: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticRemark: ss << "Remark: "; break;
+    }
+    mlir_print(mlirDiagnosticPrint, diag, [&](auto s) { ss << s; });
+    ss << std::endl;
+    for(intptr_t i = 0, e = mlirDiagnosticGetNumNotes(diag); i < e; ++i)
+    {
+        (void)handle(mlirDiagnosticGetNote(diag, i));
+    }
+    return mlirLogicalResultSuccess();
+}
+
 struct mlir_program
 {
     mlir_program()
         : ctx(mlirContextCreateWithRegistry(get_dialect_registry().get(),
                                             /*threadingEnable=*/false)),
           location(mlirLocationUnknownGet(ctx.get())),
-          mmodule(mlirModuleCreateEmpty(location))
+          mmodule(mlirModuleCreateEmpty(location)),
+          logger(&ctx)
     {
         mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
         mlirContextLoadAllAvailableDialects(ctx.get());
@@ -612,21 +688,49 @@ struct mlir_program
         }
     }
 
-    void run_high_level_pipeline() MIGRAPHX_TIDY_CONST
+    void run_high_level_pipeline()
     {
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
-        mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()));
+        logger.clear();
+        if(mlirLogicalResultIsFailure(
+               mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
+        {
+            std::string error = "Invalid MLIR created: " + logger.str();
+            if(enabled(MIGRAPHX_TRACE_MLIR{}))
+            {
+                std::cout << error << std::endl;
+            }
+            MIGRAPHX_THROW(error);
+        }
     }
 
-    void run_backend_pipeline() MIGRAPHX_TIDY_CONST
+    void run_backend_pipeline()
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
-        mlirPassManagerRunOnOp(pm_back.get(), mlirModuleGetOperation(mmodule.get()));
+        logger.clear();
+        const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
+        static std::mutex mutex;
+        auto mod_op = mlirModuleGetOperation(mmodule.get());
+        if(trace >= 2)
+        {
+            const std::lock_guard<std::mutex> lock(mutex);
+            std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+        }
+
+        if(mlirLogicalResultIsFailure(mlirPassManagerRunOnOp(pm_back.get(), mod_op)))
+        {
+            std::string error = "MLIR backend compilation failed: " + logger.str();
+            if(enabled(MIGRAPHX_TRACE_MLIR{}))
+            {
+                std::cout << error << std::endl;
+            }
+            MIGRAPHX_THROW(error);
+        }
     }
 
-    code_object_op compile(const value& solution) MIGRAPHX_TIDY_CONST
+    code_object_op compile(const value& solution)
     {
         // 1st pipeline to call
         run_high_level_pipeline();
@@ -647,8 +751,8 @@ struct mlir_program
     void set_gpu_properties(const context& migraphx_ctx)
     {
         const auto& device = migraphx_ctx.get_current_device();
-        target_arch  = device.get_device_name();
-        num_cu       = device.get_cu_count();
+        target_arch        = device.get_device_name();
+        num_cu             = device.get_cu_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -680,12 +784,15 @@ struct mlir_program
             MIGRAPHX_THROW("Failed setting tuning key: " + *str);
     }
 
-    tuning_config get_tuning_config() MIGRAPHX_TIDY_CONST
+    tuning_config get_tuning_config(bool exhaustive)
     {
         tuning_config tc;
         run_high_level_pipeline();
-        mlir_tuning_space params{
-            mlirRockTuningSpaceCreate(mmodule.get(), RocmlirTuningParamSetKindFull)};
+        auto tuning_mode =
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
+        if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
+            tuning_mode = RocmlirTuningParamSetKindExhaustive;
+        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
         for(auto i : range(mlirRockTuningGetNumParams(params.get())))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};
@@ -697,7 +804,8 @@ struct mlir_program
             if(perf_key_bytes > perf_key.size())
                 MIGRAPHX_THROW("Tuning perf key was " + std::to_string(perf_key_bytes) +
                                " bytes and thus too long");
-            tc.solutions.emplace_back(perf_key.begin(), perf_key.begin() + perf_key_bytes);
+            tc.solutions.emplace_back(
+                std::string(perf_key.begin(), perf_key.begin() + perf_key_bytes));
         }
         std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> tuning_key;
         size_t tuning_key_bytes =
@@ -719,7 +827,8 @@ struct mlir_program
         if(not tuning_cfg_path.empty())
         {
             std::vector<std::string> tokens = split_string(prob_config, '\t');
-            std::string prob                = tokens[1];
+            std::string prob                = tokens[2];
+
             if(starts_with(prob, "conv"))
             {
                 tuning_cfg_path += ".conv";
@@ -729,6 +838,8 @@ struct mlir_program
                 tuning_cfg_path += ".gemm";
             }
             std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
+            prob =
+                trim(prob, [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
             tuning_cfg << prob << std::endl;
         }
     }
@@ -801,6 +912,7 @@ struct mlir_program
     mlir_context ctx;
     MlirLocation location;
     mlir_module mmodule;
+    mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
     std::string target_arch = "";
@@ -869,15 +981,22 @@ code_object_op compile_mlir(const context& migraphx_ctx,
     adjust_param_shapes(m, to_shapes(inputs));
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
+    static std::mutex mutex;
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << m << std::endl;
+    }
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
     auto co            = mp.compile(solution);
     co.expected_inputs = to_shapes(inputs);
     co.output          = m.get_output_shapes().front();
@@ -900,15 +1019,17 @@ instruction_ref insert_mlir(module& m,
     return m.insert_instruction(ins, co, refs);
 }
 
-tuning_config
-get_tuning_config_mlir(const context& migraphx_ctx, module m, const std::vector<shape>& inputs)
+tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
+                                     module m,
+                                     const std::vector<shape>& inputs,
+                                     bool exhaustive)
 {
     adjust_param_shapes(m, inputs);
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
-    return mp.get_tuning_config();
+    return mp.get_tuning_config(exhaustive);
 }
 
 #else
@@ -937,7 +1058,7 @@ insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<ins
     return m.end();
 }
 
-tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&)
+tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
     return {};
 }

@@ -25,13 +25,37 @@
 #include <migraphx/value.hpp>
 #include <msgpack.hpp>
 #include <map>
+#include <numeric>
 #include "test.hpp"
+
+template <class T, MIGRAPHX_REQUIRES(not std::is_base_of<std::vector<std::uint8_t>, T>{})>
+void write_msgpack(std::ostream& os, const T& src)
+{
+    msgpack::pack(os, src);
+}
+void write_msgpack(std::ostream& os, const std::vector<std::uint8_t>& src)
+{
+    const auto limit = std::numeric_limits<uint32_t>::max() - 1;
+    std::vector<std::vector<std::uint8_t>> chunks;
+    if(src.size() > limit)
+    {
+        // Only test two chunks
+        assert(std::distance(src.begin() + limit, src.end()) < limit);
+        chunks.emplace_back(src.begin(), src.begin() + limit);
+        chunks.emplace_back(src.begin() + limit, src.end());
+    }
+    else
+    {
+        chunks = {src};
+    }
+    write_msgpack(os, chunks);
+}
 
 template <class T>
 std::vector<char> msgpack_buffer(const T& src)
 {
     std::stringstream buffer;
-    msgpack::pack(buffer, src);
+    write_msgpack(buffer, src);
     buffer.seekg(0);
     std::string str = buffer.str();
     return std::vector<char>(str.data(), str.data() + str.size()); // NOLINT
@@ -147,4 +171,51 @@ TEST_CASE(test_msgpack_array_class)
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
+TEST_CASE(test_msgpack_binary)
+{
+    migraphx::value::binary bin{64};
+    std::iota(bin.begin(), bin.end(), 1);
+    auto buffer = migraphx::to_msgpack(bin);
+    EXPECT(buffer == msgpack_buffer(bin));
+    EXPECT(migraphx::from_msgpack(buffer) == bin);
+}
+
+#ifndef MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS
+TEST_CASE(test_msgpack_large_binary1)
+{
+    const std::size_t n   = 4LL * 1024 * 1024 * 1024 + 2;
+    const char fill_value = 2;
+    migraphx::value v;
+    {
+        std::vector<char> buffer;
+        {
+            migraphx::value::binary bin{n};
+            std::fill(bin.begin(), bin.begin() + n / 2, fill_value);
+            std::fill(bin.begin() + n / 2, bin.end(), fill_value + 1);
+            buffer = migraphx::to_msgpack(std::move(bin));
+        }
+        v = migraphx::from_msgpack(buffer);
+    }
+    EXPECT(v.is_binary());
+    EXPECT(v.get_binary().size() == n);
+    EXPECT(std::all_of(v.get_binary().begin(), v.get_binary().begin() + n / 2, [](auto c) {
+        return c == fill_value;
+    }));
+    EXPECT(std::all_of(v.get_binary().begin() + n / 2, v.get_binary().end(), [](auto c) {
+        return c == fill_value + 1;
+    }));
+}
+
+TEST_CASE(test_msgpack_binary2)
+{
+    const std::size_t n = 4LL * 1024 * 1024 * 1024 + 2;
+    migraphx::value::binary bin{n};
+    std::size_t i = 0;
+    std::generate(bin.begin(), bin.end(), [&] {
+        i++;
+        return i % 256;
+    });
+    EXPECT(migraphx::to_msgpack(bin) == msgpack_buffer(bin));
+}
+#endif
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

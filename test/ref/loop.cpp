@@ -21,15 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iostream>
-#include <vector>
-#include <cmath>
-#include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/make_op.hpp>
 
 #include "test.hpp"
 
@@ -125,5 +122,3 @@ TEST_CASE(loop_test4)
     std::vector<int64_t> gold_concat = {5, 9, 14, 20, 0, 0, 0, 0, 0, 0};
     EXPECT(ress.back() == gold_concat);
 }
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }

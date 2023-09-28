@@ -21,4 +21,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-ROCmSoftwarePlatform/rocMLIR@3657f509bfed86bb79d5c6e24aa237e48f09f9f3 -DBUILD_FAT_LIBROCKCOMPILER=On
+ROCmSoftwarePlatform/rocMLIR@2c519c48eaa278d13e6c40bc0941119826d71512 -DBUILD_FAT_LIBROCKCOMPILER=On

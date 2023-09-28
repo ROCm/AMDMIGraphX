@@ -55,7 +55,9 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | --exhaustive-tune                        | Enable exhaustive search to find fastest kernel           |
 | --fp16                                   | Quantize for fp16                                         |
 | --int8                                   | Quantize for int8                                         |
-| --tolerance                              | Tolerance for errors                                      |
+| --rms-tol                                | Tolerance for the RMS error (Default: 0.001)              |
+| --atol                                   | Tolerance for elementwise absolute difference (Default: 0.001) |
+| --rtol                                   | Tolerance for elementwise relative difference (Default: 0.001) |
 | --per-instruction \| -i                  | Verify each instruction                                   |
 | --reduce \| -r                           | Reduce program and verify                                 |
 | --iterations \| -n                       | Number of iterations to run for perf report               |

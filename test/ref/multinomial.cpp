@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <random>
@@ -174,5 +174,6 @@ TEST_CASE(multinomial_dyn_test)
         return static_cast<double>(n) / res_dist_sum;
     });
     // The given test tolerance is about 10x the typical error
-    EXPECT(migraphx::verify::verify_range(norm, res_norm, 100000));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
 }

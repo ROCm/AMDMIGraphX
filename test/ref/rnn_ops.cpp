@@ -21,18 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iostream>
-#include <vector>
-#include <migraphx/literal.hpp>
-#include <migraphx/op/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/onnx.hpp>
-#include <migraphx/make_op.hpp>
-
-#include <migraphx/quantization.hpp>
-#include <migraphx/serialize.hpp>
 
 #include "test.hpp"
 
@@ -150,8 +145,8 @@ TEST_CASE(rnn_forward)
                                          -0.16477929,
                                          -0.11893477};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(lho_data, lho_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lho_data, lho_data_gold));
     }
 
     {
@@ -211,8 +206,8 @@ TEST_CASE(rnn_forward)
                                                  0.44193283,
                                                  -0.16477929,
                                                  -0.11893477};
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     {
@@ -271,8 +266,8 @@ TEST_CASE(rnn_forward)
                                         0};
         std::vector<float> last_output_data_gold{
             0.034457, 0.191679, -0.394683, -0.308897, -0.371446, 0.317082, 0.131042, -0.18736};
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 3 args
@@ -302,7 +297,7 @@ TEST_CASE(rnn_forward)
 
         std::vector<float> last_output_data_gold{
             0.2935145, -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.};
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 
     // seq_len = 1
@@ -349,7 +344,7 @@ TEST_CASE(rnn_forward)
                                         0.31708236,
                                         0.13104209,
                                         -0.18736027};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -443,7 +438,7 @@ TEST_CASE(rnn_reverse)
                                         0.46251031,
                                         -0.20639211,
                                         0.37488942};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // rnn last output as program output
@@ -486,7 +481,7 @@ TEST_CASE(rnn_reverse)
                                                  0.44124447,
                                                  0.14365635,
                                                  0.14803654};
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 
     // rnn hidden states and last hidden state output as program outputs
@@ -549,8 +544,8 @@ TEST_CASE(rnn_reverse)
                                                  0.14365635,
                                                  0.14803654};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 
     // rnn hidden states and last hidden state output as program outputs
@@ -611,8 +606,8 @@ TEST_CASE(rnn_reverse)
         std::vector<float> last_output_data_gold{
             -0.293853, 0.167968, 0.51076, 0.402587, -0.0070999, 0.46251, -0.206392, 0.374889};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 }
 
@@ -723,8 +718,8 @@ TEST_CASE(rnn_bidirectional)
                                                  0.14365635,
                                                  0.14803654};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 
     // last rnn output for program output
@@ -789,8 +784,8 @@ TEST_CASE(rnn_bidirectional)
                                                  0.143656,
                                                  0.148037};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 
     // 4 args
@@ -840,7 +835,7 @@ TEST_CASE(rnn_bidirectional)
                                                  0.14365635,
                                                  0.14803654};
 
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 
     // 3 args
@@ -875,7 +870,7 @@ TEST_CASE(rnn_bidirectional)
             0.2935145,   -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.,
             0.,          0.,          0.,          0.,          0., 0., 0., 0.};
 
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
     }
 
     // concatenation of hidden state for program output
@@ -928,7 +923,7 @@ TEST_CASE(rnn_bidirectional)
                                         -0.20639211,
                                         0.37488942};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -1013,7 +1008,10 @@ TEST_CASE(rnn_fp16)
 
     std::vector<float> last_output_data_gold{
         0.2935145, -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.};
-    EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold, 5e4));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        last_output_data,
+        migraphx::verify::expected{last_output_data_gold},
+        migraphx::verify::tolerance{0.005}));
 }
 
 TEST_CASE(gru_forward)
@@ -1111,7 +1109,7 @@ TEST_CASE(gru_forward)
             0.48523626,  0.60002893,  -0.3969709,  0.43360898,  0.35775262,  0.23280787,
             -0.52179873, -0.21944991, 0.4535257,   -0.13735442, 0.51757574,  0.50380427};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // last output for output
@@ -1157,7 +1155,7 @@ TEST_CASE(gru_forward)
                                         0.51757574,
                                         0.50380427};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // two rnn_last_hs_output operators after gru
@@ -1204,7 +1202,7 @@ TEST_CASE(gru_forward)
                                         0.51757574,
                                         0.50380427};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // last output for output, linear_before_reset = 0
@@ -1250,7 +1248,7 @@ TEST_CASE(gru_forward)
                                         0.6014447,
                                         0.43445644};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -1335,7 +1333,7 @@ TEST_CASE(gru_forward_args)
                                         -0.232523, 0.00214573, 0.231693,   -0.160475,  -0.518952,
                                         0.0467166, 0.12327,    -0.374162,  0.137778,   0.251976};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 4 args (bias is used)
@@ -1378,7 +1376,7 @@ TEST_CASE(gru_forward_args)
                                         -0.416866, 0.377186,  0.32922,    0.162214,  -0.519973,
                                         -0.140072, 0.465076,  -0.229563,  0.500164,  0.195166};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 4 args (ih is used)
@@ -1422,7 +1420,7 @@ TEST_CASE(gru_forward_args)
                                         -0.197,     0.0885705, 0.269396,   -0.0414511, -0.515137,
                                         -0.03075,   0.158326,  -0.296488,  0.177983,   0.519498};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -1524,7 +1522,7 @@ TEST_CASE(gru_forward_actv_funcs)
                                         0.51757574,
                                         0.50380427};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 1 activation function (sigmoid) specified
@@ -1565,7 +1563,7 @@ TEST_CASE(gru_forward_actv_funcs)
                                         0.35652235, 0.6033026,  0.52634895, 0.5815402,  0.3001663,
                                         0.39814138, 0.4354002,  0.4310627,  0.6708563,  0.7509278};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 1 activation function (tanh) specified
@@ -1610,7 +1608,7 @@ TEST_CASE(gru_forward_actv_funcs)
                                         0.65615714,
                                         0.53612584};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // seq length of 1
@@ -1660,7 +1658,7 @@ TEST_CASE(gru_forward_actv_funcs)
                                         0.6104771,
                                         0.79759157};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -1776,8 +1774,8 @@ TEST_CASE(gru_reverse)
                                          0.55703,
                                          0.54711};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(lho_data, lho_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lho_data, lho_data_gold));
     }
 
     // variable input sequence length
@@ -1837,8 +1835,8 @@ TEST_CASE(gru_reverse)
                                          0.558397,
                                          0.664423};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(lho_data, lho_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lho_data, lho_data_gold));
     }
 
     // last output for output, linear_before_reset = 0
@@ -1884,7 +1882,7 @@ TEST_CASE(gru_reverse)
                                         0.646604,
                                         0.463943};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // no activation function specified, so default is used.
@@ -1923,7 +1921,7 @@ TEST_CASE(gru_reverse)
                                         -0.329512, 0.476095,  0.284044,    0.392077, -0.369226,
                                         -0.3275,   -0.027301, 0.143774,    0.655686, 0.782831};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // seq length of 1
@@ -1973,7 +1971,7 @@ TEST_CASE(gru_reverse)
                                         0.610477,
                                         0.797592};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -2104,8 +2102,8 @@ TEST_CASE(gru_bidirectional)
                                          0.0248217,  0.435231,  -0.144448, 0.101531,  -0.111305,
                                          0.381317,   0.468983,  0.230557,  0.348021,  0.180229};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(lho_data, lho_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lho_data, lho_data_gold));
     }
 
     // same input sequence length, but shorter than max squence length
@@ -2173,8 +2171,8 @@ TEST_CASE(gru_bidirectional)
                                          0.0248217,  0.435231,  -0.144448, 0.101531,  -0.111305,
                                          0.381317,   0.468983,  0.230557,  0.348021,  0.180229};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(lho_data, lho_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lho_data, lho_data_gold));
     }
 
     // variable input sequence lengths
@@ -2232,8 +2230,8 @@ TEST_CASE(gru_bidirectional)
                                          -0.0271321, 0.624762,  -0.117084,  0.509115,  -0.0175078,
                                          0.182457,   0.304506,  0.313825,   0.397697,  0.300873};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(lho_data, lho_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lho_data, lho_data_gold));
     }
 
     // last output for output, linear_before_reset = 0
@@ -2273,7 +2271,7 @@ TEST_CASE(gru_bidirectional)
             -0.10688055, -0.4767866, 0.6317833,  0.00286336, 0.53692746,  -0.00617076, 0.04564289,
             -0.18030001, 0.39584228, 0.53879917, 0.384983,   0.2759448,   0.11611474};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -2375,7 +2373,7 @@ TEST_CASE(gru_bidirectional_args)
             0.469122,   -0.306578,  -0.221095, -0.106449, -0.248934,  -0.00682121, 0.288407,
             0.198708,   0.0695644,  0.211621,  0.00246037};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 4 args (bias is used)
@@ -2426,7 +2424,7 @@ TEST_CASE(gru_bidirectional_args)
             0.476508,  -0.313413,  -0.0361821, -0.173037, -0.235731,  -0.163113,  0.349008,
             0.248674,  -0.0295413, 0.291437,   -0.165005};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 4 args (ih is used)
@@ -2474,7 +2472,7 @@ TEST_CASE(gru_bidirectional_args)
             0.233106,   0.32996,    -0.17175,   0.0190231,   -0.154805, -0.205631, -0.405354,
             0.519054,   -0.380409,  -0.0350301, -0.00633752, 0.403791,  0.181883,  -0.0977917,
             -0.0339407, 0.413089,   0.721238,   0.431879};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -2588,7 +2586,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                                         0.0248217,  0.435231,  -0.144448, 0.101531,  -0.111305,
                                         0.381317,   0.468983,  0.230557,  0.348021,  0.180229};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 1 activation function (sigmoid) specified
@@ -2631,7 +2629,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
             0.463795, 0.539649, 0.487682, 0.554471, 0.395916, 0.430744, 0.415923, 0.424275,
             0.409655, 0.698256, 0.126883, 0.554374, 0.216137, 0.671491, 0.263833, 0.0678646,
             0.132732, 0.477083, 0.802206, 0.626802};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 1 activation function (tanh) specified
@@ -2675,7 +2673,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
             0.66716,   -0.704461,   -0.393346,  -0.627123,  0.210395,  0.0563026,  0.31419,
             0.759629,  0.000258222, 0.350835,   -0.682684};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 3 activation functions specified
@@ -2715,7 +2713,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                                         1.15142,  0.457633, 0.300962,  0.361245,   0.666199,
                                         0.330446, 0.301982, -0.443763, -0.0655817, -0.326473,
                                         0.861394, 0.560799, -0.101768, 0.145142,   0.128956};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // 4 activation functions all specified
@@ -2763,7 +2761,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
             0.648851,  -0.395918,  0.231694,   -0.160503, 0.383289,   0.0879262,  -0.0254665,
             0.079043,  0.322652,   0.752701,   0.243775};
 
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -2878,7 +2876,7 @@ TEST_CASE(gru_bidirectional_seq_1)
                                     -0.0271321, 0.624762,   -0.117084,  0.509115,   -0.0175078,
                                     -0.144492,  -0.0115366, 0.409153,   0.487015,   0.550755};
 
-    EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+    EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
 }
 
 TEST_CASE(gru_fp16)
@@ -2988,7 +2986,8 @@ TEST_CASE(gru_fp16)
                                     -0.3969709,  0.43360898, 0.35775262,  0.23280787, -0.52179873,
                                     -0.21944991, 0.4535257,  -0.13735442, 0.51757574, 0.50380427};
 
-    EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold, 5e4));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        hs_data, migraphx::verify::expected{hs_data_gold}, migraphx::verify::tolerance{0.005}));
 }
 
 TEST_CASE(lstm_forward)
@@ -3119,7 +3118,7 @@ TEST_CASE(lstm_forward)
             0.0498799, 0.125772,   0.0533032,  -0.131413,   0.0988431,  -0.018085,  -0.159434,
             0.030266,  -0.0847427, 0.0874114,  0.304256,    -0.0585745, -0.0223018, 0.131113,
             0.135643,  -0.0566208, 0.142701,   0.0342236,   -0.198664,  0.0702607};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // forward, last_output as program output
@@ -3172,7 +3171,7 @@ TEST_CASE(lstm_forward)
                                             0.0342236,
                                             -0.198664,
                                             0.0702607};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // forward, last_cell_output as program output
@@ -3225,7 +3224,7 @@ TEST_CASE(lstm_forward)
                                             0.078598,
                                             -0.64457,
                                             0.119811};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 }
 
@@ -3347,7 +3346,7 @@ TEST_CASE(lstm_forward_more)
             0.00496085, 0.0662588,  -0.048577,  -0.187329,  0.0855831,  -0.0171894,  -0.140202,
             0.0828391,  -0.165194,  -0.0372928, 0.273786,   -0.100877,  -0.0458544,  -0.0401315,
             0.0737483,  -0.064505,  0.136898,   0.00160891, -0.184812,  0.147774};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // forward, 8 args
@@ -3396,7 +3395,7 @@ TEST_CASE(lstm_forward_more)
             0.218258,   0.0944405,  0.0431211,  -0.132394, 0.103489,   0.0142918,  -0.123408,
             0.0401075,  -0.058052,  0.0795391,  0.266617,  -0.0128746, 0.0309878,  0.0971544,
             0.149294,   -0.0492549, 0.187761,   0.0501726, -0.121584,  0.0606723};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
     // forward, last_output as program output, sequence length shorter
@@ -3458,7 +3457,7 @@ TEST_CASE(lstm_forward_more)
                                             0.0342236,
                                             -0.198664,
                                             0.0702607};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // seq_len = 1
@@ -3516,7 +3515,7 @@ TEST_CASE(lstm_forward_more)
                                         -0.121195,
                                         -0.4065,
                                         -0.252054};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 }
 
@@ -3646,7 +3645,7 @@ TEST_CASE(lstm_reverse)
             0.960938,  0.133565,  0.269741,   0.130438,  -0.0252804, 0.267356,   0.146353,
             0.0789186, -0.185038, -0.026845,  0.177273,  -0.0774616, 0.946669,   0.0868676,
             0.044508,  -0.373961, -0.0681467, 0.382748,  0.230211,   -0.161537};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // reverse, sequence lengths are the same, but less than max_seq_lens
@@ -3704,7 +3703,7 @@ TEST_CASE(lstm_reverse)
             0.0,       0.0,       0.0,        0.0,       0.0,        0.0,        0.0,
             0.0,       0.0,       0.0,        0.0,       0.0,        0.0,        0.0,
             0.0,       0.0};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // variable sequence lengths
@@ -3754,7 +3753,7 @@ TEST_CASE(lstm_reverse)
             0,         0,          0,        0,          0,         0,         0,
             0,         0,          0,        0,          0,         0,         0,
             0,         0,          0,        0,          0,         0};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // reverse, 3 args, last cell output as program output
@@ -3796,7 +3795,7 @@ TEST_CASE(lstm_reverse)
                                             0.141613,
                                             0.348002,
                                             0.667298};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // reverse, 3 args, 0 actv function
@@ -3835,7 +3834,7 @@ TEST_CASE(lstm_reverse)
                                             0.141613,
                                             0.348002,
                                             0.667298};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 }
 
@@ -3953,7 +3952,7 @@ TEST_CASE(lstm_reverse_actv)
             0.310306, 0.262902, 0.276964, 0.295002, 0.373802, 0.366785, 0.419791, 0.393216,
             0.262827, 0.371441, 0.369022, 0.298262, 0.334143, 0.309444, 0.174822, 0.251634,
             0.244564, 0.214386, 0.185994, 0.226699, 0.28445,  0.376092, 0.338326, 0.259502};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // reverse, 3 args, 2 actv functions
@@ -3994,7 +3993,7 @@ TEST_CASE(lstm_reverse_actv)
                                             0.233866,
                                             0.48646,
                                             0.481844};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // reverse, 3 args, seq_len = 1, concatenation of hidden states as program output
@@ -4040,7 +4039,7 @@ TEST_CASE(lstm_reverse_actv)
                                             0.070535,
                                             0.327809,
                                             0.407388};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 }
 
@@ -4167,7 +4166,7 @@ TEST_CASE(lstm_bidirectional)
             0.0971544,  0.149294,   -0.0492549,  0.187761,   0.0501726,  -0.121584,  0.0606723,
             -0.185038,  -0.026845,  0.177273,    -0.0774616, 0.946669,   0.0868676,  0.044508,
             -0.373961,  -0.0681467, 0.382748,    0.230211,   -0.161537};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // last hidden state as program output
@@ -4210,7 +4209,7 @@ TEST_CASE(lstm_bidirectional)
             -0.058052, 0.0795391, 0.266617,  -0.0128746, 0.0309878, 0.0971544, 0.149294, -0.0492549,
             0.187761,  0.0501726, -0.121584, 0.0606723,  -0.120174, 0.043157,  0.117138, -0.222188,
             0.789732,  0.128538,  0.20909,   0.0553812,  -0.224905, 0.32421,   0.344048, 0.271694};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // last cell output as program output
@@ -4253,7 +4252,7 @@ TEST_CASE(lstm_bidirectional)
             -0.077353, 0.245616, 0.361023,  -0.0443759, 0.0685243, 0.20465,  0.277867, -0.112934,
             0.67312,   0.120508, -0.726968, 0.113845,   -0.889294, 0.182463, 0.186512, -0.402334,
             1.48161,   0.524116, 0.347113,  0.181813,   -0.434265, 0.747833, 0.416053, 0.558713};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // 3 args, concatenation of hidden states as program output
@@ -4296,7 +4295,7 @@ TEST_CASE(lstm_bidirectional)
             -0.0401315, 0.0737483,  -0.064505, 0.136898,   0.00160891,  -0.184812,   0.147774,
             -0.021205,  -0.125423,  0.0206439, -0.187097,  -0.0051453,  -0.0767618,  -0.0735348,
             -0.0826436, 0.214159,   0.262295,  0.0247127,  0.14472};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // sequence length is 1, contenation of hidden state as program output
@@ -4333,7 +4332,7 @@ TEST_CASE(lstm_bidirectional)
             -0.0623361, 0.0598866,  0.101585,   0.0687269,  -0.161725, -0.25617,
             -0.104351,  -0.0471426, -0.0905753, 0.01506,    0.059797,  0.104239,
             -0.0266768, 0.0727547,  -0.146298,  0.070535,   0.327809,  0.407388};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 }
 
@@ -4485,9 +4484,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             0.391174, 0.0308845, -0.561745, 0.0730323, -0.326822, 0.301121, 0.219523,  0.415242,
             2.08242,  0.442513,  0.187127,  0.0577626, -0.611307, 0.55454,  0.4364,    0.509436};
 
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
-        EXPECT(migraphx::verify::verify_range(last_output_data, last_output_data_gold));
-        EXPECT(migraphx::verify::verify_range(last_cell_data, last_cell_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(last_cell_data, last_cell_data_gold));
     }
 
     // last cell output as program output
@@ -4572,9 +4571,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             -0.077353, 0.245616, 0.361023,  -0.0443759, 0.0685243, 0.20465,  0.277867, -0.112934,
             0.67312,   0.120508, -0.726968, 0.113845,   -0.889294, 0.182463, 0.186512, -0.402334,
             1.48161,   0.524116, 0.347113,  0.181813,   -0.434265, 0.747833, 0.416053, 0.558713};
-        EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold));
-        EXPECT(migraphx::verify::verify_range(lho_data, lho_data_gold));
-        EXPECT(migraphx::verify::verify_range(lco_data, lco_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lho_data, lho_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(lco_data, lco_data_gold));
     }
 }
 
@@ -4659,7 +4658,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
             -0.0401315, 0.0737483,  -0.064505, 0.136898,   0.00160891,  -0.184812,   0.147774,
             -0.021205,  -0.125423,  0.0206439, -0.187097,  -0.0051453,  -0.0767618,  -0.0735348,
             -0.0826436, 0.214159,   0.262295,  0.0247127,  0.14472};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // 3 args, 1 actv func
@@ -4699,7 +4698,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
             0.450186, 0.263538, 0.402895, 0.216177, 0.267257, 0.342535, 0.257797, 0.268563,
             0.193043, 0.275645, 0.167678, 0.350889, 0.334143, 0.309444, 0.174822, 0.251634,
             0.244564, 0.214386, 0.185994, 0.226699, 0.28445,  0.376092, 0.338326, 0.259502};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // 3 args, 2 actv func
@@ -4732,7 +4731,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
             0.0737483, -0.064505,   0.136898,    0.00160891, -0.184812,  0.147774,
             -0.162851, -0.102647,   -0.113827,   -0.142818,  0.0513685,  0.0547876,
             0.0201981, -0.00808453, -0.00520328, 0.0945081,  0.264123,   0.410805};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // 3 args, 4 actv func
@@ -4768,7 +4767,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
             0.0737483, -0.064505,  0.136898, 0.00160891, -0.184812,  0.147774,
             0.246078,  0.199709,   0.303753, 0.301178,   0.264634,   0.304661,
             0.349371,  0.288934,   0.405483, 0.445586,   0.515814,   0.473186};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // 3 args, 5 actv func
@@ -4804,7 +4803,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
             0.0737483, -0.064505,   0.136898,    0.00160891, -0.184812,  0.147774,
             -0.162851, -0.102647,   -0.113827,   -0.142818,  0.0513685,  0.0547876,
             0.0201981, -0.00808453, -0.00520328, 0.0945081,  0.264123,   0.410805};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
     // 3 args, 6 actv func
@@ -4841,7 +4840,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
             0.0737483, -0.064505,   0.136898,    0.00160891, -0.184812,  0.147774,
             -0.162851, -0.102647,   -0.113827,   -0.142818,  0.0513685,  0.0547876,
             0.0201981, -0.00808453, -0.00520328, 0.0945081,  0.264123,   0.410805};
-        EXPECT(migraphx::verify::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 }
 
@@ -4986,5 +4985,5 @@ TEST_CASE(lstm_fp16)
         0.0498799, 0.125772,   0.0533032,  -0.131413,   0.0988431,  -0.018085,  -0.159434,
         0.030266,  -0.0847427, 0.0874114,  0.304256,    -0.0585745, -0.0223018, 0.131113,
         0.135643,  -0.0566208, 0.142701,   0.0342236,   -0.198664,  0.0702607};
-    EXPECT(migraphx::verify::verify_range(hs_data, hs_data_gold, 5e4));
+    EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold, 5e4));
 }

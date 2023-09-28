@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
@@ -73,14 +73,14 @@ TEST_CASE(roialign_out_of_bound_test)
     };
 
     {
-        auto p = create_program("output_half_pixel");
+        auto p = create_program("half_pixel");
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold = {0.0f, 0.0f, 0.0f};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }
 
@@ -130,7 +130,7 @@ TEST_CASE(roialign_test)
     };
 
     {
-        auto p = create_program();
+        auto p = create_program("output_half_pixel");
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -150,11 +150,11 @@ TEST_CASE(roialign_test)
             0.256580025, 0.214098021, 0.279604018, 0.360000014, 0.436488032, 0.350427985,
             0.288755983, 0.366139978, 0.234920025};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 
     {
-        auto p = create_program("output_half_pixel");
+        auto p = create_program("half_pixel");
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -171,11 +171,11 @@ TEST_CASE(roialign_test)
             0.929997, 0.66257,  0.561664, 0.481275, 0.495449, 0.666306, 0.663573, 0.372107,
             0.205603, 0.192776, 0.247849};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 
     {
-        auto p = create_program("output_half_pixel", migraphx::op::pooling_mode::max, 0);
+        auto p = create_program("half_pixel", migraphx::op::pooling_mode::max, 0);
         p.compile(migraphx::make_target("ref"));
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -192,6 +192,6 @@ TEST_CASE(roialign_test)
             0.44757,  0.351855, 0.342265,  0.244475, 0.274841, 0.553644, 0.607176,  0.202392,
             0.07425,  0.066087, 0.126279};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }

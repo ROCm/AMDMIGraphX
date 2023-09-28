@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -61,7 +61,7 @@ TEST_CASE(logsoftmax_test_axis_0)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, s));
 }
 
 TEST_CASE(logsoftmax_test_axis_1)
@@ -95,7 +95,7 @@ TEST_CASE(logsoftmax_test_axis_1)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, s));
 }
 
 TEST_CASE(logsoftmax_test_axis_2)
@@ -129,7 +129,7 @@ TEST_CASE(logsoftmax_test_axis_2)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, s));
 }
 
 TEST_CASE(logsoftmax_test_axis_3)
@@ -163,5 +163,5 @@ TEST_CASE(logsoftmax_test_axis_3)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, s));
 }

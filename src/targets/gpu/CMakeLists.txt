@@ -23,6 +23,10 @@
 # ####################################################################################
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
+find_package(hip)
+if(NOT GPU_TARGETS)
+    message(FATAL_ERROR "HIP package is broken and has no GPU_TARGETS, please pass -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to cmake to build for your gpu.")
+endif()
 find_package(miopen)
 
 # rocblas
@@ -50,6 +54,7 @@ file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
+configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
@@ -69,6 +74,7 @@ rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)

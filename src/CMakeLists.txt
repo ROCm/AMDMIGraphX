@@ -96,6 +96,7 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     simplify_algebra.cpp
+    simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
     target.cpp
@@ -142,6 +143,7 @@ register_migraphx_ops(
     equal
     erf
     exp
+    fill
     flatten
     floor
     fmod
@@ -195,6 +197,7 @@ register_migraphx_ops(
     reduce_sum
     relu
     reshape
+    reshape_lazy
     reverse
     rnn
     rnn_last_cell_output

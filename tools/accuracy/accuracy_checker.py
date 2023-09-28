@@ -232,8 +232,9 @@ def main():
 
         if args.fp16:
             fp32_model = onnx.load(model_name)
-            fp16_model = float16.convert_float_to_float16(fp32_model,keep_io_types=True)
-            new_model_name = model_name.replace('.onnx','_fp16.onnx')
+            fp16_model = float16.convert_float_to_float16(fp32_model,
+                                                          keep_io_types=True)
+            new_model_name = model_name.replace('.onnx', '_fp16.onnx')
             onnx.save(fp16_model, new_model_name)
             model_name = new_model_name
 

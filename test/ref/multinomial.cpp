@@ -98,9 +98,10 @@ TEST_CASE(multinomial_dyn_test)
     auto* mm = p.get_main_module();
 
     size_t sample_size = 1000000;
+    size_t batch_size  = 2;
 
     //      Shape of the random data
-    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {2, sample_size + 1}}};
+    migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {batch_size, sample_size + 1}}};
     auto input = mm->add_parameter("Input_1", rs);
 
     // Runtime randomization seed
@@ -111,7 +112,7 @@ TEST_CASE(multinomial_dyn_test)
     auto seed_input = mm->add_parameter("Seed", seed_shape);
 
     // Shape of the probability distribution, which also defines the number of categories
-    migraphx::shape s{migraphx::shape::float_type, {{1, 1}, {5, 6}}};
+    migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {5, 6}}};
     std::vector<int> dist{15, 25, 15, 25, 20};
     std::vector<float> data(5);
 
@@ -137,8 +138,10 @@ TEST_CASE(multinomial_dyn_test)
     p.compile(migraphx::make_target("ref"));
 
     // Create a dummy input in the shape we want for the random data
-    std::vector<float> dummy(sample_size, 0);
-    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, sample_size}};
+    std::vector<float> dummy(batch_size * sample_size, 0);
+    std::vector<size_t> lens{
+        1, batch_size, sample_size}; // TODO:  this only works when more than 2 dimensions.
+    migraphx::shape input_fixed_shape1{migraphx::shape::float_type, lens};
     migraphx::shape input_fixed_shape2{migraphx::shape::float_type, {1, 5}};
     migraphx::parameter_map params0;
     params0["Input_1"] = migraphx::argument(input_fixed_shape1, dummy.data());

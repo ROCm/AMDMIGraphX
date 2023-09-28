@@ -33,9 +33,9 @@
 TEST_CASE(softmax_simple_test)
 {
     migraphx::program p;
-    auto* mm             = p.get_main_module();
-    std::vector<float> a = {0.25, 0.75};
-    std::vector<float> s = {0.377541, 0.622459};
+    auto* mm                = p.get_main_module();
+    std::vector<float> a    = {0.25, 0.75};
+    std::vector<float> gold = {0.377541, 0.622459};
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
     mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), al);
@@ -43,7 +43,7 @@ TEST_CASE(softmax_simple_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(softmax_test)
@@ -76,7 +76,7 @@ TEST_CASE(softmax_test)
         2.02392387e+00,  -9.42091495e-02, -3.77683818e-01, 2.05638766e+00,  2.93796062e-01,
         -6.02131486e-01, 2.70461679e-01,  -8.92358482e-01, 1.04388881e+00,  2.66154885e-01};
 
-    std::vector<float> s = {
+    std::vector<float> gold = {
         0.30191708, 0.59879845, 0.50029165, 0.24915339, 0.36823985, 0.13190967, 0.0349741,
         0.18750034, 0.21905553, 0.27000085, 0.0547399,  0.56318235, 0.47422904, 0.78964758,
         0.91381913, 0.44601166, 0.47902739, 0.13120073, 0.4449684,  0.18766427, 0.15753111,
@@ -103,7 +103,7 @@ TEST_CASE(softmax_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(120);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(softmax_dyn_test)
@@ -147,7 +147,7 @@ TEST_CASE(softmax_dyn_test)
     auto result = p.eval(params).back();
     std::vector<float> results_vector(120);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> s = {
+    std::vector<float> gold = {
         0.30191708, 0.59879845, 0.50029165, 0.24915339, 0.36823985, 0.13190967, 0.0349741,
         0.18750034, 0.21905553, 0.27000085, 0.0547399,  0.56318235, 0.47422904, 0.78964758,
         0.91381913, 0.44601166, 0.47902739, 0.13120073, 0.4449684,  0.18766427, 0.15753111,
@@ -166,5 +166,5 @@ TEST_CASE(softmax_dyn_test)
         0.13268511, 0.61795473, 0.49703068, 0.41696799, 0.10175809, 0.71028161, 0.29929739,
         0.17377149, 0.76075399, 0.20071237, 0.32632929, 0.36892858, 0.09416146, 0.26656723,
         0.42914796};
-    EXPECT(migraphx::verify::verify_range(results_vector, s));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

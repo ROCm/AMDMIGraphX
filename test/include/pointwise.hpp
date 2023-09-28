@@ -24,16 +24,16 @@
 #ifndef MIGRAPHX_GUARD_TEST_INCLUDE_POINTWISE_HPP
 #define MIGRAPHX_GUARD_TEST_INCLUDE_POINTWISE_HPP
 
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 
 template <class F>
-migraphx::instruction_ref add_pointwise(migraphx::program& p,
-                                        migraphx::module_ref mm,
-                                        const std::string& name,
-                                        std::vector<migraphx::instruction_ref> inputs,
-                                        F f)
+migraphx::module_ref create_pointwise_module(migraphx::program& p,
+                                             const std::string& name,
+                                             std::vector<migraphx::instruction_ref> inputs,
+                                             F f)
 {
     auto* pm = p.create_module(name);
     pm->set_bypass();
@@ -44,6 +44,17 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
     });
     auto r = f(pm, params);
     pm->add_return({r});
+    return pm;
+}
+
+template <class F>
+migraphx::instruction_ref add_pointwise(migraphx::program& p,
+                                        migraphx::module_ref mm,
+                                        const std::string& name,
+                                        std::vector<migraphx::instruction_ref> inputs,
+                                        F f)
+{
+    auto* pm = create_pointwise_module(p, name, inputs, f);
     return mm->add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
 }
 

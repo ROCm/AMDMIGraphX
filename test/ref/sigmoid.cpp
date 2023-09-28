@@ -44,7 +44,7 @@ TEST_CASE(sigmoid_test)
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{sigmoid(-1), sigmoid(2), sigmoid(-3), sigmoid(4)};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(sigmoid_dyn_test)
@@ -64,5 +64,5 @@ TEST_CASE(sigmoid_dyn_test)
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{sigmoid(-1), sigmoid(2), sigmoid(-3), sigmoid(4)};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

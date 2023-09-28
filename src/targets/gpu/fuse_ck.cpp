@@ -234,7 +234,6 @@ struct find_ck_gemm_softmax_gemm
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        std::cout << "Matched GSG" << std::endl;
         auto ins       = r.result;
         auto gemm2_ins = r.instructions["gemm2"];
         auto gemm1_ins = r.instructions["gemm1"];
@@ -244,7 +243,7 @@ struct find_ck_gemm_softmax_gemm
             return;
 
         double scale = 1.0;
-        scale_lit->get_literal().visit([&](const auto s) {
+        scale_lit->eval().visit([&](const auto s) {
             // CK only supports single-valued scale
             if(std::all_of(
                    s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))

@@ -33,6 +33,18 @@
 
 namespace migraphx {
 
+template <class T>
+struct ck_gemm_softmax_gemm_settings
+{
+    T scale{};
+};
+
+template <class... Ts>
+constexpr ck_gemm_softmax_gemm_settings<Ts...> make_ck_gemm_softmax_gemm_settings(Ts... xs)
+{
+    return {xs...};
+}
+
 template <class G, class C, class A, class B, class B1, class Settings>
 __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1, Settings s)
 {

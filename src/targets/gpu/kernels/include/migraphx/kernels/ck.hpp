@@ -165,18 +165,6 @@ template <class Tensor>
 using ck_transposeb = decltype(make_shape(ck_transposeb_dims(get_shape_c<Tensor>{}.lens),
                                           ck_transposeb_dims(get_shape_c<Tensor>{}.strides)));
 
-template <class T>
-struct ck_gemm_softmax_gemm_settings
-{
-    T scale{};
-};
-
-template <class... Ts>
-constexpr ck_gemm_softmax_gemm_settings<Ts...> make_ck_gemm_softmax_gemm_settings(Ts... xs)
-{
-    return {xs...};
-}
-
 #ifdef MIGRAPHX_CK_CHECK
 #define MIGRAPHX_CK_STATIC_ASSERT static_assert
 #else

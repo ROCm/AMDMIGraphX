@@ -1700,8 +1700,7 @@ TEST_CASE(depthtospace_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp2);
     auto prog = optimize_onnx("depthtospace_test.onnx");
     EXPECT(p == prog);
 }
@@ -1715,8 +1714,7 @@ TEST_CASE(depthtospace_crd_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 5, 3}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp2);
     auto prog = optimize_onnx("depthtospace_crd_test.onnx");
     EXPECT(p == prog);
 }
@@ -1730,8 +1728,7 @@ TEST_CASE(depthtospace_simple_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 2, 2, 3}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4, 6}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4, 6}}}), tmp2);
     auto prog = optimize_onnx("depthtospace_simple_test.onnx");
     EXPECT(p == prog);
 }
@@ -1745,8 +1742,7 @@ TEST_CASE(spacetodepth_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 5, 2, 5, 2}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 5, 1, 2, 4}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 5, 5}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 5, 5}}}), tmp2);
     auto prog = optimize_onnx("spacetodepth_test.onnx");
     EXPECT(p == prog);
 }
@@ -1760,8 +1756,7 @@ TEST_CASE(spacetodepth_simple_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 2, 3, 2}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 5, 1, 2, 4}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 2, 3}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 2, 3}}}), tmp2);
     auto prog = optimize_onnx("spacetodepth_simple_test.onnx");
     EXPECT(p == prog);
 }

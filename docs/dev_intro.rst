@@ -131,7 +131,7 @@ In this case, we can create `argument <migraphx::argument>` objects directly fro
     std::vector<float> results_vector(64);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(results_vector, sol));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, sol));
 
 An `argument <migraphx::argument>` can handle memory buffers from either the GPU or the CPU.
 By default when running the `program <migraphx::program>`, buffers are allocated on the corresponding target.

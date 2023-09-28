@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,17 @@
 #####################################################################################
 import migraphx
 import ctypes
-
+import os
 
 def test_conv_relu():
-    hip = ctypes.cdll.LoadLibrary("libamdhip64.so")
+    library = "libamdhip64.so"
+
+    # Full path of the library is specified to fix
+    # an issue on sles where the library is not loaded otherwise.
+    if os.path.exists("/opt/rocm/lib/libamdhip64.so"):
+        library = "/opt/rocm/lib/libamdhip64.so"
+
+    hip = ctypes.cdll.LoadLibrary(library)
 
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)

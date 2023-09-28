@@ -337,6 +337,7 @@ jobs:
     steps:
     - name: Free space
       uses: jlumbroso/free-disk-space@main
+      continue-on-error: true
       with:
         tool-cache: true
         android: true

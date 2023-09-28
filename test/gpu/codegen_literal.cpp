@@ -80,7 +80,7 @@ TEST_CASE(mul_literal_round_test)
     migraphx::target gpu_t = migraphx::make_target("gpu");
     run_prog(p, gpu_t, m, gpu_result);
 
-    EXPECT(migraphx::verify::verify_range(ref_result, gpu_result));
+    EXPECT(migraphx::verify::verify_rms_range(gpu_result, ref_result));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

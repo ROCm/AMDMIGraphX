@@ -109,7 +109,7 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true)
     }
-}, clang_release: rocmnode('cdna') { cmake_build ->
+}, clang_release: rocmnode('mi100+') { cmake_build ->
     stage('Hip Clang Release') {
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
@@ -159,13 +159,14 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('cdna') { cmake_build ->
+rocmtest onnx: onnxnode('mi100+') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half
             #ls -lR
             md5sum ./build/*.deb
             dpkg -i ./build/*.deb
+            env
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''
     }

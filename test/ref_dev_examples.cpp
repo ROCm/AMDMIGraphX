@@ -140,24 +140,6 @@ TEST_CASE(handling_tensors)
         -0.06269585, 0.18658121,  -0.03944227, 0.0111798,   -0.17731084, 0.11789055,  -0.09982193,
         0.08142821,  0.0729029,   0.11303909,  0.12735154,  0.03885292};
 
-    // Solution vector
-    std::vector<float> sol = {-0.20817225,
-                              0.87965256,
-                              0.14958936,
-                              -1.24887264,
-                              -0.06540672,
-                              0.20778663,
-                              0.40456355,
-                              -0.99900877,
-                              0.4917807,
-                              0.1994698,
-                              0.64205718,
-                              0.37798831,
-                              -0.25315839,
-                              0.44276932,
-                              -0.16138598,
-                              0.79344082};
-
     // Create the arguments in a parameter_map
     migraphx::parameter_map params;
     params["X"] = migraphx::argument(input_shape, a.data());
@@ -167,8 +149,25 @@ TEST_CASE(handling_tensors)
     auto result = p.eval(params).back();
     std::vector<float> results_vector(64);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    // Solution vector
+    std::vector<float> gold = {-0.20817225,
+                               0.87965256,
+                               0.14958936,
+                               -1.24887264,
+                               -0.06540672,
+                               0.20778663,
+                               0.40456355,
+                               -0.99900877,
+                               0.4917807,
+                               0.1994698,
+                               0.64205718,
+                               0.37798831,
+                               -0.25315839,
+                               0.44276932,
+                               -0.16138598,
+                               0.79344082};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, sol));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

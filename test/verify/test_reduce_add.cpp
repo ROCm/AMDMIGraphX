@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-void optimize_module::apply(module_pass_manager& mpm) const
+struct test_reduce_add : verify_program<test_reduce_add>
 {
-    for(int i = 0; i < 2; i++)
+    migraphx::program create_program() const
     {
-        // loop to further optimize after initial transformations
-        for(int j = 0; j < 2; j++)
-        {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(simplify_algebra{});
-        }
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{});
-        mpm.run_pass(dead_code_elimination{});
-    }
-}
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {4, 1000, 2, 2}};
+        migraphx::shape bs{migraphx::shape::half_type, {1, 32, 128}};
+        auto x = mm->add_parameter("x", s);
+        auto reduce_mean =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+        auto reduce_max =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2, 3}}}), x);
+        auto add = mm->add_instruction(migraphx::make_op("add"), reduce_mean, reduce_max);
+        mm->add_return({add});
+        return p;
+    };
+};

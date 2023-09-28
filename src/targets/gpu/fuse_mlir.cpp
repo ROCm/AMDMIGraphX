@@ -327,12 +327,12 @@ struct find_mlir_standalone_op
 
 struct find_mlir_standalone_convolution_op : find_mlir_standalone_op
 {
-    auto matcher() const { return match::name("convolution"); }
+    auto matcher() const { return is_mlir_conv; }
 };
 
 struct find_mlir_standalone_dot_op : find_mlir_standalone_op
 {
-    auto matcher() const { return match::name("dot"); }
+    auto matcher() const { return match::any_of(match::name("dot"), match::name("quant_dot")); }
 };
 
 /**
@@ -365,7 +365,7 @@ bool is_enabled(std::string_view op_name, context* ctx)
         {
             return true;
         }
-        else if(op_name == "convolution")
+        else if(op_name == "convolution" or op_name == "quant_convolution")
         {
             if(ctx == nullptr)
             {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,7 @@
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/reshape_lazy.hpp>
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
@@ -89,7 +90,6 @@ struct miopen_apply
         offload_copy   = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
-
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("logsoftmax");
@@ -115,6 +115,7 @@ struct miopen_apply
         add_neg_op();
         add_nms_op();
         add_select_module_op();
+        add_reshape_lazy_op();
     }
 
     void copy_params() const
@@ -374,6 +375,32 @@ struct miopen_apply
             std::vector<instruction_ref> inputs = ins->inputs();
             inputs.push_back(output);
             return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        });
+    }
+
+    /**
+     *  Adds reshape lazy to reshape ops that can be aliased instead of copied.
+     *  `gpu::contiguous` are added before and after the reshape; these contiguous
+     *  instructions can be removed by the eliminate_contiguous pass.
+     */
+    void add_reshape_lazy_op()
+    {
+        apply_map.emplace("reshape", [=](instruction_ref ins) {
+            std::vector<instruction_ref> before_contiguous_args = ins->inputs();
+            auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
+            before_contiguous_args.push_back(before_alloc);
+            auto before_contig =
+                mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
+
+            auto new_lazy_reshape = mod->insert_instruction(
+                ins,
+                make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+                before_contig);
+
+            std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
+            auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+            after_contiguous_args.push_back(after_alloc);
+            return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
         });
     }
 };
